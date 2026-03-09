@@ -1,7 +1,7 @@
 import 'package:flutter_tts/flutter_tts.dart';
 
-/// Text-to-Speech サービス
-/// アシスタントメッセージの読み上げを管理
+/// Text-to-Speech service
+/// Manages reading aloud of assistant messages
 class TtsService {
   final FlutterTts _tts = FlutterTts();
   bool _isSpeaking = false;
@@ -10,7 +10,7 @@ class TtsService {
   bool get isSpeaking => _isSpeaking;
   bool get isInitialized => _isInitialized;
 
-  /// 初期化
+  /// Initialize
   Future<void> init() async {
     if (_isInitialized) return;
 
@@ -33,13 +33,13 @@ class TtsService {
 
     _tts.setErrorHandler((msg) {
       _isSpeaking = false;
-      print('[TTS] エラー: $msg');
+      print('[TTS] Error: $msg');
     });
 
     _isInitialized = true;
   }
 
-  /// テキストを読み上げる
+  /// Speak the given text
   Future<void> speak(String text) async {
     if (!_isInitialized) await init();
     if (_isSpeaking) await stop();
@@ -50,30 +50,30 @@ class TtsService {
     await _tts.speak(text);
   }
 
-  /// 読み上げを停止
+  /// Stop speaking
   Future<void> stop() async {
     _isSpeaking = false;
     await _tts.stop();
   }
 
-  /// 読み上げ速度を設定 (0.5 - 2.0)
+  /// Set speech rate (0.5 - 2.0)
   Future<void> setSpeechRate(double rate) async {
     final clampedRate = rate.clamp(0.5, 2.0);
     await _tts.setSpeechRate(clampedRate);
   }
 
-  /// 言語を設定
+  /// Set language
   Future<void> setLanguage(String language) async {
     await _tts.setLanguage(language);
   }
 
-  /// 利用可能な言語を取得
+  /// Get available languages
   Future<List<String>> getAvailableLanguages() async {
     final languages = await _tts.getLanguages;
     return languages.cast<String>();
   }
 
-  /// リソースを解放
+  /// Release resources
   Future<void> dispose() async {
     await stop();
   }
