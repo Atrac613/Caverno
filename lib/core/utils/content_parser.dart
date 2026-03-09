@@ -1,9 +1,9 @@
 import 'dart:convert';
 
-/// コンテンツセグメントの種類
+/// Content segment types
 enum ContentType { text, thinking, toolCall }
 
-/// ツール呼び出しデータ
+/// Tool call data
 class ToolCallData {
   final String name;
   final Map<String, dynamic> arguments;
@@ -19,7 +19,7 @@ class ToolCallData {
   String toString() => 'ToolCallData(name: $name, arguments: $arguments)';
 }
 
-/// コンテンツセグメント
+/// Content segment
 class ContentSegment {
   final ContentType type;
   final String content;
@@ -36,7 +36,7 @@ class ContentSegment {
       'ContentSegment(type: $type, content: ${content.length > 50 ? '${content.substring(0, 50)}...' : content})';
 }
 
-/// 解析結果
+/// Parse result
 class ParseResult {
   final List<ContentSegment> segments;
   final bool hasIncompleteTag;
@@ -49,10 +49,10 @@ class ParseResult {
   });
 }
 
-/// コンテンツパーサー
-/// LLM応答に含まれる<think>や<tool_call>タグを解析する
+/// Content parser
+/// Parses <think> and <tool_call> tags in LLM responses
 class ContentParser {
-  // 完全なタグを検出するRegex
+  // Regex to detect complete tags
   static final _thinkPattern = RegExp(
     r'<(think|thinking)>(.*?)</(think|thinking)>',
     dotAll: true,
@@ -68,7 +68,7 @@ class ContentParser {
     dotAll: true,
   );
 
-  // 不完全なタグを検出するパターン
+  // Patterns to detect incomplete tags
   static final _incompleteThinkStart = RegExp(
     r'<(think|thinking)>(?!.*</(think|thinking)>).*$',
     dotAll: true,
@@ -84,10 +84,10 @@ class ContentParser {
     dotAll: true,
   );
 
-  // 部分的なタグ（閉じていない < ）
+  // Partial tag (unclosed <)
   static final _partialTagPattern = RegExp(r'<[^>]*$');
 
-  /// コンテンツを解析してセグメントに分割
+  /// Parse content into segments
   static ParseResult parse(String content) {
     if (content.isEmpty) {
       return const ParseResult(segments: []);
@@ -98,7 +98,7 @@ class ContentParser {
     var hasIncompleteTag = false;
     String? incompleteTagType;
 
-    // 不完全なタグをチェック
+    // Check for incomplete tags
     if (_incompleteThinkStart.hasMatch(remaining)) {
       hasIncompleteTag = true;
       incompleteTagType = 'thinking';
@@ -113,10 +113,10 @@ class ContentParser {
       incompleteTagType = 'partial';
     }
 
-    // すべてのタグの位置を収集
+    // Collect all tag positions
     final allMatches = <_TagMatch>[];
 
-    // thinkタグを収集
+    // Collect think tags
     for (final match in _thinkPattern.allMatches(content)) {
       allMatches.add(
         _TagMatch(
@@ -128,7 +128,7 @@ class ContentParser {
       );
     }
 
-    // tool_callタグを収集
+    // Collect tool_call tags
     for (final match in _toolCallPattern.allMatches(content)) {
       allMatches.add(
         _TagMatch(
@@ -140,7 +140,7 @@ class ContentParser {
       );
     }
 
-    // tool_useタグを収集（表示専用）
+    // Collect tool_use tags (display only)
     for (final match in _toolUsePattern.allMatches(content)) {
       allMatches.add(
         _TagMatch(
@@ -152,13 +152,13 @@ class ContentParser {
       );
     }
 
-    // 開始位置でソート
+    // Sort by start position
     allMatches.sort((a, b) => a.start.compareTo(b.start));
 
-    // セグメントを構築
+    // Build segments
     var currentPos = 0;
     for (final match in allMatches) {
-      // タグの前のテキストがあれば追加
+      // Add text before the tag if present
       if (match.start > currentPos) {
         final textBefore = content.substring(currentPos, match.start);
         if (textBefore.trim().isNotEmpty) {
@@ -168,7 +168,7 @@ class ContentParser {
         }
       }
 
-      // タグの内容を追加
+      // Add the tag content
       if (match.type == ContentType.thinking) {
         segments.add(
           ContentSegment(
@@ -190,11 +190,11 @@ class ContentParser {
       currentPos = match.end;
     }
 
-    // 残りのテキストがあれば追加（不完全なタグは除く）
+    // Add remaining text if any (excluding incomplete tags)
     if (currentPos < content.length) {
       var remainingText = content.substring(currentPos);
 
-      // 不完全なタグを除去
+      // Remove incomplete tags
       if (hasIncompleteTag) {
         if (incompleteTagType == 'thinking') {
           final match = _incompleteThinkStart.firstMatch(remainingText);
@@ -235,7 +235,7 @@ class ContentParser {
     );
   }
 
-  /// 完了した<tool_call>を抽出
+  /// Extract completed <tool_call> entries
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
 
@@ -256,13 +256,13 @@ class ContentParser {
     return toolCalls;
   }
 
-  /// tool_callの内容をパース
+  /// Parse tool_call content
   static ToolCallData? _parseToolCallContent(String content) {
     final trimmed = content.trim();
     if (trimmed.isEmpty) return null;
 
     try {
-      // JSON形式を試す
+      // Try JSON format
       // {"name": "web_search", "arguments": {"query": "..."}}
       final json = jsonDecode(trimmed) as Map<String, dynamic>;
       final name = json['name'] as String?;
@@ -276,11 +276,11 @@ class ContentParser {
         );
       }
     } catch (_) {
-      // JSONパース失敗 - 別のフォーマットを試す
+      // JSON parse failed - try other formats
     }
 
-    // XML形式: tool_name\n<arg_key>key</arg_key>\n<arg_value>value</arg_value>
-    // 例: web_search\n<arg_key>query</arg_key>\n<arg_value>検索クエリ</arg_value>
+    // XML format: tool_name\n<arg_key>key</arg_key>\n<arg_value>value</arg_value>
+    // e.g.: web_search\n<arg_key>query</arg_key>\n<arg_value>search query</arg_value>
     final xmlArgPattern = RegExp(
       r'^(\w+)\s*[\n\r]+<arg_key>(\w+)</arg_key>\s*[\n\r]*<arg_value>(.+?)</arg_value>',
       dotAll: true,
@@ -297,7 +297,7 @@ class ContentParser {
       );
     }
 
-    // シンプルなフォーマットを試す
+    // Try simple format
     // web_search("query")
     final simpleMatch = RegExp(
       r'(\w+)\s*\(\s*"([^"]+)"\s*\)',
@@ -310,7 +310,7 @@ class ContentParser {
       );
     }
 
-    // name: xxx, query: xxx 形式
+    // name: xxx, query: xxx format
     final nameMatch = RegExp(
       r'name\s*[:=]\s*["\x27]?(\w+)["\x27]?',
       caseSensitive: false,
@@ -330,8 +330,8 @@ class ContentParser {
       );
     }
 
-    // 最初の行がツール名、残りが引数のシンプル形式
-    // 例: web_search\nquery text here
+    // Simple format: first line is tool name, rest is arguments
+    // e.g.: web_search\nquery text here
     final lines = trimmed.split(RegExp(r'[\n\r]+'));
     if (lines.length >= 2) {
       final possibleName = lines[0].trim();
@@ -351,7 +351,7 @@ class ContentParser {
   }
 }
 
-/// タグマッチの内部クラス
+/// Internal class for tag match
 class _TagMatch {
   final int start;
   final int end;
