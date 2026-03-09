@@ -5,7 +5,7 @@ import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
 
-/// チャット完了レスポンス
+/// Chat completion response
 class ChatCompletionResult {
   ChatCompletionResult({
     required this.content,
@@ -23,7 +23,7 @@ class ChatCompletionResult {
       (finishReason == 'tool_calls' || finishReason == 'toolCalls');
 }
 
-/// ツール呼び出し情報
+/// Tool call information
 class ToolCallInfo {
   ToolCallInfo({required this.id, required this.name, required this.arguments});
 
@@ -41,7 +41,7 @@ class ChatRemoteDataSource {
 
   final OpenAIClient _client;
 
-  /// メッセージ一覧をログ出力
+  /// Log message list
   void _logMessages(List<Message> messages) {
     print('[LLM] === Request Messages ===');
     for (var i = 0; i < messages.length; i++) {
@@ -49,13 +49,13 @@ class ChatRemoteDataSource {
       final contentPreview = m.content.length > 200
           ? '${m.content.substring(0, 200)}...'
           : m.content;
-      final hasImage = m.imageBase64 != null ? ' [画像あり]' : '';
+      final hasImage = m.imageBase64 != null ? ' [has image]' : '';
       print('[LLM]   [$i] ${m.role.name}$hasImage: $contentPreview');
     }
     print('[LLM] === End Messages ===');
   }
 
-  /// ツール定義をログ出力
+  /// Log tool definitions
   void _logTools(List<Map<String, dynamic>>? tools) {
     if (tools == null || tools.isEmpty) return;
     print('[LLM] === Tools ===');
@@ -67,15 +67,15 @@ class ChatRemoteDataSource {
     print('[LLM] === End Tools ===');
   }
 
-  /// ストリーミングでチャット完了を取得（ツールなし）
+  /// Get chat completion via streaming (without tools)
   Stream<String> streamChatCompletion({
     required List<Message> messages,
     String? model,
     double? temperature,
     int? maxTokens,
   }) async* {
-    // 最新のユーザーメッセージに画像がない場合、履歴の画像を除去
-    // これにより非Vision対応サーバーでも会話を継続できる
+    // Strip images from history if the latest user message has no image,
+    // allowing conversation to continue on non-Vision servers
     final lastUserMessage = messages.lastWhere(
       (m) => m.role == MessageRole.user,
       orElse: () => messages.last,
@@ -84,7 +84,7 @@ class ChatRemoteDataSource {
     if (stripImages) {
       final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
       if (hasHistoryImages) {
-        print('[LLM] 履歴に画像があるため除去して送信します');
+        print('[LLM] Stripping images from history before sending');
       }
     }
     final formattedMessages = _formatMessages(
@@ -131,7 +131,7 @@ class ChatRemoteDataSource {
     }
   }
 
-  /// 非ストリーミングでチャット完了を取得（ツール対応）
+  /// Get chat completion without streaming (with tool support)
   Future<ChatCompletionResult> createChatCompletion({
     required List<Message> messages,
     List<Map<String, dynamic>>? tools,
@@ -139,7 +139,7 @@ class ChatRemoteDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    // 最新のユーザーメッセージに画像がない場合、履歴の画像を除去
+    // Strip images from history if the latest user message has no image
     final lastUserMessage = messages.lastWhere(
       (m) => m.role == MessageRole.user,
       orElse: () => messages.last,
@@ -187,7 +187,7 @@ class ChatRemoteDataSource {
       print('[LLM] content: ${message.content ?? "(null)"}');
       print('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
-      // ツール呼び出しを解析
+      // Parse tool calls
       List<ToolCallInfo>? toolCalls;
       if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
         print('[LLM] === Tool Calls ===');
@@ -195,7 +195,7 @@ class ChatRemoteDataSource {
           print('[LLM]   id: ${tc.id}');
           print('[LLM]   name: ${tc.function.name}');
           print('[LLM]   arguments: ${tc.function.arguments}');
-          // argumentsをパース
+          // Parse arguments
           Map<String, dynamic> args = {};
           try {
             final argsStr = tc.function.arguments;
@@ -231,7 +231,7 @@ class ChatRemoteDataSource {
     }
   }
 
-  /// ツール結果を含めてチャット完了を取得（ストリーミング）
+  /// Get chat completion with tool result (streaming)
   Stream<String> streamWithToolResult({
     required List<Message> messages,
     required String toolCallId,
@@ -243,7 +243,7 @@ class ChatRemoteDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
-    // ツール結果を送る際は画像を除去（ツール呼び出し時点で画像は処理済み）
+    // Strip images when sending tool results (images were already processed at tool call time)
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
 
@@ -259,8 +259,8 @@ class ChatRemoteDataSource {
     );
     print('[LLM] === End Tool Result ===');
 
-    // アシスタントのtool_callsメッセージを追加（OpenAI APIで必須）
-    // mlx-lm.serverはcontentが必須なので、nullの場合は空文字列を使用
+    // Add assistant tool_calls message (required by OpenAI API)
+    // mlx-lm.server requires content, so use empty string if null
     formattedMessages.add(
       ChatCompletionMessage.assistant(
         content: assistantContent ?? '',
@@ -277,7 +277,7 @@ class ChatRemoteDataSource {
       ),
     );
 
-    // ツール結果メッセージを追加
+    // Add tool result message
     formattedMessages.add(
       ChatCompletionMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
@@ -308,9 +308,9 @@ class ChatRemoteDataSource {
     print('[LLM] ============================================');
   }
 
-  /// ツール結果を含めてチャット完了を取得（非ストリーミング・ツール定義付き）
+  /// Get chat completion with tool result (non-streaming, with tool definitions)
   ///
-  /// ツールループ用: LLMが追加のtool callを返す可能性がある。
+  /// For tool loop: LLM may return additional tool calls.
   Future<ChatCompletionResult> createChatCompletionWithToolResult({
     required List<Message> messages,
     required String toolCallId,
@@ -339,7 +339,7 @@ class ChatRemoteDataSource {
     );
     print('[LLM] === End Tool Result ===');
 
-    // アシスタントのtool_callsメッセージを追加
+    // Add assistant tool_calls message
     formattedMessages.add(
       ChatCompletionMessage.assistant(
         content: assistantContent ?? '',
@@ -356,7 +356,7 @@ class ChatRemoteDataSource {
       ),
     );
 
-    // ツール結果メッセージを追加
+    // Add tool result message
     formattedMessages.add(
       ChatCompletionMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
@@ -440,8 +440,8 @@ class ChatRemoteDataSource {
     return messages.map((m) {
       switch (m.role) {
         case MessageRole.user:
-          // 画像がある場合はparts形式（マルチモーダル）
-          // ただしstripImages=trueの場合は画像を除去
+          // Use parts format (multimodal) when image is present
+          // Skip images if stripImages=true
           if (m.imageBase64 != null && !stripImages) {
             final parts = <ChatCompletionMessageContentPart>[];
             if (m.content.isNotEmpty) {
@@ -459,10 +459,10 @@ class ChatRemoteDataSource {
               content: ChatCompletionUserMessageContent.parts(parts),
             );
           }
-          // テキストのみ（または画像を除去した場合）
+          // Text only (or images stripped)
           final content = m.content.isNotEmpty
               ? m.content
-              : (m.imageBase64 != null ? '[画像]' : '');
+              : (m.imageBase64 != null ? '[image]' : '');
           return ChatCompletionMessage.user(
             content: ChatCompletionUserMessageContent.string(content),
           );
