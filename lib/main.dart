@@ -11,7 +11,7 @@ import 'features/settings/presentation/providers/settings_notifier.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Hive初期化
+  // Initialize Hive
   await Hive.initFlutter();
   final conversationBox = await Hive.openBox<String>('conversations');
   final memoryBox = await Hive.openBox<String>('chat_memory');
