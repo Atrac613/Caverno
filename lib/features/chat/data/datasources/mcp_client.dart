@@ -7,13 +7,13 @@ class McpClient {
 
   final String baseUrl;
 
-  /// MCPセッションID (Streamable HTTP transport)
+  /// MCP session ID for the streamable HTTP transport.
   String? _sessionId;
 
-  /// セッションIDを取得
+  /// Returns the current session ID.
   String? get sessionId => _sessionId;
 
-  /// MCPサーバーを初期化してセッションIDを取得
+  /// Initializes the MCP server and stores the session ID.
   Future<void> initialize() async {
     print('[McpClient] initialize リクエスト → $baseUrl');
     final requestBody = jsonEncode({
@@ -41,11 +41,11 @@ class McpClient {
       throw Exception('Failed to initialize MCP: ${httpResp.statusCode}');
     }
 
-    // セッションIDをレスポンスヘッダーから取得
+    // Read the session ID from the response headers.
     _sessionId = httpResp.headers['mcp-session-id'];
     print('[McpClient] セッションID: $_sessionId');
 
-    // レスポンス解析
+    // Parse the response payload.
     final json = _decodeJson(body, 'initialize');
 
     if (json.containsKey('error')) {
@@ -57,11 +57,11 @@ class McpClient {
     final result = json['result'] as Map<String, dynamic>?;
     print('[McpClient] サーバー情報: $result');
 
-    // initialized 通知を送信
+    // Send the initialized notification.
     await _sendInitializedNotification();
   }
 
-  /// initialized 通知を送信
+  /// Sends the initialized notification.
   Future<void> _sendInitializedNotification() async {
     print('[McpClient] initialized 通知送信');
     final requestBody = jsonEncode({
@@ -73,14 +73,14 @@ class McpClient {
       final (httpResp, _) = await _postRequest(requestBody);
       print('[McpClient] initialized 通知 status: ${httpResp.statusCode}');
     } catch (e) {
-      // 通知の失敗は致命的ではない
+      // Notification failures are non-fatal.
       print('[McpClient] initialized 通知送信失敗(無視): $e');
     }
   }
 
-  /// MCPサーバーのツール一覧を取得
+  /// Fetches the tool list from the MCP server.
   Future<List<McpTool>> listTools() async {
-    // セッションが未初期化なら初期化
+    // Initialize the session on first use.
     if (_sessionId == null) {
       await initialize();
     }
@@ -108,7 +108,7 @@ class McpClient {
 
     final json = _decodeJson(body, 'listTools');
 
-    // JSON-RPCエラーチェック
+    // Check for JSON-RPC errors.
     if (json.containsKey('error')) {
       final error = json['error'];
       print('[McpClient] listTools JSON-RPCエラー: $error');
@@ -128,12 +128,12 @@ class McpClient {
         .toList();
   }
 
-  /// ツールを実行
+  /// Executes a tool.
   Future<String> callTool({
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
-    // セッションが未初期化なら初期化
+    // Initialize the session on first use.
     if (_sessionId == null) {
       await initialize();
     }
@@ -165,7 +165,7 @@ class McpClient {
 
     final json = _decodeJson(body, 'callTool');
 
-    // エラーチェック
+    // Check for errors in the response.
     if (json.containsKey('error')) {
       final error = json['error'] as Map<String, dynamic>;
       print('[McpClient] Error: ${error['message']}');
@@ -178,7 +178,7 @@ class McpClient {
       return '';
     }
 
-    // contentから結果を抽出
+    // Extract text results from the content array.
     final content = result['content'] as List<dynamic>? ?? [];
     final textContent = content
         .where((c) => c['type'] == 'text')
@@ -189,10 +189,10 @@ class McpClient {
     return textContent;
   }
 
-  /// HTTP POSTリクエストを送信（セッションIDヘッダー付き）
+  /// Sends an HTTP POST request with the session ID header when available.
   ///
-  /// レスポンスのボディはUTF-8で明示的にデコードする。
-  /// (http.Responseのbodyはcharset未指定時にLatin-1でデコードされ文字化けするため)
+  /// Explicitly decodes the response body as UTF-8.
+  /// `http.Response.body` falls back to Latin-1 when no charset is provided.
   Future<(http.Response, String)> _postRequest(String body) async {
     final headers = <String, String>{
       'Content-Type': 'application/json; charset=utf-8',
@@ -217,10 +217,10 @@ class McpClient {
     }
   }
 
-  /// JSONデコードのヘルパー（SSE形式のレスポンスにも対応）
+  /// Helper for JSON decoding, including SSE-style responses.
   Map<String, dynamic> _decodeJson(String body, String context) {
     try {
-      // SSE形式のレスポンスをチェック (event: ... \n data: {...})
+      // Handle SSE-style payloads such as `event: ...` and `data: {...}`.
       final jsonBody = _extractJsonFromSse(body);
       return jsonDecode(jsonBody) as Map<String, dynamic>;
     } catch (e, stackTrace) {
@@ -231,25 +231,25 @@ class McpClient {
     }
   }
 
-  /// SSE形式のレスポンスからJSONを抽出
+  /// Extracts JSON from an SSE-style response body.
   ///
-  /// レスポンスが `event: message\ndata: {...}` 形式の場合、
-  /// `data:` 行のJSONを結合して返す。通常のJSONはそのまま返す。
+  /// When the response is `event: message\ndata: {...}`, this joins the
+  /// `data:` lines and returns them as JSON. Plain JSON is returned as-is.
   String _extractJsonFromSse(String body) {
     final trimmed = body.trim();
-    // 通常のJSONレスポンス（{ または [ で始まる）
+    // Return plain JSON responses unchanged.
     if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
       return trimmed;
     }
 
-    // SSE形式: data: 行を抽出して結合
+    // Extract and join `data:` lines from SSE responses.
     print('[McpClient] SSE形式レスポンスを検出、data行を抽出');
     final dataLines = <String>[];
     for (final line in trimmed.split('\n')) {
       if (line.startsWith('data: ')) {
-        dataLines.add(line.substring(6)); // 'data: ' の後ろ
+        dataLines.add(line.substring(6)); // Content after `data: `
       } else if (line.startsWith('data:')) {
-        dataLines.add(line.substring(5)); // 'data:' の後ろ（スペースなし）
+        dataLines.add(line.substring(5)); // Content after `data:` with no space
       }
     }
 
@@ -263,7 +263,7 @@ class McpClient {
     return jsonStr;
   }
 
-  /// 文字列を指定長に切り詰め
+  /// Truncates a string to the requested length.
   String _truncate(String s, int maxLen) {
     return s.length > maxLen ? '${s.substring(0, maxLen)}...' : s;
   }
@@ -288,7 +288,7 @@ class McpTool {
   final String description;
   final Map<String, dynamic> inputSchema;
 
-  /// OpenAI形式のツール定義に変換
+  /// Converts the tool definition to the OpenAI tool format.
   Map<String, dynamic> toOpenAiTool() {
     return {
       'type': 'function',

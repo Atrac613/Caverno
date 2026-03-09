@@ -59,7 +59,7 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _repository.save(state);
   }
 
-  // 音声設定
+  // Voice settings
   Future<void> updateTtsEnabled(bool ttsEnabled) async {
     state = state.copyWith(ttsEnabled: ttsEnabled);
     await _repository.save(state);

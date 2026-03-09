@@ -2,13 +2,13 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
-/// SearXNG検索クライアント
+/// SearXNG search client.
 class SearxngClient {
   SearxngClient({required this.baseUrl});
 
   final String baseUrl;
 
-  /// Web検索を実行
+  /// Runs a web search.
   Future<SearxngSearchResult> search({
     required String query,
     int maxResults = 5,
@@ -46,7 +46,7 @@ class SearxngClient {
     );
   }
 
-  /// 検索結果をテキスト形式で取得（LLMに渡す用）
+  /// Returns search results as plain text for the LLM.
   Future<String> searchAsText({
     required String query,
     int maxResults = 5,
@@ -79,7 +79,7 @@ class SearxngClient {
   }
 }
 
-/// 検索結果
+/// Search result collection.
 class SearxngSearchResult {
   SearxngSearchResult({required this.query, required this.results});
 
@@ -87,7 +87,7 @@ class SearxngSearchResult {
   final List<SearxngResult> results;
 }
 
-/// 個別の検索結果
+/// Individual search result entry.
 class SearxngResult {
   SearxngResult({
     required this.title,

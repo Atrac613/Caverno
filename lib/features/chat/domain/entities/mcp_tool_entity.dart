@@ -3,7 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'mcp_tool_entity.freezed.dart';
 part 'mcp_tool_entity.g.dart';
 
-/// MCPツールの定義エンティティ
+/// Entity that describes an MCP tool definition.
 @freezed
 abstract class McpToolEntity with _$McpToolEntity {
   const McpToolEntity._();
@@ -17,7 +17,7 @@ abstract class McpToolEntity with _$McpToolEntity {
   factory McpToolEntity.fromJson(Map<String, dynamic> json) =>
       _$McpToolEntityFromJson(json);
 
-  /// OpenAI形式のツール定義に変換
+  /// Converts the tool definition to the OpenAI tool format.
   Map<String, dynamic> toOpenAiTool() => {
     'type': 'function',
     'function': {
@@ -28,7 +28,7 @@ abstract class McpToolEntity with _$McpToolEntity {
   };
 }
 
-/// MCPツール実行結果
+/// Result of an MCP tool execution.
 @freezed
 abstract class McpToolResult with _$McpToolResult {
   const factory McpToolResult({
@@ -42,17 +42,17 @@ abstract class McpToolResult with _$McpToolResult {
       _$McpToolResultFromJson(json);
 }
 
-/// MCP接続状態
+/// MCP connection status.
 enum McpConnectionStatus {
-  /// 未接続
+  /// Disconnected
   disconnected,
 
-  /// 接続中
+  /// Connecting
   connecting,
 
-  /// 接続済み
+  /// Connected
   connected,
 
-  /// エラー
+  /// Error
   error,
 }

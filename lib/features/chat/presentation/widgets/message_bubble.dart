@@ -14,7 +14,7 @@ class MessageBubble extends ConsumerWidget {
 
   final Message message;
 
-  /// 読み上げ用テキストを抽出（<think>タグなどを除去）
+  /// Extracts text for TTS playback by removing tags such as `<think>`.
   String _extractReadableText(String content) {
     final result = ContentParser.parse(content);
     final buffer = StringBuffer();
@@ -23,7 +23,7 @@ class MessageBubble extends ConsumerWidget {
       if (segment.type == ContentType.text) {
         buffer.write(segment.content);
       }
-      // thinkingとtoolCallは読み上げない
+      // Skip thinking and tool-call segments for TTS.
     }
 
     return buffer.toString().trim();
@@ -93,7 +93,7 @@ class MessageBubble extends ConsumerWidget {
                   ],
                 ),
               ),
-            // 画像表示
+            // Image preview
             if (message.imageBase64 != null)
               Padding(
                 padding: const EdgeInsets.only(bottom: 8),
@@ -119,7 +119,7 @@ class MessageBubble extends ConsumerWidget {
                   ),
                 ),
               ),
-            // テキスト表示（画像のみの場合は表示しない）
+            // Render text when available.
             if (message.content.isNotEmpty || message.isStreaming)
               isUser
                   ? SelectableText(
@@ -135,7 +135,7 @@ class MessageBubble extends ConsumerWidget {
                       textColor: theme.colorScheme.onSurface,
                       isStreaming: message.isStreaming,
                     ),
-            // ストリーミングインジケーター
+            // Streaming indicator
             if (message.isStreaming)
               Padding(
                 padding: const EdgeInsets.only(top: 4),
@@ -148,7 +148,7 @@ class MessageBubble extends ConsumerWidget {
                   ),
                 ),
               ),
-            // 読み上げボタン（アシスタントメッセージ、TTS有効時、ストリーミング完了後）
+            // TTS button for completed assistant messages when TTS is enabled.
             if (!isUser &&
                 settings.ttsEnabled &&
                 !message.isStreaming &&

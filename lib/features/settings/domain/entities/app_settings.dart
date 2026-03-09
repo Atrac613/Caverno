@@ -18,7 +18,7 @@ abstract class AppSettings with _$AppSettings {
     required int maxTokens,
     @Default('') String mcpUrl,
     @Default(false) bool mcpEnabled,
-    // 音声設定
+    // Voice settings
     @Default(true) bool ttsEnabled,
     @Default(false) bool autoReadEnabled,
     @Default(1.0) double speechRate,

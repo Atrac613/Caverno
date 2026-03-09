@@ -46,7 +46,7 @@ final chatNotifierProvider = StateNotifierProvider<ChatNotifier, ChatState>((
   );
   final ttsService = ref.read(ttsServiceProvider);
 
-  // 現在の会話のメッセージを読み込み
+  // Load messages for the current conversation.
   final conversationsState = ref.read(conversationsNotifierProvider);
   final initialMessages =
       conversationsState.currentConversation?.messages ?? [];
@@ -61,7 +61,7 @@ final chatNotifierProvider = StateNotifierProvider<ChatNotifier, ChatState>((
       conversationsNotifier.updateCurrentConversation(messages);
     },
     onAutoRead: (content) {
-      // 読み上げ用テキストを抽出（<think>タグなどを除去）
+      // Extract TTS-safe text by removing segments such as `<think>`.
       final result = ContentParser.parse(content);
       final buffer = StringBuffer();
       for (final segment in result.segments) {
@@ -111,11 +111,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     this.conversationId,
     List<Message>? initialMessages,
   }) : super(ChatState.initial()) {
-    // 初期メッセージを読み込み
+    // Load initial messages.
     if (initialMessages != null && initialMessages.isNotEmpty) {
       state = state.copyWith(messages: initialMessages);
     }
-    // MCPツールサービスに接続
+    // Connect the MCP tool service.
     _mcpToolService?.connect();
   }
 
@@ -162,7 +162,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = ChatState(messages: messages, isLoading: false, error: null);
   }
 
-  /// 現在日時を含むシステムメッセージを生成
+  /// Builds the system message, including the current date and time.
   Message _createSystemMessage() {
     final now = DateTime.now();
     final toolNames = <String>[];
@@ -193,7 +193,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
   }
 
-  /// LLMに送信するメッセージリストを準備（システムメッセージ付き）
+  /// Prepares the message list sent to the LLM, including system messages.
   List<Message> _prepareMessagesForLLM() {
     final messages = state.messages.where((m) => !m.isStreaming).toList();
     final promptMessages = <Message>[_createSystemMessage()];
@@ -213,7 +213,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final _uuid = const Uuid();
   StreamSubscription<String>? _streamSubscription;
 
-  /// 実行済みtool_callを追跡（重複実行防止）
+  /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
 
   Future<void> sendMessage(
@@ -221,7 +221,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     String? imageBase64,
     String? imageMimeType,
   }) async {
-    // テキストも画像もない場合は送信しない
+    // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!mounted) return;
 
@@ -231,7 +231,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
     final shouldUseTemporalTool = _temporalReferenceContext != null;
 
-    // 新規セッション初回送信時のみ、過去コンテキストを注入
+    // Inject memory context only on the first turn of a new session.
     final isFirstTurn = state.messages.isEmpty;
     if (isFirstTurn) {
       _sessionMemoryContext = _memoryService.buildPromptContext(
@@ -243,7 +243,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     }
 
-    // ユーザーメッセージを追加
+    // Append the user message.
     final userMessage = Message(
       id: _uuid.v4(),
       content: content.trim(),
@@ -260,7 +260,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       error: null,
     );
 
-    // アシスタントメッセージ（ストリーミング用）を追加
+    // Append a placeholder assistant message for streaming.
     final assistantMessage = Message(
       id: _uuid.v4(),
       content: '',
@@ -272,7 +272,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (!mounted) return;
     state = state.copyWith(messages: [...state.messages, assistantMessage]);
 
-    // MCPツールサービスが有効な場合はツール対応の処理
+    // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null &&
         (_settings.mcpEnabled || shouldUseTemporalTool)) {
       final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
@@ -286,7 +286,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// ツールなしでストリーミング送信
+  /// Sends a streaming request without tools.
   Future<void> _sendWithoutTools() async {
     if (!mounted) return;
     try {
@@ -319,14 +319,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// ツール対応で送信（Function Calling）
+  /// Sends a request with tool support (function calling).
   Future<void> _sendWithTools() async {
     if (!mounted) return;
     try {
-      // MCPツールサービスからツール定義を取得
+      // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
       if (allTools.isEmpty) {
-        // ツールがない場合は通常送信
+        // Fall back to normal streaming when no tools are available.
         await _sendWithoutTools();
         return;
       }
@@ -334,7 +334,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         '[Tool] ツール定義: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
       );
 
-      // 初回は検索ツールのみ渡す（LLMがweb_url_readを先に使うのを防止）
+      // Start with search tools only to avoid premature `web_url_read` calls.
       final searchOnlyTools = allTools.where((t) {
         final name = (t['function'] as Map?)?['name'] as String?;
         return name == 'searxng_web_search' || name == 'web_search';
@@ -347,7 +347,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           ? _dedupeToolsByName([...searchOnlyTools, ...datetimeTools])
           : allTools;
 
-      // 非ストリーミングでツール呼び出しをチェック
+      // Inspect tool calls with a non-streaming request first.
       final result = await _dataSource.createChatCompletion(
         messages: _prepareMessagesForLLM(),
         tools: initialTools,
@@ -364,9 +364,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
         '[Tool] toolCalls: ${result.toolCalls?.map((t) => t.name).toList()}',
       );
 
-      // ツール呼び出しがある場合
+      // Execute tool calls when the model requests them.
       if (result.hasToolCalls) {
-        // contentがあれば先に表示（「調べてみましょう」等の進捗メッセージ）
+        // Show any assistant preamble first, such as progress text.
         if (result.content.isNotEmpty) {
           _appendToLastMessage(result.content);
           _appendToLastMessage('\n\n');
@@ -376,18 +376,18 @@ class ChatNotifier extends StateNotifier<ChatState> {
           assistantContent: result.content.isNotEmpty ? result.content : null,
         );
       } else {
-        // ツール呼び出しがない場合は結果を表示
+        // Show the response directly when no tool call is present.
         print('[Tool] ツール呼び出しなし、通常応答を表示');
         _appendToLastMessage(result.content);
         _finishStreaming();
       }
     } catch (e) {
-      // LLMがツールをサポートしていない場合はフォールバック
+      // Fall back when the LLM likely does not support tools.
       final errorStr = e.toString().toLowerCase();
       print('[Tool] エラー発生: $e');
 
-      // ツール関連のエラーは通常モードにフォールバック
-      // JSON解析エラー、空レスポンス、不正なレスポンス形式など
+      // Fall back to normal mode for tool-related failures.
+      // Examples include JSON parse errors, empty responses, or invalid payloads.
       if (errorStr.contains('formatexception') ||
           errorStr.contains('expecting value') ||
           errorStr.contains('empty') ||
@@ -421,23 +421,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     return deduped;
   }
 
-  /// ツール呼び出しを実行（ツールループ対応）
+  /// Executes tool calls, supporting a repeated tool-call loop.
   ///
-  /// LLMがツールを呼び出す限りループし、テキスト応答を返すまで繰り返す。
-  /// qwen35-35bはtoolロールのメッセージを「リアルタイムデータ」として使えないため、
-  /// ツール結果は最終的にuserロールのメッセージとしてLLMに送信する。
+  /// Continues looping while the LLM keeps requesting tools, until it returns
+  /// a text response. Because qwen35-35b does not reliably use tool-role
+  /// messages as real-time data, tool results are resent as a user message.
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
     String? assistantContent,
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    const maxIterations = 5; // 無限ループ防止
+    const maxIterations = 5; // Prevent infinite loops.
     var iteration = 0;
     var consecutiveErrors = 0;
     String? lastErrorToolName;
     var hasTextResponse = false;
-    // 収集したツール結果（最終的にuserメッセージとして送信）
+    // Collect tool results for the final user-role resend.
     final toolResults = <String>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
@@ -452,7 +452,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       _appendToolUseToLastMessage(toolCall);
 
       try {
-        // MCPツールサービスでツール実行
+        // Execute the tool through the MCP tool service.
         final result = await _mcpToolService!.executeTool(
           name: toolCall.name,
           arguments: toolCall.arguments,
@@ -466,7 +466,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           lastErrorToolName = null;
         } else {
           toolResult = 'エラー: ${result.errorMessage}';
-          // 同じツールが連続で失敗した場合をカウント
+          // Count repeated failures for the same tool.
           if (lastErrorToolName == toolCall.name) {
             consecutiveErrors++;
           } else {
@@ -487,8 +487,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
         print('[Tool] 結果取得完了: ${toolResult.length} chars');
 
-        // ツール結果をLLMに送信してさらなるツール呼び出しが必要か確認
-        // ツール結果をLLMに送信（非ストリーミング・ツール定義付き）
+        // Send the tool result back to the LLM and check for follow-up calls.
+        // Use a non-streaming request with tool definitions included.
         final mcpToolService = _mcpToolService;
         if (mcpToolService == null) {
           await _sendWithoutTools();
@@ -510,7 +510,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
         if (!mounted) return;
 
-        // LLMが新たなツール呼び出しを返した場合 → ループ継続
+        // Continue looping if the LLM asks for another tool call.
         if (nextResult.hasToolCalls) {
           print('[Tool] LLMが追加のツール呼び出しを要求');
           currentToolCalls = nextResult.toolCalls!;
@@ -518,11 +518,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
               ? nextResult.content
               : null;
         } else {
-          // テキスト応答 → ループ終了（まだ表示しない）
+          // End the loop on a text response, but delay rendering it.
           print('[Tool] LLMが最終テキスト応答を返却（toolロール経由）');
           currentToolCalls = [];
-          // toolロール経由の応答は「リアルタイム情報にアクセスできない」と言いがちなので
-          // 後でuserロールとして再送信する
+          // Responses through the tool role often claim real-time data is
+          // unavailable, so resend the results later as a user message.
         }
       } catch (e) {
         print('[Tool] エラー: $e');
@@ -532,16 +532,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     }
 
-    // ツール結果があり、まだテキスト応答を表示していない場合
-    // → userロールメッセージとして再送信し、ストリーミングで最終回答を取得
+    // If tool results exist and no text response has been shown yet,
+    // resend them as a user message and stream the final answer.
     if (!hasTextResponse && toolResults.isNotEmpty) {
       print('[Tool] ツール結果をuserメッセージとして再送信');
 
       if (!mounted) return;
 
-      // ツール結果をuserメッセージとして追加した会話を構築
+      // Build a prompt that includes tool results as a user message.
       final messagesForLLM = _prepareMessagesForLLM();
-      // 検索結果をuserメッセージとして追加
+      // Append the collected tool results as a user message.
       final resultsText = toolResults.join('\n\n');
       messagesForLLM.add(
         Message(
@@ -552,7 +552,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ),
       );
 
-      // ストリーミングで最終回答を取得
+      // Stream the final answer.
       final stream = _dataSource.streamChatCompletion(
         messages: messagesForLLM,
         model: _settings.model,
@@ -590,7 +590,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     state = state.copyWith(messages: updatedMessages);
 
-    // コンテンツ内の完了したtool_callをチェック
+    // Check whether the content contains completed tool-call tags.
     _checkForContentToolCalls(newContent);
   }
 
@@ -602,10 +602,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _appendToLastMessage('<tool_use>${jsonEncode(payload)}</tool_use>\n');
   }
 
-  /// 実行待ちのツール呼び出し
+  /// Tool executions that are still pending.
   final List<Future<void>> _pendingToolExecutions = [];
 
-  /// コンテンツ内のtool_callタグを検出して実行
+  /// Detects and runs `tool_call` tags embedded in the content.
   void _checkForContentToolCalls(String content) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
 
@@ -634,7 +634,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// コンテンツから検出されたtool_callを実行
+  /// Executes a `tool_call` detected from message content.
   Future<void> _executeContentToolCall(ToolCallData tc) async {
     if (!mounted) return;
 
@@ -656,7 +656,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
         print('[ContentTool] 結果取得完了: ${result.result.length} chars');
 
-        // 検索結果をメッセージに追記（_checkForContentToolCallsを呼ばない版）
+        // Append search results without triggering recursive tool-call checks.
         if (mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
@@ -687,7 +687,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   Future<void> _finishStreaming() async {
-    // 保留中のツール実行を待ってから完了処理
+    // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
       print('[ChatNotifier] 保留中のツール実行を待機: ${_pendingToolExecutions.length}件');
       await Future.wait(_pendingToolExecutions);
@@ -705,10 +705,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 
-    // メッセージを保存
+    // Persist messages.
     _saveMessages();
 
-    // 自動読み上げ
+    // Trigger auto-read when enabled.
     if (_settings.autoReadEnabled &&
         _settings.ttsEnabled &&
         onAutoRead != null) {
@@ -719,9 +719,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
-  /// メッセージを保存（会話の永続化）
+  /// Persists the current conversation messages.
   void _saveMessages() {
-    // ストリーミング中でないメッセージのみ保存
+    // Save only messages that are no longer streaming.
     final messagesToSave = state.messages.where((m) => !m.isStreaming).toList();
     String? targetAssistantMessageId;
     for (var i = messagesToSave.length - 1; i >= 0; i--) {
@@ -991,7 +991,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       return;
     }
 
-    // エラーメッセージを原因別に分かりやすく整形
+    // Reformat error messages into clearer user-facing categories.
     final displayError = _buildDisplayError(error);
 
     print('[ChatNotifier]   displayError: $displayError');

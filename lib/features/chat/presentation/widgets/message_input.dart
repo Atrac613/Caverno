@@ -193,7 +193,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // 画像プレビュー
+            // Image preview
             if (_selectedImageBytes != null)
               Container(
                 margin: const EdgeInsets.only(bottom: 8),
@@ -229,10 +229,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ],
                 ),
               ),
-            // 入力欄
+            // Input row
             Row(
               children: [
-                // 画像選択ボタン
+                // Image picker button
                 IconButton(
                   onPressed: widget.isLoading ? null : _pickImage,
                   icon: const Icon(Icons.image),
@@ -241,7 +241,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     foregroundColor: theme.colorScheme.onSurfaceVariant,
                   ),
                 ),
-                // マイクボタン
+                // Microphone button
                 IconButton(
                   onPressed: widget.isLoading ? null : _toggleRecording,
                   icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),

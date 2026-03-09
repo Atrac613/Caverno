@@ -16,7 +16,7 @@ class ConversationDrawer extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           children: [
-            // ヘッダー
+            // Header
             Container(
               padding: const EdgeInsets.all(16),
               child: Row(
@@ -50,7 +50,7 @@ class ConversationDrawer extends ConsumerWidget {
               ),
             ),
             const Divider(height: 1),
-            // 会話一覧
+            // Conversation list
             Expanded(
               child: conversationsState.conversations.isEmpty
                   ? const Center(

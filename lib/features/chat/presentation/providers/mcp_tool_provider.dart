@@ -5,9 +5,9 @@ import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/searxng_client.dart';
 
-/// MCPクライアントプロバイダー
+/// Provides the MCP client.
 ///
-/// MCP設定が有効で、URLが設定されている場合にMcpClientを提供。
+/// Returns an `McpClient` when MCP is enabled and a URL is configured.
 final mcpClientProvider = Provider<McpClient?>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
   if (!settings.mcpEnabled || settings.mcpUrl.isEmpty) {
@@ -16,10 +16,10 @@ final mcpClientProvider = Provider<McpClient?>((ref) {
   return McpClient(baseUrl: settings.mcpUrl);
 });
 
-/// SearXNGクライアントプロバイダー
+/// Provides the SearXNG client.
 ///
-/// MCP設定が有効で、URLが設定されている場合にSearxngClientを提供。
-/// McpToolServiceからフォールバックとして使用される。
+/// Returns a `SearxngClient` when MCP is enabled and a URL is configured.
+/// `McpToolService` uses it as a fallback.
 final searxngClientProvider = Provider<SearxngClient?>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
   if (!settings.mcpEnabled || settings.mcpUrl.isEmpty) {
@@ -28,13 +28,13 @@ final searxngClientProvider = Provider<SearxngClient?>((ref) {
   return SearxngClient(baseUrl: settings.mcpUrl);
 });
 
-/// MCPツールサービスプロバイダー
+/// Provides the MCP tool service.
 ///
-/// MCPサーバーからツールを動的に取得・実行するサービスを提供。
-/// SearXNGへのフォールバックも含む。
+/// Exposes a service that fetches and executes tools from an MCP server.
+/// Includes the SearXNG fallback path.
 final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final mcpClient = ref.watch(mcpClientProvider);
   final searxngClient = ref.watch(searxngClientProvider);
-  // ローカル内蔵ツール（日時取得）を常に使えるように、クライアント未設定でも提供する。
+  // Always provide the service so built-in local tools remain available.
   return McpToolService(mcpClient: mcpClient, searxngClient: searxngClient);
 });

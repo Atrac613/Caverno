@@ -32,7 +32,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   late double _temperature;
   late bool _mcpEnabled;
   late AssistantMode _assistantMode;
-  // 音声設定
+  // Voice settings
   late bool _ttsEnabled;
   late bool _autoReadEnabled;
   late double _speechRate;
@@ -65,7 +65,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _profileDoNotController = TextEditingController(
       text: profile.doNot.join('\n'),
     );
-    // 音声設定
+    // Voice settings
     _ttsEnabled = settings.ttsEnabled;
     _autoReadEnabled = settings.autoReadEnabled;
     _speechRate = settings.speechRate;
@@ -96,7 +96,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await notifier.updateMcpUrl(_mcpUrlController.text.trim());
     await notifier.updateMcpEnabled(_mcpEnabled);
     await notifier.updateAssistantMode(_assistantMode);
-    // 音声設定
+    // Voice settings
     await notifier.updateTtsEnabled(_ttsEnabled);
     await notifier.updateAutoReadEnabled(_autoReadEnabled);
     await notifier.updateSpeechRate(_speechRate);
@@ -144,7 +144,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _selectedModel = ApiConstants.defaultModel;
           _temperature = ApiConstants.defaultTemperature;
           _assistantMode = AssistantMode.general;
-          // 音声設定リセット
+          // Reset voice settings
           _ttsEnabled = true;
           _autoReadEnabled = false;
           _speechRate = 1.0;
@@ -214,7 +214,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // サーバー設定セクション
+          // Server settings section
           _buildSectionHeader('サーバー設定'),
           const SizedBox(height: 8),
           TextField(
@@ -240,7 +240,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // モデル設定セクション
+          // Model settings section
           Row(
             children: [
               _buildSectionHeader('モデル設定'),
@@ -259,7 +259,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _buildModelSelector(),
           const SizedBox(height: 24),
 
-          // アシスタント設定セクション
+          // Assistant settings section
           _buildSectionHeader('アシスタント設定'),
           const SizedBox(height: 16),
           SegmentedButton<AssistantMode>(
@@ -293,7 +293,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // 会話メモリ設定セクション
+          // Conversation memory section
           Row(
             children: [
               _buildSectionHeader('会話メモリ'),
@@ -369,7 +369,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // 生成パラメータセクション
+          // Generation parameters section
           _buildSectionHeader('生成パラメータ'),
           const SizedBox(height: 8),
           Row(
@@ -405,7 +405,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 24),
 
-          // MCP設定セクション
+          // MCP settings section
           _buildSectionHeader('MCP (ツール)'),
           const SizedBox(height: 8),
           SwitchListTile(
@@ -431,11 +431,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             keyboardType: TextInputType.url,
           ),
           const SizedBox(height: 16),
-          // 接続テストボタンとツール一覧
+          // Connection test button and tool list
           if (_mcpEnabled) _buildMcpToolsSection(),
           const SizedBox(height: 24),
 
-          // 音声設定セクション
+          // Voice settings section
           _buildSectionHeader('音声設定'),
           const SizedBox(height: 8),
           SwitchListTile(
@@ -491,7 +491,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 32),
 
-          // 保存ボタン
+          // Save button
           FilledButton.icon(
             onPressed: _saveSettings,
             icon: const Icon(Icons.save),
@@ -611,7 +611,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // 接続テストボタン
+        // Connection test button
         OutlinedButton.icon(
           onPressed: () async {
             if (mcpToolService == null) {
@@ -647,7 +647,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('接続成功: ${tools.length}ツール取得')),
               );
-              setState(() {}); // ツール一覧を更新
+              setState(() {}); // Refresh the tool list.
             } else {
               print('[Settings] 接続失敗: ${mcpToolService.lastError}');
               ScaffoldMessenger.of(context).showSnackBar(
@@ -664,7 +664,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           label: const Text('接続テスト'),
         ),
         const SizedBox(height: 12),
-        // ツール一覧
+        // Tool list
         _buildToolsList(mcpToolService),
       ],
     );

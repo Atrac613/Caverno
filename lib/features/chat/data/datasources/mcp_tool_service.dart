@@ -4,10 +4,10 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import 'mcp_client.dart';
 import 'searxng_client.dart';
 
-/// MCPツール管理サービス
+/// MCP tool management service.
 ///
-/// MCPサーバーからツールを動的に取得し、実行する。
-/// MCPサーバーが利用できない場合はSearXNGにフォールバック。
+/// Fetches tools dynamically from an MCP server and executes them.
+/// Falls back to SearXNG when the MCP server is unavailable.
 class McpToolService {
   McpToolService({this.mcpClient, this.searxngClient});
 
@@ -18,20 +18,20 @@ class McpToolService {
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
   String? _lastError;
 
-  /// 接続状態
+  /// Current connection status.
   McpConnectionStatus get status => _status;
 
-  /// キャッシュされたツール一覧
+  /// Cached tool definitions.
   List<McpToolEntity> get tools => _cachedTools;
 
-  /// 最後のエラーメッセージ
+  /// Most recent error message.
   String? get lastError => _lastError;
 
-  /// MCPサーバーに接続してツール一覧を取得
+  /// Connects to the MCP server and fetches available tools.
   ///
-  /// [overrideUrl] を指定すると、保存済み設定のURLではなくそのURLで接続テストを行う。
+  /// Uses [overrideUrl] for a connection test instead of the saved URL.
   Future<void> connect({String? overrideUrl}) async {
-    // overrideUrlが指定された場合は一時的なMcpClientを作成
+    // Create a temporary client when testing against an override URL.
     final client = overrideUrl != null
         ? McpClient(baseUrl: overrideUrl)
         : mcpClient;
@@ -70,25 +70,25 @@ class McpToolService {
     }
   }
 
-  /// ツール一覧を再取得
+  /// Refreshes the tool list.
   Future<void> refresh() async {
     await connect();
   }
 
-  /// LLM用ツール定義を取得
+  /// Returns tool definitions for the LLM.
   ///
-  /// MCP接続済みの場合は動的に取得したツールを返す。
-  /// そうでない場合はSearXNG用のweb_searchツールを返す。
+  /// Returns dynamically fetched tools when MCP is connected.
+  /// Otherwise returns the fallback `web_search` tool for SearXNG.
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     final toolDefinitions = <Map<String, dynamic>>[_currentDatetimeTool];
 
-    // MCP接続済みでツールがある場合
+    // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
       return toolDefinitions;
     }
 
-    // フォールバック: SearXNG用の固定ツール
+    // Fallback to the fixed SearXNG tool definition.
     if (searxngClient != null) {
       toolDefinitions.add(_webSearchToolFallback);
     }
@@ -96,7 +96,7 @@ class McpToolService {
     return toolDefinitions;
   }
 
-  /// ツールを実行
+  /// Executes a tool.
   Future<McpToolResult> executeTool({
     required String name,
     required Map<String, dynamic> arguments,
@@ -104,16 +104,16 @@ class McpToolService {
     print('[McpToolService] ツール実行: $name');
     print('[McpToolService] 引数: $arguments');
 
-    // 0. ローカルツール
+    // 0. Built-in local tool
     if (name == 'get_current_datetime') {
       final result = _buildCurrentDatetimeResult();
       print('[McpToolService] ローカル日時ツール実行成功');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
-    // 1. MCP接続中ならMCPで実行
+    // 1. Execute through MCP when connected.
     if (_status == McpConnectionStatus.connected && mcpClient != null) {
-      // ツールが存在するか確認
+      // Ensure the requested tool exists.
       final toolExists = _cachedTools.any((t) => t.name == name);
       if (toolExists) {
         try {
@@ -135,7 +135,7 @@ class McpToolService {
       }
     }
 
-    // 2. SearXNGフォールバック（web_searchのみ）
+    // 2. SearXNG fallback for `web_search` only.
     if (name == 'web_search' && searxngClient != null) {
       try {
         final query = arguments['query'] as String? ?? '';
@@ -161,7 +161,7 @@ class McpToolService {
       }
     }
 
-    // 3. 対応ツールなし
+    // 3. No matching tool available.
     print('[McpToolService] 対応するツールがありません: $name');
     return McpToolResult(
       toolName: name,
@@ -171,7 +171,7 @@ class McpToolService {
     );
   }
 
-  /// SearXNGフォールバック用のweb_searchツール定義
+  /// Fallback `web_search` tool definition for SearXNG.
   static Map<String, dynamic> get _webSearchToolFallback => {
     'type': 'function',
     'function': {
@@ -187,7 +187,7 @@ class McpToolService {
     },
   };
 
-  /// ローカル日時ツール定義
+  /// Built-in local datetime tool definition.
   static Map<String, dynamic> get _currentDatetimeTool => {
     'type': 'function',
     'function': {

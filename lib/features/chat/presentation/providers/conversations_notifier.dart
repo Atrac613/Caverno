@@ -5,7 +5,7 @@ import '../../data/repositories/conversation_repository.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
 
-/// 会話一覧の状態
+/// State for the conversation list.
 class ConversationsState {
   const ConversationsState({
     required this.conversations,
@@ -35,7 +35,7 @@ class ConversationsState {
     );
   }
 
-  /// 現在の会話を取得
+  /// Returns the currently selected conversation.
   Conversation? get currentConversation {
     if (currentConversationId == null) return null;
     try {
@@ -46,14 +46,14 @@ class ConversationsState {
   }
 }
 
-/// ConversationsNotifierのProvider
+/// Provider for `ConversationsNotifier`.
 final conversationsNotifierProvider =
     StateNotifierProvider<ConversationsNotifier, ConversationsState>((ref) {
       final repository = ref.watch(conversationRepositoryProvider);
       return ConversationsNotifier(repository);
     });
 
-/// 会話一覧を管理するNotifier
+/// Notifier that manages the conversation list.
 class ConversationsNotifier extends StateNotifier<ConversationsState> {
   ConversationsNotifier(this._repository)
     : super(ConversationsState.initial()) {
@@ -63,12 +63,12 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
   final ConversationRepository _repository;
   final _uuid = const Uuid();
 
-  /// 会話一覧を読み込み
+  /// Loads the conversation list.
   void _loadConversations() {
     final conversations = _repository.getAll();
     state = state.copyWith(conversations: conversations);
 
-    // 会話があれば最新のものを選択、なければ新規作成
+    // Select the newest conversation when available, otherwise create one.
     if (conversations.isNotEmpty) {
       state = state.copyWith(currentConversationId: conversations.first.id);
     } else {
@@ -76,7 +76,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     }
   }
 
-  /// 新規会話を作成
+  /// Creates a new conversation.
   void createNewConversation() {
     final now = DateTime.now();
     final conversation = Conversation(
@@ -92,16 +92,16 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
       currentConversationId: conversation.id,
     );
 
-    // 保存
+    // Persist the new conversation.
     _repository.save(conversation);
   }
 
-  /// 会話を選択
+  /// Selects a conversation.
   void selectConversation(String id) {
     state = state.copyWith(currentConversationId: id);
   }
 
-  /// 会話を削除
+  /// Deletes a conversation.
   Future<void> deleteConversation(String id) async {
     await _repository.delete(id);
 
@@ -109,7 +109,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
         .where((c) => c.id != id)
         .toList();
 
-    // 削除した会話が現在の会話だった場合
+    // If the deleted conversation was selected, choose a replacement.
     if (state.currentConversationId == id) {
       if (newConversations.isNotEmpty) {
         state = state.copyWith(
@@ -121,7 +121,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
           conversations: newConversations,
           clearCurrentConversation: true,
         );
-        // 新規会話を作成
+        // Create a new conversation to keep the UI usable.
         createNewConversation();
       }
     } else {
@@ -129,7 +129,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     }
   }
 
-  /// 全ての会話を削除
+  /// Deletes all conversations.
   Future<void> deleteAllConversations() async {
     await _repository.deleteAll();
 
@@ -138,25 +138,25 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
       clearCurrentConversation: true,
     );
 
-    // 空状態を避けるため、新規会話を1件作成
+    // Create one fresh conversation to avoid an empty state.
     createNewConversation();
   }
 
-  /// 現在の会話のメッセージを更新（ChatNotifierから呼ばれる）
+  /// Updates messages for the current conversation.
   Future<void> updateCurrentConversation(List<Message> messages) async {
     if (state.currentConversationId == null) return;
 
     final conversation = state.currentConversation;
     if (conversation == null) return;
 
-    // タイトルを最初のユーザーメッセージから生成
+    // Derive the title from the first user message.
     String title = conversation.title;
     if (title == '新しい会話' && messages.isNotEmpty) {
       final firstUserMessage = messages.firstWhere(
         (m) => m.role == MessageRole.user,
         orElse: () => messages.first,
       );
-      // 最初の30文字をタイトルに
+      // Use the first 30 characters as the title.
       title = firstUserMessage.content.length > 30
           ? '${firstUserMessage.content.substring(0, 30)}...'
           : firstUserMessage.content;
@@ -170,7 +170,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
 
     await _repository.save(updatedConversation);
 
-    // 状態を更新
+    // Update local state.
     final newConversations = state.conversations.map((c) {
       if (c.id == updatedConversation.id) {
         return updatedConversation;
@@ -178,13 +178,13 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
       return c;
     }).toList();
 
-    // 更新日時でソート
+    // Keep conversations sorted by latest update.
     newConversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
 
     state = state.copyWith(conversations: newConversations);
   }
 
-  /// 現在の会話のメッセージを取得
+  /// Returns messages for the current conversation.
   List<Message> getCurrentMessages() {
     return state.currentConversation?.messages ?? [];
   }

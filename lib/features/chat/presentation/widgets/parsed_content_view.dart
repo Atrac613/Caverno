@@ -6,8 +6,8 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/content_parser.dart';
 
-/// 解析済みコンテンツを表示するウィジェット
-/// <think>タグは薄いグレーで、<tool_call>タグはツール呼び出し表示
+/// Renders parsed content segments.
+/// `<think>` tags are shown in muted gray and `<tool_call>` tags as tool calls.
 class ParsedContentView extends StatelessWidget {
   const ParsedContentView({
     super.key,
@@ -38,7 +38,7 @@ class ParsedContentView extends StatelessWidget {
         children: [
           for (final segment in result.segments)
             _buildSegment(context, segment, theme),
-          // ストリーミング中で不完全なthinkタグがある場合
+          // Show an indicator when a streaming response contains an incomplete think tag.
           if (isStreaming &&
               result.hasIncompleteTag &&
               result.incompleteTagType == 'thinking')
@@ -57,7 +57,7 @@ class ParsedContentView extends StatelessWidget {
       case ContentType.text:
         return MarkdownBody(
           data: segment.content,
-          // SelectionAreaでバブル全体を一つの選択領域として扱う
+          // Keep the entire bubble as a single SelectionArea.
           selectable: false,
           styleSheet: MarkdownStyleSheet(
             p: TextStyle(color: textColor, fontSize: 14, height: 1.5),

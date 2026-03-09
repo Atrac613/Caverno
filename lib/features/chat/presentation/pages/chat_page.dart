@@ -78,7 +78,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       conversationsNotifierProvider.notifier,
     );
 
-    // メッセージが更新されたらスクロール
+    // Scroll when the message list changes.
     ref.listen(chatNotifierProvider, (previous, next) {
       if (previous?.messages.length != next.messages.length ||
           (next.messages.isNotEmpty && next.messages.last.isStreaming)) {
@@ -125,7 +125,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       drawer: const ConversationDrawer(),
       body: Column(
         children: [
-          // エラー表示
+          // Error banner
           if (chatState.error != null)
             Container(
               width: double.infinity,
@@ -149,7 +149,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ],
               ),
             ),
-          // メッセージリスト
+          // Message list
           Expanded(
             child: chatState.messages.isEmpty
                 ? Center(
@@ -180,7 +180,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     },
                   ),
           ),
-          // 入力欄
+          // Input area
           MessageInput(
             onSend: (message, imageBase64, imageMimeType) =>
                 chatNotifier.sendMessage(
