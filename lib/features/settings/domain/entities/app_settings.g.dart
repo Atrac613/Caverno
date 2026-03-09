@@ -1,0 +1,47 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'app_settings.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
+  baseUrl: json['baseUrl'] as String,
+  model: json['model'] as String,
+  apiKey: json['apiKey'] as String,
+  temperature: (json['temperature'] as num).toDouble(),
+  maxTokens: (json['maxTokens'] as num).toInt(),
+  mcpUrl: json['mcpUrl'] as String? ?? '',
+  mcpEnabled: json['mcpEnabled'] as bool? ?? false,
+  ttsEnabled: json['ttsEnabled'] as bool? ?? true,
+  autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
+  speechRate: (json['speechRate'] as num?)?.toDouble() ?? 1.0,
+  assistantMode:
+      $enumDecodeNullable(
+        _$AssistantModeEnumMap,
+        json['assistantMode'],
+        unknownValue: AssistantMode.general,
+      ) ??
+      AssistantMode.general,
+);
+
+Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
+    <String, dynamic>{
+      'baseUrl': instance.baseUrl,
+      'model': instance.model,
+      'apiKey': instance.apiKey,
+      'temperature': instance.temperature,
+      'maxTokens': instance.maxTokens,
+      'mcpUrl': instance.mcpUrl,
+      'mcpEnabled': instance.mcpEnabled,
+      'ttsEnabled': instance.ttsEnabled,
+      'autoReadEnabled': instance.autoReadEnabled,
+      'speechRate': instance.speechRate,
+      'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
+    };
+
+const _$AssistantModeEnumMap = {
+  AssistantMode.general: 'general',
+  AssistantMode.coding: 'coding',
+};

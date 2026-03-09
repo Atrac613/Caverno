@@ -1,0 +1,1 @@
+enum AssistantMode { general, coding }
