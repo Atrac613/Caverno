@@ -615,7 +615,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         OutlinedButton.icon(
           onPressed: () async {
             if (mcpToolService == null) {
-              print('[Settings] MCP接続テスト: mcpToolService is null');
+              print('[Settings] MCP connection test: mcpToolService is null');
               ScaffoldMessenger.of(context).showSnackBar(
                 const SnackBar(content: Text('MCPサービスが初期化されていません')),
               );
@@ -623,7 +623,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             }
 
             final testUrl = _mcpUrlController.text.trim();
-            print('[Settings] MCP接続テスト開始: URL=$testUrl');
+            print('[Settings] MCP connection test started: URL=$testUrl');
 
             ScaffoldMessenger.of(
               context,
@@ -637,19 +637,19 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             final tools = mcpToolService.tools;
 
             print(
-              '[Settings] MCP接続テスト結果: status=$status, tools=${tools.length}, lastError=${mcpToolService.lastError}',
+              '[Settings] MCP connection test result: status=$status, tools=${tools.length}, lastError=${mcpToolService.lastError}',
             );
 
             if (status == McpConnectionStatus.connected) {
               print(
-                '[Settings] 接続成功: ツール一覧=${tools.map((t) => t.name).toList()}',
+                '[Settings] Connection succeeded: tools=${tools.map((t) => t.name).toList()}',
               );
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('接続成功: ${tools.length}ツール取得')),
               );
               setState(() {}); // Refresh the tool list.
             } else {
-              print('[Settings] 接続失敗: ${mcpToolService.lastError}');
+              print('[Settings] Connection failed: ${mcpToolService.lastError}');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(

@@ -15,7 +15,7 @@ class McpClient {
 
   /// Initializes the MCP server and stores the session ID.
   Future<void> initialize() async {
-    print('[McpClient] initialize リクエスト → $baseUrl');
+    print('[McpClient] initialize request → $baseUrl');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'id': 1,
@@ -36,26 +36,26 @@ class McpClient {
 
     if (httpResp.statusCode != 200) {
       print(
-        '[McpClient] initialize HTTPエラー: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] initialize HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to initialize MCP: ${httpResp.statusCode}');
     }
 
     // Read the session ID from the response headers.
     _sessionId = httpResp.headers['mcp-session-id'];
-    print('[McpClient] セッションID: $_sessionId');
+    print('[McpClient] Session ID: $_sessionId');
 
     // Parse the response payload.
     final json = _decodeJson(body, 'initialize');
 
     if (json.containsKey('error')) {
       final error = json['error'];
-      print('[McpClient] initialize JSON-RPCエラー: $error');
+      print('[McpClient] initialize JSON-RPC error: $error');
       throw Exception('MCP initialize error: $error');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    print('[McpClient] サーバー情報: $result');
+    print('[McpClient] Server info: $result');
 
     // Send the initialized notification.
     await _sendInitializedNotification();
@@ -63,7 +63,7 @@ class McpClient {
 
   /// Sends the initialized notification.
   Future<void> _sendInitializedNotification() async {
-    print('[McpClient] initialized 通知送信');
+    print('[McpClient] Sending initialized notification');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'method': 'notifications/initialized',
@@ -71,10 +71,10 @@ class McpClient {
 
     try {
       final (httpResp, _) = await _postRequest(requestBody);
-      print('[McpClient] initialized 通知 status: ${httpResp.statusCode}');
+      print('[McpClient] initialized notification status: ${httpResp.statusCode}');
     } catch (e) {
       // Notification failures are non-fatal.
-      print('[McpClient] initialized 通知送信失敗(無視): $e');
+      print('[McpClient] initialized notification failed (ignored): $e');
     }
   }
 
@@ -85,7 +85,7 @@ class McpClient {
       await initialize();
     }
 
-    print('[McpClient] listTools リクエスト → $baseUrl');
+    print('[McpClient] listTools request → $baseUrl');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'id': 2,
@@ -101,7 +101,7 @@ class McpClient {
 
     if (httpResp.statusCode != 200) {
       print(
-        '[McpClient] listTools HTTPエラー: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] listTools HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to list tools: ${httpResp.statusCode}');
     }
@@ -111,7 +111,7 @@ class McpClient {
     // Check for JSON-RPC errors.
     if (json.containsKey('error')) {
       final error = json['error'];
-      print('[McpClient] listTools JSON-RPCエラー: $error');
+      print('[McpClient] listTools JSON-RPC error: $error');
       throw Exception('MCP JSON-RPC error: $error');
     }
 
@@ -158,7 +158,7 @@ class McpClient {
 
     if (httpResp.statusCode != 200) {
       print(
-        '[McpClient] callTool HTTPエラー: status=${httpResp.statusCode}, body=$body',
+        '[McpClient] callTool HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to call tool: ${httpResp.statusCode}');
     }
@@ -211,7 +211,7 @@ class McpClient {
       final utf8Body = utf8.decode(response.bodyBytes);
       return (response, utf8Body);
     } catch (e, stackTrace) {
-      print('[McpClient] HTTP接続エラー: ${e.runtimeType}: $e');
+      print('[McpClient] HTTP connection error: ${e.runtimeType}: $e');
       print('[McpClient] stackTrace: $stackTrace');
       rethrow;
     }
@@ -224,7 +224,7 @@ class McpClient {
       final jsonBody = _extractJsonFromSse(body);
       return jsonDecode(jsonBody) as Map<String, dynamic>;
     } catch (e, stackTrace) {
-      print('[McpClient] $context JSONデコードエラー: ${e.runtimeType}: $e');
+      print('[McpClient] $context JSON decode error: ${e.runtimeType}: $e');
       print('[McpClient] Response body: $body');
       print('[McpClient] stackTrace: $stackTrace');
       rethrow;
@@ -243,7 +243,7 @@ class McpClient {
     }
 
     // Extract and join `data:` lines from SSE responses.
-    print('[McpClient] SSE形式レスポンスを検出、data行を抽出');
+    print('[McpClient] Detected SSE response, extracting data lines');
     final dataLines = <String>[];
     for (final line in trimmed.split('\n')) {
       if (line.startsWith('data: ')) {
@@ -254,12 +254,12 @@ class McpClient {
     }
 
     if (dataLines.isEmpty) {
-      print('[McpClient] SSEレスポンスにdata行がありません: $trimmed');
+      print('[McpClient] No data lines found in SSE response: $trimmed');
       throw FormatException('No data lines found in SSE response');
     }
 
     final jsonStr = dataLines.join('');
-    print('[McpClient] SSEから抽出したJSON: ${_truncate(jsonStr, 200)}');
+    print('[McpClient] JSON extracted from SSE: ${_truncate(jsonStr, 200)}');
     return jsonStr;
   }
 

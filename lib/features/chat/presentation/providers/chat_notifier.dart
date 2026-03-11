@@ -239,7 +239,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         currentConversationId: conversationId ?? '',
       );
       if (_sessionMemoryContext != null) {
-        print('[Memory] 新規セッション用コンテキストを注入');
+        print('[Memory] Injecting context for new session');
       }
     }
 
@@ -276,11 +276,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (_mcpToolService != null &&
         (_settings.mcpEnabled || shouldUseTemporalTool)) {
       final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
-      print('[Tool] ツール対応モードで送信 ($mode)');
+      print('[Tool] Sending in tool-aware mode ($mode)');
       await _sendWithTools();
     } else {
       print(
-        '[Tool] 通常モードで送信 (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
+        '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
       );
       await _sendWithoutTools();
     }
@@ -331,7 +331,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         return;
       }
       print(
-        '[Tool] ツール定義: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
+        '[Tool] Tool definitions: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
       );
 
       // Start with search tools only to avoid premature `web_url_read` calls.
@@ -358,7 +358,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       if (!mounted) return;
       print(
-        '[Tool] LLM応答 - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
+        '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
       );
       print(
         '[Tool] toolCalls: ${result.toolCalls?.map((t) => t.name).toList()}',
@@ -377,14 +377,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
       } else {
         // Show the response directly when no tool call is present.
-        print('[Tool] ツール呼び出しなし、通常応答を表示');
+        print('[Tool] No tool calls, displaying normal response');
         _appendToLastMessage(result.content);
         _finishStreaming();
       }
     } catch (e) {
       // Fall back when the LLM likely does not support tools.
       final errorStr = e.toString().toLowerCase();
-      print('[Tool] エラー発生: $e');
+      print('[Tool] Error occurred: $e');
 
       // Fall back to normal mode for tool-related failures.
       // Examples include JSON parse errors, empty responses, or invalid payloads.
@@ -398,7 +398,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           errorStr.contains('invalid') ||
           errorStr.contains('500') ||
           errorStr.contains('server error')) {
-        print('[Tool] LLMがツールをサポートしていない可能性、通常モードにフォールバック');
+        print('[Tool] LLM may not support tools, falling back to normal mode');
         await _sendWithoutTools();
         return;
       }
@@ -445,9 +445,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final toolCall = currentToolCalls.first;
       if (!mounted) return;
 
-      print('[Tool] ツールループ [$iteration/$maxIterations]');
-      print('[Tool] ツール実行: ${toolCall.name}');
-      print('[Tool] 引数: ${toolCall.arguments}');
+      print('[Tool] Tool loop [$iteration/$maxIterations]');
+      print('[Tool] Executing tool: ${toolCall.name}');
+      print('[Tool] Arguments: ${toolCall.arguments}');
 
       _appendToolUseToLastMessage(toolCall);
 
@@ -461,11 +461,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
         String toolResult;
         if (result.isSuccess) {
           toolResult = result.result;
-          toolResults.add('【${toolCall.name}の結果】\n$toolResult');
+          toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
           consecutiveErrors = 0;
           lastErrorToolName = null;
         } else {
-          toolResult = 'エラー: ${result.errorMessage}';
+          toolResult = 'Error: ${result.errorMessage}';
           // Count repeated failures for the same tool.
           if (lastErrorToolName == toolCall.name) {
             consecutiveErrors++;
@@ -475,17 +475,17 @@ class ChatNotifier extends StateNotifier<ChatState> {
           }
           if (consecutiveErrors >= 2) {
             print(
-              '[Tool] 同じツール(${toolCall.name})が連続$consecutiveErrors回失敗、ループ終了',
+              '[Tool] Same tool (${toolCall.name}) failed $consecutiveErrors times consecutively, ending loop',
             );
             _appendToLastMessage(
-              '\nツール（${toolCall.name}）の実行に失敗しました。サーバーの設定を確認してください。\nエラー: ${result.errorMessage}\n',
+              '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
             );
             hasTextResponse = true;
             break;
           }
         }
 
-        print('[Tool] 結果取得完了: ${toolResult.length} chars');
+        print('[Tool] Result retrieved: ${toolResult.length} chars');
 
         // Send the tool result back to the LLM and check for follow-up calls.
         // Use a non-streaming request with tool definitions included.
@@ -512,21 +512,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
         // Continue looping if the LLM asks for another tool call.
         if (nextResult.hasToolCalls) {
-          print('[Tool] LLMが追加のツール呼び出しを要求');
+          print('[Tool] LLM requested additional tool calls');
           currentToolCalls = nextResult.toolCalls!;
           currentAssistantContent = nextResult.content.isNotEmpty
               ? nextResult.content
               : null;
         } else {
           // End the loop on a text response, but delay rendering it.
-          print('[Tool] LLMが最終テキスト応答を返却（toolロール経由）');
+          print('[Tool] LLM returned final text response (via tool role)');
           currentToolCalls = [];
           // Responses through the tool role often claim real-time data is
           // unavailable, so resend the results later as a user message.
         }
       } catch (e) {
-        print('[Tool] エラー: $e');
-        _appendToLastMessage('[検索エラー: $e]\n');
+        print('[Tool] Error: $e');
+        _appendToLastMessage('[Search error: $e]\n');
         currentToolCalls = [];
         hasTextResponse = true;
       }
@@ -535,7 +535,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
     if (!hasTextResponse && toolResults.isNotEmpty) {
-      print('[Tool] ツール結果をuserメッセージとして再送信');
+      print('[Tool] Resending tool results as user message');
 
       if (!mounted) return;
 
@@ -546,7 +546,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       messagesForLLM.add(
         Message(
           id: 'tool_result_${DateTime.now().millisecondsSinceEpoch}',
-          content: '以下の検索結果を基にユーザーの質問に回答してください。\n\n$resultsText',
+          content: 'Please answer the user\'s question based on the following search results.\n\n$resultsText',
           role: MessageRole.user,
           timestamp: DateTime.now(),
         ),
@@ -569,9 +569,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
         _appendToLastMessage(chunk);
       }
     } else if (!hasTextResponse) {
-      print('[Tool] ツールループが上限に達しました（テキスト応答なし）');
+      print('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {
-        _appendToLastMessage('\n申し訳ありません。ツールの実行に問題が発生しました。しばらく経ってからお試しください。');
+        _appendToLastMessage('\nSorry, there was a problem executing the tools. Please try again later.');
       }
     }
 
@@ -610,12 +610,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
 
     if (toolCalls.isNotEmpty) {
-      print('[ContentTool] 検出されたtool_call: ${toolCalls.length}件');
+      print('[ContentTool] Detected tool_call(s): ${toolCalls.length}');
       for (final tc in toolCalls) {
         print('[ContentTool]   - ${tc.name}: ${tc.arguments}');
       }
       print(
-        '[ContentTool] MCPツールサービス: ${_mcpToolService != null ? "有効" : "無効（設定でMCPを有効にしてください）"}',
+        '[ContentTool] MCP tool service: ${_mcpToolService != null ? "enabled" : "disabled (enable MCP in settings)"}',
       );
     }
 
@@ -624,12 +624,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     for (final tc in toolCalls) {
       final hash = '${tc.name}:${jsonEncode(tc.arguments)}';
       if (!_executedContentToolCalls.contains(hash)) {
-        print('[ContentTool] 実行開始: $hash');
+        print('[ContentTool] Starting execution: $hash');
         _executedContentToolCalls.add(hash);
         final future = _executeContentToolCall(tc);
         _pendingToolExecutions.add(future);
       } else {
-        print('[ContentTool] 既に実行済み: $hash');
+        print('[ContentTool] Already executed: $hash');
       }
     }
   }
@@ -638,8 +638,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _executeContentToolCall(ToolCallData tc) async {
     if (!mounted) return;
 
-    print('[ContentTool] ツール実行: ${tc.name}');
-    print('[ContentTool] 引数: ${tc.arguments}');
+    print('[ContentTool] Executing tool: ${tc.name}');
+    print('[ContentTool] Arguments: ${tc.arguments}');
 
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null) {
@@ -650,11 +650,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
 
         if (!result.isSuccess) {
-          print('[ContentTool] 実行失敗: ${result.errorMessage}');
+          print('[ContentTool] Execution failed: ${result.errorMessage}');
           return;
         }
 
-        print('[ContentTool] 結果取得完了: ${result.result.length} chars');
+        print('[ContentTool] Result retrieved: ${result.result.length} chars');
 
         // Append search results without triggering recursive tool-call checks.
         if (mounted && state.messages.isNotEmpty) {
@@ -663,21 +663,21 @@ class ChatNotifier extends StateNotifier<ChatState> {
           final lastMessage = updatedMessages[lastIndex];
 
           updatedMessages[lastIndex] = lastMessage.copyWith(
-            content: '${lastMessage.content}\n\n📋 **検索結果:**\n${result.result}',
+            content: '${lastMessage.content}\n\n📋 **Search results:**\n${result.result}',
           );
 
           state = state.copyWith(messages: updatedMessages);
-          print('[ContentTool] メッセージに追記完了');
+          print('[ContentTool] Appended result to message');
         }
       } catch (e) {
-        print('[ContentTool] エラー: $e');
+        print('[ContentTool] Error: $e');
         if (mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
           final lastMessage = updatedMessages[lastIndex];
 
           updatedMessages[lastIndex] = lastMessage.copyWith(
-            content: '${lastMessage.content}\n\n[ツール実行エラー: $e]',
+            content: '${lastMessage.content}\n\n[Tool execution error: $e]',
           );
 
           state = state.copyWith(messages: updatedMessages);
@@ -689,10 +689,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _finishStreaming() async {
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
-      print('[ChatNotifier] 保留中のツール実行を待機: ${_pendingToolExecutions.length}件');
+      print('[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}');
       await Future.wait(_pendingToolExecutions);
       _pendingToolExecutions.clear();
-      print('[ChatNotifier] ツール実行完了');
+      print('[ChatNotifier] Tool executions completed');
     }
 
     if (!mounted || state.messages.isEmpty) return;
@@ -831,13 +831,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       final draft = _parseMemoryExtractionDraft(result.content);
       if (draft != null) {
-        print('[Memory] LLMメモリ抽出に成功');
+        print('[Memory] LLM memory extraction succeeded');
       } else {
-        print('[Memory] LLMメモリ抽出のJSON解析に失敗（ルールベースへフォールバック）');
+        print('[Memory] Failed to parse LLM memory extraction JSON (falling back to rule-based)');
       }
       return draft;
     } catch (e) {
-      print('[Memory] LLMメモリ抽出エラー: $e');
+      print('[Memory] LLM memory extraction error: $e');
       return null;
     }
   }
@@ -847,12 +847,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     UserMemoryProfile profile,
   ) {
     final buffer = StringBuffer()
-      ..writeln('現在プロフィール:')
+      ..writeln('Current profile:')
       ..writeln('- persona: ${profile.persona.join(' | ')}')
       ..writeln('- preferences: ${profile.preferences.join(' | ')}')
       ..writeln('- do_not: ${profile.doNot.join(' | ')}')
       ..writeln()
-      ..writeln('会話ログ:');
+      ..writeln('Conversation log:');
 
     final tail = messages.length > 12
         ? messages.sublist(messages.length - 12)
@@ -869,12 +869,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     buffer
       ..writeln()
-      ..writeln('出力ルール:')
-      ..writeln('- summary は160文字以内')
-      ..writeln('- open_loops は最大3件')
-      ..writeln('- memories は最大8件')
-      ..writeln('- confidence/importance は0.0〜1.0')
-      ..writeln('- 不確実な項目は confidence を低くする');
+      ..writeln('Output rules:')
+      ..writeln('- summary must be 160 characters or fewer')
+      ..writeln('- open_loops max 3 items')
+      ..writeln('- memories max 8 items')
+      ..writeln('- confidence/importance range: 0.0 to 1.0')
+      ..writeln('- Set confidence low for uncertain items');
 
     return buffer.toString();
   }
@@ -936,7 +936,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       );
       return draft.isEmpty ? null : draft;
     } catch (e) {
-      print('[Memory] メモリ抽出JSONのパースに失敗: $e');
+      print('[Memory] Failed to parse memory extraction JSON: $e');
       return null;
     }
   }
@@ -1017,29 +1017,29 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final lower = cleanedError.toLowerCase();
 
     if (cleanedError.contains("Only 'text' content type is supported")) {
-      return 'このLLMサーバーは画像入力に対応していません。テキストのみ送信してください。\n詳細: $cleanedError';
+      return 'This LLM server does not support image input. Please send text only.\nDetails: $cleanedError';
     }
     if (lower.contains('failed host lookup') ||
         lower.contains('socketexception')) {
-      return 'LLMサーバーに接続できませんでした。ネットワーク接続とエンドポイントURLを確認してください。（${_settings.baseUrl}）\n詳細: $cleanedError';
+      return 'Could not connect to LLM server. Check your network connection and endpoint URL. (${_settings.baseUrl})\nDetails: $cleanedError';
     }
     if (lower.contains('connection refused')) {
-      return 'LLMサーバーに接続できませんでした。サーバーが起動しているか確認してください。（${_settings.baseUrl}）\n詳細: $cleanedError';
+      return 'Could not connect to LLM server. Make sure the server is running. (${_settings.baseUrl})\nDetails: $cleanedError';
     }
     if (lower.contains('timed out') || lower.contains('timeout')) {
-      return 'LLMリクエストがタイムアウトしました。しばらく待って再試行してください。\n詳細: $cleanedError';
+      return 'LLM request timed out. Please wait and try again.\nDetails: $cleanedError';
     }
     if (lower.contains('401') || lower.contains('unauthorized')) {
-      return '認証に失敗しました。APIキーを確認してください。\n詳細: $cleanedError';
+      return 'Authentication failed. Please check your API key.\nDetails: $cleanedError';
     }
     if (lower.contains('403') || lower.contains('forbidden')) {
-      return 'アクセスが拒否されました。APIキー権限またはサーバー設定を確認してください。\n詳細: $cleanedError';
+      return 'Access denied. Please check your API key permissions or server settings.\nDetails: $cleanedError';
     }
     if (lower.contains('404') || lower.contains('not found')) {
-      return 'エンドポイントまたはモデルが見つかりません。設定を確認してください。\n詳細: $cleanedError';
+      return 'Endpoint or model not found. Please check your settings.\nDetails: $cleanedError';
     }
     if (lower.contains('429') || lower.contains('rate limit')) {
-      return 'リクエストが多すぎます。少し待ってから再試行してください。\n詳細: $cleanedError';
+      return 'Too many requests. Please wait a moment and try again.\nDetails: $cleanedError';
     }
     if (lower.contains('500') ||
         lower.contains('502') ||
@@ -1047,13 +1047,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
         lower.contains('504') ||
         lower.contains('server error') ||
         lower.contains('internal server error')) {
-      return 'LLMサーバー側でエラーが発生しました。サーバーログを確認してください。\n詳細: $cleanedError';
+      return 'An error occurred on the LLM server. Please check the server logs.\nDetails: $cleanedError';
     }
     if (lower.contains('json') ||
         lower.contains('decode') ||
         lower.contains('parse') ||
         lower.contains('unexpected')) {
-      return 'LLMサーバーのレスポンス形式を解釈できませんでした。\n詳細: $cleanedError';
+      return 'Could not parse the response from the LLM server.\nDetails: $cleanedError';
     }
 
     return cleanedError;

@@ -16,7 +16,7 @@ class ModelRemoteDataSource {
     final ids = response.data.map((model) => model.id).toSet().toList()..sort();
 
     if (ids.isEmpty) {
-      throw Exception('利用可能なモデルが取得できませんでした');
+      throw Exception('No available models could be retrieved');
     }
 
     return ids;

@@ -37,7 +37,7 @@ class McpToolService {
         : mcpClient;
 
     if (client == null) {
-      print('[McpToolService] MCPクライアントがnull、SearXNGモードで動作');
+      print('[McpToolService] MCP client is null, running in SearXNG mode');
       _status = McpConnectionStatus.disconnected;
       return;
     }
@@ -57,12 +57,12 @@ class McpToolService {
           )
           .toList();
       _status = McpConnectionStatus.connected;
-      print('[McpToolService] 接続成功: ${_cachedTools.length}ツール取得');
+      print('[McpToolService] Connected: fetched ${_cachedTools.length} tools');
       for (final tool in _cachedTools) {
         print('[McpToolService]   - ${tool.name}: ${tool.description}');
       }
     } catch (e, stackTrace) {
-      print('[McpToolService] 接続失敗: ${e.runtimeType}: $e');
+      print('[McpToolService] Connection failed: ${e.runtimeType}: $e');
       print('[McpToolService] stackTrace: $stackTrace');
       _status = McpConnectionStatus.error;
       _lastError = e.toString();
@@ -101,13 +101,13 @@ class McpToolService {
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
-    print('[McpToolService] ツール実行: $name');
-    print('[McpToolService] 引数: $arguments');
+    print('[McpToolService] Executing tool: $name');
+    print('[McpToolService] Arguments: $arguments');
 
     // 0. Built-in local tool
     if (name == 'get_current_datetime') {
       final result = _buildCurrentDatetimeResult();
-      print('[McpToolService] ローカル日時ツール実行成功');
+      print('[McpToolService] Local datetime tool executed successfully');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -121,10 +121,10 @@ class McpToolService {
             name: name,
             arguments: arguments,
           );
-          print('[McpToolService] MCP実行成功: ${result.length} chars');
+          print('[McpToolService] MCP execution succeeded: ${result.length} chars');
           return McpToolResult(toolName: name, result: result, isSuccess: true);
         } catch (e) {
-          print('[McpToolService] MCPツール実行エラー: $e');
+          print('[McpToolService] MCP tool execution error: $e');
           return McpToolResult(
             toolName: name,
             result: '',
@@ -144,14 +144,14 @@ class McpToolService {
             toolName: name,
             result: '',
             isSuccess: false,
-            errorMessage: '検索クエリが空です',
+            errorMessage: 'Search query is empty',
           );
         }
         final result = await searxngClient!.searchAsText(query: query);
-        print('[McpToolService] SearXNG実行成功: ${result.length} chars');
+        print('[McpToolService] SearXNG execution succeeded: ${result.length} chars');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
-        print('[McpToolService] SearXNGエラー: $e');
+        print('[McpToolService] SearXNG error: $e');
         return McpToolResult(
           toolName: name,
           result: '',
@@ -162,12 +162,12 @@ class McpToolService {
     }
 
     // 3. No matching tool available.
-    print('[McpToolService] 対応するツールがありません: $name');
+    print('[McpToolService] No matching tool available: $name');
     return McpToolResult(
       toolName: name,
       result: '',
       isSuccess: false,
-      errorMessage: '対応するツールがありません: $name',
+      errorMessage: 'No matching tool available: $name',
     );
   }
 
@@ -176,11 +176,11 @@ class McpToolService {
     'type': 'function',
     'function': {
       'name': 'web_search',
-      'description': 'インターネットでWeb検索を実行します。最新の情報、ニュース、天気などを調べる際に使用してください。',
+      'description': 'Perform a web search on the Internet. Use this to look up the latest information, news, weather, etc.',
       'parameters': {
         'type': 'object',
         'properties': {
-          'query': {'type': 'string', 'description': '検索クエリ'},
+          'query': {'type': 'string', 'description': 'Search query'},
         },
         'required': ['query'],
       },
@@ -193,7 +193,7 @@ class McpToolService {
     'function': {
       'name': 'get_current_datetime',
       'description':
-          '現在のローカル日時と、today/this week/recent などの相対表現を解釈するための基準日付レンジを返します。',
+          'Returns the current local date/time and reference date ranges for interpreting relative expressions such as today/this week/recent.',
       'parameters': {'type': 'object', 'properties': {}, 'required': []},
     },
   };

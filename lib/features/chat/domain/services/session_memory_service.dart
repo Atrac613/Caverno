@@ -284,8 +284,8 @@ class SessionMemoryService {
     final firstUser = _normalizeSentence(userMessages.first.content);
     final lastUser = _normalizeSentence(userMessages.last.content);
     final summary = firstUser == lastUser
-        ? 'ユーザーの主題: ${_truncate(firstUser, 80)}'
-        : 'ユーザーの主題: ${_truncate(firstUser, 60)} / 直近トピック: ${_truncate(lastUser, 60)}';
+        ? 'User topic: ${_truncate(firstUser, 80)}'
+        : 'User topic: ${_truncate(firstUser, 60)} / Recent topic: ${_truncate(lastUser, 60)}';
 
     final openLoops = <String>[];
     final assistantMessages = messages.where((m) {
@@ -322,7 +322,7 @@ class SessionMemoryService {
       if (text.isEmpty) continue;
 
       if (_looksLikePreference(text)) {
-        final memoryText = '回答スタイル希望: ${_truncate(text, 120)}';
+        final memoryText = 'Response style preference: ${_truncate(text, 120)}';
         if (seen.add(memoryText)) {
           entries.add(
             MemoryEntry(
@@ -339,7 +339,7 @@ class SessionMemoryService {
       }
 
       if (_looksLikePersona(text)) {
-        final memoryText = 'ユーザー属性: ${_truncate(text, 120)}';
+        final memoryText = 'User attribute: ${_truncate(text, 120)}';
         if (seen.add(memoryText)) {
           entries.add(
             MemoryEntry(
@@ -362,7 +362,7 @@ class SessionMemoryService {
       entries.add(
         MemoryEntry(
           id: _uuid.v4(),
-          text: '関心トピック: ${_truncate(firstTopic, 120)}',
+          text: 'Interest topic: ${_truncate(firstTopic, 120)}',
           type: MemoryEntryType.topic,
           confidence: 0.65,
           importance: 0.6,
@@ -376,7 +376,7 @@ class SessionMemoryService {
       entries.add(
         MemoryEntry(
           id: _uuid.v4(),
-          text: '直近の関心: ${_truncate(lastTopic, 120)}',
+          text: 'Recent interest: ${_truncate(lastTopic, 120)}',
           type: MemoryEntryType.topic,
           confidence: 0.7,
           importance: 0.7,
@@ -449,13 +449,13 @@ class SessionMemoryService {
 
     for (final entry in extracted) {
       if (entry.type == MemoryEntryType.preference) {
-        final line = _extractProfileText(entry.text, '回答スタイル希望:');
+        final line = _extractProfileText(entry.text, 'Response style preference:');
         if (line.isNotEmpty && !preferences.contains(line)) {
           preferences.add(line);
           changed = true;
         }
       } else if (entry.type == MemoryEntryType.persona) {
-        final line = _extractProfileText(entry.text, 'ユーザー属性:');
+        final line = _extractProfileText(entry.text, 'User attribute:');
         if (line.isNotEmpty && !persona.contains(line)) {
           persona.add(line);
           changed = true;

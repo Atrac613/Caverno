@@ -13,7 +13,7 @@ class SearxngClient {
     required String query,
     int maxResults = 5,
   }) async {
-    print('[SearXNG] 検索クエリ: $query');
+    print('[SearXNG] Search query: $query');
 
     final uri = Uri.parse(
       baseUrl,
@@ -38,7 +38,7 @@ class SearxngClient {
         .map((r) => SearxngResult.fromJson(r as Map<String, dynamic>))
         .toList();
 
-    print('[SearXNG] 検索結果: ${results.length}件');
+    print('[SearXNG] Search results: ${results.length} items');
 
     return SearxngSearchResult(
       query: json['query'] as String? ?? query,
@@ -55,11 +55,11 @@ class SearxngClient {
       final result = await search(query: query, maxResults: maxResults);
 
       if (result.results.isEmpty) {
-        return '検索結果が見つかりませんでした。';
+        return 'No search results found.';
       }
 
       final buffer = StringBuffer();
-      buffer.writeln('「$query」の検索結果:\n');
+      buffer.writeln('Search results for "$query":\n');
 
       for (var i = 0; i < result.results.length; i++) {
         final r = result.results[i];
@@ -73,8 +73,8 @@ class SearxngClient {
 
       return buffer.toString();
     } catch (e) {
-      print('[SearXNG] エラー: $e');
-      return '検索エラー: $e';
+      print('[SearXNG] Error: $e');
+      return 'Search error: $e';
     }
   }
 }
