@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -10,6 +11,7 @@ import 'features/settings/presentation/providers/settings_notifier.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await EasyLocalization.ensureInitialized();
 
   // Initialize Hive
   await Hive.initFlutter();
@@ -19,13 +21,18 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
 
   runApp(
-    ProviderScope(
-      overrides: [
-        sharedPreferencesProvider.overrideWithValue(prefs),
-        conversationBoxProvider.overrideWithValue(conversationBox),
-        chatMemoryBoxProvider.overrideWithValue(memoryBox),
-      ],
-      child: const MyApp(),
+    EasyLocalization(
+      supportedLocales: const [Locale('ja'), Locale('en')],
+      path: 'assets/translations',
+      fallbackLocale: const Locale('ja'),
+      child: ProviderScope(
+        overrides: [
+          sharedPreferencesProvider.overrideWithValue(prefs),
+          conversationBoxProvider.overrideWithValue(conversationBox),
+          chatMemoryBoxProvider.overrideWithValue(memoryBox),
+        ],
+        child: const MyApp(),
+      ),
     ),
   );
 }
@@ -38,6 +45,9 @@ class MyApp extends StatelessWidget {
     return MaterialApp(
       title: 'Caverno',
       debugShowCheckedModeBanner: false,
+      localizationsDelegates: context.localizationDelegates,
+      supportedLocales: context.supportedLocales,
+      locale: context.locale,
       theme: ThemeData(
         colorScheme: ColorScheme.fromSeed(
           seedColor: Colors.blue,

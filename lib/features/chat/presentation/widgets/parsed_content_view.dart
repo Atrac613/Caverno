@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -171,7 +172,7 @@ class ParsedContentView extends StatelessWidget {
               ),
               const SizedBox(width: 4),
               Text(
-                '思考',
+                'content.thinking'.tr(),
                 style: TextStyle(
                   fontSize: 11,
                   color: theme.colorScheme.outline,
@@ -197,7 +198,7 @@ class ParsedContentView extends StatelessWidget {
 
   Widget _buildToolCallBlock(ContentSegment segment, ThemeData theme) {
     final toolCall = segment.toolCall;
-    final toolName = toolCall?.name ?? 'ツール';
+    final toolName = toolCall?.name ?? 'content.tool_default'.tr();
     final arguments = toolCall?.arguments ?? const <String, dynamic>{};
     final argumentText = _formatToolArguments(arguments);
 
@@ -284,7 +285,7 @@ class ParsedContentView extends StatelessWidget {
           Icon(Icons.psychology, size: 14, color: theme.colorScheme.outline),
           const SizedBox(width: 4),
           Text(
-            '思考中...',
+            'content.thinking_active'.tr(),
             style: TextStyle(
               fontSize: 11,
               color: theme.colorScheme.outline,
@@ -325,15 +326,15 @@ class ParsedContentView extends StatelessWidget {
   String _getToolDisplayName(String toolName) {
     switch (toolName.toLowerCase()) {
       case 'web_search':
-        return 'Web検索';
+        return 'content.tool_web_search'.tr();
       case 'get_current_datetime':
-        return '現在日時取得';
+        return 'content.tool_datetime'.tr();
       case 'memory_update':
-        return '会話メモリ更新';
+        return 'content.tool_memory_update'.tr();
       case 'calculator':
-        return '計算';
+        return 'content.tool_calculator'.tr();
       case 'code':
-        return 'コード実行';
+        return 'content.tool_code'.tr();
       default:
         return toolName;
     }

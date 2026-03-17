@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -110,7 +111,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     if (mounted) {
       ScaffoldMessenger.of(
         context,
-      ).showSnackBar(const SnackBar(content: Text('設定を保存しました')));
+      ).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
       Navigator.of(context).pop();
     }
   }
@@ -119,16 +120,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('設定をリセット'),
-        content: const Text('すべての設定をデフォルト値に戻しますか？'),
+        title: Text('settings.reset_title'.tr()),
+        content: Text('settings.reset_confirm'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(context).pop(false),
-            child: const Text('キャンセル'),
+            child: Text('common.cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('リセット'),
+            child: Text('common.reset'.tr()),
           ),
         ],
       ),
@@ -151,7 +152,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         });
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(const SnackBar(content: Text('設定をリセットしました')));
+        ).showSnackBar(SnackBar(content: Text('settings.reset_done'.tr())));
       }
     }
   }
@@ -160,17 +161,17 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('会話メモリを削除'),
-        content: const Text('プロフィール・要約・記憶をすべて削除しますか？'),
+        title: Text('settings.clear_memory_title'.tr()),
+        content: Text('settings.clear_memory_confirm'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(false),
-            child: const Text('キャンセル'),
+            child: Text('common.cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.of(dialogContext).pop(true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),
@@ -188,7 +189,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _reloadMemorySnapshot();
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('会話メモリを削除しました')));
+    ).showSnackBar(SnackBar(content: Text('settings.clear_memory_done'.tr())));
   }
 
   void _reloadMemorySnapshot() {
@@ -202,39 +203,45 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('接続設定'),
+        title: Text('settings.title'.tr()),
         actions: [
           IconButton(
             onPressed: _resetToDefaults,
             icon: const Icon(Icons.restore),
-            tooltip: 'デフォルトに戻す',
+            tooltip: 'settings.reset_to_default'.tr(),
           ),
         ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
+          // Language settings section
+          _buildSectionHeader('settings.language_section'.tr()),
+          const SizedBox(height: 8),
+          _buildLanguageSelector(),
+          const SizedBox(height: 24),
+
           // Server settings section
-          _buildSectionHeader('サーバー設定'),
+          _buildSectionHeader('settings.server_section'.tr()),
           const SizedBox(height: 8),
           TextField(
             controller: _baseUrlController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'API Base URL',
               hintText: 'http://localhost:1234/v1',
-              border: OutlineInputBorder(),
-              helperText: 'LM Studio などの OpenAI 互換APIエンドポイント',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.base_url_helper'.tr(),
             ),
             keyboardType: TextInputType.url,
           ),
           const SizedBox(height: 16),
           TextField(
             controller: _apiKeyController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'API Key',
               hintText: 'no-key',
-              border: OutlineInputBorder(),
-              helperText: 'ローカルLLMでは通常不要',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.api_key_helper'.tr(),
             ),
             obscureText: true,
           ),
@@ -243,14 +250,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           // Model settings section
           Row(
             children: [
-              _buildSectionHeader('モデル設定'),
+              _buildSectionHeader('settings.model_section'.tr()),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: () {
                   setState(() {});
                 },
                 icon: const Icon(Icons.refresh, size: 18),
-                tooltip: 'モデル一覧を再取得',
+                tooltip: 'settings.model_refresh'.tr(),
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -260,7 +267,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 24),
 
           // Assistant settings section
-          _buildSectionHeader('アシスタント設定'),
+          _buildSectionHeader('settings.assistant_section'.tr()),
           const SizedBox(height: 16),
           SegmentedButton<AssistantMode>(
             segments: const [
@@ -285,8 +292,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 8),
           Text(
             _assistantMode == AssistantMode.general
-                ? '汎用アシスタントとして応答します'
-                : '技術タスクでは、より厳密なエンジニア寄りの応答をします',
+                ? 'settings.assistant_general_desc'.tr()
+                : 'settings.assistant_coding_desc'.tr(),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.outline,
             ),
@@ -296,12 +303,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           // Conversation memory section
           Row(
             children: [
-              _buildSectionHeader('会話メモリ'),
+              _buildSectionHeader('settings.memory_section'.tr()),
               const SizedBox(width: 8),
               IconButton(
                 onPressed: _reloadMemorySnapshot,
                 icon: const Icon(Icons.refresh, size: 18),
-                tooltip: 'メモリ状態を更新',
+                tooltip: 'settings.memory_refresh'.tr(),
                 visualDensity: VisualDensity.compact,
               ),
             ],
@@ -313,15 +320,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('保存状況', style: Theme.of(context).textTheme.labelLarge),
+                  Text(
+                    'settings.memory_status'.tr(),
+                    style: Theme.of(context).textTheme.labelLarge,
+                  ),
                   const SizedBox(height: 6),
                   Text(
-                    'プロフィール: ${_memorySnapshot.profile.persona.length + _memorySnapshot.profile.preferences.length + _memorySnapshot.profile.doNot.length}件',
+                    'settings.profile_count'.tr(namedArgs: {
+                      'count': '${_memorySnapshot.profile.persona.length + _memorySnapshot.profile.preferences.length + _memorySnapshot.profile.doNot.length}',
+                    }),
                   ),
-                  Text('セッション要約: ${_memorySnapshot.summaryCount}件'),
-                  Text('関連記憶: ${_memorySnapshot.memoryCount}件'),
                   Text(
-                    '最終更新: ${_formatDateTime(_memorySnapshot.lastUpdatedAt)}',
+                    'settings.summary_count'.tr(namedArgs: {
+                      'count': '${_memorySnapshot.summaryCount}',
+                    }),
+                  ),
+                  Text(
+                    'settings.memory_count'.tr(namedArgs: {
+                      'count': '${_memorySnapshot.memoryCount}',
+                    }),
+                  ),
+                  Text(
+                    'settings.last_updated'.tr(namedArgs: {
+                      'date': _formatDateTime(_memorySnapshot.lastUpdatedAt),
+                    }),
                   ),
                 ],
               ),
@@ -331,31 +353,31 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           TextField(
             controller: _profilePersonaController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: 'ユーザープロフィール (1行1項目)',
-              hintText: '例: Flutterエンジニア',
-              border: OutlineInputBorder(),
-              helperText: '新規セッション開始時に優先して参照',
+            decoration: InputDecoration(
+              labelText: 'settings.profile_label'.tr(),
+              hintText: 'settings.profile_hint'.tr(),
+              border: const OutlineInputBorder(),
+              helperText: 'settings.profile_helper'.tr(),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _profilePreferencesController,
             maxLines: 4,
-            decoration: const InputDecoration(
-              labelText: '回答の好み (1行1項目)',
-              hintText: '例: 結論先出し / 箇条書き / 実装例重視',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'settings.preferences_label'.tr(),
+              hintText: 'settings.preferences_hint'.tr(),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 12),
           TextField(
             controller: _profileDoNotController,
             maxLines: 3,
-            decoration: const InputDecoration(
-              labelText: '避けたいこと (1行1項目)',
-              hintText: '例: 長い前置き / 抽象論のみ',
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              labelText: 'settings.do_not_label'.tr(),
+              hintText: 'settings.do_not_hint'.tr(),
+              border: const OutlineInputBorder(),
             ),
           ),
           const SizedBox(height: 12),
@@ -364,13 +386,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             child: OutlinedButton.icon(
               onPressed: _clearConversationMemory,
               icon: const Icon(Icons.delete_sweep_outlined),
-              label: const Text('会話メモリを全削除'),
+              label: Text('settings.clear_memory'.tr()),
             ),
           ),
           const SizedBox(height: 24),
 
           // Generation parameters section
-          _buildSectionHeader('生成パラメータ'),
+          _buildSectionHeader('settings.generation_section'.tr()),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -395,22 +417,22 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 8),
           TextField(
             controller: _maxTokensController,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'Max Tokens',
               hintText: '4096',
-              border: OutlineInputBorder(),
-              helperText: '生成する最大トークン数',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.max_tokens_helper'.tr(),
             ),
             keyboardType: TextInputType.number,
           ),
           const SizedBox(height: 24),
 
           // MCP settings section
-          _buildSectionHeader('MCP (ツール)'),
+          _buildSectionHeader('settings.mcp_section'.tr()),
           const SizedBox(height: 8),
           SwitchListTile(
-            title: const Text('MCPツールを有効化'),
-            subtitle: const Text('LLMがWeb検索などのツールを使用可能に'),
+            title: Text('settings.mcp_enable'.tr()),
+            subtitle: Text('settings.mcp_enable_desc'.tr()),
             value: _mcpEnabled,
             onChanged: (value) {
               setState(() {
@@ -422,11 +444,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           TextField(
             controller: _mcpUrlController,
             enabled: _mcpEnabled,
-            decoration: const InputDecoration(
+            decoration: InputDecoration(
               labelText: 'MCP Server URL',
               hintText: 'http://localhost:8081',
-              border: OutlineInputBorder(),
-              helperText: 'SearXNG等のMCPサーバーURL',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.mcp_url_helper'.tr(),
             ),
             keyboardType: TextInputType.url,
           ),
@@ -436,11 +458,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 24),
 
           // Voice settings section
-          _buildSectionHeader('音声設定'),
+          _buildSectionHeader('settings.voice_section'.tr()),
           const SizedBox(height: 8),
           SwitchListTile(
-            title: const Text('音声読み上げ'),
-            subtitle: const Text('アシスタントの応答を読み上げ'),
+            title: Text('settings.tts'.tr()),
+            subtitle: Text('settings.tts_desc'.tr()),
             value: _ttsEnabled,
             onChanged: (value) {
               setState(() {
@@ -452,8 +474,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             },
           ),
           SwitchListTile(
-            title: const Text('自動読み上げ'),
-            subtitle: const Text('新しい応答を自動で読み上げ'),
+            title: Text('settings.auto_read'.tr()),
+            subtitle: Text('settings.auto_read_desc'.tr()),
             value: _autoReadEnabled,
             onChanged: _ttsEnabled
                 ? (value) {
@@ -466,7 +488,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           const SizedBox(height: 8),
           Row(
             children: [
-              const Text('読み上げ速度: '),
+              Text('settings.speech_rate'.tr()),
               Expanded(
                 child: Slider(
                   value: _speechRate,
@@ -495,10 +517,34 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           FilledButton.icon(
             onPressed: _saveSettings,
             icon: const Icon(Icons.save),
-            label: const Text('設定を保存'),
+            label: Text('settings.save_settings'.tr()),
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildLanguageSelector() {
+    final currentLocale = context.locale;
+    // null = system, 'ja' = Japanese, 'en' = English
+    // Determine which option is currently selected.
+    // easy_localization persists locale, so we just show the current one.
+    return SegmentedButton<String>(
+      segments: [
+        ButtonSegment(
+          value: 'ja',
+          label: Text('settings.language_ja'.tr()),
+        ),
+        ButtonSegment(
+          value: 'en',
+          label: Text('settings.language_en'.tr()),
+        ),
+      ],
+      selected: {currentLocale.languageCode},
+      onSelectionChanged: (selection) {
+        final code = selection.first;
+        context.setLocale(Locale(code));
+      },
     );
   }
 
@@ -513,7 +559,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   String _formatDateTime(DateTime? value) {
-    if (value == null) return 'なし';
+    if (value == null) return 'common.none'.tr();
     return '${value.year.toString().padLeft(4, '0')}/${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   }
 
@@ -536,10 +582,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
         return DropdownButtonFormField<String>(
           initialValue: _selectedModel,
-          decoration: const InputDecoration(
-            labelText: 'モデル名',
-            border: OutlineInputBorder(),
-            helperText: 'APIの /models から取得した一覧',
+          decoration: InputDecoration(
+            labelText: 'settings.model_name'.tr(),
+            border: const OutlineInputBorder(),
+            helperText: 'settings.model_list_helper'.tr(),
           ),
           items: options
               .map(
@@ -558,20 +604,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         );
       },
       loading: () => InputDecorator(
-        decoration: const InputDecoration(
-          labelText: 'モデル名',
-          border: OutlineInputBorder(),
-          helperText: 'モデル一覧を取得中',
+        decoration: InputDecoration(
+          labelText: 'settings.model_name'.tr(),
+          border: const OutlineInputBorder(),
+          helperText: 'settings.model_loading'.tr(),
         ),
-        child: const Row(
+        child: Row(
           children: [
-            SizedBox(
+            const SizedBox(
               width: 18,
               height: 18,
               child: CircularProgressIndicator(strokeWidth: 2),
             ),
-            SizedBox(width: 12),
-            Expanded(child: Text('利用可能なモデルを読み込んでいます...')),
+            const SizedBox(width: 12),
+            Expanded(child: Text('settings.model_loading_message'.tr())),
           ],
         ),
       ),
@@ -580,10 +626,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           DropdownButtonFormField<String>(
             initialValue: _selectedModel,
-            decoration: const InputDecoration(
-              labelText: 'モデル名',
-              border: OutlineInputBorder(),
-              helperText: 'モデル一覧を取得できないため現在値を表示しています',
+            decoration: InputDecoration(
+              labelText: 'settings.model_name'.tr(),
+              border: const OutlineInputBorder(),
+              helperText: 'settings.model_error_helper'.tr(),
             ),
             items: [
               DropdownMenuItem<String>(
@@ -595,7 +641,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            'モデル一覧の取得に失敗しました。Base URL / API Key を確認して再読み込みしてください。\n$error',
+            '${'settings.model_error_message'.tr()}\n$error',
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.error,
             ),
@@ -617,7 +663,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             if (mcpToolService == null) {
               print('[Settings] MCP connection test: mcpToolService is null');
               ScaffoldMessenger.of(context).showSnackBar(
-                const SnackBar(content: Text('MCPサービスが初期化されていません')),
+                SnackBar(content: Text('settings.mcp_service_null'.tr())),
               );
               return;
             }
@@ -627,7 +673,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
             ScaffoldMessenger.of(
               context,
-            ).showSnackBar(const SnackBar(content: Text('接続テスト中...')));
+            ).showSnackBar(SnackBar(content: Text('settings.mcp_testing'.tr())));
 
             await mcpToolService.connect(overrideUrl: testUrl);
 
@@ -645,7 +691,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 '[Settings] Connection succeeded: tools=${tools.map((t) => t.name).toList()}',
               );
               ScaffoldMessenger.of(context).showSnackBar(
-                SnackBar(content: Text('接続成功: ${tools.length}ツール取得')),
+                SnackBar(
+                  content: Text(
+                    'settings.mcp_success'.tr(namedArgs: {'count': '${tools.length}'}),
+                  ),
+                ),
               );
               setState(() {}); // Refresh the tool list.
             } else {
@@ -653,7 +703,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(
-                    '接続失敗: ${mcpToolService.lastError ?? "不明なエラー"}',
+                    'settings.mcp_failed'.tr(namedArgs: {
+                      'error': mcpToolService.lastError ?? 'common.unknown_error'.tr(),
+                    }),
                   ),
                   backgroundColor: Theme.of(context).colorScheme.error,
                 ),
@@ -661,7 +713,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             }
           },
           icon: const Icon(Icons.refresh),
-          label: const Text('接続テスト'),
+          label: Text('settings.mcp_test_button'.tr()),
         ),
         const SizedBox(height: 12),
         // Tool list
@@ -672,9 +724,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Widget _buildToolsList(McpToolService? mcpToolService) {
     if (mcpToolService == null) {
-      return const Text(
-        'MCPサービスが初期化されていません',
-        style: TextStyle(color: Colors.grey),
+      return Text(
+        'settings.mcp_service_null'.tr(),
+        style: const TextStyle(color: Colors.grey),
       );
     }
 
@@ -682,37 +734,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final tools = mcpToolService.tools;
 
     if (status == McpConnectionStatus.disconnected) {
-      return const Text(
-        '未接続（接続テストを実行してください）',
-        style: TextStyle(color: Colors.grey),
+      return Text(
+        'settings.mcp_disconnected'.tr(),
+        style: const TextStyle(color: Colors.grey),
       );
     }
 
     if (status == McpConnectionStatus.connecting) {
-      return const Row(
+      return Row(
         children: [
-          SizedBox(
+          const SizedBox(
             width: 16,
             height: 16,
             child: CircularProgressIndicator(strokeWidth: 2),
           ),
-          SizedBox(width: 8),
-          Text('接続中...'),
+          const SizedBox(width: 8),
+          Text('settings.mcp_connecting'.tr()),
         ],
       );
     }
 
     if (status == McpConnectionStatus.error) {
       return Text(
-        'エラー: ${mcpToolService.lastError ?? "不明"}',
+        'settings.mcp_error'.tr(namedArgs: {
+          'error': mcpToolService.lastError ?? 'common.unknown'.tr(),
+        }),
         style: TextStyle(color: Theme.of(context).colorScheme.error),
       );
     }
 
     if (tools.isEmpty) {
-      return const Text(
-        '利用可能なツールがありません（SearXNGフォールバック使用）',
-        style: TextStyle(color: Colors.grey),
+      return Text(
+        'settings.mcp_no_tools'.tr(),
+        style: const TextStyle(color: Colors.grey),
       );
     }
 
@@ -720,7 +774,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '利用可能なツール (${tools.length}):',
+          'settings.mcp_available_tools'.tr(namedArgs: {'count': '${tools.length}'}),
           style: const TextStyle(fontWeight: FontWeight.w500),
         ),
         const SizedBox(height: 8),

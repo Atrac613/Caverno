@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
@@ -163,8 +164,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           setState(() => _isRecording = false);
           if (!stt.isAvailable) {
             ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('音声入力を開始できませんでした（実行環境または権限を確認してください）。'),
+              SnackBar(
+                content: Text('message.stt_unavailable'.tr()),
               ),
             );
           }
@@ -236,7 +237,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 IconButton(
                   onPressed: widget.isLoading ? null : _pickImage,
                   icon: const Icon(Icons.image),
-                  tooltip: '画像を添付',
+                  tooltip: 'message.attach_image'.tr(),
                   style: IconButton.styleFrom(
                     foregroundColor: theme.colorScheme.onSurfaceVariant,
                   ),
@@ -245,7 +246,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 IconButton(
                   onPressed: widget.isLoading ? null : _toggleRecording,
                   icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),
-                  tooltip: _isRecording ? '録音停止' : '音声入力',
+                  tooltip: _isRecording
+                      ? 'message.record_stop'.tr()
+                      : 'message.record_start'.tr(),
                   style: IconButton.styleFrom(
                     foregroundColor: _isRecording
                         ? theme.colorScheme.error
@@ -261,7 +264,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                     focusNode: _focusNode,
                     enabled: !widget.isLoading,
                     decoration: InputDecoration(
-                      hintText: _isRecording ? '聞き取り中...' : 'メッセージを入力...',
+                      hintText: _isRecording
+                          ? 'message.listening'.tr()
+                          : 'message.input_hint'.tr(),
                       border: OutlineInputBorder(
                         borderRadius: BorderRadius.circular(24),
                         borderSide: BorderSide.none,
@@ -288,7 +293,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   IconButton(
                     onPressed: widget.onCancel,
                     icon: const Icon(Icons.stop_circle),
-                    tooltip: 'キャンセル',
+                    tooltip: 'message.cancel'.tr(),
                     style: IconButton.styleFrom(
                       backgroundColor: theme.colorScheme.errorContainer,
                       foregroundColor: theme.colorScheme.onErrorContainer,
@@ -298,7 +303,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   IconButton(
                     onPressed: _handleSend,
                     icon: const Icon(Icons.send),
-                    tooltip: '送信',
+                    tooltip: 'message.send'.tr(),
                     style: IconButton.styleFrom(
                       backgroundColor: theme.colorScheme.primary,
                       foregroundColor: theme.colorScheme.onPrimary,

@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -21,10 +22,10 @@ class ConversationDrawer extends ConsumerWidget {
               padding: const EdgeInsets.all(16),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Text(
-                      '会話履歴',
-                      style: TextStyle(
+                      'drawer.title'.tr(),
+                      style: const TextStyle(
                         fontSize: 20,
                         fontWeight: FontWeight.bold,
                       ),
@@ -33,14 +34,14 @@ class ConversationDrawer extends ConsumerWidget {
                   if (conversationsState.conversations.isNotEmpty)
                     IconButton(
                       icon: const Icon(Icons.delete_sweep_outlined),
-                      tooltip: '履歴を一括削除',
+                      tooltip: 'drawer.delete_all_tooltip'.tr(),
                       onPressed: () {
                         _showDeleteAllDialog(context, notifier);
                       },
                     ),
                   IconButton(
                     icon: const Icon(Icons.add),
-                    tooltip: '新しい会話',
+                    tooltip: 'drawer.new_conversation'.tr(),
                     onPressed: () {
                       notifier.createNewConversation();
                       Navigator.pop(context);
@@ -53,10 +54,10 @@ class ConversationDrawer extends ConsumerWidget {
             // Conversation list
             Expanded(
               child: conversationsState.conversations.isEmpty
-                  ? const Center(
+                  ? Center(
                       child: Text(
-                        '会話がありません',
-                        style: TextStyle(color: Colors.grey),
+                        'drawer.no_conversations'.tr(),
+                        style: const TextStyle(color: Colors.grey),
                       ),
                     )
                   : ListView.builder(
@@ -96,12 +97,12 @@ class ConversationDrawer extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('会話を削除'),
-        content: Text('「${conversation.title}」を削除しますか？'),
+        title: Text('drawer.delete_title'.tr()),
+        content: Text('drawer.delete_confirm'.tr(namedArgs: {'title': conversation.title})),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('キャンセル'),
+            child: Text('common.cancel'.tr()),
           ),
           TextButton(
             onPressed: () {
@@ -109,7 +110,7 @@ class ConversationDrawer extends ConsumerWidget {
               Navigator.pop(context);
             },
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),
@@ -123,17 +124,17 @@ class ConversationDrawer extends ConsumerWidget {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (dialogContext) => AlertDialog(
-        title: const Text('会話履歴を一括削除'),
-        content: const Text('すべての会話履歴を削除しますか？この操作は取り消せません。'),
+        title: Text('drawer.delete_all_title'.tr()),
+        content: Text('drawer.delete_all_confirm'.tr()),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('キャンセル'),
+            child: Text('common.cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.pop(dialogContext, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('すべて削除'),
+            child: Text('common.delete_all'.tr()),
           ),
         ],
       ),
@@ -146,7 +147,7 @@ class ConversationDrawer extends ConsumerWidget {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('会話履歴をすべて削除しました')));
+    ).showSnackBar(SnackBar(content: Text('drawer.delete_all_done'.tr())));
   }
 }
 
@@ -177,7 +178,9 @@ class _ConversationTile extends StatelessWidget {
         color: isSelected ? theme.colorScheme.primary : null,
       ),
       title: Text(
-        conversation.title,
+        conversation.title == defaultConversationTitle
+            ? 'drawer.new_conversation'.tr()
+            : conversation.title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
         style: TextStyle(
@@ -194,7 +197,7 @@ class _ConversationTile extends StatelessWidget {
       trailing: IconButton(
         icon: const Icon(Icons.delete_outline, size: 20),
         onPressed: onDelete,
-        tooltip: '削除',
+        tooltip: 'drawer.delete_tooltip'.tr(),
       ),
       onTap: onTap,
     );
@@ -205,11 +208,12 @@ class _ConversationTile extends StatelessWidget {
     final diff = now.difference(date);
 
     if (diff.inDays == 0) {
-      return '今日 ${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      final time = '${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')}';
+      return 'drawer.date_today'.tr(namedArgs: {'time': time});
     } else if (diff.inDays == 1) {
-      return '昨日';
+      return 'drawer.date_yesterday'.tr();
     } else if (diff.inDays < 7) {
-      return '${diff.inDays}日前';
+      return 'drawer.days_ago'.tr(namedArgs: {'days': diff.inDays.toString()});
     } else {
       return '${date.month}/${date.day}';
     }

@@ -53,6 +53,9 @@ final conversationsNotifierProvider =
       return ConversationsNotifier(repository);
     });
 
+/// Default title for new conversations (used as a sentinel for auto-title).
+const defaultConversationTitle = '__new_conversation__';
+
 /// Notifier that manages the conversation list.
 class ConversationsNotifier extends StateNotifier<ConversationsState> {
   ConversationsNotifier(this._repository)
@@ -81,7 +84,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
     final now = DateTime.now();
     final conversation = Conversation(
       id: _uuid.v4(),
-      title: '新しい会話',
+      title: defaultConversationTitle,
       messages: const [],
       createdAt: now,
       updatedAt: now,
@@ -151,7 +154,7 @@ class ConversationsNotifier extends StateNotifier<ConversationsState> {
 
     // Derive the title from the first user message.
     String title = conversation.title;
-    if (title == '新しい会話' && messages.isNotEmpty) {
+    if (title == defaultConversationTitle && messages.isNotEmpty) {
       final firstUserMessage = messages.firstWhere(
         (m) => m.role == MessageRole.user,
         orElse: () => messages.first,

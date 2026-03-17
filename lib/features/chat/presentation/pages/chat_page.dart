@@ -1,3 +1,4 @@
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -43,17 +44,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final shouldDelete = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: const Text('会話を削除'),
-        content: Text('「$conversationTitle」を削除しますか？'),
+        title: Text('chat.delete_title'.tr()),
+        content: Text('chat.delete_confirm'.tr(namedArgs: {'title': conversationTitle})),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('キャンセル'),
+            child: Text('common.cancel'.tr()),
           ),
           TextButton(
             onPressed: () => Navigator.pop(context, true),
             style: TextButton.styleFrom(foregroundColor: Colors.red),
-            child: const Text('削除'),
+            child: Text('common.delete'.tr()),
           ),
         ],
       ),
@@ -66,7 +67,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
 
     ScaffoldMessenger.of(
       context,
-    ).showSnackBar(const SnackBar(content: Text('会話を削除しました')));
+    ).showSnackBar(SnackBar(content: Text('chat.deleted'.tr())));
   }
 
   @override
@@ -89,7 +90,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     });
 
     final currentConversation = conversationsState.currentConversation;
-    final currentTitle = currentConversation?.title ?? 'OpenAI Chat';
+    final rawTitle = currentConversation?.title ?? 'Caverno';
+    final currentTitle = rawTitle == defaultConversationTitle
+        ? 'chat.new_conversation'.tr()
+        : rawTitle;
 
     return Scaffold(
       appBar: AppBar(
@@ -98,7 +102,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           IconButton(
             onPressed: () => conversationsNotifier.createNewConversation(),
             icon: const Icon(Icons.add),
-            tooltip: '新しい会話',
+            tooltip: 'chat.new_conversation'.tr(),
           ),
           if (currentConversation != null)
             IconButton(
@@ -109,7 +113,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 currentConversation.title,
               ),
               icon: const Icon(Icons.delete_outline),
-              tooltip: '現在の会話を削除',
+              tooltip: 'chat.delete_current'.tr(),
             ),
           IconButton(
             onPressed: () {
@@ -118,7 +122,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ).push(MaterialPageRoute(builder: (_) => const SettingsPage()));
             },
             icon: const Icon(Icons.settings),
-            tooltip: '接続設定',
+            tooltip: 'chat.settings'.tr(),
           ),
         ],
       ),
@@ -163,7 +167,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                         ),
                         const SizedBox(height: 16),
                         Text(
-                          'メッセージを送信してチャットを開始',
+                          'chat.empty_state'.tr(),
                           style: TextStyle(
                             color: Theme.of(context).colorScheme.outline,
                           ),

@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -72,7 +73,7 @@ class MessageBubble extends ConsumerWidget {
                         ),
                         const SizedBox(width: 4),
                         Text(
-                          'エラー',
+                          'message.error'.tr(),
                           style: TextStyle(
                             color: theme.colorScheme.error,
                             fontSize: 12,
@@ -185,7 +186,9 @@ class MessageBubble extends ConsumerWidget {
                             ),
                             const SizedBox(width: 4),
                             Text(
-                              tts.isSpeaking ? '停止' : '読み上げ',
+                              tts.isSpeaking
+                                  ? 'message.tts_stop'.tr()
+                                  : 'message.tts_play'.tr(),
                               style: TextStyle(
                                 fontSize: 12,
                                 color: theme.colorScheme.primary,

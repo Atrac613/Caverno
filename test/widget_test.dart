@@ -1,30 +1,40 @@
-// This is a basic Flutter widget test.
-//
-// To perform an interaction with a widget in your test, use the WidgetTester
-// utility in the flutter_test package. For example, you can send tap and scroll
-// gestures. You can also use WidgetTester to find child widgets in the widget
-// tree, read text, and verify that the values of widget properties are correct.
+import 'dart:convert';
+import 'dart:io';
 
-import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:caverno/main.dart';
-
 void main() {
-  testWidgets('Counter increments smoke test', (WidgetTester tester) async {
-    // Build our app and trigger a frame.
-    await tester.pumpWidget(const MyApp());
+  test('Translation files contain matching keys', () {
+    final jaFile = File('assets/translations/ja.json');
+    final enFile = File('assets/translations/en.json');
 
-    // Verify that our counter starts at 0.
-    expect(find.text('0'), findsOneWidget);
-    expect(find.text('1'), findsNothing);
+    expect(jaFile.existsSync(), isTrue, reason: 'ja.json should exist');
+    expect(enFile.existsSync(), isTrue, reason: 'en.json should exist');
 
-    // Tap the '+' icon and trigger a frame.
-    await tester.tap(find.byIcon(Icons.add));
-    await tester.pump();
+    final jaMap = jsonDecode(jaFile.readAsStringSync()) as Map<String, dynamic>;
+    final enMap = jsonDecode(enFile.readAsStringSync()) as Map<String, dynamic>;
 
-    // Verify that our counter has incremented.
-    expect(find.text('0'), findsNothing);
-    expect(find.text('1'), findsOneWidget);
+    // Flatten nested JSON keys for comparison.
+    Map<String, dynamic> flatten(Map<String, dynamic> map, [String prefix = '']) {
+      final result = <String, dynamic>{};
+      for (final entry in map.entries) {
+        final key = prefix.isEmpty ? entry.key : '$prefix.${entry.key}';
+        if (entry.value is Map<String, dynamic>) {
+          result.addAll(flatten(entry.value as Map<String, dynamic>, key));
+        } else {
+          result[key] = entry.value;
+        }
+      }
+      return result;
+    }
+
+    final jaKeys = flatten(jaMap).keys.toSet();
+    final enKeys = flatten(enMap).keys.toSet();
+
+    final missingInEn = jaKeys.difference(enKeys);
+    final missingInJa = enKeys.difference(jaKeys);
+
+    expect(missingInEn, isEmpty, reason: 'Keys in ja.json but missing in en.json: $missingInEn');
+    expect(missingInJa, isEmpty, reason: 'Keys in en.json but missing in ja.json: $missingInJa');
   });
 }
