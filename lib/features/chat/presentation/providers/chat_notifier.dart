@@ -343,8 +343,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return name == 'get_current_datetime';
       }).toList();
+      final memoryTools = allTools.where((t) {
+        final name = (t['function'] as Map?)?['name'] as String?;
+        return name == 'search_past_conversations' || name == 'recall_memory';
+      }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
-          ? _dedupeToolsByName([...searchOnlyTools, ...datetimeTools])
+          ? _dedupeToolsByName([
+              ...searchOnlyTools,
+              ...datetimeTools,
+              ...memoryTools,
+            ])
           : allTools;
 
       // Inspect tool calls with a non-streaming request first.
@@ -808,9 +816,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
             'Output only a single valid JSON object with no markdown. '
             'Schema: {"summary":string,"open_loops":[string],'
             '"profile":{"persona":[string],"preferences":[string],"do_not":[string]},'
-            '"memories":[{"text":string,"type":"preference|persona|topic|constraint",'
+            '"memories":[{"text":string,"type":"preference|persona|topic|constraint|fact",'
             '"confidence":number,"importance":number,"ttl_days":number|null}]}. '
             'Focus on stable user traits/preferences/constraints. '
+            'Also extract specific facts the user mentioned: prices, quantities, '
+            'purchases, dates, decisions, events, and other concrete data points. '
+            'Use type "fact" with high importance for these. '
+            'Facts should have detailed text (up to 300 chars) to preserve specifics. '
             'Do not include temporary assistant instructions.',
       ),
       Message(

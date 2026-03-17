@@ -4,6 +4,8 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/searxng_client.dart';
+import '../../data/repositories/chat_memory_repository.dart';
+import '../../data/repositories/conversation_repository.dart';
 
 /// Provides the MCP client.
 ///
@@ -35,6 +37,13 @@ final searxngClientProvider = Provider<SearxngClient?>((ref) {
 final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final mcpClient = ref.watch(mcpClientProvider);
   final searxngClient = ref.watch(searxngClientProvider);
+  final conversationRepo = ref.watch(conversationRepositoryProvider);
+  final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
   // Always provide the service so built-in local tools remain available.
-  return McpToolService(mcpClient: mcpClient, searxngClient: searxngClient);
+  return McpToolService(
+    mcpClient: mcpClient,
+    searxngClient: searxngClient,
+    conversationRepository: conversationRepo,
+    memoryRepository: memoryRepo,
+  );
 });

@@ -354,6 +354,23 @@ class SessionMemoryService {
           );
         }
       }
+
+      if (_looksLikeFact(text)) {
+        final memoryText = 'Fact: ${_truncate(text, 280)}';
+        if (seen.add(memoryText)) {
+          entries.add(
+            MemoryEntry(
+              id: _uuid.v4(),
+              text: memoryText,
+              type: MemoryEntryType.fact,
+              confidence: 0.8,
+              importance: 0.85,
+              updatedAt: now,
+              sourceConversationId: conversationId,
+            ),
+          );
+        }
+      }
     }
 
     final firstTopic = _normalizeSentence(userMessages.first.content);
@@ -410,10 +427,11 @@ class SessionMemoryService {
         expiresAt = now.add(const Duration(days: 90));
       }
 
+      final maxLen = type == MemoryEntryType.fact ? 300 : 140;
       entries.add(
         MemoryEntry(
           id: _uuid.v4(),
-          text: _truncate(text, 140),
+          text: _truncate(text, maxLen),
           type: type,
           confidence: entry.confidence.clamp(0.0, 1.0),
           importance: entry.importance.clamp(0.0, 1.0),
@@ -435,6 +453,8 @@ class SessionMemoryService {
         return MemoryEntryType.persona;
       case 'constraint':
         return MemoryEntryType.constraint;
+      case 'fact':
+        return MemoryEntryType.fact;
       case 'topic':
       default:
         return MemoryEntryType.topic;
@@ -553,6 +573,13 @@ class SessionMemoryService {
 
   bool _looksLikePersona(String text) {
     return RegExp(r'(私は|ぼくは|僕は|仕事|職業|エンジニア|デザイナー|学生|PM|マネージャー)').hasMatch(text);
+  }
+
+  bool _looksLikeFact(String text) {
+    return RegExp(
+      r'(\d+円|\d+ドル|\$\d|\d+kg|\d+g|\d+ml|\d+リットル|\d+個|\d+枚|\d+本|\d+台|\d+回|買った|購入|契約|決めた|予約|申し込|登録|支払|paid|bought|purchased|cost|price|\d+\s*yen)',
+      caseSensitive: false,
+    ).hasMatch(text);
   }
 
   List<String> _splitLines(String text) {

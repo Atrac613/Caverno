@@ -61,6 +61,11 @@ class SystemPromptBuilder {
       buffer.writeln(SystemPromptConstants.codingModeInstruction);
     }
 
+    final hasMemorySearch = uniqueToolNames.contains(
+      'search_past_conversations',
+    );
+    final hasRecallMemory = uniqueToolNames.contains('recall_memory');
+
     if (hasTools) {
       buffer.writeln(
         'Use available tools when they materially improve accuracy, '
@@ -72,6 +77,15 @@ class SystemPromptBuilder {
           'When the user asks about dates/times such as today, this week, '
           'recent, current, latest, or now, call get_current_datetime before '
           'answering.',
+        );
+      }
+      if (hasMemorySearch || hasRecallMemory) {
+        buffer.writeln(
+          'When the user asks about something they previously mentioned, '
+          'discussed, bought, decided, or any past event from their '
+          'conversations, use search_past_conversations to find the relevant '
+          'information before answering from memory alone. '
+          'Use recall_memory for quick lookups of known facts and preferences.',
         );
       }
     }

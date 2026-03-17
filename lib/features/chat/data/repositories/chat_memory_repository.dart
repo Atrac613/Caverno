@@ -114,7 +114,7 @@ class ChatMemoryRepository {
 
   Future<MemoryUpsertResult> addOrUpdateMemories(
     List<MemoryEntry> entries, {
-    int maxItems = 200,
+    int maxItems = 300,
   }) async {
     final memories = loadMemories();
     var addedCount = 0;

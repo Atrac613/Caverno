@@ -1,6 +1,10 @@
 import 'dart:convert';
 
 import '../../domain/entities/mcp_tool_entity.dart';
+import '../../domain/entities/message.dart';
+import '../../domain/entities/session_memory.dart';
+import '../repositories/chat_memory_repository.dart';
+import '../repositories/conversation_repository.dart';
 import 'mcp_client.dart';
 import 'searxng_client.dart';
 
@@ -9,10 +13,17 @@ import 'searxng_client.dart';
 /// Fetches tools dynamically from an MCP server and executes them.
 /// Falls back to SearXNG when the MCP server is unavailable.
 class McpToolService {
-  McpToolService({this.mcpClient, this.searxngClient});
+  McpToolService({
+    this.mcpClient,
+    this.searxngClient,
+    this.conversationRepository,
+    this.memoryRepository,
+  });
 
   final McpClient? mcpClient;
   final SearxngClient? searxngClient;
+  final ConversationRepository? conversationRepository;
+  final ChatMemoryRepository? memoryRepository;
 
   List<McpToolEntity> _cachedTools = [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
@@ -82,6 +93,14 @@ class McpToolService {
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
     final toolDefinitions = <Map<String, dynamic>>[_currentDatetimeTool];
 
+    // Built-in memory tools (always available).
+    if (conversationRepository != null) {
+      toolDefinitions.add(_searchPastConversationsTool);
+    }
+    if (memoryRepository != null) {
+      toolDefinitions.add(_recallMemoryTool);
+    }
+
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
@@ -104,10 +123,23 @@ class McpToolService {
     print('[McpToolService] Executing tool: $name');
     print('[McpToolService] Arguments: $arguments');
 
-    // 0. Built-in local tool
+    // 0. Built-in local tools.
     if (name == 'get_current_datetime') {
       final result = _buildCurrentDatetimeResult();
       print('[McpToolService] Local datetime tool executed successfully');
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'search_past_conversations' &&
+        conversationRepository != null) {
+      final result = _searchConversations(arguments);
+      print('[McpToolService] Conversation search executed: ${result.length} chars');
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'recall_memory' && memoryRepository != null) {
+      final result = _recallMemory(arguments);
+      print('[McpToolService] Memory recall executed: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -265,4 +297,189 @@ class McpToolService {
     final minutes = (absoluteMinutes % 60).toString().padLeft(2, '0');
     return '$sign$hours:$minutes';
   }
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: search_past_conversations
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _searchPastConversationsTool => {
+    'type': 'function',
+    'function': {
+      'name': 'search_past_conversations',
+      'description':
+          'Search past conversation history for specific topics, facts, '
+          'or information the user discussed previously. Use this when the '
+          'user asks about something they mentioned in a past conversation.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'query': {
+            'type': 'string',
+            'description': 'Search keywords to find in past conversations',
+          },
+          'max_results': {
+            'type': 'integer',
+            'description':
+                'Maximum number of matching messages to return (default: 5, max: 10)',
+          },
+        },
+        'required': ['query'],
+      },
+    },
+  };
+
+  String _searchConversations(Map<String, dynamic> arguments) {
+    final query = (arguments['query'] as String?)?.trim() ?? '';
+    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5)
+        .clamp(1, 10);
+    if (query.isEmpty) return 'Error: search query is empty';
+
+    final conversations = conversationRepository!.getAll();
+    final keywords = query
+        .toLowerCase()
+        .split(RegExp(r'\s+'))
+        .where((k) => k.isNotEmpty)
+        .toList();
+    if (keywords.isEmpty) return 'Error: no valid search keywords';
+
+    final matches = <_ConversationMatch>[];
+    for (final conversation in conversations) {
+      for (final message in conversation.messages) {
+        if (message.role == MessageRole.system) continue;
+        final content = message.content.toLowerCase();
+        final matchCount = keywords.where((kw) => content.contains(kw)).length;
+        if (matchCount > 0) {
+          matches.add(_ConversationMatch(
+            title: conversation.title,
+            date: message.timestamp,
+            conversationDate: conversation.updatedAt,
+            role: message.role.name,
+            content: message.content,
+            score: matchCount / keywords.length,
+          ));
+        }
+      }
+    }
+
+    matches.sort((a, b) => b.score.compareTo(a.score));
+    final topMatches = matches.take(maxResults);
+
+    if (topMatches.isEmpty) {
+      return 'No matching conversations found for: $query';
+    }
+
+    final buffer = StringBuffer();
+    for (final match in topMatches) {
+      buffer.writeln(
+        '--- [${_formatDate(match.conversationDate)}] ${match.title} ---',
+      );
+      buffer.writeln('${match.role}: ${_truncateText(match.content, 400)}');
+      buffer.writeln();
+    }
+    return buffer.toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: recall_memory
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _recallMemoryTool => {
+    'type': 'function',
+    'function': {
+      'name': 'recall_memory',
+      'description':
+          'Search stored memory entries (user preferences, facts, past '
+          'topics) for relevant information. Faster than searching full '
+          'conversations.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'query': {
+            'type': 'string',
+            'description': 'Keywords to search in stored memories',
+          },
+        },
+        'required': ['query'],
+      },
+    },
+  };
+
+  String _recallMemory(Map<String, dynamic> arguments) {
+    final query = (arguments['query'] as String?)?.trim() ?? '';
+    if (query.isEmpty) return 'Error: search query is empty';
+
+    final memories = memoryRepository!.loadMemories();
+    if (memories.isEmpty) return 'No memories stored yet.';
+
+    final queryBiGrams = _biGrams(query);
+    final scored = <_ScoredMemoryMatch>[];
+
+    for (final memory in memories) {
+      if (memory.isExpired) continue;
+      final textBiGrams = _biGrams(memory.text);
+      if (queryBiGrams.isEmpty || textBiGrams.isEmpty) continue;
+      final intersection = queryBiGrams.intersection(textBiGrams).length;
+      final union = queryBiGrams.union(textBiGrams).length;
+      final similarity = union == 0 ? 0.0 : intersection / union;
+      if (similarity > 0.05) {
+        scored.add(_ScoredMemoryMatch(memory: memory, score: similarity));
+      }
+    }
+
+    if (scored.isEmpty) return 'No matching memories found for: $query';
+
+    scored.sort((a, b) => b.score.compareTo(a.score));
+    final topMatches = scored.take(5);
+
+    final buffer = StringBuffer();
+    for (final match in topMatches) {
+      final m = match.memory;
+      buffer.writeln(
+        '- [${m.type.name}] (confidence: ${m.confidence.toStringAsFixed(2)}) '
+        '${m.text} (${_formatDate(m.updatedAt)})',
+      );
+    }
+    return buffer.toString();
+  }
+
+  Set<String> _biGrams(String text) {
+    final normalized = text.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    if (normalized.isEmpty) return const {};
+    if (normalized.length == 1) return {normalized};
+    final grams = <String>{};
+    for (var i = 0; i < normalized.length - 1; i++) {
+      grams.add(normalized.substring(i, i + 2));
+    }
+    return grams;
+  }
+
+  String _truncateText(String text, int maxLength) {
+    if (text.length <= maxLength) return text;
+    return '${text.substring(0, maxLength)}...';
+  }
+}
+
+class _ConversationMatch {
+  _ConversationMatch({
+    required this.title,
+    required this.date,
+    required this.conversationDate,
+    required this.role,
+    required this.content,
+    required this.score,
+  });
+
+  final String title;
+  final DateTime date;
+  final DateTime conversationDate;
+  final String role;
+  final String content;
+  final double score;
+}
+
+class _ScoredMemoryMatch {
+  _ScoredMemoryMatch({required this.memory, required this.score});
+
+  final MemoryEntry memory;
+  final double score;
 }

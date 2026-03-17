@@ -1,4 +1,4 @@
-enum MemoryEntryType { preference, persona, topic, constraint }
+enum MemoryEntryType { preference, persona, topic, constraint, fact }
 
 class MemoryEntry {
   MemoryEntry({
