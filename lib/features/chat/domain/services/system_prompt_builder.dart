@@ -17,6 +17,7 @@ class SystemPromptBuilder {
   static String build({
     required DateTime now,
     required AssistantMode assistantMode,
+    String languageCode = 'en',
     List<String> toolNames = const [],
     String? sessionMemoryContext,
   }) {
@@ -52,7 +53,7 @@ class SystemPromptBuilder {
       ..writeln(SystemPromptConstants.judgmentInstruction)
       ..writeln(SystemPromptConstants.communicationInstruction)
       ..writeln(SystemPromptConstants.oversightInstruction)
-      ..writeln(SystemPromptConstants.defaultLanguageInstruction)
+      ..writeln(SystemPromptConstants.languageInstruction(languageCode))
       ..writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
 
     if (assistantMode == AssistantMode.general) {

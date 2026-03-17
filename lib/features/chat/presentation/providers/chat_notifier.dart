@@ -126,6 +126,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   final void Function(List<Message>)? onMessagesChanged;
   final void Function(String content)? onAutoRead;
   String? conversationId;
+  String _languageCode = 'en';
   String? _sessionMemoryContext;
   String? _temporalReferenceContext;
 
@@ -185,6 +186,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       content: SystemPromptBuilder.build(
         now: now,
         assistantMode: _settings.assistantMode,
+        languageCode: _languageCode,
         toolNames: toolNames,
         sessionMemoryContext: _sessionMemoryContext,
       ),
@@ -220,10 +222,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
     String content, {
     String? imageBase64,
     String? imageMimeType,
+    String languageCode = 'en',
   }) async {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!mounted) return;
+
+    _languageCode = languageCode;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
