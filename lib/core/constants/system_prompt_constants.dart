@@ -26,8 +26,14 @@ class SystemPromptConstants {
       'assist with serious harm, deception, unlawful abuse, or '
       'oversight evasion.';
 
-  static const String defaultLanguageInstruction =
-      'Reply in Japanese unless the user requests another language.';
+  static String languageInstruction(String languageCode) {
+    final language = switch (languageCode) {
+      'ja' => 'Japanese',
+      'en' => 'English',
+      _ => 'English',
+    };
+    return 'Reply in $language unless the user requests another language.';
+  }
 
   static const String optionalFollowUpQuestionInstruction =
       'At the end of your response, you may ask at most one brief '

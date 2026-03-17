@@ -191,6 +191,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   message,
                   imageBase64: imageBase64,
                   imageMimeType: imageMimeType,
+                  languageCode: context.locale.languageCode,
                 ),
             onCancel: () => chatNotifier.cancelStreaming(),
             isLoading: chatState.isLoading,
