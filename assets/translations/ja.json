@@ -123,5 +123,9 @@
     "language_system": "システム設定",
     "language_ja": "日本語",
     "language_en": "English"
+  },
+  "notification": {
+    "response_title": "Caverno",
+    "response_body": "応答が完了しました"
   }
 }

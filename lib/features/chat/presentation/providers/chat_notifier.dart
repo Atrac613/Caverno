@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../data/repositories/chat_memory_repository.dart';
@@ -45,6 +46,9 @@ final chatNotifierProvider = StateNotifierProvider<ChatNotifier, ChatState>((
     conversationsNotifierProvider.notifier,
   );
   final ttsService = ref.read(ttsServiceProvider);
+  final notificationService = ref.read(notificationServiceProvider);
+  final lifecycleService = ref.read(appLifecycleServiceProvider);
+  final backgroundTaskService = ref.read(backgroundTaskServiceProvider);
 
   // Load messages for the current conversation.
   final conversationsState = ref.read(conversationsNotifierProvider);
@@ -73,6 +77,38 @@ final chatNotifierProvider = StateNotifierProvider<ChatNotifier, ChatState>((
       if (readableText.isNotEmpty) {
         ttsService.setSpeechRate(settings.speechRate);
         ttsService.speak(readableText);
+      }
+    },
+    onSendStarted: () {
+      backgroundTaskService.beginBackgroundTask();
+    },
+    onResponseCompleted: (content) {
+      backgroundTaskService.endBackgroundTask();
+      if (lifecycleService.isInBackground && content.isNotEmpty) {
+        // Strip <think> blocks and extract readable text for the notification.
+        final parsed = ContentParser.parse(content);
+        final buffer = StringBuffer();
+        for (final segment in parsed.segments) {
+          if (segment.type == ContentType.text) {
+            buffer.write(segment.content);
+          }
+        }
+        final plainText = buffer.toString().trim();
+        if (plainText.isEmpty) return;
+
+        // Use the first line as the title, the rest as the body.
+        final firstNewline = plainText.indexOf('\n');
+        final String title;
+        final String body;
+        if (firstNewline > 0 && firstNewline <= 80) {
+          title = plainText.substring(0, firstNewline).trim();
+          body = plainText.substring(firstNewline + 1).trim();
+        } else {
+          title = 'Caverno';
+          body = plainText;
+        }
+
+        notificationService.showResponseCompleteNotification(title, body);
       }
     },
     initialMessages: initialMessages,
@@ -108,6 +144,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     this._settings, {
     this.onMessagesChanged,
     this.onAutoRead,
+    this.onSendStarted,
+    this.onResponseCompleted,
     this.conversationId,
     List<Message>? initialMessages,
   }) : super(ChatState.initial()) {
@@ -125,6 +163,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   AppSettings _settings;
   final void Function(List<Message>)? onMessagesChanged;
   final void Function(String content)? onAutoRead;
+  final void Function()? onSendStarted;
+  final void Function(String content)? onResponseCompleted;
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -276,6 +316,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     if (!mounted) return;
     state = state.copyWith(messages: [...state.messages, assistantMessage]);
+
+    // Request extended background execution time on iOS.
+    onSendStarted?.call();
 
     // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null &&
@@ -729,6 +772,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
       if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
         onAutoRead!(lastMsg.content);
       }
+    }
+
+    // Notify when the response completes while the app is in the background.
+    final lastMsg = updatedMessages[lastIndex];
+    if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
+      onResponseCompleted?.call(lastMsg.content);
+    } else {
+      onResponseCompleted?.call('');
     }
   }
 

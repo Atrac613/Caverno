@@ -123,5 +123,9 @@
     "language_system": "System Default",
     "language_ja": "日本語",
     "language_en": "English"
+  },
+  "notification": {
+    "response_title": "Caverno",
+    "response_body": "Response ready"
   }
 }
