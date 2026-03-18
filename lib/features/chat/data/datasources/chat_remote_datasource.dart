@@ -110,12 +110,38 @@ class ChatRemoteDataSource {
       );
 
       final responseBuffer = StringBuffer();
+      var isInReasoning = false;
       await for (final response in stream) {
-        final delta = response.choices?.firstOrNull?.delta?.content;
-        if (delta != null && delta.isNotEmpty) {
-          responseBuffer.write(delta);
-          yield delta;
+        final delta = response.choices?.firstOrNull?.delta;
+        if (delta == null) continue;
+
+        // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+        final reasoning = delta.reasoningContent ?? delta.reasoning;
+        if (reasoning != null && reasoning.isNotEmpty) {
+          if (!isInReasoning) {
+            isInReasoning = true;
+            responseBuffer.write('<think>');
+            yield '<think>';
+          }
+          responseBuffer.write(reasoning);
+          yield reasoning;
         }
+
+        final content = delta.content;
+        if (content != null && content.isNotEmpty) {
+          if (isInReasoning) {
+            isInReasoning = false;
+            responseBuffer.write('</think>');
+            yield '</think>';
+          }
+          responseBuffer.write(content);
+          yield content;
+        }
+      }
+      // Close unclosed reasoning tag at end of stream
+      if (isInReasoning) {
+        responseBuffer.write('</think>');
+        yield '</think>';
       }
 
       print('[LLM] === Response (streaming) ===');
@@ -187,6 +213,14 @@ class ChatRemoteDataSource {
       print('[LLM] content: ${message.content ?? "(null)"}');
       print('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
+      // Prepend reasoning content as <think> block if present
+      final reasoning = message.reasoningContent ?? message.reasoning;
+      var responseContent = message.content ?? '';
+      if (reasoning != null && reasoning.isNotEmpty) {
+        print('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        responseContent = '<think>$reasoning</think>$responseContent';
+      }
+
       // Parse tool calls
       List<ToolCallInfo>? toolCalls;
       if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
@@ -220,7 +254,7 @@ class ChatRemoteDataSource {
       print('[LLM] ==========================================');
 
       return ChatCompletionResult(
-        content: message.content ?? '',
+        content: responseContent,
         toolCalls: toolCalls,
         finishReason: choice.finishReason?.name ?? 'stop',
       );
@@ -292,12 +326,38 @@ class ChatRemoteDataSource {
     );
 
     final responseBuffer = StringBuffer();
+    var isInReasoning = false;
     await for (final response in stream) {
-      final delta = response.choices?.firstOrNull?.delta?.content;
-      if (delta != null && delta.isNotEmpty) {
-        responseBuffer.write(delta);
-        yield delta;
+      final delta = response.choices?.firstOrNull?.delta;
+      if (delta == null) continue;
+
+      // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+      final reasoning = delta.reasoningContent ?? delta.reasoning;
+      if (reasoning != null && reasoning.isNotEmpty) {
+        if (!isInReasoning) {
+          isInReasoning = true;
+          responseBuffer.write('<think>');
+          yield '<think>';
+        }
+        responseBuffer.write(reasoning);
+        yield reasoning;
       }
+
+      final content = delta.content;
+      if (content != null && content.isNotEmpty) {
+        if (isInReasoning) {
+          isInReasoning = false;
+          responseBuffer.write('</think>');
+          yield '</think>';
+        }
+        responseBuffer.write(content);
+        yield content;
+      }
+    }
+    // Close unclosed reasoning tag at end of stream
+    if (isInReasoning) {
+      responseBuffer.write('</think>');
+      yield '</think>';
     }
 
     print('[LLM] === Response (streaming) ===');
@@ -390,6 +450,14 @@ class ChatRemoteDataSource {
       print('[LLM] content: ${message.content ?? "(null)"}');
       print('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
+      // Prepend reasoning content as <think> block if present
+      final reasoning = message.reasoningContent ?? message.reasoning;
+      var responseContent = message.content ?? '';
+      if (reasoning != null && reasoning.isNotEmpty) {
+        print('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        responseContent = '<think>$reasoning</think>$responseContent';
+      }
+
       List<ToolCallInfo>? toolCallsResult;
       if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
         print('[LLM] === Tool Calls ===');
@@ -420,7 +488,7 @@ class ChatRemoteDataSource {
       print('[LLM] ==========================================');
 
       return ChatCompletionResult(
-        content: message.content ?? '',
+        content: responseContent,
         toolCalls: toolCallsResult,
         finishReason: choice.finishReason?.name ?? 'stop',
       );

@@ -41,11 +41,13 @@ class ParseResult {
   final List<ContentSegment> segments;
   final bool hasIncompleteTag;
   final String? incompleteTagType;
+  final String? incompleteTagContent;
 
   const ParseResult({
     required this.segments,
     this.hasIncompleteTag = false,
     this.incompleteTagType,
+    this.incompleteTagContent,
   });
 }
 
@@ -191,14 +193,24 @@ class ContentParser {
     }
 
     // Add remaining text if any (excluding incomplete tags)
+    String? capturedIncompleteContent;
+
     if (currentPos < content.length) {
       var remainingText = content.substring(currentPos);
 
-      // Remove incomplete tags
+      // Remove incomplete tags and capture partial thinking content
       if (hasIncompleteTag) {
         if (incompleteTagType == 'thinking') {
           final match = _incompleteThinkStart.firstMatch(remainingText);
           if (match != null) {
+            // Extract partial thinking content after the opening tag
+            final fullMatch = match.group(0) ?? '';
+            final tagNameMatch =
+                RegExp(r'^<(think|thinking)>').firstMatch(fullMatch);
+            if (tagNameMatch != null) {
+              capturedIncompleteContent =
+                  fullMatch.substring(tagNameMatch.end).trim();
+            }
             remainingText = remainingText.substring(0, match.start);
           }
         } else if (incompleteTagType == 'tool_call') {
@@ -232,6 +244,7 @@ class ContentParser {
       segments: segments,
       hasIncompleteTag: hasIncompleteTag,
       incompleteTagType: incompleteTagType,
+      incompleteTagContent: capturedIncompleteContent,
     );
   }
 

@@ -9,7 +9,8 @@ import '../../../../core/utils/content_parser.dart';
 
 /// Renders parsed content segments.
 /// `<think>` tags are shown in muted gray and `<tool_call>` tags as tool calls.
-class ParsedContentView extends StatelessWidget {
+/// Completed thinking blocks are collapsible; streaming ones show live content.
+class ParsedContentView extends StatefulWidget {
   const ParsedContentView({
     super.key,
     required this.content,
@@ -22,13 +23,45 @@ class ParsedContentView extends StatelessWidget {
   final bool isStreaming;
 
   @override
+  State<ParsedContentView> createState() => _ParsedContentViewState();
+}
+
+class _ParsedContentViewState extends State<ParsedContentView> {
+  final Set<int> _collapsedThinkingBlocks = {};
+
+  @override
+  void didUpdateWidget(covariant ParsedContentView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Auto-collapse all thinking blocks when streaming ends
+    if (oldWidget.isStreaming && !widget.isStreaming) {
+      final result = ContentParser.parse(widget.content);
+      for (var i = 0; i < result.segments.length; i++) {
+        if (result.segments[i].type == ContentType.thinking) {
+          _collapsedThinkingBlocks.add(i);
+        }
+      }
+    }
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final result = ContentParser.parse(content);
+    final result = ContentParser.parse(widget.content);
     final theme = Theme.of(context);
 
     if (result.segments.isEmpty) {
-      if (isStreaming) {
-        return Text('...', style: TextStyle(color: textColor));
+      // Show streaming thinking block even when no completed segments exist
+      if (widget.isStreaming &&
+          result.hasIncompleteTag &&
+          result.incompleteTagType == 'thinking') {
+        return SelectionArea(
+          child: _buildStreamingThinkingBlock(
+            result.incompleteTagContent ?? '',
+            theme,
+          ),
+        );
+      }
+      if (widget.isStreaming) {
+        return Text('...', style: TextStyle(color: widget.textColor));
       }
       return const SizedBox.shrink();
     }
@@ -37,13 +70,16 @@ class ParsedContentView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          for (final segment in result.segments)
-            _buildSegment(context, segment, theme),
-          // Show an indicator when a streaming response contains an incomplete think tag.
-          if (isStreaming &&
+          for (var i = 0; i < result.segments.length; i++)
+            _buildSegment(context, result.segments[i], theme, i),
+          // Show streaming thinking block with partial content
+          if (widget.isStreaming &&
               result.hasIncompleteTag &&
               result.incompleteTagType == 'thinking')
-            _buildStreamingThinkingIndicator(theme),
+            _buildStreamingThinkingBlock(
+              result.incompleteTagContent ?? '',
+              theme,
+            ),
         ],
       ),
     );
@@ -53,6 +89,7 @@ class ParsedContentView extends StatelessWidget {
     BuildContext context,
     ContentSegment segment,
     ThemeData theme,
+    int index,
   ) {
     switch (segment.type) {
       case ContentType.text:
@@ -61,29 +98,35 @@ class ParsedContentView extends StatelessWidget {
           // Keep the entire bubble as a single SelectionArea.
           selectable: false,
           styleSheet: MarkdownStyleSheet(
-            p: TextStyle(color: textColor, fontSize: 14, height: 1.5),
+            p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
             h1: TextStyle(
-              color: textColor,
+              color: widget.textColor,
               fontSize: 22,
               fontWeight: FontWeight.bold,
             ),
             h2: TextStyle(
-              color: textColor,
+              color: widget.textColor,
               fontSize: 20,
               fontWeight: FontWeight.bold,
             ),
             h3: TextStyle(
-              color: textColor,
+              color: widget.textColor,
               fontSize: 18,
               fontWeight: FontWeight.bold,
             ),
             h4: TextStyle(
-              color: textColor,
+              color: widget.textColor,
               fontSize: 16,
               fontWeight: FontWeight.bold,
             ),
-            strong: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-            em: TextStyle(color: textColor, fontStyle: FontStyle.italic),
+            strong: TextStyle(
+              color: widget.textColor,
+              fontWeight: FontWeight.bold,
+            ),
+            em: TextStyle(
+              color: widget.textColor,
+              fontStyle: FontStyle.italic,
+            ),
             code: TextStyle(
               color: theme.colorScheme.primary,
               backgroundColor: theme.colorScheme.primaryContainer.withValues(
@@ -115,7 +158,7 @@ class ParsedContentView extends StatelessWidget {
               top: 4,
               bottom: 4,
             ),
-            listBullet: TextStyle(color: textColor),
+            listBullet: TextStyle(color: widget.textColor),
             a: TextStyle(
               color: theme.colorScheme.primary,
               decoration: TextDecoration.underline,
@@ -123,8 +166,11 @@ class ParsedContentView extends StatelessWidget {
             tableBorder: TableBorder.all(
               color: theme.colorScheme.outline.withValues(alpha: 0.3),
             ),
-            tableHead: TextStyle(color: textColor, fontWeight: FontWeight.bold),
-            tableBody: TextStyle(color: textColor),
+            tableHead: TextStyle(
+              color: widget.textColor,
+              fontWeight: FontWeight.bold,
+            ),
+            tableBody: TextStyle(color: widget.textColor),
             horizontalRuleDecoration: BoxDecoration(
               border: Border(
                 top: BorderSide(
@@ -141,14 +187,16 @@ class ParsedContentView extends StatelessWidget {
         );
 
       case ContentType.thinking:
-        return _buildThinkingBlock(segment.content, theme);
+        return _buildThinkingBlock(segment.content, theme, index);
 
       case ContentType.toolCall:
         return _buildToolCallBlock(segment, theme);
     }
   }
 
-  Widget _buildThinkingBlock(String content, ThemeData theme) {
+  Widget _buildThinkingBlock(String content, ThemeData theme, int index) {
+    final isCollapsed = _collapsedThinkingBlocks.contains(index);
+
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(10),
@@ -162,35 +210,54 @@ class ParsedContentView extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(
-                Icons.psychology,
-                size: 14,
-                color: theme.colorScheme.outline,
-              ),
-              const SizedBox(width: 4),
-              Text(
-                'content.thinking'.tr(),
-                style: TextStyle(
-                  fontSize: 11,
+          GestureDetector(
+            onTap: () {
+              setState(() {
+                if (isCollapsed) {
+                  _collapsedThinkingBlocks.remove(index);
+                } else {
+                  _collapsedThinkingBlocks.add(index);
+                }
+              });
+            },
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.psychology,
+                  size: 14,
                   color: theme.colorScheme.outline,
-                  fontWeight: FontWeight.w500,
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            content,
-            style: TextStyle(
-              color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
-              fontSize: 13,
-              fontStyle: FontStyle.italic,
-              height: 1.4,
+                const SizedBox(width: 4),
+                Text(
+                  'content.thinking'.tr(),
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: theme.colorScheme.outline,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  isCollapsed ? Icons.expand_more : Icons.expand_less,
+                  size: 14,
+                  color: theme.colorScheme.outline,
+                ),
+              ],
             ),
           ),
+          if (!isCollapsed) ...[
+            const SizedBox(height: 6),
+            Text(
+              content,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                height: 1.4,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -268,7 +335,7 @@ class ParsedContentView extends StatelessWidget {
     }
   }
 
-  Widget _buildStreamingThinkingIndicator(ThemeData theme) {
+  Widget _buildStreamingThinkingBlock(String content, ThemeData theme) {
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
       padding: const EdgeInsets.all(10),
@@ -279,28 +346,49 @@ class ParsedContentView extends StatelessWidget {
           color: theme.colorScheme.outline.withValues(alpha: 0.2),
         ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Icon(Icons.psychology, size: 14, color: theme.colorScheme.outline),
-          const SizedBox(width: 4),
-          Text(
-            'content.thinking_active'.tr(),
-            style: TextStyle(
-              fontSize: 11,
-              color: theme.colorScheme.outline,
-              fontWeight: FontWeight.w500,
-            ),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.psychology,
+                size: 14,
+                color: theme.colorScheme.outline,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                'content.thinking_active'.tr(),
+                style: TextStyle(
+                  fontSize: 11,
+                  color: theme.colorScheme.outline,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
+              const SizedBox(width: 8),
+              SizedBox(
+                width: 10,
+                height: 10,
+                child: CircularProgressIndicator(
+                  strokeWidth: 1.5,
+                  color: theme.colorScheme.outline,
+                ),
+              ),
+            ],
           ),
-          const SizedBox(width: 8),
-          SizedBox(
-            width: 10,
-            height: 10,
-            child: CircularProgressIndicator(
-              strokeWidth: 1.5,
-              color: theme.colorScheme.outline,
+          if (content.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            Text(
+              content,
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.6),
+                fontSize: 13,
+                fontStyle: FontStyle.italic,
+                height: 1.4,
+              ),
             ),
-          ),
+          ],
         ],
       ),
     );
