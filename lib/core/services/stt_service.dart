@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import '../utils/logger.dart';
 import 'package:speech_to_text/speech_to_text.dart';
 import 'package:speech_to_text/speech_recognition_result.dart';
 
@@ -41,18 +42,18 @@ class SttService {
 
       _isAvailable = await _stt.initialize(
         onStatus: (status) {
-          print('[STT] Status: $status');
+          appLog('[STT] Status: $status');
           if (status == 'done' || status == 'notListening') {
             _isListening = false;
           }
         },
         onError: (error) {
-          print('[STT] Error: ${error.errorMsg}');
+          appLog('[STT] Error: ${error.errorMsg}');
           _isListening = false;
         },
       );
     } catch (e) {
-      print('[STT] Initialization exception: $e');
+      appLog('[STT] Initialization exception: $e');
       _isAvailable = false;
     } finally {
       _isInitialized = true;
@@ -75,7 +76,7 @@ class SttService {
       final hasMicrophone = result['hasMicrophone'] == true;
       final isCodexHost = result['isCodexHost'] == true;
       if (isCodexHost) {
-        print(
+        appLog(
           '[STT] Detected running on Codex/Antigravity. '
           'Disabling macOS speech input because speech permission '
           'belongs to the host and causes a TCC crash.',
@@ -84,7 +85,7 @@ class SttService {
       }
 
       if (!hasSpeech || !hasMicrophone) {
-        print(
+        appLog(
           '[STT] Missing macOS usage descriptions: '
           'NSSpeechRecognitionUsageDescription=$hasSpeech, '
           'NSMicrophoneUsageDescription=$hasMicrophone',
@@ -95,7 +96,7 @@ class SttService {
     } on MissingPluginException {
       return true;
     } catch (e) {
-      print('[STT] macOS privacy pre-check failed: $e');
+      appLog('[STT] macOS privacy pre-check failed: $e');
       return false;
     }
   }
@@ -108,13 +109,13 @@ class SttService {
     if (!_isInitialized) {
       final available = await init();
       if (!available) {
-        print('[STT] Speech recognition is not available');
+        appLog('[STT] Speech recognition is not available');
         return;
       }
     }
 
     if (!_isAvailable) {
-      print('[STT] Speech recognition is not available');
+      appLog('[STT] Speech recognition is not available');
       return;
     }
 

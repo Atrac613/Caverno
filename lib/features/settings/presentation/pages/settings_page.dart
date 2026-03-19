@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/utils/logger.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../chat/data/repositories/chat_memory_repository.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
@@ -661,7 +662,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         OutlinedButton.icon(
           onPressed: () async {
             if (mcpToolService == null) {
-              print('[Settings] MCP connection test: mcpToolService is null');
+              appLog('[Settings] MCP connection test: mcpToolService is null');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(content: Text('settings.mcp_service_null'.tr())),
               );
@@ -669,7 +670,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             }
 
             final testUrl = _mcpUrlController.text.trim();
-            print('[Settings] MCP connection test started: URL=$testUrl');
+            appLog('[Settings] MCP connection test started: URL=$testUrl');
 
             ScaffoldMessenger.of(
               context,
@@ -682,12 +683,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             final status = mcpToolService.status;
             final tools = mcpToolService.tools;
 
-            print(
+            appLog(
               '[Settings] MCP connection test result: status=$status, tools=${tools.length}, lastError=${mcpToolService.lastError}',
             );
 
             if (status == McpConnectionStatus.connected) {
-              print(
+              appLog(
                 '[Settings] Connection succeeded: tools=${tools.map((t) => t.name).toList()}',
               );
               ScaffoldMessenger.of(context).showSnackBar(
@@ -699,7 +700,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               );
               setState(() {}); // Refresh the tool list.
             } else {
-              print('[Settings] Connection failed: ${mcpToolService.lastError}');
+              appLog('[Settings] Connection failed: ${mcpToolService.lastError}');
               ScaffoldMessenger.of(context).showSnackBar(
                 SnackBar(
                   content: Text(

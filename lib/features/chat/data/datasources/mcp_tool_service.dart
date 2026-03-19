@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
@@ -48,7 +49,7 @@ class McpToolService {
         : mcpClient;
 
     if (client == null) {
-      print('[McpToolService] MCP client is null, running in SearXNG mode');
+      appLog('[McpToolService] MCP client is null, running in SearXNG mode');
       _status = McpConnectionStatus.disconnected;
       return;
     }
@@ -68,13 +69,13 @@ class McpToolService {
           )
           .toList();
       _status = McpConnectionStatus.connected;
-      print('[McpToolService] Connected: fetched ${_cachedTools.length} tools');
+      appLog('[McpToolService] Connected: fetched ${_cachedTools.length} tools');
       for (final tool in _cachedTools) {
-        print('[McpToolService]   - ${tool.name}: ${tool.description}');
+        appLog('[McpToolService]   - ${tool.name}: ${tool.description}');
       }
     } catch (e, stackTrace) {
-      print('[McpToolService] Connection failed: ${e.runtimeType}: $e');
-      print('[McpToolService] stackTrace: $stackTrace');
+      appLog('[McpToolService] Connection failed: ${e.runtimeType}: $e');
+      appLog('[McpToolService] stackTrace: $stackTrace');
       _status = McpConnectionStatus.error;
       _lastError = e.toString();
       _cachedTools = [];
@@ -120,26 +121,26 @@ class McpToolService {
     required String name,
     required Map<String, dynamic> arguments,
   }) async {
-    print('[McpToolService] Executing tool: $name');
-    print('[McpToolService] Arguments: $arguments');
+    appLog('[McpToolService] Executing tool: $name');
+    appLog('[McpToolService] Arguments: $arguments');
 
     // 0. Built-in local tools.
     if (name == 'get_current_datetime') {
       final result = _buildCurrentDatetimeResult();
-      print('[McpToolService] Local datetime tool executed successfully');
+      appLog('[McpToolService] Local datetime tool executed successfully');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
     if (name == 'search_past_conversations' &&
         conversationRepository != null) {
       final result = _searchConversations(arguments);
-      print('[McpToolService] Conversation search executed: ${result.length} chars');
+      appLog('[McpToolService] Conversation search executed: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
     if (name == 'recall_memory' && memoryRepository != null) {
       final result = _recallMemory(arguments);
-      print('[McpToolService] Memory recall executed: ${result.length} chars');
+      appLog('[McpToolService] Memory recall executed: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -153,10 +154,10 @@ class McpToolService {
             name: name,
             arguments: arguments,
           );
-          print('[McpToolService] MCP execution succeeded: ${result.length} chars');
+          appLog('[McpToolService] MCP execution succeeded: ${result.length} chars');
           return McpToolResult(toolName: name, result: result, isSuccess: true);
         } catch (e) {
-          print('[McpToolService] MCP tool execution error: $e');
+          appLog('[McpToolService] MCP tool execution error: $e');
           return McpToolResult(
             toolName: name,
             result: '',
@@ -180,10 +181,10 @@ class McpToolService {
           );
         }
         final result = await searxngClient!.searchAsText(query: query);
-        print('[McpToolService] SearXNG execution succeeded: ${result.length} chars');
+        appLog('[McpToolService] SearXNG execution succeeded: ${result.length} chars');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
-        print('[McpToolService] SearXNG error: $e');
+        appLog('[McpToolService] SearXNG error: $e');
         return McpToolResult(
           toolName: name,
           result: '',
@@ -194,7 +195,7 @@ class McpToolService {
     }
 
     // 3. No matching tool available.
-    print('[McpToolService] No matching tool available: $name');
+    appLog('[McpToolService] No matching tool available: $name');
     return McpToolResult(
       toolName: name,
       result: '',

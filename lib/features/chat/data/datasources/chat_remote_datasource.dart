@@ -1,6 +1,7 @@
 import 'dart:convert' as dart_convert;
 
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
+import '../../../../core/utils/logger.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
@@ -43,28 +44,28 @@ class ChatRemoteDataSource {
 
   /// Log message list
   void _logMessages(List<Message> messages) {
-    print('[LLM] === Request Messages ===');
+    appLog('[LLM] === Request Messages ===');
     for (var i = 0; i < messages.length; i++) {
       final m = messages[i];
       final contentPreview = m.content.length > 200
           ? '${m.content.substring(0, 200)}...'
           : m.content;
       final hasImage = m.imageBase64 != null ? ' [has image]' : '';
-      print('[LLM]   [$i] ${m.role.name}$hasImage: $contentPreview');
+      appLog('[LLM]   [$i] ${m.role.name}$hasImage: $contentPreview');
     }
-    print('[LLM] === End Messages ===');
+    appLog('[LLM] === End Messages ===');
   }
 
   /// Log tool definitions
   void _logTools(List<Map<String, dynamic>>? tools) {
     if (tools == null || tools.isEmpty) return;
-    print('[LLM] === Tools ===');
+    appLog('[LLM] === Tools ===');
     for (final tool in tools) {
       final func = tool['function'] as Map<String, dynamic>;
-      print('[LLM]   ${func['name']}: ${func['description']}');
-      print('[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}');
+      appLog('[LLM]   ${func['name']}: ${func['description']}');
+      appLog('[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}');
     }
-    print('[LLM] === End Tools ===');
+    appLog('[LLM] === End Tools ===');
   }
 
   /// Get chat completion via streaming (without tools)
@@ -84,7 +85,7 @@ class ChatRemoteDataSource {
     if (stripImages) {
       final hasHistoryImages = messages.any((m) => m.imageBase64 != null);
       if (hasHistoryImages) {
-        print('[LLM] Stripping images from history before sending');
+        appLog('[LLM] Stripping images from history before sending');
       }
     }
     final formattedMessages = _formatMessages(
@@ -93,8 +94,8 @@ class ChatRemoteDataSource {
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
-    print('[LLM] ========== streamChatCompletion ==========');
-    print(
+    appLog('[LLM] ========== streamChatCompletion ==========');
+    appLog(
       '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
     );
     _logMessages(messages);
@@ -144,15 +145,15 @@ class ChatRemoteDataSource {
         yield '</think>';
       }
 
-      print('[LLM] === Response (streaming) ===');
+      appLog('[LLM] === Response (streaming) ===');
       final responseText = responseBuffer.toString();
-      print(
+      appLog(
         '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
       );
-      print('[LLM] ========================================');
+      appLog('[LLM] ========================================');
     } catch (e, stackTrace) {
-      print('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
-      print('[LLM] stackTrace: $stackTrace');
+      appLog('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
+      appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -177,8 +178,8 @@ class ChatRemoteDataSource {
     );
     final modelId = model ?? ApiConstants.defaultModel;
 
-    print('[LLM] ========== createChatCompletion ==========');
-    print(
+    appLog('[LLM] ========== createChatCompletion ==========');
+    appLog(
       '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
     );
     _logMessages(messages);
@@ -202,33 +203,33 @@ class ChatRemoteDataSource {
       }).toList(),
     );
 
-    print('[LLM] Sending request...');
+    appLog('[LLM] Sending request...');
     try {
       final response = await _client.createChatCompletion(request: request);
       final choice = response.choices.first;
       final message = choice.message;
 
-      print('[LLM] === Response ===');
-      print('[LLM] finishReason: ${choice.finishReason}');
-      print('[LLM] content: ${message.content ?? "(null)"}');
-      print('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
+      appLog('[LLM] === Response ===');
+      appLog('[LLM] finishReason: ${choice.finishReason}');
+      appLog('[LLM] content: ${message.content ?? "(null)"}');
+      appLog('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
       // Prepend reasoning content as <think> block if present
       final reasoning = message.reasoningContent ?? message.reasoning;
       var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
-        print('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        appLog('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
       // Parse tool calls
       List<ToolCallInfo>? toolCalls;
       if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
-        print('[LLM] === Tool Calls ===');
+        appLog('[LLM] === Tool Calls ===');
         toolCalls = message.toolCalls!.map((tc) {
-          print('[LLM]   id: ${tc.id}');
-          print('[LLM]   name: ${tc.function.name}');
-          print('[LLM]   arguments: ${tc.function.arguments}');
+          appLog('[LLM]   id: ${tc.id}');
+          appLog('[LLM]   name: ${tc.function.name}');
+          appLog('[LLM]   arguments: ${tc.function.arguments}');
           // Parse arguments
           Map<String, dynamic> args = {};
           try {
@@ -239,7 +240,7 @@ class ChatRemoteDataSource {
               );
             }
           } catch (e) {
-            print('[LLM]   Failed to parse arguments: $e');
+            appLog('[LLM]   Failed to parse arguments: $e');
           }
 
           return ToolCallInfo(
@@ -248,10 +249,10 @@ class ChatRemoteDataSource {
             arguments: args,
           );
         }).toList();
-        print('[LLM] === End Tool Calls ===');
+        appLog('[LLM] === End Tool Calls ===');
       }
 
-      print('[LLM] ==========================================');
+      appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
@@ -259,8 +260,8 @@ class ChatRemoteDataSource {
         finishReason: choice.finishReason?.name ?? 'stop',
       );
     } catch (e, stackTrace) {
-      print('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
-      print('[LLM] stackTrace: $stackTrace');
+      appLog('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
+      appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -281,17 +282,17 @@ class ChatRemoteDataSource {
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
 
-    print('[LLM] ========== streamWithToolResult ==========');
-    print('[LLM] model: $modelId, toolCallId: $toolCallId');
+    appLog('[LLM] ========== streamWithToolResult ==========');
+    appLog('[LLM] model: $modelId, toolCallId: $toolCallId');
     _logMessages(messages);
-    print('[LLM] === Tool Call Info ===');
-    print('[LLM] toolName: $toolName, arguments: $toolArguments');
-    print('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
-    print('[LLM] === Tool Result ===');
-    print(
+    appLog('[LLM] === Tool Call Info ===');
+    appLog('[LLM] toolName: $toolName, arguments: $toolArguments');
+    appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
+    appLog('[LLM] === Tool Result ===');
+    appLog(
       '[LLM] ${toolResult.length > 500 ? '${toolResult.substring(0, 500)}...' : toolResult}',
     );
-    print('[LLM] === End Tool Result ===');
+    appLog('[LLM] === End Tool Result ===');
 
     // Add assistant tool_calls message (required by OpenAI API)
     // mlx-lm.server requires content, so use empty string if null
@@ -360,12 +361,12 @@ class ChatRemoteDataSource {
       yield '</think>';
     }
 
-    print('[LLM] === Response (streaming) ===');
+    appLog('[LLM] === Response (streaming) ===');
     final responseText = responseBuffer.toString();
-    print(
+    appLog(
       '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
     );
-    print('[LLM] ============================================');
+    appLog('[LLM] ============================================');
   }
 
   /// Get chat completion with tool result (non-streaming, with tool definitions)
@@ -386,18 +387,18 @@ class ChatRemoteDataSource {
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
 
-    print('[LLM] ========== createChatCompletionWithToolResult ==========');
-    print('[LLM] model: $modelId, toolCallId: $toolCallId');
+    appLog('[LLM] ========== createChatCompletionWithToolResult ==========');
+    appLog('[LLM] model: $modelId, toolCallId: $toolCallId');
     _logMessages(messages);
     _logTools(tools);
-    print('[LLM] === Tool Call Info ===');
-    print('[LLM] toolName: $toolName, arguments: $toolArguments');
-    print('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
-    print('[LLM] === Tool Result ===');
-    print(
+    appLog('[LLM] === Tool Call Info ===');
+    appLog('[LLM] toolName: $toolName, arguments: $toolArguments');
+    appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
+    appLog('[LLM] === Tool Result ===');
+    appLog(
       '[LLM] ${toolResult.length > 500 ? '${toolResult.substring(0, 500)}...' : toolResult}',
     );
-    print('[LLM] === End Tool Result ===');
+    appLog('[LLM] === End Tool Result ===');
 
     // Add assistant tool_calls message
     formattedMessages.add(
@@ -439,32 +440,32 @@ class ChatRemoteDataSource {
       }).toList(),
     );
 
-    print('[LLM] Sending request...');
+    appLog('[LLM] Sending request...');
     try {
       final response = await _client.createChatCompletion(request: request);
       final choice = response.choices.first;
       final message = choice.message;
 
-      print('[LLM] === Response ===');
-      print('[LLM] finishReason: ${choice.finishReason}');
-      print('[LLM] content: ${message.content ?? "(null)"}');
-      print('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
+      appLog('[LLM] === Response ===');
+      appLog('[LLM] finishReason: ${choice.finishReason}');
+      appLog('[LLM] content: ${message.content ?? "(null)"}');
+      appLog('[LLM] toolCalls count: ${message.toolCalls?.length ?? 0}');
 
       // Prepend reasoning content as <think> block if present
       final reasoning = message.reasoningContent ?? message.reasoning;
       var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
-        print('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        appLog('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
       List<ToolCallInfo>? toolCallsResult;
       if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
-        print('[LLM] === Tool Calls ===');
+        appLog('[LLM] === Tool Calls ===');
         toolCallsResult = message.toolCalls!.map((tc) {
-          print('[LLM]   id: ${tc.id}');
-          print('[LLM]   name: ${tc.function.name}');
-          print('[LLM]   arguments: ${tc.function.arguments}');
+          appLog('[LLM]   id: ${tc.id}');
+          appLog('[LLM]   name: ${tc.function.name}');
+          appLog('[LLM]   arguments: ${tc.function.arguments}');
           Map<String, dynamic> args = {};
           try {
             final argsStr = tc.function.arguments;
@@ -474,7 +475,7 @@ class ChatRemoteDataSource {
               );
             }
           } catch (e) {
-            print('[LLM]   Failed to parse arguments: $e');
+            appLog('[LLM]   Failed to parse arguments: $e');
           }
           return ToolCallInfo(
             id: tc.id,
@@ -482,10 +483,10 @@ class ChatRemoteDataSource {
             arguments: args,
           );
         }).toList();
-        print('[LLM] === End Tool Calls ===');
+        appLog('[LLM] === End Tool Calls ===');
       }
 
-      print('[LLM] ==========================================');
+      appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
@@ -493,10 +494,10 @@ class ChatRemoteDataSource {
         finishReason: choice.finishReason?.name ?? 'stop',
       );
     } catch (e, stackTrace) {
-      print(
+      appLog(
         '[LLM] createChatCompletionWithToolResult error: ${e.runtimeType}: $e',
       );
-      print('[LLM] stackTrace: $stackTrace');
+      appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
   }

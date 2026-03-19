@@ -1,4 +1,5 @@
 import 'package:flutter_tts/flutter_tts.dart';
+import '../utils/logger.dart';
 
 /// Text-to-Speech service
 /// Manages reading aloud of assistant messages
@@ -33,7 +34,7 @@ class TtsService {
 
     _tts.setErrorHandler((msg) {
       _isSpeaking = false;
-      print('[TTS] Error: $msg');
+      appLog('[TTS] Error: $msg');
     });
 
     _isInitialized = true;

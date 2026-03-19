@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../../../core/utils/logger.dart';
 
 import '../../domain/entities/session_memory.dart';
 
@@ -44,7 +45,7 @@ class ChatMemoryRepository {
       final data = jsonDecode(raw) as Map<String, dynamic>;
       return UserMemoryProfile.fromJson(data);
     } catch (e) {
-      print('[ChatMemoryRepository] Failed to parse profile: $e');
+      appLog('[ChatMemoryRepository] Failed to parse profile: $e');
       return UserMemoryProfile.empty();
     }
   }
@@ -64,7 +65,7 @@ class ChatMemoryRepository {
       summaries.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return summaries;
     } catch (e) {
-      print('[ChatMemoryRepository] Failed to parse session summaries: $e');
+      appLog('[ChatMemoryRepository] Failed to parse session summaries: $e');
       return [];
     }
   }
@@ -107,7 +108,7 @@ class ChatMemoryRepository {
       memories.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
       return memories;
     } catch (e) {
-      print('[ChatMemoryRepository] Failed to parse memories: $e');
+      appLog('[ChatMemoryRepository] Failed to parse memories: $e');
       return [];
     }
   }

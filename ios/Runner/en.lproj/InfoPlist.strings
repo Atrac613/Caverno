@@ -1,0 +1,5 @@
+CFBundleDisplayName = "Caverno";
+NSMicrophoneUsageDescription = "Caverno uses the microphone for speech input.";
+NSPhotoLibraryUsageDescription = "Caverno uses the photo library so you can attach images to messages.";
+NSSpeechRecognitionUsageDescription = "Caverno uses speech recognition to convert your voice into text.";
+NSLocalNetworkUsageDescription = "Caverno connects to your local LLM server for AI chat responses.";

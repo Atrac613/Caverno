@@ -2,7 +2,9 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/constants/api_constants.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/conversations_notifier.dart';
 import '../widgets/conversation_drawer.dart';
@@ -156,25 +158,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
           // Message list
           Expanded(
             child: chatState.messages.isEmpty
-                ? Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.chat_bubble_outline,
-                          size: 64,
-                          color: Theme.of(context).colorScheme.outline,
-                        ),
-                        const SizedBox(height: 16),
-                        Text(
-                          'chat.empty_state'.tr(),
-                          style: TextStyle(
-                            color: Theme.of(context).colorScheme.outline,
-                          ),
-                        ),
-                      ],
-                    ),
-                  )
+                ? _buildEmptyState(context)
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -197,6 +181,59 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             isLoading: chatState.isLoading,
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(BuildContext context) {
+    final settings = ref.watch(settingsNotifierProvider);
+    final isDefault = settings.baseUrl == ApiConstants.defaultBaseUrl;
+
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              isDefault ? Icons.settings_suggest : Icons.chat_bubble_outline,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            if (isDefault) ...[
+              Text(
+                'chat.setup_title'.tr(),
+                style: Theme.of(context).textTheme.titleMedium,
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'chat.setup_message'.tr(),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: 16),
+              FilledButton.icon(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(builder: (_) => const SettingsPage()),
+                  );
+                },
+                icon: const Icon(Icons.settings),
+                label: Text('chat.setup_button'.tr()),
+              ),
+            ] else
+              Text(
+                'chat.empty_state'.tr(),
+                style: TextStyle(
+                  color: Theme.of(context).colorScheme.outline,
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }

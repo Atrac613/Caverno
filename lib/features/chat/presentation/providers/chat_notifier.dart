@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
+import '../../../../core/utils/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -284,7 +285,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         currentConversationId: conversationId ?? '',
       );
       if (_sessionMemoryContext != null) {
-        print('[Memory] Injecting context for new session');
+        appLog('[Memory] Injecting context for new session');
       }
     }
 
@@ -324,10 +325,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (_mcpToolService != null &&
         (_settings.mcpEnabled || shouldUseTemporalTool)) {
       final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
-      print('[Tool] Sending in tool-aware mode ($mode)');
+      appLog('[Tool] Sending in tool-aware mode ($mode)');
       await _sendWithTools();
     } else {
-      print(
+      appLog(
         '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
       );
       await _sendWithoutTools();
@@ -350,10 +351,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
           _appendToLastMessage(chunk);
         },
         onError: (error, stackTrace) {
-          print(
+          appLog(
             '[ChatNotifier] _sendWithoutTools stream onError: ${error.runtimeType}: $error',
           );
-          print('[ChatNotifier] stackTrace: $stackTrace');
+          appLog('[ChatNotifier] stackTrace: $stackTrace');
           _handleError(error.toString());
         },
         onDone: () {
@@ -361,8 +362,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
         },
       );
     } catch (e, stackTrace) {
-      print('[ChatNotifier] _sendWithoutTools catch: ${e.runtimeType}: $e');
-      print('[ChatNotifier] stackTrace: $stackTrace');
+      appLog('[ChatNotifier] _sendWithoutTools catch: ${e.runtimeType}: $e');
+      appLog('[ChatNotifier] stackTrace: $stackTrace');
       _handleError(e.toString());
     }
   }
@@ -378,7 +379,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         await _sendWithoutTools();
         return;
       }
-      print(
+      appLog(
         '[Tool] Tool definitions: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
       );
 
@@ -413,10 +414,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
       );
 
       if (!mounted) return;
-      print(
+      appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
       );
-      print(
+      appLog(
         '[Tool] toolCalls: ${result.toolCalls?.map((t) => t.name).toList()}',
       );
 
@@ -433,14 +434,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
       } else {
         // Show the response directly when no tool call is present.
-        print('[Tool] No tool calls, displaying normal response');
+        appLog('[Tool] No tool calls, displaying normal response');
         _appendToLastMessage(result.content);
         _finishStreaming();
       }
     } catch (e) {
       // Fall back when the LLM likely does not support tools.
       final errorStr = e.toString().toLowerCase();
-      print('[Tool] Error occurred: $e');
+      appLog('[Tool] Error occurred: $e');
 
       // Fall back to normal mode for tool-related failures.
       // Examples include JSON parse errors, empty responses, or invalid payloads.
@@ -454,7 +455,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           errorStr.contains('invalid') ||
           errorStr.contains('500') ||
           errorStr.contains('server error')) {
-        print('[Tool] LLM may not support tools, falling back to normal mode');
+        appLog('[Tool] LLM may not support tools, falling back to normal mode');
         await _sendWithoutTools();
         return;
       }
@@ -501,9 +502,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final toolCall = currentToolCalls.first;
       if (!mounted) return;
 
-      print('[Tool] Tool loop [$iteration/$maxIterations]');
-      print('[Tool] Executing tool: ${toolCall.name}');
-      print('[Tool] Arguments: ${toolCall.arguments}');
+      appLog('[Tool] Tool loop [$iteration/$maxIterations]');
+      appLog('[Tool] Executing tool: ${toolCall.name}');
+      appLog('[Tool] Arguments: ${toolCall.arguments}');
 
       _appendToolUseToLastMessage(toolCall);
 
@@ -530,7 +531,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
             lastErrorToolName = toolCall.name;
           }
           if (consecutiveErrors >= 2) {
-            print(
+            appLog(
               '[Tool] Same tool (${toolCall.name}) failed $consecutiveErrors times consecutively, ending loop',
             );
             _appendToLastMessage(
@@ -541,7 +542,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           }
         }
 
-        print('[Tool] Result retrieved: ${toolResult.length} chars');
+        appLog('[Tool] Result retrieved: ${toolResult.length} chars');
 
         // Send the tool result back to the LLM and check for follow-up calls.
         // Use a non-streaming request with tool definitions included.
@@ -568,20 +569,20 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
         // Continue looping if the LLM asks for another tool call.
         if (nextResult.hasToolCalls) {
-          print('[Tool] LLM requested additional tool calls');
+          appLog('[Tool] LLM requested additional tool calls');
           currentToolCalls = nextResult.toolCalls!;
           currentAssistantContent = nextResult.content.isNotEmpty
               ? nextResult.content
               : null;
         } else {
           // End the loop on a text response, but delay rendering it.
-          print('[Tool] LLM returned final text response (via tool role)');
+          appLog('[Tool] LLM returned final text response (via tool role)');
           currentToolCalls = [];
           // Responses through the tool role often claim real-time data is
           // unavailable, so resend the results later as a user message.
         }
       } catch (e) {
-        print('[Tool] Error: $e');
+        appLog('[Tool] Error: $e');
         _appendToLastMessage('[Search error: $e]\n');
         currentToolCalls = [];
         hasTextResponse = true;
@@ -591,7 +592,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
     if (!hasTextResponse && toolResults.isNotEmpty) {
-      print('[Tool] Resending tool results as user message');
+      appLog('[Tool] Resending tool results as user message');
 
       if (!mounted) return;
 
@@ -625,7 +626,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         _appendToLastMessage(chunk);
       }
     } else if (!hasTextResponse) {
-      print('[Tool] Tool loop reached maximum iterations (no text response)');
+      appLog('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {
         _appendToLastMessage('\nSorry, there was a problem executing the tools. Please try again later.');
       }
@@ -666,11 +667,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
 
     if (toolCalls.isNotEmpty) {
-      print('[ContentTool] Detected tool_call(s): ${toolCalls.length}');
+      appLog('[ContentTool] Detected tool_call(s): ${toolCalls.length}');
       for (final tc in toolCalls) {
-        print('[ContentTool]   - ${tc.name}: ${tc.arguments}');
+        appLog('[ContentTool]   - ${tc.name}: ${tc.arguments}');
       }
-      print(
+      appLog(
         '[ContentTool] MCP tool service: ${_mcpToolService != null ? "enabled" : "disabled (enable MCP in settings)"}',
       );
     }
@@ -680,12 +681,12 @@ class ChatNotifier extends StateNotifier<ChatState> {
     for (final tc in toolCalls) {
       final hash = '${tc.name}:${jsonEncode(tc.arguments)}';
       if (!_executedContentToolCalls.contains(hash)) {
-        print('[ContentTool] Starting execution: $hash');
+        appLog('[ContentTool] Starting execution: $hash');
         _executedContentToolCalls.add(hash);
         final future = _executeContentToolCall(tc);
         _pendingToolExecutions.add(future);
       } else {
-        print('[ContentTool] Already executed: $hash');
+        appLog('[ContentTool] Already executed: $hash');
       }
     }
   }
@@ -694,8 +695,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _executeContentToolCall(ToolCallData tc) async {
     if (!mounted) return;
 
-    print('[ContentTool] Executing tool: ${tc.name}');
-    print('[ContentTool] Arguments: ${tc.arguments}');
+    appLog('[ContentTool] Executing tool: ${tc.name}');
+    appLog('[ContentTool] Arguments: ${tc.arguments}');
 
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null) {
@@ -706,11 +707,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
         );
 
         if (!result.isSuccess) {
-          print('[ContentTool] Execution failed: ${result.errorMessage}');
+          appLog('[ContentTool] Execution failed: ${result.errorMessage}');
           return;
         }
 
-        print('[ContentTool] Result retrieved: ${result.result.length} chars');
+        appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
 
         // Append search results without triggering recursive tool-call checks.
         if (mounted && state.messages.isNotEmpty) {
@@ -723,10 +724,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
           );
 
           state = state.copyWith(messages: updatedMessages);
-          print('[ContentTool] Appended result to message');
+          appLog('[ContentTool] Appended result to message');
         }
       } catch (e) {
-        print('[ContentTool] Error: $e');
+        appLog('[ContentTool] Error: $e');
         if (mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
@@ -745,10 +746,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Future<void> _finishStreaming() async {
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
-      print('[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}');
+      appLog('[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}');
       await Future.wait(_pendingToolExecutions);
       _pendingToolExecutions.clear();
-      print('[ChatNotifier] Tool executions completed');
+      appLog('[ChatNotifier] Tool executions completed');
     }
 
     if (!mounted || state.messages.isEmpty) return;
@@ -899,13 +900,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
       final draft = _parseMemoryExtractionDraft(result.content);
       if (draft != null) {
-        print('[Memory] LLM memory extraction succeeded');
+        appLog('[Memory] LLM memory extraction succeeded');
       } else {
-        print('[Memory] Failed to parse LLM memory extraction JSON (falling back to rule-based)');
+        appLog('[Memory] Failed to parse LLM memory extraction JSON (falling back to rule-based)');
       }
       return draft;
     } catch (e) {
-      print('[Memory] LLM memory extraction error: $e');
+      appLog('[Memory] LLM memory extraction error: $e');
       return null;
     }
   }
@@ -1004,7 +1005,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       );
       return draft.isEmpty ? null : draft;
     } catch (e) {
-      print('[Memory] Failed to parse memory extraction JSON: $e');
+      appLog('[Memory] Failed to parse memory extraction JSON: $e');
       return null;
     }
   }
@@ -1050,10 +1051,10 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void _handleError(String error) {
-    print('[ChatNotifier] _handleError called');
-    print('[ChatNotifier]   raw error: $error');
+    appLog('[ChatNotifier] _handleError called');
+    appLog('[ChatNotifier]   raw error: $error');
     if (!mounted || state.messages.isEmpty) {
-      print(
+      appLog(
         '[ChatNotifier]   skipped: mounted=$mounted, messages.isEmpty=${state.messages.isEmpty}',
       );
       return;
@@ -1062,7 +1063,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     // Reformat error messages into clearer user-facing categories.
     final displayError = _buildDisplayError(error);
 
-    print('[ChatNotifier]   displayError: $displayError');
+    appLog('[ChatNotifier]   displayError: $displayError');
 
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;

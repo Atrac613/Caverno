@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
+import '../../../../core/utils/logger.dart';
 
 import '../../domain/entities/conversation.dart';
 
@@ -32,7 +33,7 @@ class ConversationRepository {
           final data = jsonDecode(json) as Map<String, dynamic>;
           conversations.add(Conversation.fromJson(data));
         } catch (e) {
-          print('[ConversationRepository] Failed to parse conversation: $e');
+          appLog('[ConversationRepository] Failed to parse conversation: $e');
         }
       }
     }
@@ -49,7 +50,7 @@ class ConversationRepository {
       final data = jsonDecode(json) as Map<String, dynamic>;
       return Conversation.fromJson(data);
     } catch (e) {
-      print('[ConversationRepository] Failed to parse conversation: $e');
+      appLog('[ConversationRepository] Failed to parse conversation: $e');
       return null;
     }
   }

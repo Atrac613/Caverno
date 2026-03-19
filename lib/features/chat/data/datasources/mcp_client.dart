@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/utils/logger.dart';
+
 class McpClient {
   McpClient({required this.baseUrl});
 
@@ -15,7 +17,7 @@ class McpClient {
 
   /// Initializes the MCP server and stores the session ID.
   Future<void> initialize() async {
-    print('[McpClient] initialize request → $baseUrl');
+    appLog('[McpClient] initialize request → $baseUrl');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'id': 1,
@@ -26,16 +28,16 @@ class McpClient {
         'clientInfo': {'name': 'openai_chat', 'version': '1.0.0'},
       },
     });
-    print('[McpClient] Request: $requestBody');
+    appLog('[McpClient] Request: $requestBody');
 
     final (httpResp, body) = await _postRequest(requestBody);
 
-    print('[McpClient] initialize status: ${httpResp.statusCode}');
-    print('[McpClient] initialize headers: ${httpResp.headers}');
-    print('[McpClient] initialize body: ${_truncate(body, 500)}');
+    appLog('[McpClient] initialize status: ${httpResp.statusCode}');
+    appLog('[McpClient] initialize headers: ${httpResp.headers}');
+    appLog('[McpClient] initialize body: ${_truncate(body, 500)}');
 
     if (httpResp.statusCode != 200) {
-      print(
+      appLog(
         '[McpClient] initialize HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to initialize MCP: ${httpResp.statusCode}');
@@ -43,19 +45,19 @@ class McpClient {
 
     // Read the session ID from the response headers.
     _sessionId = httpResp.headers['mcp-session-id'];
-    print('[McpClient] Session ID: $_sessionId');
+    appLog('[McpClient] Session ID: $_sessionId');
 
     // Parse the response payload.
     final json = _decodeJson(body, 'initialize');
 
     if (json.containsKey('error')) {
       final error = json['error'];
-      print('[McpClient] initialize JSON-RPC error: $error');
+      appLog('[McpClient] initialize JSON-RPC error: $error');
       throw Exception('MCP initialize error: $error');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
-    print('[McpClient] Server info: $result');
+    appLog('[McpClient] Server info: $result');
 
     // Send the initialized notification.
     await _sendInitializedNotification();
@@ -63,7 +65,7 @@ class McpClient {
 
   /// Sends the initialized notification.
   Future<void> _sendInitializedNotification() async {
-    print('[McpClient] Sending initialized notification');
+    appLog('[McpClient] Sending initialized notification');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'method': 'notifications/initialized',
@@ -71,10 +73,10 @@ class McpClient {
 
     try {
       final (httpResp, _) = await _postRequest(requestBody);
-      print('[McpClient] initialized notification status: ${httpResp.statusCode}');
+      appLog('[McpClient] initialized notification status: ${httpResp.statusCode}');
     } catch (e) {
       // Notification failures are non-fatal.
-      print('[McpClient] initialized notification failed (ignored): $e');
+      appLog('[McpClient] initialized notification failed (ignored): $e');
     }
   }
 
@@ -85,22 +87,22 @@ class McpClient {
       await initialize();
     }
 
-    print('[McpClient] listTools request → $baseUrl');
+    appLog('[McpClient] listTools request → $baseUrl');
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
       'id': 2,
       'method': 'tools/list',
     });
-    print('[McpClient] Request: $requestBody');
+    appLog('[McpClient] Request: $requestBody');
 
     final (httpResp, body) = await _postRequest(requestBody);
 
-    print('[McpClient] Response status: ${httpResp.statusCode}');
-    print('[McpClient] Response headers: ${httpResp.headers}');
-    print('[McpClient] Response body (raw): ${_truncate(body, 500)}');
+    appLog('[McpClient] Response status: ${httpResp.statusCode}');
+    appLog('[McpClient] Response headers: ${httpResp.headers}');
+    appLog('[McpClient] Response body (raw): ${_truncate(body, 500)}');
 
     if (httpResp.statusCode != 200) {
-      print(
+      appLog(
         '[McpClient] listTools HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to list tools: ${httpResp.statusCode}');
@@ -111,18 +113,18 @@ class McpClient {
     // Check for JSON-RPC errors.
     if (json.containsKey('error')) {
       final error = json['error'];
-      print('[McpClient] listTools JSON-RPC error: $error');
+      appLog('[McpClient] listTools JSON-RPC error: $error');
       throw Exception('MCP JSON-RPC error: $error');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
     if (result == null) {
-      print('[McpClient] result is null, full response: $json');
+      appLog('[McpClient] result is null, full response: $json');
       return [];
     }
 
     final tools = result['tools'] as List<dynamic>? ?? [];
-    print('[McpClient] Found ${tools.length} tools');
+    appLog('[McpClient] Found ${tools.length} tools');
     return tools
         .map((t) => McpTool.fromJson(t as Map<String, dynamic>))
         .toList();
@@ -138,8 +140,8 @@ class McpClient {
       await initialize();
     }
 
-    print('[McpClient] callTool: $name');
-    print('[McpClient] arguments: $arguments');
+    appLog('[McpClient] callTool: $name');
+    appLog('[McpClient] arguments: $arguments');
 
     final requestBody = jsonEncode({
       'jsonrpc': '2.0',
@@ -147,17 +149,17 @@ class McpClient {
       'method': 'tools/call',
       'params': {'name': name, 'arguments': arguments},
     });
-    print('[McpClient] Request: $requestBody');
+    appLog('[McpClient] Request: $requestBody');
 
     final (httpResp, body) = await _postRequest(requestBody);
 
-    print('[McpClient] Response status: ${httpResp.statusCode}');
-    print(
+    appLog('[McpClient] Response status: ${httpResp.statusCode}');
+    appLog(
       '[McpClient] Response body (first 500 chars): ${_truncate(body, 500)}',
     );
 
     if (httpResp.statusCode != 200) {
-      print(
+      appLog(
         '[McpClient] callTool HTTP error: status=${httpResp.statusCode}, body=$body',
       );
       throw Exception('Failed to call tool: ${httpResp.statusCode}');
@@ -168,13 +170,13 @@ class McpClient {
     // Check for errors in the response.
     if (json.containsKey('error')) {
       final error = json['error'] as Map<String, dynamic>;
-      print('[McpClient] Error: ${error['message']}');
+      appLog('[McpClient] Error: ${error['message']}');
       throw Exception('MCP error: ${error['message']}');
     }
 
     final result = json['result'] as Map<String, dynamic>?;
     if (result == null) {
-      print('[McpClient] result is null, full response: $json');
+      appLog('[McpClient] result is null, full response: $json');
       return '';
     }
 
@@ -185,7 +187,7 @@ class McpClient {
         .map((c) => c['text'] as String)
         .join('\n');
 
-    print('[McpClient] Result length: ${textContent.length} chars');
+    appLog('[McpClient] Result length: ${textContent.length} chars');
     return textContent;
   }
 
@@ -211,8 +213,8 @@ class McpClient {
       final utf8Body = utf8.decode(response.bodyBytes);
       return (response, utf8Body);
     } catch (e, stackTrace) {
-      print('[McpClient] HTTP connection error: ${e.runtimeType}: $e');
-      print('[McpClient] stackTrace: $stackTrace');
+      appLog('[McpClient] HTTP connection error: ${e.runtimeType}: $e');
+      appLog('[McpClient] stackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -224,9 +226,9 @@ class McpClient {
       final jsonBody = _extractJsonFromSse(body);
       return jsonDecode(jsonBody) as Map<String, dynamic>;
     } catch (e, stackTrace) {
-      print('[McpClient] $context JSON decode error: ${e.runtimeType}: $e');
-      print('[McpClient] Response body: $body');
-      print('[McpClient] stackTrace: $stackTrace');
+      appLog('[McpClient] $context JSON decode error: ${e.runtimeType}: $e');
+      appLog('[McpClient] Response body: $body');
+      appLog('[McpClient] stackTrace: $stackTrace');
       rethrow;
     }
   }
@@ -243,7 +245,7 @@ class McpClient {
     }
 
     // Extract and join `data:` lines from SSE responses.
-    print('[McpClient] Detected SSE response, extracting data lines');
+    appLog('[McpClient] Detected SSE response, extracting data lines');
     final dataLines = <String>[];
     for (final line in trimmed.split('\n')) {
       if (line.startsWith('data: ')) {
@@ -254,12 +256,12 @@ class McpClient {
     }
 
     if (dataLines.isEmpty) {
-      print('[McpClient] No data lines found in SSE response: $trimmed');
+      appLog('[McpClient] No data lines found in SSE response: $trimmed');
       throw FormatException('No data lines found in SSE response');
     }
 
     final jsonStr = dataLines.join('');
-    print('[McpClient] JSON extracted from SSE: ${_truncate(jsonStr, 200)}');
+    appLog('[McpClient] JSON extracted from SSE: ${_truncate(jsonStr, 200)}');
     return jsonStr;
   }
 

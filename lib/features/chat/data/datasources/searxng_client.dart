@@ -2,6 +2,8 @@ import 'dart:convert';
 
 import 'package:http/http.dart' as http;
 
+import '../../../../core/utils/logger.dart';
+
 /// SearXNG search client.
 class SearxngClient {
   SearxngClient({required this.baseUrl});
@@ -13,20 +15,20 @@ class SearxngClient {
     required String query,
     int maxResults = 5,
   }) async {
-    print('[SearXNG] Search query: $query');
+    appLog('[SearXNG] Search query: $query');
 
     final uri = Uri.parse(
       baseUrl,
     ).replace(path: '/search', queryParameters: {'q': query, 'format': 'json'});
 
-    print('[SearXNG] Request URL: $uri');
+    appLog('[SearXNG] Request URL: $uri');
 
     final response = await http.get(
       uri,
       headers: {'Accept': 'application/json'},
     );
 
-    print('[SearXNG] Response status: ${response.statusCode}');
+    appLog('[SearXNG] Response status: ${response.statusCode}');
 
     if (response.statusCode != 200) {
       throw Exception('SearXNG search failed: ${response.statusCode}');
@@ -38,7 +40,7 @@ class SearxngClient {
         .map((r) => SearxngResult.fromJson(r as Map<String, dynamic>))
         .toList();
 
-    print('[SearXNG] Search results: ${results.length} items');
+    appLog('[SearXNG] Search results: ${results.length} items');
 
     return SearxngSearchResult(
       query: json['query'] as String? ?? query,
@@ -73,7 +75,7 @@ class SearxngClient {
 
       return buffer.toString();
     } catch (e) {
-      print('[SearXNG] Error: $e');
+      appLog('[SearXNG] Error: $e');
       return 'Search error: $e';
     }
   }

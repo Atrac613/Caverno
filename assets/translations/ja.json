@@ -17,7 +17,10 @@
     "delete_title": "会話を削除",
     "delete_confirm": "「{title}」を削除しますか？",
     "deleted": "会話を削除しました",
-    "settings": "接続設定"
+    "settings": "接続設定",
+    "setup_title": "Cavernoへようこそ",
+    "setup_message": "設定からLLMサーバーのエンドポイントを設定してください。OpenAI互換API（LM Studio, Ollama, vLLMなど）に対応しています。",
+    "setup_button": "設定を開く"
   },
   "drawer": {
     "title": "会話履歴",
