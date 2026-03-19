@@ -216,12 +216,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Language settings section
-          _buildSectionHeader('settings.language_section'.tr()),
-          const SizedBox(height: 8),
-          _buildLanguageSelector(),
-          const SizedBox(height: 24),
-
           // Server settings section
           _buildSectionHeader('settings.server_section'.tr()),
           const SizedBox(height: 8),
@@ -522,30 +516,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ],
       ),
-    );
-  }
-
-  Widget _buildLanguageSelector() {
-    final currentLocale = context.locale;
-    // null = system, 'ja' = Japanese, 'en' = English
-    // Determine which option is currently selected.
-    // easy_localization persists locale, so we just show the current one.
-    return SegmentedButton<String>(
-      segments: [
-        ButtonSegment(
-          value: 'ja',
-          label: Text('settings.language_ja'.tr()),
-        ),
-        ButtonSegment(
-          value: 'en',
-          label: Text('settings.language_en'.tr()),
-        ),
-      ],
-      selected: {currentLocale.languageCode},
-      onSelectionChanged: (selection) {
-        final code = selection.first;
-        context.setLocale(Locale(code));
-      },
     );
   }
 
