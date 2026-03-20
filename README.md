@@ -47,6 +47,31 @@ Optional integrations:
 - **MCP Server** — Configure endpoint for tool calling (SearXNG web search, etc.)
 - **TTS / STT** — Enable voice features and auto-read in settings
 
+## App Store Screenshots
+
+Generate dark-mode screenshots for App Store submission using integration tests.
+
+```bash
+# Boot an iOS simulator
+xcrun simctl boot "iPhone 17 Pro Max"
+
+# Run the screenshot tests
+flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/screenshot_test.dart \
+  -d <device-id>
+```
+
+Screenshots are saved to `screenshots/` and automatically resized to 1284×2778 (App Store 6.7" display).
+
+| # | Screenshot | Content |
+|---|-----------|---------|
+| 1 | `1_chat_conversation` | Chat with markdown, code blocks, and thinking |
+| 2 | `2_tool_calling` | Web search tool calls with results |
+| 3 | `3_thinking_block` | Chain-of-thought reasoning block |
+| 4 | `4_conversation_drawer` | Conversation history sidebar |
+| 5 | `5_settings_page` | Settings page |
+
 ## Architecture
 
 Clean Architecture with feature-based modules and Riverpod state management.
