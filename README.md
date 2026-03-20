@@ -52,17 +52,20 @@ Optional integrations:
 Generate dark-mode screenshots for App Store submission using integration tests.
 
 ```bash
-# Boot an iOS simulator
-xcrun simctl boot "iPhone 17 Pro Max"
-
-# Run the screenshot tests
+# iPhone (6.7" — 1284×2778)
 flutter drive \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/screenshot_test.dart \
-  -d <device-id>
+  -d <iphone-device-id>
+
+# iPad (13" — 2048×2732)
+SCREENSHOT_DEVICE=ipad flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/screenshot_test.dart \
+  -d <ipad-device-id>
 ```
 
-Screenshots are saved to `screenshots/` and automatically resized to 1284×2778 (App Store 6.7" display).
+iPhone screenshots are saved to `screenshots/`, iPad to `screenshots/ipad/`. Both are automatically resized to App Store dimensions.
 
 | # | Screenshot | Content |
 |---|-----------|---------|
