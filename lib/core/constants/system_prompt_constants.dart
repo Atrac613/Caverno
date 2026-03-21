@@ -47,6 +47,11 @@ class SystemPromptConstants {
       'and natural for speech output. Avoid long lists, code blocks, '
       'formatting marks, or overly detailed explanations.';
 
+  static const String voiceModeToolInstruction =
+      'When using tools (like MCP or web search) to fetch information, '
+      'summarize the results extremely briefly (in 1 or 2 sentences). '
+      'Do not read out raw data, full paths, or provide lengthy explanations.';
+
   static const String generalModeInstruction =
       'Adapt to the user\'s domain instead of assuming every task is '
       'about software or engineering.';

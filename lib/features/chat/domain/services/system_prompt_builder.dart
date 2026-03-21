@@ -65,6 +65,9 @@ class SystemPromptBuilder {
 
     if (isVoiceMode) {
       buffer.writeln(SystemPromptConstants.voiceModeInstruction);
+      if (hasTools) {
+        buffer.writeln(SystemPromptConstants.voiceModeToolInstruction);
+      }
     }
 
     final hasMemorySearch = uniqueToolNames.contains(
