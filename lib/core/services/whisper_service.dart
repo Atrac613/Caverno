@@ -56,18 +56,32 @@ class WhisperService {
   }
 
   /// Check whether the Whisper server is reachable.
+  ///
+  /// Tries multiple known endpoints since whisper.cpp versions differ
+  /// in which routes they expose.
   Future<bool> isAvailable() async {
-    try {
-      final base = baseUrl.replaceAll(RegExp(r'/$'), '');
-      final isV1 = base.endsWith('/v1');
-      final uri = Uri.parse(isV1 ? '$base/models' : '$base/props');
-      final response = await _client.get(uri).timeout(
-        const Duration(seconds: 3),
-      );
-      return response.statusCode == 200;
-    } catch (e) {
-      appLog('[Whisper] Availability check failed: $e');
-      return false;
+    final base = baseUrl.replaceAll(RegExp(r'/$'), '');
+    final isV1 = base.endsWith('/v1');
+
+    // Candidates in order of likelihood.
+    final candidates = isV1
+        ? ['$base/models']
+        : ['$base/props', '$base/health', base];
+
+    for (final url in candidates) {
+      try {
+        final response = await _client.get(Uri.parse(url)).timeout(
+          const Duration(seconds: 3),
+        );
+        if (response.statusCode < 500) {
+          return true;
+        }
+      } catch (_) {
+        // Try next candidate.
+      }
     }
+
+    appLog('[Whisper] Availability check failed for all endpoints');
+    return false;
   }
 }

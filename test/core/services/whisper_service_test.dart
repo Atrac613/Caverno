@@ -106,7 +106,7 @@ void main() {
         expect(await service.isAvailable(), true);
       });
 
-      test('returns false on non-200 response', () async {
+      test('returns false when all endpoints return 500+', () async {
         final client = MockClient((request) async {
           return http.Response('', 503);
         });
@@ -116,6 +116,18 @@ void main() {
           client: client,
         );
         expect(await service.isAvailable(), false);
+      });
+
+      test('returns true on 404 (server reachable but endpoint missing)', () async {
+        final client = MockClient((request) async {
+          return http.Response('Not found', 404);
+        });
+
+        final service = WhisperService(
+          baseUrl: 'http://localhost:8080',
+          client: client,
+        );
+        expect(await service.isAvailable(), true);
       });
 
       test('returns false on network error', () async {
@@ -130,22 +142,13 @@ void main() {
         expect(await service.isAvailable(), false);
       });
 
-      test('checks /v1/models for v1 URL', () async {
+      test('tries fallback endpoints for non-v1 URL', () async {
+        final requestedPaths = <String>[];
         final client = MockClient((request) async {
-          expect(request.url.path, '/v1/models');
-          return http.Response('ok', 200);
-        });
-
-        final service = WhisperService(
-          baseUrl: 'http://localhost:8080/v1',
-          client: client,
-        );
-        await service.isAvailable();
-      });
-
-      test('checks /props for non-v1 URL', () async {
-        final client = MockClient((request) async {
-          expect(request.url.path, '/props');
+          requestedPaths.add(request.url.path);
+          if (request.url.path == '/props') {
+            throw Exception('Not supported');
+          }
           return http.Response('ok', 200);
         });
 
@@ -153,7 +156,9 @@ void main() {
           baseUrl: 'http://localhost:8080',
           client: client,
         );
-        await service.isAvailable();
+        final result = await service.isAvailable();
+        expect(result, true);
+        expect(requestedPaths.length, greaterThan(1));
       });
     });
   });
