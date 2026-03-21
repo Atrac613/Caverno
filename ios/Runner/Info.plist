@@ -39,6 +39,8 @@
 	<string>Caverno uses the photo library so you can attach images to messages.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Caverno uses speech recognition to convert your voice into text.</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Caverno uses the camera to scan settings QR codes.</string>
 	<key>UIApplicationSceneManifest</key>
 	<dict>
 		<key>UIApplicationSupportsMultipleScenes</key>
