@@ -17,6 +17,9 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   ttsEnabled: json['ttsEnabled'] as bool? ?? true,
   autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
   speechRate: (json['speechRate'] as num?)?.toDouble() ?? 1.0,
+  whisperUrl: json['whisperUrl'] as String? ?? 'http://localhost:8080',
+  voicevoxUrl: json['voicevoxUrl'] as String? ?? 'http://localhost:50021',
+  voicevoxSpeakerId: (json['voicevoxSpeakerId'] as num?)?.toInt() ?? 0,
   assistantMode:
       $enumDecodeNullable(
         _$AssistantModeEnumMap,
@@ -38,6 +41,9 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'ttsEnabled': instance.ttsEnabled,
       'autoReadEnabled': instance.autoReadEnabled,
       'speechRate': instance.speechRate,
+      'whisperUrl': instance.whisperUrl,
+      'voicevoxUrl': instance.voicevoxUrl,
+      'voicevoxSpeakerId': instance.voicevoxSpeakerId,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
     };
 

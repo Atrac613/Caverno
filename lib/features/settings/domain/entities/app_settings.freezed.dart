@@ -15,8 +15,9 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AppSettings {
 
- String get baseUrl; String get model; String get apiKey; double get temperature; int get maxTokens; String get mcpUrl; bool get mcpEnabled;// 音声設定
- bool get ttsEnabled; bool get autoReadEnabled; double get speechRate;@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode get assistantMode;
+ String get baseUrl; String get model; String get apiKey; double get temperature; int get maxTokens; String get mcpUrl; bool get mcpEnabled;// Voice settings
+ bool get ttsEnabled; bool get autoReadEnabled; double get speechRate;// Voice mode (Whisper + VOICEVOX)
+ String get whisperUrl; String get voicevoxUrl; int get voicevoxSpeakerId;@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode get assistantMode;
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -29,16 +30,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,baseUrl,model,apiKey,temperature,maxTokens,mcpUrl,mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,assistantMode);
+int get hashCode => Object.hash(runtimeType,baseUrl,model,apiKey,temperature,maxTokens,mcpUrl,mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,whisperUrl,voicevoxUrl,voicevoxSpeakerId,assistantMode);
 
 @override
 String toString() {
-  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, mcpUrl: $mcpUrl, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, assistantMode: $assistantMode)';
+  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, mcpUrl: $mcpUrl, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, assistantMode: $assistantMode)';
 }
 
 
@@ -49,7 +50,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
- String baseUrl, String model, String apiKey, double temperature, int maxTokens, String mcpUrl, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode
+ String baseUrl, String model, String apiKey, double temperature, int maxTokens, String mcpUrl, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode
 });
 
 
@@ -66,7 +67,7 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? mcpUrl = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? assistantMode = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? mcpUrl = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? assistantMode = null,}) {
   return _then(_self.copyWith(
 baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
@@ -78,7 +79,10 @@ as String,mcpEnabled: null == mcpEnabled ? _self.mcpEnabled : mcpEnabled // igno
 as bool,ttsEnabled: null == ttsEnabled ? _self.ttsEnabled : ttsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,autoReadEnabled: null == autoReadEnabled ? _self.autoReadEnabled : autoReadEnabled // ignore: cast_nullable_to_non_nullable
 as bool,speechRate: null == speechRate ? _self.speechRate : speechRate // ignore: cast_nullable_to_non_nullable
-as double,assistantMode: null == assistantMode ? _self.assistantMode : assistantMode // ignore: cast_nullable_to_non_nullable
+as double,whisperUrl: null == whisperUrl ? _self.whisperUrl : whisperUrl // ignore: cast_nullable_to_non_nullable
+as String,voicevoxUrl: null == voicevoxUrl ? _self.voicevoxUrl : voicevoxUrl // ignore: cast_nullable_to_non_nullable
+as String,voicevoxSpeakerId: null == voicevoxSpeakerId ? _self.voicevoxSpeakerId : voicevoxSpeakerId // ignore: cast_nullable_to_non_nullable
+as int,assistantMode: null == assistantMode ? _self.assistantMode : assistantMode // ignore: cast_nullable_to_non_nullable
 as AssistantMode,
   ));
 }
@@ -164,10 +168,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.assistantMode);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.assistantMode);case _:
   return orElse();
 
 }
@@ -185,10 +189,10 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.assistantMode);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.assistantMode);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -205,10 +209,10 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String mcpUrl,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.assistantMode);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.mcpUrl,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.assistantMode);case _:
   return null;
 
 }
@@ -220,7 +224,7 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 @JsonSerializable()
 
 class _AppSettings implements AppSettings {
-  const _AppSettings({required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, this.mcpUrl = '', this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 1.0, @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general});
+  const _AppSettings({required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, this.mcpUrl = '', this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 1.0, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general});
   factory _AppSettings.fromJson(Map<String, dynamic> json) => _$AppSettingsFromJson(json);
 
 @override final  String baseUrl;
@@ -230,10 +234,14 @@ class _AppSettings implements AppSettings {
 @override final  int maxTokens;
 @override@JsonKey() final  String mcpUrl;
 @override@JsonKey() final  bool mcpEnabled;
-// 音声設定
+// Voice settings
 @override@JsonKey() final  bool ttsEnabled;
 @override@JsonKey() final  bool autoReadEnabled;
 @override@JsonKey() final  double speechRate;
+// Voice mode (Whisper + VOICEVOX)
+@override@JsonKey() final  String whisperUrl;
+@override@JsonKey() final  String voicevoxUrl;
+@override@JsonKey() final  int voicevoxSpeakerId;
 @override@JsonKey(unknownEnumValue: AssistantMode.general) final  AssistantMode assistantMode;
 
 /// Create a copy of AppSettings
@@ -249,16 +257,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,baseUrl,model,apiKey,temperature,maxTokens,mcpUrl,mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,assistantMode);
+int get hashCode => Object.hash(runtimeType,baseUrl,model,apiKey,temperature,maxTokens,mcpUrl,mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,whisperUrl,voicevoxUrl,voicevoxSpeakerId,assistantMode);
 
 @override
 String toString() {
-  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, mcpUrl: $mcpUrl, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, assistantMode: $assistantMode)';
+  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, mcpUrl: $mcpUrl, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, assistantMode: $assistantMode)';
 }
 
 
@@ -269,7 +277,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String baseUrl, String model, String apiKey, double temperature, int maxTokens, String mcpUrl, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode
+ String baseUrl, String model, String apiKey, double temperature, int maxTokens, String mcpUrl, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode
 });
 
 
@@ -286,7 +294,7 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? mcpUrl = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? assistantMode = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? mcpUrl = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? assistantMode = null,}) {
   return _then(_AppSettings(
 baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
@@ -298,7 +306,10 @@ as String,mcpEnabled: null == mcpEnabled ? _self.mcpEnabled : mcpEnabled // igno
 as bool,ttsEnabled: null == ttsEnabled ? _self.ttsEnabled : ttsEnabled // ignore: cast_nullable_to_non_nullable
 as bool,autoReadEnabled: null == autoReadEnabled ? _self.autoReadEnabled : autoReadEnabled // ignore: cast_nullable_to_non_nullable
 as bool,speechRate: null == speechRate ? _self.speechRate : speechRate // ignore: cast_nullable_to_non_nullable
-as double,assistantMode: null == assistantMode ? _self.assistantMode : assistantMode // ignore: cast_nullable_to_non_nullable
+as double,whisperUrl: null == whisperUrl ? _self.whisperUrl : whisperUrl // ignore: cast_nullable_to_non_nullable
+as String,voicevoxUrl: null == voicevoxUrl ? _self.voicevoxUrl : voicevoxUrl // ignore: cast_nullable_to_non_nullable
+as String,voicevoxSpeakerId: null == voicevoxSpeakerId ? _self.voicevoxSpeakerId : voicevoxSpeakerId // ignore: cast_nullable_to_non_nullable
+as int,assistantMode: null == assistantMode ? _self.assistantMode : assistantMode // ignore: cast_nullable_to_non_nullable
 as AssistantMode,
   ));
 }

@@ -68,6 +68,10 @@ dependencies:
   flutter_markdown: ^0.7.7+1
   url_launcher: ^6.3.2
 
+  # Voice mode (Whisper STT + VOICEVOX TTS)
+  audioplayers: ^6.1.0
+  record: ^6.2.0
+
   # Local notifications
   flutter_local_notifications: ^18.0.1
 
@@ -76,6 +80,9 @@ dev_dependencies:
     sdk: flutter
   integration_test:
     sdk: flutter
+
+  # Testing
+  mocktail: ^1.0.4
 
   # Code generation
   build_runner: ^2.4.14

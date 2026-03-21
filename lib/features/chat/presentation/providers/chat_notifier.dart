@@ -170,6 +170,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   String _languageCode = 'en';
   String? _sessionMemoryContext;
   String? _temporalReferenceContext;
+  Message? _hiddenPrompt;
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
@@ -250,7 +251,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
         ),
       );
     }
-    return [...promptMessages, ...messages];
+    final result = [...promptMessages, ...messages];
+    if (_hiddenPrompt != null) {
+      result.add(_hiddenPrompt!);
+    }
+    return result;
   }
 
   final _uuid = const Uuid();
@@ -269,6 +274,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!mounted) return;
 
+    _hiddenPrompt = null;
     _languageCode = languageCode;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
@@ -331,6 +337,46 @@ class ChatNotifier extends StateNotifier<ChatState> {
       appLog(
         '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
       );
+      await _sendWithoutTools();
+    }
+  }
+
+  /// Sends a hidden prompt without appending it to the visible conversation state.
+  /// Typically used for proactive AI responses, like handling user silence in Voice Mode.
+  Future<void> sendHiddenPrompt(String instruction) async {
+    if (!mounted) return;
+
+    _temporalReferenceContext = null;
+    _hiddenPrompt = Message(
+      id: _uuid.v4(),
+      content: instruction,
+      role: MessageRole.user,
+      timestamp: DateTime.now(),
+    );
+
+    // Append a placeholder assistant message for streaming.
+    final assistantMessage = Message(
+      id: _uuid.v4(),
+      content: '',
+      role: MessageRole.assistant,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    );
+
+    state = state.copyWith(
+      messages: [...state.messages, assistantMessage],
+      isLoading: true,
+      error: null,
+    );
+
+    onSendStarted?.call();
+
+    // Use tool-aware flow when the MCP tool service is available.
+    if (_mcpToolService != null && _settings.mcpEnabled) {
+      appLog('[Tool] Sending hidden prompt in tool-aware mode');
+      await _sendWithTools();
+    } else {
+      appLog('[Tool] Sending hidden prompt in normal mode');
       await _sendWithoutTools();
     }
   }
@@ -782,6 +828,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } else {
       onResponseCompleted?.call('');
     }
+
+    _hiddenPrompt = null;
   }
 
   /// Persists the current conversation messages.

@@ -47,6 +47,70 @@ Optional integrations:
 - **MCP Server** — Configure endpoint for tool calling (SearXNG web search, etc.)
 - **TTS / STT** — Enable voice features and auto-read in settings
 
+## Local Server Setup (Ubuntu)
+
+To fully utilize the continuous voice mode and local LLM capabilities, you can set up the following services natively or via Docker on your Ubuntu machine.
+
+### 1. LLM Server (llama.cpp)
+
+The application connects to any OpenAI-compatible REST endpoint. For running the **Qwen3.5 35b a3b** model, `llama.cpp` is recommended.
+
+```bash
+# Clone and build llama.cpp
+git clone https://github.com/ggerganov/llama.cpp
+cd llama.cpp
+make -j  # Use LLAMA_CUDA=1 for NVIDIA GPUs
+
+# Download your model format (replace with actual URL)
+wget -O qwen3.5-35b-a3b.gguf <MODEL_DOWNLOAD_URL>
+
+# Start the OpenAI-compatible server on the default Caverno port (1234)
+./llama-server -m qwen3.5-35b-a3b.gguf --host 0.0.0.0 --port 1234 -c 4096
+```
+
+### 2. STT Server (whisper.cpp)
+
+The continuous voice mode requires a local Whisper server exposing an OpenAI-compatible `/v1/audio/transcriptions` endpoint.
+
+```bash
+# Clone the repository
+git clone https://github.com/ggml-org/whisper.cpp.git
+cd whisper.cpp
+
+# Download a multilingual Whisper model (e.g., base, small, or large-v3-turbo)
+# Note: DO NOT use models ending in '.en' (like base.en) as they are English-only.
+# The standard models (base, small) fully support Japanese.
+bash ./models/download-ggml-model.sh base
+
+# Build the project
+cmake -B build
+cmake --build build -j --config Release
+
+# Start the server on port 8080
+./build/bin/whisper-server -m models/ggml-base.bin --host 0.0.0.0 --port 8080
+```
+
+### 3. TTS Server (VOICEVOX)
+
+For natural-sounding Japanese text-to-speech, download and run the pre-built Linux NVIDIA binaries (e.g., v0.25.1).
+
+```bash
+# Install p7zip if you haven't already
+sudo apt-get update
+sudo apt-get install p7zip-full
+
+# Download the split 7z archives
+wget https://github.com/VOICEVOX/voicevox_engine/releases/download/0.25.1/voicevox_engine-linux-nvidia-0.25.1.7z.001
+wget https://github.com/VOICEVOX/voicevox_engine/releases/download/0.25.1/voicevox_engine-linux-nvidia-0.25.1.7z.002
+
+# Extract the engine (7z automatically finds the .002 part)
+7z x voicevox_engine-linux-nvidia-0.25.1.7z.001
+
+# Run the server (bind to 0.0.0.0 for LAN access)
+cd linux-nvidia
+./run --host 0.0.0.0
+```
+
 ## App Store Screenshots
 
 Generate dark-mode screenshots for App Store submission using integration tests.

@@ -22,6 +22,10 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool ttsEnabled,
     @Default(false) bool autoReadEnabled,
     @Default(1.0) double speechRate,
+    // Voice mode (Whisper + VOICEVOX)
+    @Default('http://localhost:8080') String whisperUrl,
+    @Default('http://localhost:50021') String voicevoxUrl,
+    @Default(0) int voicevoxSpeakerId,
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,

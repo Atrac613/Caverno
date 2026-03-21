@@ -75,6 +75,22 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _repository.save(state);
   }
 
+  // Voice mode settings
+  Future<void> updateWhisperUrl(String whisperUrl) async {
+    state = state.copyWith(whisperUrl: whisperUrl);
+    await _repository.save(state);
+  }
+
+  Future<void> updateVoicevoxUrl(String voicevoxUrl) async {
+    state = state.copyWith(voicevoxUrl: voicevoxUrl);
+    await _repository.save(state);
+  }
+
+  Future<void> updateVoicevoxSpeakerId(int voicevoxSpeakerId) async {
+    state = state.copyWith(voicevoxSpeakerId: voicevoxSpeakerId);
+    await _repository.save(state);
+  }
+
   Future<void> updateAssistantMode(AssistantMode assistantMode) async {
     state = state.copyWith(assistantMode: assistantMode);
     await _repository.save(state);

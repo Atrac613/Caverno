@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/services/voicevox_service.dart';
 import '../../../chat/data/repositories/chat_memory_repository.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
@@ -38,6 +39,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   late bool _ttsEnabled;
   late bool _autoReadEnabled;
   late double _speechRate;
+  late String _whisperUrl;
+  late String _voicevoxUrl;
+  late int _voicevoxSpeakerId;
 
   @override
   void initState() {
@@ -71,6 +75,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _ttsEnabled = settings.ttsEnabled;
     _autoReadEnabled = settings.autoReadEnabled;
     _speechRate = settings.speechRate;
+    _whisperUrl = settings.whisperUrl;
+    _voicevoxUrl = settings.voicevoxUrl;
+    _voicevoxSpeakerId = settings.voicevoxSpeakerId;
   }
 
   @override
@@ -102,6 +109,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await notifier.updateTtsEnabled(_ttsEnabled);
     await notifier.updateAutoReadEnabled(_autoReadEnabled);
     await notifier.updateSpeechRate(_speechRate);
+    await notifier.updateWhisperUrl(_whisperUrl);
+    await notifier.updateVoicevoxUrl(_voicevoxUrl);
+    await notifier.updateVoicevoxSpeakerId(_voicevoxSpeakerId);
     await _sessionMemoryService.saveProfileFromText(
       personaText: _profilePersonaController.text,
       preferencesText: _profilePreferencesController.text,
@@ -150,6 +160,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _ttsEnabled = true;
           _autoReadEnabled = false;
           _speechRate = 1.0;
+          _whisperUrl = 'http://localhost:8080';
+          _voicevoxUrl = 'http://localhost:50021';
+          _voicevoxSpeakerId = 0;
         });
         ScaffoldMessenger.of(
           context,
@@ -191,6 +204,56 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('settings.clear_memory_done'.tr())));
+  }
+
+  Future<void> _selectSpeaker() async {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(child: CircularProgressIndicator()),
+    );
+    try {
+      final speakers = await VoicevoxService(baseUrl: _voicevoxUrl).getSpeakers();
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+
+      final selected = await showDialog<int>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: Text('settings.voicevox_speaker_id'.tr()),
+          content: SizedBox(
+            width: double.maxFinite,
+            child: ListView.builder(
+              shrinkWrap: true,
+              itemCount: speakers.length,
+              itemBuilder: (context, index) {
+                final spk = speakers[index];
+                return ListTile(
+                  title: Text(spk.displayName),
+                  selected: _voicevoxSpeakerId == spk.speakerId,
+                  onTap: () => Navigator.pop(context, spk.speakerId),
+                );
+              },
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: Text('common.cancel'.tr()),
+            ),
+          ],
+        ),
+      );
+      if (selected != null) {
+        setState(() {
+          _voicevoxSpeakerId = selected;
+        });
+      }
+    } catch (e) {
+      if (!mounted) return;
+      Navigator.pop(context); // close loading
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Failed: $e')));
+    }
   }
 
   void _reloadMemorySnapshot() {
@@ -505,6 +568,49 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 child: Text('${_speechRate.toStringAsFixed(1)}x'),
               ),
             ],
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            initialValue: _whisperUrl,
+            decoration: InputDecoration(
+              labelText: 'settings.whisper_url'.tr(),
+              hintText: 'http://localhost:8080',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.whisper_url_helper'.tr(),
+            ),
+            keyboardType: TextInputType.url,
+            onChanged: (value) {
+              setState(() {
+                _whisperUrl = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          TextFormField(
+            initialValue: _voicevoxUrl,
+            decoration: InputDecoration(
+              labelText: 'settings.voicevox_url'.tr(),
+              hintText: 'http://localhost:50021',
+              border: const OutlineInputBorder(),
+              helperText: 'settings.voicevox_url_helper'.tr(),
+            ),
+            keyboardType: TextInputType.url,
+            onChanged: (value) {
+              setState(() {
+                _voicevoxUrl = value;
+              });
+            },
+          ),
+          const SizedBox(height: 16),
+          ListTile(
+            title: Text('settings.voicevox_speaker_id'.tr()),
+            subtitle: Text('Speaker ID: $_voicevoxSpeakerId'),
+            trailing: const Icon(Icons.arrow_drop_down),
+            shape: RoundedRectangleBorder(
+              side: BorderSide(color: Theme.of(context).colorScheme.outline),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            onTap: _selectSpeaker,
           ),
           const SizedBox(height: 32),
 

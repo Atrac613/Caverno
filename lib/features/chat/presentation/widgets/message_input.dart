@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/services/voice_providers.dart';
+import 'voice_mode_overlay.dart';
 
 class MessageInput extends ConsumerStatefulWidget {
   const MessageInput({
@@ -309,6 +310,25 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       foregroundColor: theme.colorScheme.onPrimary,
                     ),
                   ),
+                const SizedBox(width: 8),
+                IconButton(
+                  onPressed: widget.isLoading
+                      ? null
+                      : () {
+                          showGeneralDialog(
+                            context: context,
+                            barrierColor: Colors.transparent,
+                            pageBuilder: (context, anim1, anim2) =>
+                                const VoiceModeOverlay(),
+                          );
+                        },
+                  icon: const Icon(Icons.record_voice_over),
+                  tooltip: 'Start Voice Mode',
+                  style: IconButton.styleFrom(
+                    backgroundColor: theme.colorScheme.secondaryContainer,
+                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                  ),
+                ),
               ],
             ),
           ],
