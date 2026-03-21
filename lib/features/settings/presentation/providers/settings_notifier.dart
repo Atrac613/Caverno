@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/types/assistant_mode.dart';
 import '../../data/settings_file_service.dart';
+import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
 
@@ -18,14 +19,16 @@ final settingsNotifierProvider =
     StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
       final repository = ref.watch(settingsRepositoryProvider);
       final fileService = ref.watch(settingsFileServiceProvider);
-      return SettingsNotifier(repository, fileService);
+      final qrService = ref.watch(settingsQrServiceProvider);
+      return SettingsNotifier(repository, fileService, qrService);
     });
 
 class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier(this._repository, this._fileService) : super(_repository.load());
+  SettingsNotifier(this._repository, this._fileService, this._qrService) : super(_repository.load());
 
   final SettingsRepository _repository;
   final SettingsFileService _fileService;
+  final SettingsQrService _qrService;
 
   Future<void> updateBaseUrl(String baseUrl) async {
     state = state.copyWith(baseUrl: baseUrl);
@@ -131,5 +134,15 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
       return true;
     }
     return false;
+  }
+
+  String exportToQr() {
+    return _qrService.generateQrString(state);
+  }
+
+  Future<void> importFromQr(String data) async {
+    final settings = _qrService.parseQrString(data);
+    state = settings;
+    await _repository.save(state);
   }
 }

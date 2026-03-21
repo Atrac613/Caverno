@@ -14,6 +14,8 @@ PODS:
   - flutter_tts (0.0.1):
     - FlutterMacOS
   - FlutterMacOS (1.0.0)
+  - mobile_scanner (6.0.2):
+    - FlutterMacOS
   - record_macos (1.2.0):
     - FlutterMacOS
   - shared_preferences_foundation (0.0.1):
@@ -33,6 +35,7 @@ DEPENDENCIES:
   - flutter_local_notifications (from `Flutter/ephemeral/.symlinks/plugins/flutter_local_notifications/macos`)
   - flutter_tts (from `Flutter/ephemeral/.symlinks/plugins/flutter_tts/macos`)
   - FlutterMacOS (from `Flutter/ephemeral`)
+  - mobile_scanner (from `Flutter/ephemeral/.symlinks/plugins/mobile_scanner/macos`)
   - record_macos (from `Flutter/ephemeral/.symlinks/plugins/record_macos/macos`)
   - shared_preferences_foundation (from `Flutter/ephemeral/.symlinks/plugins/shared_preferences_foundation/darwin`)
   - speech_to_text (from `Flutter/ephemeral/.symlinks/plugins/speech_to_text/darwin`)
@@ -56,6 +59,8 @@ EXTERNAL SOURCES:
     :path: Flutter/ephemeral/.symlinks/plugins/flutter_tts/macos
   FlutterMacOS:
     :path: Flutter/ephemeral
+  mobile_scanner:
+    :path: Flutter/ephemeral/.symlinks/plugins/mobile_scanner/macos
   record_macos:
     :path: Flutter/ephemeral/.symlinks/plugins/record_macos/macos
   shared_preferences_foundation:
@@ -74,6 +79,7 @@ SPEC CHECKSUMS:
   flutter_local_notifications: 7062189aabf7f50938a7b8b6614ffa97656eb0bf
   flutter_tts: 64651204e5d276ffea5a910f942d5e9785a96085
   FlutterMacOS: d0db08ddef1a9af05a5ec4b724367152bb0500b1
+  mobile_scanner: 07710d6b9b2c220ae899de2d7ecf5d77ffa56333
   record_macos: 4680f37daeebf52162e715efb7ff682f0a5ce4fd
   shared_preferences_foundation: 5086985c1d43c5ba4d5e69a4e8083a389e2909e6
   speech_to_text: 87bf9298952e8d9073be1b6aade6d5758db5170c

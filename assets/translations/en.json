@@ -147,7 +147,13 @@
     "export_done": "Settings exported to {path}",
     "import_error": "Failed to import settings: {error}",
     "export_error": "Failed to export settings: {error}",
-    "import_confirm": "Importing settings will overwrite current values. Continue?"
+    "import_confirm": "Importing settings will overwrite current values. Continue?",
+    "export_qr": "Export via QR Code",
+    "import_qr": "Import via QR Code",
+    "qr_export_title": "Settings QR Code",
+    "qr_scan_title": "Scan Settings QR Code",
+    "qr_scan_hint": "Point your camera at a settings QR code",
+    "qr_import_confirm": "Restore settings from QR code? Current settings will be overwritten."
   },
   "notification": {
     "response_title": "Caverno",

@@ -3,12 +3,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/settings_notifier.dart';
+import '../widgets/qr_export_dialog.dart';
 import 'general_settings_page.dart';
 import 'chat_settings_page.dart';
 import 'voice_settings_page.dart';
 import 'tools_settings_page.dart';
+import 'qr_scanner_page.dart';
 
-enum _SettingsAction { reset, import, export }
+enum _SettingsAction { reset, import, export, importQr, exportQr }
 
 class SettingsPage extends ConsumerWidget {
   const SettingsPage({super.key});
@@ -60,6 +62,12 @@ class SettingsPage extends ConsumerWidget {
                 case _SettingsAction.export:
                   _exportSettings(context, ref);
                   break;
+                case _SettingsAction.importQr:
+                  _importFromQr(context, ref);
+                  break;
+                case _SettingsAction.exportQr:
+                  _exportToQr(context, ref);
+                  break;
               }
             },
             itemBuilder: (context) => [
@@ -80,6 +88,27 @@ class SettingsPage extends ConsumerWidget {
                     const Icon(Icons.file_download_outlined),
                     const SizedBox(width: 12),
                     Text('settings.export_settings'.tr()),
+                  ],
+                ),
+              ),
+              const PopupMenuDivider(),
+              PopupMenuItem(
+                value: _SettingsAction.importQr,
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code_scanner),
+                    const SizedBox(width: 12),
+                    Text('settings.import_qr'.tr()),
+                  ],
+                ),
+              ),
+              PopupMenuItem(
+                value: _SettingsAction.exportQr,
+                child: Row(
+                  children: [
+                    const Icon(Icons.qr_code),
+                    const SizedBox(width: 12),
+                    Text('settings.export_qr'.tr()),
                   ],
                 ),
               ),
@@ -214,5 +243,61 @@ class SettingsPage extends ConsumerWidget {
         );
       }
     }
+  }
+
+  Future<void> _importFromQr(BuildContext context, WidgetRef ref) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('settings.import_qr'.tr()),
+        content: Text('settings.qr_import_confirm'.tr()),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('common.cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            child: Text('settings.import_settings'.tr()),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed == true) {
+      if (!context.mounted) return;
+      final result = await Navigator.of(context).push<String>(
+        MaterialPageRoute(builder: (_) => const QrScannerPage()),
+      );
+
+      if (result != null && context.mounted) {
+        try {
+          await ref
+              .read(settingsNotifierProvider.notifier)
+              .importFromQr(result);
+          if (context.mounted) {
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('settings.import_done'.tr())));
+          }
+        } catch (e) {
+          if (context.mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('settings.import_error'.tr(args: [e.toString()])),
+              ),
+            );
+          }
+        }
+      }
+    }
+  }
+
+  Future<void> _exportToQr(BuildContext context, WidgetRef ref) async {
+    final data = ref.read(settingsNotifierProvider.notifier).exportToQr();
+    showDialog(
+      context: context,
+      builder: (context) => QrExportDialog(data: data),
+    );
   }
 }

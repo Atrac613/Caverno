@@ -147,7 +147,13 @@
     "export_done": "設定を {path} にエクスポートしました",
     "import_error": "設定のインポートに失敗しました: {error}",
     "export_error": "設定のエクスポートに失敗しました: {error}",
-    "import_confirm": "インポートすると現在の設定が上書きされます。続行しますか？"
+    "import_confirm": "インポートすると現在の設定が上書きされます。続行しますか？",
+    "export_qr": "QRコードでエクスポート",
+    "import_qr": "QRコードでインポート",
+    "qr_export_title": "設定用QRコード",
+    "qr_scan_title": "設定QRコードをスキャン",
+    "qr_scan_hint": "カメラを設定QRコードに向けてください",
+    "qr_import_confirm": "QRコードから設定を復元しますか？（現在の設定は上書きされます）"
   },
   "notification": {
     "response_title": "Caverno",
