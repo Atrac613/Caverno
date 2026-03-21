@@ -136,30 +136,6 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       return;
     }
 
-    // Check that required services are reachable before entering the loop.
-    state = const VoiceModeState(
-      status: VoiceModeStatus.processing,
-      transcript: 'Checking services...',
-    );
-
-    final results = await Future.wait([
-      _whisperService.isAvailable(),
-      _voicevoxService.isAvailable(),
-    ]);
-    final whisperOk = results[0];
-    final voicevoxOk = results[1];
-
-    if (!whisperOk || !voicevoxOk) {
-      final unreachable = <String>[];
-      if (!whisperOk) unreachable.add('Whisper STT (${_whisperService.baseUrl})');
-      if (!voicevoxOk) unreachable.add('VOICEVOX (${_voicevoxService.baseUrl})');
-      state = VoiceModeState(
-        status: VoiceModeStatus.error,
-        errorMessage: 'Cannot reach: ${unreachable.join(', ')}',
-      );
-      return;
-    }
-
     _isFirstListen = true;
     _consecutiveSynthesisErrors = 0;
 
@@ -204,6 +180,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
           state = state.copyWith(status: VoiceModeStatus.processing);
           _chatNotifier.sendHiddenPrompt(
             'The user is currently silent. Please say something brief and caring to prompt them.',
+            isVoiceMode: true,
           );
         }
       });
@@ -233,7 +210,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       _currentlySynthesizingText = '';
       
       // Send the text to the chat.
-      await _chatNotifier.sendMessage(text);
+      await _chatNotifier.sendMessage(text, isVoiceMode: true);
       
     } catch (e) {
       appLog('[VoiceModeNotifier] STT Error: $e');

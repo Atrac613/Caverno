@@ -57,9 +57,7 @@ void main() {
   });
 
   group('start()', () {
-    test('enters listening state when all services available', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => true);
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => true);
+    test('enters listening state when mic permission granted', () async {
       when(() => mockRecorder.startRecording()).thenAnswer((_) async => true);
 
       await notifier.start();
@@ -68,46 +66,7 @@ void main() {
       expect(notifier.state.errorMessage, isNull);
     });
 
-    test('enters error state when Whisper is unavailable', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => false);
-      when(() => mockWhisper.baseUrl).thenReturn('http://localhost:8080');
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => true);
-      when(() => mockVoicevox.baseUrl).thenReturn('http://localhost:50021');
-
-      await notifier.start();
-
-      expect(notifier.state.status, VoiceModeStatus.error);
-      expect(notifier.state.errorMessage, contains('Whisper'));
-    });
-
-    test('enters error state when VOICEVOX is unavailable', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => true);
-      when(() => mockWhisper.baseUrl).thenReturn('http://localhost:8080');
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => false);
-      when(() => mockVoicevox.baseUrl).thenReturn('http://localhost:50021');
-
-      await notifier.start();
-
-      expect(notifier.state.status, VoiceModeStatus.error);
-      expect(notifier.state.errorMessage, contains('VOICEVOX'));
-    });
-
-    test('reports both services when both are unavailable', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => false);
-      when(() => mockWhisper.baseUrl).thenReturn('http://localhost:8080');
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => false);
-      when(() => mockVoicevox.baseUrl).thenReturn('http://localhost:50021');
-
-      await notifier.start();
-
-      expect(notifier.state.status, VoiceModeStatus.error);
-      expect(notifier.state.errorMessage, contains('Whisper'));
-      expect(notifier.state.errorMessage, contains('VOICEVOX'));
-    });
-
     test('enters error state when mic permission denied', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => true);
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => true);
       when(() => mockRecorder.startRecording()).thenAnswer((_) async => false);
 
       await notifier.start();
@@ -119,8 +78,6 @@ void main() {
 
   group('stop()', () {
     test('resets state to idle and cleans up resources', () async {
-      when(() => mockWhisper.isAvailable()).thenAnswer((_) async => true);
-      when(() => mockVoicevox.isAvailable()).thenAnswer((_) async => true);
       when(() => mockRecorder.startRecording()).thenAnswer((_) async => true);
 
       await notifier.start();
