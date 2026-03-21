@@ -126,6 +126,8 @@
     "auto_read": "Auto Read",
     "auto_read_desc": "Automatically read new responses",
     "speech_rate": "Speech rate: ",
+    "voice_mode_auto_stop": "Auto-Stop Voice Mode",
+    "voice_mode_auto_stop_desc": "Stop listening if silence continues",
     "whisper_url": "Whisper STT Server URL",
     "whisper_url_helper": "e.g. http://localhost:8080",
     "voicevox_url": "VOICEVOX TTS Engine URL",

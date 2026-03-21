@@ -76,6 +76,11 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   }
 
   // Voice mode settings
+  Future<void> updateVoiceModeAutoStop(bool voiceModeAutoStop) async {
+    state = state.copyWith(voiceModeAutoStop: voiceModeAutoStop);
+    await _repository.save(state);
+  }
+
   Future<void> updateWhisperUrl(String whisperUrl) async {
     state = state.copyWith(whisperUrl: whisperUrl);
     await _repository.save(state);

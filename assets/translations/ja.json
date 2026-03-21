@@ -126,6 +126,8 @@
     "auto_read": "自動読み上げ",
     "auto_read_desc": "新しい応答を自動で読み上げ",
     "speech_rate": "読み上げ速度: ",
+    "voice_mode_auto_stop": "ボイスモード自動停止",
+    "voice_mode_auto_stop_desc": "無音が続いた場合に自動で待機状態にする",
     "whisper_url": "Whisper STT サーバー URL",
     "whisper_url_helper": "例: http://localhost:8080",
     "voicevox_url": "VOICEVOX TTS エンジン URL",

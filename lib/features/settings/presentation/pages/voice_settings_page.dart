@@ -17,6 +17,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
   late bool _ttsEnabled;
   late bool _autoReadEnabled;
   late double _speechRate;
+  late bool _voiceModeAutoStop;
   late String _whisperUrl;
   late String _voicevoxUrl;
   late int _voicevoxSpeakerId;
@@ -31,6 +32,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
     _ttsEnabled = settings.ttsEnabled;
     _autoReadEnabled = settings.autoReadEnabled;
     _speechRate = settings.speechRate;
+    _voiceModeAutoStop = settings.voiceModeAutoStop;
     _whisperUrl = settings.whisperUrl;
     _voicevoxUrl = settings.voicevoxUrl;
     _voicevoxSpeakerId = settings.voicevoxSpeakerId;
@@ -47,6 +49,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
     await notifier.updateTtsEnabled(_ttsEnabled);
     await notifier.updateAutoReadEnabled(_autoReadEnabled);
     await notifier.updateSpeechRate(_speechRate);
+    await notifier.updateVoiceModeAutoStop(_voiceModeAutoStop);
     await notifier.updateWhisperUrl(_whisperUrl);
     await notifier.updateVoicevoxUrl(_voicevoxUrl);
     await notifier.updateVoicevoxSpeakerId(_voicevoxSpeakerId);
@@ -208,6 +211,17 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
                 child: Text('${_speechRate.toStringAsFixed(1)}x'),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          SwitchListTile(
+            title: Text('settings.voice_mode_auto_stop'.tr()),
+            subtitle: Text('settings.voice_mode_auto_stop_desc'.tr()),
+            value: _voiceModeAutoStop,
+            onChanged: (value) {
+              setState(() {
+                _voiceModeAutoStop = value;
+              });
+            },
           ),
           const SizedBox(height: 16),
           TextFormField(
