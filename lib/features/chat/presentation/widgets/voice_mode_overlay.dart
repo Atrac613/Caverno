@@ -167,14 +167,19 @@ class _VoiceModeOverlayState extends ConsumerState<VoiceModeOverlay>
     switch (status) {
       case VoiceModeStatus.idle:
       case VoiceModeStatus.error:
-        return Container(
-          width: 80,
-          height: 80,
-          decoration: const BoxDecoration(
-            color: Colors.white24,
-            shape: BoxShape.circle,
+        return GestureDetector(
+          onTap: () {
+            ref.read(voiceModeNotifierProvider.notifier).start();
+          },
+          child: Container(
+            width: 80,
+            height: 80,
+            decoration: const BoxDecoration(
+              color: Colors.white24,
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(Icons.mic_off, color: Colors.white54, size: 40),
           ),
-          child: const Icon(Icons.mic_off, color: Colors.white54, size: 40),
         );
 
       case VoiceModeStatus.listening:
