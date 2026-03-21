@@ -1,5 +1,5 @@
 import 'dart:async';
-
+import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -178,9 +178,11 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
           appLog('[VoiceModeNotifier] Initial silence detected (6s). Sending hidden prompt.');
           _isFirstListen = false;
           state = state.copyWith(status: VoiceModeStatus.processing);
+          final lang = PlatformDispatcher.instance.locale.languageCode;
           _chatNotifier.sendHiddenPrompt(
-            'The user is currently silent. Please say something brief and caring to prompt them.',
+            'The user is currently silent. Please say something brief and caring to prompt them. Respond in language code: $lang',
             isVoiceMode: true,
+            languageCode: lang,
           );
         }
       });
@@ -210,7 +212,12 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       _currentlySynthesizingText = '';
       
       // Send the text to the chat.
-      await _chatNotifier.sendMessage(text, isVoiceMode: true);
+      final lang = PlatformDispatcher.instance.locale.languageCode;
+      await _chatNotifier.sendMessage(
+        text,
+        isVoiceMode: true,
+        languageCode: lang,
+      );
       
     } catch (e) {
       appLog('[VoiceModeNotifier] STT Error: $e');

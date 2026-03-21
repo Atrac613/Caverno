@@ -347,11 +347,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Sends a hidden prompt without appending it to the visible conversation state.
   /// Typically used for proactive AI responses, like handling user silence in Voice Mode.
-  Future<void> sendHiddenPrompt(String instruction, {bool isVoiceMode = false}) async {
+  Future<void> sendHiddenPrompt(
+    String instruction, {
+    bool isVoiceMode = false,
+    String languageCode = 'en',
+  }) async {
     if (!mounted) return;
 
     _temporalReferenceContext = null;
     _isVoiceMode = isVoiceMode;
+    _languageCode = languageCode;
     _hiddenPrompt = Message(
       id: _uuid.v4(),
       content: instruction,
