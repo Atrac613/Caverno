@@ -10,6 +10,7 @@ import '../../../chat/data/repositories/chat_memory_repository.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/services/session_memory_service.dart';
+import '../../../../core/services/voicevox_audio_player.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
@@ -43,6 +44,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   late String _voicevoxUrl;
   late int _voicevoxSpeakerId;
   late String _language;
+
+  VoicevoxAudioPlayer? _voicevoxAudioPlayer;
+  bool _isPlayingPreview = false;
 
   @override
   void initState() {
@@ -91,6 +95,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _profilePersonaController.dispose();
     _profilePreferencesController.dispose();
     _profileDoNotController.dispose();
+    _voicevoxAudioPlayer?.dispose();
     super.dispose();
   }
 
@@ -265,6 +270,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     setState(() {
       _memorySnapshot = _sessionMemoryService.loadSnapshot();
     });
+  }
+
+  Future<void> _previewVoicevox() async {
+    setState(() {
+      _isPlayingPreview = true;
+    });
+    try {
+      final bytes = await VoicevoxService(baseUrl: _voicevoxUrl)
+          .synthesize('settings.voicevox_preview_text'.tr(), speakerId: _voicevoxSpeakerId);
+      
+      _voicevoxAudioPlayer ??= VoicevoxAudioPlayer();
+      _voicevoxAudioPlayer!.onQueueComplete = () {
+        if (mounted) {
+          setState(() {
+            _isPlayingPreview = false;
+          });
+        }
+      };
+      _voicevoxAudioPlayer!.enqueue(bytes);
+    } catch (e) {
+      if (mounted) {
+        setState(() {
+          _isPlayingPreview = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to play preview: $e')),
+        );
+      }
+    }
   }
 
   @override
@@ -615,6 +649,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               borderRadius: BorderRadius.circular(4),
             ),
             onTap: _selectSpeaker,
+          ),
+          const SizedBox(height: 16),
+          Align(
+            alignment: Alignment.centerRight,
+            child: OutlinedButton.icon(
+              onPressed: _isPlayingPreview ? null : _previewVoicevox,
+              icon: _isPlayingPreview
+                  ? const SizedBox(
+                      width: 16,
+                      height: 16,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.play_arrow),
+              label: Text('settings.voicevox_preview'.tr()),
+            ),
           ),
           const SizedBox(height: 24),
 

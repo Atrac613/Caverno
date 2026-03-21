@@ -127,6 +127,8 @@
     "voicevox_url": "VOICEVOX TTS エンジン URL",
     "voicevox_url_helper": "例: http://localhost:50021",
     "voicevox_speaker_id": "VOICEVOX 話者ID",
+    "voicevox_preview": "音声プレビュー",
+    "voicevox_preview_text": "こんにちは、音声プレビューです",
     "save_settings": "設定を保存",
     "language_section": "言語 / Language",
     "language_system": "システム設定",
