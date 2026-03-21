@@ -1,6 +1,10 @@
-# Caverno
-
-A Flutter chat client for OpenAI-compatible LLM APIs with tool calling, session memory, and voice I/O.
+<p align="center">
+  <img src="assets/icons/AppIcon_1024.png" width="128" alt="Caverno">
+</p>
+<h1 align="center">Caverno</h1>
+<p align="center">
+  A Flutter chat client for OpenAI-compatible LLM APIs with tool calling, session memory, and voice I/O.
+</p>
 
 ## Features
 
@@ -12,6 +16,9 @@ A Flutter chat client for OpenAI-compatible LLM APIs with tool calling, session 
 - **Content Parsing** — Renders `<think>` reasoning blocks and inline `<tool_call>` / `<tool_use>` tags
 - **Image Input** — Attach images to messages (base64 with MIME type)
 - **Assistant Modes** — Switch between `general` and `coding` modes with specialized system prompts
+- **Settings Import/Export** — Share configuration via JSON file or QR code with validation
+- **Localization** — English and Japanese UI (easy_localization)
+- **Local Notifications** — Background response notifications
 
 ## Requirements
 
@@ -145,13 +152,16 @@ Clean Architecture with feature-based modules and Riverpod state management.
 
 ```
 lib/
-├── core/              # Constants, services (TTS/STT), utils
+├── core/              # Constants, services (TTS/STT), types, utils
 ├── features/
 │   ├── chat/          # Chat feature (data → domain → presentation)
 │   │   ├── data/      # Remote datasource (OpenAI), MCP client, repositories
 │   │   ├── domain/    # Entities (Freezed), services (prompt builder, memory)
 │   │   └── presentation/  # ChatPage, ChatNotifier, widgets
 │   └── settings/      # Settings feature (data → domain → presentation)
+│       ├── data/      # Repository, file service, QR service
+│       ├── domain/    # AppSettings entity (Freezed)
+│       └── presentation/  # Pages, providers, widgets (QR dialogs)
 └── shared/            # Shared widgets
 ```
 
@@ -160,8 +170,12 @@ lib/
 | Category | Library |
 |----------|---------|
 | State Management | flutter_riverpod |
-| API Client | openai_dart |
+| API Client | openai_dart, http |
 | Immutable Models | freezed + json_serializable |
-| Local Storage | hive (conversations), shared_preferences (settings) |
-| Voice | speech_to_text, flutter_tts |
+| Local Storage | hive / hive_flutter (conversations), shared_preferences (settings) |
+| Voice (built-in) | speech_to_text, flutter_tts |
+| Voice (server) | record, audioplayers (Whisper STT + VOICEVOX TTS) |
+| Settings Transfer | file_picker, qr_flutter, mobile_scanner |
+| Localization | easy_localization |
+| Notifications | flutter_local_notifications |
 | UI | flutter_markdown, url_launcher, image_picker |
