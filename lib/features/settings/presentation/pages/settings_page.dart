@@ -246,6 +246,13 @@ class SettingsPage extends ConsumerWidget {
   }
 
   Future<void> _importFromQr(BuildContext context, WidgetRef ref) async {
+    // Scan first, then ask for confirmation
+    final result = await Navigator.of(context).push<String>(
+      MaterialPageRoute(builder: (_) => const QrScannerPage()),
+    );
+
+    if (result == null || !context.mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -264,30 +271,23 @@ class SettingsPage extends ConsumerWidget {
       ),
     );
 
-    if (confirmed == true) {
-      if (!context.mounted) return;
-      final result = await Navigator.of(context).push<String>(
-        MaterialPageRoute(builder: (_) => const QrScannerPage()),
-      );
-
-      if (result != null && context.mounted) {
-        try {
-          await ref
-              .read(settingsNotifierProvider.notifier)
-              .importFromQr(result);
-          if (context.mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('settings.import_done'.tr())));
-          }
-        } catch (e) {
-          if (context.mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('settings.import_error'.tr(args: [e.toString()])),
-              ),
-            );
-          }
+    if (confirmed == true && context.mounted) {
+      try {
+        await ref
+            .read(settingsNotifierProvider.notifier)
+            .importFromQr(result);
+        if (context.mounted) {
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('settings.import_done'.tr())));
+        }
+      } catch (e) {
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('settings.import_error'.tr(args: [e.toString()])),
+            ),
+          );
         }
       }
     }

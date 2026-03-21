@@ -10,7 +10,14 @@ class QrScannerPage extends StatefulWidget {
 }
 
 class _QrScannerPageState extends State<QrScannerPage> {
+  final MobileScannerController _controller = MobileScannerController();
   bool _isScanned = false;
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -21,12 +28,14 @@ class _QrScannerPageState extends State<QrScannerPage> {
       body: Stack(
         children: [
           MobileScanner(
+            controller: _controller,
             onDetect: (capture) {
               if (_isScanned) return;
               final List<Barcode> barcodes = capture.barcodes;
               for (final barcode in barcodes) {
                 if (barcode.rawValue != null) {
                   setState(() => _isScanned = true);
+                  _controller.stop();
                   Navigator.of(context).pop(barcode.rawValue);
                   break;
                 }

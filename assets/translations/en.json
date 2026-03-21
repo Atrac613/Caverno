@@ -8,7 +8,8 @@
     "error": "Error",
     "none": "None",
     "unknown_error": "Unknown error",
-    "unknown": "Unknown"
+    "unknown": "Unknown",
+    "close": "Close"
   },
   "chat": {
     "empty_state": "Send a message to start chatting",
@@ -153,7 +154,8 @@
     "qr_export_title": "Settings QR Code",
     "qr_scan_title": "Scan Settings QR Code",
     "qr_scan_hint": "Point your camera at a settings QR code",
-    "qr_import_confirm": "Restore settings from QR code? Current settings will be overwritten."
+    "qr_import_confirm": "Restore settings from QR code? Current settings will be overwritten.",
+    "qr_data_too_large": "Settings data is too large to encode as a QR code. Please use file export instead."
   },
   "notification": {
     "response_title": "Caverno",

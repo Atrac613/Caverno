@@ -8,7 +8,8 @@
     "error": "エラー",
     "none": "なし",
     "unknown_error": "不明なエラー",
-    "unknown": "不明"
+    "unknown": "不明",
+    "close": "閉じる"
   },
   "chat": {
     "empty_state": "メッセージを送信してチャットを開始",
@@ -153,7 +154,8 @@
     "qr_export_title": "設定用QRコード",
     "qr_scan_title": "設定QRコードをスキャン",
     "qr_scan_hint": "カメラを設定QRコードに向けてください",
-    "qr_import_confirm": "QRコードから設定を復元しますか？（現在の設定は上書きされます）"
+    "qr_import_confirm": "QRコードから設定を復元しますか？（現在の設定は上書きされます）",
+    "qr_data_too_large": "設定データが大きすぎてQRコードに変換できません。ファイルエクスポートをご利用ください。"
   },
   "notification": {
     "response_title": "Caverno",
