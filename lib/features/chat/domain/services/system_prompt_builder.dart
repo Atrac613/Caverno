@@ -20,6 +20,7 @@ class SystemPromptBuilder {
     String languageCode = 'en',
     List<String> toolNames = const [],
     String? sessionMemoryContext,
+    bool isVoiceMode = false,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
     final hasTools = uniqueToolNames.isNotEmpty;
@@ -60,6 +61,10 @@ class SystemPromptBuilder {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
     } else {
       buffer.writeln(SystemPromptConstants.codingModeInstruction);
+    }
+
+    if (isVoiceMode) {
+      buffer.writeln(SystemPromptConstants.voiceModeInstruction);
     }
 
     final hasMemorySearch = uniqueToolNames.contains(

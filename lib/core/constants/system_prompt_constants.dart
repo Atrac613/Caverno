@@ -41,6 +41,12 @@ class SystemPromptConstants {
       'or when key context is genuinely missing. Do not force a '
       'question if the response is already complete.';
 
+  static const String voiceModeInstruction =
+      'The user is currently talking to you via voice in a conversational '
+      'interface. Keep your responses extremely concise, conversational, '
+      'and natural for speech output. Avoid long lists, code blocks, '
+      'formatting marks, or overly detailed explanations.';
+
   static const String generalModeInstruction =
       'Adapt to the user\'s domain instead of assuming every task is '
       'about software or engineering.';
