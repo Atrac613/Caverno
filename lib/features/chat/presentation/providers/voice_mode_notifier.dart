@@ -116,6 +116,11 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   bool _isFirstListen = false;
   int _consecutiveSynthesisErrors = 0;
 
+  /// Grace period after TTS ends before speech detection is armed.
+  /// Prevents residual speaker audio from triggering a false recording.
+  static const Duration _postTtsGrace = Duration(milliseconds: 800);
+  bool _speechDetectionArmed = true;
+
   /// Max consecutive TTS failures before entering error state.
   static const int _maxConsecutiveSynthesisErrors = 3;
 
@@ -160,6 +165,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
 
   Future<void> _startListening() async {
     audioLevel.value = 0.0;
+    _speechDetectionArmed = false;
     state = const VoiceModeState(status: VoiceModeStatus.listening);
 
     final granted = await _recorder.startRecording();
@@ -170,6 +176,12 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       );
       return;
     }
+
+    // Arm speech detection after a grace period so residual speaker audio
+    // (TTS playback echo) does not immediately trigger a false recording.
+    Future.delayed(_postTtsGrace, () {
+      _speechDetectionArmed = true;
+    });
     
     if (_isFirstListen) {
       _silencePromptTimer?.cancel();
@@ -198,6 +210,13 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     _isFirstListen = false;
 
     if (state.status != VoiceModeStatus.listening) return;
+
+    // Discard audio captured during the post-TTS grace period.
+    if (!_speechDetectionArmed) {
+      appLog('[VoiceModeNotifier] Discarding speech during grace period');
+      await _startListening();
+      return;
+    }
 
     state = state.copyWith(
       status: VoiceModeStatus.processing,
@@ -316,11 +335,8 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
 
     if (state.status != VoiceModeStatus.speaking) {
       state = state.copyWith(status: VoiceModeStatus.speaking);
-      // As soon as we start speaking, start monitoring for barge-in.
-      final monitorOk = await _recorder.startMonitoring();
-      if (!monitorOk) {
-        appLog('[VoiceModeNotifier] Barge-in monitoring unavailable (mic permission denied)');
-      }
+      // Stop any active recording/monitoring to avoid TTS audio feedback loop.
+      await _recorder.stopRecording();
     }
 
     try {

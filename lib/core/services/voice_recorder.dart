@@ -6,6 +6,9 @@ import 'package:record/record.dart';
 
 import '../utils/logger.dart';
 
+/// State of the VoiceRecorder.
+enum RecorderState { idle, monitoring, recording }
+
 /// Microphone recorder with voice activity detection (VAD).
 ///
 /// Uses the `record` package to stream PCM16 data from the microphone,
@@ -20,7 +23,7 @@ class VoiceRecorder {
   /// Accumulated PCM16 samples during recording.
   final List<int> _pcmBuffer = [];
 
-  bool _isRecording = false;
+  RecorderState _state = RecorderState.idle;
 
   /// Whether speech has been detected during the current recording session.
   bool _speechDetected = false;
@@ -42,7 +45,8 @@ class VoiceRecorder {
   /// Sample rate used for recording.
   static const int _sampleRate = 16000;
 
-  bool get isRecording => _isRecording;
+  bool get isRecording => _state == RecorderState.recording;
+  bool get isMonitoring => _state == RecorderState.monitoring;
 
   /// Start recording and listening for speech.
   ///
@@ -50,7 +54,10 @@ class VoiceRecorder {
   /// is called with the captured WAV bytes.
   /// Returns `false` if microphone permission was denied.
   Future<bool> startRecording() async {
-    if (_isRecording) return true;
+    if (_state == RecorderState.recording) return true;
+    if (_state != RecorderState.idle) {
+      await stopRecording();
+    }
 
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) {
@@ -60,7 +67,7 @@ class VoiceRecorder {
 
     _pcmBuffer.clear();
     _speechDetected = false;
-    _isRecording = true;
+    _state = RecorderState.recording;
 
     final stream = await _recorder.startStream(
       const RecordConfig(
@@ -111,12 +118,15 @@ class VoiceRecorder {
   /// Used for barge-in detection during TTS playback.
   /// Returns `false` if microphone permission was denied.
   Future<bool> startMonitoring() async {
-    if (_isRecording) return true;
+    if (_state == RecorderState.monitoring) return true;
+    if (_state != RecorderState.idle) {
+      await stopRecording();
+    }
 
     final hasPermission = await _recorder.hasPermission();
     if (!hasPermission) return false;
 
-    _isRecording = true;
+    _state = RecorderState.monitoring;
     _speechDetected = false;
 
     final stream = await _recorder.startStream(
@@ -156,12 +166,12 @@ class VoiceRecorder {
     _silenceTimer = null;
     await _streamSubscription?.cancel();
     _streamSubscription = null;
-    if (_isRecording) {
+    if (_state != RecorderState.idle) {
       try {
         await _recorder.stop();
       } catch (_) {}
     }
-    _isRecording = false;
+    _state = RecorderState.idle;
     _pcmBuffer.clear();
     _speechDetected = false;
   }
@@ -175,7 +185,7 @@ class VoiceRecorder {
     try {
       await _recorder.stop();
     } catch (_) {}
-    _isRecording = false;
+    _state = RecorderState.idle;
 
     if (_pcmBuffer.isEmpty) {
       _pcmBuffer.clear();
