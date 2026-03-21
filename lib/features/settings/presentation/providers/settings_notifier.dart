@@ -91,6 +91,11 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateLanguage(String language) async {
+    state = state.copyWith(language: language);
+    await _repository.save(state);
+  }
+
   Future<void> updateAssistantMode(AssistantMode assistantMode) async {
     state = state.copyWith(assistantMode: assistantMode);
     await _repository.save(state);

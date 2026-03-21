@@ -20,6 +20,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   whisperUrl: json['whisperUrl'] as String? ?? 'http://localhost:8080',
   voicevoxUrl: json['voicevoxUrl'] as String? ?? 'http://localhost:50021',
   voicevoxSpeakerId: (json['voicevoxSpeakerId'] as num?)?.toInt() ?? 0,
+  language: json['language'] as String? ?? 'system',
   assistantMode:
       $enumDecodeNullable(
         _$AssistantModeEnumMap,
@@ -44,6 +45,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'whisperUrl': instance.whisperUrl,
       'voicevoxUrl': instance.voicevoxUrl,
       'voicevoxSpeakerId': instance.voicevoxSpeakerId,
+      'language': instance.language,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
     };
 

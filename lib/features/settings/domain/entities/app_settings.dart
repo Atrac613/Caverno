@@ -26,6 +26,7 @@ abstract class AppSettings with _$AppSettings {
     @Default('http://localhost:8080') String whisperUrl,
     @Default('http://localhost:50021') String voicevoxUrl,
     @Default(0) int voicevoxSpeakerId,
+    @Default('system') String language,
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,

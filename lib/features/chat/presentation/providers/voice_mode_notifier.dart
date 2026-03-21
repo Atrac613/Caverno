@@ -1,5 +1,4 @@
 import 'dart:async';
-import 'dart:ui';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,6 +9,7 @@ import '../../../../core/services/voicevox_service.dart';
 import '../../../../core/services/whisper_service.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/message.dart';
 import 'chat_notifier.dart';
@@ -79,7 +79,7 @@ final voiceModeNotifierProvider =
     ref.watch(voicevoxServiceProvider),
     ref.read(voicevoxAudioPlayerProvider),
     ref.read(chatNotifierProvider.notifier),
-    ref.read(settingsNotifierProvider).voicevoxSpeakerId,
+    () => ref.read(settingsNotifierProvider),
   );
 });
 
@@ -90,7 +90,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     this._voicevoxService,
     this._audioPlayer,
     this._chatNotifier,
-    this._speakerId,
+    this._getSettings,
   ) : super(const VoiceModeState(status: VoiceModeStatus.idle)) {
     _recorder.onSpeechEnd = _onSpeechRecorded;
     _recorder.onSpeechDetected = _onBargeInDetected;
@@ -106,7 +106,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   final VoicevoxService _voicevoxService;
   final VoicevoxAudioPlayer _audioPlayer;
   final ChatNotifier _chatNotifier;
-  final int _speakerId;
+  final AppSettings Function() _getSettings;
 
   StreamSubscription? _chatSubscription;
   String _currentlySynthesizingText = '';
@@ -178,11 +178,15 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
           appLog('[VoiceModeNotifier] Initial silence detected (6s). Sending hidden prompt.');
           _isFirstListen = false;
           state = state.copyWith(status: VoiceModeStatus.processing);
-          final lang = PlatformDispatcher.instance.locale.languageCode;
+          
+          final settings = _getSettings();
+          final localeLang = PlatformDispatcher.instance.locale.languageCode;
+          final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+          
           _chatNotifier.sendHiddenPrompt(
-            'The user is currently silent. Please say something brief and caring to prompt them. Respond in language code: $lang',
+            'The user is currently silent. Please say something brief and caring to prompt them. Respond in language code: $resolvedLang',
             isVoiceMode: true,
-            languageCode: lang,
+            languageCode: resolvedLang,
           );
         }
       });
@@ -212,11 +216,14 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       _currentlySynthesizingText = '';
       
       // Send the text to the chat.
-      final lang = PlatformDispatcher.instance.locale.languageCode;
+      final settings = _getSettings();
+      final localeLang = PlatformDispatcher.instance.locale.languageCode;
+      final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+      
       await _chatNotifier.sendMessage(
         text,
         isVoiceMode: true,
-        languageCode: lang,
+        languageCode: resolvedLang,
       );
       
     } catch (e) {
@@ -319,7 +326,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     try {
       final wavBytes = await _voicevoxService.synthesize(
         cleanSentence,
-        speakerId: _speakerId,
+        speakerId: _getSettings().voicevoxSpeakerId,
       );
       _consecutiveSynthesisErrors = 0;
       _audioPlayer.enqueue(wavBytes);

@@ -7,6 +7,7 @@ import 'package:caverno/core/services/voicevox_service.dart';
 import 'package:caverno/core/services/whisper_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/voice_mode_notifier.dart';
+import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 class MockVoiceRecorder extends Mock implements VoiceRecorder {}
 
@@ -48,7 +49,7 @@ void main() {
       mockVoicevox,
       mockPlayer,
       mockChat,
-      0,
+      () => AppSettings.defaults(),
     );
   });
 

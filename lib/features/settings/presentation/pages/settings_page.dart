@@ -42,6 +42,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   late String _whisperUrl;
   late String _voicevoxUrl;
   late int _voicevoxSpeakerId;
+  late String _language;
 
   @override
   void initState() {
@@ -78,6 +79,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     _whisperUrl = settings.whisperUrl;
     _voicevoxUrl = settings.voicevoxUrl;
     _voicevoxSpeakerId = settings.voicevoxSpeakerId;
+    _language = settings.language;
   }
 
   @override
@@ -112,6 +114,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     await notifier.updateWhisperUrl(_whisperUrl);
     await notifier.updateVoicevoxUrl(_voicevoxUrl);
     await notifier.updateVoicevoxSpeakerId(_voicevoxSpeakerId);
+    await notifier.updateLanguage(_language);
     await _sessionMemoryService.saveProfileFromText(
       personaText: _profilePersonaController.text,
       preferencesText: _profilePreferencesController.text,
@@ -163,6 +166,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           _whisperUrl = 'http://localhost:8080';
           _voicevoxUrl = 'http://localhost:50021';
           _voicevoxSpeakerId = 0;
+          _language = 'system';
         });
         ScaffoldMessenger.of(
           context,
@@ -611,6 +615,38 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               borderRadius: BorderRadius.circular(4),
             ),
             onTap: _selectSpeaker,
+          ),
+          const SizedBox(height: 24),
+
+          // Language section
+          _buildSectionHeader('settings.language_section'.tr()),
+          const SizedBox(height: 8),
+          DropdownButtonFormField<String>(
+            value: _language,
+            decoration: const InputDecoration(
+              border: OutlineInputBorder(),
+            ),
+            items: [
+              DropdownMenuItem(
+                value: 'system',
+                child: Text('settings.language_system'.tr()),
+              ),
+              DropdownMenuItem(
+                value: 'ja',
+                child: Text('settings.language_ja'.tr()),
+              ),
+              DropdownMenuItem(
+                value: 'en',
+                child: Text('settings.language_en'.tr()),
+              ),
+            ],
+            onChanged: (value) {
+              if (value != null) {
+                setState(() {
+                  _language = value;
+                });
+              }
+            },
           ),
           const SizedBox(height: 32),
 

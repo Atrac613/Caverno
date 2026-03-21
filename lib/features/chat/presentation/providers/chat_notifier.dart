@@ -224,12 +224,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     }
 
+    final resolvedLanguage = _settings.language == 'system' ? _languageCode : _settings.language;
+
     return Message(
       id: 'system',
       content: SystemPromptBuilder.build(
         now: now,
         assistantMode: _settings.assistantMode,
-        languageCode: _languageCode,
+        languageCode: resolvedLanguage,
         toolNames: toolNames,
         sessionMemoryContext: _sessionMemoryContext,
         isVoiceMode: _isVoiceMode,
