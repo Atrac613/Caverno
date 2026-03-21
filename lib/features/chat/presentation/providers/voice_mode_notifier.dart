@@ -116,6 +116,9 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   bool _isFirstListen = false;
   int _consecutiveSynthesisErrors = 0;
 
+  Stopwatch? _llmStopwatch;
+  bool _isFirstTokenLogged = false;
+
   /// Serializes access to [_processStreamingText] so concurrent stream
   /// updates don't duplicate synthesis calls.
   bool _isProcessingStream = false;
@@ -202,6 +205,9 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
           final localeLang = PlatformDispatcher.instance.locale.languageCode;
           final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
           
+          _llmStopwatch = Stopwatch()..start();
+          _isFirstTokenLogged = false;
+
           _chatNotifier.sendHiddenPrompt(
             'The user is currently silent. Please say something brief and caring to prompt them. Respond in language code: $resolvedLang',
             isVoiceMode: true,
@@ -234,7 +240,11 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     );
 
     try {
+      final sttStopwatch = Stopwatch()..start();
       final text = await _whisperService.transcribe(wavBytes);
+      sttStopwatch.stop();
+      appLog('[Performance] STT (Whisper) latency: ${sttStopwatch.elapsedMilliseconds}ms');
+
       if (text.isEmpty) {
         // Nothing heard, go back to listening.
         await _startListening();
@@ -249,6 +259,9 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       final localeLang = PlatformDispatcher.instance.locale.languageCode;
       final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
       
+      _llmStopwatch = Stopwatch()..start();
+      _isFirstTokenLogged = false;
+
       await _chatNotifier.sendMessage(
         text,
         isVoiceMode: true,
@@ -278,6 +291,18 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     if (lastMsg.role != MessageRole.assistant) return;
 
     final isFinal = !chatState.isLoading && !lastMsg.isStreaming;
+
+    if (_llmStopwatch != null && !_isFirstTokenLogged && lastMsg.content.isNotEmpty) {
+      _isFirstTokenLogged = true;
+      appLog('[Performance] LLM TTFT (Time To First Token): ${_llmStopwatch!.elapsedMilliseconds}ms');
+    }
+
+    if (_llmStopwatch != null && isFinal) {
+      _llmStopwatch!.stop();
+      appLog('[Performance] LLM Total latency: ${_llmStopwatch!.elapsedMilliseconds}ms');
+      _llmStopwatch = null;
+    }
+
     _scheduleStreamProcessing(lastMsg.content, isFinal: isFinal);
   }
 
@@ -375,10 +400,14 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     }
 
     try {
+      final ttsStopwatch = Stopwatch()..start();
       final wavBytes = await _voicevoxService.synthesize(
         cleanSentence,
         speakerId: _getSettings().voicevoxSpeakerId,
       );
+      ttsStopwatch.stop();
+      appLog('[Performance] TTS (Voicevox) latency for ${cleanSentence.length} chars: ${ttsStopwatch.elapsedMilliseconds}ms');
+
       _consecutiveSynthesisErrors = 0;
       _audioPlayer.enqueue(wavBytes);
     } catch (e) {
