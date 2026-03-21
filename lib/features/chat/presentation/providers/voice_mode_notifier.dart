@@ -183,10 +183,10 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       _speechDetectionArmed = true;
     });
     
-    if (_isFirstListen) {
-      _silencePromptTimer?.cancel();
-      _silencePromptTimer = Timer(const Duration(seconds: 6), () {
-        if (state.status == VoiceModeStatus.listening) {
+    _silencePromptTimer?.cancel();
+    _silencePromptTimer = Timer(const Duration(seconds: 6), () {
+      if (state.status == VoiceModeStatus.listening) {
+        if (_isFirstListen) {
           appLog('[VoiceModeNotifier] Initial silence detected (6s). Sending hidden prompt.');
           _isFirstListen = false;
           state = state.copyWith(status: VoiceModeStatus.processing);
@@ -200,9 +200,12 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
             isVoiceMode: true,
             languageCode: resolvedLang,
           );
+        } else {
+          appLog('[VoiceModeNotifier] Subsequent silence detected (6s). Stopping voice mode.');
+          stop();
         }
-      });
-    }
+      }
+    });
   }
 
   Future<void> _onSpeechRecorded(Uint8List wavBytes) async {
