@@ -116,6 +116,13 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   bool _isFirstListen = false;
   int _consecutiveSynthesisErrors = 0;
 
+  /// Serializes access to [_processStreamingText] so concurrent stream
+  /// updates don't duplicate synthesis calls.
+  bool _isProcessingStream = false;
+  bool _hasPendingStreamUpdate = false;
+  String _latestRawContent = '';
+  bool _latestIsFinal = false;
+
   /// Grace period after TTS ends before speech detection is armed.
   /// Prevents residual speaker audio from triggering a false recording.
   static const Duration _postTtsGrace = Duration(milliseconds: 800);
@@ -259,7 +266,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
 
   /// Called automatically when the LLM chat state updates.
   void _onChatStateUpdated(ChatState chatState) {
-    if (state.status != VoiceModeStatus.processing && 
+    if (state.status != VoiceModeStatus.processing &&
         state.status != VoiceModeStatus.speaking) {
       return;
     }
@@ -270,11 +277,36 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     final lastMsg = messages.last;
     if (lastMsg.role != MessageRole.assistant) return;
 
-    if (chatState.isLoading || lastMsg.isStreaming) {
-      _processStreamingText(lastMsg.content, isFinal: false);
-    } else {
-      // Final update
-      _processStreamingText(lastMsg.content, isFinal: true);
+    final isFinal = !chatState.isLoading && !lastMsg.isStreaming;
+    _scheduleStreamProcessing(lastMsg.content, isFinal: isFinal);
+  }
+
+  /// Enqueue a stream processing request. Only the latest content matters
+  /// because [_processStreamingText] diffs against [_currentlySynthesizingText].
+  void _scheduleStreamProcessing(String rawContent, {required bool isFinal}) {
+    _latestRawContent = rawContent;
+    _latestIsFinal = isFinal;
+
+    if (_isProcessingStream) {
+      _hasPendingStreamUpdate = true;
+      return;
+    }
+
+    _drainStreamQueue();
+  }
+
+  /// Process pending stream updates one at a time.
+  Future<void> _drainStreamQueue() async {
+    _isProcessingStream = true;
+    try {
+      do {
+        _hasPendingStreamUpdate = false;
+        final content = _latestRawContent;
+        final isFinal = _latestIsFinal;
+        await _processStreamingText(content, isFinal: isFinal);
+      } while (_hasPendingStreamUpdate);
+    } finally {
+      _isProcessingStream = false;
     }
   }
 
