@@ -63,6 +63,10 @@
   },
   "settings": {
     "title": "接続設定",
+    "menu_general": "一般",
+    "menu_chat": "チャット・メモリ",
+    "menu_voice": "音声",
+    "menu_tools": "ツール (MCP)",
     "reset_to_default": "デフォルトに戻す",
     "saved": "設定を保存しました",
     "reset_title": "設定をリセット",

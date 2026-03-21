@@ -63,6 +63,10 @@
   },
   "settings": {
     "title": "Settings",
+    "menu_general": "General",
+    "menu_chat": "Chat & Memory",
+    "menu_voice": "Voice",
+    "menu_tools": "Tools (MCP)",
     "reset_to_default": "Reset to defaults",
     "saved": "Settings saved",
     "reset_title": "Reset Settings",
