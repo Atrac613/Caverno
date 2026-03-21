@@ -177,6 +177,15 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     '시청해 주셔서 감사합니다',
   ];
 
+  /// Phrases that this app synthesizes via TTS. If the microphone picks them
+  /// up and Whisper transcribes them, they must be discarded as echo.
+  static const List<String> _ownTtsPhrases = [
+    '調べてみますね',
+    '我来查一下',
+    '확인해 볼게요',
+    'let me check that for you',
+  ];
+
   /// Check if Whisper output is non-speech noise (music markers, symbols, etc.)
   /// or a known hallucination from silence.
   static bool _isNonSpeechTranscription(String text) {
@@ -189,9 +198,13 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     // Bracketed noise markers: [Music], (音楽), [BLANK_AUDIO], etc.
     if (_nonSpeechPattern.hasMatch(trimmed)) return true;
 
-    // Known Whisper hallucination phrases from silence/noise.
+    // Known Whisper hallucination phrases from silence/noise
+    // and own TTS phrases that may be picked up as echo.
     final lower = trimmed.toLowerCase().replaceAll(RegExp(r'[。！？!?.、,\s]+$'), '');
     for (final phrase in _whisperHallucinations) {
+      if (lower == phrase.toLowerCase()) return true;
+    }
+    for (final phrase in _ownTtsPhrases) {
       if (lower == phrase.toLowerCase()) return true;
     }
 
