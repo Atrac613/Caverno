@@ -139,7 +139,15 @@
     "language_section": "言語 / Language",
     "language_system": "システム設定",
     "language_ja": "日本語",
-    "language_en": "English"
+    "language_en": "English",
+    "import_export_section": "バックアップと復元",
+    "import_settings": "設定をインポート",
+    "export_settings": "設定をエクスポート",
+    "import_done": "設定をインポートしました",
+    "export_done": "設定を {path} にエクスポートしました",
+    "import_error": "設定のインポートに失敗しました: {error}",
+    "export_error": "設定のエクスポートに失敗しました: {error}",
+    "import_confirm": "インポートすると現在の設定が上書きされます。続行しますか？"
   },
   "notification": {
     "response_title": "Caverno",

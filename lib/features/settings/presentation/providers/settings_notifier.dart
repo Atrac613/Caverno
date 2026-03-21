@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import '../../../../core/types/assistant_mode.dart';
+import '../../data/settings_file_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
 
@@ -16,13 +17,15 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 final settingsNotifierProvider =
     StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
       final repository = ref.watch(settingsRepositoryProvider);
-      return SettingsNotifier(repository);
+      final fileService = ref.watch(settingsFileServiceProvider);
+      return SettingsNotifier(repository, fileService);
     });
 
 class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier(this._repository) : super(_repository.load());
+  SettingsNotifier(this._repository, this._fileService) : super(_repository.load());
 
   final SettingsRepository _repository;
+  final SettingsFileService _fileService;
 
   Future<void> updateBaseUrl(String baseUrl) async {
     state = state.copyWith(baseUrl: baseUrl);
@@ -114,5 +117,19 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
   Future<void> resetToDefaults() async {
     state = AppSettings.defaults();
     await _repository.reset();
+  }
+
+  Future<String?> exportSettings() async {
+    return _fileService.exportSettings(state);
+  }
+
+  Future<bool> importSettings() async {
+    final settings = await _fileService.importSettings();
+    if (settings != null) {
+      state = settings;
+      await _repository.save(state);
+      return true;
+    }
+    return false;
   }
 }

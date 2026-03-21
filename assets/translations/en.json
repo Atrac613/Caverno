@@ -139,7 +139,15 @@
     "language_section": "Language",
     "language_system": "System Default",
     "language_ja": "日本語",
-    "language_en": "English"
+    "language_en": "English",
+    "import_export_section": "Backup & Restore",
+    "import_settings": "Import Settings",
+    "export_settings": "Export Settings",
+    "import_done": "Settings imported successfully",
+    "export_done": "Settings exported to {path}",
+    "import_error": "Failed to import settings: {error}",
+    "export_error": "Failed to export settings: {error}",
+    "import_confirm": "Importing settings will overwrite current values. Continue?"
   },
   "notification": {
     "response_title": "Caverno",
