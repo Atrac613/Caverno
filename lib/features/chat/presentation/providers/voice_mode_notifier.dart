@@ -115,6 +115,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   Timer? _silencePromptTimer;
   bool _isFirstListen = false;
   int _consecutiveSynthesisErrors = 0;
+  bool _hasNotifiedToolUseThisTurn = false;
 
   Stopwatch? _llmStopwatch;
   bool _isFirstTokenLogged = false;
@@ -242,6 +243,7 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   }
 
   Future<void> _startListening() async {
+    _hasNotifiedToolUseThisTurn = false;
     audioLevel.value = 0.0;
     _speechDetectionArmed = false;
     state = const VoiceModeState(status: VoiceModeStatus.listening);
@@ -415,6 +417,25 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   Future<void> _processStreamingText(String rawContent, {required bool isFinal}) async {
     // 1. Strip out tool calls and thought blocks using the parser.
     final parsedChunks = ContentParser.parse(rawContent);
+
+    // 2. Play a brief notification if we just detected the start of a tool call
+    if (!_hasNotifiedToolUseThisTurn) {
+      final hasToolCall = parsedChunks.segments.any((s) => s.type == ContentType.toolCall) ||
+          (parsedChunks.hasIncompleteTag && parsedChunks.incompleteTagType == 'tool_call');
+      
+      if (hasToolCall) {
+        _hasNotifiedToolUseThisTurn = true;
+        
+        final settings = _getSettings();
+        final localeLang = PlatformDispatcher.instance.locale.languageCode;
+        final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+        
+        final phrase = _getToolNotificationPhrase(resolvedLang);
+        appLog('[VoiceModeNotifier] Tool use detected. Playing notification: $phrase');
+        await _synthesizeAndQueue(phrase);
+      }
+    }
+
     final cleanTextBuffer = StringBuffer();
     for (final chunk in parsedChunks.segments) {
       if (chunk.type == ContentType.text) {
@@ -525,6 +546,18 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     // Only restart listening if the LLM has also finished streaming its output.
     if (!_chatNotifier.state.isLoading) {
        _startListening();
+    }
+  }
+
+  String _getToolNotificationPhrase(String languageCode) {
+    if (languageCode.startsWith('ja')) {
+      return '調べてみますね'; // "Let me check that for you"
+    } else if (languageCode.startsWith('zh')) {
+      return '我来查一下';     // "I'll check it"
+    } else if (languageCode.startsWith('ko')) {
+      return '확인해 볼게요';   // "I'll look into it"
+    } else {
+      return 'Let me check that for you.';
     }
   }
 }
