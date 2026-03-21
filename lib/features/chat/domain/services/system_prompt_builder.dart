@@ -44,18 +44,28 @@ class SystemPromptBuilder {
       ..writeln(
         'Resolve relative date/time references (today, yesterday, tomorrow, '
         'this week, recently, now, latest, current) against this source of truth.',
-      )
-      ..writeln(
+      );
+
+    // In voice mode, dates should be spoken naturally; skip YYYY-MM-DD instruction.
+    if (!isVoiceMode) {
+      buffer.writeln(
         'When responding to time-relative questions, include exact dates '
         '(YYYY-MM-DD) to avoid ambiguity.',
-      )
+      );
+    }
+
+    buffer
       ..writeln(SystemPromptConstants.coreAssistantPrompt)
       ..writeln(SystemPromptConstants.priorityInstruction)
       ..writeln(SystemPromptConstants.judgmentInstruction)
       ..writeln(SystemPromptConstants.communicationInstruction)
       ..writeln(SystemPromptConstants.oversightInstruction)
-      ..writeln(SystemPromptConstants.languageInstruction(languageCode))
-      ..writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
+      ..writeln(SystemPromptConstants.languageInstruction(languageCode));
+
+    // In voice mode, follow-up questions are handled by the voice mode instruction.
+    if (!isVoiceMode) {
+      buffer.writeln(SystemPromptConstants.optionalFollowUpQuestionInstruction);
+    }
 
     if (assistantMode == AssistantMode.general) {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
@@ -122,7 +132,11 @@ class SystemPromptBuilder {
         'Do not claim that you cannot access real-time information '
         'when these tools are available.',
       );
-      buffer.writeln(SystemPromptConstants.webCitationInstruction);
+      // In voice mode, the voiceModeInstruction already covers citation style
+      // ("say the site name only"). Skip the URL-based citation instruction.
+      if (!isVoiceMode) {
+        buffer.writeln(SystemPromptConstants.webCitationInstruction);
+      }
     }
 
     final memoryContext = sessionMemoryContext?.trim();

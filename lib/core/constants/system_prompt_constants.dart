@@ -42,10 +42,17 @@ class SystemPromptConstants {
       'question if the response is already complete.';
 
   static const String voiceModeInstruction =
-      'The user is currently talking to you via voice in a conversational '
-      'interface. Keep your responses extremely concise, conversational, '
-      'and natural for speech output. Avoid long lists, code blocks, '
-      'formatting marks, or overly detailed explanations.';
+      'VOICE MODE: The user is talking to you via voice. '
+      'This overrides any conflicting instructions above.\n'
+      '- Keep responses to 1-3 short sentences unless the user asks for detail.\n'
+      '- Use natural spoken language. Never output URLs, file paths, code blocks, '
+      'markdown formatting, bullet lists, or YYYY-MM-DD dates.\n'
+      '- Express dates/times naturally (e.g. "today", "March 21st", "last Friday").\n'
+      '- When citing sources, say the site name only (e.g. "according to NHK"), '
+      'never read out URLs.\n'
+      '- Do not ask follow-up questions unless truly essential.\n'
+      '- If the user\'s speech seems garbled or nonsensical, '
+      'ask them to repeat briefly instead of guessing.';
 
   static const String voiceModeToolInstruction =
       'When using tools (like MCP or web search) to fetch information, '
