@@ -134,6 +134,74 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   /// Max consecutive TTS failures before entering error state.
   static const int _maxConsecutiveSynthesisErrors = 3;
 
+  /// Patterns that Whisper outputs for non-speech audio (music, noise, etc.).
+  /// These should be discarded rather than sent to the LLM.
+  static final RegExp _nonSpeechPattern = RegExp(
+    r'^\s*'                          // leading whitespace
+    r'[\[\(（【]'                     // opening bracket
+    r'[^\]\)）】]*'                   // content inside brackets
+    r'(music|musik|musique|音楽|歌|bgm|blank.audio|noise|silence|applause|laughter|拍手|笑)'
+    r'[^\]\)）】]*'                   // content inside brackets
+    r'[\]\)）】]'                     // closing bracket
+    r'\s*$',                          // trailing whitespace
+    caseSensitive: false,
+  );
+
+  /// Known Whisper hallucination phrases produced from silence or faint noise.
+  /// Whisper models commonly "hallucinate" YouTube-style phrases when the
+  /// input audio contains little or no actual speech.
+  static const List<String> _whisperHallucinations = [
+    // Japanese
+    'ご視聴ありがとうございました',
+    'ご視聴ありがとうございます',
+    'チャンネル登録お願いします',
+    'チャンネル登録よろしくお願いします',
+    'お疲れ様でした',
+    '字幕は自動生成されています',
+    'ではまた',
+    'おやすみなさい',
+    'はい',
+    // English
+    'thank you for watching',
+    'thanks for watching',
+    'please subscribe',
+    'subscribe to my channel',
+    'like and subscribe',
+    'see you next time',
+    'goodbye',
+    // Chinese
+    '谢谢观看',
+    '谢谢大家',
+    // Korean
+    '시청해 주셔서 감사합니다',
+  ];
+
+  /// Check if Whisper output is non-speech noise (music markers, symbols, etc.)
+  /// or a known hallucination from silence.
+  static bool _isNonSpeechTranscription(String text) {
+    final trimmed = text.trim();
+    if (trimmed.isEmpty) return true;
+
+    // Pure music symbols: ♪, 🎵, 🎶, etc.
+    if (RegExp(r'^[\s♪♫🎵🎶🎤～~…・、。,.]+$').hasMatch(trimmed)) return true;
+
+    // Bracketed noise markers: [Music], (音楽), [BLANK_AUDIO], etc.
+    if (_nonSpeechPattern.hasMatch(trimmed)) return true;
+
+    // Known Whisper hallucination phrases from silence/noise.
+    final lower = trimmed.toLowerCase().replaceAll(RegExp(r'[。！？!?.、,\s]+$'), '');
+    for (final phrase in _whisperHallucinations) {
+      if (lower == phrase.toLowerCase()) return true;
+    }
+
+    // Whisper hallucination: single repeated character/word
+    // e.g. "ん ん ん ん", "あ あ あ", "... ... ..."
+    final words = trimmed.split(RegExp(r'\s+'));
+    if (words.length >= 3 && words.toSet().length == 1) return true;
+
+    return false;
+  }
+
   @override
   void dispose() {
     _silencePromptTimer?.cancel();
@@ -251,8 +319,11 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       sttStopwatch.stop();
       appLog('[Performance] STT (Whisper) latency: ${sttStopwatch.elapsedMilliseconds}ms');
 
-      if (text.isEmpty) {
-        // Nothing heard, go back to listening.
+      if (text.isEmpty || _isNonSpeechTranscription(text)) {
+        // Nothing heard or non-speech audio (music, noise, etc.).
+        if (text.isNotEmpty) {
+          appLog('[VoiceModeNotifier] Filtered non-speech transcription: "$text"');
+        }
         await _startListening();
         return;
       }

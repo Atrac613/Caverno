@@ -42,6 +42,14 @@ class VoiceRecorder {
   /// Duration of silence required to finalize speech.
   static const Duration _silenceDuration = Duration(milliseconds: 1200);
 
+  /// Maximum recording duration before forced finalization.
+  /// Prevents endless recording when background audio (e.g. music)
+  /// keeps the amplitude above the silence threshold.
+  static const Duration _maxRecordingDuration = Duration(seconds: 10);
+
+  /// Timer for max recording duration.
+  Timer? _maxDurationTimer;
+
   /// Sample rate used for recording.
   static const int _sampleRate = 16000;
 
@@ -94,6 +102,12 @@ class VoiceRecorder {
             _speechDetected = true;
             appLog('[VoiceRecorder] Speech detected');
             onSpeechDetected?.call();
+            // Start max-duration safety timer to prevent endless recording
+            // (e.g. background music that never goes silent).
+            _maxDurationTimer = Timer(_maxRecordingDuration, () {
+              appLog('[VoiceRecorder] Max recording duration reached — finalizing');
+              _finalizeRecording();
+            });
           }
           _silenceTimer?.cancel();
           _silenceTimer = null;
@@ -164,6 +178,8 @@ class VoiceRecorder {
   Future<void> stopRecording() async {
     _silenceTimer?.cancel();
     _silenceTimer = null;
+    _maxDurationTimer?.cancel();
+    _maxDurationTimer = null;
     await _streamSubscription?.cancel();
     _streamSubscription = null;
     if (_state != RecorderState.idle) {
@@ -180,6 +196,8 @@ class VoiceRecorder {
   Future<void> _finalizeRecording() async {
     _silenceTimer?.cancel();
     _silenceTimer = null;
+    _maxDurationTimer?.cancel();
+    _maxDurationTimer = null;
     await _streamSubscription?.cancel();
     _streamSubscription = null;
     try {
