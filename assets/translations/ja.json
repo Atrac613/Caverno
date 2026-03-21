@@ -46,6 +46,7 @@
     "attach_image": "画像を添付",
     "record_stop": "録音停止",
     "record_start": "音声入力",
+    "voice_mode_start": "ボイスモード開始",
     "send": "送信",
     "cancel": "キャンセル",
     "stt_unavailable": "音声入力を開始できませんでした（実行環境または権限を確認してください）。"

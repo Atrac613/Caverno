@@ -323,7 +323,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           );
                         },
                   icon: const Icon(Icons.record_voice_over),
-                  tooltip: 'Start Voice Mode',
+                  tooltip: 'message.voice_mode_start'.tr(),
                   style: IconButton.styleFrom(
                     backgroundColor: theme.colorScheme.secondaryContainer,
                     foregroundColor: theme.colorScheme.onSecondaryContainer,

@@ -46,6 +46,7 @@
     "attach_image": "Attach image",
     "record_stop": "Stop recording",
     "record_start": "Voice input",
+    "voice_mode_start": "Start Voice Mode",
     "send": "Send",
     "cancel": "Cancel",
     "stt_unavailable": "Could not start voice input. Check your environment or permissions."

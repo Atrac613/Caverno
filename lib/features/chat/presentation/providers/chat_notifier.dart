@@ -171,6 +171,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   String? _sessionMemoryContext;
   String? _temporalReferenceContext;
   Message? _hiddenPrompt;
+  bool _isVoiceMode = false;
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
@@ -231,6 +232,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         languageCode: _languageCode,
         toolNames: toolNames,
         sessionMemoryContext: _sessionMemoryContext,
+        isVoiceMode: _isVoiceMode,
       ),
       role: MessageRole.system,
       timestamp: now,
@@ -269,6 +271,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     String? imageBase64,
     String? imageMimeType,
     String languageCode = 'en',
+    bool isVoiceMode = false,
   }) async {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
@@ -276,6 +279,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
+    _isVoiceMode = isVoiceMode;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -343,10 +347,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Sends a hidden prompt without appending it to the visible conversation state.
   /// Typically used for proactive AI responses, like handling user silence in Voice Mode.
-  Future<void> sendHiddenPrompt(String instruction) async {
+  Future<void> sendHiddenPrompt(String instruction, {bool isVoiceMode = false}) async {
     if (!mounted) return;
 
     _temporalReferenceContext = null;
+    _isVoiceMode = isVoiceMode;
     _hiddenPrompt = Message(
       id: _uuid.v4(),
       content: instruction,
@@ -808,6 +813,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 
+    // Hidden prompt responses are ephemeral — remove from visible history
+    // so they are spoken but not persisted in the conversation.
+    if (_hiddenPrompt != null) {
+      final cleaned = updatedMessages.sublist(0, lastIndex);
+      state = state.copyWith(messages: cleaned);
+      _hiddenPrompt = null;
+      onResponseCompleted?.call('');
+      return;
+    }
+
     // Persist messages.
     _saveMessages();
 
@@ -828,8 +843,6 @@ class ChatNotifier extends StateNotifier<ChatState> {
     } else {
       onResponseCompleted?.call('');
     }
-
-    _hiddenPrompt = null;
   }
 
   /// Persists the current conversation messages.
