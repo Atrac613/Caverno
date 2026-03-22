@@ -1,23 +1,20 @@
-# Caverno — App Store Metadata
+# Caverno — Google Play Store Metadata
 
-## Subtitle (max 30 chars)
+## App Title (max 50 chars)
 
-- **EN:** Local AI Chat with Tools
-- **JA:** ローカルAIチャット＆ツール
-
----
-
-## Promotional Text (max 170 chars)
-
-**EN:**
-Connect to your own LLM server — Ollama, LM Studio, or any OpenAI-compatible API. Chat with voice, tools, and memory. Your data stays on your device.
-
-**JA:**
-自分のLLMサーバーに接続 — Ollama、LM Studio、OpenAI互換API対応。音声・ツール・メモリ付きAIチャット。データは端末に残ります。
+- **EN:** Caverno - Local AI Chat with Tools
+- **JA:** Caverno - ローカルAIチャット＆ツール
 
 ---
 
-## Description (max 4000 chars)
+## Short Description (max 80 chars)
+
+- **EN:** Chat with local LLMs (Ollama, LM Studio) using voice, tools, and memory.
+- **JA:** ローカルLLM（Ollama, LM Studio）と音声・ツール・メモリでチャット。
+
+---
+
+## Full Description (max 4000 chars)
 
 ### English
 
@@ -115,22 +112,13 @@ Cavernoは開発者、AI愛好家、そしてAIアシスタントを自分でコ
 
 ---
 
-## Keywords (max 100 chars, comma-separated)
+## Data Safety Notes (for Console entry)
 
-- **EN:** `LLM,AI,chat,local,Ollama,LM Studio,OpenAI,voice,MCP,tools,private,assistant,memory`
-- **JA:** `LLM,AI,チャット,ローカル,Ollama,音声,MCP,ツール,プライバシー,アシスタント,メモリ`
-
----
-
-## App Store Review Notes
-
-```
-This app is a client for OpenAI-compatible LLM APIs. It requires a separately-installed LLM server to function.
-
-To test:
-1. You may use any OpenAI-compatible endpoint. For example, set Base URL to "https://api.openai.com/v1" and enter a valid API key in Settings.
-2. Alternatively, the app works with local servers like Ollama (https://ollama.com) or LM Studio (https://lmstudio.ai).
-3. Once configured, send a message to verify chat functionality.
-
-The app does not host or provide AI models — it connects to user-configured endpoints only.
-```
+- **Data encryption**: All data stored locally (Hive/SharedPreferences). No data in transit to developer servers.
+- **Data collection**: No personal data collected. No account info.
+- **Third-party sharing**: No data shared with third parties.
+- **Permissions**:
+    - Internet: To connect to user-provided API endpoints.
+    - Microphone/Speech: For Voice Mode (STT/TTS).
+    - Camera: For scanning settings QR codes and image attachments.
+    - Wake Lock: To keep connection alive during streaming responses.
