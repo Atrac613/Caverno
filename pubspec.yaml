@@ -71,6 +71,7 @@ dependencies:
   # Voice mode (Whisper STT + VOICEVOX TTS)
   audioplayers: ^6.1.0
   record: ^6.2.0
+  path_provider: ^2.1.2
 
   # Local notifications
   flutter_local_notifications: ^18.0.1
