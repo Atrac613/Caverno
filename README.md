@@ -118,9 +118,9 @@ cd linux-nvidia
 ./run --host 0.0.0.0
 ```
 
-## App Store Screenshots
+## Store Screenshots
 
-Generate dark-mode screenshots for App Store submission using integration tests.
+Generate dark-mode screenshots for App Store / Google Play submission using integration tests.
 
 ```bash
 # iPhone (6.7" — 1284×2778)
@@ -134,9 +134,28 @@ SCREENSHOT_DEVICE=ipad flutter drive \
   --driver=test_driver/integration_test.dart \
   --target=integration_test/screenshot_test.dart \
   -d <ipad-device-id>
+
+# Android Phone (20:9 — 1080×2400)
+SCREENSHOT_DEVICE=android_phone flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/screenshot_test.dart \
+  -d <android-device-id>
+
+# Android Tablet (10:16 — 1600×2560)
+SCREENSHOT_DEVICE=android_tablet flutter drive \
+  --driver=test_driver/integration_test.dart \
+  --target=integration_test/screenshot_test.dart \
+  -d <android-tablet-id>
 ```
 
-iPhone screenshots are saved to `screenshots/`, iPad to `screenshots/ipad/`. Both are automatically resized to App Store dimensions.
+Screenshots are saved to device-specific directories and automatically resized to store dimensions:
+
+| Device | Output Directory |
+|--------|-----------------|
+| iPhone | `screenshots/apple/ios/` |
+| iPad | `screenshots/apple/ipad/` |
+| Android Phone | `screenshots/android/phone/` |
+| Android Tablet | `screenshots/android/tablet/` |
 
 | # | Screenshot | Content |
 |---|-----------|---------|
@@ -145,6 +164,8 @@ iPhone screenshots are saved to `screenshots/`, iPad to `screenshots/ipad/`. Bot
 | 3 | `3_thinking_block` | Chain-of-thought reasoning block |
 | 4 | `4_conversation_drawer` | Conversation history sidebar |
 | 5 | `5_settings_page` | Settings page |
+| 6 | `6_voice_mode` | Voice input interface |
+| 7 | `7_image_attachments` | Image attachment in conversation |
 
 ## Architecture
 
