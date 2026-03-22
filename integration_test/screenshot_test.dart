@@ -2,7 +2,6 @@ import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -164,239 +163,320 @@ List<Conversation> _buildMockConversations() {
   ];
 }
 
+/// Builds mock conversations for realistic screenshots (Japanese).
+List<Conversation> _buildMockConversationsJa() {
+  final now = DateTime.now();
+
+  return [
+    // Main conversation with chat + tool call + thinking
+    Conversation(
+      id: 'conv-1-ja',
+      title: 'FlutterパフォーマンスTips',
+      messages: [
+        Message(
+          id: 'msg-1-ja',
+          content: 'FlutterのListViewが重いです。パフォーマンスを改善するにはどうすればいいですか？',
+          role: MessageRole.user,
+          timestamp: now.subtract(const Duration(minutes: 5)),
+        ),
+        Message(
+          id: 'msg-2-ja',
+          content:
+              '<think>ユーザーはListViewのパフォーマンスについて質問しています。'
+              'ListView.builderの使用、constウィジェット、画像キャッシュ、RepaintBoundaryなどの主要なテクニックを説明します。</think>'
+              '\n## ListViewのパフォーマンス最適化\n\n'
+              '以下の手法が効果的です：\n\n'
+              '### 1. `ListView.builder`の使用\n'
+              '通常の`ListView`の代わりに`ListView.builder`を使い、'
+              '**画面に表示されるアイテムのみをビルド**するようにします。\n\n'
+              '```dart\nListView.builder(\n'
+              '  itemCount: items.length,\n'
+              '  itemBuilder: (context, index) {\n'
+              '    return ItemWidget(item: items[index]);\n'
+              '  },\n)\n```\n\n'
+              '### 2. `const`コンストラクタの活用\n'
+              '変化しないウィジェットには`const`を付け、不要な再ビルドを防ぎます。\n\n'
+              '### 3. 画像の最適化\n'
+              '画像キャッシュを活用し、適切なサイズにリサイズします。',
+          role: MessageRole.assistant,
+          timestamp: now.subtract(const Duration(minutes: 4)),
+        ),
+      ],
+      createdAt: now.subtract(const Duration(minutes: 5)),
+      updatedAt: now.subtract(const Duration(minutes: 4)),
+    ),
+
+    // Tool calling example (JA)
+    Conversation(
+      id: 'conv-tool-ja',
+      title: 'サンフランシスコの天気',
+      messages: [
+        Message(
+          id: 't-1-ja',
+          content: '今週末のサンフランシスコの天気は？',
+          role: MessageRole.user,
+          timestamp: now.subtract(const Duration(minutes: 3)),
+        ),
+        Message(
+          id: 't-2-ja',
+          content:
+              '<tool_call>{"name":"web_search","arguments":{"query":"サンフランシスコ 週末 天気"}}</tool_call>\n\n快晴で最高気温は19度になる予報です！',
+          role: MessageRole.assistant,
+          timestamp: now.subtract(const Duration(minutes: 2)),
+        ),
+      ],
+      createdAt: now.subtract(const Duration(minutes: 3)),
+      updatedAt: now.subtract(const Duration(minutes: 2)),
+    ),
+
+    // Thinking block example (JA)
+    Conversation(
+      id: 'conv-think-ja',
+      title: 'クイックソートの計算量',
+      messages: [
+        Message(
+          id: 'th-1-ja',
+          content: 'クイックソートの計算量を分かりやすく教えて',
+          role: MessageRole.user,
+          timestamp: now.subtract(const Duration(minutes: 2)),
+        ),
+        Message(
+          id: 'th-2-ja',
+          content:
+              '<think>クイックソートの計算量（平均・最悪ケース）と、ピボット選択の重要性を説明します。'
+              '再帰の深さと分割コストの観点から導出します。</think>'
+              '\n## クイックソートの計算量\n\n'
+              '### 平均ケース: O(n log n)\n'
+              '### 最悪ケース: O(n²)\n\n'
+              'ピボットをランダムに選ぶことで、最悪ケースを回避できます。',
+          role: MessageRole.assistant,
+          timestamp: now.subtract(const Duration(minutes: 1)),
+        ),
+      ],
+      createdAt: now.subtract(const Duration(minutes: 2)),
+      updatedAt: now.subtract(const Duration(minutes: 1)),
+    ),
+  ];
+}
+
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
 
-  group('App Store Screenshots', () {
-    late Box<String> conversationBox;
-    late Box<String> memoryBox;
+  const loc = (locale: Locale('en'), suffix: '');
 
-    setUp(() async {
-      await Hive.initFlutter();
-      await EasyLocalization.ensureInitialized();
+  group('App Store Screenshots (${loc.locale.languageCode})', () {
+      late Box<String> conversationBox;
+      late Box<String> memoryBox;
 
-      // Open fresh boxes for each test
-      final timestamp = DateTime.now().millisecondsSinceEpoch;
-      conversationBox = await Hive.openBox<String>('test_conv_$timestamp');
-      memoryBox = await Hive.openBox<String>('test_mem_$timestamp');
-    });
+      setUp(() async {
+        await Hive.initFlutter();
+        await EasyLocalization.ensureInitialized();
 
-    tearDown(() async {
-      await conversationBox.clear();
-      await memoryBox.clear();
-      await conversationBox.close();
-      await memoryBox.close();
-    });
-
-    /// Helper to build the app with dark theme and pre-seeded data.
-    Future<Widget> buildApp({
-      required List<Conversation> conversations,
-    }) async {
-      // Seed the Hive box
-      for (final conv in conversations) {
-        await conversationBox.put(conv.id, jsonEncode(conv.toJson()));
-      }
-
-      SharedPreferences.setMockInitialValues({
-        'baseUrl': 'https://api.example.com/v1',
-        'model': 'gpt-4o',
-        'apiKey': 'sk-demo',
-        'temperature': 0.7,
-        'maxTokens': 4096,
-        'mcpEnabled': true,
-        'mcpUrl': 'http://localhost:8081',
-        'ttsEnabled': true,
-        'autoReadEnabled': false,
-        'speechRate': 1.0,
-        'assistantMode': 'general',
+        // Open fresh boxes for each test
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        conversationBox = await Hive.openBox<String>('test_conv_${loc.locale.languageCode}_$timestamp');
+        memoryBox = await Hive.openBox<String>('test_mem_${loc.locale.languageCode}_$timestamp');
       });
 
-      final prefs = await SharedPreferences.getInstance();
+      tearDown(() async {
+        await conversationBox.clear();
+        await memoryBox.clear();
+        await conversationBox.close();
+        await memoryBox.close();
+      });
 
-      return EasyLocalization(
-        supportedLocales: const [Locale('en'), Locale('ja')],
-        path: 'assets/translations',
-        fallbackLocale: const Locale('en'),
-        startLocale: const Locale('en'),
-        useOnlyLangCode: true,
-        child: Builder(
-          builder: (context) {
-            return ProviderScope(
-              overrides: [
-                sharedPreferencesProvider.overrideWithValue(prefs),
-                conversationBoxProvider.overrideWithValue(conversationBox),
-                chatMemoryBoxProvider.overrideWithValue(memoryBox),
-                notificationServiceProvider.overrideWithValue(
-                  _NoOpNotificationService(),
-                ),
-              ],
-              child: MaterialApp(
-                title: 'Caverno',
-                debugShowCheckedModeBanner: false,
-                localizationsDelegates: context.localizationDelegates,
-                supportedLocales: context.supportedLocales,
-                locale: context.locale,
-                darkTheme: ThemeData(
-                  colorScheme: ColorScheme.fromSeed(
-                    seedColor: Colors.blue,
-                    brightness: Brightness.dark,
+      /// Helper to build the app with dark theme and pre-seeded data.
+      Future<Widget> buildApp({
+        required List<Conversation> conversations,
+      }) async {
+        // Seed the Hive box
+        for (final conv in conversations) {
+          await conversationBox.put(conv.id, jsonEncode(conv.toJson()));
+        }
+
+        SharedPreferences.setMockInitialValues({
+          'baseUrl': 'https://api.example.com/v1',
+          'model': 'gpt-4o',
+          'apiKey': 'sk-demo',
+          'temperature': 0.7,
+          'maxTokens': 4096,
+          'mcpEnabled': true,
+          'mcpUrl': 'http://localhost:8081',
+          'ttsEnabled': true,
+          'autoReadEnabled': false,
+          'speechRate': 1.0,
+          'assistantMode': 'general',
+          'language': loc.locale.languageCode,
+        });
+
+        final prefs = await SharedPreferences.getInstance();
+
+        return EasyLocalization(
+          supportedLocales: const [Locale('en'), Locale('ja')],
+          path: 'assets/translations',
+          fallbackLocale: const Locale('en'),
+          startLocale: loc.locale,
+          useOnlyLangCode: true,
+          child: Builder(
+            builder: (context) {
+              return ProviderScope(
+                overrides: [
+                  sharedPreferencesProvider.overrideWithValue(prefs),
+                  conversationBoxProvider.overrideWithValue(conversationBox),
+                  chatMemoryBoxProvider.overrideWithValue(memoryBox),
+                  notificationServiceProvider.overrideWithValue(
+                    _NoOpNotificationService(),
                   ),
-                  useMaterial3: true,
+                ],
+                child: MaterialApp(
+                  title: 'Caverno',
+                  debugShowCheckedModeBanner: false,
+                  localizationsDelegates: context.localizationDelegates,
+                  supportedLocales: context.supportedLocales,
+                  locale: context.locale,
+                  darkTheme: ThemeData(
+                    colorScheme: ColorScheme.fromSeed(
+                      seedColor: Colors.blue,
+                      brightness: Brightness.dark,
+                    ),
+                    useMaterial3: true,
+                  ),
+                  themeMode: ThemeMode.dark,
+                  home: const ChatPage(),
                 ),
-                themeMode: ThemeMode.dark,
-                home: const ChatPage(),
+              );
+            },
+          ),
+        );
+      }
+
+      testWidgets('1_chat_conversation${loc.suffix}', (tester) async {
+        final conversations = loc.locale.languageCode == 'en'
+            ? _buildMockConversations()
+            : _buildMockConversationsJa();
+        await tester.pumpWidget(await buildApp(conversations: conversations));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        await takeScreenshot(binding, tester, '1_chat_conversation${loc.suffix}');
+      });
+
+      testWidgets('2_tool_calling${loc.suffix}', (tester) async {
+        final now = DateTime.now();
+        final conversations = [
+          Conversation(
+            id: 'conv-tool',
+            title: loc.locale.languageCode == 'en' ? 'San Francisco Weather' : 'サンフランシスコの天気',
+            messages: [
+              Message(
+                id: 't-1',
+                content: loc.locale.languageCode == 'en'
+                    ? 'What\'s the weather like in San Francisco this weekend?'
+                    : '今週末のサンフランシスコの天気は？',
+                role: MessageRole.user,
+                timestamp: now.subtract(const Duration(minutes: 3)),
               ),
-            );
-          },
-        ),
-      );
-    }
+              Message(
+                id: 't-2',
+                content: loc.locale.languageCode == 'en'
+                    ? '<tool_call>{"name":"web_search","arguments":{"query":"San Francisco weekend weather"}}</tool_call>\n\nIt will be sunny and 66°F!'
+                    : '<tool_call>{"name":"web_search","arguments":{"query":"サンフランシスコ 週末 天気"}}</tool_call>\n\n快晴で最高気温は19度になる予報です！',
+                role: MessageRole.assistant,
+                timestamp: now,
+              ),
+            ],
+            createdAt: now.subtract(const Duration(minutes: 3)),
+            updatedAt: now,
+          ),
+        ];
 
-    testWidgets('1_chat_conversation', (tester) async {
-      final conversations = _buildMockConversations();
-      await tester.pumpWidget(await buildApp(conversations: conversations));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+        await tester.pumpWidget(await buildApp(conversations: conversations));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
 
-      await takeScreenshot(binding, tester, '1_chat_conversation');
+        await takeScreenshot(binding, tester, '2_tool_calling${loc.suffix}');
+      });
+
+      testWidgets('3_thinking_block${loc.suffix}', (tester) async {
+        final conversations = loc.locale.languageCode == 'en'
+            ? _buildMockConversations()
+            : _buildMockConversationsJa();
+        await tester.pumpWidget(await buildApp(conversations: conversations));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        await takeScreenshot(binding, tester, '3_thinking_block${loc.suffix}');
+      });
+
+      testWidgets('4_conversation_drawer${loc.suffix}', (tester) async {
+        final conversations = loc.locale.languageCode == 'en'
+            ? _buildMockConversations()
+            : _buildMockConversationsJa();
+        await tester.pumpWidget(await buildApp(conversations: conversations));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        // Open the drawer
+        final scaffoldState = tester.firstState<ScaffoldState>(
+          find.byType(Scaffold),
+        );
+        scaffoldState.openDrawer();
+        await tester.pumpAndSettle();
+
+        await takeScreenshot(binding, tester, '4_conversation_drawer${loc.suffix}');
+      });
+
+      testWidgets('5_settings_page${loc.suffix}', (tester) async {
+        await tester.pumpWidget(await buildApp(conversations: []));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        // Navigate to settings (Using find.byTooltip to be more robust)
+        final settingsButton = find.byWidgetPredicate(
+          (widget) => widget is IconButton && widget.icon is Icon && (widget.icon as Icon).icon == Icons.settings,
+        );
+        await tester.tap(settingsButton.first);
+        await tester.pumpAndSettle();
+
+        await takeScreenshot(binding, tester, '5_settings_page${loc.suffix}');
+      });
+
+      testWidgets('6_voice_mode${loc.suffix}', (tester) async {
+        await tester.pumpWidget(await buildApp(conversations: []));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        // Show voice recorder button or mock overlay
+        await takeScreenshot(binding, tester, '6_voice_mode${loc.suffix}');
+      });
+
+      testWidgets('7_image_attachments${loc.suffix}', (tester) async {
+        final now = DateTime.now();
+        final conversations = [
+          Conversation(
+            id: 'conv-img',
+            title: loc.locale.languageCode == 'en' ? 'Image Analysis' : '画像解析',
+            messages: [
+              Message(
+                id: 'img-1',
+                content: loc.locale.languageCode == 'en' ? 'What\'s in this photo?' : 'この写真には何が写っていますか？',
+                role: MessageRole.user,
+                timestamp: now.subtract(const Duration(minutes: 1)),
+                imageBase64: 'dummy_base64',
+                imageMimeType: 'image/png',
+              ),
+              Message(
+                id: 'img-2',
+                content: loc.locale.languageCode == 'en'
+                    ? 'This is a beautiful landscape of a mountain lake.'
+                    : 'これは山の中にある湖の美しい風景写真ですね。',
+                role: MessageRole.assistant,
+                timestamp: now,
+              ),
+            ],
+            createdAt: now.subtract(const Duration(minutes: 1)),
+            updatedAt: now,
+          ),
+        ];
+
+        await tester.pumpWidget(await buildApp(conversations: conversations));
+        await tester.pumpAndSettle(const Duration(seconds: 2));
+
+        await takeScreenshot(binding, tester, '7_image_attachments${loc.suffix}');
+      });
     });
-
-    testWidgets('2_tool_calling', (tester) async {
-      final now = DateTime.now();
-      final conversations = [
-        Conversation(
-          id: 'conv-tool',
-          title: 'San Francisco Weather',
-          messages: [
-            Message(
-              id: 't-1',
-              content: 'What\'s the weather like in San Francisco this weekend?',
-              role: MessageRole.user,
-              timestamp: now.subtract(const Duration(minutes: 3)),
-            ),
-            Message(
-              id: 't-2',
-              content:
-                  '<tool_call>{"name":"web_search","arguments":{"query":"San Francisco weekend weather forecast March 2026"}}</tool_call>'
-                  '<tool_call>{"name":"get_current_datetime","arguments":{}}</tool_call>'
-                  '\n\n## San Francisco Weekend Forecast\n\n'
-                  '**Saturday, Mar 21** — Partly Cloudy\n'
-                  '- High: 64°F / Low: 50°F\n'
-                  '- Chance of rain: 10%\n\n'
-                  '**Sunday, Mar 22** — Mostly Sunny\n'
-                  '- High: 66°F / Low: 52°F\n'
-                  '- Chance of rain: 5%\n\n'
-                  'Great weekend for outdoor activities!',
-              role: MessageRole.assistant,
-              timestamp: now.subtract(const Duration(minutes: 2)),
-            ),
-            Message(
-              id: 't-3',
-              content: 'Best places to visit while I\'m there?',
-              role: MessageRole.user,
-              timestamp: now.subtract(const Duration(minutes: 1)),
-            ),
-            Message(
-              id: 't-4',
-              content:
-                  '<tool_call>{"name":"web_search","arguments":{"query":"best places to visit San Francisco 2026 spring"}}</tool_call>'
-                  '\n\n## Top Places to Visit\n\n'
-                  'Here are some must-see spots:\n\n'
-                  '1. **Golden Gate Bridge** — Iconic landmark, best viewed from Battery Spencer\n'
-                  '2. **Fisherman\'s Wharf** — Seafood, sea lions, and bay cruises\n'
-                  '3. **Golden Gate Park** — 1,000+ acres of gardens and museums\n'
-                  '4. **Alcatraz Island** — Book ferry tickets in advance\n\n'
-                  '> With 66°F and sunshine on Sunday, it\'s perfect for walking the bridge!',
-              role: MessageRole.assistant,
-              timestamp: now,
-            ),
-          ],
-          createdAt: now.subtract(const Duration(minutes: 3)),
-          updatedAt: now,
-        ),
-      ];
-
-      await tester.pumpWidget(await buildApp(conversations: conversations));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-
-      await takeScreenshot(binding, tester, '2_tool_calling');
-    });
-
-    testWidgets('3_thinking_block', (tester) async {
-      final now = DateTime.now();
-      final conversations = [
-        Conversation(
-          id: 'conv-think',
-          title: 'Quicksort Complexity',
-          messages: [
-            Message(
-              id: 'th-1',
-              content: 'Explain quicksort time complexity in simple terms',
-              role: MessageRole.user,
-              timestamp: now.subtract(const Duration(minutes: 2)),
-            ),
-            Message(
-              id: 'th-2',
-              content:
-                  '<think>The user wants an intuitive explanation of quicksort complexity. '
-                  'I should cover the difference between average and worst case, '
-                  'the importance of pivot selection, and derive it from recursion depth '
-                  'and partition cost.</think>'
-                  '\n## Quicksort Time Complexity\n\n'
-                  '### Average Case: O(n log n)\n'
-                  'When the pivot splits the array roughly in half:\n'
-                  '- Each level compares all elements once → **O(n)**\n'
-                  '- Depth of recursion is **log n**\n'
-                  '- Total: **n × log n**\n\n'
-                  '### Worst Case: O(n²)\n'
-                  'When the array is already sorted and you pick the first element as pivot:\n'
-                  '- Only removes one element per level → depth **n**\n'
-                  '- Total: **n × n = n²**\n\n'
-                  '```\n'
-                  'Average: [####|####]  → even split → log n levels\n'
-                  'Worst:   [#|########] → skewed    → n levels\n'
-                  '```\n\n'
-                  '> **Fix**: Use randomized pivot selection to avoid worst-case behavior.',
-              role: MessageRole.assistant,
-              timestamp: now.subtract(const Duration(minutes: 1)),
-            ),
-          ],
-          createdAt: now.subtract(const Duration(minutes: 2)),
-          updatedAt: now.subtract(const Duration(minutes: 1)),
-        ),
-      ];
-
-      await tester.pumpWidget(await buildApp(conversations: conversations));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-
-      await takeScreenshot(binding, tester, '3_thinking_block');
-    });
-
-    testWidgets('4_conversation_drawer', (tester) async {
-      final conversations = _buildMockConversations();
-      await tester.pumpWidget(await buildApp(conversations: conversations));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-
-      // Open the drawer
-      final scaffoldState = tester.firstState<ScaffoldState>(
-        find.byType(Scaffold),
-      );
-      scaffoldState.openDrawer();
-      await tester.pumpAndSettle();
-
-      await takeScreenshot(binding, tester, '4_conversation_drawer');
-    });
-
-    testWidgets('5_settings_page', (tester) async {
-      final conversations = _buildMockConversations();
-      await tester.pumpWidget(await buildApp(conversations: conversations));
-      await tester.pumpAndSettle(const Duration(seconds: 2));
-
-      // Navigate to settings
-      final settingsButton = find.byIcon(Icons.settings);
-      await tester.tap(settingsButton);
-      await tester.pumpAndSettle();
-
-      await takeScreenshot(binding, tester, '5_settings_page');
-    });
-  });
 }
