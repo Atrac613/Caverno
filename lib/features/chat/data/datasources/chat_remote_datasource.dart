@@ -5,6 +5,7 @@ import '../../../../core/utils/logger.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
+import 'chat_datasource.dart';
 
 /// Chat completion response
 class ChatCompletionResult {
@@ -33,7 +34,7 @@ class ToolCallInfo {
   final Map<String, dynamic> arguments;
 }
 
-class ChatRemoteDataSource {
+class ChatRemoteDataSource implements ChatDataSource {
   ChatRemoteDataSource({String? baseUrl, String? apiKey})
     : _client = OpenAIClient(
         baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
@@ -69,6 +70,7 @@ class ChatRemoteDataSource {
   }
 
   /// Get chat completion via streaming (without tools)
+  @override
   Stream<String> streamChatCompletion({
     required List<Message> messages,
     String? model,
@@ -159,6 +161,7 @@ class ChatRemoteDataSource {
   }
 
   /// Get chat completion without streaming (with tool support)
+  @override
   Future<ChatCompletionResult> createChatCompletion({
     required List<Message> messages,
     List<Map<String, dynamic>>? tools,
@@ -267,6 +270,7 @@ class ChatRemoteDataSource {
   }
 
   /// Get chat completion with tool result (streaming)
+  @override
   Stream<String> streamWithToolResult({
     required List<Message> messages,
     required String toolCallId,
@@ -372,6 +376,7 @@ class ChatRemoteDataSource {
   /// Get chat completion with tool result (non-streaming, with tool definitions)
   ///
   /// For tool loop: LLM may return additional tool calls.
+  @override
   Future<ChatCompletionResult> createChatCompletionWithToolResult({
     required List<Message> messages,
     required String toolCallId,

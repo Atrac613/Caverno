@@ -14,7 +14,9 @@ import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
+import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
@@ -23,8 +25,11 @@ import 'chat_state.dart';
 import 'conversations_notifier.dart';
 import 'mcp_tool_provider.dart';
 
-final chatRemoteDataSourceProvider = Provider<ChatRemoteDataSource>((ref) {
+final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
+  if (settings.demoMode) {
+    return DemoDataSource();
+  }
   return ChatRemoteDataSource(
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
@@ -158,7 +163,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _mcpToolService?.connect();
   }
 
-  ChatRemoteDataSource _dataSource;
+  ChatDataSource _dataSource;
   McpToolService? _mcpToolService;
   final SessionMemoryService _memoryService;
   AppSettings _settings;
@@ -175,10 +180,14 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
-    _dataSource = ChatRemoteDataSource(
-      baseUrl: settings.baseUrl,
-      apiKey: settings.apiKey,
-    );
+    if (settings.demoMode) {
+      _dataSource = DemoDataSource();
+    } else {
+      _dataSource = ChatRemoteDataSource(
+        baseUrl: settings.baseUrl,
+        apiKey: settings.apiKey,
+      );
+    }
   }
 
   void updateMcpToolService(McpToolService? mcpToolService) {

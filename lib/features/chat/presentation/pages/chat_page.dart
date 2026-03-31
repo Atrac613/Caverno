@@ -97,9 +97,28 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ? 'chat.new_conversation'.tr()
         : rawTitle;
 
+    final settings = ref.watch(settingsNotifierProvider);
+
     return Scaffold(
       appBar: AppBar(
-        title: Text(currentTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+        title: Row(
+          children: [
+            Flexible(child: Text(currentTitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            if (settings.demoMode) ...[
+              const SizedBox(width: 8),
+              Chip(
+                label: Text('chat.demo_banner'.tr()),
+                labelStyle: TextStyle(
+                  fontSize: 11,
+                  color: Theme.of(context).colorScheme.onTertiaryContainer,
+                ),
+                backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                visualDensity: VisualDensity.compact,
+                padding: EdgeInsets.zero,
+              ),
+            ],
+          ],
+        ),
         actions: [
           IconButton(
             onPressed: () => conversationsNotifier.createNewConversation(),
@@ -186,8 +205,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
   }
 
   Widget _buildEmptyState(BuildContext context) {
-    final settings = ref.watch(settingsNotifierProvider);
-    final isDefault = settings.baseUrl == ApiConstants.defaultBaseUrl;
+    final emptySettings = ref.watch(settingsNotifierProvider);
+    final isDefault = emptySettings.baseUrl == ApiConstants.defaultBaseUrl &&
+        !emptySettings.demoMode;
 
     return Center(
       child: Padding(
@@ -217,6 +237,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
+                onPressed: () {
+                  ref.read(settingsNotifierProvider.notifier).updateDemoMode(true);
+                },
+                icon: const Icon(Icons.play_arrow),
+                label: Text('chat.try_demo'.tr()),
+              ),
+              const SizedBox(height: 8),
+              OutlinedButton.icon(
                 onPressed: () {
                   Navigator.of(context).push(
                     MaterialPageRoute(builder: (_) => const SettingsPage()),

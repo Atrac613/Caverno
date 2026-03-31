@@ -29,6 +29,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: AssistantMode.general,
       ) ??
       AssistantMode.general,
+  demoMode: json['demoMode'] as bool? ?? false,
 );
 
 Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
@@ -49,6 +50,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'voicevoxSpeakerId': instance.voicevoxSpeakerId,
       'language': instance.language,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
+      'demoMode': instance.demoMode,
     };
 
 const _$AssistantModeEnumMap = {

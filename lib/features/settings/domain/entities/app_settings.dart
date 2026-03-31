@@ -31,6 +31,7 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
+    @Default(false) bool demoMode,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(

@@ -21,7 +21,9 @@
     "settings": "接続設定",
     "setup_title": "Cavernoへようこそ",
     "setup_message": "設定からLLMサーバーのエンドポイントを設定してください。OpenAI互換API（LM Studio, Ollama, vLLMなど）に対応しています。",
-    "setup_button": "設定を開く"
+    "setup_button": "設定を開く",
+    "try_demo": "デモモードで試す",
+    "demo_banner": "デモ"
   },
   "drawer": {
     "title": "会話履歴",
@@ -73,6 +75,8 @@
     "reset_title": "設定をリセット",
     "reset_confirm": "すべての設定をデフォルト値に戻しますか？",
     "reset_done": "設定をリセットしました",
+    "demo_mode": "デモモード",
+    "demo_mode_desc": "サーバー接続なしでAI応答をシミュレーション",
     "server_section": "サーバー設定",
     "base_url_helper": "LM Studio などの OpenAI 互換APIエンドポイント",
     "api_key_helper": "ローカルLLMでは通常不要",

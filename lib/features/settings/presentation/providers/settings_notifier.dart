@@ -112,6 +112,11 @@ class SettingsNotifier extends StateNotifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateDemoMode(bool demoMode) async {
+    state = state.copyWith(demoMode: demoMode);
+    await _repository.save(state);
+  }
+
   Future<void> updateSettings(AppSettings settings) async {
     state = settings;
     await _repository.save(state);

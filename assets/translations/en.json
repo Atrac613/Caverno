@@ -21,7 +21,9 @@
     "settings": "Settings",
     "setup_title": "Welcome to Caverno",
     "setup_message": "To get started, configure your LLM server endpoint in Settings. Caverno works with any OpenAI-compatible API (LM Studio, Ollama, vLLM, etc.).",
-    "setup_button": "Open Settings"
+    "setup_button": "Open Settings",
+    "try_demo": "Try Demo Mode",
+    "demo_banner": "Demo"
   },
   "drawer": {
     "title": "Conversation History",
@@ -73,6 +75,8 @@
     "reset_title": "Reset Settings",
     "reset_confirm": "Reset all settings to default values?",
     "reset_done": "Settings have been reset",
+    "demo_mode": "Demo Mode",
+    "demo_mode_desc": "Simulate AI responses without a server connection",
     "server_section": "Server Settings",
     "base_url_helper": "OpenAI-compatible API endpoint (e.g. LM Studio)",
     "api_key_helper": "Usually not needed for local LLMs",

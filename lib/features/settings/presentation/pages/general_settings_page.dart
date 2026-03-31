@@ -20,6 +20,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   late String _selectedModel;
   late double _temperature;
   late String _language;
+  late bool _demoMode;
 
   @override
   void initState() {
@@ -31,6 +32,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _selectedModel = settings.model;
     _temperature = settings.temperature;
     _language = settings.language;
+    _demoMode = settings.demoMode;
   }
 
   @override
@@ -49,6 +51,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     await notifier.updateMaxTokens(int.tryParse(_maxTokensController.text) ?? 4096);
     await notifier.updateTemperature(_temperature);
     await notifier.updateLanguage(_language);
+    await notifier.updateDemoMode(_demoMode);
 
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
@@ -166,86 +169,108 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          // Server settings section
-          _buildSectionHeader('settings.server_section'.tr()),
+          // Demo mode toggle
+          SwitchListTile(
+            title: Text('settings.demo_mode'.tr()),
+            subtitle: Text('settings.demo_mode_desc'.tr()),
+            value: _demoMode,
+            onChanged: (value) => setState(() => _demoMode = value),
+          ),
+          const Divider(),
           const SizedBox(height: 8),
-          TextField(
-            controller: _baseUrlController,
-            decoration: InputDecoration(
-              labelText: 'API Base URL',
-              hintText: 'http://localhost:1234/v1',
-              border: const OutlineInputBorder(),
-              helperText: 'settings.base_url_helper'.tr(),
-            ),
-            keyboardType: TextInputType.url,
-          ),
-          const SizedBox(height: 16),
-          TextField(
-            controller: _apiKeyController,
-            decoration: InputDecoration(
-              labelText: 'API Key',
-              hintText: 'no-key',
-              border: const OutlineInputBorder(),
-              helperText: 'settings.api_key_helper'.tr(),
-            ),
-            obscureText: true,
-          ),
-          const SizedBox(height: 24),
+          // Server, model, and generation settings (disabled in demo mode)
+          IgnorePointer(
+            ignoring: _demoMode,
+            child: AnimatedOpacity(
+              opacity: _demoMode ? 0.4 : 1.0,
+              duration: const Duration(milliseconds: 200),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Server settings section
+                  _buildSectionHeader('settings.server_section'.tr()),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _baseUrlController,
+                    decoration: InputDecoration(
+                      labelText: 'API Base URL',
+                      hintText: 'http://localhost:1234/v1',
+                      border: const OutlineInputBorder(),
+                      helperText: 'settings.base_url_helper'.tr(),
+                    ),
+                    keyboardType: TextInputType.url,
+                  ),
+                  const SizedBox(height: 16),
+                  TextField(
+                    controller: _apiKeyController,
+                    decoration: InputDecoration(
+                      labelText: 'API Key',
+                      hintText: 'no-key',
+                      border: const OutlineInputBorder(),
+                      helperText: 'settings.api_key_helper'.tr(),
+                    ),
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 24),
 
-          // Model settings section
-          Row(
-            children: [
-              _buildSectionHeader('settings.model_section'.tr()),
-              const SizedBox(width: 8),
-              IconButton(
-                onPressed: () {
-                  setState(() {});
-                },
-                icon: const Icon(Icons.refresh, size: 18),
-                tooltip: 'settings.model_refresh'.tr(),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-          const SizedBox(height: 8),
-          _buildModelSelector(),
-          const SizedBox(height: 24),
+                  // Model settings section
+                  Row(
+                    children: [
+                      _buildSectionHeader('settings.model_section'.tr()),
+                      const SizedBox(width: 8),
+                      IconButton(
+                        onPressed: () {
+                          setState(() {});
+                        },
+                        icon: const Icon(Icons.refresh, size: 18),
+                        tooltip: 'settings.model_refresh'.tr(),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  _buildModelSelector(),
+                  const SizedBox(height: 24),
 
-          // Generation parameters section
-          _buildSectionHeader('settings.generation_section'.tr()),
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              const Text('Temperature: '),
-              Expanded(
-                child: Slider(
-                  value: _temperature,
-                  min: 0.0,
-                  max: 2.0,
-                  divisions: 20,
-                  label: _temperature.toStringAsFixed(1),
-                  onChanged: (value) {
-                    setState(() {
-                      _temperature = value;
-                    });
-                  },
-                ),
+                  // Generation parameters section
+                  _buildSectionHeader('settings.generation_section'.tr()),
+                  const SizedBox(height: 8),
+                  Row(
+                    children: [
+                      const Text('Temperature: '),
+                      Expanded(
+                        child: Slider(
+                          value: _temperature,
+                          min: 0.0,
+                          max: 2.0,
+                          divisions: 20,
+                          label: _temperature.toStringAsFixed(1),
+                          onChanged: (value) {
+                            setState(() {
+                              _temperature = value;
+                            });
+                          },
+                        ),
+                      ),
+                      SizedBox(width: 40, child: Text(_temperature.toStringAsFixed(1))),
+                    ],
+                  ),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _maxTokensController,
+                    decoration: InputDecoration(
+                      labelText: 'Max Tokens',
+                      hintText: '4096',
+                      border: const OutlineInputBorder(),
+                      helperText: 'settings.max_tokens_helper'.tr(),
+                    ),
+                    keyboardType: TextInputType.number,
+                  ),
+                  const SizedBox(height: 24),
+                ],
               ),
-              SizedBox(width: 40, child: Text(_temperature.toStringAsFixed(1))),
-            ],
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            controller: _maxTokensController,
-            decoration: InputDecoration(
-              labelText: 'Max Tokens',
-              hintText: '4096',
-              border: const OutlineInputBorder(),
-              helperText: 'settings.max_tokens_helper'.tr(),
             ),
-            keyboardType: TextInputType.number,
           ),
-          const SizedBox(height: 24),
 
           // Language section
           _buildSectionHeader('settings.language_section'.tr()),
