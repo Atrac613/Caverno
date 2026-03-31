@@ -74,8 +74,8 @@ class SettingsFileService {
     if (settings.maxTokens < 1 || settings.maxTokens > 1000000) {
       throw const FormatException('maxTokens must be between 1 and 1,000,000');
     }
-    if (settings.speechRate < 0.1 || settings.speechRate > 3.0) {
-      throw const FormatException('speechRate must be between 0.1 and 3.0');
+    if (settings.speechRate < 0.0 || settings.speechRate > 1.0) {
+      throw const FormatException('speechRate must be between 0.0 and 1.0');
     }
     if (settings.voicevoxSpeakerId < 0) {
       throw const FormatException('voicevoxSpeakerId must be non-negative');

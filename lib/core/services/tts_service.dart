@@ -16,7 +16,7 @@ class TtsService {
     if (_isInitialized) return;
 
     await _tts.setLanguage('ja-JP');
-    await _tts.setSpeechRate(1.0);
+    await _tts.setSpeechRate(0.5);
     await _tts.setVolume(1.0);
     await _tts.setPitch(1.0);
 
@@ -57,9 +57,9 @@ class TtsService {
     await _tts.stop();
   }
 
-  /// Set speech rate (0.5 - 2.0)
+  /// Set speech rate (0.0 - 1.0, where 0.5 is normal speed)
   Future<void> setSpeechRate(double rate) async {
-    final clampedRate = rate.clamp(0.5, 2.0);
+    final clampedRate = rate.clamp(0.0, 1.0);
     await _tts.setSpeechRate(clampedRate);
   }
 

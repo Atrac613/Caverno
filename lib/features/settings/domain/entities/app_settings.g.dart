@@ -16,7 +16,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   mcpEnabled: json['mcpEnabled'] as bool? ?? false,
   ttsEnabled: json['ttsEnabled'] as bool? ?? true,
   autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
-  speechRate: (json['speechRate'] as num?)?.toDouble() ?? 1.0,
+  speechRate: (json['speechRate'] as num?)?.toDouble() ?? 0.5,
   voiceModeAutoStop: json['voiceModeAutoStop'] as bool? ?? true,
   whisperUrl: json['whisperUrl'] as String? ?? 'http://localhost:8080',
   voicevoxUrl: json['voicevoxUrl'] as String? ?? 'http://localhost:50021',

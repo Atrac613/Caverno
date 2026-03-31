@@ -193,10 +193,10 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
               Expanded(
                 child: Slider(
                   value: _speechRate,
-                  min: 0.5,
-                  max: 2.0,
-                  divisions: 15,
-                  label: '${_speechRate.toStringAsFixed(1)}x',
+                  min: 0.0,
+                  max: 1.0,
+                  divisions: 20,
+                  label: '${(_speechRate * 2).toStringAsFixed(1)}x',
                   onChanged: _ttsEnabled
                       ? (value) {
                           setState(() {
@@ -208,7 +208,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
               ),
               SizedBox(
                 width: 50,
-                child: Text('${_speechRate.toStringAsFixed(1)}x'),
+                child: Text('${(_speechRate * 2).toStringAsFixed(1)}x'),
               ),
             ],
           ),

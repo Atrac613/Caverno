@@ -21,7 +21,7 @@ abstract class AppSettings with _$AppSettings {
     // Voice settings
     @Default(true) bool ttsEnabled,
     @Default(false) bool autoReadEnabled,
-    @Default(1.0) double speechRate,
+    @Default(0.5) double speechRate,
     // Voice mode (Whisper + VOICEVOX)
     @Default(true) bool voiceModeAutoStop,
     @Default('http://localhost:8080') String whisperUrl,

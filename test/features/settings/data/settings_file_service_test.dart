@@ -161,8 +161,8 @@ void main() {
       );
     });
 
-    test('rejects speechRate below 0.1', () {
-      final settings = validSettings.copyWith(speechRate: 0.05);
+    test('rejects speechRate below 0.0', () {
+      final settings = validSettings.copyWith(speechRate: -0.1);
       expect(
         () => SettingsFileService.validateSettings(settings),
         throwsA(
@@ -175,8 +175,8 @@ void main() {
       );
     });
 
-    test('rejects speechRate above 3.0', () {
-      final settings = validSettings.copyWith(speechRate: 3.1);
+    test('rejects speechRate above 1.0', () {
+      final settings = validSettings.copyWith(speechRate: 1.1);
       expect(
         () => SettingsFileService.validateSettings(settings),
         throwsA(isA<FormatException>()),
@@ -264,7 +264,7 @@ void main() {
         mcpEnabled: true,
         ttsEnabled: false,
         autoReadEnabled: true,
-        speechRate: 1.5,
+        speechRate: 0.75,
         voiceModeAutoStop: false,
         whisperUrl: 'http://whisper.local:8080',
         voicevoxUrl: 'http://voicevox.local:50021',
