@@ -123,11 +123,11 @@ class MessageBubble extends ConsumerWidget {
             // Render text when available.
             if (message.content.isNotEmpty || message.isStreaming)
               isUser
-                  ? SelectableText(
-                      message.content.isEmpty && message.isStreaming
+                  ? _UserMessageContent(
+                      content: message.content.isEmpty && message.isStreaming
                           ? '...'
                           : message.content,
-                      style: TextStyle(color: theme.colorScheme.onPrimary),
+                      textColor: theme.colorScheme.onPrimary,
                     )
                   : ParsedContentView(
                       content: message.content.isEmpty && message.isStreaming
@@ -204,6 +204,121 @@ class MessageBubble extends ConsumerWidget {
           ],
         ),
       ),
+    );
+  }
+}
+
+/// Regex that matches a `[File: name]` header followed by its content block.
+final _fileBlockPattern = RegExp(
+  r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)',
+);
+
+/// Renders user message content, collapsing embedded file blocks.
+class _UserMessageContent extends StatefulWidget {
+  const _UserMessageContent({
+    required this.content,
+    required this.textColor,
+  });
+
+  final String content;
+  final Color textColor;
+
+  @override
+  State<_UserMessageContent> createState() => _UserMessageContentState();
+}
+
+class _UserMessageContentState extends State<_UserMessageContent> {
+  bool _expanded = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final match = _fileBlockPattern.firstMatch(widget.content);
+    if (match == null) {
+      return SelectableText(
+        widget.content,
+        style: TextStyle(color: widget.textColor),
+      );
+    }
+
+    final fileName = match.group(1)!;
+    final fileContent = match.group(2)!;
+    final userText = widget.content.substring(match.end).trim();
+    final lineCount = '\n'.allMatches(fileContent).length + 1;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Collapsible file block
+        GestureDetector(
+          onTap: () => setState(() => _expanded = !_expanded),
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+            decoration: BoxDecoration(
+              color: Colors.black12,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.description,
+                  size: 16,
+                  color: widget.textColor.withValues(alpha: 0.8),
+                ),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    '$fileName ($lineCount lines)',
+                    style: TextStyle(
+                      color: widget.textColor,
+                      fontSize: 13,
+                      fontWeight: FontWeight.w500,
+                    ),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const SizedBox(width: 4),
+                Icon(
+                  _expanded ? Icons.expand_less : Icons.expand_more,
+                  size: 18,
+                  color: widget.textColor.withValues(alpha: 0.7),
+                ),
+              ],
+            ),
+          ),
+        ),
+        if (_expanded)
+          Padding(
+            padding: const EdgeInsets.only(top: 6),
+            child: Container(
+              constraints: const BoxConstraints(maxHeight: 200),
+              decoration: BoxDecoration(
+                color: Colors.black12,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(8),
+                child: SelectableText(
+                  fileContent,
+                  style: TextStyle(
+                    color: widget.textColor.withValues(alpha: 0.9),
+                    fontSize: 12,
+                    fontFamily: 'monospace',
+                  ),
+                ),
+              ),
+            ),
+          ),
+        // User's own message text
+        if (userText.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(top: 8),
+            child: SelectableText(
+              userText,
+              style: TextStyle(color: widget.textColor),
+            ),
+          ),
+      ],
     );
   }
 }

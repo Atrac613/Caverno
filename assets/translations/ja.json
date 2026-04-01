@@ -52,7 +52,10 @@
     "voice_mode_start": "ボイスモード開始",
     "send": "送信",
     "cancel": "キャンセル",
-    "stt_unavailable": "音声入力を開始できませんでした（実行環境または権限を確認してください）。"
+    "stt_unavailable": "音声入力を開始できませんでした（実行環境または権限を確認してください）。",
+    "attach_file": "ファイルを添付",
+    "file_too_large": "ファイルが大きすぎます（最大100 KB）",
+    "file_read_error": "ファイルの読み取りに失敗しました"
   },
   "content": {
     "thinking": "思考",

@@ -5,6 +5,7 @@ import 'dart:ui' as ui;
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 
 import '../../../../core/services/voice_providers.dart';
@@ -38,6 +39,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
   Uint8List? _selectedImageBytes;
   String? _selectedImageMimeType;
+  String? _selectedFileName;
+  String? _selectedFileContent;
+  int? _selectedFileSize;
   bool _isRecording = false;
 
   @override
@@ -118,18 +122,87 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     });
   }
 
+  Future<void> _pickFile() async {
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv', 'txt', 'json', 'md'],
+        withData: true,
+      );
+
+      if (result == null || result.files.isEmpty) return;
+
+      final file = result.files.first;
+      final bytes = file.bytes;
+      if (bytes == null) return;
+
+      if (bytes.length > 102400) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('message.file_too_large'.tr())),
+        );
+        return;
+      }
+
+      final content = utf8.decode(bytes, allowMalformed: false);
+
+      setState(() {
+        _selectedFileName = file.name;
+        _selectedFileContent = content;
+        _selectedFileSize = bytes.length;
+      });
+    } on FormatException {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('message.file_read_error'.tr())),
+      );
+    } catch (e) {
+      debugPrint('Failed to pick file: $e');
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('message.file_read_error'.tr())),
+      );
+    }
+  }
+
+  void _clearFile() {
+    setState(() {
+      _selectedFileName = null;
+      _selectedFileContent = null;
+      _selectedFileSize = null;
+    });
+  }
+
+  String _formattedFileSize(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
+    return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
   void _handleSend() {
     final text = _controller.text.trim();
-    if (text.isEmpty && _selectedImageBytes == null) return;
+    if (text.isEmpty &&
+        _selectedImageBytes == null &&
+        _selectedFileContent == null) {
+      return;
+    }
 
     String? imageBase64;
     if (_selectedImageBytes != null) {
       imageBase64 = base64Encode(_selectedImageBytes!);
     }
 
-    widget.onSend(text, imageBase64, _selectedImageMimeType);
+    // Embed file content into the message text
+    String finalText = text;
+    if (_selectedFileContent != null) {
+      final fileBlock = '[File: $_selectedFileName]\n$_selectedFileContent';
+      finalText = text.isEmpty ? fileBlock : '$fileBlock\n\n$text';
+    }
+
+    widget.onSend(finalText, imageBase64, _selectedImageMimeType);
     _controller.clear();
     _clearImage();
+    _clearFile();
     _focusNode.requestFocus();
   }
 
@@ -231,6 +304,20 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ],
                 ),
               ),
+            // File preview
+            if (_selectedFileName != null)
+              Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Chip(
+                  avatar: const Icon(Icons.description, size: 18),
+                  label: Text(
+                    '$_selectedFileName (${_formattedFileSize(_selectedFileSize!)})',
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  deleteIcon: const Icon(Icons.close, size: 18),
+                  onDeleted: _clearFile,
+                ),
+              ),
             // Input row
             Row(
               children: [
@@ -239,6 +326,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   onPressed: widget.isLoading ? null : _pickImage,
                   icon: const Icon(Icons.image),
                   tooltip: 'message.attach_image'.tr(),
+                  style: IconButton.styleFrom(
+                    foregroundColor: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+                // File picker button
+                IconButton(
+                  onPressed: widget.isLoading ? null : _pickFile,
+                  icon: const Icon(Icons.attach_file),
+                  tooltip: 'message.attach_file'.tr(),
                   style: IconButton.styleFrom(
                     foregroundColor: theme.colorScheme.onSurfaceVariant,
                   ),
