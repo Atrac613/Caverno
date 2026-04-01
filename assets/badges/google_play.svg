@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="155" height="40" role="img" aria-label="Get it on Google Play">
+  <title>Get it on Google Play</title>
+  <defs>
+    <linearGradient id="a" x1="50%" y1="0%" x2="50%" y2="100%">
+      <stop offset="0%" stop-color="#1a1a2e"/>
+      <stop offset="100%" stop-color="#000"/>
+    </linearGradient>
+  </defs>
+  <rect width="155" height="40" rx="6" fill="url(#a)" stroke="#a0a0a0" stroke-width=".5"/>
+  <!-- Play triangle -->
+  <g transform="translate(9, 6)">
+    <defs>
+      <linearGradient id="b" x1="0%" y1="0%" x2="100%" y2="100%">
+        <stop offset="0%" stop-color="#00c4ff"/>
+        <stop offset="30%" stop-color="#00e88f"/>
+        <stop offset="60%" stop-color="#ffc800"/>
+        <stop offset="100%" stop-color="#ff3a44"/>
+      </linearGradient>
+    </defs>
+    <path d="M1 2.5C1 1.5 1.8 1.1 2.5 1.5l19 11c.7.4.7 1.1 0 1.5l-19 11c-.7.4-1.5 0-1.5-1V2.5z" fill="url(#b)"/>
+    <!-- Dividing lines for the play store icon -->
+    <path d="M1.5 1.5L14 14 1.5 26.5" fill="none" stroke="rgba(0,0,0,.15)" stroke-width=".5"/>
+    <path d="M1.5 14h19" fill="none" stroke="rgba(0,0,0,.1)" stroke-width=".5"/>
+  </g>
+  <text x="37" y="14" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="8" fill="#fff" letter-spacing=".3">GET IT ON</text>
+  <text x="37" y="29" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="15" font-weight="600" fill="#fff">Google Play</text>
+</svg>

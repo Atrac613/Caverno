@@ -6,6 +6,16 @@
   A Flutter chat client for OpenAI-compatible LLM APIs with tool calling, session memory, and voice I/O.
 </p>
 
+<p align="center">
+  <a href="https://apps.apple.com/us/app/caverno/id6760192392">
+    <img src="assets/badges/app_store.svg" height="50" alt="Download on the App Store">
+  </a>
+  &nbsp;
+  <a href="https://play.google.com/store/apps/details?id=com.noguwo.apps.caverno">
+    <img src="assets/badges/google_play.svg" height="50" alt="Get it on Google Play">
+  </a>
+</p>
+
 ## Features
 
 - **OpenAI-compatible API** — Works with any OpenAI-compatible endpoint (local or remote)
