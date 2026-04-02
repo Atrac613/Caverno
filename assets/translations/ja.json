@@ -66,7 +66,9 @@
     "tool_datetime": "現在日時取得",
     "tool_memory_update": "会話メモリ更新",
     "tool_calculator": "計算",
-    "tool_code": "コード実行"
+    "tool_code": "コード実行",
+    "code_copy": "コピー",
+    "code_copied": "コピー済み"
   },
   "settings": {
     "title": "接続設定",

@@ -6,6 +6,7 @@ import 'package:flutter_markdown/flutter_markdown.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/content_parser.dart';
+import 'code_block_builder.dart';
 
 /// Renders parsed content segments.
 /// `<think>` tags are shown in muted gray and `<tool_call>` tags as tool calls.
@@ -97,6 +98,9 @@ class _ParsedContentViewState extends State<ParsedContentView> {
           data: segment.content,
           // Keep the entire bubble as a single SelectionArea.
           selectable: false,
+          builders: {
+            'pre': CodeBlockBuilder(theme: theme),
+          },
           styleSheet: MarkdownStyleSheet(
             p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
             h1: TextStyle(

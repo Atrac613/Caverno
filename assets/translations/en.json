@@ -66,7 +66,9 @@
     "tool_datetime": "Get Current Time",
     "tool_memory_update": "Memory Update",
     "tool_calculator": "Calculator",
-    "tool_code": "Code Execution"
+    "tool_code": "Code Execution",
+    "code_copy": "Copy",
+    "code_copied": "Copied!"
   },
   "settings": {
     "title": "Settings",
