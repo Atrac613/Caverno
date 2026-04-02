@@ -10,6 +10,9 @@ abstract class ChatState with _$ChatState {
     required List<Message> messages,
     required bool isLoading,
     String? error,
+    @Default(0) int promptTokens,
+    @Default(0) int completionTokens,
+    @Default(0) int totalTokens,
   }) = _ChatState;
 
   factory ChatState.initial() =>

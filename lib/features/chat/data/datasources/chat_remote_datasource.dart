@@ -7,17 +7,34 @@ import '../../../../core/constants/api_constants.dart';
 import '../../domain/entities/message.dart';
 import 'chat_datasource.dart';
 
+/// Token usage statistics from a completion response.
+class TokenUsage {
+  const TokenUsage({
+    this.promptTokens = 0,
+    this.completionTokens = 0,
+    this.totalTokens = 0,
+  });
+
+  final int promptTokens;
+  final int completionTokens;
+  final int totalTokens;
+
+  static const zero = TokenUsage();
+}
+
 /// Chat completion response
 class ChatCompletionResult {
   ChatCompletionResult({
     required this.content,
     this.toolCalls,
     required this.finishReason,
+    this.usage = TokenUsage.zero,
   });
 
   final String content;
   final List<ToolCallInfo>? toolCalls;
   final String finishReason;
+  final TokenUsage usage;
 
   bool get hasToolCalls =>
       toolCalls != null &&
@@ -42,6 +59,9 @@ class ChatRemoteDataSource implements ChatDataSource {
       );
 
   final OpenAIClient _client;
+
+  /// Last token usage captured from a streaming or non-streaming response.
+  TokenUsage lastUsage = TokenUsage.zero;
 
   /// Log message list
   void _logMessages(List<Message> messages) {
@@ -109,12 +129,18 @@ class ChatRemoteDataSource implements ChatDataSource {
           messages: formattedMessages,
           temperature: temperature ?? ApiConstants.defaultTemperature,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+          streamOptions: ChatCompletionStreamOptions(includeUsage: true),
         ),
       );
 
       final responseBuffer = StringBuffer();
       var isInReasoning = false;
       await for (final response in stream) {
+        // Capture usage from the final chunk (when stream_options is set)
+        if (response.usage != null) {
+          lastUsage = _extractUsage(response.usage);
+        }
+
         final delta = response.choices?.firstOrNull?.delta;
         if (delta == null) continue;
 
@@ -261,6 +287,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         content: responseContent,
         toolCalls: toolCalls,
         finishReason: choice.finishReason?.name ?? 'stop',
+        usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
       appLog('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
@@ -327,12 +354,18 @@ class ChatRemoteDataSource implements ChatDataSource {
         messages: formattedMessages,
         temperature: temperature ?? ApiConstants.defaultTemperature,
         maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+        streamOptions: ChatCompletionStreamOptions(includeUsage: true),
       ),
     );
 
     final responseBuffer = StringBuffer();
     var isInReasoning = false;
     await for (final response in stream) {
+      // Capture usage from the final chunk
+      if (response.usage != null) {
+        lastUsage = _extractUsage(response.usage);
+      }
+
       final delta = response.choices?.firstOrNull?.delta;
       if (delta == null) continue;
 
@@ -497,6 +530,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         content: responseContent,
         toolCalls: toolCallsResult,
         finishReason: choice.finishReason?.name ?? 'stop',
+        usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
       appLog(
@@ -505,6 +539,16 @@ class ChatRemoteDataSource implements ChatDataSource {
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// Extract token usage from a completion response.
+  TokenUsage _extractUsage(CompletionUsage? usage) {
+    if (usage == null) return TokenUsage.zero;
+    return TokenUsage(
+      promptTokens: usage.promptTokens ?? 0,
+      completionTokens: usage.completionTokens ?? 0,
+      totalTokens: usage.totalTokens ?? 0,
+    );
   }
 
   List<ChatCompletionMessage> _formatMessages(

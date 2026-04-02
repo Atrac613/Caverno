@@ -177,6 +177,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   String? _temporalReferenceContext;
   Message? _hiddenPrompt;
   bool _isVoiceMode = false;
+  TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
@@ -213,6 +214,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _temporalReferenceContext = null;
     this.conversationId = conversationId;
     state = ChatState(messages: messages, isLoading: false, error: null);
+    _accumulatedTokenUsage = TokenUsage.zero;
   }
 
   /// Builds the system message, including the current date and time.
@@ -810,6 +812,23 @@ class ChatNotifier extends StateNotifier<ChatState> {
     }
   }
 
+  /// Read and accumulate the latest token usage from the data source.
+  void _updateTokenUsage() {
+    final ds = _dataSource;
+    if (ds is! ChatRemoteDataSource) return;
+
+    final usage = ds.lastUsage;
+    if (usage.totalTokens <= 0) return;
+
+    // Use the latest usage directly (represents the full conversation context)
+    _accumulatedTokenUsage = usage;
+    state = state.copyWith(
+      promptTokens: _accumulatedTokenUsage.promptTokens,
+      completionTokens: _accumulatedTokenUsage.completionTokens,
+      totalTokens: _accumulatedTokenUsage.totalTokens,
+    );
+  }
+
   Future<void> _finishStreaming() async {
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
@@ -826,6 +845,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
     final lastMessage = updatedMessages[lastIndex];
 
     updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+
+    // Capture token usage from the data source
+    _updateTokenUsage();
 
     state = state.copyWith(messages: updatedMessages, isLoading: false);
 

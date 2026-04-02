@@ -23,7 +23,8 @@
     "setup_message": "To get started, configure your LLM server endpoint in Settings. Caverno works with any OpenAI-compatible API (LM Studio, Ollama, vLLM, etc.).",
     "setup_button": "Open Settings",
     "try_demo": "Try Demo Mode",
-    "demo_banner": "Demo"
+    "demo_banner": "Demo",
+    "token_usage": "↑{prompt} ↓{completion} Σ{total} tokens"
   },
   "drawer": {
     "title": "Conversation History",

@@ -6,6 +6,7 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../providers/chat_notifier.dart';
+import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
@@ -187,6 +188,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     },
                   ),
           ),
+          // Token usage indicator
+          if (chatState.totalTokens > 0)
+            _buildTokenUsageBar(context, chatState),
           // Input area
           MessageInput(
             onSend: (message, imageBase64, imageMimeType) =>
@@ -202,6 +206,48 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         ],
       ),
     );
+  }
+
+  Widget _buildTokenUsageBar(BuildContext context, ChatState chatState) {
+    final theme = Theme.of(context);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.end,
+        children: [
+          Icon(
+            Icons.token_outlined,
+            size: 14,
+            color: theme.colorScheme.outline,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'chat.token_usage'.tr(
+              namedArgs: {
+                'prompt': _formatTokenCount(chatState.promptTokens),
+                'completion': _formatTokenCount(chatState.completionTokens),
+                'total': _formatTokenCount(chatState.totalTokens),
+              },
+            ),
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.outline,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _formatTokenCount(int count) {
+    if (count >= 1000) {
+      return '${(count / 1000).toStringAsFixed(1)}k';
+    }
+    return count.toString();
   }
 
   Widget _buildEmptyState(BuildContext context) {

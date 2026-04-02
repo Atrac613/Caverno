@@ -23,7 +23,8 @@
     "setup_message": "設定からLLMサーバーのエンドポイントを設定してください。OpenAI互換API（LM Studio, Ollama, vLLMなど）に対応しています。",
     "setup_button": "設定を開く",
     "try_demo": "デモモードで試す",
-    "demo_banner": "デモ"
+    "demo_banner": "デモ",
+    "token_usage": "↑{prompt} ↓{completion} Σ{total} tokens"
   },
   "drawer": {
     "title": "会話履歴",

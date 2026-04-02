@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$ChatState {
 
- List<Message> get messages; bool get isLoading; String? get error;
+ List<Message> get messages; bool get isLoading; String? get error; int get promptTokens; int get completionTokens; int get totalTokens;
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $ChatStateCopyWith<ChatState> get copyWith => _$ChatStateCopyWithImpl<ChatState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(messages),isLoading,error);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(messages),isLoading,error,promptTokens,completionTokens,totalTokens);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error)';
+  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $ChatStateCopyWith<$Res>  {
   factory $ChatStateCopyWith(ChatState value, $Res Function(ChatState) _then) = _$ChatStateCopyWithImpl;
 @useResult
 $Res call({
- List<Message> messages, bool isLoading, String? error
+ List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens
 });
 
 
@@ -62,12 +62,15 @@ class _$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,}) {
   return _then(_self.copyWith(
 messages: null == messages ? _self.messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,promptTokens: null == promptTokens ? _self.promptTokens : promptTokens // ignore: cast_nullable_to_non_nullable
+as int,completionTokens: null == completionTokens ? _self.completionTokens : completionTokens // ignore: cast_nullable_to_non_nullable
+as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
@@ -152,10 +155,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.isLoading,_that.error);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens);case _:
   return orElse();
 
 }
@@ -173,10 +176,10 @@ return $default(_that.messages,_that.isLoading,_that.error);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens)  $default,) {final _that = this;
 switch (_that) {
 case _ChatState():
-return $default(_that.messages,_that.isLoading,_that.error);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -193,10 +196,10 @@ return $default(_that.messages,_that.isLoading,_that.error);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  bool isLoading,  String? error)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.isLoading,_that.error);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens);case _:
   return null;
 
 }
@@ -208,7 +211,7 @@ return $default(_that.messages,_that.isLoading,_that.error);case _:
 
 
 class _ChatState implements ChatState {
-  const _ChatState({required final  List<Message> messages, required this.isLoading, this.error}): _messages = messages;
+  const _ChatState({required final  List<Message> messages, required this.isLoading, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0}): _messages = messages;
   
 
  final  List<Message> _messages;
@@ -220,6 +223,9 @@ class _ChatState implements ChatState {
 
 @override final  bool isLoading;
 @override final  String? error;
+@override@JsonKey() final  int promptTokens;
+@override@JsonKey() final  int completionTokens;
+@override@JsonKey() final  int totalTokens;
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
@@ -231,16 +237,16 @@ _$ChatStateCopyWith<_ChatState> get copyWith => __$ChatStateCopyWithImpl<_ChatSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages),isLoading,error);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages),isLoading,error,promptTokens,completionTokens,totalTokens);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error)';
+  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens)';
 }
 
 
@@ -251,7 +257,7 @@ abstract mixin class _$ChatStateCopyWith<$Res> implements $ChatStateCopyWith<$Re
   factory _$ChatStateCopyWith(_ChatState value, $Res Function(_ChatState) _then) = __$ChatStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<Message> messages, bool isLoading, String? error
+ List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens
 });
 
 
@@ -268,12 +274,15 @@ class __$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,}) {
   return _then(_ChatState(
 messages: null == messages ? _self._messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
 as bool,error: freezed == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
-as String?,
+as String?,promptTokens: null == promptTokens ? _self.promptTokens : promptTokens // ignore: cast_nullable_to_non_nullable
+as int,completionTokens: null == completionTokens ? _self.completionTokens : completionTokens // ignore: cast_nullable_to_non_nullable
+as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ignore: cast_nullable_to_non_nullable
+as int,
   ));
 }
 
