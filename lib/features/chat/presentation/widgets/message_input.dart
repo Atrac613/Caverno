@@ -1,12 +1,14 @@
+import 'dart:async';
 import 'dart:convert';
-import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../../core/services/voice_providers.dart';
 import 'voice_mode_overlay.dart';
@@ -87,8 +89,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final lowerMime = mimeType.toLowerCase();
     final lowerPath = filePath.toLowerCase();
     final isWebp = lowerMime == 'image/webp' || lowerPath.endsWith('.webp');
+    final isTiff = lowerMime == 'image/tiff' ||
+        lowerPath.endsWith('.tiff') ||
+        lowerPath.endsWith('.tif');
 
-    if (!isWebp) {
+    if (!isWebp && !isTiff) {
       return (bytes: bytes, mimeType: mimeType);
     }
 
@@ -171,6 +176,116 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       _selectedFileContent = null;
       _selectedFileSize = null;
     });
+  }
+
+  Future<void> _handlePaste() async {
+    final consumed = await _handleClipboardPaste();
+    if (!consumed) {
+      // Fall back to standard text paste
+      final clipData = await Clipboard.getData(Clipboard.kTextPlain);
+      if (clipData?.text != null && clipData!.text!.isNotEmpty) {
+        final sel = _controller.selection;
+        final text = _controller.text;
+        final start = sel.isValid ? sel.start : text.length;
+        final end = sel.isValid ? sel.end : text.length;
+        final before = text.substring(0, start);
+        final after = text.substring(end);
+        _controller.value = TextEditingValue(
+          text: before + clipData.text! + after,
+          selection: TextSelection.collapsed(
+            offset: start + clipData.text!.length,
+          ),
+        );
+      }
+    }
+  }
+
+  Future<bool> _handleClipboardPaste() async {
+    final clipboard = SystemClipboard.instance;
+    if (clipboard == null) return false;
+
+    final reader = await clipboard.read();
+
+    // Check image formats in priority order
+    for (final format in [Formats.png, Formats.jpeg, Formats.tiff]) {
+      if (reader.canProvide(format)) {
+        final completer = Completer<bool>();
+        reader.getFile(format, (file) async {
+          try {
+            final data = await file.readAll();
+            final bytes = Uint8List.fromList(data);
+            final resized = await _resizeImageIfNeeded(bytes);
+            final mimeType = format == Formats.jpeg
+                ? 'image/jpeg'
+                : format == Formats.tiff
+                    ? 'image/tiff'
+                    : 'image/png';
+            final normalized = await _normalizeImageForUpload(
+              bytes: resized,
+              mimeType: mimeType,
+              filePath: 'clipboard.${format == Formats.jpeg ? 'jpg' : format == Formats.tiff ? 'tiff' : 'png'}',
+            );
+            if (mounted) {
+              setState(() {
+                _selectedImageBytes = normalized.bytes;
+                _selectedImageMimeType = normalized.mimeType;
+              });
+            }
+            completer.complete(true);
+          } catch (e) {
+            debugPrint('Failed to read clipboard image: $e');
+            completer.complete(false);
+          }
+        });
+        return completer.future;
+      }
+    }
+
+    return false;
+  }
+
+  Future<Uint8List> _resizeImageIfNeeded(
+    Uint8List bytes, {
+    int maxDimension = 1024,
+  }) async {
+    ui.Codec? codec;
+    ui.Image? image;
+    try {
+      codec = await ui.instantiateImageCodec(bytes);
+      final frame = await codec.getNextFrame();
+      image = frame.image;
+
+      if (image.width <= maxDimension && image.height <= maxDimension) {
+        return bytes;
+      }
+
+      // Re-decode with target size to resize
+      image.dispose();
+      codec.dispose();
+
+      final targetWidth =
+          image.width >= image.height ? maxDimension : null;
+      final targetHeight =
+          image.height > image.width ? maxDimension : null;
+
+      codec = await ui.instantiateImageCodec(
+        bytes,
+        targetWidth: targetWidth,
+        targetHeight: targetHeight,
+      );
+      final resizedFrame = await codec.getNextFrame();
+      image = resizedFrame.image;
+      final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+
+      if (byteData == null) return bytes;
+      return byteData.buffer.asUint8List();
+    } catch (e) {
+      debugPrint('Failed to resize image: $e');
+      return bytes;
+    } finally {
+      image?.dispose();
+      codec?.dispose();
+    }
   }
 
   String _formattedFileSize(int bytes) {
@@ -356,33 +471,43 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   ),
                 ),
                 Expanded(
-                  child: TextField(
-                    controller: _controller,
-                    focusNode: _focusNode,
-                    enabled: !widget.isLoading,
-                    decoration: InputDecoration(
-                      hintText: _isRecording
-                          ? 'message.listening'.tr()
-                          : 'message.input_hint'.tr(),
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(24),
-                        borderSide: BorderSide.none,
+                  child: Actions(
+                    actions: <Type, Action<Intent>>{
+                      PasteTextIntent: CallbackAction<PasteTextIntent>(
+                        onInvoke: (_) {
+                          _handlePaste();
+                          return null;
+                        },
                       ),
-                      filled: true,
-                      fillColor: _isRecording
-                          ? theme.colorScheme.errorContainer.withValues(
-                              alpha: 0.3,
-                            )
-                          : theme.colorScheme.surfaceContainerHighest,
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 10,
+                    },
+                    child: TextField(
+                      controller: _controller,
+                      focusNode: _focusNode,
+                      enabled: !widget.isLoading,
+                      decoration: InputDecoration(
+                        hintText: _isRecording
+                            ? 'message.listening'.tr()
+                            : 'message.input_hint'.tr(),
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(24),
+                          borderSide: BorderSide.none,
+                        ),
+                        filled: true,
+                        fillColor: _isRecording
+                            ? theme.colorScheme.errorContainer.withValues(
+                                alpha: 0.3,
+                              )
+                            : theme.colorScheme.surfaceContainerHighest,
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 10,
+                        ),
                       ),
+                      maxLines: 4,
+                      minLines: 1,
+                      textInputAction: TextInputAction.send,
+                      onSubmitted: (_) => _handleSend(),
                     ),
-                    maxLines: 4,
-                    minLines: 1,
-                    textInputAction: TextInputAction.send,
-                    onSubmitted: (_) => _handleSend(),
                   ),
                 ),
                 const SizedBox(width: 8),
