@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io' show Platform;
 import 'dart:ui' as ui;
 
 import 'package:easy_localization/easy_localization.dart';
@@ -255,6 +256,31 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     return false;
   }
 
+  Future<void> _handleContentInserted(KeyboardInsertedContent content) async {
+    if (!content.hasData) return;
+    final mimeType = content.mimeType;
+    if (!mimeType.startsWith('image/')) return;
+
+    try {
+      final bytes = content.data!;
+      final resized = await _resizeImageIfNeeded(bytes);
+      final ext = mimeType.split('/').last;
+      final normalized = await _normalizeImageForUpload(
+        bytes: resized,
+        mimeType: mimeType,
+        filePath: 'inserted.$ext',
+      );
+      if (mounted) {
+        setState(() {
+          _selectedImageBytes = normalized.bytes;
+          _selectedImageMimeType = normalized.mimeType;
+        });
+      }
+    } catch (e) {
+      debugPrint('Failed to handle inserted content: $e');
+    }
+  }
+
   Future<Uint8List> _resizeImageIfNeeded(
     Uint8List bytes, {
     int maxDimension = 1024,
@@ -487,22 +513,44 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 Expanded(
                   child: Actions(
                     actions: <Type, Action<Intent>>{
-                      PasteTextIntent: CallbackAction<PasteTextIntent>(
-                        onInvoke: (_) {
-                          _handlePaste();
-                          return null;
-                        },
-                      ),
+                      // On desktop, intercept Cmd/Ctrl+V to handle
+                      // image paste via super_clipboard. On mobile,
+                      // let the system paste handle it so iOS 16+
+                      // authorization works.
+                      if (!Platform.isIOS && !Platform.isAndroid)
+                        PasteTextIntent: CallbackAction<PasteTextIntent>(
+                          onInvoke: (_) {
+                            _handlePaste();
+                            return null;
+                          },
+                        ),
                     },
                     child: TextField(
                       controller: _controller,
                       focusNode: _focusNode,
                       enabled: !widget.isLoading,
+                      contentInsertionConfiguration:
+                          ContentInsertionConfiguration(
+                        onContentInserted: _handleContentInserted,
+                        allowedMimeTypes: const [
+                          'image/png',
+                          'image/jpeg',
+                          'image/gif',
+                          'image/heic',
+                          'image/heif',
+                          'image/tiff',
+                        ],
+                      ),
                       contextMenuBuilder: (context, editableTextState) {
+                        final isMobile =
+                            Platform.isIOS || Platform.isAndroid;
                         final buttonItems = editableTextState
                             .contextMenuButtonItems
                             .map((item) {
-                          if (item.type == ContextMenuButtonType.paste) {
+                          // On desktop, override paste to use
+                          // super_clipboard for image support.
+                          if (!isMobile &&
+                              item.type == ContextMenuButtonType.paste) {
                             return ContextMenuButtonItem(
                               onPressed: () {
                                 editableTextState.hideToolbar();
@@ -515,10 +563,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           return item;
                         }).toList();
 
-                        // If no paste button exists (e.g. clipboard has only
-                        // an image), inject one so the user can still paste.
+                        // If no paste button exists (e.g. clipboard has
+                        // only an image), inject one so the user can
+                        // still paste.
                         final hasPaste = buttonItems.any(
-                          (item) => item.type == ContextMenuButtonType.paste,
+                          (item) =>
+                              item.type == ContextMenuButtonType.paste,
                         );
                         if (!hasPaste) {
                           buttonItems.add(
