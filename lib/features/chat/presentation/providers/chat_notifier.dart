@@ -465,11 +465,16 @@ class ChatNotifier extends StateNotifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return name == 'search_past_conversations' || name == 'recall_memory';
       }).toList();
+      final networkTools = allTools.where((t) {
+        final name = (t['function'] as Map?)?['name'] as String?;
+        return name == 'ping' || name == 'whois_lookup';
+      }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
           ? _dedupeToolsByName([
               ...searchOnlyTools,
               ...datetimeTools,
               ...memoryTools,
+              ...networkTools,
             ])
           : allTools;
 
