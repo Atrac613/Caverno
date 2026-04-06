@@ -7,6 +7,7 @@ import '../../domain/entities/session_memory.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
 import 'mcp_client.dart';
+import 'network_tools.dart';
 import 'searxng_client.dart';
 
 /// MCP tool management service.
@@ -102,6 +103,10 @@ class McpToolService {
       toolDefinitions.add(_recallMemoryTool);
     }
 
+    // Built-in network tools (always available).
+    toolDefinitions.add(_pingTool);
+    toolDefinitions.add(_whoisLookupTool);
+
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
@@ -142,6 +147,54 @@ class McpToolService {
       final result = _recallMemory(arguments);
       appLog('[McpToolService] Memory recall executed: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    // Built-in network tools.
+    if (name == 'ping') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final count = ((arguments['count'] as num?)?.toInt() ?? 4).clamp(1, 10);
+        final timeout =
+            ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(1, 30);
+        final result = await NetworkTools.ping(
+          host: host, count: count, timeoutSeconds: timeout,
+        );
+        appLog('[McpToolService] Ping tool executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Ping tool error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'whois_lookup') {
+      try {
+        final domain = (arguments['domain'] as String?)?.trim() ?? '';
+        if (domain.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Domain is required',
+          );
+        }
+        final result = await NetworkTools.whoisLookup(domain: domain);
+        appLog('[McpToolService] Whois tool executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Whois tool error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
     }
 
     // 1. Execute through MCP when connected.
@@ -401,6 +454,64 @@ class McpToolService {
           },
         },
         'required': ['query'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: ping
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _pingTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ping',
+      'description':
+          'Ping a network host to check reachability and measure latency. '
+          'Returns round-trip times, packet loss, and statistics.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description':
+                'Hostname or IP address to ping (e.g., google.com, 8.8.8.8)',
+          },
+          'count': {
+            'type': 'integer',
+            'description':
+                'Number of ping packets to send (default: 4, max: 10)',
+          },
+          'timeout': {
+            'type': 'integer',
+            'description': 'Timeout per ping in seconds (default: 5)',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: whois_lookup
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _whoisLookupTool => {
+    'type': 'function',
+    'function': {
+      'name': 'whois_lookup',
+      'description':
+          'Look up domain registration information (WHOIS). Returns registrar, '
+          'creation/expiry dates, name servers, and registrant details.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'domain': {
+            'type': 'string',
+            'description': 'Domain name to look up (e.g., example.com)',
+          },
+        },
+        'required': ['domain'],
       },
     },
   };
