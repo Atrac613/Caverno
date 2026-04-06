@@ -33,7 +33,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
 
-  cupertino_icons: ^1.0.8
+  cupertino_icons: ^1.0.9
 
   # Internationalization
   easy_localization: ^3.0.7
@@ -69,7 +69,7 @@ dependencies:
   speech_to_text: ^7.0.0
   flutter_tts: ^4.2.0
   flutter_markdown: ^0.7.7+1
-  markdown: ^7.3.0
+  markdown: ^7.3.1
   url_launcher: ^6.3.2
 
   # Voice mode (Whisper STT + VOICEVOX TTS)
