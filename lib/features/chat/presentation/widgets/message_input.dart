@@ -255,7 +255,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       final frame = await codec.getNextFrame();
       image = frame.image;
 
-      if (image.width <= maxDimension && image.height <= maxDimension) {
+      final imageWidth = image.width;
+      final imageHeight = image.height;
+
+      if (imageWidth <= maxDimension && imageHeight <= maxDimension) {
         return bytes;
       }
 
@@ -264,9 +267,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       codec.dispose();
 
       final targetWidth =
-          image.width >= image.height ? maxDimension : null;
+          imageWidth >= imageHeight ? maxDimension : null;
       final targetHeight =
-          image.height > image.width ? maxDimension : null;
+          imageHeight > imageWidth ? maxDimension : null;
 
       codec = await ui.instantiateImageCodec(
         bytes,
@@ -484,6 +487,27 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       controller: _controller,
                       focusNode: _focusNode,
                       enabled: !widget.isLoading,
+                      contextMenuBuilder: (context, editableTextState) {
+                        final buttonItems = editableTextState
+                            .contextMenuButtonItems
+                            .map((item) {
+                          if (item.type == ContextMenuButtonType.paste) {
+                            return ContextMenuButtonItem(
+                              onPressed: () {
+                                editableTextState.hideToolbar();
+                                _handlePaste();
+                              },
+                              type: ContextMenuButtonType.paste,
+                              label: item.label,
+                            );
+                          }
+                          return item;
+                        }).toList();
+                        return AdaptiveTextSelectionToolbar.buttonItems(
+                          anchors: editableTextState.contextMenuAnchors,
+                          buttonItems: buttonItems,
+                        );
+                      },
                       decoration: InputDecoration(
                         hintText: _isRecording
                             ? 'message.listening'.tr()
