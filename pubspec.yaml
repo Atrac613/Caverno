@@ -42,7 +42,7 @@ dependencies:
   flutter_riverpod: ^2.6.1
 
   # OpenAI互換API通信
-  openai_dart: ^0.6.2
+  openai_dart: ^4.0.1
 
   # イミュータブルモデル
   freezed_annotation: ^3.1.0
