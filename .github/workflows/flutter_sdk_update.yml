@@ -115,11 +115,11 @@ jobs:
         uses: peter-evans/create-pull-request@v8
         with:
           token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
-          commit-message: chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}
+          commit-message: "chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}"
           base: main
           branch: feature/flutter-sdk-${{ steps.compare.outputs.latest }}
           delete-branch: true
-          title: chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}
+          title: "chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}"
           body: |
             ## Summary
             - update the pinned Flutter SDK from `${{ steps.compare.outputs.current }}` to `${{ steps.compare.outputs.latest }}`
