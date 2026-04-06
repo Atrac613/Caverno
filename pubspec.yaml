@@ -75,7 +75,7 @@ dependencies:
   path_provider: ^2.1.2
 
   # Local notifications
-  flutter_local_notifications: ^18.0.1
+  flutter_local_notifications: ^21.0.0
   file_picker: ^10.3.10
   super_clipboard: ^0.9.1
   qr_flutter: ^4.1.0
