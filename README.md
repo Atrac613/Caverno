@@ -32,7 +32,7 @@
 
 ## Requirements
 
-- Flutter 3.41.2 (managed via [FVM](https://fvm.app/))
+- Flutter 3.41.6 (managed via [FVM](https://fvm.app/))
 - An OpenAI-compatible LLM server (defaults to `http://localhost:1234/v1`)
 
 ## Getting Started
