@@ -10,7 +10,7 @@ Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool callin
 
 ```bash
 # Flutter version (managed via FVM)
-fvm use 3.41.2
+fvm use 3.41.6
 
 # Install dependencies
 flutter pub get

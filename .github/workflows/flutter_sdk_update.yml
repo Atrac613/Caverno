@@ -1,0 +1,137 @@
+name: Flutter SDK Update
+
+on:
+  schedule:
+    - cron: '0 0 * * 1'
+  workflow_dispatch:
+
+concurrency:
+  group: flutter-sdk-update-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-flutter-sdk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read current Flutter version
+        id: current-version
+        shell: bash
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          if [ -z "$version" ]; then
+            echo "Could not read Flutter version from .fvmrc."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Discover latest stable Flutter version
+        id: latest-version
+        uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          dry-run: true
+
+      - name: Compare current and latest versions
+        id: compare
+        shell: bash
+        run: |
+          current="${{ steps.current-version.outputs.version }}"
+          latest="${{ steps.latest-version.outputs.VERSION }}"
+
+          if [ -z "$latest" ]; then
+            echo "Failed to resolve the latest stable Flutter version."
+            exit 1
+          fi
+
+          echo "current=$current" >> "$GITHUB_OUTPUT"
+          echo "latest=$latest" >> "$GITHUB_OUTPUT"
+
+          if [ "$current" = "$latest" ]; then
+            echo "needs_update=false" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Flutter SDK update"
+              echo
+              echo "Flutter SDK is already pinned to the latest stable release: \`$current\`."
+            } >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "needs_update=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "## Flutter SDK update"
+              echo
+              echo "A newer stable Flutter SDK is available."
+              echo
+              echo "- Current: \`$current\`"
+              echo "- Latest: \`$latest\`"
+            } >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Set up latest Flutter
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.compare.outputs.latest }}
+          channel: stable
+          cache: true
+
+      - name: Ensure automation token is configured
+        if: steps.compare.outputs.needs_update == 'true'
+        env:
+          AUTOMATION_GITHUB_TOKEN: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+        run: |
+          if [ -z "$AUTOMATION_GITHUB_TOKEN" ]; then
+            echo "AUTOMATION_GITHUB_TOKEN is required to create a Flutter SDK update PR."
+            exit 1
+          fi
+
+      - name: Install FVM
+        if: steps.compare.outputs.needs_update == 'true'
+        run: dart pub global activate fvm
+
+      - name: Update Flutter version references
+        if: steps.compare.outputs.needs_update == 'true'
+        shell: bash
+        run: |
+          export PATH="$PATH:$HOME/.pub-cache/bin"
+          fvm use "${{ steps.compare.outputs.latest }}" --force
+          dart tool/update_flutter_version.dart "${{ steps.compare.outputs.current }}" "${{ steps.compare.outputs.latest }}"
+
+      - name: Validate updated Flutter SDK
+        if: steps.compare.outputs.needs_update == 'true'
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      - name: Create pull request
+        if: steps.compare.outputs.needs_update == 'true'
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.AUTOMATION_GITHUB_TOKEN }}
+          commit-message: chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}
+          base: main
+          branch: feature/flutter-sdk-${{ steps.compare.outputs.latest }}
+          delete-branch: true
+          title: chore: update Flutter SDK to ${{ steps.compare.outputs.latest }}
+          body: |
+            ## Summary
+            - update the pinned Flutter SDK from `${{ steps.compare.outputs.current }}` to `${{ steps.compare.outputs.latest }}`
+            - sync repository documentation and workflow references with the new pinned version
+
+            ## Notes
+            - This PR was created automatically by the weekly Flutter SDK update workflow.
+            - If this PR should trigger pull request workflows, provide a PAT or GitHub App token in `AUTOMATION_GITHUB_TOKEN`.
+          labels: dependencies
+          add-paths: |
+            .fvmrc
+            AGENTS.md
+            CLAUDE.md
+            README.md
+            pubspec.lock

@@ -52,7 +52,7 @@ class ParseResult {
 }
 
 /// Content parser
-/// Parses <think> and <tool_call> tags in LLM responses
+/// Parses `\<think>` and `\<tool_call>` tags in LLM responses.
 class ContentParser {
   // Regex to detect complete tags
   static final _thinkPattern = RegExp(
@@ -248,7 +248,7 @@ class ContentParser {
     );
   }
 
-  /// Extract completed <tool_call> entries
+  /// Extracts completed `\<tool_call>` entries.
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
 
