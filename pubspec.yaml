@@ -91,7 +91,7 @@ dev_dependencies:
   mocktail: ^1.0.4
 
   # Code generation
-  build_runner: ^2.4.14
+  build_runner: ^2.13.1
   freezed: ^3.2.5
   json_serializable: ^6.9.2
 
