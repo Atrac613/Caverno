@@ -39,7 +39,7 @@ dependencies:
   easy_localization: ^3.0.7
 
   # 状態管理
-  flutter_riverpod: ^2.6.1
+  flutter_riverpod: ^3.3.1
 
   # OpenAI互換API通信
   openai_dart: ^0.6.2
