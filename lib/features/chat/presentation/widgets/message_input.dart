@@ -92,8 +92,13 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final isTiff = lowerMime == 'image/tiff' ||
         lowerPath.endsWith('.tiff') ||
         lowerPath.endsWith('.tif');
+    final isHeic = lowerMime == 'image/heic' ||
+        lowerMime == 'image/heif' ||
+        lowerPath.endsWith('.heic') ||
+        lowerPath.endsWith('.heif');
+    final isGif = lowerMime == 'image/gif' || lowerPath.endsWith('.gif');
 
-    if (!isWebp && !isTiff) {
+    if (!isWebp && !isTiff && !isHeic && !isGif) {
       return (bytes: bytes, mimeType: mimeType);
     }
 
@@ -206,8 +211,19 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
     final reader = await clipboard.read();
 
-    // Check image formats in priority order
-    for (final format in [Formats.png, Formats.jpeg, Formats.tiff]) {
+    // Map formats to MIME types and file extensions
+    const formatInfo = <SimpleFileFormat, (String, String)>{
+      Formats.png: ('image/png', 'png'),
+      Formats.jpeg: ('image/jpeg', 'jpg'),
+      Formats.tiff: ('image/tiff', 'tiff'),
+      Formats.gif: ('image/gif', 'gif'),
+      Formats.heic: ('image/heic', 'heic'),
+      Formats.heif: ('image/heif', 'heif'),
+    };
+
+    for (final entry in formatInfo.entries) {
+      final format = entry.key;
+      final (mimeType, ext) = entry.value;
       if (reader.canProvide(format)) {
         final completer = Completer<bool>();
         reader.getFile(format, (file) async {
@@ -215,15 +231,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             final data = await file.readAll();
             final bytes = Uint8List.fromList(data);
             final resized = await _resizeImageIfNeeded(bytes);
-            final mimeType = format == Formats.jpeg
-                ? 'image/jpeg'
-                : format == Formats.tiff
-                    ? 'image/tiff'
-                    : 'image/png';
             final normalized = await _normalizeImageForUpload(
               bytes: resized,
               mimeType: mimeType,
-              filePath: 'clipboard.${format == Formats.jpeg ? 'jpg' : format == Formats.tiff ? 'tiff' : 'png'}',
+              filePath: 'clipboard.$ext',
             );
             if (mounted) {
               setState(() {
@@ -503,6 +514,24 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           }
                           return item;
                         }).toList();
+
+                        // If no paste button exists (e.g. clipboard has only
+                        // an image), inject one so the user can still paste.
+                        final hasPaste = buttonItems.any(
+                          (item) => item.type == ContextMenuButtonType.paste,
+                        );
+                        if (!hasPaste) {
+                          buttonItems.add(
+                            ContextMenuButtonItem(
+                              onPressed: () {
+                                editableTextState.hideToolbar();
+                                _handlePaste();
+                              },
+                              type: ContextMenuButtonType.paste,
+                            ),
+                          );
+                        }
+
                         return AdaptiveTextSelectionToolbar.buttonItems(
                           anchors: editableTextState.contextMenuAnchors,
                           buttonItems: buttonItems,
