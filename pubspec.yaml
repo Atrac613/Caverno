@@ -59,6 +59,9 @@ dependencies:
   # HTTP
   http: ^1.2.2
 
+  # Network tools
+  dart_ping: ^9.0.1
+
   # Image picker
   image_picker: ^1.1.2
 
