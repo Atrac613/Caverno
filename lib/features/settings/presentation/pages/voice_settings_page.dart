@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/voicevox_audio_player.dart';
 import '../../../../core/services/voicevox_service.dart';
+import '../../../../core/utils/debouncer.dart';
 import '../providers/settings_notifier.dart';
 
 class VoiceSettingsPage extends ConsumerStatefulWidget {
@@ -14,60 +15,29 @@ class VoiceSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
-  late bool _ttsEnabled;
-  late bool _autoReadEnabled;
-  late double _speechRate;
-  late bool _voiceModeAutoStop;
-  late String _whisperUrl;
-  late String _voicevoxUrl;
-  late int _voicevoxSpeakerId;
-
   VoicevoxAudioPlayer? _voicevoxAudioPlayer;
   bool _isPlayingPreview = false;
 
-  @override
-  void initState() {
-    super.initState();
-    final settings = ref.read(settingsNotifierProvider);
-    _ttsEnabled = settings.ttsEnabled;
-    _autoReadEnabled = settings.autoReadEnabled;
-    _speechRate = settings.speechRate;
-    _voiceModeAutoStop = settings.voiceModeAutoStop;
-    _whisperUrl = settings.whisperUrl;
-    _voicevoxUrl = settings.voicevoxUrl;
-    _voicevoxSpeakerId = settings.voicevoxSpeakerId;
-  }
+  final _whisperUrlDebouncer = Debouncer();
+  final _voicevoxUrlDebouncer = Debouncer();
 
   @override
   void dispose() {
+    _whisperUrlDebouncer.dispose();
+    _voicevoxUrlDebouncer.dispose();
     _voicevoxAudioPlayer?.dispose();
     super.dispose();
   }
 
-  Future<void> _saveSettings() async {
-    final notifier = ref.read(settingsNotifierProvider.notifier);
-    await notifier.updateTtsEnabled(_ttsEnabled);
-    await notifier.updateAutoReadEnabled(_autoReadEnabled);
-    await notifier.updateSpeechRate(_speechRate);
-    await notifier.updateVoiceModeAutoStop(_voiceModeAutoStop);
-    await notifier.updateWhisperUrl(_whisperUrl);
-    await notifier.updateVoicevoxUrl(_voicevoxUrl);
-    await notifier.updateVoicevoxSpeakerId(_voicevoxSpeakerId);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
-      Navigator.of(context).pop();
-    }
-  }
-
   Future<void> _selectSpeaker() async {
+    final settings = ref.read(settingsNotifierProvider);
     showDialog(
       context: context,
       barrierDismissible: false,
       builder: (context) => const Center(child: CircularProgressIndicator()),
     );
     try {
-      final speakers = await VoicevoxService(baseUrl: _voicevoxUrl).getSpeakers();
+      final speakers = await VoicevoxService(baseUrl: settings.voicevoxUrl).getSpeakers();
       if (!mounted) return;
       Navigator.pop(context); // close loading
 
@@ -84,7 +54,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
                 final spk = speakers[index];
                 return ListTile(
                   title: Text(spk.displayName),
-                  selected: _voicevoxSpeakerId == spk.speakerId,
+                  selected: settings.voicevoxSpeakerId == spk.speakerId,
                   onTap: () => Navigator.pop(context, spk.speakerId),
                 );
               },
@@ -99,9 +69,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
         ),
       );
       if (selected != null) {
-        setState(() {
-          _voicevoxSpeakerId = selected;
-        });
+        ref.read(settingsNotifierProvider.notifier).updateVoicevoxSpeakerId(selected);
       }
     } catch (e) {
       if (!mounted) return;
@@ -115,8 +83,9 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
       _isPlayingPreview = true;
     });
     try {
-      final bytes = await VoicevoxService(baseUrl: _voicevoxUrl)
-          .synthesize('settings.voicevox_preview_text'.tr(), speakerId: _voicevoxSpeakerId);
+      final s = ref.read(settingsNotifierProvider);
+      final bytes = await VoicevoxService(baseUrl: s.voicevoxUrl)
+          .synthesize('settings.voicevox_preview_text'.tr(), speakerId: s.voicevoxSpeakerId);
       
       _voicevoxAudioPlayer ??= VoicevoxAudioPlayer();
       _voicevoxAudioPlayer!.onQueueComplete = () {
@@ -151,6 +120,9 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(settingsNotifierProvider);
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('settings.menu_voice'.tr()),
@@ -164,26 +136,20 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
           SwitchListTile(
             title: Text('settings.tts'.tr()),
             subtitle: Text('settings.tts_desc'.tr()),
-            value: _ttsEnabled,
+            value: settings.ttsEnabled,
             onChanged: (value) {
-              setState(() {
-                _ttsEnabled = value;
-                if (!value) {
-                  _autoReadEnabled = false;
-                }
-              });
+              notifier.updateTtsEnabled(value);
+              if (!value) {
+                notifier.updateAutoReadEnabled(false);
+              }
             },
           ),
           SwitchListTile(
             title: Text('settings.auto_read'.tr()),
             subtitle: Text('settings.auto_read_desc'.tr()),
-            value: _autoReadEnabled,
-            onChanged: _ttsEnabled
-                ? (value) {
-                    setState(() {
-                      _autoReadEnabled = value;
-                    });
-                  }
+            value: settings.autoReadEnabled,
+            onChanged: settings.ttsEnabled
+                ? (value) => notifier.updateAutoReadEnabled(value)
                 : null,
           ),
           const SizedBox(height: 8),
@@ -192,23 +158,19 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
               Text('settings.speech_rate'.tr()),
               Expanded(
                 child: Slider(
-                  value: _speechRate,
+                  value: settings.speechRate,
                   min: 0.0,
                   max: 1.0,
                   divisions: 20,
-                  label: '${(_speechRate * 2).toStringAsFixed(1)}x',
-                  onChanged: _ttsEnabled
-                      ? (value) {
-                          setState(() {
-                            _speechRate = value;
-                          });
-                        }
+                  label: '${(settings.speechRate * 2).toStringAsFixed(1)}x',
+                  onChanged: settings.ttsEnabled
+                      ? (value) => notifier.updateSpeechRate(value)
                       : null,
                 ),
               ),
               SizedBox(
                 width: 50,
-                child: Text('${(_speechRate * 2).toStringAsFixed(1)}x'),
+                child: Text('${(settings.speechRate * 2).toStringAsFixed(1)}x'),
               ),
             ],
           ),
@@ -216,16 +178,12 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
           SwitchListTile(
             title: Text('settings.voice_mode_auto_stop'.tr()),
             subtitle: Text('settings.voice_mode_auto_stop_desc'.tr()),
-            value: _voiceModeAutoStop,
-            onChanged: (value) {
-              setState(() {
-                _voiceModeAutoStop = value;
-              });
-            },
+            value: settings.voiceModeAutoStop,
+            onChanged: (value) => notifier.updateVoiceModeAutoStop(value),
           ),
           const SizedBox(height: 16),
           TextFormField(
-            initialValue: _whisperUrl,
+            initialValue: settings.whisperUrl,
             decoration: InputDecoration(
               labelText: 'settings.whisper_url'.tr(),
               hintText: 'http://localhost:8080',
@@ -234,14 +192,14 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
             ),
             keyboardType: TextInputType.url,
             onChanged: (value) {
-              setState(() {
-                _whisperUrl = value;
+              _whisperUrlDebouncer.run(() {
+                notifier.updateWhisperUrl(value.trim());
               });
             },
           ),
           const SizedBox(height: 16),
           TextFormField(
-            initialValue: _voicevoxUrl,
+            initialValue: settings.voicevoxUrl,
             decoration: InputDecoration(
               labelText: 'settings.voicevox_url'.tr(),
               hintText: 'http://localhost:50021',
@@ -250,15 +208,15 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
             ),
             keyboardType: TextInputType.url,
             onChanged: (value) {
-              setState(() {
-                _voicevoxUrl = value;
+              _voicevoxUrlDebouncer.run(() {
+                notifier.updateVoicevoxUrl(value.trim());
               });
             },
           ),
           const SizedBox(height: 16),
           ListTile(
             title: Text('settings.voicevox_speaker_id'.tr()),
-            subtitle: Text('Speaker ID: $_voicevoxSpeakerId'),
+            subtitle: Text('Speaker ID: ${settings.voicevoxSpeakerId}'),
             trailing: const Icon(Icons.arrow_drop_down),
             shape: RoundedRectangleBorder(
               side: BorderSide(color: Theme.of(context).colorScheme.outline),
@@ -281,14 +239,7 @@ class _VoiceSettingsPageState extends ConsumerState<VoiceSettingsPage> {
               label: Text('settings.voicevox_preview'.tr()),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Save button
-          FilledButton.icon(
-            onPressed: _saveSettings,
-            icon: const Icon(Icons.save),
-            label: Text('settings.save_settings'.tr()),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

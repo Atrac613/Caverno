@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/utils/debouncer.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../chat/data/datasources/mcp_tool_service.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
@@ -17,31 +18,20 @@ class ToolsSettingsPage extends ConsumerStatefulWidget {
 
 class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
   late TextEditingController _mcpUrlController;
-  late bool _mcpEnabled;
+  final _mcpUrlDebouncer = Debouncer();
 
   @override
   void initState() {
     super.initState();
     final settings = ref.read(settingsNotifierProvider);
     _mcpUrlController = TextEditingController(text: settings.mcpUrl);
-    _mcpEnabled = settings.mcpEnabled;
   }
 
   @override
   void dispose() {
+    _mcpUrlDebouncer.dispose();
     _mcpUrlController.dispose();
     super.dispose();
-  }
-
-  Future<void> _saveSettings() async {
-    final notifier = ref.read(settingsNotifierProvider.notifier);
-    await notifier.updateMcpUrl(_mcpUrlController.text.trim());
-    await notifier.updateMcpEnabled(_mcpEnabled);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
-      Navigator.of(context).pop();
-    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -202,6 +192,9 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(settingsNotifierProvider);
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('settings.menu_tools'.tr()),
@@ -215,17 +208,13 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
           SwitchListTile(
             title: Text('settings.mcp_enable'.tr()),
             subtitle: Text('settings.mcp_enable_desc'.tr()),
-            value: _mcpEnabled,
-            onChanged: (value) {
-              setState(() {
-                _mcpEnabled = value;
-              });
-            },
+            value: settings.mcpEnabled,
+            onChanged: (value) => notifier.updateMcpEnabled(value),
           ),
           const SizedBox(height: 8),
           TextField(
             controller: _mcpUrlController,
-            enabled: _mcpEnabled,
+            enabled: settings.mcpEnabled,
             decoration: InputDecoration(
               labelText: 'MCP Server URL',
               hintText: 'http://localhost:8081',
@@ -233,18 +222,16 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
               helperText: 'settings.mcp_url_helper'.tr(),
             ),
             keyboardType: TextInputType.url,
+            onChanged: (_) {
+              _mcpUrlDebouncer.run(() {
+                notifier.updateMcpUrl(_mcpUrlController.text.trim());
+              });
+            },
           ),
           const SizedBox(height: 16),
           // Connection test button and tool list
-          if (_mcpEnabled) _buildMcpToolsSection(),
-          const SizedBox(height: 24),
-
-          // Save button
-          FilledButton.icon(
-            onPressed: _saveSettings,
-            icon: const Icon(Icons.save),
-            label: Text('settings.save_settings'.tr()),
-          ),
+          if (settings.mcpEnabled) _buildMcpToolsSection(),
+          const SizedBox(height: 16),
         ],
       ),
     );

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/utils/debouncer.dart';
 import '../../../chat/data/repositories/chat_memory_repository.dart';
 import '../../../chat/domain/services/session_memory_service.dart';
 import '../providers/settings_notifier.dart';
@@ -20,7 +21,8 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
   late TextEditingController _profilePersonaController;
   late TextEditingController _profilePreferencesController;
   late TextEditingController _profileDoNotController;
-  late AssistantMode _assistantMode;
+
+  final _profileDebouncer = Debouncer();
 
   @override
   void initState() {
@@ -29,10 +31,8 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
       ref.read(chatMemoryRepositoryProvider),
     );
     _memorySnapshot = _sessionMemoryService.loadSnapshot();
-    final settings = ref.read(settingsNotifierProvider);
     final profile = _memorySnapshot.profile;
-    
-    _assistantMode = settings.assistantMode;
+
     _profilePersonaController = TextEditingController(
       text: profile.persona.join('\n'),
     );
@@ -46,27 +46,22 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
 
   @override
   void dispose() {
+    _profileDebouncer.dispose();
     _profilePersonaController.dispose();
     _profilePreferencesController.dispose();
     _profileDoNotController.dispose();
     super.dispose();
   }
 
-  Future<void> _saveSettings() async {
-    final notifier = ref.read(settingsNotifierProvider.notifier);
-    await notifier.updateAssistantMode(_assistantMode);
-    
-    await _sessionMemoryService.saveProfileFromText(
-      personaText: _profilePersonaController.text,
-      preferencesText: _profilePreferencesController.text,
-      doNotText: _profileDoNotController.text,
-    );
-    _reloadMemorySnapshot();
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
-      Navigator.of(context).pop();
-    }
+  void _autoSaveProfile() {
+    _profileDebouncer.run(() async {
+      await _sessionMemoryService.saveProfileFromText(
+        personaText: _profilePersonaController.text,
+        preferencesText: _profilePreferencesController.text,
+        doNotText: _profileDoNotController.text,
+      );
+      _reloadMemorySnapshot();
+    });
   }
 
   Future<void> _clearConversationMemory() async {
@@ -128,6 +123,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(settingsNotifierProvider);
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('settings.menu_chat'.tr()),
@@ -151,16 +149,14 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                 icon: Icon(Icons.code),
               ),
             ],
-            selected: {_assistantMode},
+            selected: {settings.assistantMode},
             onSelectionChanged: (selection) {
-              setState(() {
-                _assistantMode = selection.first;
-              });
+              notifier.updateAssistantMode(selection.first);
             },
           ),
           const SizedBox(height: 8),
           Text(
-            _assistantMode == AssistantMode.general
+            settings.assistantMode == AssistantMode.general
                 ? 'settings.assistant_general_desc'.tr()
                 : 'settings.assistant_coding_desc'.tr(),
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -228,6 +224,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               border: const OutlineInputBorder(),
               helperText: 'settings.profile_helper'.tr(),
             ),
+            onChanged: (_) => _autoSaveProfile(),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -238,6 +235,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               hintText: 'settings.preferences_hint'.tr(),
               border: const OutlineInputBorder(),
             ),
+            onChanged: (_) => _autoSaveProfile(),
           ),
           const SizedBox(height: 12),
           TextField(
@@ -248,6 +246,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               hintText: 'settings.do_not_hint'.tr(),
               border: const OutlineInputBorder(),
             ),
+            onChanged: (_) => _autoSaveProfile(),
           ),
           const SizedBox(height: 12),
           Align(
@@ -258,14 +257,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               label: Text('settings.clear_memory'.tr()),
             ),
           ),
-          const SizedBox(height: 24),
-
-          // Save button
-          FilledButton.icon(
-            onPressed: _saveSettings,
-            icon: const Icon(Icons.save),
-            label: Text('settings.save_settings'.tr()),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );

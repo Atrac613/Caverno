@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/utils/debouncer.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 
@@ -17,10 +18,10 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   late TextEditingController _baseUrlController;
   late TextEditingController _apiKeyController;
   late TextEditingController _maxTokensController;
-  late String _selectedModel;
-  late double _temperature;
-  late String _language;
-  late bool _demoMode;
+
+  final _baseUrlDebouncer = Debouncer();
+  final _apiKeyDebouncer = Debouncer();
+  final _maxTokensDebouncer = Debouncer();
 
   @override
   void initState() {
@@ -29,34 +30,17 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _baseUrlController = TextEditingController(text: settings.baseUrl);
     _apiKeyController = TextEditingController(text: settings.apiKey);
     _maxTokensController = TextEditingController(text: settings.maxTokens.toString());
-    _selectedModel = settings.model;
-    _temperature = settings.temperature;
-    _language = settings.language;
-    _demoMode = settings.demoMode;
   }
 
   @override
   void dispose() {
+    _baseUrlDebouncer.dispose();
+    _apiKeyDebouncer.dispose();
+    _maxTokensDebouncer.dispose();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
     _maxTokensController.dispose();
     super.dispose();
-  }
-
-  Future<void> _saveSettings() async {
-    final notifier = ref.read(settingsNotifierProvider.notifier);
-    await notifier.updateBaseUrl(_baseUrlController.text.trim());
-    await notifier.updateModel(_selectedModel.trim());
-    await notifier.updateApiKey(_apiKeyController.text.trim());
-    await notifier.updateMaxTokens(int.tryParse(_maxTokensController.text) ?? 4096);
-    await notifier.updateTemperature(_temperature);
-    await notifier.updateLanguage(_language);
-    await notifier.updateDemoMode(_demoMode);
-
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('settings.saved'.tr())));
-      Navigator.of(context).pop();
-    }
   }
 
   Widget _buildSectionHeader(String title) {
@@ -70,6 +54,8 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   }
 
   Widget _buildModelSelector() {
+    final settings = ref.watch(settingsNotifierProvider);
+    final selectedModel = settings.model;
     final baseUrl = _baseUrlController.text.trim();
     final apiKey = _apiKeyController.text.trim();
     final asyncModels = ref.watch(
@@ -82,12 +68,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     return asyncModels.when(
       data: (models) {
         final options = [...models];
-        if (!options.contains(_selectedModel)) {
-          options.insert(0, _selectedModel);
+        if (!options.contains(selectedModel)) {
+          options.insert(0, selectedModel);
         }
 
         return DropdownButtonFormField<String>(
-          initialValue: _selectedModel,
+          initialValue: selectedModel,
           decoration: InputDecoration(
             labelText: 'settings.model_name'.tr(),
             border: const OutlineInputBorder(),
@@ -103,9 +89,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
               .toList(),
           onChanged: (value) {
             if (value == null) return;
-            setState(() {
-              _selectedModel = value;
-            });
+            ref.read(settingsNotifierProvider.notifier).updateModel(value.trim());
           },
         );
       },
@@ -131,7 +115,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           DropdownButtonFormField<String>(
-            initialValue: _selectedModel,
+            initialValue: selectedModel,
             decoration: InputDecoration(
               labelText: 'settings.model_name'.tr(),
               border: const OutlineInputBorder(),
@@ -139,15 +123,13 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             ),
             items: [
               DropdownMenuItem<String>(
-                value: _selectedModel,
-                child: Text(_selectedModel, overflow: TextOverflow.ellipsis),
+                value: selectedModel,
+                child: Text(selectedModel, overflow: TextOverflow.ellipsis),
               ),
             ],
             onChanged: (value) {
               if (value == null) return;
-              setState(() {
-                _selectedModel = value;
-              });
+              ref.read(settingsNotifierProvider.notifier).updateModel(value.trim());
             },
           ),
           const SizedBox(height: 8),
@@ -162,6 +144,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
 
   @override
   Widget build(BuildContext context) {
+    final settings = ref.watch(settingsNotifierProvider);
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+
     return Scaffold(
       appBar: AppBar(
         title: Text('settings.menu_general'.tr()),
@@ -173,16 +158,16 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
           SwitchListTile(
             title: Text('settings.demo_mode'.tr()),
             subtitle: Text('settings.demo_mode_desc'.tr()),
-            value: _demoMode,
-            onChanged: (value) => setState(() => _demoMode = value),
+            value: settings.demoMode,
+            onChanged: (value) => notifier.updateDemoMode(value),
           ),
           const Divider(),
           const SizedBox(height: 8),
           // Server, model, and generation settings (disabled in demo mode)
           IgnorePointer(
-            ignoring: _demoMode,
+            ignoring: settings.demoMode,
             child: AnimatedOpacity(
-              opacity: _demoMode ? 0.4 : 1.0,
+              opacity: settings.demoMode ? 0.4 : 1.0,
               duration: const Duration(milliseconds: 200),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -199,6 +184,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       helperText: 'settings.base_url_helper'.tr(),
                     ),
                     keyboardType: TextInputType.url,
+                    onChanged: (_) {
+                      _baseUrlDebouncer.run(() {
+                        notifier.updateBaseUrl(_baseUrlController.text.trim());
+                      });
+                    },
                   ),
                   const SizedBox(height: 16),
                   TextField(
@@ -210,6 +200,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       helperText: 'settings.api_key_helper'.tr(),
                     ),
                     obscureText: true,
+                    onChanged: (_) {
+                      _apiKeyDebouncer.run(() {
+                        notifier.updateApiKey(_apiKeyController.text.trim());
+                      });
+                    },
                   ),
                   const SizedBox(height: 24),
 
@@ -240,19 +235,17 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       const Text('Temperature: '),
                       Expanded(
                         child: Slider(
-                          value: _temperature,
+                          value: settings.temperature,
                           min: 0.0,
                           max: 2.0,
                           divisions: 20,
-                          label: _temperature.toStringAsFixed(1),
+                          label: settings.temperature.toStringAsFixed(1),
                           onChanged: (value) {
-                            setState(() {
-                              _temperature = value;
-                            });
+                            notifier.updateTemperature(value);
                           },
                         ),
                       ),
-                      SizedBox(width: 40, child: Text(_temperature.toStringAsFixed(1))),
+                      SizedBox(width: 40, child: Text(settings.temperature.toStringAsFixed(1))),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -265,6 +258,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       helperText: 'settings.max_tokens_helper'.tr(),
                     ),
                     keyboardType: TextInputType.number,
+                    onChanged: (_) {
+                      _maxTokensDebouncer.run(() {
+                        final value = int.tryParse(_maxTokensController.text) ?? 4096;
+                        notifier.updateMaxTokens(value);
+                      });
+                    },
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -276,7 +275,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
           _buildSectionHeader('settings.language_section'.tr()),
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
-            initialValue: _language,
+            initialValue: settings.language,
             decoration: const InputDecoration(
               border: OutlineInputBorder(),
             ),
@@ -296,20 +295,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             ],
             onChanged: (value) {
               if (value != null) {
-                setState(() {
-                  _language = value;
-                });
+                notifier.updateLanguage(value);
               }
             },
           ),
-          const SizedBox(height: 32),
-
-          // Save button
-          FilledButton.icon(
-            onPressed: _saveSettings,
-            icon: const Icon(Icons.save),
-            label: Text('settings.save_settings'.tr()),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
