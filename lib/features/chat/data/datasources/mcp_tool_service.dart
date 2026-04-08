@@ -106,6 +106,11 @@ class McpToolService {
     // Built-in network tools (always available).
     toolDefinitions.add(_pingTool);
     toolDefinitions.add(_whoisLookupTool);
+    toolDefinitions.add(_dnsLookupTool);
+    toolDefinitions.add(_portCheckTool);
+    toolDefinitions.add(_sslCertificateTool);
+    toolDefinitions.add(_httpStatusTool);
+    toolDefinitions.add(_tracerouteTool);
 
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
@@ -190,6 +195,129 @@ class McpToolService {
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Whois tool error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'dns_lookup') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final result = await NetworkTools.dnsLookup(host: host);
+        appLog('[McpToolService] DNS lookup executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] DNS lookup error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'port_check') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        final port = (arguments['port'] as num?)?.toInt();
+        if (host.isEmpty || port == null) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Host and port are required',
+          );
+        }
+        final timeout =
+            ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(1, 30);
+        final result = await NetworkTools.portCheck(
+          host: host, port: port, timeoutSeconds: timeout,
+        );
+        appLog('[McpToolService] Port check executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Port check error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'ssl_certificate') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final port = ((arguments['port'] as num?)?.toInt() ?? 443).clamp(1, 65535);
+        final result = await NetworkTools.sslCertificate(
+          host: host, port: port,
+        );
+        appLog('[McpToolService] SSL certificate check executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] SSL certificate error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'http_status') {
+      try {
+        final url = (arguments['url'] as String?)?.trim() ?? '';
+        if (url.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'URL is required',
+          );
+        }
+        final timeout =
+            ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 30);
+        final result = await NetworkTools.httpStatus(
+          url: url, timeoutSeconds: timeout,
+        );
+        appLog('[McpToolService] HTTP status check executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] HTTP status error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'traceroute') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final maxHops =
+            ((arguments['max_hops'] as num?)?.toInt() ?? 20).clamp(1, 30);
+        final timeout =
+            ((arguments['timeout'] as num?)?.toInt() ?? 3).clamp(1, 10);
+        final result = await NetworkTools.traceroute(
+          host: host, maxHops: maxHops, timeoutSeconds: timeout,
+        );
+        appLog('[McpToolService] Traceroute executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Traceroute error: $e');
         return McpToolResult(
           toolName: name, result: '', isSuccess: false,
           errorMessage: e.toString(),
@@ -512,6 +640,151 @@ class McpToolService {
           },
         },
         'required': ['domain'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: dns_lookup
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _dnsLookupTool => {
+    'type': 'function',
+    'function': {
+      'name': 'dns_lookup',
+      'description':
+          'Resolve a hostname to IP addresses (A/AAAA records). '
+          'Returns all resolved addresses with their type.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname to resolve (e.g., google.com)',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: port_check
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _portCheckTool => {
+    'type': 'function',
+    'function': {
+      'name': 'port_check',
+      'description':
+          'Test whether a specific TCP port is open on a host. '
+          'Returns open/closed status and response time.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname or IP address to check',
+          },
+          'port': {
+            'type': 'integer',
+            'description': 'TCP port number to test (e.g., 80, 443, 8080)',
+          },
+          'timeout': {
+            'type': 'integer',
+            'description': 'Timeout in seconds (default: 5)',
+          },
+        },
+        'required': ['host', 'port'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: ssl_certificate
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _sslCertificateTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ssl_certificate',
+      'description':
+          'Inspect the TLS/SSL certificate of a host. Returns subject, issuer, '
+          'validity dates, and whether it is currently valid.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname to inspect (e.g., google.com)',
+          },
+          'port': {
+            'type': 'integer',
+            'description': 'Port number (default: 443)',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: http_status
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _httpStatusTool => {
+    'type': 'function',
+    'function': {
+      'name': 'http_status',
+      'description':
+          'Check if a URL is reachable. Returns HTTP status code, response '
+          'headers, response time, and redirect chain.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': 'Full URL to check (e.g., https://example.com)',
+          },
+          'timeout': {
+            'type': 'integer',
+            'description': 'Timeout in seconds (default: 10)',
+          },
+        },
+        'required': ['url'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: traceroute
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _tracerouteTool => {
+    'type': 'function',
+    'function': {
+      'name': 'traceroute',
+      'description':
+          'Trace the network path to a host by incrementing TTL. '
+          'Shows each hop with IP address and response time.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname or IP address to trace (e.g., google.com)',
+          },
+          'max_hops': {
+            'type': 'integer',
+            'description':
+                'Maximum number of hops (default: 20, max: 30)',
+          },
+          'timeout': {
+            'type': 'integer',
+            'description': 'Timeout per hop in seconds (default: 3)',
+          },
+        },
+        'required': ['host'],
       },
     },
   };

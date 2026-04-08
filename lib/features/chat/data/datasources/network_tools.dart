@@ -4,7 +4,220 @@ import 'dart:io';
 import 'package:dart_ping/dart_ping.dart';
 
 /// Network diagnostic utilities for built-in MCP tools.
+///
+/// All methods run locally without external API dependencies.
 class NetworkTools {
+
+  // ---------------------------------------------------------------------------
+  // DNS Lookup
+  // ---------------------------------------------------------------------------
+
+  /// Resolves [host] to IP addresses and returns a JSON-formatted result.
+  static Future<String> dnsLookup({required String host}) async {
+    final results = await InternetAddress.lookup(host);
+    if (results.isEmpty) {
+      return jsonEncode({'host': host, 'error': 'No records found'});
+    }
+
+    final records = results.map((r) => {
+      'address': r.address,
+      'type': r.type == InternetAddressType.IPv4 ? 'A' : 'AAAA',
+      'host': r.host,
+    }).toList();
+
+    return jsonEncode({'host': host, 'records': records});
+  }
+
+  // ---------------------------------------------------------------------------
+  // Port Check
+  // ---------------------------------------------------------------------------
+
+  /// Tests whether a TCP [port] is open on [host].
+  static Future<String> portCheck({
+    required String host,
+    required int port,
+    int timeoutSeconds = 5,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    try {
+      final socket = await Socket.connect(
+        host,
+        port,
+        timeout: Duration(seconds: timeoutSeconds),
+      );
+      stopwatch.stop();
+      socket.destroy();
+      return jsonEncode({
+        'host': host,
+        'port': port,
+        'open': true,
+        'response_time_ms': stopwatch.elapsedMilliseconds,
+      });
+    } on SocketException catch (e) {
+      stopwatch.stop();
+      return jsonEncode({
+        'host': host,
+        'port': port,
+        'open': false,
+        'error': e.message,
+      });
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SSL Certificate
+  // ---------------------------------------------------------------------------
+
+  /// Retrieves TLS/SSL certificate information for [host].
+  static Future<String> sslCertificate({
+    required String host,
+    int port = 443,
+    int timeoutSeconds = 10,
+  }) async {
+    final socket = await SecureSocket.connect(
+      host,
+      port,
+      timeout: Duration(seconds: timeoutSeconds),
+      onBadCertificate: (_) => true, // Accept to still inspect the cert.
+    );
+
+    final cert = socket.peerCertificate;
+    socket.destroy();
+
+    if (cert == null) {
+      return jsonEncode({'host': host, 'error': 'No certificate returned'});
+    }
+
+    return jsonEncode({
+      'host': host,
+      'port': port,
+      'subject': cert.subject,
+      'issuer': cert.issuer,
+      'valid_from': cert.startValidity.toIso8601String(),
+      'valid_until': cert.endValidity.toIso8601String(),
+      'is_valid_now': DateTime.now().isAfter(cert.startValidity) &&
+          DateTime.now().isBefore(cert.endValidity),
+      'sha1_fingerprint': cert.sha1,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // HTTP Status
+  // ---------------------------------------------------------------------------
+
+  /// Checks URL reachability and returns status code, headers, and timing.
+  static Future<String> httpStatus({
+    required String url,
+    int timeoutSeconds = 10,
+  }) async {
+    final uri = Uri.parse(url);
+    final client = HttpClient()
+      ..connectionTimeout = Duration(seconds: timeoutSeconds);
+
+    try {
+      final stopwatch = Stopwatch()..start();
+      final request = await client.getUrl(uri);
+      final response = await request.close().timeout(
+        Duration(seconds: timeoutSeconds),
+      );
+      stopwatch.stop();
+
+      // Read a small portion of the body to confirm it's reachable.
+      await response.drain<void>();
+
+      final headers = <String, String>{};
+      response.headers.forEach((name, values) {
+        headers[name] = values.join(', ');
+      });
+
+      return jsonEncode({
+        'url': url,
+        'status_code': response.statusCode,
+        'reason_phrase': response.reasonPhrase,
+        'response_time_ms': stopwatch.elapsedMilliseconds,
+        'headers': headers,
+        'redirects': response.redirects.map((r) => {
+          'status': r.statusCode,
+          'location': r.location.toString(),
+        }).toList(),
+      });
+    } finally {
+      client.close();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Traceroute
+  // ---------------------------------------------------------------------------
+
+  /// Traces the network path to [host] by incrementing TTL.
+  static Future<String> traceroute({
+    required String host,
+    int maxHops = 20,
+    int timeoutSeconds = 3,
+  }) async {
+    final hops = <Map<String, dynamic>>[];
+
+    for (var ttl = 1; ttl <= maxHops; ttl++) {
+      final ping = Ping(host, count: 1, timeout: timeoutSeconds, ttl: ttl);
+      PingData? data;
+      await for (final event in ping.stream) {
+        if (event.response != null || event.error != null) {
+          data = event;
+          break;
+        }
+      }
+
+      if (data == null) {
+        hops.add({'hop': ttl, 'status': 'timeout'});
+        continue;
+      }
+
+      if (data.error != null) {
+        // TTL exceeded responses often come back as errors with the
+        // intermediate router IP embedded in the message.
+        hops.add({
+          'hop': ttl,
+          'status': 'ttl_exceeded',
+          'message': data.error!.message,
+        });
+        continue;
+      }
+
+      final resp = data.response!;
+      final ms = resp.time?.inMicroseconds != null
+          ? (resp.time!.inMicroseconds / 1000.0)
+          : null;
+      hops.add({
+        'hop': ttl,
+        'ip': resp.ip?.toString(),
+        if (ms != null) 'time_ms': double.parse(ms.toStringAsFixed(2)),
+        'ttl': resp.ttl,
+      });
+
+      // Reached the destination.
+      if (resp.ip?.toString() != null) {
+        try {
+          final resolved = await InternetAddress.lookup(host);
+          if (resolved.any((r) => r.address == resp.ip.toString())) {
+            break;
+          }
+        } catch (_) {
+          // Ignore resolution failures; continue tracing.
+        }
+      }
+    }
+
+    return jsonEncode({
+      'host': host,
+      'max_hops': maxHops,
+      'hops': hops,
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Ping
+  // ---------------------------------------------------------------------------
   /// Pings a [host] and returns a JSON-formatted result string.
   static Future<String> ping({
     required String host,

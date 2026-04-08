@@ -465,9 +465,13 @@ class ChatNotifier extends StateNotifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return name == 'search_past_conversations' || name == 'recall_memory';
       }).toList();
+      const networkToolNames = {
+        'ping', 'whois_lookup', 'dns_lookup', 'port_check',
+        'ssl_certificate', 'http_status', 'traceroute',
+      };
       final networkTools = allTools.where((t) {
         final name = (t['function'] as Map?)?['name'] as String?;
-        return name == 'ping' || name == 'whois_lookup';
+        return networkToolNames.contains(name);
       }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
           ? _dedupeToolsByName([
