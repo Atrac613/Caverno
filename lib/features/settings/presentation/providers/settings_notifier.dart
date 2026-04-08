@@ -16,19 +16,20 @@ final settingsRepositoryProvider = Provider<SettingsRepository>((ref) {
 });
 
 final settingsNotifierProvider =
-    StateNotifierProvider<SettingsNotifier, AppSettings>((ref) {
-      final repository = ref.watch(settingsRepositoryProvider);
-      final fileService = ref.watch(settingsFileServiceProvider);
-      final qrService = ref.watch(settingsQrServiceProvider);
-      return SettingsNotifier(repository, fileService, qrService);
-    });
+    NotifierProvider<SettingsNotifier, AppSettings>(SettingsNotifier.new);
 
-class SettingsNotifier extends StateNotifier<AppSettings> {
-  SettingsNotifier(this._repository, this._fileService, this._qrService) : super(_repository.load());
+class SettingsNotifier extends Notifier<AppSettings> {
+  late final SettingsRepository _repository;
+  late final SettingsFileService _fileService;
+  late final SettingsQrService _qrService;
 
-  final SettingsRepository _repository;
-  final SettingsFileService _fileService;
-  final SettingsQrService _qrService;
+  @override
+  AppSettings build() {
+    _repository = ref.read(settingsRepositoryProvider);
+    _fileService = ref.read(settingsFileServiceProvider);
+    _qrService = ref.read(settingsQrServiceProvider);
+    return _repository.load();
+  }
 
   Future<void> updateBaseUrl(String baseUrl) async {
     state = state.copyWith(baseUrl: baseUrl);

@@ -48,35 +48,47 @@ class ConversationsState {
 
 /// Provider for `ConversationsNotifier`.
 final conversationsNotifierProvider =
-    StateNotifierProvider<ConversationsNotifier, ConversationsState>((ref) {
-      final repository = ref.watch(conversationRepositoryProvider);
-      return ConversationsNotifier(repository);
-    });
+    NotifierProvider<ConversationsNotifier, ConversationsState>(
+      ConversationsNotifier.new,
+    );
 
 /// Default title for new conversations (used as a sentinel for auto-title).
 const defaultConversationTitle = '__new_conversation__';
 
 /// Notifier that manages the conversation list.
-class ConversationsNotifier extends StateNotifier<ConversationsState> {
-  ConversationsNotifier(this._repository)
-    : super(ConversationsState.initial()) {
-    _loadConversations();
-  }
-
-  final ConversationRepository _repository;
+class ConversationsNotifier extends Notifier<ConversationsState> {
+  late final ConversationRepository _repository;
   final _uuid = const Uuid();
 
-  /// Loads the conversation list.
-  void _loadConversations() {
+  @override
+  ConversationsState build() {
+    _repository = ref.read(conversationRepositoryProvider);
     final conversations = _repository.getAll();
-    state = state.copyWith(conversations: conversations);
 
     // Select the newest conversation when available, otherwise create one.
     if (conversations.isNotEmpty) {
-      state = state.copyWith(currentConversationId: conversations.first.id);
-    } else {
-      createNewConversation();
+      return ConversationsState(
+        conversations: conversations,
+        currentConversationId: conversations.first.id,
+      );
     }
+
+    // Create a fresh conversation synchronously so the initial state already
+    // contains it. We cannot call createNewConversation() here because it
+    // mutates `state`, which is not yet available during build().
+    final now = DateTime.now();
+    final fresh = Conversation(
+      id: _uuid.v4(),
+      title: defaultConversationTitle,
+      messages: const [],
+      createdAt: now,
+      updatedAt: now,
+    );
+    _repository.save(fresh);
+    return ConversationsState(
+      conversations: [fresh],
+      currentConversationId: fresh.id,
+    );
   }
 
   /// Creates a new conversation.

@@ -1,3 +1,4 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 
@@ -6,8 +7,8 @@ import 'package:caverno/core/services/voicevox_audio_player.dart';
 import 'package:caverno/core/services/voicevox_service.dart';
 import 'package:caverno/core/services/whisper_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/voice_mode_notifier.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 class MockVoiceRecorder extends Mock implements VoiceRecorder {}
 
@@ -17,14 +18,19 @@ class MockVoicevoxService extends Mock implements VoicevoxService {}
 
 class MockVoicevoxAudioPlayer extends Mock implements VoicevoxAudioPlayer {}
 
-class MockChatNotifier extends Mock implements ChatNotifier {}
+/// A no-op [ChatNotifier] used to satisfy [chatNotifierProvider] in tests
+/// without invoking the real dependency graph.
+class _FakeChatNotifier extends ChatNotifier {
+  @override
+  ChatState build() => ChatState.initial();
+}
 
 void main() {
   late MockVoiceRecorder mockRecorder;
   late MockWhisperService mockWhisper;
   late MockVoicevoxService mockVoicevox;
   late MockVoicevoxAudioPlayer mockPlayer;
-  late MockChatNotifier mockChat;
+  late ProviderContainer container;
   late VoiceModeNotifier notifier;
 
   setUp(() {
@@ -32,7 +38,6 @@ void main() {
     mockWhisper = MockWhisperService();
     mockVoicevox = MockVoicevoxService();
     mockPlayer = MockVoicevoxAudioPlayer();
-    mockChat = MockChatNotifier();
 
     // Default stubs for recorder callbacks (setters).
     when(() => mockRecorder.onSpeechEnd = any()).thenReturn(null);
@@ -41,20 +46,21 @@ void main() {
     when(() => mockPlayer.onQueueComplete = any()).thenReturn(null);
     when(() => mockRecorder.stopRecording()).thenAnswer((_) async {});
     when(() => mockPlayer.stop()).thenAnswer((_) async {});
-    when(() => mockChat.stream).thenAnswer((_) => const Stream.empty());
 
-    notifier = VoiceModeNotifier(
-      mockRecorder,
-      mockWhisper,
-      mockVoicevox,
-      mockPlayer,
-      mockChat,
-      () => AppSettings.defaults(),
+    container = ProviderContainer(
+      overrides: [
+        voiceRecorderProvider.overrideWithValue(mockRecorder),
+        whisperServiceProvider.overrideWithValue(mockWhisper),
+        voicevoxServiceProvider.overrideWithValue(mockVoicevox),
+        voicevoxAudioPlayerProvider.overrideWithValue(mockPlayer),
+        chatNotifierProvider.overrideWith(_FakeChatNotifier.new),
+      ],
     );
+    notifier = container.read(voiceModeNotifierProvider.notifier);
   });
 
   tearDown(() {
-    notifier.dispose();
+    container.dispose();
   });
 
   group('start()', () {
