@@ -47,6 +47,7 @@
     "tts_play": "Read aloud",
     "input_hint": "Enter a message...",
     "listening": "Listening...",
+    "attachments": "Attachments",
     "attach_image": "Attach image",
     "record_stop": "Stop recording",
     "record_start": "Voice input",

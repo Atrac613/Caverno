@@ -46,12 +46,29 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   String? _selectedFileContent;
   int? _selectedFileSize;
   bool _isRecording = false;
+  bool _hasText = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller.addListener(_handleTextChanged);
+  }
 
   @override
   void dispose() {
+    _controller.removeListener(_handleTextChanged);
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  /// Track whether the input has any non-whitespace text so the
+  /// rightmost composer button can swap between send and voice mode.
+  void _handleTextChanged() {
+    final hasText = _controller.text.trim().isNotEmpty;
+    if (hasText != _hasText) {
+      setState(() => _hasText = hasText);
+    }
   }
 
   Future<void> _pickImage() async {
@@ -411,6 +428,10 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
 
+    final composerColor = _isRecording
+        ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
+        : theme.colorScheme.surfaceContainerHighest;
+
     return Container(
       padding: const EdgeInsets.all(8),
       decoration: BoxDecoration(
@@ -473,191 +494,256 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                   onDeleted: _clearFile,
                 ),
               ),
-            // Input row
-            Row(
-              children: [
-                // Image picker button
-                IconButton(
-                  onPressed: widget.isLoading ? null : _pickImage,
-                  icon: const Icon(Icons.image),
-                  tooltip: 'message.attach_image'.tr(),
-                  style: IconButton.styleFrom(
-                    foregroundColor: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                // File picker button
-                IconButton(
-                  onPressed: widget.isLoading ? null : _pickFile,
-                  icon: const Icon(Icons.attach_file),
-                  tooltip: 'message.attach_file'.tr(),
-                  style: IconButton.styleFrom(
-                    foregroundColor: theme.colorScheme.onSurfaceVariant,
-                  ),
-                ),
-                // Microphone button
-                IconButton(
-                  onPressed: widget.isLoading ? null : _toggleRecording,
-                  icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),
-                  tooltip: _isRecording
-                      ? 'message.record_stop'.tr()
-                      : 'message.record_start'.tr(),
-                  style: IconButton.styleFrom(
-                    foregroundColor: _isRecording
-                        ? theme.colorScheme.error
-                        : theme.colorScheme.onSurfaceVariant,
-                    backgroundColor: _isRecording
-                        ? theme.colorScheme.errorContainer
-                        : null,
-                  ),
-                ),
-                Expanded(
-                  child: Actions(
-                    actions: <Type, Action<Intent>>{
-                      // On desktop, intercept Cmd/Ctrl+V to handle
-                      // image paste via super_clipboard. On mobile,
-                      // let the system paste handle it so iOS 16+
-                      // authorization works.
-                      if (!Platform.isIOS && !Platform.isAndroid)
-                        PasteTextIntent: CallbackAction<PasteTextIntent>(
-                          onInvoke: (_) {
-                            _handlePaste();
-                            return null;
-                          },
-                        ),
-                    },
-                    child: TextField(
-                      controller: _controller,
-                      focusNode: _focusNode,
-                      enabled: !widget.isLoading,
-                      contentInsertionConfiguration:
-                          ContentInsertionConfiguration(
-                        onContentInserted: _handleContentInserted,
-                        allowedMimeTypes: const [
-                          'image/png',
-                          'image/jpeg',
-                          'image/gif',
-                          'image/heic',
-                          'image/heif',
-                          'image/tiff',
-                        ],
-                      ),
-                      contextMenuBuilder: (context, editableTextState) {
-                        final isMobile =
-                            Platform.isIOS || Platform.isAndroid;
-                        final buttonItems = editableTextState
-                            .contextMenuButtonItems
-                            .map((item) {
-                          // On desktop, override paste to use
-                          // super_clipboard for image support.
-                          if (!isMobile &&
-                              item.type == ContextMenuButtonType.paste) {
-                            return ContextMenuButtonItem(
-                              onPressed: () {
-                                editableTextState.hideToolbar();
+            // Composer container: full-width TextField on top,
+            // action row on the bottom — both inside one rounded surface.
+            Container(
+              decoration: BoxDecoration(
+                color: composerColor,
+                borderRadius: BorderRadius.circular(24),
+              ),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 8,
+                vertical: 6,
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  // Row 1: full-width TextField
+                  Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 6,
+                    ),
+                    child: Shortcuts(
+                      shortcuts: const <ShortcutActivator, Intent>{
+                        // Cmd/Ctrl + Enter sends the message, since
+                        // plain Enter now inserts a newline.
+                        SingleActivator(LogicalKeyboardKey.enter, meta: true):
+                            _SendMessageIntent(),
+                        SingleActivator(
+                          LogicalKeyboardKey.enter,
+                          control: true,
+                        ): _SendMessageIntent(),
+                      },
+                      child: Actions(
+                        actions: <Type, Action<Intent>>{
+                          // On desktop, intercept Cmd/Ctrl+V to handle
+                          // image paste via super_clipboard. On mobile,
+                          // let the system paste handle it so iOS 16+
+                          // authorization works.
+                          if (!Platform.isIOS && !Platform.isAndroid)
+                            PasteTextIntent:
+                                CallbackAction<PasteTextIntent>(
+                              onInvoke: (_) {
                                 _handlePaste();
+                                return null;
                               },
-                              type: ContextMenuButtonType.paste,
-                              label: item.label,
+                            ),
+                          _SendMessageIntent:
+                              CallbackAction<_SendMessageIntent>(
+                            onInvoke: (_) {
+                              _handleSend();
+                              return null;
+                            },
+                          ),
+                        },
+                        child: TextField(
+                        controller: _controller,
+                        focusNode: _focusNode,
+                        enabled: !widget.isLoading,
+                        contentInsertionConfiguration:
+                            ContentInsertionConfiguration(
+                          onContentInserted: _handleContentInserted,
+                          allowedMimeTypes: const [
+                            'image/png',
+                            'image/jpeg',
+                            'image/gif',
+                            'image/heic',
+                            'image/heif',
+                            'image/tiff',
+                          ],
+                        ),
+                        contextMenuBuilder: (context, editableTextState) {
+                          final isMobile =
+                              Platform.isIOS || Platform.isAndroid;
+                          final buttonItems = editableTextState
+                              .contextMenuButtonItems
+                              .map((item) {
+                            // On desktop, override paste to use
+                            // super_clipboard for image support.
+                            if (!isMobile &&
+                                item.type ==
+                                    ContextMenuButtonType.paste) {
+                              return ContextMenuButtonItem(
+                                onPressed: () {
+                                  editableTextState.hideToolbar();
+                                  _handlePaste();
+                                },
+                                type: ContextMenuButtonType.paste,
+                                label: item.label,
+                              );
+                            }
+                            return item;
+                          }).toList();
+
+                          // If no paste button exists (e.g. clipboard
+                          // has only an image), inject one so the user
+                          // can still paste.
+                          final hasPaste = buttonItems.any(
+                            (item) =>
+                                item.type == ContextMenuButtonType.paste,
+                          );
+                          if (!hasPaste) {
+                            buttonItems.add(
+                              ContextMenuButtonItem(
+                                onPressed: () {
+                                  editableTextState.hideToolbar();
+                                  _handlePaste();
+                                },
+                                type: ContextMenuButtonType.paste,
+                              ),
                             );
                           }
-                          return item;
-                        }).toList();
 
-                        // If no paste button exists (e.g. clipboard has
-                        // only an image), inject one so the user can
-                        // still paste.
-                        final hasPaste = buttonItems.any(
-                          (item) =>
-                              item.type == ContextMenuButtonType.paste,
-                        );
-                        if (!hasPaste) {
-                          buttonItems.add(
-                            ContextMenuButtonItem(
-                              onPressed: () {
-                                editableTextState.hideToolbar();
-                                _handlePaste();
-                              },
-                              type: ContextMenuButtonType.paste,
-                            ),
-                          );
-                        }
-
-                        return AdaptiveTextSelectionToolbar.buttonItems(
-                          anchors: editableTextState.contextMenuAnchors,
-                          buttonItems: buttonItems,
-                        );
-                      },
-                      decoration: InputDecoration(
-                        hintText: _isRecording
-                            ? 'message.listening'.tr()
-                            : 'message.input_hint'.tr(),
-                        border: OutlineInputBorder(
-                          borderRadius: BorderRadius.circular(24),
-                          borderSide: BorderSide.none,
-                        ),
-                        filled: true,
-                        fillColor: _isRecording
-                            ? theme.colorScheme.errorContainer.withValues(
-                                alpha: 0.3,
-                              )
-                            : theme.colorScheme.surfaceContainerHighest,
-                        contentPadding: const EdgeInsets.symmetric(
-                          horizontal: 16,
-                          vertical: 10,
-                        ),
-                      ),
-                      maxLines: 4,
-                      minLines: 1,
-                      textInputAction: TextInputAction.send,
-                      onSubmitted: (_) => _handleSend(),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                if (widget.isLoading)
-                  IconButton(
-                    onPressed: widget.onCancel,
-                    icon: const Icon(Icons.stop_circle),
-                    tooltip: 'message.cancel'.tr(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.errorContainer,
-                      foregroundColor: theme.colorScheme.onErrorContainer,
-                    ),
-                  )
-                else
-                  IconButton(
-                    onPressed: _handleSend,
-                    icon: const Icon(Icons.send),
-                    tooltip: 'message.send'.tr(),
-                    style: IconButton.styleFrom(
-                      backgroundColor: theme.colorScheme.primary,
-                      foregroundColor: theme.colorScheme.onPrimary,
-                    ),
-                  ),
-                const SizedBox(width: 8),
-                IconButton(
-                  onPressed: widget.isLoading
-                      ? null
-                      : () {
-                          showGeneralDialog(
-                            context: context,
-                            barrierColor: Colors.transparent,
-                            pageBuilder: (context, anim1, anim2) =>
-                                const VoiceModeOverlay(),
+                          return AdaptiveTextSelectionToolbar.buttonItems(
+                            anchors: editableTextState.contextMenuAnchors,
+                            buttonItems: buttonItems,
                           );
                         },
-                  icon: const Icon(Icons.record_voice_over),
-                  tooltip: 'message.voice_mode_start'.tr(),
-                  style: IconButton.styleFrom(
-                    backgroundColor: theme.colorScheme.secondaryContainer,
-                    foregroundColor: theme.colorScheme.onSecondaryContainer,
+                        decoration: InputDecoration(
+                          hintText: _isRecording
+                              ? 'message.listening'.tr()
+                              : 'message.input_hint'.tr(),
+                          border: InputBorder.none,
+                          isCollapsed: true,
+                          contentPadding: EdgeInsets.zero,
+                        ),
+                        minLines: 1,
+                        maxLines: 6,
+                        keyboardType: TextInputType.multiline,
+                        textInputAction: TextInputAction.newline,
+                      ),
+                      ),
+                    ),
                   ),
-                ),
-              ],
+                  // Row 2: action bar
+                  Row(
+                    children: [
+                      // Leftmost "+" attachments menu (image / file)
+                      PopupMenuButton<_AttachmentAction>(
+                        tooltip: 'message.attachments'.tr(),
+                        icon: const Icon(Icons.add),
+                        enabled: !widget.isLoading,
+                        onSelected: (action) {
+                          switch (action) {
+                            case _AttachmentAction.image:
+                              _pickImage();
+                            case _AttachmentAction.file:
+                              _pickFile();
+                          }
+                        },
+                        itemBuilder: (context) => [
+                          PopupMenuItem<_AttachmentAction>(
+                            value: _AttachmentAction.image,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.image),
+                              title: Text('message.attach_image'.tr()),
+                            ),
+                          ),
+                          PopupMenuItem<_AttachmentAction>(
+                            value: _AttachmentAction.file,
+                            child: ListTile(
+                              contentPadding: EdgeInsets.zero,
+                              leading: const Icon(Icons.attach_file),
+                              title: Text('message.attach_file'.tr()),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const Spacer(),
+                      // Microphone (STT)
+                      IconButton(
+                        onPressed:
+                            widget.isLoading ? null : _toggleRecording,
+                        icon: Icon(
+                          _isRecording ? Icons.mic : Icons.mic_none,
+                        ),
+                        tooltip: _isRecording
+                            ? 'message.record_stop'.tr()
+                            : 'message.record_start'.tr(),
+                        style: IconButton.styleFrom(
+                          foregroundColor: _isRecording
+                              ? theme.colorScheme.error
+                              : theme.colorScheme.onSurfaceVariant,
+                          backgroundColor: _isRecording
+                              ? theme.colorScheme.errorContainer
+                              : null,
+                        ),
+                      ),
+                      const SizedBox(width: 4),
+                      // Rightmost slot:
+                      // - while streaming: Cancel (stop)
+                      // - when text is empty: Voice mode overlay
+                      // - when text is present: Send
+                      if (widget.isLoading)
+                        IconButton(
+                          onPressed: widget.onCancel,
+                          icon: const Icon(Icons.stop_circle),
+                          tooltip: 'message.cancel'.tr(),
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                theme.colorScheme.errorContainer,
+                            foregroundColor:
+                                theme.colorScheme.onErrorContainer,
+                          ),
+                        )
+                      else if (_hasText)
+                        IconButton(
+                          onPressed: _handleSend,
+                          icon: const Icon(Icons.send),
+                          tooltip: 'message.send'.tr(),
+                          style: IconButton.styleFrom(
+                            backgroundColor: theme.colorScheme.primary,
+                            foregroundColor: theme.colorScheme.onPrimary,
+                          ),
+                        )
+                      else
+                        IconButton(
+                          onPressed: () {
+                            showGeneralDialog(
+                              context: context,
+                              barrierColor: Colors.transparent,
+                              pageBuilder: (context, anim1, anim2) =>
+                                  const VoiceModeOverlay(),
+                            );
+                          },
+                          icon: const Icon(Icons.record_voice_over),
+                          tooltip: 'message.voice_mode_start'.tr(),
+                          style: IconButton.styleFrom(
+                            backgroundColor:
+                                theme.colorScheme.secondaryContainer,
+                            foregroundColor:
+                                theme.colorScheme.onSecondaryContainer,
+                          ),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
             ),
           ],
         ),
       ),
     );
   }
+}
+
+/// Actions available from the composer's "+" attachments menu.
+enum _AttachmentAction { image, file }
+
+/// Intent fired by Cmd/Ctrl + Enter to send the current message.
+/// Plain Enter is reserved for inserting a newline.
+class _SendMessageIntent extends Intent {
+  const _SendMessageIntent();
 }
