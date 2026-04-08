@@ -15,7 +15,7 @@ class SettingsFileService {
   static final _urlPattern = RegExp(r'^https?://.+');
 
   Future<AppSettings?> importSettings() async {
-    final result = await FilePicker.platform.pickFiles(
+    final result = await FilePicker.pickFiles(
       type: FileType.custom,
       allowedExtensions: ['json'],
     );
@@ -45,7 +45,7 @@ class SettingsFileService {
     final jsonString = jsonEncode(settings.toJson());
     final bytes = utf8.encode(jsonString);
 
-    final result = await FilePicker.platform.saveFile(
+    final result = await FilePicker.saveFile(
       dialogTitle: 'Export Settings',
       fileName: 'caverno_settings.json',
       type: FileType.custom,
