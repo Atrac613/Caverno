@@ -46,7 +46,7 @@ dependencies:
 
   # イミュータブルモデル
   freezed_annotation: ^3.1.0
-  json_annotation: ^4.9.0
+  json_annotation: ^4.11.0
 
   # Utilities
   uuid: ^4.5.1
