@@ -41,136 +41,15 @@ final sessionMemoryServiceProvider = Provider<SessionMemoryService>((ref) {
   return SessionMemoryService(repository);
 });
 
-final chatNotifierProvider = StateNotifierProvider<ChatNotifier, ChatState>((
-  ref,
-) {
-  final settings = ref.read(settingsNotifierProvider);
-  final dataSource = ref.read(chatRemoteDataSourceProvider);
-  final mcpToolService = ref.read(mcpToolServiceProvider);
-  final memoryService = ref.read(sessionMemoryServiceProvider);
-  final conversationsNotifier = ref.read(
-    conversationsNotifierProvider.notifier,
-  );
-  final ttsService = ref.read(ttsServiceProvider);
-  final notificationService = ref.read(notificationServiceProvider);
-  final lifecycleService = ref.read(appLifecycleServiceProvider);
-  final backgroundTaskService = ref.read(backgroundTaskServiceProvider);
+final chatNotifierProvider = NotifierProvider<ChatNotifier, ChatState>(
+  ChatNotifier.new,
+);
 
-  // Load messages for the current conversation.
-  final conversationsState = ref.read(conversationsNotifierProvider);
-  final initialMessages =
-      conversationsState.currentConversation?.messages ?? [];
-  final currentConversationId = conversationsState.currentConversation?.id;
-
-  final notifier = ChatNotifier(
-    dataSource,
-    mcpToolService,
-    memoryService,
-    settings,
-    onMessagesChanged: (messages) {
-      conversationsNotifier.updateCurrentConversation(messages);
-    },
-    onAutoRead: (content) {
-      // Extract TTS-safe text by removing segments such as `<think>`.
-      final result = ContentParser.parse(content);
-      final buffer = StringBuffer();
-      for (final segment in result.segments) {
-        if (segment.type == ContentType.text) {
-          buffer.write(segment.content);
-        }
-      }
-      final readableText = buffer.toString().trim();
-      if (readableText.isNotEmpty) {
-        ttsService.setSpeechRate(settings.speechRate);
-        ttsService.speak(readableText);
-      }
-    },
-    onSendStarted: () {
-      backgroundTaskService.beginBackgroundTask();
-    },
-    onResponseCompleted: (content) {
-      backgroundTaskService.endBackgroundTask();
-      if (lifecycleService.isInBackground && content.isNotEmpty) {
-        // Strip <think> blocks and extract readable text for the notification.
-        final parsed = ContentParser.parse(content);
-        final buffer = StringBuffer();
-        for (final segment in parsed.segments) {
-          if (segment.type == ContentType.text) {
-            buffer.write(segment.content);
-          }
-        }
-        final plainText = buffer.toString().trim();
-        if (plainText.isEmpty) return;
-
-        // Use the first line as the title, the rest as the body.
-        final firstNewline = plainText.indexOf('\n');
-        final String title;
-        final String body;
-        if (firstNewline > 0 && firstNewline <= 80) {
-          title = plainText.substring(0, firstNewline).trim();
-          body = plainText.substring(firstNewline + 1).trim();
-        } else {
-          title = 'Caverno';
-          body = plainText;
-        }
-
-        notificationService.showResponseCompleteNotification(title, body);
-      }
-    },
-    initialMessages: initialMessages,
-    conversationId: currentConversationId,
-  );
-
-  ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
-    notifier.updateConnectionSettings(next);
-  });
-
-  ref.listen<McpToolService?>(mcpToolServiceProvider, (previous, next) {
-    notifier.updateMcpToolService(next);
-  });
-
-  ref.listen<ConversationsState>(conversationsNotifierProvider, (
-    previous,
-    next,
-  ) {
-    notifier.syncConversation(
-      conversationId: next.currentConversation?.id,
-      messages: next.currentConversation?.messages ?? const [],
-    );
-  });
-
-  return notifier;
-});
-
-class ChatNotifier extends StateNotifier<ChatState> {
-  ChatNotifier(
-    this._dataSource,
-    this._mcpToolService,
-    this._memoryService,
-    this._settings, {
-    this.onMessagesChanged,
-    this.onAutoRead,
-    this.onSendStarted,
-    this.onResponseCompleted,
-    this.conversationId,
-    List<Message>? initialMessages,
-  }) : super(ChatState.initial()) {
-    // Load initial messages.
-    if (initialMessages != null && initialMessages.isNotEmpty) {
-      state = state.copyWith(messages: initialMessages);
-    }
-    // Connect the MCP tool service.
-    _mcpToolService?.connect();
-  }
-
-  ChatDataSource _dataSource;
+class ChatNotifier extends Notifier<ChatState> {
+  late ChatDataSource _dataSource;
   McpToolService? _mcpToolService;
-  final SessionMemoryService _memoryService;
-  AppSettings _settings;
-  final void Function(List<Message>)? onMessagesChanged;
-  final void Function(String content)? onAutoRead;
-  final void Function()? onSendStarted;
-  final void Function(String content)? onResponseCompleted;
+  late SessionMemoryService _memoryService;
+  late AppSettings _settings;
   String? conversationId;
   String _languageCode = 'en';
   String? _sessionMemoryContext;
@@ -178,6 +57,122 @@ class ChatNotifier extends StateNotifier<ChatState> {
   Message? _hiddenPrompt;
   bool _isVoiceMode = false;
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
+
+  @override
+  ChatState build() {
+    _settings = ref.read(settingsNotifierProvider);
+    _dataSource = ref.read(chatRemoteDataSourceProvider);
+    _mcpToolService = ref.read(mcpToolServiceProvider);
+    _memoryService = ref.read(sessionMemoryServiceProvider);
+
+    // Connect MCP tool service.
+    _mcpToolService?.connect();
+
+    // Load initial messages from the currently selected conversation.
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    final initialMessages =
+        conversationsState.currentConversation?.messages ?? const <Message>[];
+    conversationId = conversationsState.currentConversation?.id;
+
+    // React to settings changes.
+    ref.listen<AppSettings>(settingsNotifierProvider, (previous, next) {
+      updateConnectionSettings(next);
+    });
+
+    // React to MCP tool service changes.
+    ref.listen<McpToolService?>(mcpToolServiceProvider, (previous, next) {
+      updateMcpToolService(next);
+    });
+
+    // React to conversation switches.
+    ref.listen<ConversationsState>(conversationsNotifierProvider, (
+      previous,
+      next,
+    ) {
+      syncConversation(
+        conversationId: next.currentConversation?.id,
+        messages: next.currentConversation?.messages ?? const [],
+      );
+    });
+
+    // Cancel any in-flight streaming when the provider is disposed.
+    ref.onDispose(() {
+      _streamSubscription?.cancel();
+      _streamSubscription = null;
+    });
+
+    return initialMessages.isEmpty
+        ? ChatState.initial()
+        : ChatState.initial().copyWith(messages: initialMessages);
+  }
+
+  /// Persists messages to the conversation store. Replaces the previous
+  /// `onMessagesChanged` callback wired in via the provider builder.
+  void _onMessagesChanged(List<Message> messages) {
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentConversation(messages);
+  }
+
+  /// Speaks the assistant response via TTS when auto-read is enabled.
+  /// Replaces the previous `onAutoRead` callback.
+  void _onAutoRead(String content) {
+    final result = ContentParser.parse(content);
+    final buffer = StringBuffer();
+    for (final segment in result.segments) {
+      if (segment.type == ContentType.text) {
+        buffer.write(segment.content);
+      }
+    }
+    final readableText = buffer.toString().trim();
+    if (readableText.isEmpty) return;
+
+    final ttsService = ref.read(ttsServiceProvider);
+    ttsService.setSpeechRate(_settings.speechRate);
+    ttsService.speak(readableText);
+  }
+
+  /// Begins extended background execution on iOS when a request starts.
+  void _onSendStarted() {
+    ref.read(backgroundTaskServiceProvider).beginBackgroundTask();
+  }
+
+  /// Ends extended background execution and posts a notification when the
+  /// app is in the background. Replaces the previous `onResponseCompleted`
+  /// callback.
+  void _onResponseCompleted(String content) {
+    ref.read(backgroundTaskServiceProvider).endBackgroundTask();
+
+    if (content.isEmpty) return;
+    final lifecycleService = ref.read(appLifecycleServiceProvider);
+    if (!lifecycleService.isInBackground) return;
+
+    // Strip <think> blocks and extract readable text for the notification.
+    final parsed = ContentParser.parse(content);
+    final buffer = StringBuffer();
+    for (final segment in parsed.segments) {
+      if (segment.type == ContentType.text) {
+        buffer.write(segment.content);
+      }
+    }
+    final plainText = buffer.toString().trim();
+    if (plainText.isEmpty) return;
+
+    final firstNewline = plainText.indexOf('\n');
+    final String title;
+    final String body;
+    if (firstNewline > 0 && firstNewline <= 80) {
+      title = plainText.substring(0, firstNewline).trim();
+      body = plainText.substring(firstNewline + 1).trim();
+    } else {
+      title = 'Caverno';
+      body = plainText;
+    }
+
+    ref
+        .read(notificationServiceProvider)
+        .showResponseCompleteNotification(title, body);
+  }
 
   void updateConnectionSettings(AppSettings settings) {
     _settings = settings;
@@ -288,7 +283,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }) async {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
-    if (!mounted) return;
+    if (!ref.mounted) return;
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
@@ -322,7 +317,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       imageMimeType: imageMimeType,
     );
 
-    if (!mounted) return;
+    if (!ref.mounted) return;
     state = state.copyWith(
       messages: [...state.messages, userMessage],
       isLoading: true,
@@ -338,11 +333,11 @@ class ChatNotifier extends StateNotifier<ChatState> {
       isStreaming: true,
     );
 
-    if (!mounted) return;
+    if (!ref.mounted) return;
     state = state.copyWith(messages: [...state.messages, assistantMessage]);
 
     // Request extended background execution time on iOS.
-    onSendStarted?.call();
+    _onSendStarted();
 
     // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null &&
@@ -365,7 +360,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     bool isVoiceMode = false,
     String languageCode = 'en',
   }) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
 
     _temporalReferenceContext = null;
     _isVoiceMode = isVoiceMode;
@@ -392,7 +387,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       error: null,
     );
 
-    onSendStarted?.call();
+    _onSendStarted();
 
     // Use tool-aware flow when the MCP tool service is available.
     if (_mcpToolService != null && _settings.mcpEnabled) {
@@ -406,7 +401,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Sends a streaming request without tools.
   Future<void> _sendWithoutTools() async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     try {
       final stream = _dataSource.streamChatCompletion(
         messages: _prepareMessagesForLLM(),
@@ -439,7 +434,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Sends a request with tool support (function calling).
   Future<void> _sendWithTools() async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     try {
       // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
@@ -491,7 +486,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         maxTokens: _settings.maxTokens,
       );
 
-      if (!mounted) return;
+      if (!ref.mounted) return;
       appLog(
         '[Tool] LLM response - finishReason: ${result.finishReason}, hasToolCalls: ${result.hasToolCalls}',
       );
@@ -578,7 +573,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
       final toolCall = currentToolCalls.first;
-      if (!mounted) return;
+      if (!ref.mounted) return;
 
       appLog('[Tool] Tool loop [$iteration/$maxIterations]');
       appLog('[Tool] Executing tool: ${toolCall.name}');
@@ -643,7 +638,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
           maxTokens: _settings.maxTokens,
         );
 
-        if (!mounted) return;
+        if (!ref.mounted) return;
 
         // Continue looping if the LLM asks for another tool call.
         if (nextResult.hasToolCalls) {
@@ -672,7 +667,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     if (!hasTextResponse && toolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
-      if (!mounted) return;
+      if (!ref.mounted) return;
 
       // Build a prompt that includes tool results as a user message.
       final messagesForLLM = _prepareMessagesForLLM();
@@ -700,7 +695,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
 
       await for (final chunk in stream) {
-        if (!mounted) return;
+        if (!ref.mounted) return;
         _appendToLastMessage(chunk);
       }
     } else if (!hasTextResponse) {
@@ -714,7 +709,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void _appendToLastMessage(String chunk) {
-    if (!mounted || state.messages.isEmpty) return;
+    if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
@@ -771,7 +766,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
 
   /// Executes a `tool_call` detected from message content.
   Future<void> _executeContentToolCall(ToolCallData tc) async {
-    if (!mounted) return;
+    if (!ref.mounted) return;
 
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
@@ -792,7 +787,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
 
         // Append search results without triggering recursive tool-call checks.
-        if (mounted && state.messages.isNotEmpty) {
+        if (ref.mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
           final lastMessage = updatedMessages[lastIndex];
@@ -806,7 +801,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
         }
       } catch (e) {
         appLog('[ContentTool] Error: $e');
-        if (mounted && state.messages.isNotEmpty) {
+        if (ref.mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
           final lastMessage = updatedMessages[lastIndex];
@@ -847,7 +842,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       appLog('[ChatNotifier] Tool executions completed');
     }
 
-    if (!mounted || state.messages.isEmpty) return;
+    if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
@@ -866,7 +861,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       final cleaned = updatedMessages.sublist(0, lastIndex);
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
-      onResponseCompleted?.call('');
+      _onResponseCompleted('');
       return;
     }
 
@@ -874,21 +869,19 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _saveMessages();
 
     // Trigger auto-read when enabled.
-    if (_settings.autoReadEnabled &&
-        _settings.ttsEnabled &&
-        onAutoRead != null) {
+    if (_settings.autoReadEnabled && _settings.ttsEnabled) {
       final lastMsg = updatedMessages[lastIndex];
       if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
-        onAutoRead!(lastMsg.content);
+        _onAutoRead(lastMsg.content);
       }
     }
 
     // Notify when the response completes while the app is in the background.
     final lastMsg = updatedMessages[lastIndex];
     if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
-      onResponseCompleted?.call(lastMsg.content);
+      _onResponseCompleted(lastMsg.content);
     } else {
-      onResponseCompleted?.call('');
+      _onResponseCompleted('');
     }
   }
 
@@ -904,9 +897,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       }
     }
 
-    if (onMessagesChanged != null) {
-      onMessagesChanged!(messagesToSave);
-    }
+    _onMessagesChanged(messagesToSave);
 
     final currentConversationId = conversationId;
     if (currentConversationId != null && targetAssistantMessageId != null) {
@@ -931,7 +922,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
       messages: messagesToSave,
       draft: draft,
     );
-    if (!mounted || !result.hasAnyUpdate) return;
+    if (!ref.mounted || !result.hasAnyUpdate) return;
 
     final updatedMessages = [...state.messages];
     final targetIndex = updatedMessages.indexWhere(
@@ -952,10 +943,8 @@ class ChatNotifier extends StateNotifier<ChatState> {
     );
     state = state.copyWith(messages: updatedMessages);
 
-    if (onMessagesChanged != null) {
-      final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
-      onMessagesChanged!(normalized);
-    }
+    final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
+    _onMessagesChanged(normalized);
   }
 
   Future<MemoryExtractionDraft?> _extractMemoryDraftWithLlm(
@@ -1161,9 +1150,9 @@ class ChatNotifier extends StateNotifier<ChatState> {
   void _handleError(String error) {
     appLog('[ChatNotifier] _handleError called');
     appLog('[ChatNotifier]   raw error: $error');
-    if (!mounted || state.messages.isEmpty) {
+    if (!ref.mounted || state.messages.isEmpty) {
       appLog(
-        '[ChatNotifier]   skipped: mounted=$mounted, messages.isEmpty=${state.messages.isEmpty}',
+        '[ChatNotifier]   skipped: mounted=${ref.mounted}, messages.isEmpty=${state.messages.isEmpty}',
       );
       return;
     }
@@ -1258,7 +1247,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
     _streamSubscription?.cancel();
     _streamSubscription = null;
 
-    if (mounted && state.messages.isNotEmpty) {
+    if (ref.mounted && state.messages.isNotEmpty) {
       final lastMessage = state.messages.last;
       if (lastMessage.isStreaming) {
         _finishStreaming();
@@ -1267,7 +1256,7 @@ class ChatNotifier extends StateNotifier<ChatState> {
   }
 
   void clearMessages() {
-    if (!mounted) return;
+    if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
     _sessionMemoryContext = null;
@@ -1275,9 +1264,4 @@ class ChatNotifier extends StateNotifier<ChatState> {
     state = ChatState.initial();
   }
 
-  @override
-  void dispose() {
-    cancelStreaming();
-    super.dispose();
-  }
 }

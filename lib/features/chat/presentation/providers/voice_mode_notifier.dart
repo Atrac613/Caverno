@@ -72,26 +72,25 @@ final voicevoxAudioPlayerProvider = Provider<VoicevoxAudioPlayer>((ref) {
 });
 
 final voiceModeNotifierProvider =
-    StateNotifierProvider<VoiceModeNotifier, VoiceModeState>((ref) {
-  return VoiceModeNotifier(
-    ref.read(voiceRecorderProvider),
-    ref.watch(whisperServiceProvider),
-    ref.watch(voicevoxServiceProvider),
-    ref.read(voicevoxAudioPlayerProvider),
-    ref.read(chatNotifierProvider.notifier),
-    () => ref.read(settingsNotifierProvider),
-  );
-});
+    NotifierProvider<VoiceModeNotifier, VoiceModeState>(VoiceModeNotifier.new);
 
-class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
-  VoiceModeNotifier(
-    this._recorder,
-    this._whisperService,
-    this._voicevoxService,
-    this._audioPlayer,
-    this._chatNotifier,
-    this._getSettings,
-  ) : super(const VoiceModeState(status: VoiceModeStatus.idle)) {
+class VoiceModeNotifier extends Notifier<VoiceModeState> {
+  late final VoiceRecorder _recorder;
+  late final WhisperService _whisperService;
+  late final VoicevoxService _voicevoxService;
+  late final VoicevoxAudioPlayer _audioPlayer;
+  late final ChatNotifier _chatNotifier;
+
+  AppSettings _getSettings() => ref.read(settingsNotifierProvider);
+
+  @override
+  VoiceModeState build() {
+    _recorder = ref.read(voiceRecorderProvider);
+    _whisperService = ref.read(whisperServiceProvider);
+    _voicevoxService = ref.read(voicevoxServiceProvider);
+    _audioPlayer = ref.read(voicevoxAudioPlayerProvider);
+    _chatNotifier = ref.read(chatNotifierProvider.notifier);
+
     _recorder.onSpeechEnd = _onSpeechRecorded;
     _recorder.onSpeechDetected = _onBargeInDetected;
     _recorder.onAmplitudeChanged = (rms) {
@@ -99,16 +98,19 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
       audioLevel.value = current + (rms - current) * 0.5;
     };
     _audioPlayer.onQueueComplete = _onAudioPlaybackComplete;
+
+    // Always observe chat state; the handler is a no-op outside of the
+    // processing/speaking phases. Riverpod auto-disposes the subscription
+    // with the notifier.
+    ref.listen<ChatState>(
+      chatNotifierProvider,
+      (previous, next) => _onChatStateUpdated(next),
+    );
+
+    ref.onDispose(_handleDispose);
+
+    return const VoiceModeState(status: VoiceModeStatus.idle);
   }
-
-  final VoiceRecorder _recorder;
-  final WhisperService _whisperService;
-  final VoicevoxService _voicevoxService;
-  final VoicevoxAudioPlayer _audioPlayer;
-  final ChatNotifier _chatNotifier;
-  final AppSettings Function() _getSettings;
-
-  StreamSubscription? _chatSubscription;
   String _currentlySynthesizingText = '';
   final _sentenceSplitRegExp = RegExp(r'[。！？\n]+');
   final ValueNotifier<double> audioLevel = ValueNotifier(0.0);
@@ -216,14 +218,11 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     return false;
   }
 
-  @override
-  void dispose() {
+  void _handleDispose() {
     _silencePromptTimer?.cancel();
-    _chatSubscription?.cancel();
     _recorder.stopRecording();
     _audioPlayer.stop();
     audioLevel.dispose();
-    super.dispose();
   }
 
   /// Start the voice mode loop.
@@ -236,8 +235,8 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
     _isFirstListen = true;
     _consecutiveSynthesisErrors = 0;
 
-    // Subscribe to chat updates to intercept streaming responses.
-    _chatSubscription = _chatNotifier.stream.listen(_onChatStateUpdated);
+    // Chat state observation is established in build(); no manual setup
+    // is required here.
 
     await _startListening();
   }
@@ -246,8 +245,6 @@ class VoiceModeNotifier extends StateNotifier<VoiceModeState> {
   Future<void> stop() async {
     _silencePromptTimer?.cancel();
     _silencePromptTimer = null;
-    await _chatSubscription?.cancel();
-    _chatSubscription = null;
     await _recorder.stopRecording();
     await _audioPlayer.stop();
     _currentlySynthesizingText = '';
