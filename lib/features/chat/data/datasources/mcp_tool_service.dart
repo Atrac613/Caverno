@@ -110,6 +110,12 @@ class McpToolService {
     toolDefinitions.add(_portCheckTool);
     toolDefinitions.add(_sslCertificateTool);
     toolDefinitions.add(_httpStatusTool);
+    toolDefinitions.add(_httpGetTool);
+    toolDefinitions.add(_httpHeadTool);
+    toolDefinitions.add(_httpPostTool);
+    toolDefinitions.add(_httpPutTool);
+    toolDefinitions.add(_httpPatchTool);
+    toolDefinitions.add(_httpDeleteTool);
     toolDefinitions.add(_tracerouteTool);
 
     // Use MCP tools when connected.
@@ -291,6 +297,106 @@ class McpToolService {
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] HTTP status error: $e');
+        return McpToolResult(
+          toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'http_get' ||
+        name == 'http_head' ||
+        name == 'http_post' ||
+        name == 'http_put' ||
+        name == 'http_patch' ||
+        name == 'http_delete') {
+      try {
+        final url = (arguments['url'] as String?)?.trim() ?? '';
+        if (url.isEmpty) {
+          return McpToolResult(
+            toolName: name, result: '', isSuccess: false,
+            errorMessage: 'URL is required',
+          );
+        }
+        final headers = _parseHeaderMap(arguments['headers']);
+        final body = arguments['body'] as String?;
+        final contentType = (arguments['content_type'] as String?)?.trim();
+        final timeout =
+            ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 30);
+        final followRedirects = arguments['follow_redirects'] as bool? ?? true;
+        final maxRedirects =
+            ((arguments['max_redirects'] as num?)?.toInt() ?? 5).clamp(0, 10);
+
+        late final String result;
+        switch (name) {
+          case 'http_get':
+            result = await NetworkTools.httpGet(
+              url: url,
+              headers: headers,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+          case 'http_head':
+            result = await NetworkTools.httpHead(
+              url: url,
+              headers: headers,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+          case 'http_post':
+            result = await NetworkTools.httpPost(
+              url: url,
+              headers: headers,
+              body: body,
+              contentType: contentType,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+          case 'http_put':
+            result = await NetworkTools.httpPut(
+              url: url,
+              headers: headers,
+              body: body,
+              contentType: contentType,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+          case 'http_patch':
+            result = await NetworkTools.httpPatch(
+              url: url,
+              headers: headers,
+              body: body,
+              contentType: contentType,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+          case 'http_delete':
+            result = await NetworkTools.httpDelete(
+              url: url,
+              headers: headers,
+              body: body,
+              contentType: contentType,
+              timeoutSeconds: timeout,
+              followRedirects: followRedirects,
+              maxRedirects: maxRedirects,
+            );
+            break;
+        }
+
+        appLog('[McpToolService] $name executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] $name error: $e');
         return McpToolResult(
           toolName: name, result: '', isSuccess: false,
           errorMessage: e.toString(),
@@ -755,6 +861,137 @@ class McpToolService {
       },
     },
   };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: HTTP method tools (GET / HEAD / POST / PUT / PATCH / DELETE)
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> _httpMethodSchema({
+    required String name,
+    required String description,
+    required bool acceptsBody,
+  }) {
+    final properties = <String, dynamic>{
+      'url': {
+        'type': 'string',
+        'description': 'Full URL to request (e.g., https://example.com/api)',
+      },
+      'headers': {
+        'type': 'object',
+        'description':
+            'Optional request headers as a JSON object of string values '
+            '(e.g., {"Authorization": "Bearer ..."}).',
+        'additionalProperties': {'type': 'string'},
+      },
+      'timeout': {
+        'type': 'integer',
+        'description': 'Timeout in seconds (default: 10, max: 30)',
+      },
+      'follow_redirects': {
+        'type': 'boolean',
+        'description': 'Whether to follow HTTP redirects (default: true)',
+      },
+      'max_redirects': {
+        'type': 'integer',
+        'description': 'Maximum redirects to follow (default: 5, max: 10)',
+      },
+    };
+
+    if (acceptsBody) {
+      properties['body'] = {
+        'type': 'string',
+        'description':
+            'Raw request body as a string. For JSON, pass a stringified '
+            'JSON document and set content_type accordingly.',
+      };
+      properties['content_type'] = {
+        'type': 'string',
+        'description':
+            'Convenience for the Content-Type header (default: '
+            'application/json when body is provided). Ignored if a '
+            'Content-Type entry is also supplied via headers.',
+      };
+    }
+
+    return {
+      'type': 'function',
+      'function': {
+        'name': name,
+        'description': description,
+        'parameters': {
+          'type': 'object',
+          'properties': properties,
+          'required': ['url'],
+        },
+      },
+    };
+  }
+
+  static Map<String, dynamic> get _httpGetTool => _httpMethodSchema(
+    name: 'http_get',
+    description:
+        'Perform an HTTP GET request and return status code, headers, '
+        'and the response body (UTF-8 decoded, truncated to 4000 chars).',
+    acceptsBody: false,
+  );
+
+  static Map<String, dynamic> get _httpHeadTool => _httpMethodSchema(
+    name: 'http_head',
+    description:
+        'Perform an HTTP HEAD request. Returns status code and response '
+        'headers without the body.',
+    acceptsBody: false,
+  );
+
+  static Map<String, dynamic> get _httpPostTool => _httpMethodSchema(
+    name: 'http_post',
+    description:
+        'Perform an HTTP POST request with an optional request body. '
+        'Returns status code, headers, and response body (truncated to '
+        '4000 chars).',
+    acceptsBody: true,
+  );
+
+  static Map<String, dynamic> get _httpPutTool => _httpMethodSchema(
+    name: 'http_put',
+    description:
+        'Perform an HTTP PUT request with an optional request body. '
+        'Returns status code, headers, and response body (truncated to '
+        '4000 chars).',
+    acceptsBody: true,
+  );
+
+  static Map<String, dynamic> get _httpPatchTool => _httpMethodSchema(
+    name: 'http_patch',
+    description:
+        'Perform an HTTP PATCH request with an optional request body. '
+        'Returns status code, headers, and response body (truncated to '
+        '4000 chars).',
+    acceptsBody: true,
+  );
+
+  static Map<String, dynamic> get _httpDeleteTool => _httpMethodSchema(
+    name: 'http_delete',
+    description:
+        'Perform an HTTP DELETE request. A request body is permitted '
+        'but optional. Returns status code, headers, and response body '
+        '(truncated to 4000 chars).',
+    acceptsBody: true,
+  );
+
+  /// Coerces an arbitrary `headers` argument into a `Map<String, String>`.
+  ///
+  /// Non-string values are converted via `toString()`. Returns `null` when
+  /// no usable headers were supplied so callers can skip the parameter.
+  static Map<String, String>? _parseHeaderMap(dynamic raw) {
+    if (raw is! Map) return null;
+    final result = <String, String>{};
+    raw.forEach((key, value) {
+      if (key == null || value == null) return;
+      result[key.toString()] = value.toString();
+    });
+    return result.isEmpty ? null : result;
+  }
 
   // ---------------------------------------------------------------------------
   // Built-in tool: traceroute

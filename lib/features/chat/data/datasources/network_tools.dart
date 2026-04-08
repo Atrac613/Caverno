@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:dart_ping/dart_ping.dart';
 
@@ -141,6 +142,258 @@ class NetworkTools {
           'location': r.location.toString(),
         }).toList(),
       });
+    } finally {
+      client.close();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // HTTP Methods (GET / HEAD / DELETE / POST / PUT / PATCH)
+  // ---------------------------------------------------------------------------
+
+  /// Maximum response body characters returned to the LLM.
+  static const int _kHttpBodyMaxChars = 4000;
+
+  /// Performs an HTTP GET request and returns the decoded body alongside
+  /// status, headers, and timing information as a JSON-encoded string.
+  static Future<String> httpGet({
+    required String url,
+    Map<String, String>? headers,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'GET',
+      url: url,
+      headers: headers,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: true,
+    );
+  }
+
+  /// Performs an HTTP HEAD request. The response body is drained and not
+  /// returned, mirroring the behaviour of [httpStatus] but exposing the
+  /// HEAD verb explicitly.
+  static Future<String> httpHead({
+    required String url,
+    Map<String, String>? headers,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'HEAD',
+      url: url,
+      headers: headers,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: false,
+    );
+  }
+
+  /// Performs an HTTP DELETE request. A request body is permitted by the
+  /// HTTP spec and forwarded if [body] is non-null.
+  static Future<String> httpDelete({
+    required String url,
+    Map<String, String>? headers,
+    String? body,
+    String? contentType,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'DELETE',
+      url: url,
+      headers: headers,
+      body: body,
+      contentType: contentType,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: true,
+    );
+  }
+
+  /// Performs an HTTP POST request with [body] as the raw payload.
+  static Future<String> httpPost({
+    required String url,
+    Map<String, String>? headers,
+    String? body,
+    String? contentType,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'POST',
+      url: url,
+      headers: headers,
+      body: body,
+      contentType: contentType,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: true,
+    );
+  }
+
+  /// Performs an HTTP PUT request with [body] as the raw payload.
+  static Future<String> httpPut({
+    required String url,
+    Map<String, String>? headers,
+    String? body,
+    String? contentType,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'PUT',
+      url: url,
+      headers: headers,
+      body: body,
+      contentType: contentType,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: true,
+    );
+  }
+
+  /// Performs an HTTP PATCH request with [body] as the raw payload.
+  static Future<String> httpPatch({
+    required String url,
+    Map<String, String>? headers,
+    String? body,
+    String? contentType,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+  }) {
+    return _httpRequest(
+      method: 'PATCH',
+      url: url,
+      headers: headers,
+      body: body,
+      contentType: contentType,
+      timeoutSeconds: timeoutSeconds,
+      followRedirects: followRedirects,
+      maxRedirects: maxRedirects,
+      includeBody: true,
+    );
+  }
+
+  /// Shared implementation for all method-specific HTTP wrappers.
+  ///
+  /// Returns a JSON-encoded payload describing status, headers, redirect
+  /// chain, timing, and (when [includeBody] is true) the response body.
+  /// Bodies are decoded as UTF-8 when possible and otherwise base64-encoded;
+  /// in either case the returned string is truncated to
+  /// [_kHttpBodyMaxChars] characters with a `body_truncated` flag set.
+  static Future<String> _httpRequest({
+    required String method,
+    required String url,
+    Map<String, String>? headers,
+    String? body,
+    String? contentType,
+    int timeoutSeconds = 10,
+    bool followRedirects = true,
+    int maxRedirects = 5,
+    required bool includeBody,
+  }) async {
+    final uri = Uri.parse(url);
+    final client = HttpClient()
+      ..connectionTimeout = Duration(seconds: timeoutSeconds);
+
+    try {
+      final stopwatch = Stopwatch()..start();
+      final request = await client.openUrl(method, uri);
+      request.followRedirects = followRedirects;
+      request.maxRedirects = maxRedirects;
+
+      // Track which header names were explicitly provided so the
+      // content_type convenience parameter does not clobber them.
+      final providedHeaderNames = <String>{};
+      if (headers != null) {
+        headers.forEach((name, value) {
+          providedHeaderNames.add(name.toLowerCase());
+          request.headers.set(name, value);
+        });
+      }
+
+      final hasBody = body != null && body.isNotEmpty;
+      if (hasBody) {
+        if (!providedHeaderNames.contains('content-type')) {
+          request.headers.contentType = ContentType.parse(
+            contentType ?? 'application/json',
+          );
+        }
+        final encodedBody = utf8.encode(body);
+        request.contentLength = encodedBody.length;
+        request.add(encodedBody);
+      }
+
+      final response = await request.close().timeout(
+        Duration(seconds: timeoutSeconds),
+      );
+      stopwatch.stop();
+
+      final responseHeaders = <String, String>{};
+      response.headers.forEach((name, values) {
+        responseHeaders[name] = values.join(', ');
+      });
+
+      final payload = <String, dynamic>{
+        'url': url,
+        'method': method,
+        'status_code': response.statusCode,
+        'reason_phrase': response.reasonPhrase,
+        'response_time_ms': stopwatch.elapsedMilliseconds,
+        'headers': responseHeaders,
+        'redirects': response.redirects.map((r) => {
+          'status': r.statusCode,
+          'location': r.location.toString(),
+        }).toList(),
+        'content_type': response.headers.contentType?.toString(),
+      };
+
+      if (!includeBody) {
+        await response.drain<void>();
+        return jsonEncode(payload);
+      }
+
+      // Collect the raw bytes so we can fall back to base64 for
+      // non-textual responses without losing the data entirely.
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in response) {
+        builder.add(chunk);
+      }
+      final bytes = builder.takeBytes();
+      payload['body_bytes'] = bytes.length;
+
+      String bodyText;
+      String encoding;
+      try {
+        bodyText = utf8.decode(bytes);
+        encoding = 'utf-8';
+      } on FormatException {
+        bodyText = base64Encode(bytes);
+        encoding = 'base64';
+      }
+
+      final truncated = bodyText.length > _kHttpBodyMaxChars;
+      payload['body'] = truncated
+          ? bodyText.substring(0, _kHttpBodyMaxChars)
+          : bodyText;
+      payload['body_truncated'] = truncated;
+      payload['body_encoding'] = encoding;
+
+      return jsonEncode(payload);
     } finally {
       client.close();
     }
