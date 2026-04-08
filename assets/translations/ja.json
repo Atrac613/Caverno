@@ -47,6 +47,7 @@
     "tts_play": "読み上げ",
     "input_hint": "メッセージを入力...",
     "listening": "聞き取り中...",
+    "attachments": "添付",
     "attach_image": "画像を添付",
     "record_stop": "録音停止",
     "record_start": "音声入力",
