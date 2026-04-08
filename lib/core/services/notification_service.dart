@@ -29,7 +29,7 @@ class NotificationService {
       macOS: darwinSettings,
     );
 
-    await _plugin.initialize(settings);
+    await _plugin.initialize(settings: settings);
     _initialized = true;
   }
 
@@ -78,7 +78,12 @@ class NotificationService {
       iOS: iosDetails,
     );
 
-    await _plugin.show(0, title, body, details);
+    await _plugin.show(
+      id: 0,
+      title: title,
+      body: body,
+      notificationDetails: details,
+    );
   }
 
   void dispose() {}
