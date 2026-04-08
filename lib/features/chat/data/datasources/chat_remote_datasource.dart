@@ -1,9 +1,9 @@
 import 'dart:convert' as dart_convert;
 
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
-import '../../../../core/utils/logger.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import 'chat_datasource.dart';
 
@@ -53,9 +53,9 @@ class ToolCallInfo {
 
 class ChatRemoteDataSource implements ChatDataSource {
   ChatRemoteDataSource({String? baseUrl, String? apiKey})
-    : _client = OpenAIClient(
+    : _client = OpenAIClient.withApiKey(
+        apiKey ?? ApiConstants.defaultApiKey,
         baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
-        apiKey: apiKey ?? ApiConstants.defaultApiKey,
       );
 
   final OpenAIClient _client;
@@ -87,6 +87,19 @@ class ChatRemoteDataSource implements ChatDataSource {
       appLog('[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}');
     }
     appLog('[LLM] === End Tools ===');
+  }
+
+  /// Build a list of [Tool] objects from the tool definition maps.
+  List<Tool>? _buildTools(List<Map<String, dynamic>>? tools) {
+    if (tools == null) return null;
+    return tools.map((t) {
+      final function = t['function'] as Map<String, dynamic>;
+      return Tool.function(
+        name: function['name'] as String,
+        description: function['description'] as String?,
+        parameters: function['parameters'] as Map<String, dynamic>?,
+      );
+    }).toList();
   }
 
   /// Get chat completion via streaming (without tools)
@@ -123,25 +136,25 @@ class ChatRemoteDataSource implements ChatDataSource {
     _logMessages(messages);
 
     try {
-      final stream = _client.createChatCompletionStream(
-        request: CreateChatCompletionRequest(
-          model: ChatCompletionModel.modelId(modelId),
+      final stream = _client.chat.completions.createStream(
+        ChatCompletionCreateRequest(
+          model: modelId,
           messages: formattedMessages,
           temperature: temperature ?? ApiConstants.defaultTemperature,
           maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-          streamOptions: ChatCompletionStreamOptions(includeUsage: true),
+          streamOptions: const StreamOptions(includeUsage: true),
         ),
       );
 
       final responseBuffer = StringBuffer();
       var isInReasoning = false;
-      await for (final response in stream) {
+      await for (final event in stream) {
         // Capture usage from the final chunk (when stream_options is set)
-        if (response.usage != null) {
-          lastUsage = _extractUsage(response.usage);
+        if (event.usage != null) {
+          lastUsage = _extractUsage(event.usage);
         }
 
-        final delta = response.choices?.firstOrNull?.delta;
+        final delta = event.choices?.firstOrNull?.delta;
         if (delta == null) continue;
 
         // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
@@ -214,27 +227,17 @@ class ChatRemoteDataSource implements ChatDataSource {
     _logMessages(messages);
     _logTools(tools);
 
-    final request = CreateChatCompletionRequest(
-      model: ChatCompletionModel.modelId(modelId),
+    final request = ChatCompletionCreateRequest(
+      model: modelId,
       messages: formattedMessages,
       temperature: temperature ?? ApiConstants.defaultTemperature,
       maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-      tools: tools?.map((t) {
-        final function = t['function'] as Map<String, dynamic>;
-        return ChatCompletionTool(
-          type: ChatCompletionToolType.function,
-          function: FunctionObject(
-            name: function['name'] as String,
-            description: function['description'] as String?,
-            parameters: function['parameters'] as Map<String, dynamic>?,
-          ),
-        );
-      }).toList(),
+      tools: _buildTools(tools),
     );
 
     appLog('[LLM] Sending request...');
     try {
-      final response = await _client.createChatCompletion(request: request);
+      final response = await _client.chat.completions.create(request);
       final choice = response.choices.first;
       final message = choice.message;
 
@@ -247,46 +250,21 @@ class ChatRemoteDataSource implements ChatDataSource {
       final reasoning = message.reasoningContent ?? message.reasoning;
       var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
-        appLog('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        appLog(
+          '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
+        );
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
       // Parse tool calls
-      List<ToolCallInfo>? toolCalls;
-      if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
-        appLog('[LLM] === Tool Calls ===');
-        toolCalls = message.toolCalls!.map((tc) {
-          appLog('[LLM]   id: ${tc.id}');
-          appLog('[LLM]   name: ${tc.function.name}');
-          appLog('[LLM]   arguments: ${tc.function.arguments}');
-          // Parse arguments
-          Map<String, dynamic> args = {};
-          try {
-            final argsStr = tc.function.arguments;
-            if (argsStr.isNotEmpty) {
-              args = Map<String, dynamic>.from(
-                dart_convert.jsonDecode(argsStr) as Map,
-              );
-            }
-          } catch (e) {
-            appLog('[LLM]   Failed to parse arguments: $e');
-          }
-
-          return ToolCallInfo(
-            id: tc.id,
-            name: tc.function.name,
-            arguments: args,
-          );
-        }).toList();
-        appLog('[LLM] === End Tool Calls ===');
-      }
+      final toolCalls = _parseToolCalls(message.toolCalls);
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
         toolCalls: toolCalls,
-        finishReason: choice.finishReason?.name ?? 'stop',
+        finishReason: choice.finishReason?.value ?? 'stop',
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
@@ -328,16 +306,13 @@ class ChatRemoteDataSource implements ChatDataSource {
     // Add assistant tool_calls message (required by OpenAI API)
     // mlx-lm.server requires content, so use empty string if null
     formattedMessages.add(
-      ChatCompletionMessage.assistant(
+      AssistantMessage(
         content: assistantContent ?? '',
         toolCalls: [
-          ChatCompletionMessageToolCall(
+          ToolCall(
             id: toolCallId,
-            type: ChatCompletionMessageToolCallType.function,
-            function: ChatCompletionMessageFunctionCall(
-              name: toolName,
-              arguments: toolArguments,
-            ),
+            type: 'function',
+            function: FunctionCall(name: toolName, arguments: toolArguments),
           ),
         ],
       ),
@@ -345,28 +320,28 @@ class ChatRemoteDataSource implements ChatDataSource {
 
     // Add tool result message
     formattedMessages.add(
-      ChatCompletionMessage.tool(toolCallId: toolCallId, content: toolResult),
+      ChatMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
 
-    final stream = _client.createChatCompletionStream(
-      request: CreateChatCompletionRequest(
-        model: ChatCompletionModel.modelId(modelId),
+    final stream = _client.chat.completions.createStream(
+      ChatCompletionCreateRequest(
+        model: modelId,
         messages: formattedMessages,
         temperature: temperature ?? ApiConstants.defaultTemperature,
         maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-        streamOptions: ChatCompletionStreamOptions(includeUsage: true),
+        streamOptions: const StreamOptions(includeUsage: true),
       ),
     );
 
     final responseBuffer = StringBuffer();
     var isInReasoning = false;
-    await for (final response in stream) {
+    await for (final event in stream) {
       // Capture usage from the final chunk
-      if (response.usage != null) {
-        lastUsage = _extractUsage(response.usage);
+      if (event.usage != null) {
+        lastUsage = _extractUsage(event.usage);
       }
 
-      final delta = response.choices?.firstOrNull?.delta;
+      final delta = event.choices?.firstOrNull?.delta;
       if (delta == null) continue;
 
       // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
@@ -440,16 +415,13 @@ class ChatRemoteDataSource implements ChatDataSource {
 
     // Add assistant tool_calls message
     formattedMessages.add(
-      ChatCompletionMessage.assistant(
+      AssistantMessage(
         content: assistantContent ?? '',
         toolCalls: [
-          ChatCompletionMessageToolCall(
+          ToolCall(
             id: toolCallId,
-            type: ChatCompletionMessageToolCallType.function,
-            function: ChatCompletionMessageFunctionCall(
-              name: toolName,
-              arguments: toolArguments,
-            ),
+            type: 'function',
+            function: FunctionCall(name: toolName, arguments: toolArguments),
           ),
         ],
       ),
@@ -457,30 +429,20 @@ class ChatRemoteDataSource implements ChatDataSource {
 
     // Add tool result message
     formattedMessages.add(
-      ChatCompletionMessage.tool(toolCallId: toolCallId, content: toolResult),
+      ChatMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
 
-    final request = CreateChatCompletionRequest(
-      model: ChatCompletionModel.modelId(modelId),
+    final request = ChatCompletionCreateRequest(
+      model: modelId,
       messages: formattedMessages,
       temperature: temperature ?? ApiConstants.defaultTemperature,
       maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-      tools: tools?.map((t) {
-        final function = t['function'] as Map<String, dynamic>;
-        return ChatCompletionTool(
-          type: ChatCompletionToolType.function,
-          function: FunctionObject(
-            name: function['name'] as String,
-            description: function['description'] as String?,
-            parameters: function['parameters'] as Map<String, dynamic>?,
-          ),
-        );
-      }).toList(),
+      tools: _buildTools(tools),
     );
 
     appLog('[LLM] Sending request...');
     try {
-      final response = await _client.createChatCompletion(request: request);
+      final response = await _client.chat.completions.create(request);
       final choice = response.choices.first;
       final message = choice.message;
 
@@ -493,43 +455,20 @@ class ChatRemoteDataSource implements ChatDataSource {
       final reasoning = message.reasoningContent ?? message.reasoning;
       var responseContent = message.content ?? '';
       if (reasoning != null && reasoning.isNotEmpty) {
-        appLog('[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}');
+        appLog(
+          '[LLM] reasoning: ${reasoning.length > 200 ? '${reasoning.substring(0, 200)}...' : reasoning}',
+        );
         responseContent = '<think>$reasoning</think>$responseContent';
       }
 
-      List<ToolCallInfo>? toolCallsResult;
-      if (message.toolCalls != null && message.toolCalls!.isNotEmpty) {
-        appLog('[LLM] === Tool Calls ===');
-        toolCallsResult = message.toolCalls!.map((tc) {
-          appLog('[LLM]   id: ${tc.id}');
-          appLog('[LLM]   name: ${tc.function.name}');
-          appLog('[LLM]   arguments: ${tc.function.arguments}');
-          Map<String, dynamic> args = {};
-          try {
-            final argsStr = tc.function.arguments;
-            if (argsStr.isNotEmpty) {
-              args = Map<String, dynamic>.from(
-                dart_convert.jsonDecode(argsStr) as Map,
-              );
-            }
-          } catch (e) {
-            appLog('[LLM]   Failed to parse arguments: $e');
-          }
-          return ToolCallInfo(
-            id: tc.id,
-            name: tc.function.name,
-            arguments: args,
-          );
-        }).toList();
-        appLog('[LLM] === End Tool Calls ===');
-      }
+      final toolCallsResult = _parseToolCalls(message.toolCalls);
 
       appLog('[LLM] ==========================================');
 
       return ChatCompletionResult(
         content: responseContent,
         toolCalls: toolCallsResult,
-        finishReason: choice.finishReason?.name ?? 'stop',
+        finishReason: choice.finishReason?.value ?? 'stop',
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
@@ -541,53 +480,72 @@ class ChatRemoteDataSource implements ChatDataSource {
     }
   }
 
+  /// Parse tool calls from an assistant message into [ToolCallInfo] records.
+  List<ToolCallInfo>? _parseToolCalls(List<ToolCall>? toolCalls) {
+    if (toolCalls == null || toolCalls.isEmpty) return null;
+    appLog('[LLM] === Tool Calls ===');
+    final result = toolCalls.map((tc) {
+      appLog('[LLM]   id: ${tc.id}');
+      appLog('[LLM]   name: ${tc.function.name}');
+      appLog('[LLM]   arguments: ${tc.function.arguments}');
+      Map<String, dynamic> args = {};
+      try {
+        final argsStr = tc.function.arguments;
+        if (argsStr.isNotEmpty) {
+          args = Map<String, dynamic>.from(
+            dart_convert.jsonDecode(argsStr) as Map,
+          );
+        }
+      } catch (e) {
+        appLog('[LLM]   Failed to parse arguments: $e');
+      }
+      return ToolCallInfo(id: tc.id, name: tc.function.name, arguments: args);
+    }).toList();
+    appLog('[LLM] === End Tool Calls ===');
+    return result;
+  }
+
   /// Extract token usage from a completion response.
-  TokenUsage _extractUsage(CompletionUsage? usage) {
+  TokenUsage _extractUsage(Usage? usage) {
     if (usage == null) return TokenUsage.zero;
     return TokenUsage(
-      promptTokens: usage.promptTokens ?? 0,
+      promptTokens: usage.promptTokens,
       completionTokens: usage.completionTokens ?? 0,
-      totalTokens: usage.totalTokens ?? 0,
+      totalTokens: usage.totalTokens,
     );
   }
 
-  List<ChatCompletionMessage> _formatMessages(
+  List<ChatMessage> _formatMessages(
     List<Message> messages, {
     bool stripImages = false,
   }) {
-    return messages.map((m) {
+    return messages.map<ChatMessage>((m) {
       switch (m.role) {
         case MessageRole.user:
           // Use parts format (multimodal) when image is present
           // Skip images if stripImages=true
           if (m.imageBase64 != null && !stripImages) {
-            final parts = <ChatCompletionMessageContentPart>[];
+            final parts = <ContentPart>[];
             if (m.content.isNotEmpty) {
-              parts.add(ChatCompletionMessageContentPart.text(text: m.content));
+              parts.add(ContentPart.text(m.content));
             }
             parts.add(
-              ChatCompletionMessageContentPart.image(
-                imageUrl: ChatCompletionMessageImageUrl(
-                  url:
-                      'data:${m.imageMimeType ?? 'image/jpeg'};base64,${m.imageBase64}',
-                ),
+              ContentPart.imageBase64(
+                data: m.imageBase64!,
+                mediaType: m.imageMimeType ?? 'image/jpeg',
               ),
             );
-            return ChatCompletionMessage.user(
-              content: ChatCompletionUserMessageContent.parts(parts),
-            );
+            return ChatMessage.user(parts);
           }
           // Text only (or images stripped)
           final content = m.content.isNotEmpty
               ? m.content
               : (m.imageBase64 != null ? '[image]' : '');
-          return ChatCompletionMessage.user(
-            content: ChatCompletionUserMessageContent.string(content),
-          );
+          return ChatMessage.user(content);
         case MessageRole.assistant:
-          return ChatCompletionMessage.assistant(content: m.content);
+          return ChatMessage.assistant(content: m.content);
         case MessageRole.system:
-          return ChatCompletionMessage.system(content: m.content);
+          return ChatMessage.system(m.content);
       }
     }).toList();
   }
