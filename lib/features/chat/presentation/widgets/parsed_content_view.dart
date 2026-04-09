@@ -2,7 +2,7 @@ import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown/flutter_markdown.dart';
+import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/content_parser.dart';
@@ -67,22 +67,26 @@ class _ParsedContentViewState extends State<ParsedContentView> {
       return const SizedBox.shrink();
     }
 
-    return SelectionArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < result.segments.length; i++)
-            _buildSegment(context, result.segments[i], theme, i),
-          // Show streaming thinking block with partial content
-          if (widget.isStreaming &&
-              result.hasIncompleteTag &&
-              result.incompleteTagType == 'thinking')
-            _buildStreamingThinkingBlock(
-              result.incompleteTagContent ?? '',
-              theme,
-            ),
-        ],
-      ),
+    // Note: each text segment is wrapped individually in a SelectionArea
+    // (see _buildSegment). We intentionally avoid wrapping the whole
+    // Column in a single SelectionArea because multi-selectable content
+    // that is frequently restructured during streaming (text ↔ tool_call
+    // segments) can trip Flutter's MultiSelectableSelectionContainer
+    // delegate into calling getTransformTo on an unmounted render object.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < result.segments.length; i++)
+          _buildSegment(context, result.segments[i], theme, i),
+        // Show streaming thinking block with partial content
+        if (widget.isStreaming &&
+            result.hasIncompleteTag &&
+            result.incompleteTagType == 'thinking')
+          _buildStreamingThinkingBlock(
+            result.incompleteTagContent ?? '',
+            theme,
+          ),
+      ],
     );
   }
 
@@ -94,100 +98,101 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   ) {
     switch (segment.type) {
       case ContentType.text:
-        return MarkdownBody(
-          data: segment.content,
-          // Keep the entire bubble as a single SelectionArea.
-          selectable: false,
-          builders: {
-            'pre': CodeBlockBuilder(theme: theme),
-          },
-          styleSheet: MarkdownStyleSheet(
-            p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
-            h1: TextStyle(
-              color: widget.textColor,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-            h2: TextStyle(
-              color: widget.textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-            h3: TextStyle(
-              color: widget.textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-            h4: TextStyle(
-              color: widget.textColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            strong: TextStyle(
-              color: widget.textColor,
-              fontWeight: FontWeight.bold,
-            ),
-            em: TextStyle(
-              color: widget.textColor,
-              fontStyle: FontStyle.italic,
-            ),
-            code: TextStyle(
-              color: theme.colorScheme.primary,
-              backgroundColor: theme.colorScheme.primaryContainer.withValues(
-                alpha: 0.3,
+        return SelectionArea(
+          child: MarkdownBody(
+            data: _escapeHtmlLikeTags(segment.content),
+            selectable: false,
+            builders: {
+              'pre': CodeBlockBuilder(theme: theme),
+            },
+            styleSheet: MarkdownStyleSheet(
+              p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
+              h1: TextStyle(
+                color: widget.textColor,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
               ),
-              fontSize: 13,
-              fontFamily: 'monospace',
-            ),
-            codeblockDecoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow.withValues(
-                alpha: 0.8,
+              h2: TextStyle(
+                color: widget.textColor,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              h3: TextStyle(
+                color: widget.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-            ),
-            codeblockPadding: const EdgeInsets.all(12),
-            blockquoteDecoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                  width: 3,
+              h4: TextStyle(
+                color: widget.textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              strong: TextStyle(
+                color: widget.textColor,
+                fontWeight: FontWeight.bold,
+              ),
+              em: TextStyle(
+                color: widget.textColor,
+                fontStyle: FontStyle.italic,
+              ),
+              code: TextStyle(
+                color: theme.colorScheme.primary,
+                backgroundColor: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
+                ),
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
+              codeblockDecoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow.withValues(
+                  alpha: 0.8,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+              codeblockPadding: const EdgeInsets.all(12),
+              blockquoteDecoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                    width: 3,
+                  ),
+                ),
+              ),
+              blockquotePadding: const EdgeInsets.only(
+                left: 12,
+                top: 4,
+                bottom: 4,
+              ),
+              listBullet: TextStyle(color: widget.textColor),
+              a: TextStyle(
+                color: theme.colorScheme.primary,
+                decoration: TextDecoration.underline,
+              ),
+              tableBorder: TableBorder.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.3),
+              ),
+              tableHead: TextStyle(
+                color: widget.textColor,
+                fontWeight: FontWeight.bold,
+              ),
+              tableBody: TextStyle(color: widget.textColor),
+              horizontalRuleDecoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                  ),
                 ),
               ),
             ),
-            blockquotePadding: const EdgeInsets.only(
-              left: 12,
-              top: 4,
-              bottom: 4,
-            ),
-            listBullet: TextStyle(color: widget.textColor),
-            a: TextStyle(
-              color: theme.colorScheme.primary,
-              decoration: TextDecoration.underline,
-            ),
-            tableBorder: TableBorder.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.3),
-            ),
-            tableHead: TextStyle(
-              color: widget.textColor,
-              fontWeight: FontWeight.bold,
-            ),
-            tableBody: TextStyle(color: widget.textColor),
-            horizontalRuleDecoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
+            onTapLink: (text, href, title) {
+              if (href != null) {
+                launchUrl(Uri.parse(href));
+              }
+            },
           ),
-          onTapLink: (text, href, title) {
-            if (href != null) {
-              launchUrl(Uri.parse(href));
-            }
-          },
         );
 
       case ContentType.thinking:
@@ -318,6 +323,71 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         ],
       ),
     );
+  }
+
+  /// Escapes stray HTML-like tags in text before passing to flutter_markdown.
+  ///
+  /// flutter_markdown 0.7.x trips an `_inlines.isEmpty` assertion when it
+  /// encounters inline HTML it cannot reconcile. LLM responses that echo
+  /// command output (e.g. SSH results) frequently contain angle-bracket
+  /// sequences like `<ip>`, `<user@host>`, or XML fragments that look like
+  /// HTML tags. Since the content parser has already stripped our
+  /// structural `<think>` / `<tool_call>` / `<tool_use>` tags by the time
+  /// we reach a text segment, any remaining `<…>` outside fenced/inline
+  /// code can safely be escaped.
+  static final _htmlLikeTagPattern = RegExp(r'<(/?[a-zA-Z][^>]*)>');
+  static final _fenceLinePattern = RegExp(r'^\s*```');
+
+  String _escapeHtmlLikeTags(String text) {
+    final buffer = StringBuffer();
+    var insideFence = false;
+    // Process line by line so fenced code blocks are preserved verbatim.
+    final lines = text.split('\n');
+    for (var i = 0; i < lines.length; i++) {
+      final line = lines[i];
+      if (_fenceLinePattern.hasMatch(line)) {
+        insideFence = !insideFence;
+        buffer.write(line);
+      } else if (insideFence) {
+        buffer.write(line);
+      } else {
+        buffer.write(_escapeOutsideInlineCode(line));
+      }
+      if (i != lines.length - 1) buffer.write('\n');
+    }
+    return buffer.toString();
+  }
+
+  /// Escapes HTML-like tags in a single line while leaving inline
+  /// backtick-delimited spans untouched.
+  String _escapeOutsideInlineCode(String line) {
+    final buffer = StringBuffer();
+    var inCode = false;
+    var i = 0;
+    while (i < line.length) {
+      final ch = line[i];
+      if (ch == '`') {
+        inCode = !inCode;
+        buffer.write(ch);
+        i++;
+        continue;
+      }
+      if (inCode) {
+        buffer.write(ch);
+        i++;
+        continue;
+      }
+      // Try matching an HTML-like tag starting at i.
+      final match = _htmlLikeTagPattern.matchAsPrefix(line, i);
+      if (match != null) {
+        buffer.write('&lt;${match.group(1)}&gt;');
+        i = match.end;
+        continue;
+      }
+      buffer.write(ch);
+      i++;
+    }
+    return buffer.toString();
   }
 
   String _formatToolArguments(Map<String, dynamic> arguments) {
