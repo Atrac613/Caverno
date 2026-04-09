@@ -26,7 +26,7 @@ abstract class McpToolEntity with _$McpToolEntity {
       'name': name,
       'description': sourceUrl == null
           ? description
-          : '$description (MCP server: $sourceUrl)',
+          : '$description (MCP server: ${_formatMcpServerLabel(sourceUrl!)})',
       'parameters': inputSchema,
     },
   };
@@ -73,4 +73,17 @@ class McpServerConnectionInfo {
   final McpConnectionStatus status;
   final int toolCount;
   final String? lastError;
+}
+
+String _formatMcpServerLabel(String rawUrl) {
+  final uri = Uri.tryParse(rawUrl);
+  if (uri == null || uri.host.isEmpty) {
+    return 'configured server';
+  }
+
+  final buffer = StringBuffer(uri.host);
+  if (uri.hasPort) {
+    buffer.write(':${uri.port}');
+  }
+  return buffer.toString();
 }

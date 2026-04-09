@@ -6,6 +6,15 @@ part of 'app_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_McpServerConfig _$McpServerConfigFromJson(Map<String, dynamic> json) =>
+    _McpServerConfig(
+      url: json['url'] as String? ?? '',
+      enabled: json['enabled'] as bool? ?? true,
+    );
+
+Map<String, dynamic> _$McpServerConfigToJson(_McpServerConfig instance) =>
+    <String, dynamic>{'url': instance.url, 'enabled': instance.enabled};
+
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   baseUrl: json['baseUrl'] as String,
   model: json['model'] as String,
@@ -16,6 +25,11 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   mcpUrls:
       (json['mcpUrls'] as List<dynamic>?)?.map((e) => e as String).toList() ??
       const <String>[],
+  mcpServers:
+      (json['mcpServers'] as List<dynamic>?)
+          ?.map((e) => McpServerConfig.fromJson(e as Map<String, dynamic>))
+          .toList() ??
+      const <McpServerConfig>[],
   mcpEnabled: json['mcpEnabled'] as bool? ?? false,
   ttsEnabled: json['ttsEnabled'] as bool? ?? true,
   autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
@@ -44,6 +58,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'maxTokens': instance.maxTokens,
       'mcpUrl': instance.mcpUrl,
       'mcpUrls': instance.mcpUrls,
+      'mcpServers': instance.mcpServers,
       'mcpEnabled': instance.mcpEnabled,
       'ttsEnabled': instance.ttsEnabled,
       'autoReadEnabled': instance.autoReadEnabled,

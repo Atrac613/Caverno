@@ -61,12 +61,45 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateMcpUrls(List<String> mcpUrls) async {
-    final normalizedUrls = AppSettings.normalizeMcpUrls(mcpUrls);
+    await updateMcpServers(AppSettings.buildMcpServersFromUrls(mcpUrls));
+  }
+
+  Future<void> updateMcpServers(List<McpServerConfig> mcpServers) async {
+    final activeUrls = AppSettings.activeMcpUrlsFromServers(mcpServers);
     state = state.copyWith(
-      mcpUrl: normalizedUrls.isEmpty ? '' : normalizedUrls.first,
-      mcpUrls: normalizedUrls,
+      mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
+      mcpUrls: activeUrls,
+      mcpServers: List<McpServerConfig>.from(mcpServers),
     );
     await _repository.save(state);
+  }
+
+  Future<void> addMcpServer() async {
+    await updateMcpServers([
+      ...state.configuredMcpServers,
+      const McpServerConfig(),
+    ]);
+  }
+
+  Future<void> updateMcpServerUrl(int index, String url) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    servers[index] = servers[index].copyWith(url: url);
+    await updateMcpServers(servers);
+  }
+
+  Future<void> updateMcpServerEnabled(int index, bool enabled) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    servers[index] = servers[index].copyWith(enabled: enabled);
+    await updateMcpServers(servers);
+  }
+
+  Future<void> removeMcpServer(int index) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    servers.removeAt(index);
+    await updateMcpServers(servers);
   }
 
   Future<void> updateMcpEnabled(bool mcpEnabled) async {

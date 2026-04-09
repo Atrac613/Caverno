@@ -80,7 +80,11 @@ class SettingsFileService {
     if (settings.voicevoxSpeakerId < 0) {
       throw const FormatException('voicevoxSpeakerId must be non-negative');
     }
-    for (final mcpUrl in settings.effectiveMcpUrls) {
+    for (final mcpServer in settings.effectiveMcpServers) {
+      final mcpUrl = mcpServer.normalizedUrl;
+      if (mcpUrl.isEmpty) {
+        continue;
+      }
       if (!_urlPattern.hasMatch(mcpUrl)) {
         throw const FormatException(
           'Each mcpUrl must be a valid HTTP/HTTPS URL',

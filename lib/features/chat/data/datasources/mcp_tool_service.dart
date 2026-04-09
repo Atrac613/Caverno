@@ -17,6 +17,30 @@ import 'searxng_client.dart';
 /// Fetches tools dynamically from an MCP server and executes them.
 /// Falls back to SearXNG when the MCP server is unavailable.
 class McpToolService {
+  static const _maxToolNameLength = 64;
+  static const Set<String> _reservedToolNames = {
+    'get_current_datetime',
+    'search_past_conversations',
+    'recall_memory',
+    'ping',
+    'whois_lookup',
+    'dns_lookup',
+    'port_check',
+    'ssl_certificate',
+    'http_status',
+    'http_get',
+    'http_head',
+    'http_post',
+    'http_put',
+    'http_patch',
+    'http_delete',
+    'traceroute',
+    'git_execute_command',
+    'ssh_connect',
+    'ssh_execute_command',
+    'ssh_disconnect',
+  };
+
   McpToolService({
     this.mcpClients = const [],
     this.searxngClient,
@@ -76,9 +100,10 @@ class McpToolService {
       return;
     }
 
-    final clients = targetUrls
-        .map((url) => McpClient(baseUrl: url))
-        .toList(growable: false);
+    final clients = _resolveClients(
+      targetUrls: targetUrls,
+      useOverrides: overrideUrls != null || overrideUrl != null,
+    );
 
     _status = McpConnectionStatus.connecting;
     _lastError = null;
@@ -195,7 +220,7 @@ class McpToolService {
       }
     }
 
-    final usedNames = <String>{};
+    final usedNames = {..._reservedToolNames};
     for (final result in successfulResults) {
       for (final tool in result.tools) {
         final exposedName = _buildExposedToolName(
@@ -228,30 +253,91 @@ class McpToolService {
     required Set<String> usedNames,
     required int duplicateCount,
   }) {
-    final suffix = duplicateCount > 1 ? '__${_sanitizeToolSuffix(url)}' : '';
-    var candidate = '$baseName$suffix';
+    final serverKey = _buildServerKey(url);
+    final shouldNamespace = duplicateCount > 1 || usedNames.contains(baseName);
+    var candidate = shouldNamespace
+        ? _buildNamespacedToolName(baseName: baseName, serverKey: serverKey)
+        : _truncateToolName(baseName);
     var attempt = 2;
 
     while (!usedNames.add(candidate)) {
-      candidate = '$baseName${suffix}_$attempt';
+      candidate = _buildNamespacedToolName(
+        baseName: baseName,
+        serverKey: serverKey,
+        attempt: attempt,
+      );
       attempt += 1;
     }
 
     return candidate;
   }
 
-  String _sanitizeToolSuffix(String url) {
+  List<McpClient> _resolveClients({
+    required List<String> targetUrls,
+    required bool useOverrides,
+  }) {
+    if (useOverrides) {
+      return targetUrls
+          .map((url) => McpClient(baseUrl: url))
+          .toList(growable: false);
+    }
+
+    final clientsByUrl = <String, McpClient>{};
+    for (final client in mcpClients) {
+      clientsByUrl.putIfAbsent(client.baseUrl.trim(), () => client);
+    }
+
+    return targetUrls
+        .map((url) => clientsByUrl[url] ?? McpClient(baseUrl: url))
+        .toList(growable: false);
+  }
+
+  String _buildNamespacedToolName({
+    required String baseName,
+    required String serverKey,
+    int? attempt,
+  }) {
+    final suffix = attempt == null ? '__$serverKey' : '__${serverKey}_$attempt';
+    final maxBaseLength = (_maxToolNameLength - suffix.length).clamp(1, 64);
+    final truncatedBase = baseName.length <= maxBaseLength
+        ? baseName
+        : baseName.substring(0, maxBaseLength);
+    return '$truncatedBase$suffix';
+  }
+
+  String _truncateToolName(String value) {
+    if (value.length <= _maxToolNameLength) {
+      return value;
+    }
+    return value.substring(0, _maxToolNameLength);
+  }
+
+  String _buildServerKey(String url) {
     final uri = Uri.tryParse(url);
     final rawValue = uri == null
-        ? url
+        ? 'server'
         : [
-            if (uri.host.isNotEmpty) uri.host,
+            if (uri.host.isNotEmpty) uri.host else 'server',
             if (uri.hasPort) uri.port.toString(),
-            if (uri.path.isNotEmpty && uri.path != '/') uri.path,
           ].join('_');
     final sanitized = rawValue.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
     final collapsed = sanitized.replaceAll(RegExp(r'_+'), '_');
-    return collapsed.replaceAll(RegExp(r'^_|_$'), '').toLowerCase();
+    final normalized = collapsed.replaceAll(RegExp(r'^_|_$'), '').toLowerCase();
+    final shortBase = normalized.isEmpty
+        ? 'server'
+        : normalized.substring(
+            0,
+            normalized.length > 18 ? 18 : normalized.length,
+          );
+    return '${shortBase}_${_shortHash(url)}';
+  }
+
+  String _shortHash(String value) {
+    var hash = 0;
+    for (final codeUnit in value.codeUnits) {
+      hash = (hash * 31 + codeUnit) & 0x3fffffff;
+    }
+    return hash.toRadixString(36).padLeft(6, '0');
   }
 
   List<String> _normalizeUrls(Iterable<String> values) {
