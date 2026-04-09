@@ -12,6 +12,8 @@ abstract class McpToolEntity with _$McpToolEntity {
     required String name,
     required String description,
     required Map<String, dynamic> inputSchema,
+    String? originalName,
+    String? sourceUrl,
   }) = _McpToolEntity;
 
   factory McpToolEntity.fromJson(Map<String, dynamic> json) =>
@@ -22,7 +24,9 @@ abstract class McpToolEntity with _$McpToolEntity {
     'type': 'function',
     'function': {
       'name': name,
-      'description': description,
+      'description': sourceUrl == null
+          ? description
+          : '$description (MCP server: $sourceUrl)',
       'parameters': inputSchema,
     },
   };
@@ -55,4 +59,18 @@ enum McpConnectionStatus {
 
   /// Error
   error,
+}
+
+class McpServerConnectionInfo {
+  const McpServerConnectionInfo({
+    required this.url,
+    required this.status,
+    this.toolCount = 0,
+    this.lastError,
+  });
+
+  final String url;
+  final McpConnectionStatus status;
+  final int toolCount;
+  final String? lastError;
 }

@@ -10,6 +10,8 @@ part 'app_settings.g.dart';
 
 @freezed
 abstract class AppSettings with _$AppSettings {
+  const AppSettings._();
+
   const factory AppSettings({
     required String baseUrl,
     required String model,
@@ -17,6 +19,7 @@ abstract class AppSettings with _$AppSettings {
     required double temperature,
     required int maxTokens,
     @Default('') String mcpUrl,
+    @Default(<String>[]) List<String> mcpUrls,
     @Default(false) bool mcpEnabled,
     // Voice settings
     @Default(true) bool ttsEnabled,
@@ -41,9 +44,33 @@ abstract class AppSettings with _$AppSettings {
     temperature: ApiConstants.defaultTemperature,
     maxTokens: ApiConstants.defaultMaxTokens,
     mcpUrl: 'http://localhost:8081',
+    mcpUrls: ['http://localhost:8081'],
     mcpEnabled: true,
   );
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
       _$AppSettingsFromJson(json);
+
+  List<String> get effectiveMcpUrls {
+    final configuredUrls = mcpUrls.isNotEmpty ? mcpUrls : [mcpUrl];
+    return normalizeMcpUrls(configuredUrls);
+  }
+
+  String get primaryMcpUrl =>
+      effectiveMcpUrls.isEmpty ? '' : effectiveMcpUrls.first;
+
+  static List<String> normalizeMcpUrls(Iterable<String> values) {
+    final normalized = <String>[];
+    final seen = <String>{};
+
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty || !seen.add(trimmed)) {
+        continue;
+      }
+      normalized.add(trimmed);
+    }
+
+    return normalized;
+  }
 }

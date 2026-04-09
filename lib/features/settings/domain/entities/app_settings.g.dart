@@ -13,6 +13,9 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   temperature: (json['temperature'] as num).toDouble(),
   maxTokens: (json['maxTokens'] as num).toInt(),
   mcpUrl: json['mcpUrl'] as String? ?? '',
+  mcpUrls:
+      (json['mcpUrls'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+      const <String>[],
   mcpEnabled: json['mcpEnabled'] as bool? ?? false,
   ttsEnabled: json['ttsEnabled'] as bool? ?? true,
   autoReadEnabled: json['autoReadEnabled'] as bool? ?? false,
@@ -40,6 +43,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'temperature': instance.temperature,
       'maxTokens': instance.maxTokens,
       'mcpUrl': instance.mcpUrl,
+      'mcpUrls': instance.mcpUrls,
       'mcpEnabled': instance.mcpEnabled,
       'ttsEnabled': instance.ttsEnabled,
       'autoReadEnabled': instance.autoReadEnabled,

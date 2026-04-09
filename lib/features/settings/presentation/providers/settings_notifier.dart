@@ -57,7 +57,15 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateMcpUrl(String mcpUrl) async {
-    state = state.copyWith(mcpUrl: mcpUrl);
+    await updateMcpUrls(mcpUrl.isEmpty ? const [] : [mcpUrl]);
+  }
+
+  Future<void> updateMcpUrls(List<String> mcpUrls) async {
+    final normalizedUrls = AppSettings.normalizeMcpUrls(mcpUrls);
+    state = state.copyWith(
+      mcpUrl: normalizedUrls.isEmpty ? '' : normalizedUrls.first,
+      mcpUrls: normalizedUrls,
+    );
     await _repository.save(state);
   }
 

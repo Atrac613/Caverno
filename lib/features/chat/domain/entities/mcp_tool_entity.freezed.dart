@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$McpToolEntity {
 
- String get name; String get description; Map<String, dynamic> get inputSchema;
+ String get name; String get description; Map<String, dynamic> get inputSchema; String? get originalName; String? get sourceUrl;
 /// Create a copy of McpToolEntity
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $McpToolEntityCopyWith<McpToolEntity> get copyWith => _$McpToolEntityCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.inputSchema, inputSchema));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other.inputSchema, inputSchema)&&(identical(other.originalName, originalName) || other.originalName == originalName)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(inputSchema));
+int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(inputSchema),originalName,sourceUrl);
 
 @override
 String toString() {
-  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema)';
+  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema, originalName: $originalName, sourceUrl: $sourceUrl)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $McpToolEntityCopyWith<$Res>  {
   factory $McpToolEntityCopyWith(McpToolEntity value, $Res Function(McpToolEntity) _then) = _$McpToolEntityCopyWithImpl;
 @useResult
 $Res call({
- String name, String description, Map<String, dynamic> inputSchema
+ String name, String description, Map<String, dynamic> inputSchema, String? originalName, String? sourceUrl
 });
 
 
@@ -65,12 +65,14 @@ class _$McpToolEntityCopyWithImpl<$Res>
 
 /// Create a copy of McpToolEntity
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? description = null,Object? inputSchema = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? name = null,Object? description = null,Object? inputSchema = null,Object? originalName = freezed,Object? sourceUrl = freezed,}) {
   return _then(_self.copyWith(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,inputSchema: null == inputSchema ? _self.inputSchema : inputSchema // ignore: cast_nullable_to_non_nullable
-as Map<String, dynamic>,
+as Map<String, dynamic>,originalName: freezed == originalName ? _self.originalName : originalName // ignore: cast_nullable_to_non_nullable
+as String?,sourceUrl: freezed == sourceUrl ? _self.sourceUrl : sourceUrl // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 
@@ -155,10 +157,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String description,  Map<String, dynamic> inputSchema)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String name,  String description,  Map<String, dynamic> inputSchema,  String? originalName,  String? sourceUrl)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _McpToolEntity() when $default != null:
-return $default(_that.name,_that.description,_that.inputSchema);case _:
+return $default(_that.name,_that.description,_that.inputSchema,_that.originalName,_that.sourceUrl);case _:
   return orElse();
 
 }
@@ -176,10 +178,10 @@ return $default(_that.name,_that.description,_that.inputSchema);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String description,  Map<String, dynamic> inputSchema)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String name,  String description,  Map<String, dynamic> inputSchema,  String? originalName,  String? sourceUrl)  $default,) {final _that = this;
 switch (_that) {
 case _McpToolEntity():
-return $default(_that.name,_that.description,_that.inputSchema);case _:
+return $default(_that.name,_that.description,_that.inputSchema,_that.originalName,_that.sourceUrl);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -196,10 +198,10 @@ return $default(_that.name,_that.description,_that.inputSchema);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String description,  Map<String, dynamic> inputSchema)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String name,  String description,  Map<String, dynamic> inputSchema,  String? originalName,  String? sourceUrl)?  $default,) {final _that = this;
 switch (_that) {
 case _McpToolEntity() when $default != null:
-return $default(_that.name,_that.description,_that.inputSchema);case _:
+return $default(_that.name,_that.description,_that.inputSchema,_that.originalName,_that.sourceUrl);case _:
   return null;
 
 }
@@ -211,7 +213,7 @@ return $default(_that.name,_that.description,_that.inputSchema);case _:
 @JsonSerializable()
 
 class _McpToolEntity extends McpToolEntity {
-  const _McpToolEntity({required this.name, required this.description, required final  Map<String, dynamic> inputSchema}): _inputSchema = inputSchema,super._();
+  const _McpToolEntity({required this.name, required this.description, required final  Map<String, dynamic> inputSchema, this.originalName, this.sourceUrl}): _inputSchema = inputSchema,super._();
   factory _McpToolEntity.fromJson(Map<String, dynamic> json) => _$McpToolEntityFromJson(json);
 
 @override final  String name;
@@ -223,6 +225,8 @@ class _McpToolEntity extends McpToolEntity {
   return EqualUnmodifiableMapView(_inputSchema);
 }
 
+@override final  String? originalName;
+@override final  String? sourceUrl;
 
 /// Create a copy of McpToolEntity
 /// with the given fields replaced by the non-null parameter values.
@@ -237,16 +241,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._inputSchema, _inputSchema));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpToolEntity&&(identical(other.name, name) || other.name == name)&&(identical(other.description, description) || other.description == description)&&const DeepCollectionEquality().equals(other._inputSchema, _inputSchema)&&(identical(other.originalName, originalName) || other.originalName == originalName)&&(identical(other.sourceUrl, sourceUrl) || other.sourceUrl == sourceUrl));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(_inputSchema));
+int get hashCode => Object.hash(runtimeType,name,description,const DeepCollectionEquality().hash(_inputSchema),originalName,sourceUrl);
 
 @override
 String toString() {
-  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema)';
+  return 'McpToolEntity(name: $name, description: $description, inputSchema: $inputSchema, originalName: $originalName, sourceUrl: $sourceUrl)';
 }
 
 
@@ -257,7 +261,7 @@ abstract mixin class _$McpToolEntityCopyWith<$Res> implements $McpToolEntityCopy
   factory _$McpToolEntityCopyWith(_McpToolEntity value, $Res Function(_McpToolEntity) _then) = __$McpToolEntityCopyWithImpl;
 @override @useResult
 $Res call({
- String name, String description, Map<String, dynamic> inputSchema
+ String name, String description, Map<String, dynamic> inputSchema, String? originalName, String? sourceUrl
 });
 
 
@@ -274,12 +278,14 @@ class __$McpToolEntityCopyWithImpl<$Res>
 
 /// Create a copy of McpToolEntity
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? description = null,Object? inputSchema = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? name = null,Object? description = null,Object? inputSchema = null,Object? originalName = freezed,Object? sourceUrl = freezed,}) {
   return _then(_McpToolEntity(
 name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,description: null == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String,inputSchema: null == inputSchema ? _self._inputSchema : inputSchema // ignore: cast_nullable_to_non_nullable
-as Map<String, dynamic>,
+as Map<String, dynamic>,originalName: freezed == originalName ? _self.originalName : originalName // ignore: cast_nullable_to_non_nullable
+as String?,sourceUrl: freezed == sourceUrl ? _self.sourceUrl : sourceUrl // ignore: cast_nullable_to_non_nullable
+as String?,
   ));
 }
 

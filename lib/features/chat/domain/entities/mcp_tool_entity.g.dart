@@ -11,6 +11,8 @@ _McpToolEntity _$McpToolEntityFromJson(Map<String, dynamic> json) =>
       name: json['name'] as String,
       description: json['description'] as String,
       inputSchema: json['inputSchema'] as Map<String, dynamic>,
+      originalName: json['originalName'] as String?,
+      sourceUrl: json['sourceUrl'] as String?,
     );
 
 Map<String, dynamic> _$McpToolEntityToJson(_McpToolEntity instance) =>
@@ -18,6 +20,8 @@ Map<String, dynamic> _$McpToolEntityToJson(_McpToolEntity instance) =>
       'name': instance.name,
       'description': instance.description,
       'inputSchema': instance.inputSchema,
+      'originalName': instance.originalName,
+      'sourceUrl': instance.sourceUrl,
     };
 
 _McpToolResult _$McpToolResultFromJson(Map<String, dynamic> json) =>
