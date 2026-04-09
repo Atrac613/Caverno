@@ -72,6 +72,23 @@ class PendingSshCommand {
   final Completer<bool> completer;
 }
 
+/// Pending git command execution awaiting user approval for write operations.
+class PendingGitCommand {
+  PendingGitCommand({
+    required this.id,
+    required this.command,
+    required this.workingDirectory,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String command;
+  final String workingDirectory;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
 @freezed
 abstract class ChatState with _$ChatState {
   const factory ChatState({
@@ -85,6 +102,8 @@ abstract class ChatState with _$ChatState {
     // the freezed equality graph.
     PendingSshConnect? pendingSshConnect,
     PendingSshCommand? pendingSshCommand,
+    // Git tool UI flow — same Completer-based pattern as SSH.
+    PendingGitCommand? pendingGitCommand,
   }) = _ChatState;
 
   factory ChatState.initial() =>
