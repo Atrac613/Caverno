@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../core/services/ssh_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -20,12 +21,14 @@ class McpToolService {
     this.searxngClient,
     this.conversationRepository,
     this.memoryRepository,
+    this.sshService,
   });
 
   final McpClient? mcpClient;
   final SearxngClient? searxngClient;
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
+  final SshService? sshService;
 
   List<McpToolEntity> _cachedTools = [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
@@ -117,6 +120,14 @@ class McpToolService {
     toolDefinitions.add(_httpPatchTool);
     toolDefinitions.add(_httpDeleteTool);
     toolDefinitions.add(_tracerouteTool);
+
+    // SSH remote server tools (always available — the session is managed
+    // per-chat via ssh_connect / ssh_disconnect).
+    if (sshService != null) {
+      toolDefinitions.add(_sshConnectTool);
+      toolDefinitions.add(_sshExecuteCommandTool);
+      toolDefinitions.add(_sshDisconnectTool);
+    }
 
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
@@ -426,6 +437,97 @@ class McpToolService {
         appLog('[McpToolService] Traceroute error: $e');
         return McpToolResult(
           toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    // SSH remote server tools.
+    //
+    // Contract: `ssh_connect` and the per-command confirmation for
+    // `ssh_execute_command` are handled upstream in ChatNotifier, which has
+    // access to the UI for user dialogs. By the time we reach this branch
+    // for `ssh_execute_command`, the user has already approved the specific
+    // command. `ssh_connect` should never reach this dispatch — the
+    // notifier short-circuits it — so we return an error if it does.
+    if (name == 'ssh_connect') {
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'ssh_connect must be handled by ChatNotifier (internal error)',
+      );
+    }
+
+    if (name == 'ssh_execute_command') {
+      if (sshService == null) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'SSH service is unavailable',
+        );
+      }
+      if (!sshService!.isConnected) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage:
+              'No active SSH session — call ssh_connect first',
+        );
+      }
+      try {
+        final command = (arguments['command'] as String?)?.trim() ?? '';
+        if (command.isEmpty) {
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'command is required',
+          );
+        }
+        final result = await sshService!.execute(command);
+        appLog('[McpToolService] SSH command executed successfully');
+        return McpToolResult(
+          toolName: name,
+          result: result.formatted(),
+          isSuccess: true,
+        );
+      } catch (e) {
+        appLog('[McpToolService] SSH execution error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'ssh_disconnect') {
+      if (sshService == null) {
+        return McpToolResult(
+          toolName: name,
+          result: 'No active SSH session',
+          isSuccess: true,
+        );
+      }
+      final wasConnected = sshService!.isConnected;
+      try {
+        await sshService!.disconnect();
+        return McpToolResult(
+          toolName: name,
+          result: wasConnected ? 'Disconnected' : 'No active SSH session',
+          isSuccess: true,
+        );
+      } catch (e) {
+        appLog('[McpToolService] SSH disconnect error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -1022,6 +1124,88 @@ class McpToolService {
           },
         },
         'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: ssh_connect / ssh_execute_command / ssh_disconnect
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _sshConnectTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ssh_connect',
+      'description':
+          "Open an interactive SSH session to a remote host. The user will "
+          "see a dialog to confirm or edit the connection details and enter "
+          "the password (pre-filled if previously saved for this host). "
+          "Keeps the session alive for subsequent ssh_execute_command calls "
+          "until ssh_disconnect is called. Use this when the user asks to "
+          "connect to a server via SSH.",
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description':
+                "Hostname or IP of the SSH server, e.g. '192.168.1.10' or "
+                "'example.com'.",
+          },
+          'port': {
+            'type': 'integer',
+            'description': 'SSH port. Defaults to 22 when omitted.',
+          },
+          'username': {
+            'type': 'string',
+            'description':
+                'SSH username. Optional — if omitted, the confirmation '
+                'dialog will ask the user to enter it.',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _sshExecuteCommandTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ssh_execute_command',
+      'description':
+          "Execute a shell command on the currently active SSH session. "
+          "Requires ssh_connect to have succeeded first. Each command is "
+          "shown to the user in a confirmation dialog and must be approved "
+          "before it runs. Returns stdout, stderr, and the exit code.",
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'command': {
+            'type': 'string',
+            'description': 'Exact shell command to run on the remote server.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown to the user in the '
+                'confirmation dialog.',
+          },
+        },
+        'required': ['command'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _sshDisconnectTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ssh_disconnect',
+      'description':
+          'Close the currently active SSH session. Safe to call even if '
+          'nothing is connected.',
+      'parameters': {
+        'type': 'object',
+        'properties': <String, dynamic>{},
       },
     },
   };

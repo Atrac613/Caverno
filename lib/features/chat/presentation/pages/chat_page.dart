@@ -92,6 +92,26 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     });
 
+    // SSH connect confirmation dialog.
+    ref.listen<PendingSshConnect?>(
+      chatNotifierProvider.select((s) => s.pendingSshConnect),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showSshConnectDialog(context, next);
+        }
+      },
+    );
+
+    // SSH per-command confirmation dialog.
+    ref.listen<PendingSshCommand?>(
+      chatNotifierProvider.select((s) => s.pendingSshCommand),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showSshCommandDialog(context, next);
+        }
+      },
+    );
+
     final currentConversation = conversationsState.currentConversation;
     final rawTitle = currentConversation?.title ?? 'Caverno';
     final currentTitle = rawTitle == defaultConversationTitle
@@ -248,6 +268,203 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       return '${(count / 1000).toStringAsFixed(1)}k';
     }
     return count.toString();
+  }
+
+  Future<void> _showSshConnectDialog(
+    BuildContext context,
+    PendingSshConnect pending,
+  ) async {
+    final hostController = TextEditingController(text: pending.host);
+    final portController =
+        TextEditingController(text: pending.port.toString());
+    final usernameController = TextEditingController(text: pending.username);
+    final passwordController =
+        TextEditingController(text: pending.savedPassword ?? '');
+    var savePassword = pending.savedPassword != null;
+    var obscure = true;
+    final hasSavedHint = pending.savedPassword != null;
+
+    final approval = await showDialog<SshConnectApproval>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return StatefulBuilder(
+          builder: (ctx, setState) {
+            return AlertDialog(
+              title: const Text('SSH connect'),
+              content: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    TextField(
+                      controller: hostController,
+                      decoration: const InputDecoration(
+                        labelText: 'Host',
+                      ),
+                    ),
+                    TextField(
+                      controller: portController,
+                      keyboardType: TextInputType.number,
+                      decoration: const InputDecoration(
+                        labelText: 'Port',
+                      ),
+                    ),
+                    TextField(
+                      controller: usernameController,
+                      decoration: const InputDecoration(
+                        labelText: 'Username',
+                      ),
+                    ),
+                    TextField(
+                      controller: passwordController,
+                      obscureText: obscure,
+                      decoration: InputDecoration(
+                        labelText: 'Password',
+                        helperText: hasSavedHint ? '(saved)' : null,
+                        suffixIcon: IconButton(
+                          icon: Icon(
+                            obscure
+                                ? Icons.visibility
+                                : Icons.visibility_off,
+                          ),
+                          onPressed: () =>
+                              setState(() => obscure = !obscure),
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    CheckboxListTile(
+                      contentPadding: EdgeInsets.zero,
+                      controlAffinity: ListTileControlAffinity.leading,
+                      title: const Text('Save password for this host'),
+                      value: savePassword,
+                      onChanged: (v) =>
+                          setState(() => savePassword = v ?? false),
+                    ),
+                  ],
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext, null),
+                  child: Text('common.cancel'.tr()),
+                ),
+                FilledButton(
+                  onPressed: () {
+                    final host = hostController.text.trim();
+                    final port =
+                        int.tryParse(portController.text.trim()) ?? 22;
+                    final username = usernameController.text.trim();
+                    final password = passwordController.text;
+                    if (host.isEmpty ||
+                        username.isEmpty ||
+                        password.isEmpty) {
+                      ScaffoldMessenger.of(dialogContext).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                            'Host, username and password are required',
+                          ),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.pop(
+                      dialogContext,
+                      SshConnectApproval(
+                        host: host,
+                        port: port,
+                        username: username,
+                        password: password,
+                        savePassword: savePassword,
+                      ),
+                    );
+                  },
+                  child: const Text('Connect'),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    hostController.dispose();
+    portController.dispose();
+    usernameController.dispose();
+    passwordController.dispose();
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSshConnect(id: pending.id, approval: approval);
+  }
+
+  Future<void> _showSshCommandDialog(
+    BuildContext context,
+    PendingSshCommand pending,
+  ) async {
+    final approved = await showDialog<bool>(
+      context: context,
+      barrierDismissible: false,
+      builder: (dialogContext) {
+        return AlertDialog(
+          title: Text(
+            'Run command on ${pending.username}@${pending.host}?',
+          ),
+          content: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (pending.reason != null && pending.reason!.isNotEmpty) ...[
+                  Text(
+                    'Reason: ${pending.reason}',
+                    style: Theme.of(dialogContext).textTheme.bodyMedium,
+                  ),
+                  const SizedBox(height: 12),
+                ],
+                Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: Theme.of(dialogContext)
+                        .colorScheme
+                        .surfaceContainerHighest,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  child: SelectableText(
+                    pending.command,
+                    style: const TextStyle(
+                      fontFamily: 'monospace',
+                      fontSize: 13,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext, false),
+              child: const Text('Deny'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: Theme.of(dialogContext).colorScheme.error,
+                foregroundColor: Theme.of(dialogContext).colorScheme.onError,
+              ),
+              onPressed: () => Navigator.pop(dialogContext, true),
+              child: const Text('Approve'),
+            ),
+          ],
+        );
+      },
+    );
+
+    ref.read(chatNotifierProvider.notifier).resolveSshCommand(
+          id: pending.id,
+          approved: approved ?? false,
+        );
   }
 
   Widget _buildEmptyState(BuildContext context) {

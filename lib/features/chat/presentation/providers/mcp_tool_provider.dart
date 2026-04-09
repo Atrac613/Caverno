@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/ssh_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/mcp_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
@@ -39,11 +40,13 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final searxngClient = ref.watch(searxngClientProvider);
   final conversationRepo = ref.watch(conversationRepositoryProvider);
   final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
+  final sshService = ref.watch(sshServiceProvider);
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
     mcpClient: mcpClient,
     searxngClient: searxngClient,
     conversationRepository: conversationRepo,
     memoryRepository: memoryRepo,
+    sshService: sshService,
   );
 });

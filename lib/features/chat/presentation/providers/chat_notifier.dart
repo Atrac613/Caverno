@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/notification_providers.dart';
+import '../../../../core/services/ssh_credentials_manager.dart';
+import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../data/repositories/chat_memory_repository.dart';
@@ -18,6 +20,7 @@ import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/services/temporal_context_builder.dart';
@@ -582,11 +585,11 @@ class ChatNotifier extends Notifier<ChatState> {
       _appendToolUseToLastMessage(toolCall);
 
       try {
-        // Execute the tool through the MCP tool service.
-        final result = await _mcpToolService!.executeTool(
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-        );
+        // Execute the tool. SSH tools that require a UI dialog are
+        // intercepted here so ChatNotifier can surface a Completer-based
+        // confirmation via ChatState; everything else dispatches straight
+        // to McpToolService.
+        final McpToolResult result = await _dispatchToolCall(toolCall);
 
         String toolResult;
         if (result.isSuccess) {
@@ -771,6 +774,17 @@ class ChatNotifier extends Notifier<ChatState> {
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
 
+    // SSH tools require an interactive confirmation dialog and must be
+    // routed through the proper tool_calls channel, not content-embedded
+    // tool_call tags. Refuse to run them here to avoid bypassing the
+    // dialog.
+    if (tc.name == 'ssh_connect' ||
+        tc.name == 'ssh_execute_command' ||
+        tc.name == 'ssh_disconnect') {
+      appLog('[ContentTool] Refusing SSH tool via content path: ${tc.name}');
+      return;
+    }
+
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null) {
       try {
@@ -814,6 +828,208 @@ class ChatNotifier extends Notifier<ChatState> {
         }
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // SSH tool interception
+  // ---------------------------------------------------------------------------
+
+  /// Dispatches a tool call to the MCP tool service, intercepting SSH
+  /// tools that require a UI dialog for user confirmation.
+  Future<McpToolResult> _dispatchToolCall(ToolCallInfo toolCall) async {
+    switch (toolCall.name) {
+      case 'ssh_connect':
+        return _handleSshConnect(toolCall);
+      case 'ssh_execute_command':
+        return _handleSshExecuteCommand(toolCall);
+      default:
+        return _mcpToolService!.executeTool(
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+        );
+    }
+  }
+
+  Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {
+    final host = (toolCall.arguments['host'] as String?)?.trim() ?? '';
+    final port = (toolCall.arguments['port'] as num?)?.toInt() ?? 22;
+    final username =
+        (toolCall.arguments['username'] as String?)?.trim() ?? '';
+
+    if (host.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'host is required',
+      );
+    }
+
+    final approval = await requestSshConnect(
+      host: host,
+      port: port,
+      username: username,
+    );
+    if (approval == null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User cancelled SSH connection',
+      );
+    }
+
+    try {
+      await ref.read(sshServiceProvider).connect(
+            host: approval.host,
+            port: approval.port,
+            username: approval.username,
+            password: approval.password,
+          );
+      if (approval.savePassword) {
+        await ref.read(sshCredentialsManagerProvider).savePassword(
+              host: approval.host,
+              port: approval.port,
+              username: approval.username,
+              password: approval.password,
+            );
+      } else {
+        // User unchecked "save"; clear any previously saved password for
+        // this triplet so the next connect prompt is empty.
+        await ref.read(sshCredentialsManagerProvider).deletePassword(
+              host: approval.host,
+              port: approval.port,
+              username: approval.username,
+            );
+      }
+      return McpToolResult(
+        toolName: toolCall.name,
+        result:
+            'Connected to ${approval.username}@${approval.host}:${approval.port}',
+        isSuccess: true,
+      );
+    } catch (e) {
+      appLog('[Tool] SSH connect failed: $e');
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'SSH connect failed: $e',
+      );
+    }
+  }
+
+  Future<McpToolResult> _handleSshExecuteCommand(ToolCallInfo toolCall) async {
+    final sshService = ref.read(sshServiceProvider);
+    if (!sshService.isConnected) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'No active SSH session — call ssh_connect first',
+      );
+    }
+    final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
+    if (command.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'command is required',
+      );
+    }
+    final reason = toolCall.arguments['reason'] as String?;
+    final approved = await requestSshCommand(command: command, reason: reason);
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied SSH command execution',
+      );
+    }
+    // Approved — delegate to the tool service, which runs the command on
+    // the same SSH session.
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+  }
+
+  /// Puts a pending SSH connect request into state and returns a future
+  /// that completes when the user confirms or cancels the dialog.
+  Future<SshConnectApproval?> requestSshConnect({
+    required String host,
+    required int port,
+    required String username,
+  }) async {
+    String? savedPassword;
+    if (username.isNotEmpty) {
+      try {
+        savedPassword = await ref
+            .read(sshCredentialsManagerProvider)
+            .loadPassword(host: host, port: port, username: username);
+      } catch (e) {
+        appLog('[SSH] Failed to load saved password: $e');
+      }
+    }
+
+    final completer = Completer<SshConnectApproval?>();
+    state = state.copyWith(
+      pendingSshConnect: PendingSshConnect(
+        id: const Uuid().v4(),
+        host: host,
+        port: port,
+        username: username,
+        savedPassword: savedPassword,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  /// Resolves a pending SSH connect dialog from the UI layer.
+  void resolveSshConnect({
+    required String id,
+    SshConnectApproval? approval,
+  }) {
+    final pending = state.pendingSshConnect;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approval);
+    }
+    state = state.copyWith(pendingSshConnect: null);
+  }
+
+  /// Puts a pending SSH command into state and returns a future that
+  /// completes with `true` (approve) or `false` (deny).
+  Future<bool> requestSshCommand({
+    required String command,
+    String? reason,
+  }) {
+    final session = ref.read(sshServiceProvider).activeSession;
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingSshCommand: PendingSshCommand(
+        id: const Uuid().v4(),
+        command: command,
+        reason: reason,
+        host: session?.host ?? '(no session)',
+        username: session?.username ?? '',
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  /// Resolves a pending SSH command dialog from the UI layer.
+  void resolveSshCommand({required String id, required bool approved}) {
+    final pending = state.pendingSshCommand;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingSshCommand: null);
   }
 
   /// Read and accumulate the latest token usage from the data source.
