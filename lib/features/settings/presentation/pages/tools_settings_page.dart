@@ -224,12 +224,6 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
                     ),
                   ),
                 ),
-                Text(
-                  server.enabled
-                      ? 'settings.mcp_server_enabled'.tr()
-                      : 'settings.mcp_server_disabled'.tr(),
-                  style: theme.textTheme.bodySmall,
-                ),
                 Switch(
                   value: server.enabled,
                   onChanged: (value) =>
