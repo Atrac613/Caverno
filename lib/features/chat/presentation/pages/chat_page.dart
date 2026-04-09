@@ -92,12 +92,17 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       }
     });
 
-    // SSH connect confirmation dialog.
+    // SSH connect confirmation dialog. Dialogs are deferred to the next
+    // frame so they don't fire during a build / InheritedElement
+    // lifecycle transition (avoids `_dependents.isEmpty` assertions).
     ref.listen<PendingSshConnect?>(
       chatNotifierProvider.select((s) => s.pendingSshConnect),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          _showSshConnectDialog(context, next);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _showSshConnectDialog(context, next);
+          });
         }
       },
     );
@@ -107,7 +112,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       chatNotifierProvider.select((s) => s.pendingSshCommand),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          _showSshCommandDialog(context, next);
+          WidgetsBinding.instance.addPostFrameCallback((_) {
+            if (!mounted) return;
+            _showSshCommandDialog(context, next);
+          });
         }
       },
     );
