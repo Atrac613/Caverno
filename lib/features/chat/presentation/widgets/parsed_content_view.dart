@@ -67,22 +67,26 @@ class _ParsedContentViewState extends State<ParsedContentView> {
       return const SizedBox.shrink();
     }
 
-    return SelectionArea(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          for (var i = 0; i < result.segments.length; i++)
-            _buildSegment(context, result.segments[i], theme, i),
-          // Show streaming thinking block with partial content
-          if (widget.isStreaming &&
-              result.hasIncompleteTag &&
-              result.incompleteTagType == 'thinking')
-            _buildStreamingThinkingBlock(
-              result.incompleteTagContent ?? '',
-              theme,
-            ),
-        ],
-      ),
+    // Note: each text segment is wrapped individually in a SelectionArea
+    // (see _buildSegment). We intentionally avoid wrapping the whole
+    // Column in a single SelectionArea because multi-selectable content
+    // that is frequently restructured during streaming (text ↔ tool_call
+    // segments) can trip Flutter's MultiSelectableSelectionContainer
+    // delegate into calling getTransformTo on an unmounted render object.
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        for (var i = 0; i < result.segments.length; i++)
+          _buildSegment(context, result.segments[i], theme, i),
+        // Show streaming thinking block with partial content
+        if (widget.isStreaming &&
+            result.hasIncompleteTag &&
+            result.incompleteTagType == 'thinking')
+          _buildStreamingThinkingBlock(
+            result.incompleteTagContent ?? '',
+            theme,
+          ),
+      ],
     );
   }
 
@@ -94,100 +98,101 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   ) {
     switch (segment.type) {
       case ContentType.text:
-        return MarkdownBody(
-          data: _escapeHtmlLikeTags(segment.content),
-          // Keep the entire bubble as a single SelectionArea.
-          selectable: false,
-          builders: {
-            'pre': CodeBlockBuilder(theme: theme),
-          },
-          styleSheet: MarkdownStyleSheet(
-            p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
-            h1: TextStyle(
-              color: widget.textColor,
-              fontSize: 22,
-              fontWeight: FontWeight.bold,
-            ),
-            h2: TextStyle(
-              color: widget.textColor,
-              fontSize: 20,
-              fontWeight: FontWeight.bold,
-            ),
-            h3: TextStyle(
-              color: widget.textColor,
-              fontSize: 18,
-              fontWeight: FontWeight.bold,
-            ),
-            h4: TextStyle(
-              color: widget.textColor,
-              fontSize: 16,
-              fontWeight: FontWeight.bold,
-            ),
-            strong: TextStyle(
-              color: widget.textColor,
-              fontWeight: FontWeight.bold,
-            ),
-            em: TextStyle(
-              color: widget.textColor,
-              fontStyle: FontStyle.italic,
-            ),
-            code: TextStyle(
-              color: theme.colorScheme.primary,
-              backgroundColor: theme.colorScheme.primaryContainer.withValues(
-                alpha: 0.3,
+        return SelectionArea(
+          child: MarkdownBody(
+            data: _escapeHtmlLikeTags(segment.content),
+            selectable: false,
+            builders: {
+              'pre': CodeBlockBuilder(theme: theme),
+            },
+            styleSheet: MarkdownStyleSheet(
+              p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
+              h1: TextStyle(
+                color: widget.textColor,
+                fontSize: 22,
+                fontWeight: FontWeight.bold,
               ),
-              fontSize: 13,
-              fontFamily: 'monospace',
-            ),
-            codeblockDecoration: BoxDecoration(
-              color: theme.colorScheme.surfaceContainerLow.withValues(
-                alpha: 0.8,
+              h2: TextStyle(
+                color: widget.textColor,
+                fontSize: 20,
+                fontWeight: FontWeight.bold,
               ),
-              borderRadius: BorderRadius.circular(8),
-              border: Border.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.2),
+              h3: TextStyle(
+                color: widget.textColor,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
               ),
-            ),
-            codeblockPadding: const EdgeInsets.all(12),
-            blockquoteDecoration: BoxDecoration(
-              border: Border(
-                left: BorderSide(
-                  color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                  width: 3,
+              h4: TextStyle(
+                color: widget.textColor,
+                fontSize: 16,
+                fontWeight: FontWeight.bold,
+              ),
+              strong: TextStyle(
+                color: widget.textColor,
+                fontWeight: FontWeight.bold,
+              ),
+              em: TextStyle(
+                color: widget.textColor,
+                fontStyle: FontStyle.italic,
+              ),
+              code: TextStyle(
+                color: theme.colorScheme.primary,
+                backgroundColor: theme.colorScheme.primaryContainer.withValues(
+                  alpha: 0.3,
+                ),
+                fontSize: 13,
+                fontFamily: 'monospace',
+              ),
+              codeblockDecoration: BoxDecoration(
+                color: theme.colorScheme.surfaceContainerLow.withValues(
+                  alpha: 0.8,
+                ),
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
+                ),
+              ),
+              codeblockPadding: const EdgeInsets.all(12),
+              blockquoteDecoration: BoxDecoration(
+                border: Border(
+                  left: BorderSide(
+                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
+                    width: 3,
+                  ),
+                ),
+              ),
+              blockquotePadding: const EdgeInsets.only(
+                left: 12,
+                top: 4,
+                bottom: 4,
+              ),
+              listBullet: TextStyle(color: widget.textColor),
+              a: TextStyle(
+                color: theme.colorScheme.primary,
+                decoration: TextDecoration.underline,
+              ),
+              tableBorder: TableBorder.all(
+                color: theme.colorScheme.outline.withValues(alpha: 0.3),
+              ),
+              tableHead: TextStyle(
+                color: widget.textColor,
+                fontWeight: FontWeight.bold,
+              ),
+              tableBody: TextStyle(color: widget.textColor),
+              horizontalRuleDecoration: BoxDecoration(
+                border: Border(
+                  top: BorderSide(
+                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
+                  ),
                 ),
               ),
             ),
-            blockquotePadding: const EdgeInsets.only(
-              left: 12,
-              top: 4,
-              bottom: 4,
-            ),
-            listBullet: TextStyle(color: widget.textColor),
-            a: TextStyle(
-              color: theme.colorScheme.primary,
-              decoration: TextDecoration.underline,
-            ),
-            tableBorder: TableBorder.all(
-              color: theme.colorScheme.outline.withValues(alpha: 0.3),
-            ),
-            tableHead: TextStyle(
-              color: widget.textColor,
-              fontWeight: FontWeight.bold,
-            ),
-            tableBody: TextStyle(color: widget.textColor),
-            horizontalRuleDecoration: BoxDecoration(
-              border: Border(
-                top: BorderSide(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                ),
-              ),
-            ),
+            onTapLink: (text, href, title) {
+              if (href != null) {
+                launchUrl(Uri.parse(href));
+              }
+            },
           ),
-          onTapLink: (text, href, title) {
-            if (href != null) {
-              launchUrl(Uri.parse(href));
-            }
-          },
         );
 
       case ContentType.thinking:
