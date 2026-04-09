@@ -19,6 +19,7 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
+import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -780,8 +781,9 @@ class ChatNotifier extends Notifier<ChatState> {
     // dialog.
     if (tc.name == 'ssh_connect' ||
         tc.name == 'ssh_execute_command' ||
-        tc.name == 'ssh_disconnect') {
-      appLog('[ContentTool] Refusing SSH tool via content path: ${tc.name}');
+        tc.name == 'ssh_disconnect' ||
+        tc.name == 'git_execute_command') {
+      appLog('[ContentTool] Refusing tool via content path: ${tc.name}');
       return;
     }
 
@@ -842,6 +844,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleSshConnect(toolCall);
       case 'ssh_execute_command':
         return _handleSshExecuteCommand(toolCall);
+      case 'git_execute_command':
+        return _handleGitExecuteCommand(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -1030,6 +1034,83 @@ class ChatNotifier extends Notifier<ChatState> {
       pending.completer.complete(approved);
     }
     state = state.copyWith(pendingSshCommand: null);
+  }
+
+  // -------------------------------------------------------------------------
+  // Git tool handlers
+  // -------------------------------------------------------------------------
+
+  Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
+    final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
+    final workingDirectory =
+        (toolCall.arguments['working_directory'] as String?)?.trim() ?? '';
+
+    if (command.isEmpty || workingDirectory.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'command and working_directory are required',
+      );
+    }
+
+    // Read-only commands execute immediately without user confirmation.
+    if (GitTools.isReadOnly(command)) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      );
+    }
+
+    // Write commands require user approval.
+    final reason = toolCall.arguments['reason'] as String?;
+    final approved = await requestGitCommand(
+      command: command,
+      workingDirectory: workingDirectory,
+      reason: reason,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied git command execution',
+      );
+    }
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+  }
+
+  /// Puts a pending git command into state and returns a future that
+  /// completes with `true` (approve) or `false` (deny).
+  Future<bool> requestGitCommand({
+    required String command,
+    required String workingDirectory,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingGitCommand: PendingGitCommand(
+        id: const Uuid().v4(),
+        command: command,
+        workingDirectory: workingDirectory,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  /// Resolves a pending git command dialog from the UI layer.
+  void resolveGitCommand({required String id, required bool approved}) {
+    final pending = state.pendingGitCommand;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingGitCommand: null);
   }
 
   /// Read and accumulate the latest token usage from the data source.

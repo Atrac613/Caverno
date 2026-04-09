@@ -7,6 +7,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
+import 'git_tools.dart';
 import 'mcp_client.dart';
 import 'network_tools.dart';
 import 'searxng_client.dart';
@@ -120,6 +121,11 @@ class McpToolService {
     toolDefinitions.add(_httpPatchTool);
     toolDefinitions.add(_httpDeleteTool);
     toolDefinitions.add(_tracerouteTool);
+
+    // Git tools (desktop only — requires system git binary via Process.run).
+    if (GitTools.isDesktopPlatform) {
+      toolDefinitions.add(_gitExecuteCommandTool);
+    }
 
     // SSH remote server tools (always available — the session is managed
     // per-chat via ssh_connect / ssh_disconnect).
@@ -437,6 +443,37 @@ class McpToolService {
         appLog('[McpToolService] Traceroute error: $e');
         return McpToolResult(
           toolName: name, result: '', isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    // Built-in Git tool (desktop only).
+    if (name == 'git_execute_command') {
+      final command = (arguments['command'] as String?)?.trim() ?? '';
+      final workingDirectory =
+          (arguments['working_directory'] as String?)?.trim() ?? '';
+      if (command.isEmpty || workingDirectory.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'command and working_directory are required',
+        );
+      }
+      try {
+        final result = await GitTools.execute(
+          command: command,
+          workingDirectory: workingDirectory,
+        );
+        appLog('[McpToolService] Git command executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Git command error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -1192,6 +1229,48 @@ class McpToolService {
           },
         },
         'required': ['command'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: git_execute_command (desktop only)
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _gitExecuteCommandTool => {
+    'type': 'function',
+    'function': {
+      'name': 'git_execute_command',
+      'description':
+          'Execute a git command in a local repository (desktop only — '
+          'macOS, Linux, Windows). Read-only commands (status, log, diff, '
+          'show, branch, tag, remote, blame, etc.) run immediately. Write '
+          'operations (commit, push, pull, checkout, merge, rebase, reset, '
+          'etc.) require user approval before execution. Always use '
+          'non-interactive flags (e.g. commit -m "message", not bare commit).',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'command': {
+            'type': 'string',
+            'description':
+                'Git subcommand and arguments (without the leading "git"), '
+                'e.g. "status", "log --oneline -20", "diff HEAD~1", '
+                '"commit -m \\"fix typo\\"".',
+          },
+          'working_directory': {
+            'type': 'string',
+            'description':
+                'Absolute path to the git repository working directory.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable explanation shown to the user in the '
+                'confirmation dialog (only used for write operations).',
+          },
+        },
+        'required': ['command', 'working_directory'],
       },
     },
   };
