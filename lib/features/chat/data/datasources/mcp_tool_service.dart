@@ -47,6 +47,7 @@ class McpToolService {
     this.conversationRepository,
     this.memoryRepository,
     this.sshService,
+    this.disabledBuiltInTools = const {},
   });
 
   final List<McpClient> mcpClients;
@@ -54,6 +55,7 @@ class McpToolService {
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
   final SshService? sshService;
+  final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
   final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
@@ -360,42 +362,44 @@ class McpToolService {
   /// Returns dynamically fetched tools when MCP is connected.
   /// Otherwise returns the fallback `web_search` tool for SearXNG.
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
-    final toolDefinitions = <Map<String, dynamic>>[_currentDatetimeTool];
+    final toolDefinitions = <Map<String, dynamic>>[];
+
+    _addIfEnabled(toolDefinitions, _currentDatetimeTool);
 
     // Built-in memory tools (always available).
     if (conversationRepository != null) {
-      toolDefinitions.add(_searchPastConversationsTool);
+      _addIfEnabled(toolDefinitions, _searchPastConversationsTool);
     }
     if (memoryRepository != null) {
-      toolDefinitions.add(_recallMemoryTool);
+      _addIfEnabled(toolDefinitions, _recallMemoryTool);
     }
 
     // Built-in network tools (always available).
-    toolDefinitions.add(_pingTool);
-    toolDefinitions.add(_whoisLookupTool);
-    toolDefinitions.add(_dnsLookupTool);
-    toolDefinitions.add(_portCheckTool);
-    toolDefinitions.add(_sslCertificateTool);
-    toolDefinitions.add(_httpStatusTool);
-    toolDefinitions.add(_httpGetTool);
-    toolDefinitions.add(_httpHeadTool);
-    toolDefinitions.add(_httpPostTool);
-    toolDefinitions.add(_httpPutTool);
-    toolDefinitions.add(_httpPatchTool);
-    toolDefinitions.add(_httpDeleteTool);
-    toolDefinitions.add(_tracerouteTool);
+    _addIfEnabled(toolDefinitions, _pingTool);
+    _addIfEnabled(toolDefinitions, _whoisLookupTool);
+    _addIfEnabled(toolDefinitions, _dnsLookupTool);
+    _addIfEnabled(toolDefinitions, _portCheckTool);
+    _addIfEnabled(toolDefinitions, _sslCertificateTool);
+    _addIfEnabled(toolDefinitions, _httpStatusTool);
+    _addIfEnabled(toolDefinitions, _httpGetTool);
+    _addIfEnabled(toolDefinitions, _httpHeadTool);
+    _addIfEnabled(toolDefinitions, _httpPostTool);
+    _addIfEnabled(toolDefinitions, _httpPutTool);
+    _addIfEnabled(toolDefinitions, _httpPatchTool);
+    _addIfEnabled(toolDefinitions, _httpDeleteTool);
+    _addIfEnabled(toolDefinitions, _tracerouteTool);
 
     // Git tools (desktop only — requires system git binary via Process.run).
     if (GitTools.isDesktopPlatform) {
-      toolDefinitions.add(_gitExecuteCommandTool);
+      _addIfEnabled(toolDefinitions, _gitExecuteCommandTool);
     }
 
     // SSH remote server tools (always available — the session is managed
     // per-chat via ssh_connect / ssh_disconnect).
     if (sshService != null) {
-      toolDefinitions.add(_sshConnectTool);
-      toolDefinitions.add(_sshExecuteCommandTool);
-      toolDefinitions.add(_sshDisconnectTool);
+      _addIfEnabled(toolDefinitions, _sshConnectTool);
+      _addIfEnabled(toolDefinitions, _sshExecuteCommandTool);
+      _addIfEnabled(toolDefinitions, _sshDisconnectTool);
     }
 
     // Use MCP tools when connected.
@@ -406,10 +410,20 @@ class McpToolService {
 
     // Fallback to the fixed SearXNG tool definition.
     if (searxngClient != null) {
-      toolDefinitions.add(_webSearchToolFallback);
+      _addIfEnabled(toolDefinitions, _webSearchToolFallback);
     }
 
     return toolDefinitions;
+  }
+
+  void _addIfEnabled(
+    List<Map<String, dynamic>> list,
+    Map<String, dynamic> tool,
+  ) {
+    final name = (tool['function'] as Map<String, dynamic>)['name'] as String;
+    if (!disabledBuiltInTools.contains(name)) {
+      list.add(tool);
+    }
   }
 
   /// Executes a tool.

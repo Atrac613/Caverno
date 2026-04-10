@@ -42,6 +42,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final conversationRepo = ref.watch(conversationRepositoryProvider);
   final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
   final sshService = ref.watch(sshServiceProvider);
+  final settings = ref.watch(settingsNotifierProvider);
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
     mcpClients: mcpClients,
@@ -49,5 +50,6 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     conversationRepository: conversationRepo,
     memoryRepository: memoryRepo,
     sshService: sshService,
+    disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });

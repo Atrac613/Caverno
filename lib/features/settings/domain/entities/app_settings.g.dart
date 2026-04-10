@@ -47,6 +47,11 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
       ) ??
       AssistantMode.general,
   demoMode: json['demoMode'] as bool? ?? false,
+  disabledBuiltInTools:
+      (json['disabledBuiltInTools'] as List<dynamic>?)
+          ?.map((e) => e as String)
+          .toList() ??
+      const <String>[],
 );
 
 Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
@@ -70,6 +75,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'language': instance.language,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
       'demoMode': instance.demoMode,
+      'disabledBuiltInTools': instance.disabledBuiltInTools,
     };
 
 const _$AssistantModeEnumMap = {

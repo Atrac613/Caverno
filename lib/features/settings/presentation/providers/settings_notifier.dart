@@ -102,6 +102,23 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await updateMcpServers(servers);
   }
 
+  Future<void> toggleBuiltInTool(String toolName, bool enabled) async {
+    final current = Set<String>.from(state.disabledBuiltInTools);
+    enabled ? current.remove(toolName) : current.add(toolName);
+    state = state.copyWith(disabledBuiltInTools: current.toList());
+    await _repository.save(state);
+  }
+
+  Future<void> setBuiltInToolsCategoryDisabled(
+    Set<String> toolNames,
+    bool disabled,
+  ) async {
+    final current = Set<String>.from(state.disabledBuiltInTools);
+    disabled ? current.addAll(toolNames) : current.removeAll(toolNames);
+    state = state.copyWith(disabledBuiltInTools: current.toList());
+    await _repository.save(state);
+  }
+
   Future<void> updateMcpEnabled(bool mcpEnabled) async {
     state = state.copyWith(mcpEnabled: mcpEnabled);
     await _repository.save(state);
