@@ -6,6 +6,7 @@ import 'package:bluetooth_low_energy/bluetooth_low_energy.dart'
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/ssh_service.dart';
+import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -15,6 +16,7 @@ import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
 import 'ble_tools.dart';
 import 'git_tools.dart';
+import 'lan_scan_tools.dart';
 import 'mcp_client.dart';
 import 'network_tools.dart';
 import 'searxng_client.dart';
@@ -49,6 +51,7 @@ class McpToolService {
     'ssh_disconnect',
     ...BleTools.allToolNames,
     ...WifiTools.allToolNames,
+    ...LanScanTools.allToolNames,
   };
 
   McpToolService({
@@ -59,6 +62,7 @@ class McpToolService {
     this.sshService,
     this.bleService,
     this.wifiService,
+    this.lanScanService,
     this.disabledBuiltInTools = const {},
   });
 
@@ -69,6 +73,7 @@ class McpToolService {
   final SshService? sshService;
   final BleService? bleService;
   final WifiService? wifiService;
+  final LanScanService? lanScanService;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -427,6 +432,13 @@ class McpToolService {
     // WiFi tools (scan + connection info).
     if (wifiService != null) {
       for (final tool in WifiTools.allTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
+    // LAN scan tools (subnet discovery + port scanning).
+    if (lanScanService != null) {
+      for (final tool in LanScanTools.allTools) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
@@ -939,6 +951,11 @@ class McpToolService {
     // Built-in WiFi tools.
     if (WifiTools.allToolNames.contains(name) && wifiService != null) {
       return _executeWifiToolCall(name, arguments);
+    }
+
+    // Built-in LAN scan tools.
+    if (LanScanTools.allToolNames.contains(name) && lanScanService != null) {
+      return _executeLanScanToolCall(name, arguments);
     }
 
     // 1. Execute through the matching MCP server when connected.
@@ -2023,6 +2040,62 @@ class McpToolService {
       }
     } catch (e) {
       appLog('[McpToolService] WiFi tool error ($name): $e');
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // LAN scan tool execution
+  // ---------------------------------------------------------------------------
+
+  Future<McpToolResult> _executeLanScanToolCall(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final lanScan = lanScanService!;
+    try {
+      switch (name) {
+        case 'lan_scan':
+          final subnet = (arguments['subnet'] as String?)?.trim();
+          final timeout = (arguments['timeout'] as num?)?.toInt() ?? 1000;
+          final ports = (arguments['ports'] as List?)
+              ?.map((e) => (e as num).toInt())
+              .toList();
+          final result = await lanScan.startScan(
+            subnet: subnet,
+            timeoutMs: timeout,
+            ports: ports,
+          );
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: true,
+          );
+
+        case 'lan_get_scan_results':
+          final sortBy = arguments['sort_by'] as String?;
+          final result = lanScan.getScanResults(sortBy: sortBy);
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: true,
+          );
+
+        default:
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Unknown LAN scan tool: $name',
+          );
+      }
+    } catch (e) {
+      appLog('[McpToolService] LAN scan tool error ($name): $e');
       return McpToolResult(
         toolName: name,
         result: '',
