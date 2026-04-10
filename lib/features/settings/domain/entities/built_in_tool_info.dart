@@ -23,6 +23,7 @@ class BuiltInToolRegistry {
   static const String categoryWebSearch = 'web_search';
   static const String categoryBle = 'ble';
   static const String categoryWifi = 'wifi';
+  static const String categoryLanScan = 'lan_scan';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -33,6 +34,7 @@ class BuiltInToolRegistry {
     categoryWebSearch,
     categoryBle,
     categoryWifi,
+    categoryLanScan,
   ];
 
   static const List<BuiltInToolInfo> tools = [
@@ -244,6 +246,17 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_wifi_get_connection_info',
       category: categoryWifi,
     ),
+    // LAN Scan
+    BuiltInToolInfo(
+      name: 'lan_scan',
+      descriptionKey: 'settings.tool_lan_scan',
+      category: categoryLanScan,
+    ),
+    BuiltInToolInfo(
+      name: 'lan_get_scan_results',
+      descriptionKey: 'settings.tool_lan_get_scan_results',
+      category: categoryLanScan,
+    ),
   ];
 
   static Map<String, List<BuiltInToolInfo>> get toolsByCategory {
@@ -271,6 +284,7 @@ class BuiltInToolRegistry {
       categoryWebSearch => Icons.search,
       categoryBle => Icons.bluetooth,
       categoryWifi => Icons.wifi,
+      categoryLanScan => Icons.device_hub,
       _ => Icons.extension,
     };
   }
