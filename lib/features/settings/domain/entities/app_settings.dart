@@ -51,6 +51,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
     @Default(false) bool demoMode,
+    @Default(<String>[]) List<String> disabledBuiltInTools,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(
@@ -67,6 +68,9 @@ abstract class AppSettings with _$AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
       _$AppSettingsFromJson(json);
+
+  Set<String> get disabledBuiltInToolsSet =>
+      Set<String>.from(disabledBuiltInTools);
 
   List<McpServerConfig> get configuredMcpServers {
     if (mcpServers.isNotEmpty) {
