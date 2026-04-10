@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
@@ -9,27 +10,39 @@ import '../utils/logger.dart';
 
 /// Manages WiFi scanning and connection info queries.
 class WifiService {
-  final WiFiScan _wifiScan = WiFiScan.instance;
   final NetworkInfo _networkInfo = NetworkInfo();
 
   List<WiFiAccessPoint> _scanResults = [];
+
+  /// Whether the wifi_scan plugin is available on this platform.
+  static bool get _isScanSupported => Platform.isAndroid || Platform.isIOS;
 
   /// Trigger a WiFi scan and return the results.
   ///
   /// Returns a JSON-encoded list of discovered access points, or an error
   /// message if scanning is not supported on this platform.
   Future<String> startScan() async {
-    final canScan = await _wifiScan.canStartScan(askPermissions: true);
+    if (!_isScanSupported) {
+      return jsonEncode({
+        'error': true,
+        'message': 'WiFi scanning is not supported on ${Platform.operatingSystem}. '
+            'Use wifi_get_connection_info instead for current network details.',
+      });
+    }
+
+    final wifiScan = WiFiScan.instance;
+
+    final canScan = await wifiScan.canStartScan(askPermissions: true);
     if (canScan != CanStartScan.yes) {
       return jsonEncode({
         'error': true,
-        'message': 'WiFi scanning is not available on this platform '
+        'message': 'WiFi scanning is not available '
             '(status: ${canScan.name}). '
             'Try wifi_get_connection_info instead for current network details.',
       });
     }
 
-    final success = await _wifiScan.startScan();
+    final success = await wifiScan.startScan();
     if (!success) {
       return jsonEncode({
         'error': true,
@@ -37,7 +50,7 @@ class WifiService {
       });
     }
 
-    final canGet = await _wifiScan.canGetScannedResults(askPermissions: true);
+    final canGet = await wifiScan.canGetScannedResults(askPermissions: true);
     if (canGet != CanGetScannedResults.yes) {
       return jsonEncode({
         'error': true,
@@ -46,7 +59,7 @@ class WifiService {
       });
     }
 
-    _scanResults = await _wifiScan.getScannedResults();
+    _scanResults = await wifiScan.getScannedResults();
     appLog('WiFi scan completed: ${_scanResults.length} networks found');
 
     return _formatScanResults();
@@ -54,6 +67,14 @@ class WifiService {
 
   /// Return cached scan results, optionally sorted.
   String getScanResults({String? sortBy}) {
+    if (!_isScanSupported) {
+      return jsonEncode({
+        'error': true,
+        'message': 'WiFi scanning is not supported on ${Platform.operatingSystem}. '
+            'Use wifi_get_connection_info instead.',
+      });
+    }
+
     if (_scanResults.isEmpty) {
       return jsonEncode({
         'networks': <Map<String, dynamic>>[],
