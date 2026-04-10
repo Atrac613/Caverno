@@ -155,6 +155,7 @@
     "tool_category_ssh": "SSH",
     "tool_category_git": "Git",
     "tool_category_web_search": "Web Search",
+    "tool_category_ble": "Bluetooth LE",
     "tool_get_current_datetime": "Get current date, time, and relative date ranges",
     "tool_search_past_conversations": "Search through past conversation history",
     "tool_recall_memory": "Recall saved memory entries",
