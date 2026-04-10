@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/ble_service.dart';
+import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -46,6 +47,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final sshService = ref.watch(sshServiceProvider);
   final bleService = ref.watch(bleServiceProvider);
   final wifiService = ref.watch(wifiServiceProvider);
+  final lanScanService = ref.watch(lanScanServiceProvider);
   final settings = ref.watch(settingsNotifierProvider);
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
@@ -56,6 +58,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     sshService: sshService,
     bleService: bleService,
     wifiService: wifiService,
+    lanScanService: lanScanService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });
