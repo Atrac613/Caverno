@@ -208,7 +208,7 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
-        padding: const EdgeInsets.all(12),
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -229,13 +229,20 @@ class _ToolsSettingsPageState extends ConsumerState<ToolsSettingsPage> {
                   onChanged: (value) =>
                       notifier.updateMcpServerEnabled(index, value),
                 ),
+                const SizedBox(width: 4),
                 IconButton(
                   onPressed: () => notifier.removeMcpServer(index),
-                  icon: const Icon(Icons.delete_outline),
+                  icon: Icon(
+                    Icons.delete_outline,
+                    size: 20,
+                    color: colorScheme.onSurfaceVariant,
+                  ),
+                  visualDensity: VisualDensity.compact,
                   tooltip: 'common.delete'.tr(),
                 ),
               ],
             ),
+            const SizedBox(height: 8),
             TextField(
               controller: _mcpServerControllers[index],
               decoration: InputDecoration(
