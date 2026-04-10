@@ -21,6 +21,7 @@ class BuiltInToolRegistry {
   static const String categorySsh = 'ssh';
   static const String categoryGit = 'git';
   static const String categoryWebSearch = 'web_search';
+  static const String categoryBle = 'ble';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -29,6 +30,7 @@ class BuiltInToolRegistry {
     categorySsh,
     categoryGit,
     categoryWebSearch,
+    categoryBle,
   ];
 
   static const List<BuiltInToolInfo> tools = [
@@ -143,6 +145,87 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_web_search',
       category: categoryWebSearch,
     ),
+    // BLE
+    BuiltInToolInfo(
+      name: 'ble_start_scan',
+      descriptionKey: 'settings.tool_ble_start_scan',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_stop_scan',
+      descriptionKey: 'settings.tool_ble_stop_scan',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_get_scan_results',
+      descriptionKey: 'settings.tool_ble_get_scan_results',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_connect',
+      descriptionKey: 'settings.tool_ble_connect',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_disconnect',
+      descriptionKey: 'settings.tool_ble_disconnect',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_discover_services',
+      descriptionKey: 'settings.tool_ble_discover_services',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_read_characteristic',
+      descriptionKey: 'settings.tool_ble_read_characteristic',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_write_characteristic',
+      descriptionKey: 'settings.tool_ble_write_characteristic',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_subscribe_characteristic',
+      descriptionKey: 'settings.tool_ble_subscribe_characteristic',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_unsubscribe_characteristic',
+      descriptionKey: 'settings.tool_ble_unsubscribe_characteristic',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_get_connection_state',
+      descriptionKey: 'settings.tool_ble_get_connection_state',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_start_advertising',
+      descriptionKey: 'settings.tool_ble_start_advertising',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_stop_advertising',
+      descriptionKey: 'settings.tool_ble_stop_advertising',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_add_service',
+      descriptionKey: 'settings.tool_ble_add_service',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_update_characteristic',
+      descriptionKey: 'settings.tool_ble_update_characteristic',
+      category: categoryBle,
+    ),
+    BuiltInToolInfo(
+      name: 'ble_get_peripheral_state',
+      descriptionKey: 'settings.tool_ble_get_peripheral_state',
+      category: categoryBle,
+    ),
   ];
 
   static Map<String, List<BuiltInToolInfo>> get toolsByCategory {
@@ -168,6 +251,7 @@ class BuiltInToolRegistry {
       categorySsh => Icons.terminal,
       categoryGit => Icons.merge_type,
       categoryWebSearch => Icons.search,
+      categoryBle => Icons.bluetooth,
       _ => Icons.extension,
     };
   }

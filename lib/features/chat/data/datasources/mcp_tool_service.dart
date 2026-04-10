@@ -1,5 +1,10 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
+import 'package:bluetooth_low_energy/bluetooth_low_energy.dart'
+    show GATTCharacteristicWriteType;
+
+import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -7,6 +12,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
+import 'ble_tools.dart';
 import 'git_tools.dart';
 import 'mcp_client.dart';
 import 'network_tools.dart';
@@ -39,6 +45,7 @@ class McpToolService {
     'ssh_connect',
     'ssh_execute_command',
     'ssh_disconnect',
+    ...BleTools.allToolNames,
   };
 
   McpToolService({
@@ -47,6 +54,7 @@ class McpToolService {
     this.conversationRepository,
     this.memoryRepository,
     this.sshService,
+    this.bleService,
     this.disabledBuiltInTools = const {},
   });
 
@@ -55,6 +63,7 @@ class McpToolService {
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
   final SshService? sshService;
+  final BleService? bleService;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -400,6 +409,14 @@ class McpToolService {
       _addIfEnabled(toolDefinitions, _sshConnectTool);
       _addIfEnabled(toolDefinitions, _sshExecuteCommandTool);
       _addIfEnabled(toolDefinitions, _sshDisconnectTool);
+    }
+
+    // BLE tools (available on all platforms; unsupported operations return
+    // errors at runtime).
+    if (bleService != null) {
+      for (final tool in BleTools.allTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
     }
 
     // Use MCP tools when connected.
@@ -900,6 +917,11 @@ class McpToolService {
           errorMessage: e.toString(),
         );
       }
+    }
+
+    // Built-in BLE tools.
+    if (BleTools.allToolNames.contains(name) && bleService != null) {
+      return _executeBleToolCall(name, arguments);
     }
 
     // 1. Execute through the matching MCP server when connected.
@@ -1622,6 +1644,347 @@ class McpToolService {
       'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
     },
   };
+
+  // ---------------------------------------------------------------------------
+  // BLE tool execution
+  // ---------------------------------------------------------------------------
+
+  Future<McpToolResult> _executeBleToolCall(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final ble = bleService!;
+
+    try {
+      switch (name) {
+        case 'ble_start_scan':
+          final timeout =
+              ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 60);
+          final serviceUuids =
+              (arguments['service_uuids'] as List?)?.cast<String>();
+          await ble.startScan(
+            timeout: Duration(seconds: timeout),
+            serviceUuids: serviceUuids,
+          );
+          return McpToolResult(
+            toolName: name,
+            result: 'Scan started (${timeout}s timeout). '
+                'Use ble_get_scan_results to see discovered devices.',
+            isSuccess: true,
+          );
+
+        case 'ble_stop_scan':
+          await ble.stopScan();
+          return McpToolResult(
+            toolName: name,
+            result: 'Scan stopped. ${ble.getScanResults().length} devices found.',
+            isSuccess: true,
+          );
+
+        case 'ble_get_scan_results':
+          final sortBy = arguments['sort_by'] as String?;
+          final results = ble.getScanResults(sortBy: sortBy);
+          if (results.isEmpty) {
+            return McpToolResult(
+              toolName: name,
+              result: 'No devices found. Try ble_start_scan first.',
+              isSuccess: true,
+            );
+          }
+          final buf = StringBuffer();
+          buf.writeln('Found ${results.length} device(s):');
+          for (final d in results) {
+            buf.writeln(
+              '- device_id: ${d.peripheral.uuid}  '
+              'name: ${d.name ?? "(unknown)"}  '
+              'rssi: ${d.rssi} dBm  '
+              'services: ${d.serviceUuids.isEmpty ? "none" : d.serviceUuids.join(", ")}',
+            );
+          }
+          return McpToolResult(
+            toolName: name,
+            result: buf.toString(),
+            isSuccess: true,
+          );
+
+        case 'ble_connect':
+          // Handled by ChatNotifier for user confirmation.
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage:
+                'ble_connect must be handled by ChatNotifier (internal error)',
+          );
+
+        case 'ble_disconnect':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          if (deviceId.isEmpty) {
+            return _missingParam(name, 'device_id');
+          }
+          await ble.disconnect(deviceId);
+          return McpToolResult(
+            toolName: name,
+            result: 'Disconnected from $deviceId',
+            isSuccess: true,
+          );
+
+        case 'ble_discover_services':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          if (deviceId.isEmpty) {
+            return _missingParam(name, 'device_id');
+          }
+          final services = await ble.discoverServices(deviceId);
+          final result = jsonEncode(services);
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
+
+        case 'ble_read_characteristic':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final charUuid =
+              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
+          final encoding = (arguments['encoding'] as String?) ?? 'hex';
+          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
+            return _missingParam(
+              name,
+              'device_id, service_uuid, characteristic_uuid',
+            );
+          }
+          final value = await ble.readCharacteristic(
+            deviceId,
+            serviceUuid,
+            charUuid,
+          );
+          final encoded = BleService.encodeValue(value, encoding);
+
+          // Include notification buffer info if subscribed.
+          final buffer = ble.getNotificationBuffer(
+            deviceId,
+            serviceUuid,
+            charUuid,
+          );
+          final buf = StringBuffer();
+          buf.writeln('value ($encoding): $encoded');
+          if (buffer.isNotEmpty) {
+            buf.writeln('notification_buffer (${buffer.length} entries):');
+            for (final entry in buffer) {
+              buf.writeln(
+                '  ${entry.timestamp.toIso8601String()}: '
+                '${BleService.encodeValue(entry.value, encoding)}',
+              );
+            }
+          }
+          return McpToolResult(
+            toolName: name,
+            result: buf.toString(),
+            isSuccess: true,
+          );
+
+        case 'ble_write_characteristic':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final charUuid =
+              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
+          final rawValue = (arguments['value'] as String?)?.trim() ?? '';
+          final encoding = (arguments['encoding'] as String?) ?? 'hex';
+          final writeTypeStr =
+              (arguments['write_type'] as String?) ?? 'withResponse';
+          if (deviceId.isEmpty ||
+              serviceUuid.isEmpty ||
+              charUuid.isEmpty ||
+              rawValue.isEmpty) {
+            return _missingParam(
+              name,
+              'device_id, service_uuid, characteristic_uuid, value',
+            );
+          }
+          final writeType = writeTypeStr == 'withoutResponse'
+              ? GATTCharacteristicWriteType.withoutResponse
+              : GATTCharacteristicWriteType.withResponse;
+          final valueBytes = _decodeValueForWrite(rawValue, encoding);
+          await ble.writeCharacteristic(
+            deviceId,
+            serviceUuid,
+            charUuid,
+            valueBytes,
+            type: writeType,
+          );
+          return McpToolResult(
+            toolName: name,
+            result: 'Written ${valueBytes.length} bytes to $charUuid',
+            isSuccess: true,
+          );
+
+        case 'ble_subscribe_characteristic':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final charUuid =
+              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
+          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
+            return _missingParam(
+              name,
+              'device_id, service_uuid, characteristic_uuid',
+            );
+          }
+          await ble.subscribeCharacteristic(deviceId, serviceUuid, charUuid);
+          return McpToolResult(
+            toolName: name,
+            result:
+                'Subscribed to notifications on $charUuid. '
+                'Use ble_read_characteristic to get latest values.',
+            isSuccess: true,
+          );
+
+        case 'ble_unsubscribe_characteristic':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final charUuid =
+              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
+          if (deviceId.isEmpty || serviceUuid.isEmpty || charUuid.isEmpty) {
+            return _missingParam(
+              name,
+              'device_id, service_uuid, characteristic_uuid',
+            );
+          }
+          await ble.unsubscribeCharacteristic(deviceId, serviceUuid, charUuid);
+          return McpToolResult(
+            toolName: name,
+            result: 'Unsubscribed from $charUuid',
+            isSuccess: true,
+          );
+
+        case 'ble_get_connection_state':
+          final deviceId = (arguments['device_id'] as String?)?.trim() ?? '';
+          if (deviceId.isEmpty) {
+            return _missingParam(name, 'device_id');
+          }
+          final state = ble.getConnectionState(deviceId);
+          return McpToolResult(
+            toolName: name,
+            result: 'Device $deviceId: $state',
+            isSuccess: true,
+          );
+
+        case 'ble_start_advertising':
+          final localName = arguments['local_name'] as String?;
+          final serviceUuids =
+              (arguments['service_uuids'] as List?)?.cast<String>();
+          await ble.startAdvertising(
+            localName: localName,
+            serviceUuids: serviceUuids,
+          );
+          return McpToolResult(
+            toolName: name,
+            result: 'Advertising started',
+            isSuccess: true,
+          );
+
+        case 'ble_stop_advertising':
+          await ble.stopAdvertising();
+          return McpToolResult(
+            toolName: name,
+            result: 'Advertising stopped',
+            isSuccess: true,
+          );
+
+        case 'ble_add_service':
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final chars =
+              (arguments['characteristics'] as List?)
+                  ?.cast<Map<String, dynamic>>() ??
+              [];
+          if (serviceUuid.isEmpty || chars.isEmpty) {
+            return _missingParam(name, 'service_uuid, characteristics');
+          }
+          await ble.addService(
+            serviceUuid: serviceUuid,
+            characteristics: chars,
+          );
+          return McpToolResult(
+            toolName: name,
+            result:
+                'Service $serviceUuid added with ${chars.length} characteristic(s)',
+            isSuccess: true,
+          );
+
+        case 'ble_update_characteristic':
+          final serviceUuid =
+              (arguments['service_uuid'] as String?)?.trim() ?? '';
+          final charUuid =
+              (arguments['characteristic_uuid'] as String?)?.trim() ?? '';
+          final rawValue = (arguments['value'] as String?)?.trim() ?? '';
+          final encoding = (arguments['encoding'] as String?) ?? 'hex';
+          if (serviceUuid.isEmpty || charUuid.isEmpty || rawValue.isEmpty) {
+            return _missingParam(
+              name,
+              'service_uuid, characteristic_uuid, value',
+            );
+          }
+          final bytes = _decodeValueForWrite(rawValue, encoding);
+          await ble.updateCharacteristic(serviceUuid, charUuid, bytes);
+          return McpToolResult(
+            toolName: name,
+            result: 'Characteristic $charUuid updated and subscribers notified',
+            isSuccess: true,
+          );
+
+        case 'ble_get_peripheral_state':
+          final state = ble.getPeripheralState();
+          return McpToolResult(
+            toolName: name,
+            result: jsonEncode(state),
+            isSuccess: true,
+          );
+
+        default:
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Unknown BLE tool: $name',
+          );
+      }
+    } catch (e) {
+      appLog('[McpToolService] BLE tool error ($name): $e');
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  static McpToolResult _missingParam(String toolName, String params) {
+    return McpToolResult(
+      toolName: toolName,
+      result: '',
+      isSuccess: false,
+      errorMessage: '$params required',
+    );
+  }
+
+  static Uint8List _decodeValueForWrite(String value, String encoding) {
+    return switch (encoding) {
+      'utf8' => Uint8List.fromList(utf8.encode(value)),
+      'base64' => base64Decode(value),
+      _ => _hexDecodeValue(value),
+    };
+  }
+
+  static Uint8List _hexDecodeValue(String hex) {
+    final clean = hex.replaceAll(RegExp(r'[\s:-]'), '');
+    final bytes = <int>[];
+    for (var i = 0; i + 1 < clean.length; i += 2) {
+      bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
+    }
+    return Uint8List.fromList(bytes);
+  }
 
   String _recallMemory(Map<String, dynamic> arguments) {
     final query = (arguments['query'] as String?)?.trim() ?? '';

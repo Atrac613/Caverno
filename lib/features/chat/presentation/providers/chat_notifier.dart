@@ -6,6 +6,7 @@ import '../../../../core/utils/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
@@ -782,7 +783,8 @@ class ChatNotifier extends Notifier<ChatState> {
     if (tc.name == 'ssh_connect' ||
         tc.name == 'ssh_execute_command' ||
         tc.name == 'ssh_disconnect' ||
-        tc.name == 'git_execute_command') {
+        tc.name == 'git_execute_command' ||
+        tc.name == 'ble_connect') {
       appLog('[ContentTool] Refusing tool via content path: ${tc.name}');
       return;
     }
@@ -846,6 +848,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleSshExecuteCommand(toolCall);
       case 'git_execute_command':
         return _handleGitExecuteCommand(toolCall);
+      case 'ble_connect':
+        return _handleBleConnect(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -921,6 +925,83 @@ class ChatNotifier extends Notifier<ChatState> {
         errorMessage: 'SSH connect failed: $e',
       );
     }
+  }
+
+  Future<McpToolResult> _handleBleConnect(ToolCallInfo toolCall) async {
+    final deviceId = (toolCall.arguments['device_id'] as String?)?.trim() ?? '';
+    if (deviceId.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'device_id is required',
+      );
+    }
+
+    final bleService = ref.read(bleServiceProvider);
+    final scanResults = bleService.getScanResults();
+    final device = scanResults.where(
+      (d) => d.peripheral.uuid.toString() == deviceId,
+    );
+    final deviceName = device.isNotEmpty ? device.first.name : null;
+
+    final approved = await requestBleConnect(
+      deviceId: deviceId,
+      deviceName: deviceName,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User cancelled BLE connection',
+      );
+    }
+
+    try {
+      await bleService.connect(deviceId);
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: 'Connected to ${deviceName ?? deviceId}',
+        isSuccess: true,
+      );
+    } catch (e) {
+      appLog('[Tool] BLE connect failed: $e');
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'BLE connect failed: $e',
+      );
+    }
+  }
+
+  /// Puts a pending BLE connect request into state and returns a future
+  /// that completes with `true` (approved) or `false` (denied).
+  Future<bool> requestBleConnect({
+    required String deviceId,
+    String? deviceName,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingBleConnect: PendingBleConnect(
+        id: const Uuid().v4(),
+        deviceId: deviceId,
+        deviceName: deviceName,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  /// Resolves a pending BLE connect dialog from the UI layer.
+  void resolveBleConnect({required String id, required bool approved}) {
+    final pending = state.pendingBleConnect;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingBleConnect: null);
   }
 
   Future<McpToolResult> _handleSshExecuteCommand(ToolCallInfo toolCall) async {

@@ -32,5 +32,7 @@
 	<string>This app requires microphone access to use the voice mode.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app requires speech recognition access to transcribe your voice.</string>
+	<key>NSBluetoothAlwaysUsageDescription</key>
+	<string>Caverno uses Bluetooth to scan for and communicate with BLE devices.</string>
 </dict>
 </plist>

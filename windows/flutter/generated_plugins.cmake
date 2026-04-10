@@ -4,6 +4,7 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   audioplayers_windows
+  bluetooth_low_energy_windows
   file_selector_windows
   flutter_secure_storage_windows
   flutter_tts
