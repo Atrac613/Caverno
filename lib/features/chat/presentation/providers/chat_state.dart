@@ -89,6 +89,21 @@ class PendingGitCommand {
   final Completer<bool> completer;
 }
 
+/// Pending BLE connect request awaiting user confirmation in the UI.
+class PendingBleConnect {
+  PendingBleConnect({
+    required this.id,
+    required this.deviceId,
+    required this.deviceName,
+    required this.completer,
+  });
+
+  final String id;
+  final String deviceId;
+  final String? deviceName;
+  final Completer<bool> completer;
+}
+
 @freezed
 abstract class ChatState with _$ChatState {
   const factory ChatState({
@@ -104,6 +119,8 @@ abstract class ChatState with _$ChatState {
     PendingSshCommand? pendingSshCommand,
     // Git tool UI flow — same Completer-based pattern as SSH.
     PendingGitCommand? pendingGitCommand,
+    // BLE tool UI flow — same Completer-based pattern as SSH.
+    PendingBleConnect? pendingBleConnect,
   }) = _ChatState;
 
   factory ChatState.initial() =>

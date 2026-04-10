@@ -1,5 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/mcp_client.dart';
@@ -42,6 +43,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final conversationRepo = ref.watch(conversationRepositoryProvider);
   final memoryRepo = ref.watch(chatMemoryRepositoryProvider);
   final sshService = ref.watch(sshServiceProvider);
+  final bleService = ref.watch(bleServiceProvider);
   final settings = ref.watch(settingsNotifierProvider);
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
@@ -50,6 +52,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     conversationRepository: conversationRepo,
     memoryRepository: memoryRepo,
     sshService: sshService,
+    bleService: bleService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });
