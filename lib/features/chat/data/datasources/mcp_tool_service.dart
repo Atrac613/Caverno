@@ -6,6 +6,7 @@ import 'package:bluetooth_low_energy/bluetooth_low_energy.dart'
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/ssh_service.dart';
+import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
@@ -17,6 +18,7 @@ import 'git_tools.dart';
 import 'mcp_client.dart';
 import 'network_tools.dart';
 import 'searxng_client.dart';
+import 'wifi_tools.dart';
 
 /// MCP tool management service.
 ///
@@ -46,6 +48,7 @@ class McpToolService {
     'ssh_execute_command',
     'ssh_disconnect',
     ...BleTools.allToolNames,
+    ...WifiTools.allToolNames,
   };
 
   McpToolService({
@@ -55,6 +58,7 @@ class McpToolService {
     this.memoryRepository,
     this.sshService,
     this.bleService,
+    this.wifiService,
     this.disabledBuiltInTools = const {},
   });
 
@@ -64,6 +68,7 @@ class McpToolService {
   final ChatMemoryRepository? memoryRepository;
   final SshService? sshService;
   final BleService? bleService;
+  final WifiService? wifiService;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -415,6 +420,13 @@ class McpToolService {
     // errors at runtime).
     if (bleService != null) {
       for (final tool in BleTools.allTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
+    // WiFi tools (scan + connection info).
+    if (wifiService != null) {
+      for (final tool in WifiTools.allTools) {
         _addIfEnabled(toolDefinitions, tool);
       }
     }
@@ -922,6 +934,11 @@ class McpToolService {
     // Built-in BLE tools.
     if (BleTools.allToolNames.contains(name) && bleService != null) {
       return _executeBleToolCall(name, arguments);
+    }
+
+    // Built-in WiFi tools.
+    if (WifiTools.allToolNames.contains(name) && wifiService != null) {
+      return _executeWifiToolCall(name, arguments);
     }
 
     // 1. Execute through the matching MCP server when connected.
@@ -1951,6 +1968,61 @@ class McpToolService {
       }
     } catch (e) {
       appLog('[McpToolService] BLE tool error ($name): $e');
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // WiFi tool execution
+  // ---------------------------------------------------------------------------
+
+  Future<McpToolResult> _executeWifiToolCall(
+    String name,
+    Map<String, dynamic> arguments,
+  ) async {
+    final wifi = wifiService!;
+    try {
+      switch (name) {
+        case 'wifi_scan':
+          final result = await wifi.startScan();
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: true,
+          );
+
+        case 'wifi_get_scan_results':
+          final sortBy = arguments['sort_by'] as String?;
+          final result = wifi.getScanResults(sortBy: sortBy);
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: true,
+          );
+
+        case 'wifi_get_connection_info':
+          final result = await wifi.getConnectionInfo();
+          return McpToolResult(
+            toolName: name,
+            result: result,
+            isSuccess: true,
+          );
+
+        default:
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Unknown WiFi tool: $name',
+          );
+      }
+    } catch (e) {
+      appLog('[McpToolService] WiFi tool error ($name): $e');
       return McpToolResult(
         toolName: name,
         result: '',

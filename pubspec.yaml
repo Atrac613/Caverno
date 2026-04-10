@@ -91,6 +91,10 @@ dependencies:
   # BLE (Bluetooth Low Energy) tool
   bluetooth_low_energy: ^6.2.1
 
+  # WiFi scanning tool
+  wifi_scan: ^0.4.1
+  network_info_plus: ^6.1.0
+
 dev_dependencies:
   flutter_test:
     sdk: flutter

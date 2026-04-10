@@ -22,6 +22,7 @@ class BuiltInToolRegistry {
   static const String categoryGit = 'git';
   static const String categoryWebSearch = 'web_search';
   static const String categoryBle = 'ble';
+  static const String categoryWifi = 'wifi';
 
   static const List<String> categories = [
     categoryDatetime,
@@ -31,6 +32,7 @@ class BuiltInToolRegistry {
     categoryGit,
     categoryWebSearch,
     categoryBle,
+    categoryWifi,
   ];
 
   static const List<BuiltInToolInfo> tools = [
@@ -226,6 +228,22 @@ class BuiltInToolRegistry {
       descriptionKey: 'settings.tool_ble_get_peripheral_state',
       category: categoryBle,
     ),
+    // WiFi
+    BuiltInToolInfo(
+      name: 'wifi_scan',
+      descriptionKey: 'settings.tool_wifi_scan',
+      category: categoryWifi,
+    ),
+    BuiltInToolInfo(
+      name: 'wifi_get_scan_results',
+      descriptionKey: 'settings.tool_wifi_get_scan_results',
+      category: categoryWifi,
+    ),
+    BuiltInToolInfo(
+      name: 'wifi_get_connection_info',
+      descriptionKey: 'settings.tool_wifi_get_connection_info',
+      category: categoryWifi,
+    ),
   ];
 
   static Map<String, List<BuiltInToolInfo>> get toolsByCategory {
@@ -252,6 +270,7 @@ class BuiltInToolRegistry {
       categoryGit => Icons.merge_type,
       categoryWebSearch => Icons.search,
       categoryBle => Icons.bluetooth,
+      categoryWifi => Icons.wifi,
       _ => Icons.extension,
     };
   }
