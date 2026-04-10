@@ -21,6 +21,68 @@ void main() {
     );
   });
 
+  group('effectiveMcpUrls', () {
+    test('falls back to the legacy single MCP URL', () {
+      const settings = AppSettings(
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'test-model',
+        apiKey: 'test-key',
+        temperature: 0.7,
+        maxTokens: 4096,
+        mcpUrl: 'http://localhost:8081',
+      );
+
+      expect(settings.effectiveMcpUrls, ['http://localhost:8081']);
+      expect(settings.primaryMcpUrl, 'http://localhost:8081');
+    });
+
+    test('uses enabled server configs and removes duplicate URLs', () {
+      const settings = AppSettings(
+        baseUrl: 'http://localhost:1234/v1',
+        model: 'test-model',
+        apiKey: 'test-key',
+        temperature: 0.7,
+        maxTokens: 4096,
+        mcpServers: [
+          McpServerConfig(url: 'http://localhost:8081', enabled: true),
+          McpServerConfig(url: ' http://localhost:8082 ', enabled: true),
+          McpServerConfig(url: 'http://localhost:8081', enabled: true),
+          McpServerConfig(url: 'http://localhost:8083', enabled: false),
+          McpServerConfig(url: '', enabled: true),
+        ],
+      );
+
+      expect(settings.effectiveMcpUrls, [
+        'http://localhost:8081',
+        'http://localhost:8082',
+      ]);
+      expect(settings.primaryMcpUrl, 'http://localhost:8081');
+    });
+
+    test(
+      'preserves raw server configs for editing while trimming effective URLs',
+      () {
+        const settings = AppSettings(
+          baseUrl: 'http://localhost:1234/v1',
+          model: 'test-model',
+          apiKey: 'test-key',
+          temperature: 0.7,
+          maxTokens: 4096,
+          mcpServers: [
+            McpServerConfig(url: ' http://localhost:8081 ', enabled: true),
+            McpServerConfig(url: '', enabled: false),
+          ],
+        );
+
+        expect(
+          settings.configuredMcpServers.first.url,
+          ' http://localhost:8081 ',
+        );
+        expect(settings.effectiveMcpServers.first.url, 'http://localhost:8081');
+      },
+    );
+  });
+
   group('validateSettings', () {
     test('accepts valid settings', () {
       expect(
@@ -45,6 +107,11 @@ void main() {
       final settings = validSettings.copyWith(
         baseUrl: 'https://api.example.com/v1',
         mcpUrl: 'https://mcp.example.com',
+        mcpUrls: ['https://mcp.example.com', 'https://mcp-2.example.com'],
+        mcpServers: const [
+          McpServerConfig(url: 'https://mcp.example.com', enabled: true),
+          McpServerConfig(url: 'https://mcp-2.example.com', enabled: false),
+        ],
       );
       expect(
         () => SettingsFileService.validateSettings(settings),
@@ -211,6 +278,41 @@ void main() {
       );
     });
 
+    test('rejects invalid mcpUrls entry', () {
+      final settings = validSettings.copyWith(
+        mcpUrls: ['http://localhost:8081', 'not-a-url'],
+      );
+      expect(
+        () => SettingsFileService.validateSettings(settings),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('mcpUrl'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects invalid mcpServers entry', () {
+      final settings = validSettings.copyWith(
+        mcpServers: const [
+          McpServerConfig(url: 'http://localhost:8081', enabled: true),
+          McpServerConfig(url: 'not-a-url', enabled: false),
+        ],
+      );
+      expect(
+        () => SettingsFileService.validateSettings(settings),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('mcpUrl'),
+          ),
+        ),
+      );
+    });
+
     test('rejects invalid whisperUrl', () {
       final settings = validSettings.copyWith(whisperUrl: 'invalid');
       expect(
@@ -261,6 +363,11 @@ void main() {
         temperature: 1.5,
         maxTokens: 8192,
         mcpUrl: 'http://mcp.local:9090',
+        mcpUrls: ['http://mcp.local:9090', 'http://mcp.local:9091'],
+        mcpServers: [
+          McpServerConfig(url: 'http://mcp.local:9090', enabled: true),
+          McpServerConfig(url: 'http://mcp.local:9091', enabled: false),
+        ],
         mcpEnabled: true,
         ttsEnabled: false,
         autoReadEnabled: true,
@@ -273,8 +380,8 @@ void main() {
         assistantMode: AssistantMode.coding,
       );
 
-      final json = jsonDecode(jsonEncode(settings.toJson()))
-          as Map<String, dynamic>;
+      final json =
+          jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>;
       final restored = AppSettings.fromJson(json);
 
       expect(restored.baseUrl, settings.baseUrl);
@@ -283,6 +390,8 @@ void main() {
       expect(restored.temperature, settings.temperature);
       expect(restored.maxTokens, settings.maxTokens);
       expect(restored.mcpUrl, settings.mcpUrl);
+      expect(restored.mcpUrls, settings.mcpUrls);
+      expect(restored.mcpServers, settings.mcpServers);
       expect(restored.mcpEnabled, settings.mcpEnabled);
       expect(restored.ttsEnabled, settings.ttsEnabled);
       expect(restored.autoReadEnabled, settings.autoReadEnabled);

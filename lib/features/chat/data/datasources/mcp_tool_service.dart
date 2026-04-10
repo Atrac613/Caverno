@@ -17,21 +17,47 @@ import 'searxng_client.dart';
 /// Fetches tools dynamically from an MCP server and executes them.
 /// Falls back to SearXNG when the MCP server is unavailable.
 class McpToolService {
+  static const _maxToolNameLength = 64;
+  static const Set<String> _reservedToolNames = {
+    'get_current_datetime',
+    'search_past_conversations',
+    'recall_memory',
+    'ping',
+    'whois_lookup',
+    'dns_lookup',
+    'port_check',
+    'ssl_certificate',
+    'http_status',
+    'http_get',
+    'http_head',
+    'http_post',
+    'http_put',
+    'http_patch',
+    'http_delete',
+    'traceroute',
+    'git_execute_command',
+    'ssh_connect',
+    'ssh_execute_command',
+    'ssh_disconnect',
+  };
+
   McpToolService({
-    this.mcpClient,
+    this.mcpClients = const [],
     this.searxngClient,
     this.conversationRepository,
     this.memoryRepository,
     this.sshService,
   });
 
-  final McpClient? mcpClient;
+  final List<McpClient> mcpClients;
   final SearxngClient? searxngClient;
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
   final SshService? sshService;
 
   List<McpToolEntity> _cachedTools = [];
+  final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
+  List<McpServerConnectionInfo> _serverStates = const [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
   String? _lastError;
 
@@ -41,55 +67,292 @@ class McpToolService {
   /// Cached tool definitions.
   List<McpToolEntity> get tools => _cachedTools;
 
+  /// Current connection status for each configured MCP server.
+  List<McpServerConnectionInfo> get serverStates =>
+      List.unmodifiable(_serverStates);
+
   /// Most recent error message.
   String? get lastError => _lastError;
 
   /// Connects to the MCP server and fetches available tools.
   ///
-  /// Uses [overrideUrl] for a connection test instead of the saved URL.
-  Future<void> connect({String? overrideUrl}) async {
-    // Create a temporary client when testing against an override URL.
-    final client = overrideUrl != null
-        ? McpClient(baseUrl: overrideUrl)
-        : mcpClient;
+  /// Uses [overrideUrls] or [overrideUrl] for connection tests instead of
+  /// the saved URLs.
+  Future<void> connect({
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {
+    final targetUrls = overrideUrls != null
+        ? _normalizeUrls(overrideUrls)
+        : overrideUrl != null
+        ? _normalizeUrls([overrideUrl])
+        : _normalizeUrls(mcpClients.map((client) => client.baseUrl));
 
-    if (client == null) {
-      appLog('[McpToolService] MCP client is null, running in SearXNG mode');
+    if (targetUrls.isEmpty) {
+      appLog(
+        '[McpToolService] No MCP URLs configured, running without remote MCP',
+      );
       _status = McpConnectionStatus.disconnected;
+      _lastError = null;
+      _cachedTools = [];
+      _remoteToolBindings.clear();
+      _serverStates = const [];
       return;
     }
 
+    final clients = _resolveClients(
+      targetUrls: targetUrls,
+      useOverrides: overrideUrls != null || overrideUrl != null,
+    );
+
     _status = McpConnectionStatus.connecting;
     _lastError = null;
+    _serverStates = targetUrls
+        .map(
+          (url) => McpServerConnectionInfo(
+            url: url,
+            status: McpConnectionStatus.connecting,
+          ),
+        )
+        .toList(growable: false);
 
     try {
-      final mcpTools = await client.listTools();
-      _cachedTools = mcpTools
+      final results = await Future.wait(clients.map(_connectClient));
+      _serverStates = results
           .map(
-            (t) => McpToolEntity(
-              name: t.name,
-              description: t.description,
-              inputSchema: t.inputSchema,
+            (result) => McpServerConnectionInfo(
+              url: result.url,
+              status: result.status,
+              toolCount: result.tools.length,
+              lastError: result.error,
             ),
           )
+          .toList(growable: false);
+      _rebuildRemoteToolCache(results);
+
+      final successfulResults = results.where((result) => result.isSuccess);
+      final failedResults = results
+          .where((result) => !result.isSuccess)
           .toList();
-      _status = McpConnectionStatus.connected;
-      appLog('[McpToolService] Connected: fetched ${_cachedTools.length} tools');
-      for (final tool in _cachedTools) {
-        appLog('[McpToolService]   - ${tool.name}: ${tool.description}');
+
+      if (successfulResults.isNotEmpty) {
+        _status = McpConnectionStatus.connected;
+        _lastError = failedResults.isEmpty
+            ? null
+            : failedResults
+                  .map((result) => '${result.url}: ${result.error}')
+                  .join(' | ');
+        appLog(
+          '[McpToolService] Connected to ${successfulResults.length} MCP server(s): fetched ${_cachedTools.length} tools',
+        );
+        for (final tool in _cachedTools) {
+          appLog('[McpToolService]   - ${tool.name}: ${tool.description}');
+        }
+        return;
       }
+
+      _status = McpConnectionStatus.error;
+      _lastError = failedResults
+          .map((result) => '${result.url}: ${result.error}')
+          .join(' | ');
+      _cachedTools = [];
+      _remoteToolBindings.clear();
     } catch (e, stackTrace) {
       appLog('[McpToolService] Connection failed: ${e.runtimeType}: $e');
       appLog('[McpToolService] stackTrace: $stackTrace');
       _status = McpConnectionStatus.error;
       _lastError = e.toString();
       _cachedTools = [];
+      _remoteToolBindings.clear();
+      _serverStates = targetUrls
+          .map(
+            (url) => McpServerConnectionInfo(
+              url: url,
+              status: McpConnectionStatus.error,
+              lastError: e.toString(),
+            ),
+          )
+          .toList(growable: false);
     }
   }
 
   /// Refreshes the tool list.
   Future<void> refresh() async {
     await connect();
+  }
+
+  Future<_McpConnectionResult> _connectClient(McpClient client) async {
+    try {
+      final tools = await client.listTools();
+      return _McpConnectionResult(
+        url: client.baseUrl,
+        client: client,
+        tools: tools,
+      );
+    } catch (e, stackTrace) {
+      appLog(
+        '[McpToolService] Connection failed for ${client.baseUrl}: ${e.runtimeType}: $e',
+      );
+      appLog('[McpToolService] stackTrace: $stackTrace');
+      return _McpConnectionResult(
+        url: client.baseUrl,
+        client: client,
+        error: e.toString(),
+      );
+    }
+  }
+
+  void _rebuildRemoteToolCache(List<_McpConnectionResult> results) {
+    _cachedTools = [];
+    _remoteToolBindings.clear();
+
+    final successfulResults = results
+        .where((result) => result.isSuccess)
+        .toList();
+    if (successfulResults.isEmpty) {
+      return;
+    }
+
+    final nameCounts = <String, int>{};
+    for (final result in successfulResults) {
+      for (final tool in result.tools) {
+        nameCounts.update(tool.name, (count) => count + 1, ifAbsent: () => 1);
+      }
+    }
+
+    final usedNames = {..._reservedToolNames};
+    for (final result in successfulResults) {
+      for (final tool in result.tools) {
+        final exposedName = _buildExposedToolName(
+          baseName: tool.name,
+          url: result.url,
+          usedNames: usedNames,
+          duplicateCount: nameCounts[tool.name] ?? 1,
+        );
+
+        _cachedTools.add(
+          McpToolEntity(
+            name: exposedName,
+            originalName: tool.name,
+            description: tool.description,
+            inputSchema: tool.inputSchema,
+            sourceUrl: result.url,
+          ),
+        );
+        _remoteToolBindings[exposedName] = _RemoteToolBinding(
+          client: result.client,
+          remoteToolName: tool.name,
+        );
+      }
+    }
+  }
+
+  String _buildExposedToolName({
+    required String baseName,
+    required String url,
+    required Set<String> usedNames,
+    required int duplicateCount,
+  }) {
+    final serverKey = _buildServerKey(url);
+    final shouldNamespace = duplicateCount > 1 || usedNames.contains(baseName);
+    var candidate = shouldNamespace
+        ? _buildNamespacedToolName(baseName: baseName, serverKey: serverKey)
+        : _truncateToolName(baseName);
+    var attempt = 2;
+
+    while (!usedNames.add(candidate)) {
+      candidate = _buildNamespacedToolName(
+        baseName: baseName,
+        serverKey: serverKey,
+        attempt: attempt,
+      );
+      attempt += 1;
+    }
+
+    return candidate;
+  }
+
+  List<McpClient> _resolveClients({
+    required List<String> targetUrls,
+    required bool useOverrides,
+  }) {
+    if (useOverrides) {
+      return targetUrls
+          .map((url) => McpClient(baseUrl: url))
+          .toList(growable: false);
+    }
+
+    final clientsByUrl = <String, McpClient>{};
+    for (final client in mcpClients) {
+      clientsByUrl.putIfAbsent(client.baseUrl.trim(), () => client);
+    }
+
+    return targetUrls
+        .map((url) => clientsByUrl[url] ?? McpClient(baseUrl: url))
+        .toList(growable: false);
+  }
+
+  String _buildNamespacedToolName({
+    required String baseName,
+    required String serverKey,
+    int? attempt,
+  }) {
+    final suffix = attempt == null ? '__$serverKey' : '__${serverKey}_$attempt';
+    final maxBaseLength = (_maxToolNameLength - suffix.length).clamp(1, 64);
+    final truncatedBase = baseName.length <= maxBaseLength
+        ? baseName
+        : baseName.substring(0, maxBaseLength);
+    return '$truncatedBase$suffix';
+  }
+
+  String _truncateToolName(String value) {
+    if (value.length <= _maxToolNameLength) {
+      return value;
+    }
+    return value.substring(0, _maxToolNameLength);
+  }
+
+  String _buildServerKey(String url) {
+    final uri = Uri.tryParse(url);
+    final rawValue = uri == null
+        ? 'server'
+        : [
+            if (uri.host.isNotEmpty) uri.host else 'server',
+            if (uri.hasPort) uri.port.toString(),
+          ].join('_');
+    final sanitized = rawValue.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
+    final collapsed = sanitized.replaceAll(RegExp(r'_+'), '_');
+    final normalized = collapsed.replaceAll(RegExp(r'^_|_$'), '').toLowerCase();
+    final shortBase = normalized.isEmpty
+        ? 'server'
+        : normalized.substring(
+            0,
+            normalized.length > 18 ? 18 : normalized.length,
+          );
+    return '${shortBase}_${_shortHash(url)}';
+  }
+
+  String _shortHash(String value) {
+    var hash = 0;
+    for (final codeUnit in value.codeUnits) {
+      hash = (hash * 31 + codeUnit) & 0x3fffffff;
+    }
+    return hash.toRadixString(36).padLeft(6, '0');
+  }
+
+  List<String> _normalizeUrls(Iterable<String> values) {
+    final normalized = <String>[];
+    final seen = <String>{};
+
+    for (final value in values) {
+      final trimmed = value.trim();
+      if (trimmed.isEmpty || !seen.add(trimmed)) {
+        continue;
+      }
+      normalized.add(trimmed);
+    }
+
+    return normalized;
   }
 
   /// Returns tool definitions for the LLM.
@@ -164,10 +427,11 @@ class McpToolService {
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
-    if (name == 'search_past_conversations' &&
-        conversationRepository != null) {
+    if (name == 'search_past_conversations' && conversationRepository != null) {
       final result = _searchConversations(arguments);
-      appLog('[McpToolService] Conversation search executed: ${result.length} chars');
+      appLog(
+        '[McpToolService] Conversation search executed: ${result.length} chars',
+      );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -183,22 +447,30 @@ class McpToolService {
         final host = (arguments['host'] as String?)?.trim() ?? '';
         if (host.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Host is required',
           );
         }
         final count = ((arguments['count'] as num?)?.toInt() ?? 4).clamp(1, 10);
-        final timeout =
-            ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(1, 30);
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(
+          1,
+          30,
+        );
         final result = await NetworkTools.ping(
-          host: host, count: count, timeoutSeconds: timeout,
+          host: host,
+          count: count,
+          timeoutSeconds: timeout,
         );
         appLog('[McpToolService] Ping tool executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Ping tool error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -209,7 +481,9 @@ class McpToolService {
         final domain = (arguments['domain'] as String?)?.trim() ?? '';
         if (domain.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Domain is required',
           );
         }
@@ -219,7 +493,9 @@ class McpToolService {
       } catch (e) {
         appLog('[McpToolService] Whois tool error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -230,7 +506,9 @@ class McpToolService {
         final host = (arguments['host'] as String?)?.trim() ?? '';
         if (host.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Host is required',
           );
         }
@@ -240,7 +518,9 @@ class McpToolService {
       } catch (e) {
         appLog('[McpToolService] DNS lookup error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -252,21 +532,29 @@ class McpToolService {
         final port = (arguments['port'] as num?)?.toInt();
         if (host.isEmpty || port == null) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Host and port are required',
           );
         }
-        final timeout =
-            ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(1, 30);
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(
+          1,
+          30,
+        );
         final result = await NetworkTools.portCheck(
-          host: host, port: port, timeoutSeconds: timeout,
+          host: host,
+          port: port,
+          timeoutSeconds: timeout,
         );
         appLog('[McpToolService] Port check executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Port check error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -277,20 +565,28 @@ class McpToolService {
         final host = (arguments['host'] as String?)?.trim() ?? '';
         if (host.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Host is required',
           );
         }
-        final port = ((arguments['port'] as num?)?.toInt() ?? 443).clamp(1, 65535);
+        final port = ((arguments['port'] as num?)?.toInt() ?? 443).clamp(
+          1,
+          65535,
+        );
         final result = await NetworkTools.sslCertificate(
-          host: host, port: port,
+          host: host,
+          port: port,
         );
         appLog('[McpToolService] SSL certificate check executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] SSL certificate error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -301,21 +597,28 @@ class McpToolService {
         final url = (arguments['url'] as String?)?.trim() ?? '';
         if (url.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'URL is required',
           );
         }
-        final timeout =
-            ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 30);
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(
+          1,
+          30,
+        );
         final result = await NetworkTools.httpStatus(
-          url: url, timeoutSeconds: timeout,
+          url: url,
+          timeoutSeconds: timeout,
         );
         appLog('[McpToolService] HTTP status check executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] HTTP status error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -331,15 +634,19 @@ class McpToolService {
         final url = (arguments['url'] as String?)?.trim() ?? '';
         if (url.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'URL is required',
           );
         }
         final headers = _parseHeaderMap(arguments['headers']);
         final body = arguments['body'] as String?;
         final contentType = (arguments['content_type'] as String?)?.trim();
-        final timeout =
-            ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 30);
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(
+          1,
+          30,
+        );
         final followRedirects = arguments['follow_redirects'] as bool? ?? true;
         final maxRedirects =
             ((arguments['max_redirects'] as num?)?.toInt() ?? 5).clamp(0, 10);
@@ -415,7 +722,9 @@ class McpToolService {
       } catch (e) {
         appLog('[McpToolService] $name error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -426,23 +735,33 @@ class McpToolService {
         final host = (arguments['host'] as String?)?.trim() ?? '';
         if (host.isEmpty) {
           return McpToolResult(
-            toolName: name, result: '', isSuccess: false,
+            toolName: name,
+            result: '',
+            isSuccess: false,
             errorMessage: 'Host is required',
           );
         }
-        final maxHops =
-            ((arguments['max_hops'] as num?)?.toInt() ?? 20).clamp(1, 30);
-        final timeout =
-            ((arguments['timeout'] as num?)?.toInt() ?? 3).clamp(1, 10);
+        final maxHops = ((arguments['max_hops'] as num?)?.toInt() ?? 20).clamp(
+          1,
+          30,
+        );
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 3).clamp(
+          1,
+          10,
+        );
         final result = await NetworkTools.traceroute(
-          host: host, maxHops: maxHops, timeoutSeconds: timeout,
+          host: host,
+          maxHops: maxHops,
+          timeoutSeconds: timeout,
         );
         appLog('[McpToolService] Traceroute executed successfully');
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Traceroute error: $e');
         return McpToolResult(
-          toolName: name, result: '', isSuccess: false,
+          toolName: name,
+          result: '',
+          isSuccess: false,
           errorMessage: e.toString(),
         );
       }
@@ -511,8 +830,7 @@ class McpToolService {
           toolName: name,
           result: '',
           isSuccess: false,
-          errorMessage:
-              'No active SSH session — call ssh_connect first',
+          errorMessage: 'No active SSH session — call ssh_connect first',
         );
       }
       try {
@@ -570,27 +888,26 @@ class McpToolService {
       }
     }
 
-    // 1. Execute through MCP when connected.
-    if (_status == McpConnectionStatus.connected && mcpClient != null) {
-      // Ensure the requested tool exists.
-      final toolExists = _cachedTools.any((t) => t.name == name);
-      if (toolExists) {
-        try {
-          final result = await mcpClient!.callTool(
-            name: name,
-            arguments: arguments,
-          );
-          appLog('[McpToolService] MCP execution succeeded: ${result.length} chars');
-          return McpToolResult(toolName: name, result: result, isSuccess: true);
-        } catch (e) {
-          appLog('[McpToolService] MCP tool execution error: $e');
-          return McpToolResult(
-            toolName: name,
-            result: '',
-            isSuccess: false,
-            errorMessage: e.toString(),
-          );
-        }
+    // 1. Execute through the matching MCP server when connected.
+    final remoteBinding = _remoteToolBindings[name];
+    if (_status == McpConnectionStatus.connected && remoteBinding != null) {
+      try {
+        final result = await remoteBinding.client.callTool(
+          name: remoteBinding.remoteToolName,
+          arguments: arguments,
+        );
+        appLog(
+          '[McpToolService] MCP execution succeeded: ${result.length} chars',
+        );
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] MCP tool execution error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
       }
     }
 
@@ -607,7 +924,9 @@ class McpToolService {
           );
         }
         final result = await searxngClient!.searchAsText(query: query);
-        appLog('[McpToolService] SearXNG execution succeeded: ${result.length} chars');
+        appLog(
+          '[McpToolService] SearXNG execution succeeded: ${result.length} chars',
+        );
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] SearXNG error: $e');
@@ -635,7 +954,8 @@ class McpToolService {
     'type': 'function',
     'function': {
       'name': 'web_search',
-      'description': 'Perform a web search on the Internet. Use this to look up the latest information, news, weather, etc.',
+      'description':
+          'Perform a web search on the Internet. Use this to look up the latest information, news, weather, etc.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -757,8 +1077,10 @@ class McpToolService {
 
   String _searchConversations(Map<String, dynamic> arguments) {
     final query = (arguments['query'] as String?)?.trim() ?? '';
-    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5)
-        .clamp(1, 10);
+    final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 5).clamp(
+      1,
+      10,
+    );
     if (query.isEmpty) return 'Error: search query is empty';
 
     final conversations = conversationRepository!.getAll();
@@ -776,14 +1098,16 @@ class McpToolService {
         final content = message.content.toLowerCase();
         final matchCount = keywords.where((kw) => content.contains(kw)).length;
         if (matchCount > 0) {
-          matches.add(_ConversationMatch(
-            title: conversation.title,
-            date: message.timestamp,
-            conversationDate: conversation.updatedAt,
-            role: message.role.name,
-            content: message.content,
-            score: matchCount / keywords.length,
-          ));
+          matches.add(
+            _ConversationMatch(
+              title: conversation.title,
+              date: message.timestamp,
+              conversationDate: conversation.updatedAt,
+              role: message.role.name,
+              content: message.content,
+              score: matchCount / keywords.length,
+            ),
+          );
         }
       }
     }
@@ -1152,8 +1476,7 @@ class McpToolService {
           },
           'max_hops': {
             'type': 'integer',
-            'description':
-                'Maximum number of hops (default: 20, max: 30)',
+            'description': 'Maximum number of hops (default: 20, max: 30)',
           },
           'timeout': {
             'type': 'integer',
@@ -1282,10 +1605,7 @@ class McpToolService {
       'description':
           'Close the currently active SSH session. Safe to call even if '
           'nothing is connected.',
-      'parameters': {
-        'type': 'object',
-        'properties': <String, dynamic>{},
-      },
+      'parameters': {'type': 'object', 'properties': <String, dynamic>{}},
     },
   };
 
@@ -1360,6 +1680,35 @@ class _ConversationMatch {
   final String role;
   final String content;
   final double score;
+}
+
+class _RemoteToolBinding {
+  const _RemoteToolBinding({
+    required this.client,
+    required this.remoteToolName,
+  });
+
+  final McpClient client;
+  final String remoteToolName;
+}
+
+class _McpConnectionResult {
+  const _McpConnectionResult({
+    required this.url,
+    required this.client,
+    this.tools = const [],
+    this.error,
+  });
+
+  final String url;
+  final McpClient client;
+  final List<McpTool> tools;
+  final String? error;
+
+  bool get isSuccess => error == null;
+
+  McpConnectionStatus get status =>
+      isSuccess ? McpConnectionStatus.connected : McpConnectionStatus.error;
 }
 
 class _ScoredMemoryMatch {
