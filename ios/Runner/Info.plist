@@ -41,6 +41,8 @@
 	<string>Caverno uses speech recognition to convert your voice into text.</string>
 	<key>NSCameraUsageDescription</key>
 	<string>Caverno uses the camera to scan settings QR codes.</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>Caverno uses your location to identify the current WiFi network name.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Caverno uses Bluetooth to scan for and communicate with BLE devices.</string>
 	<key>UIApplicationSceneManifest</key>
