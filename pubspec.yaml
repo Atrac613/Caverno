@@ -61,6 +61,7 @@ dependencies:
 
   # Network tools
   dart_ping: ^9.0.1
+  multicast_dns: ^0.3.2+1
 
   # Image picker
   image_picker: ^1.1.2

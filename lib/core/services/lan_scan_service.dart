@@ -3,6 +3,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:dart_ping/dart_ping.dart';
+import 'package:multicast_dns/multicast_dns.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:network_info_plus/network_info_plus.dart';
 
@@ -160,12 +161,12 @@ class LanScanService {
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  /// Probe a single host: ping → port scan → reverse DNS.
+  /// Probe a single host: ping → port scan → hostname resolution.
   Future<LanHost?> _probeHost({
     required String ip,
     required int timeoutMs,
     required List<int> ports,
-    required Map<String, String> arpTable,
+    required Map<String, _ArpEntry> arpTable,
   }) async {
     final timeoutSec = (timeoutMs / 1000).ceil().clamp(1, 10);
 
@@ -208,7 +209,10 @@ class LanScanService {
       timeoutMs: timeoutMs,
     );
 
-    // Reverse DNS lookup.
+    // Hostname resolution priority chain:
+    // 1. Reverse DNS (fast, OS-cached)
+    // 2. ARP table hostname (already fetched, no extra I/O)
+    // 3. mDNS reverse lookup (only if still unresolved)
     String? hostname;
     try {
       final results = await InternetAddress(ip).reverse();
@@ -219,8 +223,16 @@ class LanScanService {
       // Reverse DNS not available for this IP.
     }
 
-    // MAC address from ARP table.
-    final mac = arpTable[ip];
+    final arpEntry = arpTable[ip];
+    final mac = arpEntry?.mac;
+
+    // Fallback: ARP table hostname.
+    if (hostname == null && arpEntry?.hostname != null) {
+      hostname = arpEntry!.hostname;
+    }
+
+    // Fallback: mDNS reverse lookup.
+    hostname ??= await _mdnsReverseLookup(ip, timeoutMs: timeoutMs);
 
     return LanHost(
       ip: ip,
@@ -308,8 +320,8 @@ class LanScanService {
     }
   }
 
-  /// Fetch the system ARP table (macOS/Linux) and return IP → MAC mapping.
-  Future<Map<String, String>> _fetchArpTable() async {
+  /// Fetch the system ARP table (macOS/Linux) and return IP → ARP entry mapping.
+  Future<Map<String, _ArpEntry>> _fetchArpTable() async {
     if (!Platform.isMacOS && !Platform.isLinux) {
       return {};
     }
@@ -318,20 +330,29 @@ class LanScanService {
       final result = await Process.run('arp', ['-a']);
       if (result.exitCode != 0) return {};
 
-      final table = <String, String>{};
+      final table = <String, _ArpEntry>{};
       final lines = (result.stdout as String).split('\n');
 
       // macOS format: hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff on en0 ...
       // Linux format: hostname (192.168.1.1) at aa:bb:cc:dd:ee:ff [ether] ...
-      final regex = RegExp(r'\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]+)');
+      final regex = RegExp(
+        r'(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]+)',
+      );
 
       for (final line in lines) {
         final match = regex.firstMatch(line);
         if (match != null) {
-          final ip = match.group(1)!;
-          final mac = match.group(2)!;
+          final rawHostname = match.group(1)!;
+          final ip = match.group(2)!;
+          final mac = match.group(3)!;
           if (mac != '(incomplete)' && mac != 'ff:ff:ff:ff:ff:ff') {
-            table[ip] = mac.toLowerCase();
+            // macOS uses '?' when hostname is unknown.
+            final hostname =
+                (rawHostname != '?' && rawHostname != ip) ? rawHostname : null;
+            table[ip] = _ArpEntry(
+              mac: mac.toLowerCase(),
+              hostname: hostname,
+            );
           }
         }
       }
@@ -341,6 +362,34 @@ class LanScanService {
     } catch (e) {
       appLog('[LanScanService] ARP table fetch failed: $e');
       return {};
+    }
+  }
+
+  /// Attempt mDNS reverse lookup for the given IP.
+  /// Returns the mDNS hostname or null if not resolvable.
+  Future<String?> _mdnsReverseLookup(String ip, {int timeoutMs = 2000}) async {
+    // Build the PTR name: e.g. 192.168.1.42 → 42.1.168.192.in-addr.arpa
+    final parts = ip.split('.').reversed.join('.');
+    final ptrName = '$parts.in-addr.arpa';
+
+    MDnsClient? client;
+    try {
+      client = MDnsClient();
+      await client.start();
+
+      String? resolved;
+      await for (final ptr in client.lookup<PtrResourceRecord>(
+        ResourceRecordQuery.serverPointer(ptrName),
+      )) {
+        resolved = ptr.domainName;
+        break; // Take the first result.
+      }
+
+      return resolved;
+    } catch (_) {
+      return null;
+    } finally {
+      client?.stop();
     }
   }
 
@@ -381,6 +430,14 @@ class LanScanService {
     }
     return 0;
   }
+}
+
+/// ARP table entry with MAC address and optional hostname.
+class _ArpEntry {
+  const _ArpEntry({this.mac, this.hostname});
+
+  final String? mac;
+  final String? hostname;
 }
 
 /// Represents a range of IPs within a subnet.
