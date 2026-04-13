@@ -214,6 +214,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     this.conversationId = conversationId;
@@ -369,6 +371,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
+  final List<String> _pendingContentToolResults = [];
+  static const int _maxContentToolContinuations = 5;
+  int _contentToolContinuationCount = 0;
 
   Future<void> sendMessage(
     String content, {
@@ -384,6 +389,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _hiddenPrompt = null;
     _languageCode = languageCode;
     _isVoiceMode = isVoiceMode;
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -924,6 +931,10 @@ class ChatNotifier extends Notifier<ChatState> {
         state = state.copyWith(messages: updatedMessages);
         appLog('[ContentTool] Appended result to message');
       }
+
+      _pendingContentToolResults.add(
+        '[Result of ${tc.name}]\n${result.result}',
+      );
     } catch (e) {
       appLog('[ContentTool] Error: $e');
       if (ref.mounted && state.messages.isNotEmpty) {
@@ -1538,6 +1549,28 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog('[ChatNotifier] Tool executions completed');
     }
 
+    if (_pendingContentToolResults.isNotEmpty) {
+      final toolResults = List<String>.from(_pendingContentToolResults);
+      _pendingContentToolResults.clear();
+
+      if (_contentToolContinuationCount >= _maxContentToolContinuations) {
+        if (ref.mounted && state.messages.isNotEmpty) {
+          final updatedMessages = [...state.messages];
+          final lastIndex = updatedMessages.length - 1;
+          final lastMessage = updatedMessages[lastIndex];
+          updatedMessages[lastIndex] = lastMessage.copyWith(
+            content:
+                '${lastMessage.content}\n\n[Tool continuation limit reached. Please ask again with a more specific request.]',
+          );
+          state = state.copyWith(messages: updatedMessages);
+        }
+      } else {
+        _contentToolContinuationCount += 1;
+        await _continueAfterContentToolResults(toolResults);
+        return;
+      }
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -1562,6 +1595,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     // Persist messages.
+    _contentToolContinuationCount = 0;
     _saveMessages();
 
     // Trigger auto-read when enabled.
@@ -1579,6 +1613,68 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _onResponseCompleted('');
     }
+  }
+
+  Future<void> _continueAfterContentToolResults(
+    List<String> toolResults,
+  ) async {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final finalizedMessages = [...state.messages];
+    final lastIndex = finalizedMessages.length - 1;
+    finalizedMessages[lastIndex] = finalizedMessages[lastIndex].copyWith(
+      isStreaming: false,
+    );
+
+    final continuationMessage = Message(
+      id: _uuid.v4(),
+      content: '',
+      role: MessageRole.assistant,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    );
+
+    state = state.copyWith(
+      messages: [...finalizedMessages, continuationMessage],
+      isLoading: true,
+      error: null,
+    );
+
+    final messagesForLLM = _prepareMessagesForLLM();
+    final resultsText = toolResults.join('\n\n');
+    messagesForLLM.add(
+      Message(
+        id: 'content_tool_result_${DateTime.now().millisecondsSinceEpoch}',
+        content:
+            'Continue the task using the following tool results. '
+            'If you need more information, call another tool.\n\n$resultsText',
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    final stream = _dataSource.streamChatCompletion(
+      messages: messagesForLLM,
+      model: _settings.model,
+      temperature: _settings.temperature,
+      maxTokens: _settings.maxTokens,
+    );
+
+    _streamSubscription = stream.listen(
+      (chunk) {
+        _appendToLastMessage(chunk);
+      },
+      onError: (error, stackTrace) {
+        appLog(
+          '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
+        );
+        appLog('[ChatNotifier] stackTrace: $stackTrace');
+        _handleError(error.toString());
+      },
+      onDone: () {
+        _finishStreaming();
+      },
+    );
   }
 
   /// Persists the current conversation messages.
@@ -1957,6 +2053,8 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     state = ChatState.initial();
