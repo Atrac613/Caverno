@@ -6,7 +6,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
-import '../../domain/entities/coding_project.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -152,9 +151,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       conversationsNotifierProvider.notifier,
     );
     final codingProjectsState = ref.watch(codingProjectsNotifierProvider);
-    final codingProjectsNotifier = ref.read(
-      codingProjectsNotifierProvider.notifier,
-    );
 
     // Scroll when the message list changes.
     ref.listen(chatNotifierProvider, (previous, next) {
@@ -354,14 +350,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       drawer: const ConversationDrawer(),
       body: Column(
         children: [
-          if (isCodingWorkspace)
-            _buildCodingProjectStrip(
-              context,
-              codingProjectsState,
-              codingProjectsNotifier,
-              conversationsNotifier,
-              activeProject,
-            ),
           // Error banner
           if (chatState.error != null)
             Container(
@@ -1505,85 +1493,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref
         .read(chatNotifierProvider.notifier)
         .resolveBleConnect(id: pending.id, approved: approved ?? false);
-  }
-
-  Widget _buildCodingProjectStrip(
-    BuildContext context,
-    CodingProjectsState projectsState,
-    CodingProjectsNotifier projectsNotifier,
-    ConversationsNotifier conversationsNotifier,
-    CodingProject? activeProject,
-  ) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.fromLTRB(16, 12, 16, 10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerLowest,
-        border: Border(
-          bottom: BorderSide(color: theme.colorScheme.outlineVariant),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text('chat.projects'.tr(), style: theme.textTheme.titleSmall),
-              const Spacer(),
-              TextButton.icon(
-                onPressed: () => _pickAndActivateProject(context),
-                icon: const Icon(Icons.add),
-                label: Text('chat.add_project'.tr()),
-              ),
-            ],
-          ),
-          if (projectsState.projects.isEmpty)
-            Text(
-              'chat.coding_no_project_message'.tr(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            )
-          else
-            SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                children: [
-                  for (final project in projectsState.projects)
-                    Padding(
-                      padding: const EdgeInsets.only(right: 8),
-                      child: ChoiceChip(
-                        selected: activeProject?.id == project.id,
-                        label: Text(project.name),
-                        onSelected: (_) {
-                          projectsNotifier.selectProject(project.id);
-                          conversationsNotifier.activateWorkspace(
-                            workspaceMode: WorkspaceMode.coding,
-                            projectId: project.id,
-                            createIfMissing: true,
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-          if (activeProject != null) ...[
-            const SizedBox(height: 8),
-            Text(
-              activeProject.rootPath,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
   }
 
   Widget _buildCodingProjectEmptyState(BuildContext context) {
