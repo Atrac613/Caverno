@@ -12,6 +12,7 @@ void main() {
     expect(toolCalls.first.name, 'local_execute_command');
     expect(toolCalls.first.arguments['command'], 'ls -R');
     expect(toolCalls.first.arguments['cwd'], '.');
+    expect(toolCalls.first.occurrenceId, isNotNull);
   });
 
   test('extractCompletedToolCalls accepts flat tool_use payloads', () {
@@ -32,5 +33,18 @@ void main() {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
 
     expect(toolCalls, isEmpty);
+  });
+
+  test('extractCompletedToolCalls assigns unique occurrence ids', () {
+    const content =
+        '<tool_use>{"name":"read_file","path":"a.txt"}</tool_use>\n'
+        '<tool_use>{"name":"read_file","path":"a.txt"}</tool_use>';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(2));
+    expect(toolCalls.first.occurrenceId, isNotNull);
+    expect(toolCalls.last.occurrenceId, isNotNull);
+    expect(toolCalls.first.occurrenceId, isNot(toolCalls.last.occurrenceId));
   });
 }

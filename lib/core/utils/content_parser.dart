@@ -8,15 +8,18 @@ class ToolCallData {
   final String name;
   final Map<String, dynamic> arguments;
   final bool isComplete;
+  final String? occurrenceId;
 
   const ToolCallData({
     required this.name,
     required this.arguments,
     this.isComplete = false,
+    this.occurrenceId,
   });
 
   @override
-  String toString() => 'ToolCallData(name: $name, arguments: $arguments)';
+  String toString() =>
+      'ToolCallData(name: $name, arguments: $arguments, occurrenceId: $occurrenceId)';
 }
 
 /// Content segment
@@ -268,6 +271,7 @@ class ContentParser {
             name: parsed.name,
             arguments: parsed.arguments,
             isComplete: true,
+            occurrenceId: '${match.start}:${match.end}',
           ),
         );
       }

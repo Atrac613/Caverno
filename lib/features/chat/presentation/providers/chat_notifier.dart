@@ -214,6 +214,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _seenContentToolOccurrences.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
@@ -371,6 +372,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
+  final Set<String> _seenContentToolOccurrences = {};
   final List<String> _pendingContentToolResults = [];
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
@@ -834,7 +836,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _finishStreaming();
   }
 
-  void _appendToLastMessage(String chunk) {
+  void _appendToLastMessage(String chunk, {bool scanForTools = true}) {
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -847,7 +849,9 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
 
     // Check whether the content contains completed tool-call tags.
-    _checkForContentToolCalls(newContent);
+    if (scanForTools) {
+      _checkForContentToolCalls(newContent);
+    }
   }
 
   void _appendToolUseToLastMessage(ToolCallInfo toolCall) {
@@ -855,7 +859,10 @@ class ChatNotifier extends Notifier<ChatState> {
       'name': toolCall.name,
       'arguments': toolCall.arguments,
     };
-    _appendToLastMessage('<tool_use>${jsonEncode(payload)}</tool_use>\n');
+    _appendToLastMessage(
+      '<tool_use>${jsonEncode(payload)}</tool_use>\n',
+      scanForTools: false,
+    );
   }
 
   /// Tool executions that are still pending.
@@ -864,10 +871,15 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Detects and runs `tool_call` tags embedded in the content.
   void _checkForContentToolCalls(String content) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
+    final freshToolCalls = toolCalls.where((tc) {
+      final occurrenceId =
+          tc.occurrenceId ?? '${tc.name}:${jsonEncode(tc.arguments)}';
+      return _seenContentToolOccurrences.add(occurrenceId);
+    }).toList();
 
-    if (toolCalls.isNotEmpty) {
-      appLog('[ContentTool] Detected tool_call(s): ${toolCalls.length}');
-      for (final tc in toolCalls) {
+    if (freshToolCalls.isNotEmpty) {
+      appLog('[ContentTool] Detected tool_call(s): ${freshToolCalls.length}');
+      for (final tc in freshToolCalls) {
         appLog('[ContentTool]   - ${tc.name}: ${tc.arguments}');
       }
       appLog(
@@ -877,7 +889,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     if (_mcpToolService == null) return;
 
-    for (final tc in toolCalls) {
+    for (final tc in freshToolCalls) {
       if (tc.name == 'memory_update') {
         appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
         continue;
@@ -1647,7 +1659,11 @@ class ChatNotifier extends Notifier<ChatState> {
         id: 'content_tool_result_${DateTime.now().millisecondsSinceEpoch}',
         content:
             'Continue the task using the following tool results. '
-            'If you need more information, call another tool.\n\n$resultsText',
+            'If you need more information, call another tool. '
+            'Do not repeat a tool call with the same arguments after a '
+            'permission_denied or equivalent access error. '
+            'Explain the issue and ask the user to re-select the project '
+            'folder or grant access instead.\n\n$resultsText',
         role: MessageRole.user,
         timestamp: DateTime.now(),
       ),
@@ -2053,6 +2069,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _seenContentToolOccurrences.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
