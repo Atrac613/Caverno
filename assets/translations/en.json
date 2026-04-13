@@ -65,6 +65,7 @@
     "tts_stop": "Stop",
     "tts_play": "Read aloud",
     "input_hint": "Enter a message...",
+    "input_hint_coding": "Ask for a bug fix, refactor, diff, or git command...",
     "listening": "Listening...",
     "attachments": "Attachments",
     "attach_image": "Attach image",

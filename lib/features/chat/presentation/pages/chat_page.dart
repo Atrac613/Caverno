@@ -419,6 +419,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
               onCancel: () => chatNotifier.cancelStreaming(),
               isLoading: chatState.isLoading,
+              inputHintKey: isCodingWorkspace
+                  ? 'message.input_hint_coding'
+                  : 'message.input_hint',
             ),
         ],
       ),

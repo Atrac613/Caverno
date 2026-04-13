@@ -20,6 +20,8 @@ class SystemPromptBuilder {
     String languageCode = 'en',
     List<String> toolNames = const [],
     String? sessionMemoryContext,
+    String? projectName,
+    String? projectRootPath,
     bool isVoiceMode = false,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
@@ -71,6 +73,17 @@ class SystemPromptBuilder {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
     } else {
       buffer.writeln(SystemPromptConstants.codingModeInstruction);
+      final normalizedProjectName = projectName?.trim();
+      final normalizedProjectRootPath = projectRootPath?.trim();
+      if ((normalizedProjectName?.isNotEmpty ?? false) ||
+          (normalizedProjectRootPath?.isNotEmpty ?? false)) {
+        buffer.writeln(
+          SystemPromptConstants.codingProjectContextInstruction(
+            projectName: normalizedProjectName,
+            projectRootPath: normalizedProjectRootPath,
+          ),
+        );
+      }
     }
 
     if (isVoiceMode) {

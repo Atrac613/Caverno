@@ -20,6 +20,7 @@ class MessageInput extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onCancel,
     required this.isLoading,
+    this.inputHintKey = 'message.input_hint',
   });
 
   final void Function(
@@ -30,6 +31,7 @@ class MessageInput extends ConsumerStatefulWidget {
   onSend;
   final VoidCallback onCancel;
   final bool isLoading;
+  final String inputHintKey;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -126,10 +128,12 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final lowerMime = mimeType.toLowerCase();
     final lowerPath = filePath.toLowerCase();
     final isWebp = lowerMime == 'image/webp' || lowerPath.endsWith('.webp');
-    final isTiff = lowerMime == 'image/tiff' ||
+    final isTiff =
+        lowerMime == 'image/tiff' ||
         lowerPath.endsWith('.tiff') ||
         lowerPath.endsWith('.tif');
-    final isHeic = lowerMime == 'image/heic' ||
+    final isHeic =
+        lowerMime == 'image/heic' ||
         lowerMime == 'image/heif' ||
         lowerPath.endsWith('.heic') ||
         lowerPath.endsWith('.heif');
@@ -185,9 +189,9 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
       if (bytes.length > 102400) {
         if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('message.file_too_large'.tr())),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('message.file_too_large'.tr())));
         return;
       }
 
@@ -200,15 +204,15 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       });
     } on FormatException {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('message.file_read_error'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
     } catch (e) {
       debugPrint('Failed to pick file: $e');
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('message.file_read_error'.tr())),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('message.file_read_error'.tr())));
     }
   }
 
@@ -339,10 +343,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       image.dispose();
       codec.dispose();
 
-      final targetWidth =
-          imageWidth >= imageHeight ? maxDimension : null;
-      final targetHeight =
-          imageHeight > imageWidth ? maxDimension : null;
+      final targetWidth = imageWidth >= imageHeight ? maxDimension : null;
+      final targetHeight = imageHeight > imageWidth ? maxDimension : null;
 
       codec = await ui.instantiateImageCodec(
         bytes,
@@ -429,9 +431,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
           setState(() => _isRecording = false);
           if (!stt.isAvailable) {
             ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(
-                content: Text('message.stt_unavailable'.tr()),
-              ),
+              SnackBar(content: Text('message.stt_unavailable'.tr())),
             );
           }
         }
@@ -520,10 +520,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                 color: composerColor,
                 borderRadius: BorderRadius.circular(24),
               ),
-              padding: const EdgeInsets.symmetric(
-                horizontal: 8,
-                vertical: 6,
-              ),
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
@@ -534,65 +531,62 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       vertical: 6,
                     ),
                     child: Actions(
-                        actions: <Type, Action<Intent>>{
-                          // On desktop, intercept Cmd/Ctrl+V to handle
-                          // image paste via super_clipboard. On mobile,
-                          // let the system paste handle it so iOS 16+
-                          // authorization works.
-                          if (!Platform.isIOS && !Platform.isAndroid)
-                            PasteTextIntent:
-                                CallbackAction<PasteTextIntent>(
-                              onInvoke: (_) {
-                                _handlePaste();
-                                return null;
-                              },
-                            ),
-                        },
-                        child: TextField(
+                      actions: <Type, Action<Intent>>{
+                        // On desktop, intercept Cmd/Ctrl+V to handle
+                        // image paste via super_clipboard. On mobile,
+                        // let the system paste handle it so iOS 16+
+                        // authorization works.
+                        if (!Platform.isIOS && !Platform.isAndroid)
+                          PasteTextIntent: CallbackAction<PasteTextIntent>(
+                            onInvoke: (_) {
+                              _handlePaste();
+                              return null;
+                            },
+                          ),
+                      },
+                      child: TextField(
                         controller: _controller,
                         focusNode: _focusNode,
                         enabled: !widget.isLoading,
                         contentInsertionConfiguration:
                             ContentInsertionConfiguration(
-                          onContentInserted: _handleContentInserted,
-                          allowedMimeTypes: const [
-                            'image/png',
-                            'image/jpeg',
-                            'image/gif',
-                            'image/heic',
-                            'image/heif',
-                            'image/tiff',
-                          ],
-                        ),
+                              onContentInserted: _handleContentInserted,
+                              allowedMimeTypes: const [
+                                'image/png',
+                                'image/jpeg',
+                                'image/gif',
+                                'image/heic',
+                                'image/heif',
+                                'image/tiff',
+                              ],
+                            ),
                         contextMenuBuilder: (context, editableTextState) {
-                          final isMobile =
-                              Platform.isIOS || Platform.isAndroid;
+                          final isMobile = Platform.isIOS || Platform.isAndroid;
                           final buttonItems = editableTextState
                               .contextMenuButtonItems
                               .map((item) {
-                            // On desktop, override paste to use
-                            // super_clipboard for image support.
-                            if (!isMobile &&
-                                item.type ==
-                                    ContextMenuButtonType.paste) {
-                              return ContextMenuButtonItem(
-                                onPressed: () {
-                                  editableTextState.hideToolbar();
-                                  _handlePaste();
-                                },
-                                type: ContextMenuButtonType.paste,
-                                label: item.label,
-                              );
-                            }
-                            return item;
-                          }).toList();
+                                // On desktop, override paste to use
+                                // super_clipboard for image support.
+                                if (!isMobile &&
+                                    item.type == ContextMenuButtonType.paste) {
+                                  return ContextMenuButtonItem(
+                                    onPressed: () {
+                                      editableTextState.hideToolbar();
+                                      _handlePaste();
+                                    },
+                                    type: ContextMenuButtonType.paste,
+                                    label: item.label,
+                                  );
+                                }
+                                return item;
+                              })
+                              .toList();
 
                           // If no paste button exists (e.g. clipboard
                           // has only an image), inject one so the user
                           // can still paste.
                           final hasPaste = buttonItems.any(
-                            (item) =>
-                                item.type == ContextMenuButtonType.paste,
+                            (item) => item.type == ContextMenuButtonType.paste,
                           );
                           if (!hasPaste) {
                             buttonItems.add(
@@ -614,7 +608,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         decoration: InputDecoration(
                           hintText: _isRecording
                               ? 'message.listening'.tr()
-                              : 'message.input_hint'.tr(),
+                              : widget.inputHintKey.tr(),
                           border: InputBorder.none,
                           isCollapsed: true,
                           contentPadding: EdgeInsets.zero,
@@ -664,11 +658,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       const Spacer(),
                       // Microphone (STT)
                       IconButton(
-                        onPressed:
-                            widget.isLoading ? null : _toggleRecording,
-                        icon: Icon(
-                          _isRecording ? Icons.mic : Icons.mic_none,
-                        ),
+                        onPressed: widget.isLoading ? null : _toggleRecording,
+                        icon: Icon(_isRecording ? Icons.mic : Icons.mic_none),
                         tooltip: _isRecording
                             ? 'message.record_stop'.tr()
                             : 'message.record_start'.tr(),
@@ -692,10 +683,8 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           icon: const Icon(Icons.stop_circle),
                           tooltip: 'message.cancel'.tr(),
                           style: IconButton.styleFrom(
-                            backgroundColor:
-                                theme.colorScheme.errorContainer,
-                            foregroundColor:
-                                theme.colorScheme.onErrorContainer,
+                            backgroundColor: theme.colorScheme.errorContainer,
+                            foregroundColor: theme.colorScheme.onErrorContainer,
                           ),
                         )
                       else if (_hasText)
@@ -741,4 +730,3 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 
 /// Actions available from the composer's "+" attachments menu.
 enum _AttachmentAction { image, file }
-

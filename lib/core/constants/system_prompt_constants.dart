@@ -69,6 +69,28 @@ class SystemPromptConstants {
       'tradeoffs, and clear identification of risks or missing '
       'information.';
 
+  static String codingProjectContextInstruction({
+    String? projectName,
+    String? projectRootPath,
+  }) {
+    final buffer = StringBuffer(
+      'The user is currently working in the selected coding project.',
+    );
+    if (projectName != null && projectName.isNotEmpty) {
+      buffer.write(' Project name: "$projectName".');
+    }
+    if (projectRootPath != null && projectRootPath.isNotEmpty) {
+      buffer.write(' Project root path: $projectRootPath.');
+    }
+    buffer.write(
+      ' Treat this project as the default local workspace unless the user says otherwise.',
+    );
+    buffer.write(
+      ' When using git_execute_command, prefer this project root as the working directory if one is not explicitly provided.',
+    );
+    return buffer.toString();
+  }
+
   static const String webCitationInstruction =
       'If you use web tools or rely on fetched external information, '
       'cite the relevant source URL or at least the site name in '

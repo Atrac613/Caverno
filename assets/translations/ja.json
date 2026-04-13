@@ -65,6 +65,7 @@
     "tts_stop": "停止",
     "tts_play": "読み上げ",
     "input_hint": "メッセージを入力...",
+    "input_hint_coding": "バグ修正、リファクタ、差分確認、git操作などを依頼...",
     "listening": "聞き取り中...",
     "attachments": "添付",
     "attach_image": "画像を添付",
