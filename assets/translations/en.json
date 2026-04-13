@@ -68,6 +68,7 @@
     "tool_memory_update": "Memory Update",
     "tool_calculator": "Calculator",
     "tool_code": "Code Execution",
+    "tool_executing": "Executing tool...",
     "code_copy": "Copy",
     "code_copied": "Copied!"
   },
