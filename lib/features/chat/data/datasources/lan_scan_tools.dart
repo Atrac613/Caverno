@@ -14,8 +14,9 @@ class LanScanTools {
       'description':
           'Scan the local network (LAN) for active hosts using ping sweep '
           'and port probing. Discovers devices on the same subnet, resolves '
-          'hostnames via reverse DNS, checks common ports, and retrieves MAC '
-          'addresses from the ARP table (macOS/Linux only). '
+          'hostnames via reverse DNS, ARP table, and mDNS/Bonjour (in '
+          'priority order), checks common ports, and retrieves MAC addresses '
+          'from the ARP table (macOS/Linux only). '
           'Auto-detects the subnet from the device WiFi IP when omitted.',
       'parameters': {
         'type': 'object',

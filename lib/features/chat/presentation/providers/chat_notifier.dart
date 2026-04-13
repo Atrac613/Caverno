@@ -482,14 +482,24 @@ class ChatNotifier extends Notifier<ChatState> {
             ])
           : allTools;
 
-      // Inspect tool calls with a non-streaming request first.
-      final result = await _dataSource.createChatCompletion(
+      // Stream the initial request to show thinking/content in real-time
+      // while also detecting tool calls.
+      final streamResult = _dataSource.streamChatCompletionWithTools(
         messages: _prepareMessagesForLLM(),
         tools: initialTools,
         model: _settings.model,
         temperature: _settings.temperature,
         maxTokens: _settings.maxTokens,
       );
+
+      // Display streamed content (thinking, preamble) in real-time.
+      await for (final chunk in streamResult.stream) {
+        if (!ref.mounted) return;
+        _appendToLastMessage(chunk);
+      }
+
+      // Retrieve the accumulated tool calls after the stream ends.
+      final result = await streamResult.completion;
 
       if (!ref.mounted) return;
       appLog(
@@ -501,19 +511,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Execute tool calls when the model requests them.
       if (result.hasToolCalls) {
-        // Show any assistant preamble first, such as progress text.
-        if (result.content.isNotEmpty) {
-          _appendToLastMessage(result.content);
-          _appendToLastMessage('\n\n');
-        }
         await _executeToolCalls(
           result.toolCalls!,
           assistantContent: result.content.isNotEmpty ? result.content : null,
         );
       } else {
-        // Show the response directly when no tool call is present.
-        appLog('[Tool] No tool calls, displaying normal response');
-        _appendToLastMessage(result.content);
+        // No tool calls — content was already streamed in real-time.
+        appLog('[Tool] No tool calls, response already streamed');
         _finishStreaming();
       }
     } catch (e) {
@@ -622,6 +626,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
         appLog('[Tool] Result retrieved: ${toolResult.length} chars');
 
+        // Show a thinking indicator while waiting for the follow-up request.
+        _appendToLastMessage('<think>');
+
         // Send the tool result back to the LLM and check for follow-up calls.
         // Use a non-streaming request with tool definitions included.
         final mcpToolService = _mcpToolService;
@@ -644,6 +651,9 @@ class ChatNotifier extends Notifier<ChatState> {
         );
 
         if (!ref.mounted) return;
+
+        // Remove the temporary thinking indicator.
+        _removeTrailingThinkTag();
 
         // Continue looping if the LLM asks for another tool call.
         if (nextResult.hasToolCalls) {
@@ -687,6 +697,9 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
 
+      // Show a thinking indicator while waiting for the final streaming answer.
+      _appendToLastMessage('<think>');
+
       // Stream the final answer.
       final stream = _dataSource.streamChatCompletion(
         messages: messagesForLLM,
@@ -695,13 +708,23 @@ class ChatNotifier extends Notifier<ChatState> {
         maxTokens: _settings.maxTokens,
       );
 
-      if (state.messages.isNotEmpty && state.messages.last.content.isNotEmpty) {
-        _appendToLastMessage('\n');
-      }
-
+      var isFirstChunk = true;
       await for (final chunk in stream) {
         if (!ref.mounted) return;
+        if (isFirstChunk) {
+          isFirstChunk = false;
+          // Remove the temporary thinking indicator now that real data arrives.
+          _removeTrailingThinkTag();
+          if (state.messages.isNotEmpty &&
+              state.messages.last.content.isNotEmpty) {
+            _appendToLastMessage('\n');
+          }
+        }
         _appendToLastMessage(chunk);
+      }
+      // If the stream was empty, still clean up the indicator.
+      if (isFirstChunk) {
+        _removeTrailingThinkTag();
       }
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
@@ -727,6 +750,31 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Check whether the content contains completed tool-call tags.
     _checkForContentToolCalls(newContent);
+  }
+
+  /// Replaces the last message's content entirely instead of appending.
+  void _replaceLastMessageContent(String newContent) {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: newContent);
+    state = state.copyWith(messages: updatedMessages);
+  }
+
+  /// Removes a trailing `<think>` tag appended as a temporary indicator.
+  void _removeTrailingThinkTag() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final lastMessage = state.messages.last;
+    final content = lastMessage.content;
+    if (content.endsWith('<think>')) {
+      _replaceLastMessageContent(
+        content.substring(0, content.length - '<think>'.length),
+      );
+    }
   }
 
   void _appendToolUseToLastMessage(ToolCallInfo toolCall) {

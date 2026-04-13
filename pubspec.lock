@@ -341,10 +341,10 @@ packages:
     dependency: "direct main"
     description:
       name: dartssh2
-      sha256: aa98e1b859d65b261f8af9f880160ff9ac515a2da2467a1e8f0c27d665e17b2d
+      sha256: c139babed0d6851449100010639115e1ed88decf0db7eb714ce13935c7eb590c
       url: "https://pub.dev"
     source: hosted
-    version: "2.17.0"
+    version: "2.17.1"
   dbus:
     dependency: transitive
     description:
@@ -936,10 +936,18 @@ packages:
     dependency: "direct dev"
     description:
       name: mocktail
-      sha256: "890df3f9688106f25755f26b1c60589a92b3ab91a22b8b224947ad041bf172d8"
+      sha256: "5e1bf53cc7baa8062a33b84424deb61513858ea05c601b8509e683815b5914aa"
       url: "https://pub.dev"
     source: hosted
-    version: "1.0.4"
+    version: "1.0.5"
+  multicast_dns:
+    dependency: "direct main"
+    description:
+      name: multicast_dns
+      sha256: de72ada5c3db6fdd6ad4ae99452fe05fb403c4bb37c67ceb255ddd37d2b5b1eb
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.3.3"
   native_toolchain_c:
     dependency: transitive
     description:
@@ -952,10 +960,10 @@ packages:
     dependency: "direct main"
     description:
       name: network_info_plus
-      sha256: f926b2ba86aa0086a0dfbb9e5072089bc213d854135c1712f1d29fc89ba3c877
+      sha256: "2866dadcbee2709e20d67737a1556f5675b8b0cdcf2c1659ba74bc21bffede4f"
       url: "https://pub.dev"
     source: hosted
-    version: "6.1.4"
+    version: "7.0.0"
   network_info_plus_platform_interface:
     dependency: transitive
     description:
@@ -992,10 +1000,10 @@ packages:
     dependency: "direct main"
     description:
       name: openai_dart
-      sha256: "762104fff91cdc10c1c22a49e7845996d54d1a06c011f3eda109bd1e4981796d"
+      sha256: "9cc8adc8bfefa520b9f4fd6b22d5f0a41feb7f737ef6e89f16a199e926234c55"
       url: "https://pub.dev"
     source: hosted
-    version: "4.0.1"
+    version: "4.1.0"
   package_config:
     dependency: transitive
     description:
