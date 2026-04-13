@@ -1,6 +1,8 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/security_scoped_bookmark_service.dart';
+import '../../../../core/utils/logger.dart';
 import '../../data/repositories/coding_project_repository.dart';
 import '../../domain/entities/coding_project.dart';
 
@@ -52,11 +54,13 @@ final codingProjectsNotifierProvider =
 
 class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
   late final CodingProjectRepository _repository;
+  late final SecurityScopedBookmarkService _bookmarkService;
   final _uuid = const Uuid();
 
   @override
   CodingProjectsState build() {
     _repository = ref.read(codingProjectRepositoryProvider);
+    _bookmarkService = ref.read(securityScopedBookmarkServiceProvider);
     final projects = _repository.loadAll();
     return CodingProjectsState(
       projects: projects,
@@ -74,14 +78,20 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
   Future<CodingProject?> addProject(String rootPath) async {
     final normalizedPath = rootPath.trim();
     if (normalizedPath.isEmpty) return null;
+    final bookmark = await _bookmarkService.createBookmark(normalizedPath);
 
     final existingProject = state.projects
         .where((project) => project.normalizedRootPath == normalizedPath)
         .cast<CodingProject?>()
         .firstOrNull;
     if (existingProject != null) {
-      state = state.copyWith(selectedProjectId: existingProject.id);
-      return existingProject;
+      final updatedProject = await _updateProjectBookmarkIfNeeded(
+        existingProject,
+        bookmark,
+      );
+      await _restoreAccessForProject(updatedProject);
+      state = state.copyWith(selectedProjectId: updatedProject.id);
+      return updatedProject;
     }
 
     final now = DateTime.now();
@@ -89,6 +99,7 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
       id: _uuid.v4(),
       name: _displayNameFromPath(normalizedPath),
       rootPath: normalizedPath,
+      securityScopedBookmark: bookmark,
       createdAt: now,
       updatedAt: now,
     );
@@ -97,7 +108,14 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
       ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
     state = state.copyWith(projects: projects, selectedProjectId: project.id);
     await _repository.saveAll(projects);
+    await _restoreAccessForProject(project);
     return project;
+  }
+
+  Future<bool> ensureProjectAccess(String? projectId) async {
+    final project = state.findById(projectId);
+    if (project == null) return false;
+    return _restoreAccessForProject(project);
   }
 
   Future<void> removeProject(String id) async {
@@ -122,5 +140,69 @@ class CodingProjectsNotifier extends Notifier<CodingProjectsState> {
         .where((segment) => segment.isNotEmpty);
     if (segments.isEmpty) return path;
     return segments.last;
+  }
+
+  Future<CodingProject> _updateProjectBookmarkIfNeeded(
+    CodingProject project,
+    String? bookmark,
+  ) async {
+    if (bookmark == null || bookmark == project.securityScopedBookmark) {
+      return project;
+    }
+
+    final updatedProject = project.copyWith(
+      securityScopedBookmark: bookmark,
+      updatedAt: DateTime.now(),
+    );
+    await _replaceProject(updatedProject);
+    return updatedProject;
+  }
+
+  Future<bool> _restoreAccessForProject(CodingProject project) async {
+    final bookmark = project.securityScopedBookmark?.trim();
+    if (bookmark == null || bookmark.isEmpty) {
+      return true;
+    }
+
+    final result = await _bookmarkService.startAccessingBookmark(bookmark);
+    if (!result.accessStarted) {
+      appLog(
+        '[Bookmark] Failed to restore access for ${project.rootPath}: ${result.error}',
+      );
+      return false;
+    }
+
+    final refreshedBookmark = result.refreshedBookmark?.trim();
+    if (refreshedBookmark != null &&
+        refreshedBookmark.isNotEmpty &&
+        refreshedBookmark != project.securityScopedBookmark) {
+      await _replaceProject(
+        project.copyWith(
+          securityScopedBookmark: refreshedBookmark,
+          updatedAt: DateTime.now(),
+        ),
+      );
+    }
+
+    return true;
+  }
+
+  Future<void> _replaceProject(CodingProject updatedProject) async {
+    final projects =
+        state.projects
+            .map(
+              (project) =>
+                  project.id == updatedProject.id ? updatedProject : project,
+            )
+            .toList()
+          ..sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+
+    state = state.copyWith(
+      projects: projects,
+      selectedProjectId: state.selectedProjectId == updatedProject.id
+          ? updatedProject.id
+          : state.selectedProjectId,
+    );
+    await _repository.saveAll(projects);
   }
 }

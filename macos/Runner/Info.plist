@@ -34,6 +34,12 @@
 	<string>This app requires speech recognition access to transcribe your voice.</string>
 	<key>NSLocationUsageDescription</key>
 	<string>Caverno uses your location to identify the current WiFi network name.</string>
+	<key>NSDesktopFolderUsageDescription</key>
+	<string>Caverno needs access to desktop folders when you choose local coding projects stored there.</string>
+	<key>NSDocumentsFolderUsageDescription</key>
+	<string>Caverno needs access to documents folders when you choose local coding projects stored there.</string>
+	<key>NSDownloadsFolderUsageDescription</key>
+	<string>Caverno needs access to downloads folders when you choose local coding projects stored there.</string>
 	<key>NSBluetoothAlwaysUsageDescription</key>
 	<string>Caverno uses Bluetooth to scan for and communicate with BLE devices.</string>
 </dict>

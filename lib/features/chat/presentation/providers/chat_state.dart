@@ -89,6 +89,42 @@ class PendingGitCommand {
   final Completer<bool> completer;
 }
 
+/// Pending local shell command awaiting user approval.
+class PendingLocalCommand {
+  PendingLocalCommand({
+    required this.id,
+    required this.command,
+    required this.workingDirectory,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String command;
+  final String workingDirectory;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
+/// Pending local file operation awaiting user approval.
+class PendingFileOperation {
+  PendingFileOperation({
+    required this.id,
+    required this.operation,
+    required this.path,
+    required this.preview,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String operation;
+  final String path;
+  final String preview;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
 /// Pending BLE connect request awaiting user confirmation in the UI.
 class PendingBleConnect {
   PendingBleConnect({
@@ -119,6 +155,10 @@ abstract class ChatState with _$ChatState {
     PendingSshCommand? pendingSshCommand,
     // Git tool UI flow — same Completer-based pattern as SSH.
     PendingGitCommand? pendingGitCommand,
+    // Local shell tool UI flow.
+    PendingLocalCommand? pendingLocalCommand,
+    // File mutation tool UI flow.
+    PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.
     PendingBleConnect? pendingBleConnect,
   }) = _ChatState;

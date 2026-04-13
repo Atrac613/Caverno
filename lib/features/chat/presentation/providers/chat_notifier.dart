@@ -20,7 +20,9 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
+import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -212,6 +214,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _seenContentToolOccurrences.clear();
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     this.conversationId = conversationId;
@@ -268,6 +273,79 @@ class ChatNotifier extends Notifier<ChatState> {
     return projectsState.findById(conversationsState.activeProjectId);
   }
 
+  String? _getActiveProjectRootPath() {
+    return _getActiveCodingProject()?.rootPath.trim();
+  }
+
+  Map<String, dynamic> _resolveProjectScopedArguments(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) {
+    final projectRoot = _getActiveProjectRootPath();
+
+    String? resolvePathArg(
+      String key, {
+      bool allowEmpty = false,
+      List<String> aliases = const [],
+    }) {
+      String? rawValue = (arguments[key] as String?)?.trim();
+      for (final alias in aliases) {
+        if (rawValue != null && rawValue.isNotEmpty) {
+          break;
+        }
+        rawValue = (arguments[alias] as String?)?.trim();
+      }
+      if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
+        return null;
+      }
+      return FilesystemTools.resolvePath(rawValue, defaultRoot: projectRoot);
+    }
+
+    return switch (toolName) {
+      'list_directory' || 'find_files' || 'search_files' => () {
+        final resolvedPath = resolvePathArg('path', allowEmpty: true);
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedPath != null) {
+          resolvedArguments['path'] = resolvedPath;
+        }
+        return resolvedArguments;
+      }(),
+      'read_file' || 'write_file' || 'edit_file' => () {
+        final resolvedPath = resolvePathArg('path');
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedPath != null) {
+          resolvedArguments['path'] = resolvedPath;
+        }
+        return resolvedArguments;
+      }(),
+      'local_execute_command' => () {
+        final resolvedWorkingDirectory = resolvePathArg(
+          'working_directory',
+          allowEmpty: true,
+          aliases: const ['cwd'],
+        );
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedWorkingDirectory != null) {
+          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
+        }
+        return resolvedArguments;
+      }(),
+      'git_execute_command' => () {
+        final resolvedWorkingDirectory = resolvePathArg(
+          'working_directory',
+          allowEmpty: true,
+          aliases: const ['cwd'],
+        );
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedWorkingDirectory != null) {
+          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
+        }
+        return resolvedArguments;
+      }(),
+      _ => arguments,
+    };
+  }
+
   /// Prepares the message list sent to the LLM, including system messages.
   List<Message> _prepareMessagesForLLM() {
     final messages = state.messages.where((m) => !m.isStreaming).toList();
@@ -294,6 +372,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
+  final Set<String> _seenContentToolOccurrences = {};
+  final List<String> _pendingContentToolResults = [];
+  static const int _maxContentToolContinuations = 5;
+  int _contentToolContinuationCount = 0;
 
   Future<void> sendMessage(
     String content, {
@@ -309,6 +391,8 @@ class ChatNotifier extends Notifier<ChatState> {
     _hiddenPrompt = null;
     _languageCode = languageCode;
     _isVoiceMode = isVoiceMode;
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -494,12 +578,27 @@ class ChatNotifier extends Notifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return networkToolNames.contains(name);
       }).toList();
+      const codingToolNames = {
+        'list_directory',
+        'read_file',
+        'write_file',
+        'edit_file',
+        'find_files',
+        'search_files',
+        'local_execute_command',
+        'git_execute_command',
+      };
+      final codingTools = allTools.where((t) {
+        final name = (t['function'] as Map?)?['name'] as String?;
+        return codingToolNames.contains(name);
+      }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
           ? _dedupeToolsByName([
               ...searchOnlyTools,
               ...datetimeTools,
               ...memoryTools,
               ...networkTools,
+              ...codingTools,
             ])
           : allTools;
 
@@ -760,7 +859,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _finishStreaming();
   }
 
-  void _appendToLastMessage(String chunk) {
+  void _appendToLastMessage(String chunk, {bool scanForTools = true}) {
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -773,7 +872,9 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
 
     // Check whether the content contains completed tool-call tags.
-    _checkForContentToolCalls(newContent);
+    if (scanForTools) {
+      _checkForContentToolCalls(newContent);
+    }
   }
 
   /// Replaces the last message's content entirely instead of appending.
@@ -806,7 +907,10 @@ class ChatNotifier extends Notifier<ChatState> {
       'name': toolCall.name,
       'arguments': toolCall.arguments,
     };
-    _appendToLastMessage('<tool_use>${jsonEncode(payload)}</tool_use>\n');
+    _appendToLastMessage(
+      '<tool_use>${jsonEncode(payload)}</tool_use>\n',
+      scanForTools: false,
+    );
   }
 
   /// Tool executions that are still pending.
@@ -815,10 +919,15 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Detects and runs `tool_call` tags embedded in the content.
   void _checkForContentToolCalls(String content) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
+    final freshToolCalls = toolCalls.where((tc) {
+      final occurrenceId =
+          tc.occurrenceId ?? '${tc.name}:${jsonEncode(tc.arguments)}';
+      return _seenContentToolOccurrences.add(occurrenceId);
+    }).toList();
 
-    if (toolCalls.isNotEmpty) {
-      appLog('[ContentTool] Detected tool_call(s): ${toolCalls.length}');
-      for (final tc in toolCalls) {
+    if (freshToolCalls.isNotEmpty) {
+      appLog('[ContentTool] Detected tool_call(s): ${freshToolCalls.length}');
+      for (final tc in freshToolCalls) {
         appLog('[ContentTool]   - ${tc.name}: ${tc.arguments}');
       }
       appLog(
@@ -828,7 +937,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
     if (_mcpToolService == null) return;
 
-    for (final tc in toolCalls) {
+    for (final tc in freshToolCalls) {
+      if (tc.name == 'memory_update') {
+        appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
+        continue;
+      }
       final hash = '${tc.name}:${jsonEncode(tc.arguments)}';
       if (!_executedContentToolCalls.contains(hash)) {
         appLog('[ContentTool] Starting execution: $hash');
@@ -848,61 +961,52 @@ class ChatNotifier extends Notifier<ChatState> {
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
 
-    // SSH tools require an interactive confirmation dialog and must be
-    // routed through the proper tool_calls channel, not content-embedded
-    // tool_call tags. Refuse to run them here to avoid bypassing the
-    // dialog.
-    if (tc.name == 'ssh_connect' ||
-        tc.name == 'ssh_execute_command' ||
-        tc.name == 'ssh_disconnect' ||
-        tc.name == 'git_execute_command' ||
-        tc.name == 'ble_connect') {
-      appLog('[ContentTool] Refusing tool via content path: ${tc.name}');
-      return;
-    }
-
-    final mcpToolService = _mcpToolService;
-    if (mcpToolService != null) {
-      try {
-        final result = await mcpToolService.executeTool(
+    try {
+      final result = await _dispatchToolCall(
+        ToolCallInfo(
+          id: 'content_${DateTime.now().microsecondsSinceEpoch}',
           name: tc.name,
           arguments: tc.arguments,
+        ),
+      );
+
+      if (!result.isSuccess) {
+        appLog('[ContentTool] Execution failed: ${result.errorMessage}');
+        return;
+      }
+
+      appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
+
+      // Append results without triggering recursive tool-call checks.
+      if (ref.mounted && state.messages.isNotEmpty) {
+        final updatedMessages = [...state.messages];
+        final lastIndex = updatedMessages.length - 1;
+        final lastMessage = updatedMessages[lastIndex];
+
+        updatedMessages[lastIndex] = lastMessage.copyWith(
+          content:
+              '${lastMessage.content}\n\n📋 **Tool result (${tc.name}):**\n${result.result}',
         );
 
-        if (!result.isSuccess) {
-          appLog('[ContentTool] Execution failed: ${result.errorMessage}');
-          return;
-        }
+        state = state.copyWith(messages: updatedMessages);
+        appLog('[ContentTool] Appended result to message');
+      }
 
-        appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
+      _pendingContentToolResults.add(
+        '[Result of ${tc.name}]\n${result.result}',
+      );
+    } catch (e) {
+      appLog('[ContentTool] Error: $e');
+      if (ref.mounted && state.messages.isNotEmpty) {
+        final updatedMessages = [...state.messages];
+        final lastIndex = updatedMessages.length - 1;
+        final lastMessage = updatedMessages[lastIndex];
 
-        // Append search results without triggering recursive tool-call checks.
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
+        updatedMessages[lastIndex] = lastMessage.copyWith(
+          content: '${lastMessage.content}\n\n[Tool execution error: $e]',
+        );
 
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content:
-                '${lastMessage.content}\n\n📋 **Search results:**\n${result.result}',
-          );
-
-          state = state.copyWith(messages: updatedMessages);
-          appLog('[ContentTool] Appended result to message');
-        }
-      } catch (e) {
-        appLog('[ContentTool] Error: $e');
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
-
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content: '${lastMessage.content}\n\n[Tool execution error: $e]',
-          );
-
-          state = state.copyWith(messages: updatedMessages);
-        }
+        state = state.copyWith(messages: updatedMessages);
       }
     }
   }
@@ -915,6 +1019,17 @@ class ChatNotifier extends Notifier<ChatState> {
   /// tools that require a UI dialog for user confirmation.
   Future<McpToolResult> _dispatchToolCall(ToolCallInfo toolCall) async {
     switch (toolCall.name) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+        return _handleProjectScopedTool(toolCall);
+      case 'write_file':
+        return _handleWriteFile(toolCall);
+      case 'edit_file':
+        return _handleEditFile(toolCall);
+      case 'local_execute_command':
+        return _handleLocalExecuteCommand(toolCall);
       case 'ssh_connect':
         return _handleSshConnect(toolCall);
       case 'ssh_execute_command':
@@ -929,6 +1044,151 @@ class ChatNotifier extends Notifier<ChatState> {
           arguments: toolCall.arguments,
         );
     }
+  }
+
+  Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: _resolveProjectScopedArguments(
+        toolCall.name,
+        toolCall.arguments,
+      ),
+    );
+  }
+
+  Future<McpToolResult> _handleWriteFile(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    final content = resolvedArguments['content'] as String? ?? '';
+    if (path.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'path is required',
+      );
+    }
+
+    final approved = await requestFileOperation(
+      operation: 'Write File',
+      path: path,
+      preview: content,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied file write',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
+  }
+
+  Future<McpToolResult> _handleEditFile(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    final oldText = resolvedArguments['old_text'] as String? ?? '';
+    final newText = resolvedArguments['new_text'] as String? ?? '';
+    if (path.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'path is required',
+      );
+    }
+
+    final preview = ['Old text:', oldText, '', 'New text:', newText].join('\n');
+    final approved = await requestFileOperation(
+      operation: 'Edit File',
+      path: path,
+      preview: preview,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied file edit',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
+  }
+
+  Future<McpToolResult> _handleLocalExecuteCommand(
+    ToolCallInfo toolCall,
+  ) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final command = (resolvedArguments['command'] as String?)?.trim() ?? '';
+    final workingDirectory =
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    if (command.isEmpty || workingDirectory.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'command is required and working_directory must be provided or inferred from the selected coding project',
+      );
+    }
+
+    if (LocalShellTools.isReadOnly(command)) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+    }
+
+    final approved = await requestLocalCommand(
+      command: command,
+      workingDirectory: workingDirectory,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied local command execution',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {
@@ -1194,12 +1454,17 @@ class ChatNotifier extends Notifier<ChatState> {
   // -------------------------------------------------------------------------
 
   Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
     final requestedWorkingDirectory =
-        (toolCall.arguments['working_directory'] as String?)?.trim() ?? '';
-    final workingDirectory = requestedWorkingDirectory.isNotEmpty
-        ? requestedWorkingDirectory
-        : (_getActiveCodingProject()?.rootPath.trim() ?? '');
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    final workingDirectory = requestedWorkingDirectory;
 
     if (command.isEmpty || workingDirectory.isEmpty) {
       return McpToolResult(
@@ -1211,8 +1476,8 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
-    final resolvedArguments = {
-      ...toolCall.arguments,
+    final gitArguments = {
+      ...resolvedArguments,
       'working_directory': workingDirectory,
     };
 
@@ -1220,7 +1485,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (GitTools.isReadOnly(command)) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
-        arguments: resolvedArguments,
+        arguments: gitArguments,
       );
     }
 
@@ -1241,7 +1506,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: resolvedArguments,
+      arguments: gitArguments,
     );
   }
 
@@ -1275,6 +1540,62 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(pendingGitCommand: null);
   }
 
+  Future<bool> requestLocalCommand({
+    required String command,
+    required String workingDirectory,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingLocalCommand: PendingLocalCommand(
+        id: const Uuid().v4(),
+        command: command,
+        workingDirectory: workingDirectory,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveLocalCommand({required String id, required bool approved}) {
+    final pending = state.pendingLocalCommand;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingLocalCommand: null);
+  }
+
+  Future<bool> requestFileOperation({
+    required String operation,
+    required String path,
+    required String preview,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingFileOperation: PendingFileOperation(
+        id: const Uuid().v4(),
+        operation: operation,
+        path: path,
+        preview: preview,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveFileOperation({required String id, required bool approved}) {
+    final pending = state.pendingFileOperation;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingFileOperation: null);
+  }
+
   /// Read and accumulate the latest token usage from the data source.
   void _updateTokenUsage() {
     final ds = _dataSource;
@@ -1303,6 +1624,28 @@ class ChatNotifier extends Notifier<ChatState> {
       appLog('[ChatNotifier] Tool executions completed');
     }
 
+    if (_pendingContentToolResults.isNotEmpty) {
+      final toolResults = List<String>.from(_pendingContentToolResults);
+      _pendingContentToolResults.clear();
+
+      if (_contentToolContinuationCount >= _maxContentToolContinuations) {
+        if (ref.mounted && state.messages.isNotEmpty) {
+          final updatedMessages = [...state.messages];
+          final lastIndex = updatedMessages.length - 1;
+          final lastMessage = updatedMessages[lastIndex];
+          updatedMessages[lastIndex] = lastMessage.copyWith(
+            content:
+                '${lastMessage.content}\n\n[Tool continuation limit reached. Please ask again with a more specific request.]',
+          );
+          state = state.copyWith(messages: updatedMessages);
+        }
+      } else {
+        _contentToolContinuationCount += 1;
+        await _continueAfterContentToolResults(toolResults);
+        return;
+      }
+    }
+
     if (!ref.mounted || state.messages.isEmpty) return;
 
     final updatedMessages = [...state.messages];
@@ -1327,6 +1670,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     // Persist messages.
+    _contentToolContinuationCount = 0;
     _saveMessages();
 
     // Trigger auto-read when enabled.
@@ -1344,6 +1688,100 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _onResponseCompleted('');
     }
+  }
+
+  Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
+    final project = _getActiveCodingProject();
+    if (project == null) return null;
+
+    final bookmark = project.securityScopedBookmark?.trim();
+    if (bookmark == null || bookmark.isEmpty) return null;
+
+    final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
+    final accessGranted = await projectsNotifier.ensureProjectAccess(
+      project.id,
+    );
+    if (accessGranted) return null;
+
+    final payload = jsonEncode({
+      'error':
+          'Failed to restore access to the selected coding project. Re-select the project folder and allow access in macOS.',
+      'code': 'bookmark_restore_failed',
+      'path': project.rootPath,
+    });
+
+    return McpToolResult(
+      toolName: toolName,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Failed to restore security-scoped bookmark access',
+    );
+  }
+
+  Future<void> _continueAfterContentToolResults(
+    List<String> toolResults,
+  ) async {
+    if (!ref.mounted || state.messages.isEmpty) return;
+
+    final finalizedMessages = [...state.messages];
+    final lastIndex = finalizedMessages.length - 1;
+    finalizedMessages[lastIndex] = finalizedMessages[lastIndex].copyWith(
+      isStreaming: false,
+    );
+
+    final continuationMessage = Message(
+      id: _uuid.v4(),
+      content: '',
+      role: MessageRole.assistant,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    );
+
+    state = state.copyWith(
+      messages: [...finalizedMessages, continuationMessage],
+      isLoading: true,
+      error: null,
+    );
+
+    final messagesForLLM = _prepareMessagesForLLM();
+    final resultsText = toolResults.join('\n\n');
+    messagesForLLM.add(
+      Message(
+        id: 'content_tool_result_${DateTime.now().millisecondsSinceEpoch}',
+        content:
+            'Continue the task using the following tool results. '
+            'If you need more information, call another tool. '
+            'Do not repeat a tool call with the same arguments after a '
+            'permission_denied or equivalent access error. '
+            'Explain the issue and ask the user to re-select the project '
+            'folder or grant access instead.\n\n$resultsText',
+        role: MessageRole.user,
+        timestamp: DateTime.now(),
+      ),
+    );
+
+    final stream = _dataSource.streamChatCompletion(
+      messages: messagesForLLM,
+      model: _settings.model,
+      temperature: _settings.temperature,
+      maxTokens: _settings.maxTokens,
+    );
+
+    _streamSubscription = stream.listen(
+      (chunk) {
+        _appendToLastMessage(chunk);
+      },
+      onError: (error, stackTrace) {
+        appLog(
+          '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
+        );
+        appLog('[ChatNotifier] stackTrace: $stackTrace');
+        _handleError(error.toString());
+      },
+      onDone: () {
+        _finishStreaming();
+      },
+    );
   }
 
   /// Persists the current conversation messages.
@@ -1722,6 +2160,9 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
+    _seenContentToolOccurrences.clear();
+    _pendingContentToolResults.clear();
+    _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     state = ChatState.initial();

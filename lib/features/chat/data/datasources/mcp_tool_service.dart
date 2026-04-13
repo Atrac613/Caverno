@@ -15,8 +15,10 @@ import '../../domain/entities/session_memory.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
 import 'ble_tools.dart';
+import 'filesystem_tools.dart';
 import 'git_tools.dart';
 import 'lan_scan_tools.dart';
+import 'local_shell_tools.dart';
 import 'mcp_client.dart';
 import 'network_tools.dart';
 import 'searxng_client.dart';
@@ -45,6 +47,13 @@ class McpToolService {
     'http_patch',
     'http_delete',
     'traceroute',
+    'list_directory',
+    'read_file',
+    'write_file',
+    'edit_file',
+    'find_files',
+    'search_files',
+    'local_execute_command',
     'git_execute_command',
     'ssh_connect',
     'ssh_execute_command',
@@ -408,6 +417,19 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _httpDeleteTool);
     _addIfEnabled(toolDefinitions, _tracerouteTool);
 
+    if (FilesystemTools.isDesktopPlatform) {
+      _addIfEnabled(toolDefinitions, _listDirectoryTool);
+      _addIfEnabled(toolDefinitions, _readFileTool);
+      _addIfEnabled(toolDefinitions, _writeFileTool);
+      _addIfEnabled(toolDefinitions, _editFileTool);
+      _addIfEnabled(toolDefinitions, _findFilesTool);
+      _addIfEnabled(toolDefinitions, _searchFilesTool);
+    }
+
+    if (LocalShellTools.isDesktopPlatform) {
+      _addIfEnabled(toolDefinitions, _localExecuteCommandTool);
+    }
+
     // Git tools (desktop only — requires system git binary via Process.run).
     if (GitTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _gitExecuteCommandTool);
@@ -493,6 +515,155 @@ class McpToolService {
     if (name == 'recall_memory' && memoryRepository != null) {
       final result = _recallMemory(arguments);
       appLog('[McpToolService] Memory recall executed: ${result.length} chars');
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'list_directory') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      if (path.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path is required',
+        );
+      }
+      final recursive = arguments['recursive'] as bool? ?? false;
+      final maxEntries = ((arguments['max_entries'] as num?)?.toInt() ?? 200)
+          .clamp(1, 1000);
+      final result = await FilesystemTools.listDirectory(
+        path: path,
+        recursive: recursive,
+        maxEntries: maxEntries,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'read_file') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      if (path.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path is required',
+        );
+      }
+      final maxChars = ((arguments['max_chars'] as num?)?.toInt() ?? 120000)
+          .clamp(100, 500000);
+      final result = await FilesystemTools.readFile(
+        path: path,
+        maxChars: maxChars,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'write_file') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      final content = arguments['content'] as String? ?? '';
+      if (path.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path is required',
+        );
+      }
+      final createParents = arguments['create_parents'] as bool? ?? true;
+      final result = await FilesystemTools.writeFile(
+        path: path,
+        content: content,
+        createParents: createParents,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'edit_file') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      final oldText = arguments['old_text'] as String? ?? '';
+      final newText = arguments['new_text'] as String? ?? '';
+      if (path.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path is required',
+        );
+      }
+      final replaceAll = arguments['replace_all'] as bool? ?? false;
+      final result = await FilesystemTools.editFile(
+        path: path,
+        oldText: oldText,
+        newText: newText,
+        replaceAll: replaceAll,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'find_files') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      final pattern = (arguments['pattern'] as String?)?.trim() ?? '';
+      if (path.isEmpty || pattern.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path and pattern are required',
+        );
+      }
+      final recursive = arguments['recursive'] as bool? ?? true;
+      final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 200)
+          .clamp(1, 1000);
+      final result = await FilesystemTools.findFiles(
+        path: path,
+        pattern: pattern,
+        recursive: recursive,
+        maxResults: maxResults,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'search_files') {
+      final path = (arguments['path'] as String?)?.trim() ?? '';
+      final query = (arguments['query'] as String?)?.trim() ?? '';
+      if (path.isEmpty || query.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'path and query are required',
+        );
+      }
+      final filePattern = (arguments['file_pattern'] as String?)?.trim();
+      final caseSensitive = arguments['case_sensitive'] as bool? ?? false;
+      final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 200)
+          .clamp(1, 1000);
+      final result = await FilesystemTools.searchFiles(
+        path: path,
+        query: query,
+        filePattern: filePattern,
+        caseSensitive: caseSensitive,
+        maxResults: maxResults,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'local_execute_command') {
+      final command = (arguments['command'] as String?)?.trim() ?? '';
+      final workingDirectory =
+          (arguments['working_directory'] as String?)?.trim() ?? '';
+      if (command.isEmpty || workingDirectory.isEmpty) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'command and working_directory are required',
+        );
+      }
+      final result = await LocalShellTools.execute(
+        command: command,
+        workingDirectory: workingDirectory,
+      );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -1619,6 +1790,220 @@ class McpToolService {
             'description':
                 'Short human-readable reason shown to the user in the '
                 'confirmation dialog.',
+          },
+        },
+        'required': ['command'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in coding tools (desktop only)
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _listDirectoryTool => {
+    'type': 'function',
+    'function': {
+      'name': 'list_directory',
+      'description':
+          'List files and directories inside a local directory. Useful for '
+          'understanding project structure before reading or editing files.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative directory path. Optional when a coding project is selected.',
+          },
+          'recursive': {
+            'type': 'boolean',
+            'description': 'Whether to include nested files and folders.',
+          },
+          'max_entries': {
+            'type': 'integer',
+            'description': 'Maximum number of entries to return.',
+          },
+        },
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _readFileTool => {
+    'type': 'function',
+    'function': {
+      'name': 'read_file',
+      'description':
+          'Read a UTF-8 text file from the local project. Use this to inspect source files and configs.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute or project-relative file path.',
+          },
+          'max_chars': {
+            'type': 'integer',
+            'description': 'Maximum number of characters to return.',
+          },
+        },
+        'required': ['path'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _writeFileTool => {
+    'type': 'function',
+    'function': {
+      'name': 'write_file',
+      'description':
+          'Write a full UTF-8 text file in the local project. This can create or overwrite files and requires user approval.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute or project-relative file path.',
+          },
+          'content': {
+            'type': 'string',
+            'description': 'Complete file content to write.',
+          },
+          'create_parents': {
+            'type': 'boolean',
+            'description': 'Create parent directories when needed.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog.',
+          },
+        },
+        'required': ['path', 'content'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _editFileTool => {
+    'type': 'function',
+    'function': {
+      'name': 'edit_file',
+      'description':
+          'Replace text inside a local UTF-8 file. This is useful for targeted edits and requires user approval.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description': 'Absolute or project-relative file path.',
+          },
+          'old_text': {
+            'type': 'string',
+            'description': 'Exact text to replace.',
+          },
+          'new_text': {'type': 'string', 'description': 'Replacement text.'},
+          'replace_all': {
+            'type': 'boolean',
+            'description': 'Replace all matches instead of only the first.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog.',
+          },
+        },
+        'required': ['path', 'old_text', 'new_text'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _findFilesTool => {
+    'type': 'function',
+    'function': {
+      'name': 'find_files',
+      'description':
+          'Find files in the local project by wildcard pattern such as "*.dart" or "*test*".',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative directory path. Optional when a coding project is selected.',
+          },
+          'pattern': {
+            'type': 'string',
+            'description': 'Wildcard filename or path pattern.',
+          },
+          'recursive': {
+            'type': 'boolean',
+            'description': 'Whether to search subdirectories.',
+          },
+          'max_results': {
+            'type': 'integer',
+            'description': 'Maximum number of matches to return.',
+          },
+        },
+        'required': ['pattern'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _searchFilesTool => {
+    'type': 'function',
+    'function': {
+      'name': 'search_files',
+      'description':
+          'Search text across local project files and return matching lines with file paths and line numbers.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative directory path. Optional when a coding project is selected.',
+          },
+          'query': {'type': 'string', 'description': 'Text to search for.'},
+          'file_pattern': {
+            'type': 'string',
+            'description': 'Optional wildcard filter such as "*.dart".',
+          },
+          'case_sensitive': {
+            'type': 'boolean',
+            'description': 'Whether the search should be case-sensitive.',
+          },
+          'max_results': {
+            'type': 'integer',
+            'description': 'Maximum number of matching lines to return.',
+          },
+        },
+        'required': ['query'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _localExecuteCommandTool => {
+    'type': 'function',
+    'function': {
+      'name': 'local_execute_command',
+      'description':
+          'Execute a local shell command inside the current project. Read-only commands may run immediately; commands that can modify files or state require user approval.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'command': {
+            'type': 'string',
+            'description': 'Exact shell command to run.',
+          },
+          'working_directory': {
+            'type': 'string',
+            'description':
+                'Absolute or project-relative working directory. Optional when a coding project is selected.',
+          },
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog for non-read-only commands.',
           },
         },
         'required': ['command'],

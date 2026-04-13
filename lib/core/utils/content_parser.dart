@@ -8,15 +8,18 @@ class ToolCallData {
   final String name;
   final Map<String, dynamic> arguments;
   final bool isComplete;
+  final String? occurrenceId;
 
   const ToolCallData({
     required this.name,
     required this.arguments,
     this.isComplete = false,
+    this.occurrenceId,
   });
 
   @override
-  String toString() => 'ToolCallData(name: $name, arguments: $arguments)';
+  String toString() =>
+      'ToolCallData(name: $name, arguments: $arguments, occurrenceId: $occurrenceId)';
 }
 
 /// Content segment
@@ -205,11 +208,13 @@ class ContentParser {
           if (match != null) {
             // Extract partial thinking content after the opening tag
             final fullMatch = match.group(0) ?? '';
-            final tagNameMatch =
-                RegExp(r'^<(think|thinking)>').firstMatch(fullMatch);
+            final tagNameMatch = RegExp(
+              r'^<(think|thinking)>',
+            ).firstMatch(fullMatch);
             if (tagNameMatch != null) {
-              capturedIncompleteContent =
-                  fullMatch.substring(tagNameMatch.end).trim();
+              capturedIncompleteContent = fullMatch
+                  .substring(tagNameMatch.end)
+                  .trim();
             }
             remainingText = remainingText.substring(0, match.start);
           }
@@ -248,19 +253,25 @@ class ContentParser {
     );
   }
 
-  /// Extracts completed `\<tool_call>` entries.
+  /// Extracts completed `\<tool_call>` and `\<tool_use>` entries.
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
 
-    for (final match in _toolCallPattern.allMatches(content)) {
+    final matches = [
+      ..._toolCallPattern.allMatches(content),
+      ..._toolUsePattern.allMatches(content),
+    ]..sort((a, b) => a.start.compareTo(b.start));
+
+    for (final match in matches) {
       final innerContent = match.group(1) ?? '';
       final parsed = _parseToolCallContent(innerContent);
-      if (parsed != null) {
+      if (parsed != null && parsed.name != 'memory_update') {
         toolCalls.add(
           ToolCallData(
             name: parsed.name,
             arguments: parsed.arguments,
             isComplete: true,
+            occurrenceId: '${match.start}:${match.end}',
           ),
         );
       }
@@ -282,9 +293,17 @@ class ContentParser {
       final arguments = json['arguments'] as Map<String, dynamic>?;
 
       if (name != null) {
+        final flattenedArguments = <String, dynamic>{};
+        for (final entry in json.entries) {
+          if (entry.key == 'name' || entry.key == 'arguments') {
+            continue;
+          }
+          flattenedArguments[entry.key] = entry.value;
+        }
+
         return ToolCallData(
           name: name,
-          arguments: arguments ?? {},
+          arguments: arguments ?? flattenedArguments,
           isComplete: true,
         );
       }
