@@ -111,4 +111,26 @@ void main() {
       isTrue,
     );
   });
+
+  test(
+    'writeFile returns structured error payload on filesystem failure',
+    () async {
+      final directoryTarget = Directory(
+        '${tempDir.path}${Platform.pathSeparator}existing_dir',
+      )..createSync(recursive: true);
+
+      final result =
+          jsonDecode(
+                await FilesystemTools.writeFile(
+                  path: directoryTarget.path,
+                  content: 'hello world',
+                ),
+              )
+              as Map<String, dynamic>;
+
+      expect(result['error'], isNotNull);
+      expect(result['code'], 'filesystem_error');
+      expect(result['path'], directoryTarget.absolute.path);
+    },
+  );
 }

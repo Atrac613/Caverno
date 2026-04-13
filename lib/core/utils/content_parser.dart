@@ -262,7 +262,7 @@ class ContentParser {
     for (final match in matches) {
       final innerContent = match.group(1) ?? '';
       final parsed = _parseToolCallContent(innerContent);
-      if (parsed != null) {
+      if (parsed != null && parsed.name != 'memory_update') {
         toolCalls.add(
           ToolCallData(
             name: parsed.name,

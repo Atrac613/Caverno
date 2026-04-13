@@ -871,6 +871,10 @@ class ChatNotifier extends Notifier<ChatState> {
     if (_mcpToolService == null) return;
 
     for (final tc in toolCalls) {
+      if (tc.name == 'memory_update') {
+        appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
+        continue;
+      }
       final hash = '${tc.name}:${jsonEncode(tc.arguments)}';
       if (!_executedContentToolCalls.contains(hash)) {
         appLog('[ContentTool] Starting execution: $hash');

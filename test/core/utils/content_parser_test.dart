@@ -24,4 +24,13 @@ void main() {
     expect(toolCalls.first.name, 'read_file');
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
   });
+
+  test('extractCompletedToolCalls ignores display-only memory_update', () {
+    const content =
+        '<tool_use>{"name":"memory_update","status":"updated"}</tool_use>';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, isEmpty);
+  });
 }

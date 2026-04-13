@@ -46,37 +46,49 @@ class FilesystemTools {
       return jsonEncode({'error': 'Directory does not exist: $path'});
     }
 
-    final entities = await directory
-        .list(recursive: recursive, followLinks: false)
-        .take(maxEntries)
-        .toList();
-    entities.sort((a, b) => a.path.compareTo(b.path));
-
-    final lines = <String>[];
-    for (final entity in entities) {
-      final type = switch (await FileSystemEntity.type(entity.path)) {
-        FileSystemEntityType.directory => 'dir',
-        FileSystemEntityType.file => 'file',
-        FileSystemEntityType.link => 'link',
-        FileSystemEntityType.notFound => 'missing',
-        _ => 'unknown',
-      };
-      final relativePath = _relativePath(entity.path, directory.path);
-      if (type == 'file') {
-        final size = await File(entity.path).length();
-        lines.add('[$type] $relativePath (${_formatBytes(size)})');
-      } else {
-        lines.add('[$type] $relativePath');
+    try {
+      final entities = <FileSystemEntity>[];
+      await for (final entity in directory.list(
+        recursive: recursive,
+        followLinks: false,
+      )) {
+        entities.add(entity);
+        if (entities.length >= maxEntries) break;
       }
-    }
+      entities.sort((a, b) => a.path.compareTo(b.path));
 
-    return jsonEncode({
-      'path': directory.absolute.path,
-      'recursive': recursive,
-      'entry_count': lines.length,
-      'entries': lines,
-      if (lines.length >= maxEntries) 'truncated': true,
-    });
+      final lines = <String>[];
+      for (final entity in entities) {
+        final type = switch (await FileSystemEntity.type(entity.path)) {
+          FileSystemEntityType.directory => 'dir',
+          FileSystemEntityType.file => 'file',
+          FileSystemEntityType.link => 'link',
+          FileSystemEntityType.notFound => 'missing',
+          _ => 'unknown',
+        };
+        final relativePath = _relativePath(entity.path, directory.path);
+        if (type == 'file') {
+          final size = await File(entity.path).length();
+          lines.add('[$type] $relativePath (${_formatBytes(size)})');
+        } else {
+          lines.add('[$type] $relativePath');
+        }
+      }
+
+      return jsonEncode({
+        'path': directory.absolute.path,
+        'recursive': recursive,
+        'entry_count': lines.length,
+        'entries': lines,
+        if (lines.length >= maxEntries) 'truncated': true,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: directory.absolute.path,
+        operation: 'list_directory',
+        error: error,
+      );
+    }
   }
 
   static Future<String> readFile({
@@ -104,6 +116,12 @@ class FilesystemTools {
             'File is not valid UTF-8 text. Binary files are not supported.',
         'path': file.absolute.path,
       });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: file.absolute.path,
+        operation: 'read_file',
+        error: error,
+      );
     }
   }
 
@@ -114,15 +132,23 @@ class FilesystemTools {
   }) async {
     final file = File(path);
     final existedBefore = file.existsSync();
-    if (createParents) {
-      await file.parent.create(recursive: true);
+    try {
+      if (createParents) {
+        await file.parent.create(recursive: true);
+      }
+      await file.writeAsString(content);
+      return jsonEncode({
+        'path': file.absolute.path,
+        'bytes_written': utf8.encode(content).length,
+        'created': !existedBefore,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: file.absolute.path,
+        operation: 'write_file',
+        error: error,
+      );
     }
-    await file.writeAsString(content);
-    return jsonEncode({
-      'path': file.absolute.path,
-      'bytes_written': utf8.encode(content).length,
-      'created': !existedBefore,
-    });
   }
 
   static Future<String> editFile({
@@ -139,33 +165,41 @@ class FilesystemTools {
       return jsonEncode({'error': 'old_text must not be empty'});
     }
 
-    final content = await file.readAsString();
-    final occurrences = _countOccurrences(content, oldText);
-    if (occurrences == 0) {
-      return jsonEncode({
-        'error': 'old_text was not found in the target file',
-        'path': file.absolute.path,
-      });
-    }
-    if (!replaceAll && occurrences > 1) {
-      return jsonEncode({
-        'error':
-            'old_text matched multiple locations. Set replace_all=true or make the target text more specific.',
-        'path': file.absolute.path,
-        'occurrences': occurrences,
-      });
-    }
+    try {
+      final content = await file.readAsString();
+      final occurrences = _countOccurrences(content, oldText);
+      if (occurrences == 0) {
+        return jsonEncode({
+          'error': 'old_text was not found in the target file',
+          'path': file.absolute.path,
+        });
+      }
+      if (!replaceAll && occurrences > 1) {
+        return jsonEncode({
+          'error':
+              'old_text matched multiple locations. Set replace_all=true or make the target text more specific.',
+          'path': file.absolute.path,
+          'occurrences': occurrences,
+        });
+      }
 
-    final updatedContent = replaceAll
-        ? content.replaceAll(oldText, newText)
-        : content.replaceFirst(oldText, newText);
-    await file.writeAsString(updatedContent);
+      final updatedContent = replaceAll
+          ? content.replaceAll(oldText, newText)
+          : content.replaceFirst(oldText, newText);
+      await file.writeAsString(updatedContent);
 
-    return jsonEncode({
-      'path': file.absolute.path,
-      'replacements': replaceAll ? occurrences : 1,
-      'replace_all': replaceAll,
-    });
+      return jsonEncode({
+        'path': file.absolute.path,
+        'replacements': replaceAll ? occurrences : 1,
+        'replace_all': replaceAll,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: file.absolute.path,
+        operation: 'edit_file',
+        error: error,
+      );
+    }
   }
 
   static Future<String> findFiles({
@@ -182,32 +216,40 @@ class FilesystemTools {
       return jsonEncode({'error': 'pattern is required'});
     }
 
-    final matcher = _wildcardToRegExp(pattern.trim());
-    final matches = <String>[];
+    try {
+      final matcher = _wildcardToRegExp(pattern.trim());
+      final matches = <String>[];
 
-    await for (final entity in directory.list(
-      recursive: recursive,
-      followLinks: false,
-    )) {
-      if (entity is! File) continue;
-      final relativePath = _relativePath(entity.path, directory.path);
-      final fileName = entity.uri.pathSegments.isEmpty
-          ? relativePath
-          : entity.uri.pathSegments.last;
-      if (matcher.hasMatch(relativePath) || matcher.hasMatch(fileName)) {
-        matches.add(relativePath);
-        if (matches.length >= maxResults) break;
+      await for (final entity in directory.list(
+        recursive: recursive,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        final relativePath = _relativePath(entity.path, directory.path);
+        final fileName = entity.uri.pathSegments.isEmpty
+            ? relativePath
+            : entity.uri.pathSegments.last;
+        if (matcher.hasMatch(relativePath) || matcher.hasMatch(fileName)) {
+          matches.add(relativePath);
+          if (matches.length >= maxResults) break;
+        }
       }
-    }
 
-    matches.sort();
-    return jsonEncode({
-      'path': directory.absolute.path,
-      'pattern': pattern,
-      'matches': matches,
-      'match_count': matches.length,
-      if (matches.length >= maxResults) 'truncated': true,
-    });
+      matches.sort();
+      return jsonEncode({
+        'path': directory.absolute.path,
+        'pattern': pattern,
+        'matches': matches,
+        'match_count': matches.length,
+        if (matches.length >= maxResults) 'truncated': true,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: directory.absolute.path,
+        operation: 'find_files',
+        error: error,
+      );
+    }
   }
 
   static Future<String> searchFiles({
@@ -225,66 +267,74 @@ class FilesystemTools {
       return jsonEncode({'error': 'query is required'});
     }
 
-    final normalizedQuery = caseSensitive ? query : query.toLowerCase();
-    final fileMatcher = filePattern == null || filePattern.trim().isEmpty
-        ? null
-        : _wildcardToRegExp(filePattern.trim());
+    try {
+      final normalizedQuery = caseSensitive ? query : query.toLowerCase();
+      final fileMatcher = filePattern == null || filePattern.trim().isEmpty
+          ? null
+          : _wildcardToRegExp(filePattern.trim());
 
-    final matches = <String>[];
-    var scannedFiles = 0;
+      final matches = <String>[];
+      var scannedFiles = 0;
 
-    await for (final entity in directory.list(
-      recursive: true,
-      followLinks: false,
-    )) {
-      if (entity is! File) continue;
-      final relativePath = _relativePath(entity.path, directory.path);
-      if (fileMatcher != null &&
-          !fileMatcher.hasMatch(relativePath) &&
-          !fileMatcher.hasMatch(entity.uri.pathSegments.last)) {
-        continue;
-      }
+      await for (final entity in directory.list(
+        recursive: true,
+        followLinks: false,
+      )) {
+        if (entity is! File) continue;
+        final relativePath = _relativePath(entity.path, directory.path);
+        if (fileMatcher != null &&
+            !fileMatcher.hasMatch(relativePath) &&
+            !fileMatcher.hasMatch(entity.uri.pathSegments.last)) {
+          continue;
+        }
 
-      final length = await entity.length();
-      if (length > _maxFileBytesForSearch) continue;
+        final length = await entity.length();
+        if (length > _maxFileBytesForSearch) continue;
 
-      String content;
-      try {
-        content = await entity.readAsString();
-      } on FileSystemException {
-        continue;
-      } on FormatException {
-        continue;
-      }
+        String content;
+        try {
+          content = await entity.readAsString();
+        } on FileSystemException {
+          continue;
+        } on FormatException {
+          continue;
+        }
 
-      scannedFiles += 1;
-      final lines = const LineSplitter().convert(content);
-      for (var index = 0; index < lines.length; index++) {
-        final line = lines[index];
-        final haystack = caseSensitive ? line : line.toLowerCase();
-        if (haystack.contains(normalizedQuery)) {
-          matches.add('$relativePath:${index + 1}: $line');
-          if (matches.length >= maxResults) {
-            return jsonEncode({
-              'path': directory.absolute.path,
-              'query': query,
-              'matches': matches,
-              'match_count': matches.length,
-              'scanned_files': scannedFiles,
-              'truncated': true,
-            });
+        scannedFiles += 1;
+        final lines = const LineSplitter().convert(content);
+        for (var index = 0; index < lines.length; index++) {
+          final line = lines[index];
+          final haystack = caseSensitive ? line : line.toLowerCase();
+          if (haystack.contains(normalizedQuery)) {
+            matches.add('$relativePath:${index + 1}: $line');
+            if (matches.length >= maxResults) {
+              return jsonEncode({
+                'path': directory.absolute.path,
+                'query': query,
+                'matches': matches,
+                'match_count': matches.length,
+                'scanned_files': scannedFiles,
+                'truncated': true,
+              });
+            }
           }
         }
       }
-    }
 
-    return jsonEncode({
-      'path': directory.absolute.path,
-      'query': query,
-      'matches': matches,
-      'match_count': matches.length,
-      'scanned_files': scannedFiles,
-    });
+      return jsonEncode({
+        'path': directory.absolute.path,
+        'query': query,
+        'matches': matches,
+        'match_count': matches.length,
+        'scanned_files': scannedFiles,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: directory.absolute.path,
+        operation: 'search_files',
+        error: error,
+      );
+    }
   }
 
   static int _countOccurrences(String source, String target) {
@@ -342,5 +392,33 @@ class FilesystemTools {
       return '${(bytes / 1024).toStringAsFixed(1)} KB';
     }
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+  }
+
+  static String _buildFilesystemError({
+    required String path,
+    required String operation,
+    required FileSystemException error,
+  }) {
+    final message = error.message.trim();
+    final osMessage = error.osError?.message.trim();
+    final permissionDenied =
+        error.osError?.errorCode == 1 ||
+        error.osError?.errorCode == 13 ||
+        message.contains('Operation not permitted') ||
+        message.contains('Permission denied') ||
+        (osMessage?.contains('Operation not permitted') ?? false) ||
+        (osMessage?.contains('Permission denied') ?? false);
+
+    return jsonEncode({
+      'error': permissionDenied
+          ? 'Permission denied while trying to $operation.'
+          : 'Filesystem operation failed during $operation.',
+      'code': permissionDenied ? 'permission_denied' : 'filesystem_error',
+      'path': path,
+      'details': error.toString(),
+      if (permissionDenied && Platform.isMacOS)
+        'suggestion':
+            'Re-select the project folder in Coding mode, then allow access in the macOS prompt or System Settings > Privacy & Security > Files and Folders.',
+    });
   }
 }
