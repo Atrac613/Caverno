@@ -289,9 +289,17 @@ class ContentParser {
       final arguments = json['arguments'] as Map<String, dynamic>?;
 
       if (name != null) {
+        final flattenedArguments = <String, dynamic>{};
+        for (final entry in json.entries) {
+          if (entry.key == 'name' || entry.key == 'arguments') {
+            continue;
+          }
+          flattenedArguments[entry.key] = entry.value;
+        }
+
         return ToolCallData(
           name: name,
-          arguments: arguments ?? {},
+          arguments: arguments ?? flattenedArguments,
           isComplete: true,
         );
       }
