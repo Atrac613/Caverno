@@ -87,7 +87,7 @@ dependencies:
 
   # SSH remote server tool
   dartssh2: ^2.17.1
-  flutter_secure_storage: ^9.2.2
+  flutter_secure_storage: ^10.0.0
 
   # BLE (Bluetooth Low Energy) tool
   bluetooth_low_energy: ^6.2.1
