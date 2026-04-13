@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/types/workspace_mode.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/message.dart';
@@ -10,27 +11,42 @@ class ConversationsState {
   const ConversationsState({
     required this.conversations,
     required this.currentConversationId,
+    required this.activeWorkspaceMode,
+    required this.activeProjectId,
     this.isLoading = false,
   });
 
   final List<Conversation> conversations;
   final String? currentConversationId;
+  final WorkspaceMode activeWorkspaceMode;
+  final String? activeProjectId;
   final bool isLoading;
 
-  factory ConversationsState.initial() =>
-      const ConversationsState(conversations: [], currentConversationId: null);
+  factory ConversationsState.initial() => const ConversationsState(
+    conversations: [],
+    currentConversationId: null,
+    activeWorkspaceMode: WorkspaceMode.chat,
+    activeProjectId: null,
+  );
 
   ConversationsState copyWith({
     List<Conversation>? conversations,
     String? currentConversationId,
+    WorkspaceMode? activeWorkspaceMode,
+    String? activeProjectId,
     bool? isLoading,
     bool clearCurrentConversation = false,
+    bool clearActiveProject = false,
   }) {
     return ConversationsState(
       conversations: conversations ?? this.conversations,
       currentConversationId: clearCurrentConversation
           ? null
           : (currentConversationId ?? this.currentConversationId),
+      activeWorkspaceMode: activeWorkspaceMode ?? this.activeWorkspaceMode,
+      activeProjectId: clearActiveProject
+          ? null
+          : (activeProjectId ?? this.activeProjectId),
       isLoading: isLoading ?? this.isLoading,
     );
   }
@@ -43,6 +59,20 @@ class ConversationsState {
     } catch (_) {
       return null;
     }
+  }
+
+  List<Conversation> get visibleConversations {
+    return conversations
+        .where((conversation) {
+          if (conversation.workspaceMode != activeWorkspaceMode) {
+            return false;
+          }
+          if (activeWorkspaceMode == WorkspaceMode.chat) {
+            return true;
+          }
+          return conversation.normalizedProjectId == activeProjectId;
+        })
+        .toList(growable: false);
   }
 }
 
@@ -63,48 +93,109 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   @override
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
-    final conversations = _repository.getAll();
-
-    // Select the newest conversation when available, otherwise create one.
-    if (conversations.isNotEmpty) {
-      return ConversationsState(
-        conversations: conversations,
-        currentConversationId: conversations.first.id,
-      );
-    }
-
-    // Create a fresh conversation synchronously so the initial state already
-    // contains it. We cannot call createNewConversation() here because it
-    // mutates `state`, which is not yet available during build().
-    final now = DateTime.now();
-    final fresh = Conversation(
-      id: _uuid.v4(),
-      title: defaultConversationTitle,
-      messages: const [],
-      createdAt: now,
-      updatedAt: now,
-    );
-    _repository.save(fresh);
-    return ConversationsState(
-      conversations: [fresh],
-      currentConversationId: fresh.id,
+    return _buildScopedState(
+      conversations: _repository.getAll(),
+      workspaceMode: WorkspaceMode.chat,
+      projectId: null,
+      createIfMissing: true,
     );
   }
 
-  /// Creates a new conversation.
-  void createNewConversation() {
+  ConversationsState _buildScopedState({
+    required List<Conversation> conversations,
+    required WorkspaceMode workspaceMode,
+    required String? projectId,
+    String? preferredConversationId,
+    required bool createIfMissing,
+  }) {
+    final normalizedProjectId = workspaceMode == WorkspaceMode.coding
+        ? projectId
+        : null;
+    final visibleConversations = conversations
+        .where((conversation) {
+          if (conversation.workspaceMode != workspaceMode) {
+            return false;
+          }
+          if (workspaceMode == WorkspaceMode.chat) {
+            return true;
+          }
+          return conversation.normalizedProjectId == normalizedProjectId;
+        })
+        .toList(growable: false);
+
+    String? currentConversationId = preferredConversationId;
+    if (currentConversationId != null &&
+        !visibleConversations.any(
+          (conversation) => conversation.id == currentConversationId,
+        )) {
+      currentConversationId = null;
+    }
+    currentConversationId ??= visibleConversations.isEmpty
+        ? null
+        : visibleConversations.first.id;
+
+    var nextConversations = conversations;
+    if (currentConversationId == null && createIfMissing) {
+      final fresh = _createConversation(
+        workspaceMode: workspaceMode,
+        projectId: normalizedProjectId,
+      );
+      _repository.save(fresh);
+      nextConversations = [fresh, ...conversations];
+      _sortConversations(nextConversations);
+      currentConversationId = fresh.id;
+    }
+
+    return ConversationsState(
+      conversations: nextConversations,
+      currentConversationId: currentConversationId,
+      activeWorkspaceMode: workspaceMode,
+      activeProjectId: normalizedProjectId,
+    );
+  }
+
+  Conversation _createConversation({
+    required WorkspaceMode workspaceMode,
+    required String? projectId,
+  }) {
     final now = DateTime.now();
-    final conversation = Conversation(
+    return Conversation(
       id: _uuid.v4(),
       title: defaultConversationTitle,
       messages: const [],
       createdAt: now,
       updatedAt: now,
+      workspaceMode: workspaceMode,
+      projectId: projectId ?? '',
+    );
+  }
+
+  void _sortConversations(List<Conversation> conversations) {
+    conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+  }
+
+  /// Creates a new conversation.
+  void createNewConversation({
+    WorkspaceMode? workspaceMode,
+    String? projectId,
+  }) {
+    final resolvedWorkspaceMode = workspaceMode ?? state.activeWorkspaceMode;
+    final resolvedProjectId = resolvedWorkspaceMode == WorkspaceMode.coding
+        ? (projectId ?? state.activeProjectId)
+        : null;
+    final conversation = _createConversation(
+      workspaceMode: resolvedWorkspaceMode,
+      projectId: resolvedProjectId,
     );
 
     state = state.copyWith(
       conversations: [conversation, ...state.conversations],
       currentConversationId: conversation.id,
+      activeWorkspaceMode: resolvedWorkspaceMode,
+      activeProjectId: resolvedProjectId,
+      clearActiveProject:
+          resolvedWorkspaceMode == WorkspaceMode.chat ||
+          resolvedProjectId == null,
     );
 
     // Persist the new conversation.
@@ -113,7 +204,31 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
   /// Selects a conversation.
   void selectConversation(String id) {
-    state = state.copyWith(currentConversationId: id);
+    final conversation = state.conversations
+        .where((item) => item.id == id)
+        .firstOrNull;
+    if (conversation == null) return;
+
+    state = state.copyWith(
+      currentConversationId: id,
+      activeWorkspaceMode: conversation.workspaceMode,
+      activeProjectId: conversation.normalizedProjectId,
+      clearActiveProject: conversation.workspaceMode == WorkspaceMode.chat,
+    );
+  }
+
+  void activateWorkspace({
+    required WorkspaceMode workspaceMode,
+    String? projectId,
+    bool createIfMissing = true,
+  }) {
+    state = _buildScopedState(
+      conversations: state.conversations,
+      workspaceMode: workspaceMode,
+      projectId: projectId,
+      preferredConversationId: state.currentConversationId,
+      createIfMissing: createIfMissing,
+    );
   }
 
   /// Deletes a conversation.
@@ -123,38 +238,63 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final newConversations = state.conversations
         .where((c) => c.id != id)
         .toList();
-
-    // If the deleted conversation was selected, choose a replacement.
-    if (state.currentConversationId == id) {
-      if (newConversations.isNotEmpty) {
-        state = state.copyWith(
-          conversations: newConversations,
-          currentConversationId: newConversations.first.id,
-        );
-      } else {
-        state = state.copyWith(
-          conversations: newConversations,
-          clearCurrentConversation: true,
-        );
-        // Create a new conversation to keep the UI usable.
-        createNewConversation();
-      }
-    } else {
-      state = state.copyWith(conversations: newConversations);
-    }
+    state = _buildScopedState(
+      conversations: newConversations,
+      workspaceMode: state.activeWorkspaceMode,
+      projectId: state.activeProjectId,
+      preferredConversationId: state.currentConversationId == id
+          ? null
+          : state.currentConversationId,
+      createIfMissing:
+          state.activeWorkspaceMode == WorkspaceMode.chat ||
+          state.activeProjectId != null,
+    );
   }
 
-  /// Deletes all conversations.
-  Future<void> deleteAllConversations() async {
-    await _repository.deleteAll();
+  /// Deletes all conversations in the active scope.
+  Future<void> deleteScopedConversations() async {
+    final visibleConversationIds = state.visibleConversations
+        .map((conversation) => conversation.id)
+        .toList(growable: false);
+    for (final id in visibleConversationIds) {
+      await _repository.delete(id);
+    }
+
+    final newConversations = state.conversations
+        .where(
+          (conversation) => !visibleConversationIds.contains(conversation.id),
+        )
+        .toList();
+
+    state = _buildScopedState(
+      conversations: newConversations,
+      workspaceMode: state.activeWorkspaceMode,
+      projectId: state.activeProjectId,
+      createIfMissing:
+          state.activeWorkspaceMode == WorkspaceMode.chat ||
+          state.activeProjectId != null,
+    );
+  }
+
+  Future<void> deleteConversationsForProject(String projectId) async {
+    final targetIds = state.conversations
+        .where(
+          (conversation) =>
+              conversation.workspaceMode == WorkspaceMode.coding &&
+              conversation.normalizedProjectId == projectId,
+        )
+        .map((conversation) => conversation.id)
+        .toList(growable: false);
+    for (final id in targetIds) {
+      await _repository.delete(id);
+    }
 
     state = state.copyWith(
-      conversations: const [],
-      clearCurrentConversation: true,
+      conversations: state.conversations
+          .where((conversation) => !targetIds.contains(conversation.id))
+          .toList(),
+      clearCurrentConversation: targetIds.contains(state.currentConversationId),
     );
-
-    // Create one fresh conversation to avoid an empty state.
-    createNewConversation();
   }
 
   /// Updates messages for the current conversation.
@@ -194,7 +334,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     }).toList();
 
     // Keep conversations sorted by latest update.
-    newConversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    _sortConversations(newConversations);
 
     state = state.copyWith(conversations: newConversations);
   }
