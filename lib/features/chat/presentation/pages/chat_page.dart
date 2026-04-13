@@ -1,8 +1,12 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/types/workspace_mode.dart';
+import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../providers/chat_notifier.dart';
@@ -19,11 +23,20 @@ class ChatPage extends ConsumerStatefulWidget {
   ConsumerState<ChatPage> createState() => _ChatPageState();
 }
 
-class _ChatPageState extends ConsumerState<ChatPage> {
+class _ChatPageState extends ConsumerState<ChatPage>
+    with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  late final TabController _workspaceTabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _workspaceTabController = TabController(length: 2, vsync: this);
+  }
 
   @override
   void dispose() {
+    _workspaceTabController.dispose();
     _scrollController.dispose();
     super.dispose();
   }
@@ -38,6 +51,60 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     }
   }
 
+  Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final projectsState = ref.read(codingProjectsNotifierProvider);
+    final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
+    final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+
+    if (workspaceMode == WorkspaceMode.chat) {
+      conversationsNotifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.chat,
+        createIfMissing: true,
+      );
+      await settingsNotifier.updateAssistantMode(AssistantMode.general);
+      return;
+    }
+
+    final projectId =
+        ref.read(conversationsNotifierProvider).activeProjectId ??
+        projectsState.selectedProjectId;
+    if (projectId != null) {
+      projectsNotifier.selectProject(projectId);
+    }
+
+    conversationsNotifier.activateWorkspace(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: projectId,
+      createIfMissing: projectId != null,
+    );
+    await settingsNotifier.updateAssistantMode(AssistantMode.coding);
+  }
+
+  Future<void> _pickAndActivateProject(BuildContext context) async {
+    final selectedDirectory = await FilePicker.getDirectoryPath();
+    if (selectedDirectory == null || !context.mounted) return;
+
+    final project = await ref
+        .read(codingProjectsNotifierProvider.notifier)
+        .addProject(selectedDirectory);
+    if (project == null || !context.mounted) return;
+
+    ref.read(codingProjectsNotifierProvider.notifier).selectProject(project.id);
+    ref
+        .read(conversationsNotifierProvider.notifier)
+        .activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: project.id,
+          createIfMissing: true,
+        );
+    await ref
+        .read(settingsNotifierProvider.notifier)
+        .updateAssistantMode(AssistantMode.coding);
+  }
+
   Future<void> _showDeleteConversationDialog(
     BuildContext context,
     ConversationsNotifier conversationsNotifier,
@@ -48,7 +115,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       context: context,
       builder: (context) => AlertDialog(
         title: Text('chat.delete_title'.tr()),
-        content: Text('chat.delete_confirm'.tr(namedArgs: {'title': conversationTitle})),
+        content: Text(
+          'chat.delete_confirm'.tr(namedArgs: {'title': conversationTitle}),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
@@ -81,6 +150,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
+    final codingProjectsState = ref.watch(codingProjectsNotifierProvider);
 
     // Scroll when the message list changes.
     ref.listen(chatNotifierProvider, (previous, next) {
@@ -146,19 +216,61 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       },
     );
 
+    final settings = ref.watch(settingsNotifierProvider);
+    final isCodingWorkspace =
+        conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    final activeProject = codingProjectsState.findById(
+      conversationsState.activeProjectId,
+    );
     final currentConversation = conversationsState.currentConversation;
     final rawTitle = currentConversation?.title ?? 'Caverno';
     final currentTitle = rawTitle == defaultConversationTitle
-        ? 'chat.new_conversation'.tr()
+        ? (isCodingWorkspace
+              ? 'chat.new_thread'.tr()
+              : 'chat.new_conversation'.tr())
         : rawTitle;
-
-    final settings = ref.watch(settingsNotifierProvider);
+    final workspaceIndex = isCodingWorkspace ? 1 : 0;
+    if (_workspaceTabController.index != workspaceIndex) {
+      _workspaceTabController.index = workspaceIndex;
+    }
+    final canCompose = !isCodingWorkspace || activeProject != null;
 
     return Scaffold(
       appBar: AppBar(
         title: Row(
           children: [
-            Flexible(child: Text(currentTitle, maxLines: 1, overflow: TextOverflow.ellipsis)),
+            Expanded(
+              child: isCodingWorkspace
+                  ? Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          activeProject?.name ?? 'chat.workspace_coding'.tr(),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        Text(
+                          activeProject == null
+                              ? 'chat.coding_no_project_short'.tr()
+                              : currentTitle,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: Theme.of(context).textTheme.labelMedium
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
+                    )
+                  : Text(
+                      currentTitle,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    ),
+            ),
             if (settings.demoMode) ...[
               const SizedBox(width: 8),
               Chip(
@@ -167,18 +279,51 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   fontSize: 11,
                   color: Theme.of(context).colorScheme.onTertiaryContainer,
                 ),
-                backgroundColor: Theme.of(context).colorScheme.tertiaryContainer,
+                backgroundColor: Theme.of(
+                  context,
+                ).colorScheme.tertiaryContainer,
                 visualDensity: VisualDensity.compact,
                 padding: EdgeInsets.zero,
               ),
             ],
           ],
         ),
+        bottom: TabBar(
+          controller: _workspaceTabController,
+          onTap: (index) {
+            _switchWorkspaceMode(
+              index == 0 ? WorkspaceMode.chat : WorkspaceMode.coding,
+            );
+          },
+          tabs: [
+            Tab(
+              text: 'chat.workspace_chat'.tr(),
+              icon: const Icon(Icons.chat_bubble_outline),
+            ),
+            Tab(
+              text: 'chat.workspace_coding'.tr(),
+              icon: const Icon(Icons.code),
+            ),
+          ],
+        ),
         actions: [
+          if (isCodingWorkspace)
+            IconButton(
+              onPressed: () => _pickAndActivateProject(context),
+              icon: const Icon(Icons.create_new_folder_outlined),
+              tooltip: 'chat.add_project'.tr(),
+            ),
           IconButton(
-            onPressed: () => conversationsNotifier.createNewConversation(),
+            onPressed: canCompose
+                ? () => conversationsNotifier.createNewConversation(
+                    workspaceMode: conversationsState.activeWorkspaceMode,
+                    projectId: activeProject?.id,
+                  )
+                : null,
             icon: const Icon(Icons.add),
-            tooltip: 'chat.new_conversation'.tr(),
+            tooltip: isCodingWorkspace
+                ? 'chat.new_thread'.tr()
+                : 'chat.new_conversation'.tr(),
           ),
           if (currentConversation != null)
             IconButton(
@@ -231,8 +376,13 @@ class _ChatPageState extends ConsumerState<ChatPage> {
             ),
           // Message list
           Expanded(
-            child: chatState.messages.isEmpty
-                ? _buildEmptyState(context)
+            child: !canCompose
+                ? _buildCodingProjectEmptyState(context)
+                : chatState.messages.isEmpty
+                ? _buildEmptyState(
+                    context,
+                    isCodingWorkspace: isCodingWorkspace,
+                  )
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
@@ -243,20 +393,24 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                   ),
           ),
           // Token usage indicator
-          if (chatState.totalTokens > 0)
+          if (canCompose && chatState.totalTokens > 0)
             _buildTokenUsageBar(context, chatState),
           // Input area
-          MessageInput(
-            onSend: (message, imageBase64, imageMimeType) =>
-                chatNotifier.sendMessage(
-                  message,
-                  imageBase64: imageBase64,
-                  imageMimeType: imageMimeType,
-                  languageCode: context.locale.languageCode,
-                ),
-            onCancel: () => chatNotifier.cancelStreaming(),
-            isLoading: chatState.isLoading,
-          ),
+          if (canCompose)
+            MessageInput(
+              onSend: (message, imageBase64, imageMimeType) =>
+                  chatNotifier.sendMessage(
+                    message,
+                    imageBase64: imageBase64,
+                    imageMimeType: imageMimeType,
+                    languageCode: context.locale.languageCode,
+                  ),
+              onCancel: () => chatNotifier.cancelStreaming(),
+              isLoading: chatState.isLoading,
+              inputHintKey: isCodingWorkspace
+                  ? 'message.input_hint_coding'
+                  : 'message.input_hint',
+            ),
         ],
       ),
     );
@@ -309,11 +463,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
     PendingSshConnect pending,
   ) async {
     final hostController = TextEditingController(text: pending.host);
-    final portController =
-        TextEditingController(text: pending.port.toString());
+    final portController = TextEditingController(text: pending.port.toString());
     final usernameController = TextEditingController(text: pending.username);
-    final passwordController =
-        TextEditingController(text: pending.savedPassword ?? '');
+    final passwordController = TextEditingController(
+      text: pending.savedPassword ?? '',
+    );
     var savePassword = pending.savedPassword != null;
     var obscure = true;
     final hasSavedHint = pending.savedPassword != null;
@@ -384,18 +538,19 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   children: [
                                     Text(
                                       'SSH Connection',
-                                      style:
-                                          theme.textTheme.titleMedium?.copyWith(
-                                        fontWeight: FontWeight.bold,
-                                      ),
+                                      style: theme.textTheme.titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.bold,
+                                          ),
                                     ),
                                     Text(
                                       'Authenticate to remote server',
-                                      style:
-                                          theme.textTheme.bodySmall?.copyWith(
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
                                     ),
                                   ],
                                 ),
@@ -434,25 +589,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                           size: 20,
                                         ),
                                         filled: true,
-                                        fillColor: theme.colorScheme
+                                        fillColor: theme
+                                            .colorScheme
                                             .surfaceContainerHighest
                                             .withValues(alpha: 0.5),
                                         border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide.none,
                                         ),
                                         enabledBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide(
                                             color: theme.colorScheme.outline
                                                 .withValues(alpha: 0.2),
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide(
                                             color: theme.colorScheme.primary,
                                             width: 1.5,
@@ -470,25 +629,29 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                       decoration: InputDecoration(
                                         labelText: 'Port',
                                         filled: true,
-                                        fillColor: theme.colorScheme
+                                        fillColor: theme
+                                            .colorScheme
                                             .surfaceContainerHighest
                                             .withValues(alpha: 0.5),
                                         border: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide.none,
                                         ),
                                         enabledBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide(
                                             color: theme.colorScheme.outline
                                                 .withValues(alpha: 0.2),
                                           ),
                                         ),
                                         focusedBorder: OutlineInputBorder(
-                                          borderRadius:
-                                              BorderRadius.circular(12),
+                                          borderRadius: BorderRadius.circular(
+                                            12,
+                                          ),
                                           borderSide: BorderSide(
                                             color: theme.colorScheme.primary,
                                             width: 1.5,
@@ -510,7 +673,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   ),
                                   filled: true,
                                   fillColor: theme
-                                      .colorScheme.surfaceContainerHighest
+                                      .colorScheme
+                                      .surfaceContainerHighest
                                       .withValues(alpha: 0.5),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -554,7 +718,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   ),
                                   filled: true,
                                   fillColor: theme
-                                      .colorScheme.surfaceContainerHighest
+                                      .colorScheme
+                                      .surfaceContainerHighest
                                       .withValues(alpha: 0.5),
                                   border: OutlineInputBorder(
                                     borderRadius: BorderRadius.circular(12),
@@ -581,7 +746,8 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                               Container(
                                 decoration: BoxDecoration(
                                   color: theme
-                                      .colorScheme.surfaceContainerHighest
+                                      .colorScheme
+                                      .surfaceContainerHighest
                                       .withValues(alpha: 0.3),
                                   borderRadius: BorderRadius.circular(12),
                                 ),
@@ -604,8 +770,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                   subtitle: Text(
                                     'Store in secure keychain',
                                     style: theme.textTheme.bodySmall?.copyWith(
-                                      color:
-                                          theme.colorScheme.onSurfaceVariant,
+                                      color: theme.colorScheme.onSurfaceVariant,
                                     ),
                                   ),
                                   value: savePassword,
@@ -623,8 +788,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                             24,
                             8,
                             24,
-                            16 +
-                                MediaQuery.of(sheetContext).padding.bottom,
+                            16 + MediaQuery.of(sheetContext).padding.bottom,
                           ),
                           child: Row(
                             children: [
@@ -653,17 +817,20 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                                 child: FilledButton.icon(
                                   onPressed: () {
                                     final host = hostController.text.trim();
-                                    final port = int.tryParse(
-                                            portController.text.trim()) ??
+                                    final port =
+                                        int.tryParse(
+                                          portController.text.trim(),
+                                        ) ??
                                         22;
-                                    final username =
-                                        usernameController.text.trim();
+                                    final username = usernameController.text
+                                        .trim();
                                     final password = passwordController.text;
                                     if (host.isEmpty ||
                                         username.isEmpty ||
                                         password.isEmpty) {
-                                      ScaffoldMessenger.of(sheetContext)
-                                          .showSnackBar(
+                                      ScaffoldMessenger.of(
+                                        sheetContext,
+                                      ).showSnackBar(
                                         const SnackBar(
                                           content: Text(
                                             'Host, username and password are required',
@@ -738,9 +905,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
             top: false,
@@ -754,8 +919,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -768,8 +934,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.errorContainer
-                              .withValues(alpha: 0.6),
+                          color: theme.colorScheme.errorContainer.withValues(
+                            alpha: 0.6,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -804,8 +971,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ),
                 const Divider(height: 24),
                 // Reason (if any)
-                if (pending.reason != null &&
-                    pending.reason!.isNotEmpty) ...[
+                if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
@@ -841,8 +1007,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           .withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.15),
+                        color: theme.colorScheme.outline.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -886,20 +1053,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, false),
+                          onPressed: () => Navigator.pop(sheetContext, false),
                           icon: const Icon(Icons.block_rounded, size: 18),
                           label: const Text('Deny'),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
                             side: BorderSide(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.3),
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                         ),
@@ -908,17 +1073,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, true),
-                          icon: const Icon(
-                            Icons.play_arrow_rounded,
-                            size: 20,
-                          ),
+                          onPressed: () => Navigator.pop(sheetContext, true),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 20),
                           label: const Text('Approve & Run'),
                           style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -937,10 +1096,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       },
     );
 
-    ref.read(chatNotifierProvider.notifier).resolveSshCommand(
-          id: pending.id,
-          approved: approved ?? false,
-        );
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveSshCommand(id: pending.id, approved: approved ?? false);
   }
 
   Future<void> _showGitCommandDialog(
@@ -958,9 +1116,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
             top: false,
@@ -974,8 +1130,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -988,8 +1145,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.errorContainer
-                              .withValues(alpha: 0.6),
+                          color: theme.colorScheme.errorContainer.withValues(
+                            alpha: 0.6,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -1026,8 +1184,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                 ),
                 const Divider(height: 24),
                 // Reason (if any)
-                if (pending.reason != null &&
-                    pending.reason!.isNotEmpty) ...[
+                if (pending.reason != null && pending.reason!.isNotEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 24),
                     child: Row(
@@ -1063,8 +1220,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           .withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.15),
+                        color: theme.colorScheme.outline.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -1108,20 +1266,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, false),
+                          onPressed: () => Navigator.pop(sheetContext, false),
                           icon: const Icon(Icons.block_rounded, size: 18),
                           label: const Text('Deny'),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
                             side: BorderSide(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.3),
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                         ),
@@ -1130,17 +1286,11 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, true),
-                          icon: const Icon(
-                            Icons.play_arrow_rounded,
-                            size: 20,
-                          ),
+                          onPressed: () => Navigator.pop(sheetContext, true),
+                          icon: const Icon(Icons.play_arrow_rounded, size: 20),
                           label: const Text('Approve & Run'),
                           style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -1159,10 +1309,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       },
     );
 
-    ref.read(chatNotifierProvider.notifier).resolveGitCommand(
-          id: pending.id,
-          approved: approved ?? false,
-        );
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveGitCommand(id: pending.id, approved: approved ?? false);
   }
 
   Future<void> _showBleConnectDialog(
@@ -1180,9 +1329,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(
-              top: Radius.circular(20),
-            ),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: SafeArea(
             top: false,
@@ -1196,8 +1343,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     width: 36,
                     height: 4,
                     decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant
-                          .withValues(alpha: 0.4),
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
                       borderRadius: BorderRadius.circular(2),
                     ),
                   ),
@@ -1210,8 +1358,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.primaryContainer
-                              .withValues(alpha: 0.6),
+                          color: theme.colorScheme.primaryContainer.withValues(
+                            alpha: 0.6,
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
@@ -1255,8 +1404,9 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                           .withValues(alpha: 0.6),
                       borderRadius: BorderRadius.circular(12),
                       border: Border.all(
-                        color: theme.colorScheme.outline
-                            .withValues(alpha: 0.15),
+                        color: theme.colorScheme.outline.withValues(
+                          alpha: 0.15,
+                        ),
                       ),
                     ),
                     child: Column(
@@ -1296,20 +1446,18 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, false),
+                          onPressed: () => Navigator.pop(sheetContext, false),
                           icon: const Icon(Icons.block_rounded, size: 18),
                           label: const Text('Deny'),
                           style: OutlinedButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
                             side: BorderSide(
-                              color: theme.colorScheme.outline
-                                  .withValues(alpha: 0.3),
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.3,
+                              ),
                             ),
                           ),
                         ),
@@ -1318,17 +1466,14 @@ class _ChatPageState extends ConsumerState<ChatPage> {
                       Expanded(
                         flex: 2,
                         child: FilledButton.icon(
-                          onPressed: () =>
-                              Navigator.pop(sheetContext, true),
+                          onPressed: () => Navigator.pop(sheetContext, true),
                           icon: const Icon(
                             Icons.bluetooth_connected_rounded,
                             size: 20,
                           ),
                           label: const Text('Connect'),
                           style: FilledButton.styleFrom(
-                            padding: const EdgeInsets.symmetric(
-                              vertical: 16,
-                            ),
+                            padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(14),
                             ),
@@ -1345,15 +1490,54 @@ class _ChatPageState extends ConsumerState<ChatPage> {
       },
     );
 
-    ref.read(chatNotifierProvider.notifier).resolveBleConnect(
-          id: pending.id,
-          approved: approved ?? false,
-        );
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveBleConnect(id: pending.id, approved: approved ?? false);
   }
 
-  Widget _buildEmptyState(BuildContext context) {
+  Widget _buildCodingProjectEmptyState(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 32),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Icon(
+              Icons.folder_open_outlined,
+              size: 64,
+              color: Theme.of(context).colorScheme.outline,
+            ),
+            const SizedBox(height: 16),
+            Text(
+              'chat.coding_no_project_title'.tr(),
+              style: Theme.of(context).textTheme.titleMedium,
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'chat.coding_no_project_message'.tr(),
+              style: TextStyle(color: Theme.of(context).colorScheme.outline),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 16),
+            FilledButton.icon(
+              onPressed: () => _pickAndActivateProject(context),
+              icon: const Icon(Icons.create_new_folder_outlined),
+              label: Text('chat.add_project'.tr()),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmptyState(
+    BuildContext context, {
+    required bool isCodingWorkspace,
+  }) {
     final emptySettings = ref.watch(settingsNotifierProvider);
-    final isDefault = emptySettings.baseUrl == ApiConstants.defaultBaseUrl &&
+    final isDefault =
+        emptySettings.baseUrl == ApiConstants.defaultBaseUrl &&
         !emptySettings.demoMode;
 
     return Center(
@@ -1368,7 +1552,7 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               color: Theme.of(context).colorScheme.outline,
             ),
             const SizedBox(height: 16),
-            if (isDefault) ...[
+            if (isDefault && !isCodingWorkspace) ...[
               Text(
                 'chat.setup_title'.tr(),
                 style: Theme.of(context).textTheme.titleMedium,
@@ -1377,15 +1561,15 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               const SizedBox(height: 8),
               Text(
                 'chat.setup_message'.tr(),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+                style: TextStyle(color: Theme.of(context).colorScheme.outline),
                 textAlign: TextAlign.center,
               ),
               const SizedBox(height: 16),
               FilledButton.icon(
                 onPressed: () {
-                  ref.read(settingsNotifierProvider.notifier).updateDemoMode(true);
+                  ref
+                      .read(settingsNotifierProvider.notifier)
+                      .updateDemoMode(true);
                 },
                 icon: const Icon(Icons.play_arrow),
                 label: Text('chat.try_demo'.tr()),
@@ -1402,10 +1586,10 @@ class _ChatPageState extends ConsumerState<ChatPage> {
               ),
             ] else
               Text(
-                'chat.empty_state'.tr(),
-                style: TextStyle(
-                  color: Theme.of(context).colorScheme.outline,
-                ),
+                isCodingWorkspace
+                    ? 'chat.coding_empty_state'.tr()
+                    : 'chat.empty_state'.tr(),
+                style: TextStyle(color: Theme.of(context).colorScheme.outline),
               ),
           ],
         ),

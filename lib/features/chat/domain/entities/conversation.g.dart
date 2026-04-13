@@ -15,6 +15,14 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
           .toList(),
       createdAt: DateTime.parse(json['createdAt'] as String),
       updatedAt: DateTime.parse(json['updatedAt'] as String),
+      workspaceMode:
+          $enumDecodeNullable(
+            _$WorkspaceModeEnumMap,
+            json['workspaceMode'],
+            unknownValue: WorkspaceMode.chat,
+          ) ??
+          WorkspaceMode.chat,
+      projectId: json['projectId'] as String? ?? '',
     );
 
 Map<String, dynamic> _$ConversationToJson(_Conversation instance) =>
@@ -24,4 +32,11 @@ Map<String, dynamic> _$ConversationToJson(_Conversation instance) =>
       'messages': instance.messages,
       'createdAt': instance.createdAt.toIso8601String(),
       'updatedAt': instance.updatedAt.toIso8601String(),
+      'workspaceMode': _$WorkspaceModeEnumMap[instance.workspaceMode]!,
+      'projectId': instance.projectId,
     };
+
+const _$WorkspaceModeEnumMap = {
+  WorkspaceMode.chat: 'chat',
+  WorkspaceMode.coding: 'coding',
+};

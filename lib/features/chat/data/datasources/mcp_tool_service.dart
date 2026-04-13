@@ -1654,7 +1654,9 @@ class McpToolService {
           'working_directory': {
             'type': 'string',
             'description':
-                'Absolute path to the git repository working directory.',
+                'Absolute path to the git repository working directory. '
+                'Optional when a coding project is currently selected; the '
+                'project root can be used as the default.',
           },
           'reason': {
             'type': 'string',
@@ -1663,7 +1665,7 @@ class McpToolService {
                 'confirmation dialog (only used for write operations).',
           },
         },
-        'required': ['command', 'working_directory'],
+        'required': ['command'],
       },
     },
   };
@@ -1692,17 +1694,20 @@ class McpToolService {
     try {
       switch (name) {
         case 'ble_start_scan':
-          final timeout =
-              ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(1, 60);
-          final serviceUuids =
-              (arguments['service_uuids'] as List?)?.cast<String>();
+          final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 10).clamp(
+            1,
+            60,
+          );
+          final serviceUuids = (arguments['service_uuids'] as List?)
+              ?.cast<String>();
           await ble.startScan(
             timeout: Duration(seconds: timeout),
             serviceUuids: serviceUuids,
           );
           return McpToolResult(
             toolName: name,
-            result: 'Scan started (${timeout}s timeout). '
+            result:
+                'Scan started (${timeout}s timeout). '
                 'Use ble_get_scan_results to see discovered devices.',
             isSuccess: true,
           );
@@ -1711,7 +1716,8 @@ class McpToolService {
           await ble.stopScan();
           return McpToolResult(
             toolName: name,
-            result: 'Scan stopped. ${ble.getScanResults().length} devices found.',
+            result:
+                'Scan stopped. ${ble.getScanResults().length} devices found.',
             isSuccess: true,
           );
 
@@ -1905,8 +1911,8 @@ class McpToolService {
 
         case 'ble_start_advertising':
           final localName = arguments['local_name'] as String?;
-          final serviceUuids =
-              (arguments['service_uuids'] as List?)?.cast<String>();
+          final serviceUuids = (arguments['service_uuids'] as List?)
+              ?.cast<String>();
           await ble.startAdvertising(
             localName: localName,
             serviceUuids: serviceUuids,
@@ -2007,28 +2013,16 @@ class McpToolService {
       switch (name) {
         case 'wifi_scan':
           final result = await wifi.startScan();
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: true,
-          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
 
         case 'wifi_get_scan_results':
           final sortBy = arguments['sort_by'] as String?;
           final result = wifi.getScanResults(sortBy: sortBy);
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: true,
-          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
 
         case 'wifi_get_connection_info':
           final result = await wifi.getConnectionInfo();
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: true,
-          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
 
         default:
           return McpToolResult(
@@ -2071,20 +2065,12 @@ class McpToolService {
             timeoutMs: timeout,
             ports: ports,
           );
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: true,
-          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
 
         case 'lan_get_scan_results':
           final sortBy = arguments['sort_by'] as String?;
           final result = lanScan.getScanResults(sortBy: sortBy);
-          return McpToolResult(
-            toolName: name,
-            result: result,
-            isSuccess: true,
-          );
+          return McpToolResult(toolName: name, result: result, isSuccess: true);
 
         default:
           return McpToolResult(

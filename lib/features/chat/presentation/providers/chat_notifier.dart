@@ -22,11 +22,13 @@ import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
+import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import 'chat_state.dart';
+import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'mcp_tool_provider.dart';
 
@@ -220,6 +222,7 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Builds the system message, including the current date and time.
   Message _createSystemMessage() {
     final now = DateTime.now();
+    final activeCodingProject = _getActiveCodingProject();
     final toolNames = <String>[];
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null &&
@@ -235,7 +238,9 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
-    final resolvedLanguage = _settings.language == 'system' ? _languageCode : _settings.language;
+    final resolvedLanguage = _settings.language == 'system'
+        ? _languageCode
+        : _settings.language;
 
     return Message(
       id: 'system',
@@ -245,11 +250,22 @@ class ChatNotifier extends Notifier<ChatState> {
         languageCode: resolvedLanguage,
         toolNames: toolNames,
         sessionMemoryContext: _sessionMemoryContext,
+        projectName: activeCodingProject?.name,
+        projectRootPath: activeCodingProject?.rootPath,
         isVoiceMode: _isVoiceMode,
       ),
       role: MessageRole.system,
       timestamp: now,
     );
+  }
+
+  CodingProject? _getActiveCodingProject() {
+    final conversationsState = ref.read(conversationsNotifierProvider);
+    if (conversationsState.activeProjectId == null) {
+      return null;
+    }
+    final projectsState = ref.read(codingProjectsNotifierProvider);
+    return projectsState.findById(conversationsState.activeProjectId);
   }
 
   /// Prepares the message list sent to the LLM, including system messages.
@@ -466,8 +482,13 @@ class ChatNotifier extends Notifier<ChatState> {
         return name == 'search_past_conversations' || name == 'recall_memory';
       }).toList();
       const networkToolNames = {
-        'ping', 'whois_lookup', 'dns_lookup', 'port_check',
-        'ssl_certificate', 'http_status', 'traceroute',
+        'ping',
+        'whois_lookup',
+        'dns_lookup',
+        'port_check',
+        'ssl_certificate',
+        'http_status',
+        'traceroute',
       };
       final networkTools = allTools.where((t) {
         final name = (t['function'] as Map?)?['name'] as String?;
@@ -691,7 +712,8 @@ class ChatNotifier extends Notifier<ChatState> {
       messagesForLLM.add(
         Message(
           id: 'tool_result_${DateTime.now().millisecondsSinceEpoch}',
-          content: 'Please answer the user\'s question based on the following search results.\n\n$resultsText',
+          content:
+              'Please answer the user\'s question based on the following search results.\n\n$resultsText',
           role: MessageRole.user,
           timestamp: DateTime.now(),
         ),
@@ -729,7 +751,9 @@ class ChatNotifier extends Notifier<ChatState> {
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {
-        _appendToLastMessage('\nSorry, there was a problem executing the tools. Please try again later.');
+        _appendToLastMessage(
+          '\nSorry, there was a problem executing the tools. Please try again later.',
+        );
       }
     }
 
@@ -859,7 +883,8 @@ class ChatNotifier extends Notifier<ChatState> {
           final lastMessage = updatedMessages[lastIndex];
 
           updatedMessages[lastIndex] = lastMessage.copyWith(
-            content: '${lastMessage.content}\n\n📋 **Search results:**\n${result.result}',
+            content:
+                '${lastMessage.content}\n\n📋 **Search results:**\n${result.result}',
           );
 
           state = state.copyWith(messages: updatedMessages);
@@ -909,8 +934,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {
     final host = (toolCall.arguments['host'] as String?)?.trim() ?? '';
     final port = (toolCall.arguments['port'] as num?)?.toInt() ?? 22;
-    final username =
-        (toolCall.arguments['username'] as String?)?.trim() ?? '';
+    final username = (toolCall.arguments['username'] as String?)?.trim() ?? '';
 
     if (host.isEmpty) {
       return McpToolResult(
@@ -936,14 +960,18 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
-      await ref.read(sshServiceProvider).connect(
+      await ref
+          .read(sshServiceProvider)
+          .connect(
             host: approval.host,
             port: approval.port,
             username: approval.username,
             password: approval.password,
           );
       if (approval.savePassword) {
-        await ref.read(sshCredentialsManagerProvider).savePassword(
+        await ref
+            .read(sshCredentialsManagerProvider)
+            .savePassword(
               host: approval.host,
               port: approval.port,
               username: approval.username,
@@ -952,7 +980,9 @@ class ChatNotifier extends Notifier<ChatState> {
       } else {
         // User unchecked "save"; clear any previously saved password for
         // this triplet so the next connect prompt is empty.
-        await ref.read(sshCredentialsManagerProvider).deletePassword(
+        await ref
+            .read(sshCredentialsManagerProvider)
+            .deletePassword(
               host: approval.host,
               port: approval.port,
               username: approval.username,
@@ -1122,10 +1152,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Resolves a pending SSH connect dialog from the UI layer.
-  void resolveSshConnect({
-    required String id,
-    SshConnectApproval? approval,
-  }) {
+  void resolveSshConnect({required String id, SshConnectApproval? approval}) {
     final pending = state.pendingSshConnect;
     if (pending == null || pending.id != id) return;
     if (!pending.completer.isCompleted) {
@@ -1136,10 +1163,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Puts a pending SSH command into state and returns a future that
   /// completes with `true` (approve) or `false` (deny).
-  Future<bool> requestSshCommand({
-    required String command,
-    String? reason,
-  }) {
+  Future<bool> requestSshCommand({required String command, String? reason}) {
     final session = ref.read(sshServiceProvider).activeSession;
     final completer = Completer<bool>();
     state = state.copyWith(
@@ -1171,23 +1195,32 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
     final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
-    final workingDirectory =
+    final requestedWorkingDirectory =
         (toolCall.arguments['working_directory'] as String?)?.trim() ?? '';
+    final workingDirectory = requestedWorkingDirectory.isNotEmpty
+        ? requestedWorkingDirectory
+        : (_getActiveCodingProject()?.rootPath.trim() ?? '');
 
     if (command.isEmpty || workingDirectory.isEmpty) {
       return McpToolResult(
         toolName: toolCall.name,
         result: '',
         isSuccess: false,
-        errorMessage: 'command and working_directory are required',
+        errorMessage:
+            'command is required and working_directory must be provided or inferred from the selected coding project',
       );
     }
+
+    final resolvedArguments = {
+      ...toolCall.arguments,
+      'working_directory': workingDirectory,
+    };
 
     // Read-only commands execute immediately without user confirmation.
     if (GitTools.isReadOnly(command)) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
-        arguments: toolCall.arguments,
+        arguments: resolvedArguments,
       );
     }
 
@@ -1208,7 +1241,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: toolCall.arguments,
+      arguments: resolvedArguments,
     );
   }
 
@@ -1262,7 +1295,9 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _finishStreaming() async {
     // Wait for pending tool executions before finalizing the response.
     if (_pendingToolExecutions.isNotEmpty) {
-      appLog('[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}');
+      appLog(
+        '[ChatNotifier] Waiting for pending tool executions: ${_pendingToolExecutions.length}',
+      );
       await Future.wait(_pendingToolExecutions);
       _pendingToolExecutions.clear();
       appLog('[ChatNotifier] Tool executions completed');
@@ -1425,7 +1460,9 @@ class ChatNotifier extends Notifier<ChatState> {
       if (draft != null) {
         appLog('[Memory] LLM memory extraction succeeded');
       } else {
-        appLog('[Memory] Failed to parse LLM memory extraction JSON (falling back to rule-based)');
+        appLog(
+          '[Memory] Failed to parse LLM memory extraction JSON (falling back to rule-based)',
+        );
       }
       return draft;
     } catch (e) {
@@ -1689,5 +1726,4 @@ class ChatNotifier extends Notifier<ChatState> {
     _temporalReferenceContext = null;
     state = ChatState.initial();
   }
-
 }
