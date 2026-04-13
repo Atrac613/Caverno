@@ -280,8 +280,18 @@ class ChatNotifier extends Notifier<ChatState> {
   ) {
     final projectRoot = _getActiveProjectRootPath();
 
-    String? resolvePathArg(String key, {bool allowEmpty = false}) {
-      final rawValue = (arguments[key] as String?)?.trim();
+    String? resolvePathArg(
+      String key, {
+      bool allowEmpty = false,
+      List<String> aliases = const [],
+    }) {
+      String? rawValue = (arguments[key] as String?)?.trim();
+      for (final alias in aliases) {
+        if (rawValue != null && rawValue.isNotEmpty) {
+          break;
+        }
+        rawValue = (arguments[alias] as String?)?.trim();
+      }
       if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
         return null;
       }
@@ -309,6 +319,19 @@ class ChatNotifier extends Notifier<ChatState> {
         final resolvedWorkingDirectory = resolvePathArg(
           'working_directory',
           allowEmpty: true,
+          aliases: const ['cwd'],
+        );
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedWorkingDirectory != null) {
+          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
+        }
+        return resolvedArguments;
+      }(),
+      'git_execute_command' => () {
+        final resolvedWorkingDirectory = resolvePathArg(
+          'working_directory',
+          allowEmpty: true,
+          aliases: const ['cwd'],
         );
         final resolvedArguments = <String, dynamic>{...arguments};
         if (resolvedWorkingDirectory != null) {
@@ -546,12 +569,27 @@ class ChatNotifier extends Notifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return networkToolNames.contains(name);
       }).toList();
+      const codingToolNames = {
+        'list_directory',
+        'read_file',
+        'write_file',
+        'edit_file',
+        'find_files',
+        'search_files',
+        'local_execute_command',
+        'git_execute_command',
+      };
+      final codingTools = allTools.where((t) {
+        final name = (t['function'] as Map?)?['name'] as String?;
+        return codingToolNames.contains(name);
+      }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
           ? _dedupeToolsByName([
               ...searchOnlyTools,
               ...datetimeTools,
               ...memoryTools,
               ...networkTools,
+              ...codingTools,
             ])
           : allTools;
 
@@ -852,68 +890,48 @@ class ChatNotifier extends Notifier<ChatState> {
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
 
-    // SSH tools require an interactive confirmation dialog and must be
-    // routed through the proper tool_calls channel, not content-embedded
-    // tool_call tags. Refuse to run them here to avoid bypassing the
-    // dialog.
-    if (tc.name == 'ssh_connect' ||
-        tc.name == 'ssh_execute_command' ||
-        tc.name == 'ssh_disconnect' ||
-        tc.name == 'git_execute_command' ||
-        tc.name == 'write_file' ||
-        tc.name == 'edit_file' ||
-        tc.name == 'local_execute_command' ||
-        tc.name == 'ble_connect') {
-      appLog('[ContentTool] Refusing tool via content path: ${tc.name}');
-      return;
-    }
-
-    final mcpToolService = _mcpToolService;
-    if (mcpToolService != null) {
-      try {
-        final resolvedArguments = _resolveProjectScopedArguments(
-          tc.name,
-          tc.arguments,
-        );
-        final result = await mcpToolService.executeTool(
+    try {
+      final result = await _dispatchToolCall(
+        ToolCallInfo(
+          id: 'content_${DateTime.now().microsecondsSinceEpoch}',
           name: tc.name,
-          arguments: resolvedArguments,
+          arguments: tc.arguments,
+        ),
+      );
+
+      if (!result.isSuccess) {
+        appLog('[ContentTool] Execution failed: ${result.errorMessage}');
+        return;
+      }
+
+      appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
+
+      // Append results without triggering recursive tool-call checks.
+      if (ref.mounted && state.messages.isNotEmpty) {
+        final updatedMessages = [...state.messages];
+        final lastIndex = updatedMessages.length - 1;
+        final lastMessage = updatedMessages[lastIndex];
+
+        updatedMessages[lastIndex] = lastMessage.copyWith(
+          content:
+              '${lastMessage.content}\n\n📋 **Tool result (${tc.name}):**\n${result.result}',
         );
 
-        if (!result.isSuccess) {
-          appLog('[ContentTool] Execution failed: ${result.errorMessage}');
-          return;
-        }
+        state = state.copyWith(messages: updatedMessages);
+        appLog('[ContentTool] Appended result to message');
+      }
+    } catch (e) {
+      appLog('[ContentTool] Error: $e');
+      if (ref.mounted && state.messages.isNotEmpty) {
+        final updatedMessages = [...state.messages];
+        final lastIndex = updatedMessages.length - 1;
+        final lastMessage = updatedMessages[lastIndex];
 
-        appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
+        updatedMessages[lastIndex] = lastMessage.copyWith(
+          content: '${lastMessage.content}\n\n[Tool execution error: $e]',
+        );
 
-        // Append search results without triggering recursive tool-call checks.
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
-
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content:
-                '${lastMessage.content}\n\n📋 **Search results:**\n${result.result}',
-          );
-
-          state = state.copyWith(messages: updatedMessages);
-          appLog('[ContentTool] Appended result to message');
-        }
-      } catch (e) {
-        appLog('[ContentTool] Error: $e');
-        if (ref.mounted && state.messages.isNotEmpty) {
-          final updatedMessages = [...state.messages];
-          final lastIndex = updatedMessages.length - 1;
-          final lastMessage = updatedMessages[lastIndex];
-
-          updatedMessages[lastIndex] = lastMessage.copyWith(
-            content: '${lastMessage.content}\n\n[Tool execution error: $e]',
-          );
-
-          state = state.copyWith(messages: updatedMessages);
-        }
+        state = state.copyWith(messages: updatedMessages);
       }
     }
   }
@@ -1350,14 +1368,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
     final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
     final requestedWorkingDirectory =
-        (toolCall.arguments['working_directory'] as String?)?.trim() ?? '';
-    final workingDirectory =
-        FilesystemTools.resolvePath(
-          requestedWorkingDirectory,
-          defaultRoot: _getActiveProjectRootPath(),
-        ) ??
-        '';
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    final workingDirectory = requestedWorkingDirectory;
 
     if (command.isEmpty || workingDirectory.isEmpty) {
       return McpToolResult(
@@ -1369,8 +1386,8 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
-    final resolvedArguments = {
-      ...toolCall.arguments,
+    final gitArguments = {
+      ...resolvedArguments,
       'working_directory': workingDirectory,
     };
 
@@ -1378,7 +1395,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (GitTools.isReadOnly(command)) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
-        arguments: resolvedArguments,
+        arguments: gitArguments,
       );
     }
 
@@ -1399,7 +1416,7 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     return _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: resolvedArguments,
+      arguments: gitArguments,
     );
   }
 
