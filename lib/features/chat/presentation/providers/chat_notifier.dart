@@ -998,7 +998,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) {
+  Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     return _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: _resolveProjectScopedArguments(
@@ -1009,6 +1012,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<McpToolResult> _handleWriteFile(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     final resolvedArguments = _resolveProjectScopedArguments(
       toolCall.name,
       toolCall.arguments,
@@ -1046,6 +1052,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<McpToolResult> _handleEditFile(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     final resolvedArguments = _resolveProjectScopedArguments(
       toolCall.name,
       toolCall.arguments,
@@ -1087,6 +1096,9 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<McpToolResult> _handleLocalExecuteCommand(
     ToolCallInfo toolCall,
   ) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     final resolvedArguments = _resolveProjectScopedArguments(
       toolCall.name,
       toolCall.arguments,
@@ -1394,6 +1406,9 @@ class ChatNotifier extends Notifier<ChatState> {
   // -------------------------------------------------------------------------
 
   Future<McpToolResult> _handleGitExecuteCommand(ToolCallInfo toolCall) async {
+    final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
+    if (accessFailure != null) return accessFailure;
+
     final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
     final resolvedArguments = _resolveProjectScopedArguments(
       toolCall.name,
@@ -1625,6 +1640,34 @@ class ChatNotifier extends Notifier<ChatState> {
     } else {
       _onResponseCompleted('');
     }
+  }
+
+  Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
+    final project = _getActiveCodingProject();
+    if (project == null) return null;
+
+    final bookmark = project.securityScopedBookmark?.trim();
+    if (bookmark == null || bookmark.isEmpty) return null;
+
+    final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
+    final accessGranted = await projectsNotifier.ensureProjectAccess(
+      project.id,
+    );
+    if (accessGranted) return null;
+
+    final payload = jsonEncode({
+      'error':
+          'Failed to restore access to the selected coding project. Re-select the project folder and allow access in macOS.',
+      'code': 'bookmark_restore_failed',
+      'path': project.rootPath,
+    });
+
+    return McpToolResult(
+      toolName: toolName,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Failed to restore security-scoped bookmark access',
+    );
   }
 
   Future<void> _continueAfterContentToolResults(

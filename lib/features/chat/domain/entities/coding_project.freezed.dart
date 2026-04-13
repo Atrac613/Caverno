@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$CodingProject {
 
- String get id; String get name; String get rootPath; DateTime get createdAt; DateTime get updatedAt;
+ String get id; String get name; String get rootPath; String? get securityScopedBookmark; DateTime get createdAt; DateTime get updatedAt;
 /// Create a copy of CodingProject
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $CodingProjectCopyWith<CodingProject> get copyWith => _$CodingProjectCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.securityScopedBookmark, securityScopedBookmark) || other.securityScopedBookmark == securityScopedBookmark)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rootPath,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,rootPath,securityScopedBookmark,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, securityScopedBookmark: $securityScopedBookmark, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $CodingProjectCopyWith<$Res>  {
   factory $CodingProjectCopyWith(CodingProject value, $Res Function(CodingProject) _then) = _$CodingProjectCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String rootPath, DateTime createdAt, DateTime updatedAt
+ String id, String name, String rootPath, String? securityScopedBookmark, DateTime createdAt, DateTime updatedAt
 });
 
 
@@ -65,12 +65,13 @@ class _$CodingProjectCopyWithImpl<$Res>
 
 /// Create a copy of CodingProject
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? rootPath = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? rootPath = null,Object? securityScopedBookmark = freezed,Object? createdAt = null,Object? updatedAt = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,rootPath: null == rootPath ? _self.rootPath : rootPath // ignore: cast_nullable_to_non_nullable
-as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,securityScopedBookmark: freezed == securityScopedBookmark ? _self.securityScopedBookmark : securityScopedBookmark // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));
@@ -157,10 +158,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String rootPath,  DateTime createdAt,  DateTime updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String rootPath,  String? securityScopedBookmark,  DateTime createdAt,  DateTime updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _CodingProject() when $default != null:
-return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.rootPath,_that.securityScopedBookmark,_that.createdAt,_that.updatedAt);case _:
   return orElse();
 
 }
@@ -178,10 +179,10 @@ return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updated
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String rootPath,  DateTime createdAt,  DateTime updatedAt)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String rootPath,  String? securityScopedBookmark,  DateTime createdAt,  DateTime updatedAt)  $default,) {final _that = this;
 switch (_that) {
 case _CodingProject():
-return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.rootPath,_that.securityScopedBookmark,_that.createdAt,_that.updatedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +199,10 @@ return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updated
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String rootPath,  DateTime createdAt,  DateTime updatedAt)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String rootPath,  String? securityScopedBookmark,  DateTime createdAt,  DateTime updatedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _CodingProject() when $default != null:
-return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updatedAt);case _:
+return $default(_that.id,_that.name,_that.rootPath,_that.securityScopedBookmark,_that.createdAt,_that.updatedAt);case _:
   return null;
 
 }
@@ -213,12 +214,13 @@ return $default(_that.id,_that.name,_that.rootPath,_that.createdAt,_that.updated
 @JsonSerializable()
 
 class _CodingProject extends CodingProject {
-  const _CodingProject({required this.id, required this.name, required this.rootPath, required this.createdAt, required this.updatedAt}): super._();
+  const _CodingProject({required this.id, required this.name, required this.rootPath, this.securityScopedBookmark, required this.createdAt, required this.updatedAt}): super._();
   factory _CodingProject.fromJson(Map<String, dynamic> json) => _$CodingProjectFromJson(json);
 
 @override final  String id;
 @override final  String name;
 @override final  String rootPath;
+@override final  String? securityScopedBookmark;
 @override final  DateTime createdAt;
 @override final  DateTime updatedAt;
 
@@ -235,16 +237,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _CodingProject&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.rootPath, rootPath) || other.rootPath == rootPath)&&(identical(other.securityScopedBookmark, securityScopedBookmark) || other.securityScopedBookmark == securityScopedBookmark)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,rootPath,createdAt,updatedAt);
+int get hashCode => Object.hash(runtimeType,id,name,rootPath,securityScopedBookmark,createdAt,updatedAt);
 
 @override
 String toString() {
-  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, createdAt: $createdAt, updatedAt: $updatedAt)';
+  return 'CodingProject(id: $id, name: $name, rootPath: $rootPath, securityScopedBookmark: $securityScopedBookmark, createdAt: $createdAt, updatedAt: $updatedAt)';
 }
 
 
@@ -255,7 +257,7 @@ abstract mixin class _$CodingProjectCopyWith<$Res> implements $CodingProjectCopy
   factory _$CodingProjectCopyWith(_CodingProject value, $Res Function(_CodingProject) _then) = __$CodingProjectCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String rootPath, DateTime createdAt, DateTime updatedAt
+ String id, String name, String rootPath, String? securityScopedBookmark, DateTime createdAt, DateTime updatedAt
 });
 
 
@@ -272,12 +274,13 @@ class __$CodingProjectCopyWithImpl<$Res>
 
 /// Create a copy of CodingProject
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? rootPath = null,Object? createdAt = null,Object? updatedAt = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? rootPath = null,Object? securityScopedBookmark = freezed,Object? createdAt = null,Object? updatedAt = null,}) {
   return _then(_CodingProject(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,rootPath: null == rootPath ? _self.rootPath : rootPath // ignore: cast_nullable_to_non_nullable
-as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as String,securityScopedBookmark: freezed == securityScopedBookmark ? _self.securityScopedBookmark : securityScopedBookmark // ignore: cast_nullable_to_non_nullable
+as String?,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,
   ));

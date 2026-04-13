@@ -11,6 +11,7 @@ abstract class CodingProject with _$CodingProject {
     required String id,
     required String name,
     required String rootPath,
+    String? securityScopedBookmark,
     required DateTime createdAt,
     required DateTime updatedAt,
   }) = _CodingProject;
