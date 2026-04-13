@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert' as dart_convert;
 
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
@@ -20,6 +21,23 @@ class TokenUsage {
   final int totalTokens;
 
   static const zero = TokenUsage();
+}
+
+/// Result of a streaming chat completion with tool support.
+///
+/// Contains the stream of content chunks (including `<think>` tags for
+/// reasoning) and a [Future] that resolves to the accumulated tool calls
+/// and finish reason once the stream is fully consumed.
+class StreamWithToolsResult {
+  StreamWithToolsResult({required this.stream, required this.completion});
+
+  /// Stream of content/reasoning chunks (same format as [streamChatCompletion]).
+  final Stream<String> stream;
+
+  /// Resolves after the stream ends with the accumulated tool calls, finish
+  /// reason, and any content that was only delivered as structured data
+  /// (not via delta.content).
+  final Future<ChatCompletionResult> completion;
 }
 
 /// Chat completion response
@@ -158,26 +176,32 @@ class ChatRemoteDataSource implements ChatDataSource {
         if (delta == null) continue;
 
         // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+        // Tags are batched with adjacent content to avoid intermediate
+        // states where only a bare `<think>` or `</think>` is in the
+        // message, which could briefly render as literal text.
         final reasoning = delta.reasoningContent ?? delta.reasoning;
+        final content = delta.content;
+
         if (reasoning != null && reasoning.isNotEmpty) {
           if (!isInReasoning) {
             isInReasoning = true;
-            responseBuffer.write('<think>');
-            yield '<think>';
+            responseBuffer.write('<think>$reasoning');
+            yield '<think>$reasoning';
+          } else {
+            responseBuffer.write(reasoning);
+            yield reasoning;
           }
-          responseBuffer.write(reasoning);
-          yield reasoning;
         }
 
-        final content = delta.content;
         if (content != null && content.isNotEmpty) {
           if (isInReasoning) {
             isInReasoning = false;
-            responseBuffer.write('</think>');
-            yield '</think>';
+            responseBuffer.write('</think>$content');
+            yield '</think>$content';
+          } else {
+            responseBuffer.write(content);
+            yield content;
           }
-          responseBuffer.write(content);
-          yield content;
         }
       }
       // Close unclosed reasoning tag at end of stream
@@ -197,6 +221,146 @@ class ChatRemoteDataSource implements ChatDataSource {
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
     }
+  }
+
+  /// Streams a chat completion while also detecting tool calls.
+  ///
+  /// Content and reasoning tokens are yielded through the returned stream
+  /// in real-time (same format as [streamChatCompletion]). Tool call deltas
+  /// are accumulated internally.  Once the stream ends, the [completion]
+  /// future on the returned [StreamWithToolsResult] resolves with the
+  /// accumulated tool calls and finish reason.
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    final lastUserMessage = messages.lastWhere(
+      (m) => m.role == MessageRole.user,
+      orElse: () => messages.last,
+    );
+    final stripImages = lastUserMessage.imageBase64 == null;
+    final formattedMessages = _formatMessages(
+      messages,
+      stripImages: stripImages,
+    );
+    final modelId = model ?? ApiConstants.defaultModel;
+
+    appLog('[LLM] ========== streamChatCompletionWithTools ==========');
+    appLog(
+      '[LLM] model: $modelId, temperature: $temperature, maxTokens: $maxTokens',
+    );
+    _logMessages(messages);
+    _logTools(tools);
+
+    final accumulator = ChatStreamAccumulator();
+    final completer = Completer<ChatCompletionResult>();
+
+    // Single-subscription stream that yields content/reasoning in real-time.
+    // When the stream ends, the completer resolves with accumulated tool calls.
+    Stream<String> contentStream() async* {
+      try {
+        final stream = _client.chat.completions.createStream(
+          ChatCompletionCreateRequest(
+            model: modelId,
+            messages: formattedMessages,
+            temperature: temperature ?? ApiConstants.defaultTemperature,
+            maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+            tools: _buildTools(tools),
+            streamOptions: const StreamOptions(includeUsage: true),
+          ),
+        );
+
+        final responseBuffer = StringBuffer();
+        var isInReasoning = false;
+        await for (final event in stream) {
+          accumulator.add(event);
+
+          if (event.usage != null) {
+            lastUsage = _extractUsage(event.usage);
+          }
+
+          final delta = event.choices?.firstOrNull?.delta;
+          if (delta == null) continue;
+
+          // Yield reasoning tokens wrapped in <think> tags.
+          // Tags are batched with adjacent content to avoid intermediate
+          // states where only a bare `<think>` or `</think>` is in the
+          // message, which could briefly render as literal text.
+          final reasoning = delta.reasoningContent ?? delta.reasoning;
+          final content = delta.content;
+
+          if (reasoning != null && reasoning.isNotEmpty) {
+            if (!isInReasoning) {
+              isInReasoning = true;
+              responseBuffer.write('<think>$reasoning');
+              yield '<think>$reasoning';
+            } else {
+              responseBuffer.write(reasoning);
+              yield reasoning;
+            }
+          }
+
+          if (content != null && content.isNotEmpty) {
+            if (isInReasoning) {
+              isInReasoning = false;
+              responseBuffer.write('</think>$content');
+              yield '</think>$content';
+            } else {
+              responseBuffer.write(content);
+              yield content;
+            }
+          }
+        }
+
+        if (isInReasoning) {
+          responseBuffer.write('</think>');
+          yield '</think>';
+        }
+
+        appLog('[LLM] === Response (streamWithTools) ===');
+        final responseText = responseBuffer.toString();
+        appLog(
+          '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
+        );
+        appLog(
+          '[LLM] finishReason: ${accumulator.finishReason?.value}',
+        );
+        appLog(
+          '[LLM] toolCalls: ${accumulator.toolCalls.map((t) => t.function.name).toList()}',
+        );
+        appLog('[LLM] ==========================================');
+
+        // Resolve the completer after the stream ends normally.
+        final toolCalls = _parseToolCalls(accumulator.toolCalls);
+        final finishReason = accumulator.finishReason?.value ?? 'stop';
+        completer.complete(
+          ChatCompletionResult(
+            content: accumulator.content,
+            toolCalls: toolCalls,
+            finishReason: finishReason,
+            usage: lastUsage,
+          ),
+        );
+      } catch (e, stackTrace) {
+        appLog(
+          '[LLM] streamChatCompletionWithTools error: ${e.runtimeType}: $e',
+        );
+        appLog('[LLM] stackTrace: $stackTrace');
+        if (!completer.isCompleted) {
+          completer.completeError(e, stackTrace);
+        }
+        rethrow;
+      }
+    }
+
+    return StreamWithToolsResult(
+      stream: contentStream(),
+      completion: completer.future,
+    );
   }
 
   /// Get chat completion without streaming (with tool support)
@@ -345,26 +509,32 @@ class ChatRemoteDataSource implements ChatDataSource {
       if (delta == null) continue;
 
       // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+      // Tags are batched with adjacent content to avoid intermediate
+      // states where only a bare `<think>` or `</think>` is in the
+      // message, which could briefly render as literal text.
       final reasoning = delta.reasoningContent ?? delta.reasoning;
+      final content = delta.content;
+
       if (reasoning != null && reasoning.isNotEmpty) {
         if (!isInReasoning) {
           isInReasoning = true;
-          responseBuffer.write('<think>');
-          yield '<think>';
+          responseBuffer.write('<think>$reasoning');
+          yield '<think>$reasoning';
+        } else {
+          responseBuffer.write(reasoning);
+          yield reasoning;
         }
-        responseBuffer.write(reasoning);
-        yield reasoning;
       }
 
-      final content = delta.content;
       if (content != null && content.isNotEmpty) {
         if (isInReasoning) {
           isInReasoning = false;
-          responseBuffer.write('</think>');
-          yield '</think>';
+          responseBuffer.write('</think>$content');
+          yield '</think>$content';
+        } else {
+          responseBuffer.write(content);
+          yield content;
         }
-        responseBuffer.write(content);
-        yield content;
       }
     }
     // Close unclosed reasoning tag at end of stream

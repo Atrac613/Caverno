@@ -72,6 +72,27 @@ class DemoDataSource implements ChatDataSource {
     );
   }
 
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    final future = createChatCompletion(
+      messages: messages,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+    return StreamWithToolsResult(
+      stream: const Stream.empty(),
+      completion: future,
+    );
+  }
+
   // ---------------------------------------------------------------------------
   // Response selection
   // ---------------------------------------------------------------------------

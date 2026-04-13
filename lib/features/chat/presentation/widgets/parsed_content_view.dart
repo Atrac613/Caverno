@@ -61,6 +61,12 @@ class _ParsedContentViewState extends State<ParsedContentView> {
           ),
         );
       }
+      // Show streaming tool execution block for incomplete tool tags
+      if (widget.isStreaming &&
+          result.hasIncompleteTag &&
+          result.incompleteTagType == 'tool_call') {
+        return _buildStreamingToolBlock(theme);
+      }
       if (widget.isStreaming) {
         return Text('...', style: TextStyle(color: widget.textColor));
       }
@@ -86,6 +92,11 @@ class _ParsedContentViewState extends State<ParsedContentView> {
             result.incompleteTagContent ?? '',
             theme,
           ),
+        // Show streaming tool execution block
+        if (widget.isStreaming &&
+            result.hasIncompleteTag &&
+            result.incompleteTagType == 'tool_call')
+          _buildStreamingToolBlock(theme),
       ],
     );
   }
@@ -463,6 +474,48 @@ class _ParsedContentViewState extends State<ParsedContentView> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildStreamingToolBlock(ThemeData theme) {
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.3),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.build,
+            size: 14,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 4),
+          Text(
+            'content.tool_executing'.tr(),
+            style: TextStyle(
+              fontSize: 11,
+              color: theme.colorScheme.primary,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            width: 10,
+            height: 10,
+            child: CircularProgressIndicator(
+              strokeWidth: 1.5,
+              color: theme.colorScheme.primary,
+            ),
+          ),
         ],
       ),
     );
