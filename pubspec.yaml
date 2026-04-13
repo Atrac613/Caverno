@@ -103,7 +103,7 @@ dev_dependencies:
     sdk: flutter
 
   # Testing
-  mocktail: ^1.0.4
+  mocktail: ^1.0.5
 
   # Code generation
   build_runner: ^2.13.1
