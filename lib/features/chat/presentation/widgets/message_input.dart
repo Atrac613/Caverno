@@ -37,7 +37,7 @@ class MessageInput extends ConsumerStatefulWidget {
 
 class _MessageInputState extends ConsumerState<MessageInput> {
   final _controller = TextEditingController();
-  final _focusNode = FocusNode();
+  late final FocusNode _focusNode;
   final _imagePicker = ImagePicker();
 
   Uint8List? _selectedImageBytes;
@@ -51,6 +51,25 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   @override
   void initState() {
     super.initState();
+    _focusNode = FocusNode(
+      onKeyEvent: (node, event) {
+        // Only handle key-down to avoid double-firing.
+        if (event is! KeyDownEvent) return KeyEventResult.ignored;
+        if (event.logicalKey != LogicalKeyboardKey.enter) {
+          return KeyEventResult.ignored;
+        }
+        // Let Enter pass through during IME composition (e.g. Japanese).
+        if (_controller.value.composing != TextRange.empty) {
+          return KeyEventResult.ignored;
+        }
+        // Shift+Enter inserts a newline (handled by TextField).
+        if (HardwareKeyboard.instance.isShiftPressed) {
+          return KeyEventResult.ignored;
+        }
+        _handleSend();
+        return KeyEventResult.handled;
+      },
+    );
     _controller.addListener(_handleTextChanged);
   }
 
@@ -514,18 +533,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                       horizontal: 8,
                       vertical: 6,
                     ),
-                    child: Shortcuts(
-                      shortcuts: const <ShortcutActivator, Intent>{
-                        // Cmd/Ctrl + Enter sends the message, since
-                        // plain Enter now inserts a newline.
-                        SingleActivator(LogicalKeyboardKey.enter, meta: true):
-                            _SendMessageIntent(),
-                        SingleActivator(
-                          LogicalKeyboardKey.enter,
-                          control: true,
-                        ): _SendMessageIntent(),
-                      },
-                      child: Actions(
+                    child: Actions(
                         actions: <Type, Action<Intent>>{
                           // On desktop, intercept Cmd/Ctrl+V to handle
                           // image paste via super_clipboard. On mobile,
@@ -539,13 +547,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                                 return null;
                               },
                             ),
-                          _SendMessageIntent:
-                              CallbackAction<_SendMessageIntent>(
-                            onInvoke: (_) {
-                              _handleSend();
-                              return null;
-                            },
-                          ),
                         },
                         child: TextField(
                         controller: _controller,
@@ -622,7 +623,6 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                         maxLines: 6,
                         keyboardType: TextInputType.multiline,
                         textInputAction: TextInputAction.newline,
-                      ),
                       ),
                     ),
                   ),
@@ -742,8 +742,3 @@ class _MessageInputState extends ConsumerState<MessageInput> {
 /// Actions available from the composer's "+" attachments menu.
 enum _AttachmentAction { image, file }
 
-/// Intent fired by Cmd/Ctrl + Enter to send the current message.
-/// Plain Enter is reserved for inserting a newline.
-class _SendMessageIntent extends Intent {
-  const _SendMessageIntent();
-}
