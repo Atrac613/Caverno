@@ -77,7 +77,11 @@
     "stt_unavailable": "音声入力を開始できませんでした（実行環境または権限を確認してください）。",
     "attach_file": "ファイルを添付",
     "file_too_large": "ファイルが大きすぎます（最大100 KB）",
-    "file_read_error": "ファイルの読み取りに失敗しました"
+    "file_read_error": "ファイルの読み取りに失敗しました",
+    "project_access_permission_denied": "プロジェクトフォルダへのアクセスが拒否されました。",
+    "project_access_restore_failed": "保存済みのプロジェクトフォルダ権限を復元できませんでした。",
+    "project_access_reselect_help": "プロジェクトフォルダを再選択して、アクセス権を付け直してから作業を続けてください。",
+    "project_access_reselect": "プロジェクトを再選択"
   },
   "content": {
     "thinking": "思考",

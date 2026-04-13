@@ -77,7 +77,11 @@
     "stt_unavailable": "Could not start voice input. Check your environment or permissions.",
     "attach_file": "Attach file",
     "file_too_large": "File is too large (max 100 KB)",
-    "file_read_error": "Failed to read file"
+    "file_read_error": "Failed to read file",
+    "project_access_permission_denied": "Project folder access was denied.",
+    "project_access_restore_failed": "Saved project folder access could not be restored.",
+    "project_access_reselect_help": "Re-select the project folder to grant access again and continue coding.",
+    "project_access_reselect": "Re-select Project Folder"
   },
   "content": {
     "thinking": "Thinking",

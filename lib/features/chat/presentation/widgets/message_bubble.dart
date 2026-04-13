@@ -11,9 +11,14 @@ import '../../domain/entities/message.dart';
 import 'parsed_content_view.dart';
 
 class MessageBubble extends ConsumerWidget {
-  const MessageBubble({super.key, required this.message});
+  const MessageBubble({
+    super.key,
+    required this.message,
+    this.onReselectProject,
+  });
 
   final Message message;
+  final VoidCallback? onReselectProject;
 
   /// Extracts text for TTS playback by removing tags such as `<think>`.
   String _extractReadableText(String content) {
@@ -30,12 +35,41 @@ class MessageBubble extends ConsumerWidget {
     return buffer.toString().trim();
   }
 
+  _ProjectAccessIssue? _extractProjectAccessIssue(String content) {
+    final lines = content
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.startsWith('{') && line.endsWith('}'));
+
+    for (final line in lines.toList().reversed) {
+      try {
+        final decoded = jsonDecode(line);
+        if (decoded is! Map<String, dynamic>) continue;
+        final code = decoded['code'] as String?;
+        if (code != 'permission_denied' && code != 'bookmark_restore_failed') {
+          continue;
+        }
+
+        return _ProjectAccessIssue(
+          code: code!,
+          path: decoded['path'] as String?,
+        );
+      } catch (_) {
+        // Ignore non-JSON lines.
+      }
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final isUser = message.role == MessageRole.user;
     final theme = Theme.of(context);
     final settings = ref.watch(settingsNotifierProvider);
     final tts = ref.read(ttsServiceProvider);
+    final projectAccessIssue = !isUser
+        ? _extractProjectAccessIssue(message.content)
+        : null;
 
     return Align(
       alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
@@ -201,6 +235,16 @@ class MessageBubble extends ConsumerWidget {
                   ],
                 ),
               ),
+            if (!isUser &&
+                projectAccessIssue != null &&
+                onReselectProject != null)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: _ProjectAccessErrorCard(
+                  issue: projectAccessIssue,
+                  onReselectProject: onReselectProject!,
+                ),
+              ),
           ],
         ),
       ),
@@ -208,17 +252,105 @@ class MessageBubble extends ConsumerWidget {
   }
 }
 
+class _ProjectAccessIssue {
+  const _ProjectAccessIssue({required this.code, this.path});
+
+  final String code;
+  final String? path;
+}
+
+class _ProjectAccessErrorCard extends StatelessWidget {
+  const _ProjectAccessErrorCard({
+    required this.issue,
+    required this.onReselectProject,
+  });
+
+  final _ProjectAccessIssue issue;
+  final VoidCallback onReselectProject;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isBookmarkRestoreFailure = issue.code == 'bookmark_restore_failed';
+    final titleKey = isBookmarkRestoreFailure
+        ? 'message.project_access_restore_failed'
+        : 'message.project_access_permission_denied';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.error.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.folder_off_outlined,
+                size: 16,
+                color: theme.colorScheme.error,
+              ),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  titleKey.tr(),
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface,
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'message.project_access_reselect_help'.tr(),
+            style: TextStyle(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontSize: 12,
+              height: 1.35,
+            ),
+          ),
+          if (issue.path != null && issue.path!.isNotEmpty) ...[
+            const SizedBox(height: 6),
+            SelectableText(
+              issue.path!,
+              style: TextStyle(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontSize: 11,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          FilledButton.tonalIcon(
+            onPressed: onReselectProject,
+            icon: const Icon(Icons.folder_open),
+            label: Text('message.project_access_reselect'.tr()),
+            style: FilledButton.styleFrom(
+              visualDensity: VisualDensity.compact,
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
 /// Regex that matches a `[File: name]` header followed by its content block.
-final _fileBlockPattern = RegExp(
-  r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)',
-);
+final _fileBlockPattern = RegExp(r'^\[File: (.+?)\]\n([\s\S]*?)(?:\n\n|$)');
 
 /// Renders user message content, collapsing embedded file blocks.
 class _UserMessageContent extends StatefulWidget {
-  const _UserMessageContent({
-    required this.content,
-    required this.textColor,
-  });
+  const _UserMessageContent({required this.content, required this.textColor});
 
   final String content;
   final Color textColor;
