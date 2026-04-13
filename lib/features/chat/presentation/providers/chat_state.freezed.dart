@@ -17,7 +17,9 @@ mixin _$ChatState {
  List<Message> get messages; bool get isLoading; String? get error; int get promptTokens; int get completionTokens; int get totalTokens;// SSH tool UI flow — holders contain Completers so they live outside
 // the freezed equality graph.
  PendingSshConnect? get pendingSshConnect; PendingSshCommand? get pendingSshCommand;// Git tool UI flow — same Completer-based pattern as SSH.
- PendingGitCommand? get pendingGitCommand;// BLE tool UI flow — same Completer-based pattern as SSH.
+ PendingGitCommand? get pendingGitCommand;// Local shell tool UI flow.
+ PendingLocalCommand? get pendingLocalCommand;// File mutation tool UI flow.
+ PendingFileOperation? get pendingFileOperation;// BLE tool UI flow — same Completer-based pattern as SSH.
  PendingBleConnect? get pendingBleConnect;
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
@@ -29,16 +31,16 @@ $ChatStateCopyWith<ChatState> get copyWith => _$ChatStateCopyWithImpl<ChatState>
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ChatState&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(messages),isLoading,error,promptTokens,completionTokens,totalTokens,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingBleConnect);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(messages),isLoading,error,promptTokens,completionTokens,totalTokens,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingFileOperation,pendingBleConnect);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingBleConnect: $pendingBleConnect)';
+  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect)';
 }
 
 
@@ -49,7 +51,7 @@ abstract mixin class $ChatStateCopyWith<$Res>  {
   factory $ChatStateCopyWith(ChatState value, $Res Function(ChatState) _then) = _$ChatStateCopyWithImpl;
 @useResult
 $Res call({
- List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingBleConnect? pendingBleConnect
+ List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect
 });
 
 
@@ -66,7 +68,7 @@ class _$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingBleConnect = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,}) {
   return _then(_self.copyWith(
 messages: null == messages ? _self.messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
@@ -77,7 +79,9 @@ as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ign
 as int,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
 as PendingSshConnect?,pendingSshCommand: freezed == pendingSshCommand ? _self.pendingSshCommand : pendingSshCommand // ignore: cast_nullable_to_non_nullable
 as PendingSshCommand?,pendingGitCommand: freezed == pendingGitCommand ? _self.pendingGitCommand : pendingGitCommand // ignore: cast_nullable_to_non_nullable
-as PendingGitCommand?,pendingBleConnect: freezed == pendingBleConnect ? _self.pendingBleConnect : pendingBleConnect // ignore: cast_nullable_to_non_nullable
+as PendingGitCommand?,pendingLocalCommand: freezed == pendingLocalCommand ? _self.pendingLocalCommand : pendingLocalCommand // ignore: cast_nullable_to_non_nullable
+as PendingLocalCommand?,pendingFileOperation: freezed == pendingFileOperation ? _self.pendingFileOperation : pendingFileOperation // ignore: cast_nullable_to_non_nullable
+as PendingFileOperation?,pendingBleConnect: freezed == pendingBleConnect ? _self.pendingBleConnect : pendingBleConnect // ignore: cast_nullable_to_non_nullable
 as PendingBleConnect?,
   ));
 }
@@ -163,10 +167,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingBleConnect? pendingBleConnect)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingBleConnect);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingFileOperation,_that.pendingBleConnect);case _:
   return orElse();
 
 }
@@ -184,10 +188,10 @@ return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingBleConnect? pendingBleConnect)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect)  $default,) {final _that = this;
 switch (_that) {
 case _ChatState():
-return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingBleConnect);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingFileOperation,_that.pendingBleConnect);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -204,10 +208,10 @@ return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_t
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingBleConnect? pendingBleConnect)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( List<Message> messages,  bool isLoading,  String? error,  int promptTokens,  int completionTokens,  int totalTokens,  PendingSshConnect? pendingSshConnect,  PendingSshCommand? pendingSshCommand,  PendingGitCommand? pendingGitCommand,  PendingLocalCommand? pendingLocalCommand,  PendingFileOperation? pendingFileOperation,  PendingBleConnect? pendingBleConnect)?  $default,) {final _that = this;
 switch (_that) {
 case _ChatState() when $default != null:
-return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingBleConnect);case _:
+return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_that.completionTokens,_that.totalTokens,_that.pendingSshConnect,_that.pendingSshCommand,_that.pendingGitCommand,_that.pendingLocalCommand,_that.pendingFileOperation,_that.pendingBleConnect);case _:
   return null;
 
 }
@@ -219,7 +223,7 @@ return $default(_that.messages,_that.isLoading,_that.error,_that.promptTokens,_t
 
 
 class _ChatState implements ChatState {
-  const _ChatState({required final  List<Message> messages, required this.isLoading, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingBleConnect}): _messages = messages;
+  const _ChatState({required final  List<Message> messages, required this.isLoading, this.error, this.promptTokens = 0, this.completionTokens = 0, this.totalTokens = 0, this.pendingSshConnect, this.pendingSshCommand, this.pendingGitCommand, this.pendingLocalCommand, this.pendingFileOperation, this.pendingBleConnect}): _messages = messages;
   
 
  final  List<Message> _messages;
@@ -240,6 +244,10 @@ class _ChatState implements ChatState {
 @override final  PendingSshCommand? pendingSshCommand;
 // Git tool UI flow — same Completer-based pattern as SSH.
 @override final  PendingGitCommand? pendingGitCommand;
+// Local shell tool UI flow.
+@override final  PendingLocalCommand? pendingLocalCommand;
+// File mutation tool UI flow.
+@override final  PendingFileOperation? pendingFileOperation;
 // BLE tool UI flow — same Completer-based pattern as SSH.
 @override final  PendingBleConnect? pendingBleConnect;
 
@@ -253,16 +261,16 @@ _$ChatStateCopyWith<_ChatState> get copyWith => __$ChatStateCopyWithImpl<_ChatSt
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ChatState&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.isLoading, isLoading) || other.isLoading == isLoading)&&(identical(other.error, error) || other.error == error)&&(identical(other.promptTokens, promptTokens) || other.promptTokens == promptTokens)&&(identical(other.completionTokens, completionTokens) || other.completionTokens == completionTokens)&&(identical(other.totalTokens, totalTokens) || other.totalTokens == totalTokens)&&(identical(other.pendingSshConnect, pendingSshConnect) || other.pendingSshConnect == pendingSshConnect)&&(identical(other.pendingSshCommand, pendingSshCommand) || other.pendingSshCommand == pendingSshCommand)&&(identical(other.pendingGitCommand, pendingGitCommand) || other.pendingGitCommand == pendingGitCommand)&&(identical(other.pendingLocalCommand, pendingLocalCommand) || other.pendingLocalCommand == pendingLocalCommand)&&(identical(other.pendingFileOperation, pendingFileOperation) || other.pendingFileOperation == pendingFileOperation)&&(identical(other.pendingBleConnect, pendingBleConnect) || other.pendingBleConnect == pendingBleConnect));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages),isLoading,error,promptTokens,completionTokens,totalTokens,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingBleConnect);
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_messages),isLoading,error,promptTokens,completionTokens,totalTokens,pendingSshConnect,pendingSshCommand,pendingGitCommand,pendingLocalCommand,pendingFileOperation,pendingBleConnect);
 
 @override
 String toString() {
-  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingBleConnect: $pendingBleConnect)';
+  return 'ChatState(messages: $messages, isLoading: $isLoading, error: $error, promptTokens: $promptTokens, completionTokens: $completionTokens, totalTokens: $totalTokens, pendingSshConnect: $pendingSshConnect, pendingSshCommand: $pendingSshCommand, pendingGitCommand: $pendingGitCommand, pendingLocalCommand: $pendingLocalCommand, pendingFileOperation: $pendingFileOperation, pendingBleConnect: $pendingBleConnect)';
 }
 
 
@@ -273,7 +281,7 @@ abstract mixin class _$ChatStateCopyWith<$Res> implements $ChatStateCopyWith<$Re
   factory _$ChatStateCopyWith(_ChatState value, $Res Function(_ChatState) _then) = __$ChatStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingBleConnect? pendingBleConnect
+ List<Message> messages, bool isLoading, String? error, int promptTokens, int completionTokens, int totalTokens, PendingSshConnect? pendingSshConnect, PendingSshCommand? pendingSshCommand, PendingGitCommand? pendingGitCommand, PendingLocalCommand? pendingLocalCommand, PendingFileOperation? pendingFileOperation, PendingBleConnect? pendingBleConnect
 });
 
 
@@ -290,7 +298,7 @@ class __$ChatStateCopyWithImpl<$Res>
 
 /// Create a copy of ChatState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingBleConnect = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? messages = null,Object? isLoading = null,Object? error = freezed,Object? promptTokens = null,Object? completionTokens = null,Object? totalTokens = null,Object? pendingSshConnect = freezed,Object? pendingSshCommand = freezed,Object? pendingGitCommand = freezed,Object? pendingLocalCommand = freezed,Object? pendingFileOperation = freezed,Object? pendingBleConnect = freezed,}) {
   return _then(_ChatState(
 messages: null == messages ? _self._messages : messages // ignore: cast_nullable_to_non_nullable
 as List<Message>,isLoading: null == isLoading ? _self.isLoading : isLoading // ignore: cast_nullable_to_non_nullable
@@ -301,7 +309,9 @@ as int,totalTokens: null == totalTokens ? _self.totalTokens : totalTokens // ign
 as int,pendingSshConnect: freezed == pendingSshConnect ? _self.pendingSshConnect : pendingSshConnect // ignore: cast_nullable_to_non_nullable
 as PendingSshConnect?,pendingSshCommand: freezed == pendingSshCommand ? _self.pendingSshCommand : pendingSshCommand // ignore: cast_nullable_to_non_nullable
 as PendingSshCommand?,pendingGitCommand: freezed == pendingGitCommand ? _self.pendingGitCommand : pendingGitCommand // ignore: cast_nullable_to_non_nullable
-as PendingGitCommand?,pendingBleConnect: freezed == pendingBleConnect ? _self.pendingBleConnect : pendingBleConnect // ignore: cast_nullable_to_non_nullable
+as PendingGitCommand?,pendingLocalCommand: freezed == pendingLocalCommand ? _self.pendingLocalCommand : pendingLocalCommand // ignore: cast_nullable_to_non_nullable
+as PendingLocalCommand?,pendingFileOperation: freezed == pendingFileOperation ? _self.pendingFileOperation : pendingFileOperation // ignore: cast_nullable_to_non_nullable
+as PendingFileOperation?,pendingBleConnect: freezed == pendingBleConnect ? _self.pendingBleConnect : pendingBleConnect // ignore: cast_nullable_to_non_nullable
 as PendingBleConnect?,
   ));
 }

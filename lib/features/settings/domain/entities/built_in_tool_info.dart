@@ -18,6 +18,7 @@ class BuiltInToolRegistry {
   static const String categoryDatetime = 'datetime';
   static const String categoryMemory = 'memory';
   static const String categoryNetwork = 'network';
+  static const String categoryCoding = 'coding';
   static const String categorySsh = 'ssh';
   static const String categoryGit = 'git';
   static const String categoryWebSearch = 'web_search';
@@ -29,6 +30,7 @@ class BuiltInToolRegistry {
     categoryDatetime,
     categoryMemory,
     categoryNetwork,
+    categoryCoding,
     categorySsh,
     categoryGit,
     categoryWebSearch,
@@ -120,6 +122,42 @@ class BuiltInToolRegistry {
       name: 'traceroute',
       descriptionKey: 'settings.tool_traceroute',
       category: categoryNetwork,
+    ),
+    // Coding
+    BuiltInToolInfo(
+      name: 'list_directory',
+      descriptionKey: 'settings.tool_list_directory',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'read_file',
+      descriptionKey: 'settings.tool_read_file',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'write_file',
+      descriptionKey: 'settings.tool_write_file',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'edit_file',
+      descriptionKey: 'settings.tool_edit_file',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'find_files',
+      descriptionKey: 'settings.tool_find_files',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'search_files',
+      descriptionKey: 'settings.tool_search_files',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
+      name: 'local_execute_command',
+      descriptionKey: 'settings.tool_local_execute_command',
+      category: categoryCoding,
     ),
     // SSH
     BuiltInToolInfo(
@@ -279,6 +317,7 @@ class BuiltInToolRegistry {
       categoryDatetime => Icons.schedule,
       categoryMemory => Icons.memory,
       categoryNetwork => Icons.lan,
+      categoryCoding => Icons.code,
       categorySsh => Icons.terminal,
       categoryGit => Icons.merge_type,
       categoryWebSearch => Icons.search,

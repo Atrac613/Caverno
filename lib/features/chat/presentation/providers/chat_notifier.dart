@@ -20,7 +20,9 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_datasource.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/demo_datasource.dart';
+import '../../data/datasources/filesystem_tools.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -266,6 +268,56 @@ class ChatNotifier extends Notifier<ChatState> {
     }
     final projectsState = ref.read(codingProjectsNotifierProvider);
     return projectsState.findById(conversationsState.activeProjectId);
+  }
+
+  String? _getActiveProjectRootPath() {
+    return _getActiveCodingProject()?.rootPath.trim();
+  }
+
+  Map<String, dynamic> _resolveProjectScopedArguments(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) {
+    final projectRoot = _getActiveProjectRootPath();
+
+    String? resolvePathArg(String key, {bool allowEmpty = false}) {
+      final rawValue = (arguments[key] as String?)?.trim();
+      if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
+        return null;
+      }
+      return FilesystemTools.resolvePath(rawValue, defaultRoot: projectRoot);
+    }
+
+    return switch (toolName) {
+      'list_directory' || 'find_files' || 'search_files' => () {
+        final resolvedPath = resolvePathArg('path', allowEmpty: true);
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedPath != null) {
+          resolvedArguments['path'] = resolvedPath;
+        }
+        return resolvedArguments;
+      }(),
+      'read_file' || 'write_file' || 'edit_file' => () {
+        final resolvedPath = resolvePathArg('path');
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedPath != null) {
+          resolvedArguments['path'] = resolvedPath;
+        }
+        return resolvedArguments;
+      }(),
+      'local_execute_command' => () {
+        final resolvedWorkingDirectory = resolvePathArg(
+          'working_directory',
+          allowEmpty: true,
+        );
+        final resolvedArguments = <String, dynamic>{...arguments};
+        if (resolvedWorkingDirectory != null) {
+          resolvedArguments['working_directory'] = resolvedWorkingDirectory;
+        }
+        return resolvedArguments;
+      }(),
+      _ => arguments,
+    };
   }
 
   /// Prepares the message list sent to the LLM, including system messages.
@@ -808,6 +860,9 @@ class ChatNotifier extends Notifier<ChatState> {
         tc.name == 'ssh_execute_command' ||
         tc.name == 'ssh_disconnect' ||
         tc.name == 'git_execute_command' ||
+        tc.name == 'write_file' ||
+        tc.name == 'edit_file' ||
+        tc.name == 'local_execute_command' ||
         tc.name == 'ble_connect') {
       appLog('[ContentTool] Refusing tool via content path: ${tc.name}');
       return;
@@ -816,9 +871,13 @@ class ChatNotifier extends Notifier<ChatState> {
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null) {
       try {
+        final resolvedArguments = _resolveProjectScopedArguments(
+          tc.name,
+          tc.arguments,
+        );
         final result = await mcpToolService.executeTool(
           name: tc.name,
-          arguments: tc.arguments,
+          arguments: resolvedArguments,
         );
 
         if (!result.isSuccess) {
@@ -867,6 +926,17 @@ class ChatNotifier extends Notifier<ChatState> {
   /// tools that require a UI dialog for user confirmation.
   Future<McpToolResult> _dispatchToolCall(ToolCallInfo toolCall) async {
     switch (toolCall.name) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+        return _handleProjectScopedTool(toolCall);
+      case 'write_file':
+        return _handleWriteFile(toolCall);
+      case 'edit_file':
+        return _handleEditFile(toolCall);
+      case 'local_execute_command':
+        return _handleLocalExecuteCommand(toolCall);
       case 'ssh_connect':
         return _handleSshConnect(toolCall);
       case 'ssh_execute_command':
@@ -881,6 +951,139 @@ class ChatNotifier extends Notifier<ChatState> {
           arguments: toolCall.arguments,
         );
     }
+  }
+
+  Future<McpToolResult> _handleProjectScopedTool(ToolCallInfo toolCall) {
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: _resolveProjectScopedArguments(
+        toolCall.name,
+        toolCall.arguments,
+      ),
+    );
+  }
+
+  Future<McpToolResult> _handleWriteFile(ToolCallInfo toolCall) async {
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    final content = resolvedArguments['content'] as String? ?? '';
+    if (path.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'path is required',
+      );
+    }
+
+    final approved = await requestFileOperation(
+      operation: 'Write File',
+      path: path,
+      preview: content,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied file write',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
+  }
+
+  Future<McpToolResult> _handleEditFile(ToolCallInfo toolCall) async {
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final path = (resolvedArguments['path'] as String?)?.trim() ?? '';
+    final oldText = resolvedArguments['old_text'] as String? ?? '';
+    final newText = resolvedArguments['new_text'] as String? ?? '';
+    if (path.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'path is required',
+      );
+    }
+
+    final preview = ['Old text:', oldText, '', 'New text:', newText].join('\n');
+    final approved = await requestFileOperation(
+      operation: 'Edit File',
+      path: path,
+      preview: preview,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied file edit',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
+  }
+
+  Future<McpToolResult> _handleLocalExecuteCommand(
+    ToolCallInfo toolCall,
+  ) async {
+    final resolvedArguments = _resolveProjectScopedArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    final command = (resolvedArguments['command'] as String?)?.trim() ?? '';
+    final workingDirectory =
+        (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
+    if (command.isEmpty || workingDirectory.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage:
+            'command is required and working_directory must be provided or inferred from the selected coding project',
+      );
+    }
+
+    if (LocalShellTools.isReadOnly(command)) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+    }
+
+    final approved = await requestLocalCommand(
+      command: command,
+      workingDirectory: workingDirectory,
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'User denied local command execution',
+      );
+    }
+
+    return _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: resolvedArguments,
+    );
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {
@@ -1149,9 +1352,12 @@ class ChatNotifier extends Notifier<ChatState> {
     final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
     final requestedWorkingDirectory =
         (toolCall.arguments['working_directory'] as String?)?.trim() ?? '';
-    final workingDirectory = requestedWorkingDirectory.isNotEmpty
-        ? requestedWorkingDirectory
-        : (_getActiveCodingProject()?.rootPath.trim() ?? '');
+    final workingDirectory =
+        FilesystemTools.resolvePath(
+          requestedWorkingDirectory,
+          defaultRoot: _getActiveProjectRootPath(),
+        ) ??
+        '';
 
     if (command.isEmpty || workingDirectory.isEmpty) {
       return McpToolResult(
@@ -1225,6 +1431,62 @@ class ChatNotifier extends Notifier<ChatState> {
       pending.completer.complete(approved);
     }
     state = state.copyWith(pendingGitCommand: null);
+  }
+
+  Future<bool> requestLocalCommand({
+    required String command,
+    required String workingDirectory,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingLocalCommand: PendingLocalCommand(
+        id: const Uuid().v4(),
+        command: command,
+        workingDirectory: workingDirectory,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveLocalCommand({required String id, required bool approved}) {
+    final pending = state.pendingLocalCommand;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingLocalCommand: null);
+  }
+
+  Future<bool> requestFileOperation({
+    required String operation,
+    required String path,
+    required String preview,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingFileOperation: PendingFileOperation(
+        id: const Uuid().v4(),
+        operation: operation,
+        path: path,
+        preview: preview,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveFileOperation({required String id, required bool approved}) {
+    final pending = state.pendingFileOperation;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingFileOperation: null);
   }
 
   /// Read and accumulate the latest token usage from the data source.
