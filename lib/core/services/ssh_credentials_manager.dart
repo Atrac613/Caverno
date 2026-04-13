@@ -11,10 +11,7 @@ import 'package:flutter_secure_storage/flutter_secure_storage.dart';
 /// types into the connect dialog on demand.
 class SshCredentialsManager {
   SshCredentialsManager({FlutterSecureStorage? storage})
-      : _storage = storage ??
-            const FlutterSecureStorage(
-              aOptions: AndroidOptions(encryptedSharedPreferences: true),
-            );
+      : _storage = storage ?? const FlutterSecureStorage();
 
   final FlutterSecureStorage _storage;
 
