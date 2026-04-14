@@ -1,9 +1,13 @@
+import 'dart:io' show Platform;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'core/services/window_manager_service.dart';
+import 'core/services/window_settings_service.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
@@ -19,6 +23,12 @@ void main() async {
   final memoryBox = await Hive.openBox<String>('chat_memory');
 
   final prefs = await SharedPreferences.getInstance();
+
+  // Restore window size and position on desktop platforms
+  if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
+    final windowService = WindowManagerService(WindowSettingsService(prefs));
+    await windowService.initialize();
+  }
 
   runApp(
     EasyLocalization(
