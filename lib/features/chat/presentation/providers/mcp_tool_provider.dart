@@ -4,23 +4,50 @@ import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/mcp_client.dart';
+import '../../data/datasources/mcp_stdio_client.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../data/datasources/searxng_client.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/datasources/filesystem_tools.dart';
 
 /// Provides the configured MCP clients.
 ///
-/// Returns one `McpClient` per configured URL when MCP is enabled.
-final mcpClientsProvider = Provider<List<McpClient>>((ref) {
+/// Returns one [McpClientBase] per enabled server when MCP is enabled.
+/// Stdio clients are only created on desktop platforms.
+final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
-  final mcpUrls = settings.effectiveMcpUrls;
-  if (!settings.mcpEnabled || mcpUrls.isEmpty) {
-    return const [];
+  if (!settings.mcpEnabled) return const [];
+
+  final isDesktop = FilesystemTools.isDesktopPlatform;
+  final clients = <McpClientBase>[];
+
+  for (final server in settings.enabledMcpServers) {
+    switch (server.type) {
+      case McpServerType.http:
+        clients.add(McpClient(baseUrl: server.normalizedUrl));
+      case McpServerType.stdio:
+        if (isDesktop) {
+          clients.add(McpStdioClient(
+            command: server.command.trim(),
+            args: server.args,
+          ));
+        }
+    }
   }
-  return mcpUrls.map((url) => McpClient(baseUrl: url)).toList(growable: false);
+
+  // Dispose all clients when the provider is invalidated (settings change,
+  // app shutdown). This kills any stdio child processes.
+  ref.onDispose(() {
+    for (final client in clients) {
+      client.dispose();
+    }
+  });
+
+  return clients;
 });
 
 /// Provides the SearXNG client.

@@ -63,22 +63,25 @@ enum McpConnectionStatus {
 
 class McpServerConnectionInfo {
   const McpServerConnectionInfo({
-    required this.url,
+    required this.identifier,
     required this.status,
     this.toolCount = 0,
     this.lastError,
   });
 
-  final String url;
+  final String identifier;
   final McpConnectionStatus status;
   final int toolCount;
   final String? lastError;
 }
 
-String _formatMcpServerLabel(String rawUrl) {
-  final uri = Uri.tryParse(rawUrl);
+String _formatMcpServerLabel(String rawIdentifier) {
+  final uri = Uri.tryParse(rawIdentifier);
   if (uri == null || uri.host.isEmpty) {
-    return 'configured server';
+    // Non-URL identifier (e.g. stdio command).
+    return rawIdentifier.length > 40
+        ? '${rawIdentifier.substring(0, 40)}...'
+        : rawIdentifier;
   }
 
   final buffer = StringBuffer(uri.host);

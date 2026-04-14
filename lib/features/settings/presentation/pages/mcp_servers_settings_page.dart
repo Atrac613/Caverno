@@ -1,3 +1,5 @@
+import 'dart:io' show Platform;
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,44 +21,69 @@ class McpServersSettingsPage extends ConsumerStatefulWidget {
 
 class _McpServersSettingsPageState
     extends ConsumerState<McpServersSettingsPage> {
-  final List<TextEditingController> _mcpServerControllers = [];
+  /// Controllers for the URL field of HTTP servers, keyed by server index.
+  final List<TextEditingController> _urlControllers = [];
+
+  /// Controllers for the command field of stdio servers, keyed by server index.
+  final List<TextEditingController> _commandControllers = [];
+
+  /// Controllers for the args field of stdio servers, keyed by server index.
+  final List<TextEditingController> _argsControllers = [];
 
   @override
   void initState() {
     super.initState();
-    _syncServerControllers(
+    _syncControllers(
       ref.read(settingsNotifierProvider).configuredMcpServers,
     );
   }
 
   @override
   void dispose() {
-    for (final controller in _mcpServerControllers) {
-      controller.dispose();
+    for (final c in _urlControllers) {
+      c.dispose();
+    }
+    for (final c in _commandControllers) {
+      c.dispose();
+    }
+    for (final c in _argsControllers) {
+      c.dispose();
     }
     super.dispose();
   }
 
-  void _syncServerControllers(List<McpServerConfig> servers) {
-    while (_mcpServerControllers.length < servers.length) {
-      _mcpServerControllers.add(TextEditingController());
-    }
-    while (_mcpServerControllers.length > servers.length) {
-      _mcpServerControllers.removeLast().dispose();
-    }
+  void _syncControllers(List<McpServerConfig> servers) {
+    _syncList(_urlControllers, servers.length);
+    _syncList(_commandControllers, servers.length);
+    _syncList(_argsControllers, servers.length);
 
     for (var i = 0; i < servers.length; i++) {
-      final controller = _mcpServerControllers[i];
-      final text = servers[i].url;
-      if (controller.text == text) {
-        continue;
-      }
-      controller.value = TextEditingValue(
-        text: text,
-        selection: TextSelection.collapsed(offset: text.length),
-      );
+      final server = servers[i];
+      _setIfChanged(_urlControllers[i], server.url);
+      _setIfChanged(_commandControllers[i], server.command);
+      _setIfChanged(_argsControllers[i], server.args.join(' '));
     }
   }
+
+  static void _syncList(List<TextEditingController> list, int target) {
+    while (list.length < target) {
+      list.add(TextEditingController());
+    }
+    while (list.length > target) {
+      list.removeLast().dispose();
+    }
+  }
+
+  static void _setIfChanged(TextEditingController controller, String text) {
+    if (controller.text == text) return;
+    controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  static bool get _isDesktop =>
+      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
   Future<void> _testConnections({
     required AppSettings settings,
@@ -70,16 +97,14 @@ class _McpServersSettingsPageState
       return;
     }
 
-    if (settings.effectiveMcpUrls.isEmpty) {
+    if (settings.enabledMcpServers.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text('settings.mcp_no_enabled_servers'.tr())),
       );
       return;
     }
 
-    appLog(
-      '[Settings] MCP connection test started: URLs=${settings.effectiveMcpUrls}',
-    );
+    appLog('[Settings] MCP connection test started');
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text('settings.mcp_testing'.tr())));
@@ -125,14 +150,14 @@ class _McpServersSettingsPageState
     );
   }
 
-  Map<String, McpServerConnectionInfo> _serverStatesByUrl(
+  Map<String, McpServerConnectionInfo> _serverStatesById(
     McpToolService? mcpToolService,
   ) {
-    if (mcpToolService == null) {
-      return const {};
-    }
-
-    return {for (final state in mcpToolService.serverStates) state.url: state};
+    if (mcpToolService == null) return const {};
+    return {
+      for (final state in mcpToolService.serverStates)
+        state.identifier: state,
+    };
   }
 
   Widget _buildMcpServerCard({
@@ -151,6 +176,8 @@ class _McpServersSettingsPageState
       colorScheme: colorScheme,
     );
 
+    final isStdio = server.type == McpServerType.stdio;
+
     return Card(
       margin: const EdgeInsets.only(bottom: 12),
       child: Padding(
@@ -160,11 +187,19 @@ class _McpServersSettingsPageState
           children: [
             Row(
               children: [
+                Icon(
+                  isStdio ? Icons.terminal : Icons.cloud_outlined,
+                  size: 18,
+                  color: colorScheme.onSurfaceVariant,
+                ),
+                const SizedBox(width: 8),
                 Expanded(
                   child: Text(
-                    'settings.mcp_server_title'.tr(
-                      namedArgs: {'index': '${index + 1}'},
-                    ),
+                    isStdio
+                        ? 'settings.mcp_cli_server_title'
+                            .tr(namedArgs: {'index': '${index + 1}'})
+                        : 'settings.mcp_server_title'
+                            .tr(namedArgs: {'index': '${index + 1}'}),
                     style: theme.textTheme.titleSmall?.copyWith(
                       fontWeight: FontWeight.w600,
                     ),
@@ -189,17 +224,43 @@ class _McpServersSettingsPageState
               ],
             ),
             const SizedBox(height: 8),
-            TextField(
-              controller: _mcpServerControllers[index],
-              decoration: InputDecoration(
-                labelText: 'settings.mcp_server_url_label'.tr(),
-                hintText: 'http://localhost:8081',
-                border: const OutlineInputBorder(),
-                helperText: 'settings.mcp_url_helper'.tr(),
+            if (isStdio) ...[
+              TextField(
+                controller: _commandControllers[index],
+                decoration: InputDecoration(
+                  labelText: 'settings.mcp_server_command_label'.tr(),
+                  hintText: 'npx',
+                  border: const OutlineInputBorder(),
+                  helperText: 'settings.mcp_server_command_hint'.tr(),
+                ),
+                onChanged: (value) =>
+                    notifier.updateMcpServerCommand(index, value),
               ),
-              keyboardType: TextInputType.url,
-              onChanged: (value) => notifier.updateMcpServerUrl(index, value),
-            ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: _argsControllers[index],
+                decoration: InputDecoration(
+                  labelText: 'settings.mcp_server_args_label'.tr(),
+                  hintText: '-y @modelcontextprotocol/server-filesystem /tmp',
+                  border: const OutlineInputBorder(),
+                  helperText: 'settings.mcp_server_args_hint'.tr(),
+                ),
+                onChanged: (value) =>
+                    notifier.updateMcpServerArgs(index, value),
+              ),
+            ] else
+              TextField(
+                controller: _urlControllers[index],
+                decoration: InputDecoration(
+                  labelText: 'settings.mcp_server_url_label'.tr(),
+                  hintText: 'http://localhost:8081',
+                  border: const OutlineInputBorder(),
+                  helperText: 'settings.mcp_url_helper'.tr(),
+                ),
+                keyboardType: TextInputType.url,
+                onChanged: (value) =>
+                    notifier.updateMcpServerUrl(index, value),
+              ),
             const SizedBox(height: 10),
             Row(
               children: [
@@ -243,12 +304,11 @@ class _McpServersSettingsPageState
       );
     }
 
-    if (server.normalizedUrl.isEmpty) {
-      return (
-        'settings.mcp_server_empty'.tr(),
-        Icons.edit_outlined,
-        colorScheme.primary,
-      );
+    if (!server.isValid) {
+      final hint = server.type == McpServerType.stdio
+          ? 'settings.mcp_server_empty_command'.tr()
+          : 'settings.mcp_server_empty'.tr();
+      return (hint, Icons.edit_outlined, colorScheme.primary);
     }
 
     if (serverState == null) {
@@ -371,9 +431,9 @@ class _McpServersSettingsPageState
     final notifier = ref.read(settingsNotifierProvider.notifier);
     final mcpToolService = ref.watch(mcpToolServiceProvider);
     final servers = settings.configuredMcpServers;
-    final serverStatesByUrl = _serverStatesByUrl(mcpToolService);
+    final statesById = _serverStatesById(mcpToolService);
 
-    _syncServerControllers(servers);
+    _syncControllers(servers);
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.mcp_servers'.tr())),
@@ -383,10 +443,9 @@ class _McpServersSettingsPageState
           Row(
             children: [
               const Spacer(),
-              OutlinedButton.icon(
-                onPressed: notifier.addMcpServer,
-                icon: const Icon(Icons.add),
-                label: Text('settings.mcp_add_server'.tr()),
+              _AddServerButton(
+                onAddHttp: notifier.addMcpServer,
+                onAddCli: _isDesktop ? notifier.addMcpStdioServer : null,
               ),
             ],
           ),
@@ -400,7 +459,7 @@ class _McpServersSettingsPageState
             final index = entry.key;
             final server = entry.value;
             final serverState = server.enabled
-                ? serverStatesByUrl[server.normalizedUrl]
+                ? statesById[server.displayLabel]
                 : null;
 
             return _buildMcpServerCard(
@@ -428,6 +487,65 @@ class _McpServersSettingsPageState
           ],
           const SizedBox(height: 16),
         ],
+      ),
+    );
+  }
+}
+
+/// Add-server button that offers HTTP and (on desktop) CLI options.
+class _AddServerButton extends StatelessWidget {
+  const _AddServerButton({
+    required this.onAddHttp,
+    this.onAddCli,
+  });
+
+  final VoidCallback onAddHttp;
+  final VoidCallback? onAddCli;
+
+  @override
+  Widget build(BuildContext context) {
+    // If CLI is unavailable (non-desktop), show a simple button.
+    if (onAddCli == null) {
+      return OutlinedButton.icon(
+        onPressed: onAddHttp,
+        icon: const Icon(Icons.add),
+        label: Text('settings.mcp_add_server'.tr()),
+      );
+    }
+
+    return PopupMenuButton<McpServerType>(
+      onSelected: (type) {
+        switch (type) {
+          case McpServerType.http:
+            onAddHttp();
+          case McpServerType.stdio:
+            onAddCli!();
+        }
+      },
+      itemBuilder: (context) => [
+        PopupMenuItem(
+          value: McpServerType.http,
+          child: ListTile(
+            leading: const Icon(Icons.cloud_outlined),
+            title: Text('settings.mcp_add_http_server'.tr()),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+        PopupMenuItem(
+          value: McpServerType.stdio,
+          child: ListTile(
+            leading: const Icon(Icons.terminal),
+            title: Text('settings.mcp_add_cli_server'.tr()),
+            contentPadding: EdgeInsets.zero,
+            dense: true,
+          ),
+        ),
+      ],
+      child: OutlinedButton.icon(
+        onPressed: null, // Handled by PopupMenuButton.
+        icon: const Icon(Icons.add),
+        label: Text('settings.mcp_add_server'.tr()),
       ),
     );
   }
