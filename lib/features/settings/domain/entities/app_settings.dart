@@ -50,6 +50,9 @@ abstract class AppSettings with _$AppSettings {
     @JsonKey(unknownEnumValue: AssistantMode.general)
     @Default(AssistantMode.general)
     AssistantMode assistantMode,
+    @Default(true) bool confirmFileMutations,
+    @Default(true) bool confirmLocalCommands,
+    @Default(true) bool confirmGitWrites,
     @Default(false) bool demoMode,
     @Default(<String>[]) List<String> disabledBuiltInTools,
   }) = _AppSettings;

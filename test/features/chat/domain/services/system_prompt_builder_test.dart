@@ -9,7 +9,12 @@ void main() {
       now: DateTime(2026, 4, 13, 10, 30),
       assistantMode: AssistantMode.coding,
       languageCode: 'en',
-      toolNames: const ['git_execute_command'],
+      toolNames: const [
+        'list_directory',
+        'read_file',
+        'local_execute_command',
+        'git_execute_command',
+      ],
       projectName: 'caverno',
       projectRootPath: '/Users/noguwo/Documents/Workspace/Flutter/caverno',
     );
@@ -25,6 +30,18 @@ void main() {
       prompt,
       contains(
         'prefer this project root as the working directory if one is not explicitly provided',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For codebase exploration, prefer list_directory, find_files, search_files, and read_file before using local shell commands.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If a tool result contains permission_denied or bookmark_restore_failed',
       ),
     );
   });

@@ -131,7 +131,15 @@ class LocalShellTools {
     if (args.isEmpty) return false;
 
     return switch (args.first) {
-      'pwd' || 'echo' || 'cat' || 'ls' => true,
+      'pwd' ||
+      'echo' ||
+      'cat' ||
+      'ls' ||
+      'head' ||
+      'tail' ||
+      'wc' ||
+      'find' ||
+      'rg' => true,
       _ => false,
     };
   }
@@ -243,6 +251,11 @@ class LocalShellTools {
       ),
       'cat' => await _executeCat(args.skip(1).toList(), workingDirectory),
       'ls' => await _executeLs(args.skip(1).toList(), workingDirectory),
+      'head' => await _executeHead(args.skip(1).toList(), workingDirectory),
+      'tail' => await _executeTail(args.skip(1).toList(), workingDirectory),
+      'wc' => await _executeWc(args.skip(1).toList(), workingDirectory),
+      'find' => await _executeFind(args.skip(1).toList(), workingDirectory),
+      'rg' => await _executeRg(args.skip(1).toList(), workingDirectory),
       _ => _LocalCommandResult(
         exitCode: 1,
         stderr: 'Unsupported internal command: ${args.first}\n',
@@ -482,6 +495,585 @@ class LocalShellTools {
     return true;
   }
 
+  static Future<_LocalCommandResult> _executeHead(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    final parsed = _parseHeadTailArgs(args, 'head');
+    if (parsed.error != null) {
+      return _LocalCommandResult(exitCode: 1, stderr: parsed.error!);
+    }
+    return _readFileSlices(
+      filePaths: parsed.filePaths,
+      workingDirectory: workingDirectory,
+      lineCount: parsed.lineCount,
+      fromStart: true,
+      commandName: 'head',
+    );
+  }
+
+  static Future<_LocalCommandResult> _executeTail(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    final parsed = _parseHeadTailArgs(args, 'tail');
+    if (parsed.error != null) {
+      return _LocalCommandResult(exitCode: 1, stderr: parsed.error!);
+    }
+    return _readFileSlices(
+      filePaths: parsed.filePaths,
+      workingDirectory: workingDirectory,
+      lineCount: parsed.lineCount,
+      fromStart: false,
+      commandName: 'tail',
+    );
+  }
+
+  static _ParsedHeadTailArgs _parseHeadTailArgs(
+    List<String> args,
+    String commandName,
+  ) {
+    var lineCount = 10;
+    final filePaths = <String>[];
+
+    for (var index = 0; index < args.length; index++) {
+      final arg = args[index];
+      if (arg == '-n') {
+        if (index + 1 >= args.length) {
+          return _ParsedHeadTailArgs(
+            lineCount: lineCount,
+            filePaths: filePaths,
+            error: '$commandName: option requires an argument -- n\n',
+          );
+        }
+        final parsed = int.tryParse(args[index + 1]);
+        if (parsed == null || parsed < 0) {
+          return _ParsedHeadTailArgs(
+            lineCount: lineCount,
+            filePaths: filePaths,
+            error:
+                '$commandName: invalid number of lines: ${args[index + 1]}\n',
+          );
+        }
+        lineCount = parsed;
+        index += 1;
+        continue;
+      }
+      if (arg.startsWith('-n')) {
+        final parsed = int.tryParse(arg.substring(2));
+        if (parsed == null || parsed < 0) {
+          return _ParsedHeadTailArgs(
+            lineCount: lineCount,
+            filePaths: filePaths,
+            error: '$commandName: invalid number of lines: $arg\n',
+          );
+        }
+        lineCount = parsed;
+        continue;
+      }
+      if (arg.startsWith('-')) {
+        return _ParsedHeadTailArgs(
+          lineCount: lineCount,
+          filePaths: filePaths,
+          error: '$commandName: unsupported option $arg\n',
+        );
+      }
+      filePaths.add(arg);
+    }
+
+    if (filePaths.isEmpty) {
+      return _ParsedHeadTailArgs(
+        lineCount: lineCount,
+        filePaths: filePaths,
+        error: '$commandName: missing file operand\n',
+      );
+    }
+
+    return _ParsedHeadTailArgs(lineCount: lineCount, filePaths: filePaths);
+  }
+
+  static Future<_LocalCommandResult> _readFileSlices({
+    required List<String> filePaths,
+    required String workingDirectory,
+    required int lineCount,
+    required bool fromStart,
+    required String commandName,
+  }) async {
+    final stdout = StringBuffer();
+
+    for (var index = 0; index < filePaths.length; index++) {
+      final pathArg = filePaths[index];
+      final resolvedPath = FilesystemTools.resolvePath(
+        pathArg,
+        defaultRoot: workingDirectory,
+      );
+      if (resolvedPath == null) {
+        return _LocalCommandResult(
+          exitCode: 1,
+          stderr: '$commandName: cannot resolve path $pathArg\n',
+        );
+      }
+
+      try {
+        final file = File(resolvedPath);
+        if (!file.existsSync()) {
+          return _LocalCommandResult(
+            exitCode: 1,
+            stderr: '$commandName: cannot open $pathArg\n',
+          );
+        }
+
+        final content = await file.readAsString();
+        final lines = const LineSplitter().convert(content);
+        final slice = fromStart
+            ? lines.take(lineCount).toList()
+            : lines
+                  .skip((lines.length - lineCount).clamp(0, lines.length))
+                  .toList();
+
+        if (filePaths.length > 1) {
+          if (index > 0) stdout.writeln();
+          stdout.writeln('==> $pathArg <==');
+        }
+        stdout.write(slice.join('\n'));
+        if (slice.isNotEmpty && !slice.last.endsWith('\n')) {
+          stdout.writeln();
+        }
+      } on FileSystemException catch (error) {
+        return _LocalCommandResult(
+          exitCode: 1,
+          stderr:
+              '$commandName: $pathArg: ${error.osError?.message ?? error.message}\n',
+        );
+      } on FormatException {
+        return _LocalCommandResult(
+          exitCode: 1,
+          stderr: '$commandName: $pathArg: Binary files are not supported\n',
+        );
+      }
+    }
+
+    return _LocalCommandResult(exitCode: 0, stdout: stdout.toString());
+  }
+
+  static Future<_LocalCommandResult> _executeWc(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    var countLines = false;
+    var countWords = false;
+    var countBytes = false;
+    final filePaths = <String>[];
+
+    for (final arg in args) {
+      if (arg.startsWith('-')) {
+        for (final rune in arg.substring(1).runes) {
+          final flag = String.fromCharCode(rune);
+          switch (flag) {
+            case 'l':
+              countLines = true;
+            case 'w':
+              countWords = true;
+            case 'c':
+              countBytes = true;
+            default:
+              return _LocalCommandResult(
+                exitCode: 1,
+                stderr: 'wc: unsupported option -$flag\n',
+              );
+          }
+        }
+      } else {
+        filePaths.add(arg);
+      }
+    }
+
+    if (!countLines && !countWords && !countBytes) {
+      countLines = true;
+      countWords = true;
+      countBytes = true;
+    }
+
+    if (filePaths.isEmpty) {
+      return const _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'wc: missing file operand\n',
+      );
+    }
+
+    final output = StringBuffer();
+    var totalLines = 0;
+    var totalWords = 0;
+    var totalBytes = 0;
+
+    for (final pathArg in filePaths) {
+      final counts = await _countFile(
+        pathArg,
+        workingDirectory: workingDirectory,
+      );
+      if (counts.error != null) {
+        return _LocalCommandResult(exitCode: 1, stderr: counts.error!);
+      }
+
+      totalLines += counts.lines;
+      totalWords += counts.words;
+      totalBytes += counts.bytes;
+      output.writeln(
+        '${_formatWcCounts(countLines, countWords, countBytes, counts.lines, counts.words, counts.bytes)} $pathArg',
+      );
+    }
+
+    if (filePaths.length > 1) {
+      output.writeln(
+        '${_formatWcCounts(countLines, countWords, countBytes, totalLines, totalWords, totalBytes)} total',
+      );
+    }
+
+    return _LocalCommandResult(exitCode: 0, stdout: output.toString());
+  }
+
+  static String _formatWcCounts(
+    bool countLines,
+    bool countWords,
+    bool countBytes,
+    int lines,
+    int words,
+    int bytes,
+  ) {
+    final values = <String>[];
+    if (countLines) values.add(lines.toString().padLeft(8));
+    if (countWords) values.add(words.toString().padLeft(8));
+    if (countBytes) values.add(bytes.toString().padLeft(8));
+    return values.join('');
+  }
+
+  static Future<_FileCounts> _countFile(
+    String pathArg, {
+    required String workingDirectory,
+  }) async {
+    final resolvedPath = FilesystemTools.resolvePath(
+      pathArg,
+      defaultRoot: workingDirectory,
+    );
+    if (resolvedPath == null) {
+      return _FileCounts(error: 'wc: cannot resolve path $pathArg\n');
+    }
+
+    try {
+      final file = File(resolvedPath);
+      final bytes = await file.readAsBytes();
+      final content = utf8.decode(bytes);
+      final lines = const LineSplitter().convert(content).length;
+      final words = RegExp(r'\S+').allMatches(content).length;
+      return _FileCounts(lines: lines, words: words, bytes: bytes.length);
+    } on FileSystemException catch (error) {
+      return _FileCounts(
+        error: 'wc: $pathArg: ${error.osError?.message ?? error.message}\n',
+      );
+    } on FormatException {
+      return _FileCounts(
+        error: 'wc: $pathArg: Binary files are not supported\n',
+      );
+    }
+  }
+
+  static Future<_LocalCommandResult> _executeFind(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    var rootPathArg = '.';
+    var index = 0;
+    if (args.isNotEmpty && !args.first.startsWith('-')) {
+      rootPathArg = args.first;
+      index = 1;
+    }
+
+    var maxDepth = -1;
+    String? namePattern;
+    FileSystemEntityType? requiredType;
+
+    while (index < args.length) {
+      final arg = args[index];
+      switch (arg) {
+        case '-maxdepth':
+          if (index + 1 >= args.length) {
+            return const _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'find: missing argument to -maxdepth\n',
+            );
+          }
+          maxDepth = int.tryParse(args[index + 1]) ?? -2;
+          if (maxDepth < 0) {
+            return _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'find: invalid maxdepth ${args[index + 1]}\n',
+            );
+          }
+          index += 2;
+          continue;
+        case '-name':
+          if (index + 1 >= args.length) {
+            return const _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'find: missing argument to -name\n',
+            );
+          }
+          namePattern = args[index + 1];
+          index += 2;
+          continue;
+        case '-type':
+          if (index + 1 >= args.length) {
+            return const _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'find: missing argument to -type\n',
+            );
+          }
+          requiredType = switch (args[index + 1]) {
+            'f' => FileSystemEntityType.file,
+            'd' => FileSystemEntityType.directory,
+            _ => null,
+          };
+          if (requiredType == null) {
+            return _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'find: unsupported type ${args[index + 1]}\n',
+            );
+          }
+          index += 2;
+          continue;
+        default:
+          return _LocalCommandResult(
+            exitCode: 1,
+            stderr: 'find: unsupported expression $arg\n',
+          );
+      }
+    }
+
+    final rootPath = FilesystemTools.resolvePath(
+      rootPathArg,
+      defaultRoot: workingDirectory,
+    );
+    if (rootPath == null) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'find: cannot resolve path $rootPathArg\n',
+      );
+    }
+
+    final rootType = await FileSystemEntity.type(rootPath);
+    if (rootType == FileSystemEntityType.notFound) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'find: $rootPathArg: No such file or directory\n',
+      );
+    }
+
+    final matcher = namePattern == null ? null : _wildcardToRegExp(namePattern);
+    final matches = <String>[];
+    await _collectFindMatches(
+      rootPath: rootPath,
+      currentPath: rootPath,
+      maxDepth: maxDepth,
+      currentDepth: 0,
+      requiredType: requiredType,
+      matcher: matcher,
+      matches: matches,
+    );
+
+    return _LocalCommandResult(
+      exitCode: 0,
+      stdout: matches.isEmpty ? '' : '${matches.join('\n')}\n',
+    );
+  }
+
+  static Future<void> _collectFindMatches({
+    required String rootPath,
+    required String currentPath,
+    required int maxDepth,
+    required int currentDepth,
+    required FileSystemEntityType? requiredType,
+    required RegExp? matcher,
+    required List<String> matches,
+  }) async {
+    final type = await FileSystemEntity.type(currentPath);
+    final relativePath = _relativePath(currentPath, rootPath);
+    final displayPath = relativePath == '.' ? '.' : './$relativePath';
+    final name = currentPath.split(Platform.pathSeparator).last;
+
+    final typeMatches =
+        requiredType == null ||
+        type == requiredType ||
+        (requiredType == FileSystemEntityType.directory && relativePath == '.');
+    final nameMatches = matcher == null || matcher.hasMatch(name);
+    if (typeMatches && nameMatches) {
+      matches.add(displayPath);
+    }
+
+    if (type != FileSystemEntityType.directory) return;
+    if (maxDepth >= 0 && currentDepth >= maxDepth) return;
+
+    await for (final entity in Directory(
+      currentPath,
+    ).list(followLinks: false)) {
+      await _collectFindMatches(
+        rootPath: rootPath,
+        currentPath: entity.path,
+        maxDepth: maxDepth,
+        currentDepth: currentDepth + 1,
+        requiredType: requiredType,
+        matcher: matcher,
+        matches: matches,
+      );
+    }
+  }
+
+  static Future<_LocalCommandResult> _executeRg(
+    List<String> args,
+    String workingDirectory,
+  ) async {
+    var ignoreCase = false;
+    var filesOnly = false;
+    var filePattern = '*';
+    final positional = <String>[];
+
+    for (var index = 0; index < args.length; index++) {
+      final arg = args[index];
+      switch (arg) {
+        case '-i':
+          ignoreCase = true;
+        case '-n':
+        case '-S':
+          break;
+        case '--files':
+          filesOnly = true;
+        case '-g':
+          if (index + 1 >= args.length) {
+            return const _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'rg: missing argument to -g\n',
+            );
+          }
+          filePattern = args[index + 1];
+          index += 1;
+        default:
+          if (arg.startsWith('-')) {
+            return _LocalCommandResult(
+              exitCode: 1,
+              stderr: 'rg: unsupported option $arg\n',
+            );
+          }
+          positional.add(arg);
+      }
+    }
+
+    if (filesOnly) {
+      final searchRootArg = positional.isEmpty ? '.' : positional.first;
+      final searchRoot = FilesystemTools.resolvePath(
+        searchRootArg,
+        defaultRoot: workingDirectory,
+      );
+      if (searchRoot == null) {
+        return _LocalCommandResult(
+          exitCode: 1,
+          stderr: 'rg: cannot resolve path $searchRootArg\n',
+        );
+      }
+      final result =
+          jsonDecode(
+                await FilesystemTools.findFiles(
+                  path: searchRoot,
+                  pattern: filePattern,
+                  recursive: true,
+                ),
+              )
+              as Map<String, dynamic>;
+      if (result['error'] != null) {
+        return _LocalCommandResult(
+          exitCode: 1,
+          stderr: 'rg: ${result['error']}\n',
+        );
+      }
+      final matches = (result['matches'] as List<dynamic>).cast<String>();
+      return _LocalCommandResult(
+        exitCode: 0,
+        stdout: matches.isEmpty ? '' : '${matches.join('\n')}\n',
+      );
+    }
+
+    if (positional.isEmpty) {
+      return const _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'rg: missing search pattern\n',
+      );
+    }
+
+    final pattern = positional.first;
+    final searchRootArg = positional.length > 1 ? positional[1] : '.';
+    final searchRoot = FilesystemTools.resolvePath(
+      searchRootArg,
+      defaultRoot: workingDirectory,
+    );
+    if (searchRoot == null) {
+      return _LocalCommandResult(
+        exitCode: 1,
+        stderr: 'rg: cannot resolve path $searchRootArg\n',
+      );
+    }
+
+    final matcher = RegExp(
+      pattern,
+      caseSensitive: !ignoreCase,
+      multiLine: true,
+    );
+    final matches = <String>[];
+
+    await for (final entity in Directory(
+      searchRoot,
+    ).list(recursive: true, followLinks: false)) {
+      if (entity is! File) continue;
+      final relativePath = _relativePath(entity.path, searchRoot);
+      final fileName = entity.uri.pathSegments.last;
+      if (!_wildcardToRegExp(filePattern).hasMatch(relativePath) &&
+          !_wildcardToRegExp(filePattern).hasMatch(fileName)) {
+        continue;
+      }
+      try {
+        final content = await entity.readAsString();
+        final lines = const LineSplitter().convert(content);
+        for (var lineIndex = 0; lineIndex < lines.length; lineIndex++) {
+          if (matcher.hasMatch(lines[lineIndex])) {
+            matches.add('$relativePath:${lineIndex + 1}:${lines[lineIndex]}');
+          }
+        }
+      } on FileSystemException {
+        continue;
+      } on FormatException {
+        continue;
+      }
+    }
+
+    return _LocalCommandResult(
+      exitCode: matches.isEmpty ? 1 : 0,
+      stdout: matches.isEmpty ? '' : '${matches.join('\n')}\n',
+    );
+  }
+
+  static RegExp _wildcardToRegExp(String pattern) {
+    final buffer = StringBuffer('^');
+    for (final rune in pattern.runes) {
+      final char = String.fromCharCode(rune);
+      if (char == '*') {
+        buffer.write('.*');
+      } else if (char == '?') {
+        buffer.write('.');
+      } else {
+        buffer.write(RegExp.escape(char));
+      }
+    }
+    buffer.write(r'$');
+    return RegExp(buffer.toString(), caseSensitive: false);
+  }
+
   static String _relativePath(String candidatePath, String basePath) {
     final absoluteCandidate = File(candidatePath).absolute.path;
     final absoluteBase = Directory(basePath).absolute.path;
@@ -510,4 +1102,30 @@ class _LocalCommandResult {
   final int exitCode;
   final String stdout;
   final String stderr;
+}
+
+class _ParsedHeadTailArgs {
+  const _ParsedHeadTailArgs({
+    required this.lineCount,
+    required this.filePaths,
+    this.error,
+  });
+
+  final int lineCount;
+  final List<String> filePaths;
+  final String? error;
+}
+
+class _FileCounts {
+  const _FileCounts({
+    this.lines = 0,
+    this.words = 0,
+    this.bytes = 0,
+    this.error,
+  });
+
+  final int lines;
+  final int words;
+  final int bytes;
+  final String? error;
 }

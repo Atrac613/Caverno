@@ -31,6 +31,16 @@ class SystemPromptBuilder {
     );
     final hasWebReader = uniqueToolNames.contains('web_url_read');
     final hasDatetimeTool = uniqueToolNames.contains('get_current_datetime');
+    final hasProjectReadTools =
+        uniqueToolNames.contains('list_directory') ||
+        uniqueToolNames.contains('read_file') ||
+        uniqueToolNames.contains('find_files') ||
+        uniqueToolNames.contains('search_files');
+    final hasProjectWriteTools =
+        uniqueToolNames.contains('write_file') ||
+        uniqueToolNames.contains('edit_file');
+    final hasLocalShellTool = uniqueToolNames.contains('local_execute_command');
+    final hasGitTool = uniqueToolNames.contains('git_execute_command');
 
     final date = _formatDate(now);
     final time = _formatTime(now);
@@ -82,6 +92,39 @@ class SystemPromptBuilder {
             projectName: normalizedProjectName,
             projectRootPath: normalizedProjectRootPath,
           ),
+        );
+      }
+      if (hasProjectReadTools) {
+        buffer.writeln(
+          'For codebase exploration, prefer list_directory, find_files, '
+          'search_files, and read_file before using local shell commands.',
+        );
+      }
+      if (hasProjectWriteTools) {
+        buffer.writeln(
+          'For file changes, prefer edit_file for targeted replacements and '
+          'write_file only when creating or fully rewriting files.',
+        );
+      }
+      if (hasLocalShellTool) {
+        buffer.writeln(
+          'Use local_execute_command mainly for running tests, analyzers, '
+          'formatters, or other toolchain commands that are awkward to '
+          'express with the file tools.',
+        );
+      }
+      if (hasGitTool) {
+        buffer.writeln(
+          'Use git_execute_command for repository inspection and git write '
+          'operations instead of generic shell commands when possible.',
+        );
+      }
+      if (hasProjectReadTools || hasLocalShellTool || hasGitTool) {
+        buffer.writeln(
+          'If a tool result contains permission_denied or '
+          'bookmark_restore_failed, do not repeat the same tool call with the '
+          'same arguments. Explain the access issue and ask the user to '
+          're-select the project folder or grant access.',
         );
       }
     }

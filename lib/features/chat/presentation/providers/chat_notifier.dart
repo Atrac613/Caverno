@@ -1030,6 +1030,13 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    if (!_settings.confirmFileMutations) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+    }
+
     final approved = await requestFileOperation(
       operation: 'Write File',
       path: path,
@@ -1072,6 +1079,13 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final preview = ['Old text:', oldText, '', 'New text:', newText].join('\n');
+    if (!_settings.confirmFileMutations) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+    }
+
     final approved = await requestFileOperation(
       operation: 'Edit File',
       path: path,
@@ -1117,6 +1131,13 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (LocalShellTools.isReadOnly(command)) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: resolvedArguments,
+      );
+    }
+
+    if (!_settings.confirmLocalCommands) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
@@ -1435,6 +1456,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Read-only commands execute immediately without user confirmation.
     if (GitTools.isReadOnly(command)) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: gitArguments,
+      );
+    }
+
+    if (!_settings.confirmGitWrites) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: gitArguments,

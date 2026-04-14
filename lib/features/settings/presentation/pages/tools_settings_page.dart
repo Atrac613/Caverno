@@ -27,6 +27,38 @@ class ToolsSettingsPage extends ConsumerWidget {
             value: settings.mcpEnabled,
             onChanged: notifier.updateMcpEnabled,
           ),
+          const SizedBox(height: 8),
+          Text(
+            'settings.coding_approval_section'.tr(),
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 8),
+          Card(
+            child: Column(
+              children: [
+                SwitchListTile(
+                  title: Text('settings.confirm_file_mutations'.tr()),
+                  subtitle: Text('settings.confirm_file_mutations_desc'.tr()),
+                  value: settings.confirmFileMutations,
+                  onChanged: notifier.updateConfirmFileMutations,
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: Text('settings.confirm_local_commands'.tr()),
+                  subtitle: Text('settings.confirm_local_commands_desc'.tr()),
+                  value: settings.confirmLocalCommands,
+                  onChanged: notifier.updateConfirmLocalCommands,
+                ),
+                const Divider(height: 1),
+                SwitchListTile(
+                  title: Text('settings.confirm_git_writes'.tr()),
+                  subtitle: Text('settings.confirm_git_writes_desc'.tr()),
+                  value: settings.confirmGitWrites,
+                  onChanged: notifier.updateConfirmGitWrites,
+                ),
+              ],
+            ),
+          ),
           const Divider(),
           _buildBuiltInToolsTile(context, settings),
           _buildMcpServersTile(context, settings),
@@ -62,9 +94,7 @@ class ToolsSettingsPage extends ConsumerWidget {
       leading: const Icon(Icons.dns_outlined),
       title: Text('settings.mcp_servers'.tr()),
       subtitle: Text(
-        'settings.mcp_servers_desc'.tr(
-          namedArgs: {'count': '$serverCount'},
-        ),
+        'settings.mcp_servers_desc'.tr(namedArgs: {'count': '$serverCount'}),
       ),
       trailing: const Icon(Icons.chevron_right),
       onTap: () => Navigator.push(

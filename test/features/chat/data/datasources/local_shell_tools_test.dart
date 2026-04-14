@@ -55,4 +55,78 @@ void main() {
     expect(result['stdout'], contains('--- pubspec.yaml content ---'));
     expect(result['stdout'], contains('name: sample'));
   });
+
+  test('executes head, tail, wc, find, and rg internally', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_extended_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    final libDir = Directory('${tempDir.path}/lib')
+      ..createSync(recursive: true);
+    final nestedDir = Directory('${libDir.path}/nested')
+      ..createSync(recursive: true);
+    await File(
+      '${libDir.path}/main.dart',
+    ).writeAsString('alpha\nbeta\ngamma\ndelta\n');
+    await File(
+      '${nestedDir.path}/feature.txt',
+    ).writeAsString('first line\nsecond line\nthird line\n');
+
+    final head =
+        jsonDecode(
+              await LocalShellTools.execute(
+                command: 'head -n 2 lib/main.dart',
+                workingDirectory: tempDir.path,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(head['executed_internally'], isTrue);
+    expect(head['stdout'], 'alpha\nbeta\n');
+
+    final tail =
+        jsonDecode(
+              await LocalShellTools.execute(
+                command: 'tail -n 2 lib/main.dart',
+                workingDirectory: tempDir.path,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(tail['stdout'], 'gamma\ndelta\n');
+
+    final wc =
+        jsonDecode(
+              await LocalShellTools.execute(
+                command: 'wc -lwc lib/main.dart',
+                workingDirectory: tempDir.path,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(wc['stdout'], contains('4'));
+    expect(wc['stdout'], contains('lib/main.dart'));
+
+    final find =
+        jsonDecode(
+              await LocalShellTools.execute(
+                command: 'find lib -type f -name *.txt',
+                workingDirectory: tempDir.path,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(find['stdout'], contains('./nested/feature.txt'));
+
+    final rg =
+        jsonDecode(
+              await LocalShellTools.execute(
+                command: 'rg second lib',
+                workingDirectory: tempDir.path,
+              ),
+            )
+            as Map<String, dynamic>;
+    expect(rg['stdout'], contains('nested/feature.txt:2:second line'));
+  });
 }
