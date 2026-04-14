@@ -93,6 +93,7 @@
     "tool_calculator": "計算",
     "tool_code": "コード実行",
     "tool_executing": "ツール実行中...",
+    "tool_result_ready": "結果を取得しました",
     "code_copy": "コピー",
     "code_copied": "コピー済み"
   },

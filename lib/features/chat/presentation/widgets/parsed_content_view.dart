@@ -9,7 +9,7 @@ import '../../../../core/utils/content_parser.dart';
 import 'code_block_builder.dart';
 
 /// Renders parsed content segments.
-/// `<think>` tags are shown in muted gray and `<tool_call>` tags as tool calls.
+/// `<think>` tags are shown in muted gray and tool tags as compact status cards.
 /// Completed thinking blocks are collapsible; streaming ones show live content.
 class ParsedContentView extends StatefulWidget {
   const ParsedContentView({
@@ -211,6 +211,9 @@ class _ParsedContentViewState extends State<ParsedContentView> {
 
       case ContentType.toolCall:
         return _buildToolCallBlock(segment, theme);
+
+      case ContentType.toolResult:
+        return _buildToolResultBlock(segment, theme);
     }
   }
 
@@ -331,6 +334,44 @@ class _ParsedContentViewState extends State<ParsedContentView> {
               ),
             ),
           ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildToolResultBlock(ContentSegment segment, ThemeData theme) {
+    final toolResult = segment.toolCall;
+    final toolName = toolResult?.name ?? 'content.tool_default'.tr();
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.outline.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            Icons.check_circle_outline,
+            size: 16,
+            color: theme.colorScheme.primary,
+          ),
+          const SizedBox(width: 6),
+          Expanded(
+            child: Text(
+              '${_getToolDisplayName(toolName)}: ${'content.tool_result_ready'.tr()}',
+              style: TextStyle(
+                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ),
         ],
       ),
     );

@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 /// Content segment types
-enum ContentType { text, thinking, toolCall }
+enum ContentType { text, thinking, toolCall, toolResult }
 
 /// Tool call data
 class ToolCallData {
@@ -62,7 +62,7 @@ class ContentParser {
   );
 
   static final _structuralTagPattern = RegExp(
-    r'</?(?:think|thinking|tool_call|tool_use)>',
+    r'</?(?:think|thinking|tool_call|tool_use|tool_result)>',
   );
 
   // Regex to detect complete tags
@@ -78,6 +78,11 @@ class ContentParser {
 
   static final _toolUsePattern = RegExp(
     r'<tool_use>(.*?)</tool_use>',
+    dotAll: true,
+  );
+
+  static final _toolResultPattern = RegExp(
+    r'<tool_result>(.*?)</tool_result>',
     dotAll: true,
   );
 
@@ -165,6 +170,18 @@ class ContentParser {
       );
     }
 
+    // Collect tool_result tags (display only)
+    for (final match in _toolResultPattern.allMatches(content)) {
+      allMatches.add(
+        _TagMatch(
+          start: match.start,
+          end: match.end,
+          type: ContentType.toolResult,
+          innerContent: match.group(1) ?? '',
+        ),
+      );
+    }
+
     // Sort by start position
     allMatches.sort((a, b) => a.start.compareTo(b.start));
 
@@ -198,6 +215,15 @@ class ContentParser {
             type: ContentType.toolCall,
             content: match.innerContent,
             toolCall: toolCall,
+          ),
+        );
+      } else if (match.type == ContentType.toolResult) {
+        final toolResult = _parseToolCallContent(match.innerContent);
+        segments.add(
+          ContentSegment(
+            type: ContentType.toolResult,
+            content: match.innerContent,
+            toolCall: toolResult,
           ),
         );
       }

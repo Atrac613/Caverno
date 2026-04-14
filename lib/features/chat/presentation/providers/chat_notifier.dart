@@ -987,7 +987,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
         updatedMessages[lastIndex] = lastMessage.copyWith(
           content:
-              '${lastMessage.content}\n\n📋 **Tool result (${tc.name}):**\n${result.result}',
+              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name)}',
         );
 
         state = state.copyWith(messages: updatedMessages);
@@ -1011,6 +1011,10 @@ class ChatNotifier extends Notifier<ChatState> {
         state = state.copyWith(messages: updatedMessages);
       }
     }
+  }
+
+  String _buildContentToolResultTag(String toolName) {
+    return '<tool_result>${jsonEncode({'name': toolName})}</tool_result>';
   }
 
   // ---------------------------------------------------------------------------

@@ -93,6 +93,7 @@
     "tool_calculator": "Calculator",
     "tool_code": "Code Execution",
     "tool_executing": "Executing tool...",
+    "tool_result_ready": "result ready",
     "code_copy": "Copy",
     "code_copied": "Copied!"
   },
