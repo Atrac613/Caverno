@@ -72,12 +72,17 @@ void main() {
 
   test('parse extracts tool_result display blocks', () {
     const content =
-        'Working...\n<tool_result>{"name":"list_directory"}</tool_result>';
+        'Working...\n<tool_result>{"name":"list_directory","summary":"3 item(s)","details":["[dir] lib","[file] pubspec.yaml"]}</tool_result>';
 
     final result = ContentParser.parse(content);
 
     expect(result.segments, hasLength(2));
     expect(result.segments.last.type, ContentType.toolResult);
     expect(result.segments.last.toolCall?.name, 'list_directory');
+    expect(result.segments.last.toolCall?.arguments['summary'], '3 item(s)');
+    expect(
+      result.segments.last.toolCall?.arguments['details'],
+      ['[dir] lib', '[file] pubspec.yaml'],
+    );
   });
 }

@@ -342,6 +342,14 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   Widget _buildToolResultBlock(ContentSegment segment, ThemeData theme) {
     final toolResult = segment.toolCall;
     final toolName = toolResult?.name ?? 'content.tool_default'.tr();
+    final summary =
+        toolResult?.arguments['summary'] as String? ??
+        'content.tool_result_ready'.tr();
+    final details = ((toolResult?.arguments['details'] as List?) ?? const [])
+        .map((item) => item.toString())
+        .where((item) => item.trim().isNotEmpty)
+        .take(3)
+        .toList();
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -363,13 +371,43 @@ class _ParsedContentViewState extends State<ParsedContentView> {
           ),
           const SizedBox(width: 6),
           Expanded(
-            child: Text(
-              '${_getToolDisplayName(toolName)}: ${'content.tool_result_ready'.tr()}',
-              style: TextStyle(
-                color: theme.colorScheme.onSurface.withValues(alpha: 0.8),
-                fontSize: 12,
-                fontWeight: FontWeight.w500,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _getToolDisplayName(toolName),
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.85),
+                    fontSize: 12,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  summary,
+                  style: TextStyle(
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+                    fontSize: 12,
+                  ),
+                ),
+                if (details.isNotEmpty) ...[
+                  const SizedBox(height: 4),
+                  for (final detail in details)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 2),
+                      child: Text(
+                        '• $detail',
+                        style: TextStyle(
+                          color: theme.colorScheme.onSurface.withValues(
+                            alpha: 0.62,
+                          ),
+                          fontSize: 11,
+                          height: 1.35,
+                        ),
+                      ),
+                    ),
+                ],
+              ],
             ),
           ),
         ],
