@@ -412,7 +412,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount: chatState.messages.length,
                     itemBuilder: (context, index) {
-                      return MessageBubble(message: chatState.messages[index]);
+                      return MessageBubble(
+                        message: chatState.messages[index],
+                        onReselectProject: isCodingWorkspace
+                            ? () => _pickAndActivateProject(context)
+                            : null,
+                      );
                     },
                   ),
           ),
