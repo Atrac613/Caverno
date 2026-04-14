@@ -85,6 +85,9 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.2.0
 
+  # Desktop window management
+  window_manager: ^0.4.3
+
   # SSH remote server tool
   dartssh2: ^2.17.1
   flutter_secure_storage: ^10.0.0
