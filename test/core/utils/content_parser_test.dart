@@ -47,4 +47,26 @@ void main() {
     expect(toolCalls.last.occurrenceId, isNotNull);
     expect(toolCalls.first.occurrenceId, isNot(toolCalls.last.occurrenceId));
   });
+
+  test('parse strips model control tokens from streaming think content', () {
+    const content = '<think> <channel|>flutter pub get was executed.';
+
+    final result = ContentParser.parse(content);
+
+    expect(result.hasIncompleteTag, isTrue);
+    expect(result.incompleteTagType, 'thinking');
+    expect(result.incompleteTagContent, 'flutter pub get was executed.');
+  });
+
+  test('parse strips stray structural tags from text segments', () {
+    const content = 'Done. <think>Hidden</think> Visible <channel|>text';
+
+    final result = ContentParser.parse(content);
+    final text = result.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
+
+    expect(text, 'Done.  Visible text');
+  });
 }

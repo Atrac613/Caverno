@@ -214,7 +214,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     cancelStreaming();
     _executedContentToolCalls.clear();
-    _seenContentToolOccurrences.clear();
+    _seenContentToolCallHashes.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
@@ -372,7 +372,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
-  final Set<String> _seenContentToolOccurrences = {};
+  final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
@@ -920,9 +920,7 @@ class ChatNotifier extends Notifier<ChatState> {
   void _checkForContentToolCalls(String content) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
     final freshToolCalls = toolCalls.where((tc) {
-      final occurrenceId =
-          tc.occurrenceId ?? '${tc.name}:${jsonEncode(tc.arguments)}';
-      return _seenContentToolOccurrences.add(occurrenceId);
+      return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
     }).toList();
 
     if (freshToolCalls.isNotEmpty) {
@@ -952,6 +950,10 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[ContentTool] Already executed: $hash');
       }
     }
+  }
+
+  String _contentToolCallHash(ToolCallData toolCall) {
+    return '${toolCall.name}:${jsonEncode(toolCall.arguments)}';
   }
 
   /// Executes a `tool_call` detected from message content.
@@ -1780,6 +1782,9 @@ class ChatNotifier extends Notifier<ChatState> {
             'Continue the task using the following tool results. '
             'If you need more information, call another tool. '
             'Do not repeat a tool call with the same arguments after a '
+            'successful result. Reuse the tool result that is already '
+            'provided and continue from it. '
+            'Do not repeat a tool call with the same arguments after a '
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '
             'folder or grant access instead.\n\n$resultsText',
@@ -2188,7 +2193,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
-    _seenContentToolOccurrences.clear();
+    _seenContentToolCallHashes.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;

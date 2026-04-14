@@ -57,6 +57,14 @@ class ParseResult {
 /// Content parser
 /// Parses `\<think>` and `\<tool_call>` tags in LLM responses.
 class ContentParser {
+  static final _modelControlTokenPattern = RegExp(
+    r'<\|?[a-zA-Z_][a-zA-Z0-9_-]*\|>',
+  );
+
+  static final _structuralTagPattern = RegExp(
+    r'</?(?:think|thinking|tool_call|tool_use)>',
+  );
+
   // Regex to detect complete tags
   static final _thinkPattern = RegExp(
     r'<(think|thinking)>(.*?)</(think|thinking)>',
@@ -165,7 +173,9 @@ class ContentParser {
     for (final match in allMatches) {
       // Add text before the tag if present
       if (match.start > currentPos) {
-        final textBefore = content.substring(currentPos, match.start);
+        final textBefore = _sanitizeDisplayText(
+          content.substring(currentPos, match.start),
+        );
         if (textBefore.trim().isNotEmpty) {
           segments.add(
             ContentSegment(type: ContentType.text, content: textBefore),
@@ -178,7 +188,7 @@ class ContentParser {
         segments.add(
           ContentSegment(
             type: ContentType.thinking,
-            content: match.innerContent.trim(),
+            content: _sanitizeDisplayText(match.innerContent).trim(),
           ),
         );
       } else if (match.type == ContentType.toolCall) {
@@ -238,9 +248,13 @@ class ContentParser {
         }
       }
 
-      if (remainingText.trim().isNotEmpty) {
+      final sanitizedRemainingText = _sanitizeDisplayText(remainingText);
+      if (sanitizedRemainingText.trim().isNotEmpty) {
         segments.add(
-          ContentSegment(type: ContentType.text, content: remainingText),
+          ContentSegment(
+            type: ContentType.text,
+            content: sanitizedRemainingText,
+          ),
         );
       }
     }
@@ -249,7 +263,9 @@ class ContentParser {
       segments: segments,
       hasIncompleteTag: hasIncompleteTag,
       incompleteTagType: incompleteTagType,
-      incompleteTagContent: capturedIncompleteContent,
+      incompleteTagContent: capturedIncompleteContent == null
+          ? null
+          : _sanitizeDisplayText(capturedIncompleteContent),
     );
   }
 
@@ -380,6 +396,12 @@ class ContentParser {
     }
 
     return null;
+  }
+
+  static String _sanitizeDisplayText(String text) {
+    return text
+        .replaceAll(_modelControlTokenPattern, '')
+        .replaceAll(_structuralTagPattern, '');
   }
 }
 
