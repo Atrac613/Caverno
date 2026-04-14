@@ -75,7 +75,7 @@ class McpToolService {
     this.disabledBuiltInTools = const {},
   });
 
-  final List<McpClient> mcpClients;
+  final List<McpClientBase> mcpClients;
   final SearxngClient? searxngClient;
   final ConversationRepository? conversationRepository;
   final ChatMemoryRepository? memoryRepository;
@@ -112,15 +112,16 @@ class McpToolService {
     List<String>? overrideUrls,
     String? overrideUrl,
   }) async {
-    final targetUrls = overrideUrls != null
-        ? _normalizeUrls(overrideUrls)
-        : overrideUrl != null
-        ? _normalizeUrls([overrideUrl])
-        : _normalizeUrls(mcpClients.map((client) => client.baseUrl));
+    final clients = overrideUrls != null || overrideUrl != null
+        ? _resolveClients(
+            targetUrls: overrideUrls ?? [overrideUrl!],
+            useOverrides: true,
+          )
+        : mcpClients;
 
-    if (targetUrls.isEmpty) {
+    if (clients.isEmpty) {
       appLog(
-        '[McpToolService] No MCP URLs configured, running without remote MCP',
+        '[McpToolService] No MCP clients configured, running without remote MCP',
       );
       _status = McpConnectionStatus.disconnected;
       _lastError = null;
@@ -130,17 +131,12 @@ class McpToolService {
       return;
     }
 
-    final clients = _resolveClients(
-      targetUrls: targetUrls,
-      useOverrides: overrideUrls != null || overrideUrl != null,
-    );
-
     _status = McpConnectionStatus.connecting;
     _lastError = null;
-    _serverStates = targetUrls
+    _serverStates = clients
         .map(
-          (url) => McpServerConnectionInfo(
-            url: url,
+          (client) => McpServerConnectionInfo(
+            identifier: client.identifier,
             status: McpConnectionStatus.connecting,
           ),
         )
@@ -151,7 +147,7 @@ class McpToolService {
       _serverStates = results
           .map(
             (result) => McpServerConnectionInfo(
-              url: result.url,
+              identifier: result.identifier,
               status: result.status,
               toolCount: result.tools.length,
               lastError: result.error,
@@ -170,7 +166,7 @@ class McpToolService {
         _lastError = failedResults.isEmpty
             ? null
             : failedResults
-                  .map((result) => '${result.url}: ${result.error}')
+                  .map((result) => '${result.identifier}: ${result.error}')
                   .join(' | ');
         appLog(
           '[McpToolService] Connected to ${successfulResults.length} MCP server(s): fetched ${_cachedTools.length} tools',
@@ -183,7 +179,7 @@ class McpToolService {
 
       _status = McpConnectionStatus.error;
       _lastError = failedResults
-          .map((result) => '${result.url}: ${result.error}')
+          .map((result) => '${result.identifier}: ${result.error}')
           .join(' | ');
       _cachedTools = [];
       _remoteToolBindings.clear();
@@ -194,10 +190,10 @@ class McpToolService {
       _lastError = e.toString();
       _cachedTools = [];
       _remoteToolBindings.clear();
-      _serverStates = targetUrls
+      _serverStates = clients
           .map(
-            (url) => McpServerConnectionInfo(
-              url: url,
+            (client) => McpServerConnectionInfo(
+              identifier: client.identifier,
               status: McpConnectionStatus.error,
               lastError: e.toString(),
             ),
@@ -211,21 +207,21 @@ class McpToolService {
     await connect();
   }
 
-  Future<_McpConnectionResult> _connectClient(McpClient client) async {
+  Future<_McpConnectionResult> _connectClient(McpClientBase client) async {
     try {
       final tools = await client.listTools();
       return _McpConnectionResult(
-        url: client.baseUrl,
+        identifier: client.identifier,
         client: client,
         tools: tools,
       );
     } catch (e, stackTrace) {
       appLog(
-        '[McpToolService] Connection failed for ${client.baseUrl}: ${e.runtimeType}: $e',
+        '[McpToolService] Connection failed for ${client.identifier}: ${e.runtimeType}: $e',
       );
       appLog('[McpToolService] stackTrace: $stackTrace');
       return _McpConnectionResult(
-        url: client.baseUrl,
+        identifier: client.identifier,
         client: client,
         error: e.toString(),
       );
@@ -255,7 +251,7 @@ class McpToolService {
       for (final tool in result.tools) {
         final exposedName = _buildExposedToolName(
           baseName: tool.name,
-          url: result.url,
+          url: result.identifier,
           usedNames: usedNames,
           duplicateCount: nameCounts[tool.name] ?? 1,
         );
@@ -266,7 +262,7 @@ class McpToolService {
             originalName: tool.name,
             description: tool.description,
             inputSchema: tool.inputSchema,
-            sourceUrl: result.url,
+            sourceUrl: result.identifier,
           ),
         );
         _remoteToolBindings[exposedName] = _RemoteToolBinding(
@@ -302,7 +298,7 @@ class McpToolService {
     return candidate;
   }
 
-  List<McpClient> _resolveClients({
+  List<McpClientBase> _resolveClients({
     required List<String> targetUrls,
     required bool useOverrides,
   }) {
@@ -312,13 +308,13 @@ class McpToolService {
           .toList(growable: false);
     }
 
-    final clientsByUrl = <String, McpClient>{};
+    final clientsById = <String, McpClientBase>{};
     for (final client in mcpClients) {
-      clientsByUrl.putIfAbsent(client.baseUrl.trim(), () => client);
+      clientsById.putIfAbsent(client.identifier.trim(), () => client);
     }
 
     return targetUrls
-        .map((url) => clientsByUrl[url] ?? McpClient(baseUrl: url))
+        .map((url) => clientsById[url] ?? McpClient(baseUrl: url))
         .toList(growable: false);
   }
 
@@ -368,21 +364,6 @@ class McpToolService {
       hash = (hash * 31 + codeUnit) & 0x3fffffff;
     }
     return hash.toRadixString(36).padLeft(6, '0');
-  }
-
-  List<String> _normalizeUrls(Iterable<String> values) {
-    final normalized = <String>[];
-    final seen = <String>{};
-
-    for (final value in values) {
-      final trimmed = value.trim();
-      if (trimmed.isEmpty || !seen.add(trimmed)) {
-        continue;
-      }
-      normalized.add(trimmed);
-    }
-
-    return normalized;
   }
 
   /// Returns tool definitions for the LLM.
@@ -2581,20 +2562,20 @@ class _RemoteToolBinding {
     required this.remoteToolName,
   });
 
-  final McpClient client;
+  final McpClientBase client;
   final String remoteToolName;
 }
 
 class _McpConnectionResult {
   const _McpConnectionResult({
-    required this.url,
+    required this.identifier,
     required this.client,
     this.tools = const [],
     this.error,
   });
 
-  final String url;
-  final McpClient client;
+  final String identifier;
+  final McpClientBase client;
   final List<McpTool> tools;
   final String? error;
 

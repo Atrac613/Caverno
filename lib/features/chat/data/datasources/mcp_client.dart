@@ -4,10 +4,34 @@ import 'package:http/http.dart' as http;
 
 import '../../../../core/utils/logger.dart';
 
-class McpClient {
+/// Common interface for MCP clients regardless of transport.
+abstract class McpClientBase {
+  /// Human-readable identifier (URL for HTTP, command for stdio).
+  String get identifier;
+
+  /// Initialize the MCP session (protocol handshake).
+  Future<void> initialize();
+
+  /// Fetch available tools from the server.
+  Future<List<McpTool>> listTools();
+
+  /// Execute a tool by name with the given arguments.
+  Future<String> callTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  });
+
+  /// Release resources (close HTTP client, kill process, etc.).
+  Future<void> dispose();
+}
+
+class McpClient implements McpClientBase {
   McpClient({required this.baseUrl});
 
   final String baseUrl;
+
+  @override
+  String get identifier => baseUrl;
 
   /// MCP session ID for the streamable HTTP transport.
   String? _sessionId;
@@ -15,7 +39,13 @@ class McpClient {
   /// Returns the current session ID.
   String? get sessionId => _sessionId;
 
+  @override
+  Future<void> dispose() async {
+    // HTTP client has no persistent resources to clean up.
+  }
+
   /// Initializes the MCP server and stores the session ID.
+  @override
   Future<void> initialize() async {
     appLog('[McpClient] initialize request → $baseUrl');
     final requestBody = jsonEncode({
@@ -81,6 +111,7 @@ class McpClient {
   }
 
   /// Fetches the tool list from the MCP server.
+  @override
   Future<List<McpTool>> listTools() async {
     // Initialize the session on first use.
     if (_sessionId == null) {
@@ -131,6 +162,7 @@ class McpClient {
   }
 
   /// Executes a tool.
+  @override
   Future<String> callTool({
     required String name,
     required Map<String, dynamic> arguments,

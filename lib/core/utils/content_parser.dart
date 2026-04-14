@@ -1,7 +1,7 @@
 import 'dart:convert';
 
 /// Content segment types
-enum ContentType { text, thinking, toolCall }
+enum ContentType { text, thinking, toolCall, toolResult }
 
 /// Tool call data
 class ToolCallData {
@@ -57,6 +57,14 @@ class ParseResult {
 /// Content parser
 /// Parses `\<think>` and `\<tool_call>` tags in LLM responses.
 class ContentParser {
+  static final _modelControlTokenPattern = RegExp(
+    r'<\|?[a-zA-Z_][a-zA-Z0-9_-]*\|>',
+  );
+
+  static final _structuralTagPattern = RegExp(
+    r'</?(?:think|thinking|tool_call|tool_use|tool_result)>',
+  );
+
   // Regex to detect complete tags
   static final _thinkPattern = RegExp(
     r'<(think|thinking)>(.*?)</(think|thinking)>',
@@ -70,6 +78,11 @@ class ContentParser {
 
   static final _toolUsePattern = RegExp(
     r'<tool_use>(.*?)</tool_use>',
+    dotAll: true,
+  );
+
+  static final _toolResultPattern = RegExp(
+    r'<tool_result>(.*?)</tool_result>',
     dotAll: true,
   );
 
@@ -157,6 +170,18 @@ class ContentParser {
       );
     }
 
+    // Collect tool_result tags (display only)
+    for (final match in _toolResultPattern.allMatches(content)) {
+      allMatches.add(
+        _TagMatch(
+          start: match.start,
+          end: match.end,
+          type: ContentType.toolResult,
+          innerContent: match.group(1) ?? '',
+        ),
+      );
+    }
+
     // Sort by start position
     allMatches.sort((a, b) => a.start.compareTo(b.start));
 
@@ -165,7 +190,9 @@ class ContentParser {
     for (final match in allMatches) {
       // Add text before the tag if present
       if (match.start > currentPos) {
-        final textBefore = content.substring(currentPos, match.start);
+        final textBefore = _sanitizeDisplayText(
+          content.substring(currentPos, match.start),
+        );
         if (textBefore.trim().isNotEmpty) {
           segments.add(
             ContentSegment(type: ContentType.text, content: textBefore),
@@ -178,7 +205,7 @@ class ContentParser {
         segments.add(
           ContentSegment(
             type: ContentType.thinking,
-            content: match.innerContent.trim(),
+            content: _sanitizeDisplayText(match.innerContent).trim(),
           ),
         );
       } else if (match.type == ContentType.toolCall) {
@@ -188,6 +215,15 @@ class ContentParser {
             type: ContentType.toolCall,
             content: match.innerContent,
             toolCall: toolCall,
+          ),
+        );
+      } else if (match.type == ContentType.toolResult) {
+        final toolResult = _parseToolCallContent(match.innerContent);
+        segments.add(
+          ContentSegment(
+            type: ContentType.toolResult,
+            content: match.innerContent,
+            toolCall: toolResult,
           ),
         );
       }
@@ -238,9 +274,13 @@ class ContentParser {
         }
       }
 
-      if (remainingText.trim().isNotEmpty) {
+      final sanitizedRemainingText = _sanitizeDisplayText(remainingText);
+      if (sanitizedRemainingText.trim().isNotEmpty) {
         segments.add(
-          ContentSegment(type: ContentType.text, content: remainingText),
+          ContentSegment(
+            type: ContentType.text,
+            content: sanitizedRemainingText,
+          ),
         );
       }
     }
@@ -249,7 +289,9 @@ class ContentParser {
       segments: segments,
       hasIncompleteTag: hasIncompleteTag,
       incompleteTagType: incompleteTagType,
-      incompleteTagContent: capturedIncompleteContent,
+      incompleteTagContent: capturedIncompleteContent == null
+          ? null
+          : _sanitizeDisplayText(capturedIncompleteContent),
     );
   }
 
@@ -380,6 +422,12 @@ class ContentParser {
     }
 
     return null;
+  }
+
+  static String _sanitizeDisplayText(String text) {
+    return text
+        .replaceAll(_modelControlTokenPattern, '')
+        .replaceAll(_structuralTagPattern, '');
   }
 }
 

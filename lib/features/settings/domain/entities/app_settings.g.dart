@@ -10,10 +10,32 @@ _McpServerConfig _$McpServerConfigFromJson(Map<String, dynamic> json) =>
     _McpServerConfig(
       url: json['url'] as String? ?? '',
       enabled: json['enabled'] as bool? ?? true,
+      type:
+          $enumDecodeNullable(
+            _$McpServerTypeEnumMap,
+            json['type'],
+            unknownValue: McpServerType.http,
+          ) ??
+          McpServerType.http,
+      command: json['command'] as String? ?? '',
+      args:
+          (json['args'] as List<dynamic>?)?.map((e) => e as String).toList() ??
+          const <String>[],
     );
 
 Map<String, dynamic> _$McpServerConfigToJson(_McpServerConfig instance) =>
-    <String, dynamic>{'url': instance.url, 'enabled': instance.enabled};
+    <String, dynamic>{
+      'url': instance.url,
+      'enabled': instance.enabled,
+      'type': _$McpServerTypeEnumMap[instance.type]!,
+      'command': instance.command,
+      'args': instance.args,
+    };
+
+const _$McpServerTypeEnumMap = {
+  McpServerType.http: 'http',
+  McpServerType.stdio: 'stdio',
+};
 
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   baseUrl: json['baseUrl'] as String,

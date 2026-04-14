@@ -47,4 +47,42 @@ void main() {
     expect(toolCalls.last.occurrenceId, isNotNull);
     expect(toolCalls.first.occurrenceId, isNot(toolCalls.last.occurrenceId));
   });
+
+  test('parse strips model control tokens from streaming think content', () {
+    const content = '<think> <channel|>flutter pub get was executed.';
+
+    final result = ContentParser.parse(content);
+
+    expect(result.hasIncompleteTag, isTrue);
+    expect(result.incompleteTagType, 'thinking');
+    expect(result.incompleteTagContent, 'flutter pub get was executed.');
+  });
+
+  test('parse strips stray structural tags from text segments', () {
+    const content = 'Done. <think>Hidden</think> Visible <channel|>text';
+
+    final result = ContentParser.parse(content);
+    final text = result.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
+
+    expect(text, 'Done.  Visible text');
+  });
+
+  test('parse extracts tool_result display blocks', () {
+    const content =
+        'Working...\n<tool_result>{"name":"list_directory","summary":"3 item(s)","details":["[dir] lib","[file] pubspec.yaml"]}</tool_result>';
+
+    final result = ContentParser.parse(content);
+
+    expect(result.segments, hasLength(2));
+    expect(result.segments.last.type, ContentType.toolResult);
+    expect(result.segments.last.toolCall?.name, 'list_directory');
+    expect(result.segments.last.toolCall?.arguments['summary'], '3 item(s)');
+    expect(
+      result.segments.last.toolCall?.arguments['details'],
+      ['[dir] lib', '[file] pubspec.yaml'],
+    );
+  });
 }

@@ -214,7 +214,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     cancelStreaming();
     _executedContentToolCalls.clear();
-    _seenContentToolOccurrences.clear();
+    _seenContentToolCallHashes.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
@@ -372,7 +372,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Tracks executed `tool_call`s to avoid duplicate execution.
   final Set<String> _executedContentToolCalls = {};
-  final Set<String> _seenContentToolOccurrences = {};
+  final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
@@ -920,9 +920,7 @@ class ChatNotifier extends Notifier<ChatState> {
   void _checkForContentToolCalls(String content) {
     final toolCalls = ContentParser.extractCompletedToolCalls(content);
     final freshToolCalls = toolCalls.where((tc) {
-      final occurrenceId =
-          tc.occurrenceId ?? '${tc.name}:${jsonEncode(tc.arguments)}';
-      return _seenContentToolOccurrences.add(occurrenceId);
+      return _seenContentToolCallHashes.add(_contentToolCallHash(tc));
     }).toList();
 
     if (freshToolCalls.isNotEmpty) {
@@ -952,6 +950,10 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[ContentTool] Already executed: $hash');
       }
     }
+  }
+
+  String _contentToolCallHash(ToolCallData toolCall) {
+    return '${toolCall.name}:${jsonEncode(toolCall.arguments)}';
   }
 
   /// Executes a `tool_call` detected from message content.
@@ -985,7 +987,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
         updatedMessages[lastIndex] = lastMessage.copyWith(
           content:
-              '${lastMessage.content}\n\n📋 **Tool result (${tc.name}):**\n${result.result}',
+              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, result.result)}',
         );
 
         state = state.copyWith(messages: updatedMessages);
@@ -1009,6 +1011,141 @@ class ChatNotifier extends Notifier<ChatState> {
         state = state.copyWith(messages: updatedMessages);
       }
     }
+  }
+
+  String _buildContentToolResultTag(String toolName, String result) {
+    final payload = _buildContentToolResultPayload(toolName, result);
+    return '<tool_result>${jsonEncode(payload)}</tool_result>';
+  }
+
+  Map<String, dynamic> _buildContentToolResultPayload(
+    String toolName,
+    String result,
+  ) {
+    final details = <String>[];
+    String? summary;
+
+    try {
+      final decoded = jsonDecode(result);
+      if (decoded is Map<String, dynamic>) {
+        summary = _summarizeToolResultMap(decoded, details);
+      } else if (decoded is List) {
+        summary = '${decoded.length} item(s)';
+        details.addAll(
+          decoded.take(3).map((item) => _compactToolResultValue(item)),
+        );
+      }
+    } catch (_) {
+      final lines = result
+          .split(RegExp(r'[\r\n]+'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      if (lines.isNotEmpty) {
+        summary = _truncateToolResultText(lines.first, maxLength: 72);
+        details.addAll(
+          lines.skip(1).take(2).map(
+                (line) => _truncateToolResultText(line, maxLength: 96),
+              ),
+        );
+      }
+    }
+
+    summary ??= 'Completed';
+    return {
+      'name': toolName,
+      'summary': summary,
+      if (details.isNotEmpty) 'details': details,
+    };
+  }
+
+  String _summarizeToolResultMap(
+    Map<String, dynamic> data,
+    List<String> details,
+  ) {
+    final path = data['path'];
+    final entries = data['entries'];
+    final matches = data['matches'];
+    final content = data['content'];
+
+    if (entries is List) {
+      details.addAll(
+        entries
+            .take(3)
+            .map((entry) => _truncateToolResultText(entry.toString())),
+      );
+      final count = data['entry_count'] ?? entries.length;
+      return '$count item(s) in ${_compactToolResultValue(path)}';
+    }
+
+    if (matches is List) {
+      details.addAll(
+        matches
+            .take(3)
+            .map((match) => _truncateToolResultText(match.toString())),
+      );
+      final count = data['match_count'] ?? matches.length;
+      if (data.containsKey('query')) {
+        return '$count match(es) for ${_compactToolResultValue(data['query'])}';
+      }
+      if (data.containsKey('pattern')) {
+        return '$count file(s) for ${_compactToolResultValue(data['pattern'])}';
+      }
+      return '$count match(es)';
+    }
+
+    if (content is String) {
+      final lines = content
+          .split(RegExp(r'[\r\n]+'))
+          .map((line) => line.trim())
+          .where((line) => line.isNotEmpty)
+          .toList();
+      details.addAll(
+        lines.take(2).map((line) => _truncateToolResultText(line, maxLength: 96)),
+      );
+      return _compactToolResultValue(path);
+    }
+
+    if (data.containsKey('bytes_written')) {
+      details.add('bytes: ${data['bytes_written']}');
+      if (data['created'] == true) {
+        details.add('created');
+      }
+      return _compactToolResultValue(path);
+    }
+
+    if (data.containsKey('replacements')) {
+      details.add('replacements: ${data['replacements']}');
+      if (data['replace_all'] == true) {
+        details.add('replace all');
+      }
+      return _compactToolResultValue(path);
+    }
+
+    final prioritizedEntries = data.entries
+        .where((entry) => entry.value != null && entry.value.toString().isNotEmpty)
+        .take(3);
+    details.addAll(
+      prioritizedEntries.map(
+        (entry) =>
+            '${entry.key}: ${_truncateToolResultText(_compactToolResultValue(entry.value), maxLength: 72)}',
+      ),
+    );
+    return _compactToolResultValue(path ?? data['query'] ?? data['pattern'] ?? 'Completed');
+  }
+
+  String _compactToolResultValue(dynamic value) {
+    if (value == null) return 'unknown';
+    if (value is String) return value;
+    return jsonEncode(value);
+  }
+
+  String _truncateToolResultText(String value, {int maxLength = 88}) {
+    final normalized = value.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return '${normalized.substring(0, maxLength - 1)}...';
   }
 
   // ---------------------------------------------------------------------------
@@ -1780,6 +1917,9 @@ class ChatNotifier extends Notifier<ChatState> {
             'Continue the task using the following tool results. '
             'If you need more information, call another tool. '
             'Do not repeat a tool call with the same arguments after a '
+            'successful result. Reuse the tool result that is already '
+            'provided and continue from it. '
+            'Do not repeat a tool call with the same arguments after a '
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '
             'folder or grant access instead.\n\n$resultsText',
@@ -2188,7 +2328,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     cancelStreaming();
     _executedContentToolCalls.clear();
-    _seenContentToolOccurrences.clear();
+    _seenContentToolCallHashes.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;

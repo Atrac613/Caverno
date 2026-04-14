@@ -8,6 +8,9 @@ import '../../../../core/types/assistant_mode.dart';
 part 'app_settings.freezed.dart';
 part 'app_settings.g.dart';
 
+/// Transport type for an MCP server.
+enum McpServerType { http, stdio }
+
 @freezed
 abstract class McpServerConfig with _$McpServerConfig {
   const McpServerConfig._();
@@ -15,12 +18,30 @@ abstract class McpServerConfig with _$McpServerConfig {
   const factory McpServerConfig({
     @Default('') String url,
     @Default(true) bool enabled,
+    @JsonKey(unknownEnumValue: McpServerType.http)
+    @Default(McpServerType.http)
+    McpServerType type,
+    @Default('') String command,
+    @Default(<String>[]) List<String> args,
   }) = _McpServerConfig;
 
   factory McpServerConfig.fromJson(Map<String, dynamic> json) =>
       _$McpServerConfigFromJson(json);
 
   String get normalizedUrl => url.trim();
+
+  /// Whether this server configuration has enough data to attempt a connection.
+  bool get isValid => switch (type) {
+    McpServerType.http => normalizedUrl.isNotEmpty,
+    McpServerType.stdio => command.trim().isNotEmpty,
+  };
+
+  /// Human-readable label for display and logging.
+  String get displayLabel => switch (type) {
+    McpServerType.http => normalizedUrl,
+    McpServerType.stdio =>
+      args.isEmpty ? command.trim() : '${command.trim()} ${args.join(' ')}',
+  };
 }
 
 @freezed
@@ -91,14 +112,18 @@ abstract class AppSettings with _$AppSettings {
 
   List<McpServerConfig> get enabledMcpServers {
     final enabledServers = <McpServerConfig>[];
-    final seenUrls = <String>{};
+    final seenIds = <String>{};
 
     for (final server in effectiveMcpServers) {
-      final url = server.normalizedUrl;
-      if (!server.enabled || url.isEmpty || !seenUrls.add(url)) {
-        continue;
-      }
-      enabledServers.add(server.copyWith(url: url));
+      if (!server.enabled || !server.isValid) continue;
+      final id = server.displayLabel;
+      if (!seenIds.add(id)) continue;
+
+      enabledServers.add(
+        server.type == McpServerType.http
+            ? server.copyWith(url: server.normalizedUrl)
+            : server,
+      );
     }
 
     return enabledServers;

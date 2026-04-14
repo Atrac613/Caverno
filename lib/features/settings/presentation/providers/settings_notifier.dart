@@ -65,7 +65,10 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateMcpServers(List<McpServerConfig> mcpServers) async {
-    final activeUrls = AppSettings.activeMcpUrlsFromServers(mcpServers);
+    final httpServers = mcpServers.where(
+      (s) => s.type == McpServerType.http,
+    );
+    final activeUrls = AppSettings.activeMcpUrlsFromServers(httpServers);
     state = state.copyWith(
       mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
       mcpUrls: activeUrls,
@@ -81,10 +84,34 @@ class SettingsNotifier extends Notifier<AppSettings> {
     ]);
   }
 
+  Future<void> addMcpStdioServer() async {
+    await updateMcpServers([
+      ...state.configuredMcpServers,
+      const McpServerConfig(type: McpServerType.stdio),
+    ]);
+  }
+
   Future<void> updateMcpServerUrl(int index, String url) async {
     final servers = List<McpServerConfig>.from(state.configuredMcpServers);
     if (index < 0 || index >= servers.length) return;
     servers[index] = servers[index].copyWith(url: url);
+    await updateMcpServers(servers);
+  }
+
+  Future<void> updateMcpServerCommand(int index, String command) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    servers[index] = servers[index].copyWith(command: command);
+    await updateMcpServers(servers);
+  }
+
+  Future<void> updateMcpServerArgs(int index, String argsString) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    final args = argsString.trim().isEmpty
+        ? <String>[]
+        : argsString.split(RegExp(r'\s+')).toList();
+    servers[index] = servers[index].copyWith(args: args);
     await updateMcpServers(servers);
   }
 
