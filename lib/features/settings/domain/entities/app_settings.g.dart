@@ -46,6 +46,9 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
         unknownValue: AssistantMode.general,
       ) ??
       AssistantMode.general,
+  confirmFileMutations: json['confirmFileMutations'] as bool? ?? true,
+  confirmLocalCommands: json['confirmLocalCommands'] as bool? ?? true,
+  confirmGitWrites: json['confirmGitWrites'] as bool? ?? true,
   demoMode: json['demoMode'] as bool? ?? false,
   disabledBuiltInTools:
       (json['disabledBuiltInTools'] as List<dynamic>?)
@@ -74,6 +77,9 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'voicevoxSpeakerId': instance.voicevoxSpeakerId,
       'language': instance.language,
       'assistantMode': _$AssistantModeEnumMap[instance.assistantMode]!,
+      'confirmFileMutations': instance.confirmFileMutations,
+      'confirmLocalCommands': instance.confirmLocalCommands,
+      'confirmGitWrites': instance.confirmGitWrites,
       'demoMode': instance.demoMode,
       'disabledBuiltInTools': instance.disabledBuiltInTools,
     };

@@ -171,6 +171,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateConfirmFileMutations(bool value) async {
+    state = state.copyWith(confirmFileMutations: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateConfirmLocalCommands(bool value) async {
+    state = state.copyWith(confirmLocalCommands: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateConfirmGitWrites(bool value) async {
+    state = state.copyWith(confirmGitWrites: value);
+    await _repository.save(state);
+  }
+
   Future<void> updateDemoMode(bool demoMode) async {
     state = state.copyWith(demoMode: demoMode);
     await _repository.save(state);
