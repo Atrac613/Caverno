@@ -177,6 +177,42 @@ Screenshots are saved to device-specific directories and automatically resized t
 | 6 | `6_voice_mode` | Voice input interface |
 | 7 | `7_image_attachments` | Image attachment in conversation |
 
+## Plan Mode Integration Tests
+
+The repository includes deterministic Plan mode scenarios and an optional live LLM smoke suite.
+
+### Deterministic suite
+
+```bash
+flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
+```
+
+Results are written to `build/integration_test_reports/plan_mode_suite_report.json` and `build/integration_test_reports/plan_mode_suite_report.md`.
+
+### Live LLM suite
+
+Use the helper script to run the same Plan mode flow against a real OpenAI-compatible endpoint.
+
+```bash
+tool/run_plan_mode_live_test.sh
+```
+
+The script defaults to this environment:
+
+| Variable | Default |
+|----------|---------|
+| `CAVERNO_LLM_BASE_URL` | `http://192.168.100.241:1234/v1` |
+| `CAVERNO_LLM_API_KEY` | `no-key` |
+| `CAVERNO_LLM_MODEL` | `gemma-4-26B-A4B-it-Q4_K_M.gguf` |
+| `CAVERNO_PLAN_MODE_DEVICE` | `macos` |
+| `CAVERNO_PLAN_MODE_REPORTER` | `compact` |
+
+Optional filters:
+
+- `CAVERNO_PLAN_MODE_SCENARIOS=live_host_health_scaffold`
+
+Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json` and `build/integration_test_reports/plan_mode_live_suite_report.md`.
+
 ## Architecture
 
 Clean Architecture with feature-based modules and Riverpod state management.
