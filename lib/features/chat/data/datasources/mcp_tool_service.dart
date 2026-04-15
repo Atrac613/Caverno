@@ -24,6 +24,18 @@ import 'network_tools.dart';
 import 'searxng_client.dart';
 import 'wifi_tools.dart';
 
+class FileRollbackPreview {
+  const FileRollbackPreview({
+    required this.path,
+    required this.preview,
+    required this.summary,
+  });
+
+  final String path;
+  final String preview;
+  final String summary;
+}
+
 /// MCP tool management service.
 ///
 /// Fetches tools dynamically from an MCP server and executes them.
@@ -51,6 +63,7 @@ class McpToolService {
     'read_file',
     'write_file',
     'edit_file',
+    'rollback_last_file_change',
     'find_files',
     'search_files',
     'local_execute_command',
@@ -87,6 +100,7 @@ class McpToolService {
 
   List<McpToolEntity> _cachedTools = [];
   final Map<String, _RemoteToolBinding> _remoteToolBindings = {};
+  final List<_FileRollbackEntry> _fileRollbackStack = [];
   List<McpServerConnectionInfo> _serverStates = const [];
   McpConnectionStatus _status = McpConnectionStatus.disconnected;
   String? _lastError;
@@ -403,6 +417,7 @@ class McpToolService {
       _addIfEnabled(toolDefinitions, _readFileTool);
       _addIfEnabled(toolDefinitions, _writeFileTool);
       _addIfEnabled(toolDefinitions, _editFileTool);
+      _addIfEnabled(toolDefinitions, _rollbackLastFileChangeTool);
       _addIfEnabled(toolDefinitions, _findFilesTool);
       _addIfEnabled(toolDefinitions, _searchFilesTool);
     }
@@ -551,11 +566,15 @@ class McpToolService {
         );
       }
       final createParents = arguments['create_parents'] as bool? ?? true;
+      final snapshot = await FilesystemTools.captureTextSnapshot(path);
       final result = await FilesystemTools.writeFile(
         path: path,
         content: content,
         createParents: createParents,
       );
+      if (_isFilesystemPayloadSuccess(result)) {
+        _pushFileRollbackEntry(snapshot);
+      }
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -572,12 +591,47 @@ class McpToolService {
         );
       }
       final replaceAll = arguments['replace_all'] as bool? ?? false;
+      final snapshot = await FilesystemTools.captureTextSnapshot(path);
       final result = await FilesystemTools.editFile(
         path: path,
         oldText: oldText,
         newText: newText,
         replaceAll: replaceAll,
       );
+      if (_isFilesystemPayloadSuccess(result)) {
+        _pushFileRollbackEntry(snapshot);
+      }
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'rollback_last_file_change') {
+      final entry = _fileRollbackStack.isEmpty
+          ? null
+          : _fileRollbackStack.removeLast();
+      if (entry == null) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'No recent file change is available to roll back',
+        );
+      }
+
+      final result = await FilesystemTools.restoreTextSnapshot(
+        path: entry.path,
+        existedBefore: entry.existedBefore,
+        content: entry.previousContent,
+      );
+      if (!_isFilesystemPayloadSuccess(result)) {
+        _fileRollbackStack.add(entry);
+        return McpToolResult(
+          toolName: name,
+          result: result,
+          isSuccess: false,
+          errorMessage: 'Failed to roll back the last file change',
+        );
+      }
+
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
 
@@ -1169,6 +1223,66 @@ class McpToolService {
       isSuccess: false,
       errorMessage: 'No matching tool available: $name',
     );
+  }
+
+  Future<FileRollbackPreview?> previewLastFileRollbackChange() async {
+    final entry = _fileRollbackStack.isEmpty ? null : _fileRollbackStack.last;
+    if (entry == null) return null;
+
+    final currentSnapshot = await FilesystemTools.captureTextSnapshot(
+      entry.path,
+    );
+    final summary = entry.existedBefore
+        ? 'Restore the previous contents of this file.'
+        : 'Delete the newly created file.';
+
+    if (currentSnapshot.error != null) {
+      return FileRollbackPreview(
+        path: entry.path,
+        preview:
+            'Diff preview unavailable: ${currentSnapshot.error}\n\n'
+            'Rollback target: ${entry.path}\n'
+            '$summary',
+        summary: summary,
+      );
+    }
+
+    return FileRollbackPreview(
+      path: entry.path,
+      preview: FilesystemTools.buildUnifiedDiff(
+        path: entry.path,
+        oldContent: currentSnapshot.exists ? currentSnapshot.content : null,
+        newContent: entry.existedBefore ? (entry.previousContent ?? '') : null,
+      ),
+      summary: summary,
+    );
+  }
+
+  bool _isFilesystemPayloadSuccess(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      return decoded is! Map<String, dynamic> || decoded['error'] == null;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  void _pushFileRollbackEntry(TextFileSnapshot snapshot) {
+    if (snapshot.exists && snapshot.error != null) {
+      return;
+    }
+
+    _fileRollbackStack.add(
+      _FileRollbackEntry(
+        path: snapshot.path,
+        existedBefore: snapshot.exists,
+        previousContent: snapshot.content,
+      ),
+    );
+
+    if (_fileRollbackStack.length > 20) {
+      _fileRollbackStack.removeAt(0);
+    }
   }
 
   /// Fallback `web_search` tool definition for SearXNG.
@@ -1898,6 +2012,28 @@ class McpToolService {
     },
   };
 
+  static Map<String, dynamic> get _rollbackLastFileChangeTool => {
+    'type': 'function',
+    'function': {
+      'name': 'rollback_last_file_change',
+      'description':
+          'Revert the most recent successful local file change performed '
+          'through write_file or edit_file. This requires user approval and '
+          'restores the previous UTF-8 contents, or deletes the file if it '
+          'was newly created.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'reason': {
+            'type': 'string',
+            'description':
+                'Short human-readable reason shown in the approval dialog.',
+          },
+        },
+      },
+    },
+  };
+
   static Map<String, dynamic> get _findFilesTool => {
     'type': 'function',
     'function': {
@@ -2554,6 +2690,18 @@ class _ConversationMatch {
   final String role;
   final String content;
   final double score;
+}
+
+class _FileRollbackEntry {
+  const _FileRollbackEntry({
+    required this.path,
+    required this.existedBefore,
+    this.previousContent,
+  });
+
+  final String path;
+  final bool existedBefore;
+  final String? previousContent;
 }
 
 class _RemoteToolBinding {

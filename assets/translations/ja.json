@@ -214,6 +214,7 @@
     "tool_read_file": "ローカルプロジェクトのUTF-8テキストファイルを読み取り",
     "tool_write_file": "ローカルプロジェクトにUTF-8テキストファイルを書き込みまたは作成",
     "tool_edit_file": "ローカルUTF-8ファイル内の一致テキストを置換",
+    "tool_rollback_last_file_change": "直近のローカルファイル変更をロールバック",
     "tool_find_files": "ローカルプロジェクトでワイルドカード指定のファイルを検索",
     "tool_search_files": "ローカルプロジェクトのファイル内容を横断検索",
     "tool_local_execute_command": "プロジェクト内でローカルシェルコマンドを実行",

@@ -112,6 +112,24 @@ void main() {
     );
   });
 
+  test('buildWriteDiffPreview returns a unified diff for text changes', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}diff_sample.txt';
+    final file = File(targetPath);
+    file.createSync(recursive: true);
+    file.writeAsStringSync('hello world\nline two\n');
+
+    final preview = await FilesystemTools.buildWriteDiffPreview(
+      path: targetPath,
+      newContent: 'hello agent\nline two\n',
+    );
+
+    expect(preview, contains('--- $targetPath'));
+    expect(preview, contains('+++ $targetPath'));
+    expect(preview, contains('-hello world'));
+    expect(preview, contains('+hello agent'));
+  });
+
   test(
     'writeFile returns structured error payload on filesystem failure',
     () async {

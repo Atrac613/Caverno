@@ -1,6 +1,20 @@
 import 'dart:convert';
 import 'dart:io';
 
+class TextFileSnapshot {
+  const TextFileSnapshot({
+    required this.path,
+    required this.exists,
+    this.content,
+    this.error,
+  });
+
+  final String path;
+  final bool exists;
+  final String? content;
+  final String? error;
+}
+
 class FilesystemTools {
   FilesystemTools._();
 
@@ -8,6 +22,9 @@ class FilesystemTools {
   static const int _maxEntries = 300;
   static const int _maxSearchResults = 200;
   static const int _maxFileBytesForSearch = 1024 * 1024;
+  static const int _maxDiffPreviewLines = 400;
+  static const int _maxDiffPreviewChars = 12000;
+  static const int _maxLcsCells = 60000;
 
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
@@ -337,6 +354,164 @@ class FilesystemTools {
     }
   }
 
+  static Future<TextFileSnapshot> captureTextSnapshot(String path) async {
+    final absolutePath = File(path).absolute.path;
+    final entityType = FileSystemEntity.typeSync(path, followLinks: false);
+
+    if (entityType == FileSystemEntityType.notFound) {
+      return TextFileSnapshot(path: absolutePath, exists: false);
+    }
+
+    if (entityType != FileSystemEntityType.file &&
+        entityType != FileSystemEntityType.link) {
+      return TextFileSnapshot(
+        path: absolutePath,
+        exists: true,
+        error: 'Path is not a regular text file.',
+      );
+    }
+
+    final file = File(path);
+    try {
+      final rawBytes = await file.readAsBytes();
+      final content = utf8.decode(rawBytes, allowMalformed: false);
+      return TextFileSnapshot(
+        path: file.absolute.path,
+        exists: true,
+        content: content,
+      );
+    } on FormatException {
+      return TextFileSnapshot(
+        path: file.absolute.path,
+        exists: true,
+        error:
+            'File is not valid UTF-8 text. Diff preview is unavailable for '
+            'binary or non-text files.',
+      );
+    } on FileSystemException catch (error) {
+      return TextFileSnapshot(
+        path: file.absolute.path,
+        exists: true,
+        error: error.toString(),
+      );
+    }
+  }
+
+  static Future<String> buildWriteDiffPreview({
+    required String path,
+    required String newContent,
+  }) async {
+    final snapshot = await captureTextSnapshot(path);
+    if (snapshot.error != null) {
+      return _buildPreviewUnavailableMessage(
+        snapshot.error!,
+        fallbackContent: newContent,
+      );
+    }
+
+    return buildUnifiedDiff(
+      path: snapshot.path,
+      oldContent: snapshot.exists ? snapshot.content : null,
+      newContent: newContent,
+    );
+  }
+
+  static Future<String> buildEditDiffPreview({
+    required String path,
+    required String oldText,
+    required String newText,
+    bool replaceAll = false,
+  }) async {
+    final snapshot = await captureTextSnapshot(path);
+    if (!snapshot.exists) {
+      return _buildPreviewUnavailableMessage('File does not exist: $path');
+    }
+    if (snapshot.error != null) {
+      return _buildPreviewUnavailableMessage(snapshot.error!);
+    }
+    if (oldText.isEmpty) {
+      return _buildPreviewUnavailableMessage('old_text must not be empty');
+    }
+
+    final content = snapshot.content ?? '';
+    final occurrences = _countOccurrences(content, oldText);
+    if (occurrences == 0) {
+      return _buildPreviewUnavailableMessage(
+        'old_text was not found in the target file',
+      );
+    }
+    if (!replaceAll && occurrences > 1) {
+      return _buildPreviewUnavailableMessage(
+        'old_text matched multiple locations. Set replace_all=true or make '
+        'the target text more specific.',
+      );
+    }
+
+    final updatedContent = replaceAll
+        ? content.replaceAll(oldText, newText)
+        : content.replaceFirst(oldText, newText);
+
+    return buildUnifiedDiff(
+      path: snapshot.path,
+      oldContent: content,
+      newContent: updatedContent,
+    );
+  }
+
+  static Future<String> restoreTextSnapshot({
+    required String path,
+    required bool existedBefore,
+    String? content,
+  }) async {
+    final file = File(path);
+
+    try {
+      if (!existedBefore) {
+        final existedAtRollback = await file.exists();
+        if (existedAtRollback) {
+          await file.delete();
+        }
+        return jsonEncode({
+          'path': file.absolute.path,
+          'restored': true,
+          'deleted': existedAtRollback,
+        });
+      }
+
+      await file.parent.create(recursive: true);
+      final restoredContent = content ?? '';
+      await file.writeAsString(restoredContent);
+      return jsonEncode({
+        'path': file.absolute.path,
+        'restored': true,
+        'bytes_written': utf8.encode(restoredContent).length,
+      });
+    } on FileSystemException catch (error) {
+      return _buildFilesystemError(
+        path: file.absolute.path,
+        operation: 'restore_text_snapshot',
+        error: error,
+      );
+    }
+  }
+
+  static String buildUnifiedDiff({
+    required String path,
+    required String? oldContent,
+    required String? newContent,
+  }) {
+    final oldLines = _splitLines(oldContent);
+    final newLines = _splitLines(newContent);
+    final operations = _buildDiffOperations(oldLines, newLines);
+    final body = _renderUnifiedDiffBody(operations);
+
+    return _truncatePreviewLines([
+      '--- ${oldContent == null ? "/dev/null" : path}',
+      '+++ ${newContent == null ? "/dev/null" : path}',
+      ...body,
+    ]);
+  }
+
   static int _countOccurrences(String source, String target) {
     var count = 0;
     var start = 0;
@@ -394,6 +569,188 @@ class FilesystemTools {
     return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
   }
 
+  static List<String> _splitLines(String? content) {
+    if (content == null || content.isEmpty) return const [];
+    return const LineSplitter().convert(content);
+  }
+
+  static List<_DiffOp> _buildDiffOperations(
+    List<String> oldLines,
+    List<String> newLines,
+  ) {
+    final cellCount = oldLines.length * newLines.length;
+    if (cellCount <= _maxLcsCells) {
+      return _buildDiffOperationsWithLcs(oldLines, newLines);
+    }
+    return _buildDiffOperationsWithAnchors(oldLines, newLines);
+  }
+
+  static List<_DiffOp> _buildDiffOperationsWithLcs(
+    List<String> oldLines,
+    List<String> newLines,
+  ) {
+    final lcs = List.generate(
+      oldLines.length + 1,
+      (_) => List<int>.filled(newLines.length + 1, 0),
+    );
+
+    for (var i = oldLines.length - 1; i >= 0; i--) {
+      for (var j = newLines.length - 1; j >= 0; j--) {
+        lcs[i][j] = oldLines[i] == newLines[j]
+            ? lcs[i + 1][j + 1] + 1
+            : (lcs[i + 1][j] >= lcs[i][j + 1] ? lcs[i + 1][j] : lcs[i][j + 1]);
+      }
+    }
+
+    final operations = <_DiffOp>[];
+    var i = 0;
+    var j = 0;
+    while (i < oldLines.length && j < newLines.length) {
+      if (oldLines[i] == newLines[j]) {
+        operations.add(_DiffOp(' ', oldLines[i]));
+        i += 1;
+        j += 1;
+        continue;
+      }
+
+      if (lcs[i + 1][j] >= lcs[i][j + 1]) {
+        operations.add(_DiffOp('-', oldLines[i]));
+        i += 1;
+      } else {
+        operations.add(_DiffOp('+', newLines[j]));
+        j += 1;
+      }
+    }
+
+    while (i < oldLines.length) {
+      operations.add(_DiffOp('-', oldLines[i]));
+      i += 1;
+    }
+    while (j < newLines.length) {
+      operations.add(_DiffOp('+', newLines[j]));
+      j += 1;
+    }
+
+    return operations;
+  }
+
+  static List<_DiffOp> _buildDiffOperationsWithAnchors(
+    List<String> oldLines,
+    List<String> newLines,
+  ) {
+    var prefix = 0;
+    while (prefix < oldLines.length &&
+        prefix < newLines.length &&
+        oldLines[prefix] == newLines[prefix]) {
+      prefix += 1;
+    }
+
+    var suffix = 0;
+    while (suffix < oldLines.length - prefix &&
+        suffix < newLines.length - prefix &&
+        oldLines[oldLines.length - 1 - suffix] ==
+            newLines[newLines.length - 1 - suffix]) {
+      suffix += 1;
+    }
+
+    final operations = <_DiffOp>[
+      for (var index = 0; index < prefix; index++)
+        _DiffOp(' ', oldLines[index]),
+      for (var index = prefix; index < oldLines.length - suffix; index++)
+        _DiffOp('-', oldLines[index]),
+      for (var index = prefix; index < newLines.length - suffix; index++)
+        _DiffOp('+', newLines[index]),
+      for (var index = 0; index < suffix; index++)
+        _DiffOp(' ', oldLines[oldLines.length - suffix + index]),
+    ];
+
+    return operations;
+  }
+
+  static List<String> _renderUnifiedDiffBody(List<_DiffOp> operations) {
+    final changedIndexes = <int>[];
+    for (var index = 0; index < operations.length; index++) {
+      if (operations[index].prefix != ' ') {
+        changedIndexes.add(index);
+      }
+    }
+
+    if (changedIndexes.isEmpty) {
+      return const ['@@', '(no changes)'];
+    }
+
+    final includedIndexes = <int>{};
+    for (final index in changedIndexes) {
+      final start = index - 3 < 0 ? 0 : index - 3;
+      final end = index + 3 >= operations.length
+          ? operations.length - 1
+          : index + 3;
+      for (var current = start; current <= end; current++) {
+        includedIndexes.add(current);
+      }
+    }
+
+    final sortedIndexes = includedIndexes.toList()..sort();
+    final rendered = <String>[];
+    int? previousIndex;
+    for (final index in sortedIndexes) {
+      if (previousIndex == null || index != previousIndex + 1) {
+        rendered.add('@@');
+      }
+      final operation = operations[index];
+      rendered.add('${operation.prefix}${operation.line}');
+      previousIndex = index;
+    }
+
+    return rendered;
+  }
+
+  static String _truncatePreviewLines(List<String> lines) {
+    final buffer = StringBuffer();
+    var lineCount = 0;
+    var charCount = 0;
+    var truncated = false;
+
+    for (final line in lines) {
+      final separatorLength = lineCount == 0 ? 0 : 1;
+      if (lineCount >= _maxDiffPreviewLines ||
+          charCount + separatorLength + line.length > _maxDiffPreviewChars) {
+        truncated = true;
+        break;
+      }
+
+      if (lineCount > 0) {
+        buffer.writeln();
+      }
+      buffer.write(line);
+      lineCount += 1;
+      charCount += separatorLength + line.length;
+    }
+
+    if (truncated) {
+      if (buffer.isNotEmpty) {
+        buffer.writeln();
+      }
+      buffer.write('... diff preview truncated ...');
+    }
+
+    return buffer.toString();
+  }
+
+  static String _buildPreviewUnavailableMessage(
+    String reason, {
+    String? fallbackContent,
+  }) {
+    final lines = <String>['Diff preview unavailable: $reason'];
+    if (fallbackContent != null && fallbackContent.isNotEmpty) {
+      lines
+        ..add('')
+        ..add('Proposed content:')
+        ..addAll(_splitLines(fallbackContent).map((line) => '+$line'));
+    }
+    return _truncatePreviewLines(lines);
+  }
+
   static String _buildFilesystemError({
     required String path,
     required String operation,
@@ -421,4 +778,11 @@ class FilesystemTools {
             'Re-select the project folder in Coding mode, then allow access in the macOS prompt or System Settings > Privacy & Security > Files and Folders.',
     });
   }
+}
+
+class _DiffOp {
+  const _DiffOp(this.prefix, this.line);
+
+  final String prefix;
+  final String line;
 }

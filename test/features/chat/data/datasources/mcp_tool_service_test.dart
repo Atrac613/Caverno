@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -73,6 +75,70 @@ void main() {
         expect(client.calledToolNames, ['ping']);
       },
     );
+
+    group('rollback_last_file_change', () {
+      late Directory tempDir;
+      late McpToolService service;
+
+      setUp(() async {
+        tempDir = await Directory.systemTemp.createTemp(
+          'mcp_tool_service_test_',
+        );
+        service = McpToolService();
+      });
+
+      tearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+
+      test('restores the previous file contents', () async {
+        final path =
+            '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}sample.txt';
+        final file = File(path);
+        file.createSync(recursive: true);
+        file.writeAsStringSync('before\n');
+
+        final writeResult = await service.executeTool(
+          name: 'write_file',
+          arguments: {'path': path, 'content': 'after\n'},
+        );
+        expect(writeResult.isSuccess, isTrue);
+
+        final preview = await service.previewLastFileRollbackChange();
+        expect(preview, isNotNull);
+        expect(preview!.path, path);
+        expect(preview.preview, contains('-after'));
+        expect(preview.preview, contains('+before'));
+
+        final rollbackResult = await service.executeTool(
+          name: 'rollback_last_file_change',
+          arguments: const {},
+        );
+        expect(rollbackResult.isSuccess, isTrue);
+        expect(await file.readAsString(), 'before\n');
+      });
+
+      test('removes a newly created file', () async {
+        final path =
+            '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}created.txt';
+
+        final writeResult = await service.executeTool(
+          name: 'write_file',
+          arguments: {'path': path, 'content': 'created\n'},
+        );
+        expect(writeResult.isSuccess, isTrue);
+        expect(File(path).existsSync(), isTrue);
+
+        final rollbackResult = await service.executeTool(
+          name: 'rollback_last_file_change',
+          arguments: const {},
+        );
+        expect(rollbackResult.isSuccess, isTrue);
+        expect(File(path).existsSync(), isFalse);
+      });
+    });
   });
 }
 

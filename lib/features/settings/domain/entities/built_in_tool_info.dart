@@ -145,6 +145,11 @@ class BuiltInToolRegistry {
       category: categoryCoding,
     ),
     BuiltInToolInfo(
+      name: 'rollback_last_file_change',
+      descriptionKey: 'settings.tool_rollback_last_file_change',
+      category: categoryCoding,
+    ),
+    BuiltInToolInfo(
       name: 'find_files',
       descriptionKey: 'settings.tool_find_files',
       category: categoryCoding,

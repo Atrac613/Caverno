@@ -39,6 +39,9 @@ class SystemPromptBuilder {
     final hasProjectWriteTools =
         uniqueToolNames.contains('write_file') ||
         uniqueToolNames.contains('edit_file');
+    final hasRollbackTool = uniqueToolNames.contains(
+      'rollback_last_file_change',
+    );
     final hasLocalShellTool = uniqueToolNames.contains('local_execute_command');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
 
@@ -104,6 +107,13 @@ class SystemPromptBuilder {
         buffer.writeln(
           'For file changes, prefer edit_file for targeted replacements and '
           'write_file only when creating or fully rewriting files.',
+        );
+      }
+      if (hasRollbackTool) {
+        buffer.writeln(
+          'If a recent file mutation needs to be undone, use '
+          'rollback_last_file_change instead of manually reconstructing the '
+          'previous file contents.',
         );
       }
       if (hasLocalShellTool) {

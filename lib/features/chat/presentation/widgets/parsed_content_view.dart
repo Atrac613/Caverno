@@ -617,6 +617,8 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         return Icons.calculate;
       case 'code':
         return Icons.code;
+      case 'rollback_last_file_change':
+        return Icons.undo_rounded;
       default:
         return Icons.build;
     }
@@ -634,6 +636,8 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         return 'content.tool_calculator'.tr();
       case 'code':
         return 'content.tool_code'.tr();
+      case 'rollback_last_file_change':
+        return 'rollback_last_file_change';
       default:
         return toolName;
     }

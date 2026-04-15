@@ -587,6 +587,7 @@ class ChatNotifier extends Notifier<ChatState> {
         'read_file',
         'write_file',
         'edit_file',
+        'rollback_last_file_change',
         'find_files',
         'search_files',
         'local_execute_command',
@@ -1197,6 +1198,8 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleWriteFile(toolCall);
       case 'edit_file':
         return _handleEditFile(toolCall);
+      case 'rollback_last_file_change':
+        return _handleRollbackLastFileChange(toolCall);
       case 'local_execute_command':
         return _handleLocalExecuteCommand(toolCall);
       case 'ssh_connect':
@@ -1262,10 +1265,14 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final preview = await FilesystemTools.buildWriteDiffPreview(
+      path: path,
+      newContent: content,
+    );
     final approved = await requestFileOperation(
       operation: 'Write File',
       path: path,
-      preview: content,
+      preview: preview,
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
@@ -1320,13 +1327,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return cachedResult;
     }
 
-    final preview = ['Old text:', oldText, '', 'New text:', newText].join('\n');
     if (!_settings.confirmFileMutations) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: resolvedArguments,
       );
     }
+
+    final preview = await FilesystemTools.buildEditDiffPreview(
+      path: path,
+      oldText: oldText,
+      newText: newText,
+      replaceAll: resolvedArguments['replace_all'] as bool? ?? false,
+    );
 
     final approved = await requestFileOperation(
       operation: 'Edit File',
@@ -1354,6 +1367,69 @@ class ChatNotifier extends Notifier<ChatState> {
     return _rememberToolApprovalResult(
       toolCall.name,
       resolvedArguments,
+      result,
+    );
+  }
+
+  Future<McpToolResult> _handleRollbackLastFileChange(
+    ToolCallInfo toolCall,
+  ) async {
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final preview = await _mcpToolService!.previewLastFileRollbackChange();
+    if (preview == null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'No recent file change is available to roll back',
+      );
+    }
+
+    if (!_settings.confirmFileMutations) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      );
+    }
+
+    final reason =
+        (toolCall.arguments['reason'] as String?)?.trim().isNotEmpty == true
+        ? toolCall.arguments['reason'] as String?
+        : preview.summary;
+
+    final approved = await requestFileOperation(
+      operation: 'Rollback File Change',
+      path: preview.path,
+      preview: preview.preview,
+      reason: reason,
+    );
+    if (!approved) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        toolCall.arguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied file rollback',
+        ),
+      );
+    }
+
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    return _rememberToolApprovalResult(
+      toolCall.name,
+      toolCall.arguments,
       result,
     );
   }

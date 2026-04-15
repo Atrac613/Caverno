@@ -214,6 +214,7 @@
     "tool_read_file": "Read a UTF-8 text file from the local project",
     "tool_write_file": "Write or create a UTF-8 text file in the local project",
     "tool_edit_file": "Replace exact text inside a local UTF-8 file",
+    "tool_rollback_last_file_change": "Roll back the most recent local file change",
     "tool_find_files": "Find files by wildcard pattern in the local project",
     "tool_search_files": "Search text across local project files",
     "tool_local_execute_command": "Execute a local shell command in the project",
