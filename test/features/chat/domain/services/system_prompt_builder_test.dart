@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
 
 void main() {
@@ -57,5 +58,37 @@ void main() {
 
     expect(prompt, isNot(contains('Project root path:')));
     expect(prompt, isNot(contains('Project name: "caverno".')));
+  });
+
+  test('includes saved workflow context in coding mode prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      workflowStage: ConversationWorkflowStage.plan,
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Ship a spec-lite workflow for coding threads',
+        constraints: ['Keep the first slice lightweight'],
+        acceptanceCriteria: ['Persist the workflow with the conversation'],
+        openQuestions: ['Task graph can come later'],
+      ),
+    );
+
+    expect(
+      prompt,
+      contains('Current workflow stage for this coding thread: plan.'),
+    );
+    expect(
+      prompt,
+      contains('Goal: Ship a spec-lite workflow for coding threads'),
+    );
+    expect(prompt, contains('Constraints: Keep the first slice lightweight'));
+    expect(
+      prompt,
+      contains(
+        'Acceptance criteria: Persist the workflow with the conversation',
+      ),
+    );
+    expect(prompt, contains('Open questions: Task graph can come later'));
   });
 }

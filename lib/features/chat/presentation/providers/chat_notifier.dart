@@ -27,6 +27,7 @@ import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import 'chat_state.dart';
@@ -230,6 +231,9 @@ class ChatNotifier extends Notifier<ChatState> {
   Message _createSystemMessage() {
     final now = DateTime.now();
     final activeCodingProject = _getActiveCodingProject();
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
     final toolNames = <String>[];
     final mcpToolService = _mcpToolService;
     if (mcpToolService != null &&
@@ -259,6 +263,10 @@ class ChatNotifier extends Notifier<ChatState> {
         sessionMemoryContext: _sessionMemoryContext,
         projectName: activeCodingProject?.name,
         projectRootPath: activeCodingProject?.rootPath,
+        workflowStage:
+            currentConversation?.workflowStage ??
+            ConversationWorkflowStage.idle,
+        workflowSpec: currentConversation?.workflowSpec,
         isVoiceMode: _isVoiceMode,
       ),
       role: MessageRole.system,

@@ -1,5 +1,6 @@
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../entities/conversation_workflow.dart';
 
 class SystemPromptBuilder {
   SystemPromptBuilder._();
@@ -22,6 +23,8 @@ class SystemPromptBuilder {
     String? sessionMemoryContext,
     String? projectName,
     String? projectRootPath,
+    ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
+    ConversationWorkflowSpec? workflowSpec,
     bool isVoiceMode = false,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
@@ -86,6 +89,8 @@ class SystemPromptBuilder {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
     } else {
       buffer.writeln(SystemPromptConstants.codingModeInstruction);
+      final normalizedWorkflowSpec =
+          workflowSpec ?? const ConversationWorkflowSpec();
       final normalizedProjectName = projectName?.trim();
       final normalizedProjectRootPath = projectRootPath?.trim();
       if ((normalizedProjectName?.isNotEmpty ?? false) ||
@@ -135,6 +140,39 @@ class SystemPromptBuilder {
           'bookmark_restore_failed, do not repeat the same tool call with the '
           'same arguments. Explain the access issue and ask the user to '
           're-select the project folder or grant access.',
+        );
+      }
+      if (workflowStage != ConversationWorkflowStage.idle ||
+          normalizedWorkflowSpec.hasContent) {
+        buffer.writeln(
+          'Current workflow stage for this coding thread: '
+          '${_formatWorkflowStage(workflowStage)}.',
+        );
+        buffer.writeln(
+          'Use the saved workflow context below to stay aligned with the '
+          'current implementation effort.',
+        );
+        if (normalizedWorkflowSpec.goal.trim().isNotEmpty) {
+          buffer.writeln('Goal: ${normalizedWorkflowSpec.goal.trim()}');
+        }
+        if (normalizedWorkflowSpec.constraints.isNotEmpty) {
+          buffer.writeln(
+            'Constraints: ${_joinWorkflowItems(normalizedWorkflowSpec.constraints)}',
+          );
+        }
+        if (normalizedWorkflowSpec.acceptanceCriteria.isNotEmpty) {
+          buffer.writeln(
+            'Acceptance criteria: ${_joinWorkflowItems(normalizedWorkflowSpec.acceptanceCriteria)}',
+          );
+        }
+        if (normalizedWorkflowSpec.openQuestions.isNotEmpty) {
+          buffer.writeln(
+            'Open questions: ${_joinWorkflowItems(normalizedWorkflowSpec.openQuestions)}',
+          );
+        }
+        buffer.writeln(
+          'If the latest user request changes this workflow, explain the '
+          'mismatch and propose the updated plan before making broad changes.',
         );
       }
     }
@@ -244,5 +282,23 @@ class SystemPromptBuilder {
     final hours = (absoluteMinutes ~/ 60).toString().padLeft(2, '0');
     final minutes = (absoluteMinutes % 60).toString().padLeft(2, '0');
     return '$sign$hours:$minutes';
+  }
+
+  static String _formatWorkflowStage(ConversationWorkflowStage value) {
+    return switch (value) {
+      ConversationWorkflowStage.idle => 'idle',
+      ConversationWorkflowStage.clarify => 'clarify',
+      ConversationWorkflowStage.plan => 'plan',
+      ConversationWorkflowStage.tasks => 'tasks',
+      ConversationWorkflowStage.implement => 'implement',
+      ConversationWorkflowStage.review => 'review',
+    };
+  }
+
+  static String _joinWorkflowItems(List<String> items) {
+    return items
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(' | ');
   }
 }

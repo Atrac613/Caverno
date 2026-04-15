@@ -23,20 +23,42 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
           ) ??
           WorkspaceMode.chat,
       projectId: json['projectId'] as String? ?? '',
+      workflowStage:
+          $enumDecodeNullable(
+            _$ConversationWorkflowStageEnumMap,
+            json['workflowStage'],
+            unknownValue: ConversationWorkflowStage.idle,
+          ) ??
+          ConversationWorkflowStage.idle,
+      workflowSpec: _workflowSpecFromJson(
+        json['workflowSpec'] as Map<String, dynamic>?,
+      ),
     );
 
-Map<String, dynamic> _$ConversationToJson(_Conversation instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'title': instance.title,
-      'messages': instance.messages,
-      'createdAt': instance.createdAt.toIso8601String(),
-      'updatedAt': instance.updatedAt.toIso8601String(),
-      'workspaceMode': _$WorkspaceModeEnumMap[instance.workspaceMode]!,
-      'projectId': instance.projectId,
-    };
+Map<String, dynamic> _$ConversationToJson(
+  _Conversation instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'title': instance.title,
+  'messages': instance.messages,
+  'createdAt': instance.createdAt.toIso8601String(),
+  'updatedAt': instance.updatedAt.toIso8601String(),
+  'workspaceMode': _$WorkspaceModeEnumMap[instance.workspaceMode]!,
+  'projectId': instance.projectId,
+  'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
+  'workflowSpec': _workflowSpecToJson(instance.workflowSpec),
+};
 
 const _$WorkspaceModeEnumMap = {
   WorkspaceMode.chat: 'chat',
   WorkspaceMode.coding: 'coding',
+};
+
+const _$ConversationWorkflowStageEnumMap = {
+  ConversationWorkflowStage.idle: 'idle',
+  ConversationWorkflowStage.clarify: 'clarify',
+  ConversationWorkflowStage.plan: 'plan',
+  ConversationWorkflowStage.tasks: 'tasks',
+  ConversationWorkflowStage.implement: 'implement',
+  ConversationWorkflowStage.review: 'review',
 };

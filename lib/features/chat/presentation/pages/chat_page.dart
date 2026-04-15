@@ -10,6 +10,8 @@ import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/git_tools.dart';
+import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_workflow.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -417,6 +419,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ],
               ),
             ),
+          if (isCodingWorkspace &&
+              activeProject != null &&
+              currentConversation != null)
+            _buildWorkflowPanel(context, currentConversation),
           // Message list
           Expanded(
             child: !canCompose
@@ -512,6 +518,392 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return 'git';
     }
     return 'git $normalized';
+  }
+
+  Widget _buildWorkflowPanel(
+    BuildContext context,
+    Conversation currentConversation,
+  ) {
+    final theme = Theme.of(context);
+    final spec = currentConversation.effectiveWorkflowSpec;
+    final hasContext = currentConversation.hasWorkflowContext;
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'chat.workflow_title'.tr(),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      hasContext
+                          ? 'chat.workflow_subtitle'.tr()
+                          : 'chat.workflow_empty'.tr(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 12),
+              Chip(
+                label: Text(
+                  _workflowStageLabel(currentConversation.workflowStage),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              const SizedBox(width: 8),
+              IconButton(
+                onPressed: () =>
+                    _showWorkflowEditor(context, currentConversation),
+                icon: Icon(hasContext ? Icons.edit_outlined : Icons.add),
+                tooltip: hasContext
+                    ? 'chat.workflow_edit'.tr()
+                    : 'chat.workflow_add'.tr(),
+              ),
+            ],
+          ),
+          if (hasContext) ...[
+            if (spec.goal.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildWorkflowTextSection(
+                context,
+                label: 'chat.workflow_goal'.tr(),
+                value: spec.goal.trim(),
+              ),
+            ],
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_constraints'.tr(),
+              items: spec.constraints,
+            ),
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_acceptance'.tr(),
+              items: spec.acceptanceCriteria,
+            ),
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_open_questions'.tr(),
+              items: spec.openQuestions,
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTextSection(
+    BuildContext context, {
+    required String label,
+    required String value,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelMedium?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(value, style: theme.textTheme.bodyMedium),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowListSection(
+    BuildContext context, {
+    required String label,
+    required List<String> items,
+  }) {
+    final normalizedItems = items
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedItems.isEmpty) {
+      return const SizedBox.shrink();
+    }
+
+    final theme = Theme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            label,
+            style: theme.textTheme.labelMedium?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 4),
+          for (final item in normalizedItems)
+            Padding(
+              padding: const EdgeInsets.only(top: 2),
+              child: Text('• $item', style: theme.textTheme.bodyMedium),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showWorkflowEditor(
+    BuildContext context,
+    Conversation currentConversation,
+  ) async {
+    final spec = currentConversation.effectiveWorkflowSpec;
+    final goalController = TextEditingController(text: spec.goal);
+    final constraintsController = TextEditingController(
+      text: spec.constraints.join('\n'),
+    );
+    final acceptanceController = TextEditingController(
+      text: spec.acceptanceCriteria.join('\n'),
+    );
+    final openQuestionsController = TextEditingController(
+      text: spec.openQuestions.join('\n'),
+    );
+    var selectedStage = currentConversation.workflowStage;
+
+    try {
+      await showModalBottomSheet<void>(
+        context: context,
+        isScrollControlled: true,
+        showDragHandle: true,
+        builder: (sheetContext) {
+          final theme = Theme.of(sheetContext);
+          final conversationsNotifier = ref.read(
+            conversationsNotifierProvider.notifier,
+          );
+
+          return StatefulBuilder(
+            builder: (modalContext, setModalState) {
+              return SafeArea(
+                child: Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    20,
+                    8,
+                    20,
+                    20 + MediaQuery.of(sheetContext).viewInsets.bottom,
+                  ),
+                  child: SingleChildScrollView(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Text(
+                          'chat.workflow_edit'.tr(),
+                          style: theme.textTheme.titleMedium?.copyWith(
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          'chat.workflow_sheet_subtitle'.tr(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        DropdownButtonFormField<ConversationWorkflowStage>(
+                          initialValue: selectedStage,
+                          decoration: InputDecoration(
+                            labelText: 'chat.workflow_stage'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: ConversationWorkflowStage.values
+                              .map(
+                                (stage) => DropdownMenuItem(
+                                  value: stage,
+                                  child: Text(_workflowStageLabel(stage)),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) return;
+                            setModalState(() {
+                              selectedStage = value;
+                            });
+                          },
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: goalController,
+                          maxLines: 3,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            labelText: 'chat.workflow_goal'.tr(),
+                            hintText: 'chat.workflow_goal_hint'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: constraintsController,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            labelText: 'chat.workflow_constraints'.tr(),
+                            hintText: 'chat.workflow_constraints_hint'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: acceptanceController,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            labelText: 'chat.workflow_acceptance'.tr(),
+                            hintText: 'chat.workflow_acceptance_hint'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 16),
+                        TextField(
+                          controller: openQuestionsController,
+                          maxLines: 4,
+                          textInputAction: TextInputAction.newline,
+                          decoration: InputDecoration(
+                            labelText: 'chat.workflow_open_questions'.tr(),
+                            hintText: 'chat.workflow_open_questions_hint'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                        ),
+                        const SizedBox(height: 20),
+                        Row(
+                          children: [
+                            TextButton.icon(
+                              onPressed: () async {
+                                await conversationsNotifier
+                                    .updateCurrentWorkflow(
+                                      workflowStage:
+                                          ConversationWorkflowStage.idle,
+                                      clearWorkflowSpec: true,
+                                    );
+                                if (sheetContext.mounted) {
+                                  Navigator.of(sheetContext).pop();
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text(
+                                        'chat.workflow_cleared'.tr(),
+                                      ),
+                                    ),
+                                  );
+                                }
+                              },
+                              icon: const Icon(Icons.restart_alt),
+                              label: Text('chat.workflow_clear'.tr()),
+                            ),
+                            const Spacer(),
+                            OutlinedButton(
+                              onPressed: () => Navigator.of(sheetContext).pop(),
+                              child: Text('common.cancel'.tr()),
+                            ),
+                            const SizedBox(width: 12),
+                            FilledButton(
+                              onPressed: () async {
+                                final workflowSpec = ConversationWorkflowSpec(
+                                  goal: goalController.text.trim(),
+                                  constraints: _workflowLinesFromText(
+                                    constraintsController.text,
+                                  ),
+                                  acceptanceCriteria: _workflowLinesFromText(
+                                    acceptanceController.text,
+                                  ),
+                                  openQuestions: _workflowLinesFromText(
+                                    openQuestionsController.text,
+                                  ),
+                                );
+                                await conversationsNotifier
+                                    .updateCurrentWorkflow(
+                                      workflowStage: selectedStage,
+                                      workflowSpec: workflowSpec.hasContent
+                                          ? workflowSpec
+                                          : null,
+                                      clearWorkflowSpec:
+                                          !workflowSpec.hasContent,
+                                    );
+                                if (sheetContext.mounted) {
+                                  Navigator.of(sheetContext).pop();
+                                }
+                                if (context.mounted) {
+                                  ScaffoldMessenger.of(context).showSnackBar(
+                                    SnackBar(
+                                      content: Text('chat.workflow_saved'.tr()),
+                                    ),
+                                  );
+                                }
+                              },
+                              child: Text('common.save'.tr()),
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          );
+        },
+      );
+    } finally {
+      goalController.dispose();
+      constraintsController.dispose();
+      acceptanceController.dispose();
+      openQuestionsController.dispose();
+    }
+  }
+
+  List<String> _workflowLinesFromText(String rawValue) {
+    return rawValue
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .toList(growable: false);
+  }
+
+  String _workflowStageLabel(ConversationWorkflowStage stage) {
+    return switch (stage) {
+      ConversationWorkflowStage.idle => 'chat.workflow_stage_idle'.tr(),
+      ConversationWorkflowStage.clarify => 'chat.workflow_stage_clarify'.tr(),
+      ConversationWorkflowStage.plan => 'chat.workflow_stage_plan'.tr(),
+      ConversationWorkflowStage.tasks => 'chat.workflow_stage_tasks'.tr(),
+      ConversationWorkflowStage.implement =>
+        'chat.workflow_stage_implement'.tr(),
+      ConversationWorkflowStage.review => 'chat.workflow_stage_review'.tr(),
+    };
   }
 
   Future<void> _showSshConnectDialog(

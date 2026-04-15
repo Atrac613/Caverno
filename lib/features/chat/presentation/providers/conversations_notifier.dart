@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 
 /// State for the conversation list.
@@ -174,6 +175,22 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
   }
 
+  Future<void> _persistUpdatedConversation(
+    Conversation updatedConversation,
+  ) async {
+    await _repository.save(updatedConversation);
+
+    final newConversations = state.conversations.map((conversation) {
+      if (conversation.id == updatedConversation.id) {
+        return updatedConversation;
+      }
+      return conversation;
+    }).toList();
+
+    _sortConversations(newConversations);
+    state = state.copyWith(conversations: newConversations);
+  }
+
   /// Creates a new conversation.
   void createNewConversation({
     WorkspaceMode? workspaceMode,
@@ -322,21 +339,29 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       messages: messages,
       updatedAt: DateTime.now(),
     );
+    await _persistUpdatedConversation(updatedConversation);
+  }
 
-    await _repository.save(updatedConversation);
+  Future<void> updateCurrentWorkflow({
+    ConversationWorkflowStage? workflowStage,
+    ConversationWorkflowSpec? workflowSpec,
+    bool clearWorkflowSpec = false,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
 
-    // Update local state.
-    final newConversations = state.conversations.map((c) {
-      if (c.id == updatedConversation.id) {
-        return updatedConversation;
-      }
-      return c;
-    }).toList();
+    final nextStage = workflowStage ?? conversation.workflowStage;
+    final nextWorkflowSpec = clearWorkflowSpec
+        ? null
+        : (workflowSpec ?? conversation.workflowSpec);
 
-    // Keep conversations sorted by latest update.
-    _sortConversations(newConversations);
+    final updatedConversation = conversation.copyWith(
+      workflowStage: nextStage,
+      workflowSpec: nextWorkflowSpec,
+      updatedAt: DateTime.now(),
+    );
 
-    state = state.copyWith(conversations: newConversations);
+    await _persistUpdatedConversation(updatedConversation);
   }
 
   /// Returns messages for the current conversation.
