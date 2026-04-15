@@ -270,6 +270,29 @@ Open Questions:
     ]);
   });
 
+  test('sanitizes polluted workflow proposals from reasoning-only responses', () {
+    final proposal = notifier.parseWorkflowProposalForTest('''
+<think>
+* Workflow Stage: Plan
+* Goal: Create a Python script to diagnose the health status of specific hosts. Recent Context: The user wants to create a Python script to diagnose the health status of specific hosts. 'kind': "proposal" 'workflowStage': "plan"
+* Constraints: Python-based implementation.
+* Acceptance Criteria: Successful connectivity verification.
+* Open Questions: Which metrics are required?
+</think>
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+    expect(
+      proposal.workflowSpec.goal,
+      'Create a Python script to diagnose the health status of specific hosts.',
+    );
+    expect(proposal.workflowSpec.constraints, ['Python-based implementation.']);
+    expect(proposal.workflowSpec.openQuestions, [
+      'Which metrics are required?',
+    ]);
+  });
+
   test('parses task proposal json payloads', () {
     final proposal = notifier.parseTaskProposalForTest('''
 {"tasks":[

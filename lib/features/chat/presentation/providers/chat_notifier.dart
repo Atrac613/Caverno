@@ -1408,7 +1408,28 @@ class ChatNotifier extends Notifier<ChatState> {
     if (reasoningContent.isEmpty) {
       return null;
     }
-    return _parseWorkflowProposalResponse(reasoningContent);
+
+    final fromReasoning = _parseWorkflowProposalResponse(reasoningContent);
+    if (fromReasoning case _WorkflowProposalDecisionResponse()) {
+      return fromReasoning;
+    }
+    if (fromReasoning case _WorkflowProposalDraftResponse(:final proposal)) {
+      if (_isReasoningWorkflowProposalPlausible(proposal)) {
+        return fromReasoning;
+      }
+    }
+
+    final structuredReasoning = _extractStructuredWorkflowProposalReasoning(
+      reasoningContent,
+    );
+    if (structuredReasoning.isEmpty) {
+      return null;
+    }
+    final sanitized = _parseWorkflowProposalResponse(structuredReasoning);
+    if (sanitized case _WorkflowProposalDraftResponse(:final proposal)) {
+      return _isReasoningWorkflowProposalPlausible(proposal) ? sanitized : null;
+    }
+    return sanitized;
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
@@ -1431,7 +1452,24 @@ class ChatNotifier extends Notifier<ChatState> {
     if (reasoningContent.isEmpty) {
       return null;
     }
-    return _parseTaskProposal(reasoningContent);
+
+    final fromReasoning = _parseTaskProposal(reasoningContent);
+    if (fromReasoning != null &&
+        _isReasoningTaskProposalPlausible(fromReasoning)) {
+      return fromReasoning;
+    }
+
+    final structuredReasoning = _extractStructuredTaskProposalReasoning(
+      reasoningContent,
+    );
+    if (structuredReasoning.isEmpty) {
+      return null;
+    }
+    final sanitized = _parseTaskProposal(structuredReasoning);
+    if (sanitized == null || !_isReasoningTaskProposalPlausible(sanitized)) {
+      return null;
+    }
+    return sanitized;
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -1989,6 +2027,254 @@ class ChatNotifier extends Notifier<ChatState> {
         .where((chunk) => chunk.isNotEmpty)
         .join('\n')
         .trim();
+  }
+
+  String _extractStructuredWorkflowProposalReasoning(String rawContent) {
+    final buffer = StringBuffer();
+    String? currentSection;
+
+    for (final rawLine in rawContent.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      final sectionMatch = _matchWorkflowSectionLine(line);
+      if (sectionMatch != null) {
+        currentSection = sectionMatch.$1;
+        final cleanedValue = _sanitizeReasoningProposalValue(
+          _stripMarkdownListMarker(sectionMatch.$2),
+          preferSingleSentence: currentSection == 'goal',
+        );
+        final label = _workflowSectionDisplayLabel(currentSection);
+        if (cleanedValue.isEmpty) {
+          buffer.writeln('$label:');
+        } else {
+          buffer.writeln('$label: $cleanedValue');
+        }
+        if (!_isWorkflowListSection(currentSection)) {
+          currentSection = null;
+        }
+        continue;
+      }
+
+      if (currentSection == null || !_isWorkflowListSection(currentSection)) {
+        continue;
+      }
+      if (!_looksLikeStructuredReasoningListItem(line)) {
+        continue;
+      }
+
+      final cleanedValue = _sanitizeReasoningProposalValue(
+        _stripMarkdownListMarker(line),
+      );
+      if (cleanedValue.isEmpty) {
+        continue;
+      }
+      buffer.writeln('- $cleanedValue');
+    }
+
+    return buffer.toString().trim();
+  }
+
+  String _extractStructuredTaskProposalReasoning(String rawContent) {
+    final buffer = StringBuffer();
+    String? currentField;
+    var taskCount = 0;
+
+    for (final rawLine in rawContent.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      final taskTitle = _matchTaskTitleLine(line, currentField: currentField);
+      if (taskTitle != null) {
+        taskCount++;
+        if (buffer.isNotEmpty) {
+          buffer.writeln();
+        }
+        buffer.writeln(
+          '$taskCount. ${_sanitizeReasoningProposalValue(taskTitle, preferSingleSentence: true)}',
+        );
+        currentField = null;
+        continue;
+      }
+
+      final taskField = _matchTaskFieldLine(line);
+      if (taskField != null) {
+        currentField = taskField.$1;
+        final cleanedValue = _sanitizeReasoningProposalValue(
+          _stripMarkdownListMarker(taskField.$2),
+          preferSingleSentence: currentField != 'notes',
+        );
+        final label = _taskFieldDisplayLabel(currentField);
+        if (cleanedValue.isEmpty) {
+          buffer.writeln('$label:');
+        } else {
+          buffer.writeln('$label: $cleanedValue');
+        }
+        continue;
+      }
+
+      if (currentField == null ||
+          !_looksLikeStructuredReasoningListItem(line)) {
+        continue;
+      }
+
+      final cleanedValue = _sanitizeReasoningProposalValue(
+        _stripMarkdownListMarker(line),
+      );
+      if (cleanedValue.isEmpty) {
+        continue;
+      }
+      buffer.writeln('- $cleanedValue');
+    }
+
+    return buffer.toString().trim();
+  }
+
+  bool _looksLikeStructuredReasoningListItem(String line) {
+    return RegExp(r'^(?:[-*•]|\d+[.)])\s+').hasMatch(line.trim());
+  }
+
+  bool _isWorkflowListSection(String section) {
+    return section == 'constraints' ||
+        section == 'acceptanceCriteria' ||
+        section == 'openQuestions';
+  }
+
+  String _workflowSectionDisplayLabel(String section) {
+    return switch (section) {
+      'workflowStage' => 'Workflow Stage',
+      'goal' => 'Goal',
+      'constraints' => 'Constraints',
+      'acceptanceCriteria' => 'Acceptance Criteria',
+      'openQuestions' => 'Open Questions',
+      _ => section,
+    };
+  }
+
+  String _taskFieldDisplayLabel(String field) {
+    return switch (field) {
+      'targetFiles' => 'Target files',
+      'validationCommand' => 'Validation command',
+      'notes' => 'Notes',
+      _ => field,
+    };
+  }
+
+  String _sanitizeReasoningProposalValue(
+    String value, {
+    bool preferSingleSentence = false,
+  }) {
+    var candidate = value
+        .trim()
+        .replaceAll(RegExp("^[`\"']+|[`\"']+\$"), '')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    const suspiciousMarkers = <String>[
+      'Recent Context:',
+      'Previous session',
+      'Previous sessions',
+      'Current State:',
+      'Self-Correction',
+      'Actually,',
+      'Actually ',
+      'Wait,',
+      'Wait ',
+      "Let's check",
+      "Let's refine",
+      "The user's intent",
+      'The prompt asks',
+      'kind:',
+      'workflowStage:',
+      'acceptanceCriteria:',
+      'openQuestions:',
+      'decisions:',
+      "'kind'",
+      '"kind"',
+      "'workflowStage'",
+      '"workflowStage"',
+      "'goal'",
+      '"goal"',
+      "'constraints'",
+      '"constraints"',
+      "'acceptanceCriteria'",
+      '"acceptanceCriteria"',
+      "'openQuestions'",
+      '"openQuestions"',
+      "'decisions'",
+      '"decisions"',
+    ];
+
+    final lowerCandidate = candidate.toLowerCase();
+    var cutIndex = candidate.length;
+    for (final marker in suspiciousMarkers) {
+      final index = lowerCandidate.indexOf(marker.toLowerCase());
+      if (index > 0 && index < cutIndex) {
+        cutIndex = index;
+      }
+    }
+    candidate = candidate.substring(0, cutIndex).trim();
+
+    if (preferSingleSentence && candidate.length > 160) {
+      final sentenceBreak = RegExp(r'(?<=[.!?])\s+').firstMatch(candidate);
+      if (sentenceBreak != null && sentenceBreak.start > 32) {
+        candidate = candidate.substring(0, sentenceBreak.start).trim();
+      }
+    }
+
+    return candidate.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  bool _isReasoningWorkflowProposalPlausible(WorkflowProposalDraft proposal) {
+    final fields = <String>[
+      proposal.workflowSpec.goal,
+      ...proposal.workflowSpec.constraints,
+      ...proposal.workflowSpec.acceptanceCriteria,
+      ...proposal.workflowSpec.openQuestions,
+    ].map((item) => item.trim()).where((item) => item.isNotEmpty);
+
+    if (proposal.workflowSpec.goal.trim().length > 220) {
+      return false;
+    }
+
+    final suspiciousPattern = RegExp(
+      "(recent context|current state|self-correction|(?:kind|workflowstage|acceptancecriteria|openquestions|decisions)\\s*:|[`'\\\"]\\s*(kind|workflowstage|goal|constraints|acceptancecriteria|openquestions|decisions)\\s*[`'\\\"]\\s*:)",
+      caseSensitive: false,
+    );
+    for (final field in fields) {
+      if (field.length > 280 || suspiciousPattern.hasMatch(field)) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _isReasoningTaskProposalPlausible(WorkflowTaskProposalDraft proposal) {
+    final suspiciousPattern = RegExp(
+      "(recent context|current state|self-correction|(?:title|targetfiles|validationcommand|notes|tasks)\\s*:|[`'\\\"]\\s*(title|targetfiles|validationcommand|notes|tasks)\\s*[`'\\\"]\\s*:)",
+      caseSensitive: false,
+    );
+    for (final task in proposal.tasks) {
+      if (task.title.trim().isEmpty ||
+          task.title.length > 180 ||
+          suspiciousPattern.hasMatch(task.title)) {
+        return false;
+      }
+      if (task.validationCommand.length > 240 ||
+          suspiciousPattern.hasMatch(task.validationCommand) ||
+          task.notes.length > 320 ||
+          suspiciousPattern.hasMatch(task.notes)) {
+        return false;
+      }
+      if (task.targetFiles.any(
+        (path) => path.length > 220 || suspiciousPattern.hasMatch(path),
+      )) {
+        return false;
+      }
+    }
+    return proposal.tasks.isNotEmpty;
   }
 
   String _stripMarkdownListMarker(String value) {
