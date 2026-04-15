@@ -608,9 +608,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           acceptanceCriteria: <String>[
             'The saved workflow captures the remaining blocker clearly.',
           ],
-          openQuestions: <String>[
-            'Should we use SSH checks or HTTP checks?',
-          ],
+          openQuestions: <String>['Should we use SSH checks or HTTP checks?'],
         ),
         PlanModeWorkflowDecisionResponseSpec(
           decisions: <WorkflowPlanningDecision>[
@@ -1247,6 +1245,51 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
         PlanModeLogExpectation(
           pattern:
               '[Screenshot] Saved "plan_mode_cli_entrypoint_decision_decision_1"',
+          minCount: 1,
+        ),
+      ],
+    ),
+  ];
+}
+
+List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
+  return <PlanModeScenarioSpec>[
+    PlanModeScenarioSpec(
+      name: 'live_host_health_scaffold',
+      userPrompt:
+          'Create a reviewable plan for a Python host health checker scaffold. '
+          'Assume a CLI-first tool for a single host with ping-only checks. '
+          'Do not ask for extra clarifications unless the plan is blocked. '
+          'For the first implementation slice, create only requirements.txt '
+          'and README.md.',
+      projectName: 'tmp-live',
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Suggested plan',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      artifactExpectations: const <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(path: 'requirements.txt'),
+        PlanModeArtifactExpectation(path: 'README.md'),
+      ],
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] === Response (streamWithTools) ===',
           minCount: 1,
         ),
       ],

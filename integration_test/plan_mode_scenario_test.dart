@@ -16,6 +16,7 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
@@ -53,6 +54,84 @@ class _ScenarioRunResult {
   final String reportPath;
   final List<String> screenshotPaths;
   final String logPath;
+}
+
+enum _PlanModeScenarioExecutionMode { fake, live }
+
+class _PlanModeScenarioTestConfig {
+  const _PlanModeScenarioTestConfig({
+    required this.mode,
+    required this.suiteName,
+    required this.reportPrefix,
+    required this.scenarios,
+    this.baseUrl,
+    this.apiKey,
+    this.model,
+  });
+
+  final _PlanModeScenarioExecutionMode mode;
+  final String suiteName;
+  final String reportPrefix;
+  final List<PlanModeScenarioSpec> scenarios;
+  final String? baseUrl;
+  final String? apiKey;
+  final String? model;
+
+  bool get usesLiveLlm => mode == _PlanModeScenarioExecutionMode.live;
+}
+
+bool _envFlagEnabled(String name) {
+  final rawValue = Platform.environment[name]?.trim().toLowerCase();
+  return rawValue == '1' ||
+      rawValue == 'true' ||
+      rawValue == 'yes' ||
+      rawValue == 'on';
+}
+
+_PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
+  final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
+  final requestedScenarios =
+      (Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS']
+                  ?.split(',')
+                  .map((value) => value.trim())
+                  .where((value) => value.isNotEmpty) ??
+              const Iterable<String>.empty())
+          .toSet();
+
+  final scenarios = usesLiveLlm
+      ? buildLivePlanModeScenarios()
+      : buildPlanModeScenarios();
+  final filteredScenarios = requestedScenarios.isEmpty
+      ? scenarios
+      : scenarios
+            .where((scenario) => requestedScenarios.contains(scenario.name))
+            .toList(growable: false);
+
+  if (filteredScenarios.isEmpty) {
+    throw StateError(
+      'No plan mode scenarios matched '
+      '"${Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS'] ?? ''}".',
+    );
+  }
+
+  if (!usesLiveLlm) {
+    return _PlanModeScenarioTestConfig(
+      mode: _PlanModeScenarioExecutionMode.fake,
+      suiteName: 'plan_mode_scenarios',
+      reportPrefix: 'plan_mode_suite',
+      scenarios: filteredScenarios,
+    );
+  }
+
+  return _PlanModeScenarioTestConfig(
+    mode: _PlanModeScenarioExecutionMode.live,
+    suiteName: 'plan_mode_live_scenarios',
+    reportPrefix: 'plan_mode_live_suite',
+    scenarios: filteredScenarios,
+    baseUrl: Platform.environment['CAVERNO_LLM_BASE_URL']?.trim(),
+    apiKey: Platform.environment['CAVERNO_LLM_API_KEY']?.trim(),
+    model: Platform.environment['CAVERNO_LLM_MODEL']?.trim(),
+  );
 }
 
 Future<Widget> _buildScenarioApp({
@@ -327,6 +406,7 @@ Future<void> _writeFailureScenarioArtifacts({
 }
 
 String _buildSuiteMarkdownReport({
+  required _PlanModeScenarioTestConfig config,
   required List<Map<String, Object?>> suiteResults,
   required Directory suiteRunDirectory,
 }) {
@@ -337,7 +417,16 @@ String _buildSuiteMarkdownReport({
     ..writeln('# Plan Mode Scenario Suite')
     ..writeln()
     ..writeln('- Generated at: ${DateTime.now().toIso8601String()}')
+    ..writeln('- Suite: ${config.suiteName}')
+    ..writeln('- Mode: ${config.mode.name}')
     ..writeln('- Suite directory: ${suiteRunDirectory.path}')
+    ..writeln(
+      '- Model: ${config.model?.isNotEmpty == true ? config.model : 'default'}',
+    );
+  if (config.baseUrl?.isNotEmpty == true) {
+    buffer.writeln('- Base URL: ${config.baseUrl}');
+  }
+  buffer
     ..writeln('- Scenario count: ${suiteResults.length}')
     ..writeln('- Passed: $passedCount')
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
@@ -367,6 +456,7 @@ Future<_ScenarioRunResult> _runScenario({
   required Box<String> conversationBox,
   required Box<String> memoryBox,
   required List<String> logs,
+  required _PlanModeScenarioTestConfig config,
   required PlanModeScenarioSpec scenario,
   required Directory scenarioDir,
 }) async {
@@ -378,6 +468,9 @@ Future<_ScenarioRunResult> _runScenario({
     updatedAt: DateTime.now(),
   );
   final settings = AppSettings.defaults().copyWith(
+    baseUrl: config.baseUrl ?? AppSettings.defaults().baseUrl,
+    model: config.model ?? AppSettings.defaults().model,
+    apiKey: config.apiKey ?? AppSettings.defaults().apiKey,
     assistantMode: AssistantMode.plan,
     language: 'en',
     mcpEnabled: true,
@@ -396,13 +489,16 @@ Future<_ScenarioRunResult> _runScenario({
   });
   final prefs = await SharedPreferences.getInstance();
   final screenshotBoundaryKey = GlobalKey();
+  final dataSource = config.usesLiveLlm
+      ? ChatRemoteDataSource(baseUrl: settings.baseUrl, apiKey: settings.apiKey)
+      : FakePlanModeChatDataSource(scenario);
 
   await tester.pumpWidget(
     await _buildScenarioApp(
       prefs: prefs,
       conversationBox: conversationBox,
       memoryBox: memoryBox,
-      dataSource: FakePlanModeChatDataSource(scenario),
+      dataSource: dataSource,
       scenario: scenario,
       screenshotBoundaryKey: screenshotBoundaryKey,
     ),
@@ -510,6 +606,7 @@ Future<_ScenarioRunResult> _runScenario({
   final report = <String, dynamic>{
     'scenario': scenario.name,
     'status': 'passed',
+    'executionMode': config.mode.name,
     'projectRoot': scenarioDir.path,
     'workflowStage': conversation.workflowStage.name,
     'workflowGoal': savedWorkflow.goal,
@@ -571,9 +668,10 @@ Future<_ScenarioRunResult> _runScenario({
 
 void main() {
   final binding = IntegrationTestWidgetsFlutterBinding.ensureInitialized();
-  final scenarios = buildPlanModeScenarios();
+  final config = _resolveScenarioTestConfig();
+  final scenarios = config.scenarios;
 
-  group('Plan mode scenarios', () {
+  group(config.suiteName, () {
     late Box<String> conversationBox;
     late Box<String> memoryBox;
     late DebugPrintCallback originalDebugPrint;
@@ -587,9 +685,12 @@ void main() {
       );
       await reportRoot.create(recursive: true);
       suiteRunDirectory = Directory(
-        '${reportRoot.path}/plan_mode_suite_${DateTime.now().millisecondsSinceEpoch}',
+        '${reportRoot.path}/${config.reportPrefix}_${DateTime.now().millisecondsSinceEpoch}',
       );
       await suiteRunDirectory.create(recursive: true);
+      appLog(
+        '[ScenarioSuite] Running ${config.suiteName} in ${config.mode.name} mode',
+      );
     });
 
     setUp(() async {
@@ -627,35 +728,39 @@ void main() {
           .length;
       final suiteReport = <String, Object?>{
         'generatedAt': DateTime.now().toIso8601String(),
-        'suite': 'plan_mode_scenarios',
+        'suite': config.suiteName,
+        'mode': config.mode.name,
         'suiteDirectory': suiteRunDirectory.path,
+        'model': config.model,
+        'baseUrl': config.baseUrl,
         'scenarioCount': suiteResults.length,
         'passedCount': passedCount,
         'failedCount': suiteResults.length - passedCount,
         'scenarios': suiteResults,
       };
       final suiteRunReportFile = File(
-        '${suiteRunDirectory.path}/plan_mode_suite_report.json',
+        '${suiteRunDirectory.path}/${config.reportPrefix}_report.json',
       );
       await suiteRunReportFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(suiteReport),
       );
       final suiteReportFile = File(
-        '${reportDirectory.path}/plan_mode_suite_report.json',
+        '${reportDirectory.path}/${config.reportPrefix}_report.json',
       );
       await suiteReportFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(suiteReport),
       );
       final suiteMarkdown = _buildSuiteMarkdownReport(
+        config: config,
         suiteResults: suiteResults,
         suiteRunDirectory: suiteRunDirectory,
       );
       final suiteRunMarkdownFile = File(
-        '${suiteRunDirectory.path}/plan_mode_suite_report.md',
+        '${suiteRunDirectory.path}/${config.reportPrefix}_report.md',
       );
       await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
       final suiteMarkdownFile = File(
-        '${reportDirectory.path}/plan_mode_suite_report.md',
+        '${reportDirectory.path}/${config.reportPrefix}_report.md',
       );
       await suiteMarkdownFile.writeAsString(suiteMarkdown);
       appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
@@ -677,6 +782,7 @@ void main() {
             conversationBox: conversationBox,
             memoryBox: memoryBox,
             logs: logs,
+            config: config,
             scenario: scenario,
             scenarioDir: scenarioDir,
           );
@@ -713,6 +819,7 @@ void main() {
           );
           suiteResults.add(<String, Object?>{
             'scenario': scenario.name,
+            'mode': config.mode.name,
             'status': failure == null ? 'passed' : 'failed',
             'startedAt': startedAt.toIso8601String(),
             'finishedAt': finishedAt.toIso8601String(),
