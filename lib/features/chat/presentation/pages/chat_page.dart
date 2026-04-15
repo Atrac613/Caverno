@@ -1009,6 +1009,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
     final showCompactApprovedPlan =
         isPlanMode && hasContext && !hasPlanDraft && !_isApprovedPlanExpanded;
+    final showWorkflowStageChip =
+        currentConversation.workflowStage != ConversationWorkflowStage.idle;
     final workflowPanelMaxHeight =
         (MediaQuery.sizeOf(context).height *
                 (showCompactApprovedPlan ? 0.22 : (isPlanMode ? 0.52 : 0.4)))
@@ -1070,41 +1072,38 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    if (chatState.isGeneratingWorkflowProposal)
-                      const SizedBox(
-                        width: 18,
-                        height: 18,
-                        child: CircularProgressIndicator(strokeWidth: 2),
-                      )
-                    else
-                      IconButton(
-                        onPressed: isBusy
-                            ? null
-                            : () => isPlanMode
-                                  ? ref
-                                        .read(chatNotifierProvider.notifier)
-                                        .generatePlanProposal(
-                                          languageCode:
-                                              context.locale.languageCode,
-                                        )
-                                  : ref
-                                        .read(chatNotifierProvider.notifier)
-                                        .generateWorkflowProposal(
-                                          languageCode:
-                                              context.locale.languageCode,
-                                        ),
-                        icon: const Icon(Icons.auto_awesome_outlined),
-                        tooltip: isPlanMode
-                            ? 'chat.plan_mode_generate'.tr()
-                            : 'chat.workflow_generate'.tr(),
-                      ),
-                    Chip(
-                      label: Text(
-                        _workflowStageLabel(currentConversation.workflowStage),
-                      ),
-                      visualDensity: VisualDensity.compact,
+                    IconButton(
+                      onPressed: isBusy
+                          ? null
+                          : () => isPlanMode
+                                ? ref
+                                      .read(chatNotifierProvider.notifier)
+                                      .generatePlanProposal(
+                                        languageCode:
+                                            context.locale.languageCode,
+                                      )
+                                : ref
+                                      .read(chatNotifierProvider.notifier)
+                                      .generateWorkflowProposal(
+                                        languageCode:
+                                            context.locale.languageCode,
+                                      ),
+                      icon: const Icon(Icons.auto_awesome_outlined),
+                      tooltip: isPlanMode
+                          ? 'chat.plan_mode_generate'.tr()
+                          : 'chat.workflow_generate'.tr(),
                     ),
-                    const SizedBox(width: 8),
+                    if (showWorkflowStageChip) ...[
+                      Chip(
+                        label: Text(
+                          _workflowStageLabel(
+                            currentConversation.workflowStage,
+                          ),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                      ),
+                      const SizedBox(width: 8),
+                    ],
                     if (!isPlanMode || hasContext)
                       IconButton(
                         onPressed: () =>
