@@ -89,6 +89,9 @@ class SystemPromptBuilder {
       buffer.writeln(SystemPromptConstants.generalModeInstruction);
     } else {
       buffer.writeln(SystemPromptConstants.codingModeInstruction);
+      if (assistantMode == AssistantMode.plan) {
+        buffer.writeln(SystemPromptConstants.planModeInstruction);
+      }
       final normalizedWorkflowSpec =
           workflowSpec ?? const ConversationWorkflowSpec();
       final normalizedProjectName = projectName?.trim();

@@ -1,1 +1,1 @@
-enum AssistantMode { general, coding }
+enum AssistantMode { general, coding, plan }

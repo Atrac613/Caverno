@@ -127,9 +127,7 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     final notifier = ref.read(settingsNotifierProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('settings.menu_chat'.tr()),
-      ),
+      appBar: AppBar(title: Text('settings.menu_chat'.tr())),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -137,16 +135,21 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
           _buildSectionHeader('settings.assistant_section'.tr()),
           const SizedBox(height: 16),
           SegmentedButton<AssistantMode>(
-            segments: const [
+            segments: [
               ButtonSegment(
                 value: AssistantMode.general,
-                label: Text('General'),
+                label: Text('settings.assistant_general'.tr()),
                 icon: Icon(Icons.chat_outlined),
               ),
               ButtonSegment(
                 value: AssistantMode.coding,
-                label: Text('Coding'),
+                label: Text('settings.assistant_coding'.tr()),
                 icon: Icon(Icons.code),
+              ),
+              ButtonSegment(
+                value: AssistantMode.plan,
+                label: Text('settings.assistant_plan'.tr()),
+                icon: Icon(Icons.route_outlined),
               ),
             ],
             selected: {settings.assistantMode},
@@ -156,9 +159,11 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
           ),
           const SizedBox(height: 8),
           Text(
-            settings.assistantMode == AssistantMode.general
-                ? 'settings.assistant_general_desc'.tr()
-                : 'settings.assistant_coding_desc'.tr(),
+            switch (settings.assistantMode) {
+              AssistantMode.general => 'settings.assistant_general_desc'.tr(),
+              AssistantMode.coding => 'settings.assistant_coding_desc'.tr(),
+              AssistantMode.plan => 'settings.assistant_plan_desc'.tr(),
+            },
             style: Theme.of(context).textTheme.bodySmall?.copyWith(
               color: Theme.of(context).colorScheme.outline,
             ),
@@ -191,24 +196,29 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                   ),
                   const SizedBox(height: 6),
                   Text(
-                    'settings.profile_count'.tr(namedArgs: {
-                      'count': '${_memorySnapshot.profile.persona.length + _memorySnapshot.profile.preferences.length + _memorySnapshot.profile.doNot.length}',
-                    }),
+                    'settings.profile_count'.tr(
+                      namedArgs: {
+                        'count':
+                            '${_memorySnapshot.profile.persona.length + _memorySnapshot.profile.preferences.length + _memorySnapshot.profile.doNot.length}',
+                      },
+                    ),
                   ),
                   Text(
-                    'settings.summary_count'.tr(namedArgs: {
-                      'count': '${_memorySnapshot.summaryCount}',
-                    }),
+                    'settings.summary_count'.tr(
+                      namedArgs: {'count': '${_memorySnapshot.summaryCount}'},
+                    ),
                   ),
                   Text(
-                    'settings.memory_count'.tr(namedArgs: {
-                      'count': '${_memorySnapshot.memoryCount}',
-                    }),
+                    'settings.memory_count'.tr(
+                      namedArgs: {'count': '${_memorySnapshot.memoryCount}'},
+                    ),
                   ),
                   Text(
-                    'settings.last_updated'.tr(namedArgs: {
-                      'date': _formatDateTime(_memorySnapshot.lastUpdatedAt),
-                    }),
+                    'settings.last_updated'.tr(
+                      namedArgs: {
+                        'date': _formatDateTime(_memorySnapshot.lastUpdatedAt),
+                      },
+                    ),
                   ),
                 ],
               ),

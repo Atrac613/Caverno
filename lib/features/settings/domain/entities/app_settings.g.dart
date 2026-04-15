@@ -111,4 +111,5 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
 const _$AssistantModeEnumMap = {
   AssistantMode.general: 'general',
   AssistantMode.coding: 'coding',
+  AssistantMode.plan: 'plan',
 };

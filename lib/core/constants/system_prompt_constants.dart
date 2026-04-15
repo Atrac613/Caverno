@@ -69,6 +69,11 @@ class SystemPromptConstants {
       'tradeoffs, and clear identification of risks or missing '
       'information.';
 
+  static const String planModeInstruction =
+      'When the user is planning software work, first produce a clear plan '
+      'with goal, constraints, acceptance criteria, and task breakdown '
+      'before broad implementation. Keep plans concrete and approval-ready.';
+
   static String codingProjectContextInstruction({
     String? projectName,
     String? projectRootPath,

@@ -81,6 +81,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final projectsState = ref.read(codingProjectsNotifierProvider);
     final projectsNotifier = ref.read(codingProjectsNotifierProvider.notifier);
     final settingsNotifier = ref.read(settingsNotifierProvider.notifier);
+    final currentAssistantMode = ref
+        .read(settingsNotifierProvider)
+        .assistantMode;
 
     if (workspaceMode == WorkspaceMode.chat) {
       conversationsNotifier.activateWorkspace(
@@ -103,7 +106,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       projectId: projectId,
       createIfMissing: projectId != null,
     );
-    await settingsNotifier.updateAssistantMode(AssistantMode.coding);
+    await settingsNotifier.updateAssistantMode(
+      currentAssistantMode == AssistantMode.general
+          ? AssistantMode.coding
+          : currentAssistantMode,
+    );
   }
 
   Future<void> _pickAndActivateProject(BuildContext context) async {
@@ -123,9 +130,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
           projectId: project.id,
           createIfMissing: true,
         );
+    final currentAssistantMode = ref
+        .read(settingsNotifierProvider)
+        .assistantMode;
     await ref
         .read(settingsNotifierProvider.notifier)
-        .updateAssistantMode(AssistantMode.coding);
+        .updateAssistantMode(
+          currentAssistantMode == AssistantMode.general
+              ? AssistantMode.coding
+              : currentAssistantMode,
+        );
   }
 
   Future<void> _showDeleteConversationDialog(
@@ -266,6 +280,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final settings = ref.watch(settingsNotifierProvider);
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
+    final isPlanMode = settings.assistantMode == AssistantMode.plan;
     final activeProject = codingProjectsState.findById(
       conversationsState.activeProjectId,
     );
@@ -281,6 +296,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
       _workspaceTabController.index = workspaceIndex;
     }
     final canCompose = !isCodingWorkspace || activeProject != null;
+    final shouldShowWorkflowSurface =
+        isCodingWorkspace &&
+        activeProject != null &&
+        currentConversation != null &&
+        (isPlanMode ||
+            currentConversation.hasWorkflowContext ||
+            chatState.workflowProposalDraft != null ||
+            chatState.taskProposalDraft != null ||
+            chatState.workflowProposalError != null ||
+            chatState.taskProposalError != null);
 
     return Scaffold(
       appBar: AppBar(
@@ -421,10 +446,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ],
               ),
             ),
-          if (isCodingWorkspace &&
-              activeProject != null &&
-              currentConversation != null)
-            _buildWorkflowPanel(context, currentConversation, chatState),
+          if (shouldShowWorkflowSurface)
+            _buildWorkflowPanel(
+              context,
+              currentConversation,
+              chatState,
+              isPlanMode: isPlanMode,
+            ),
           // Message list
           Expanded(
             child: !canCompose
@@ -464,7 +492,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
               onCancel: () => chatNotifier.cancelStreaming(),
               isLoading: chatState.isLoading,
               inputHintKey: isCodingWorkspace
-                  ? 'message.input_hint_coding'
+                  ? (isPlanMode
+                        ? 'message.input_hint_plan'
+                        : 'message.input_hint_coding')
                   : 'message.input_hint',
             ),
         ],
@@ -525,12 +555,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Widget _buildWorkflowPanel(
     BuildContext context,
     Conversation currentConversation,
-    ChatState chatState,
-  ) {
+    ChatState chatState, {
+    required bool isPlanMode,
+  }) {
     final theme = Theme.of(context);
     final spec = currentConversation.effectiveWorkflowSpec;
     final hasContext = currentConversation.hasWorkflowContext;
     final isBusy = chatState.isLoading;
+    final hasPlanDraft =
+        chatState.workflowProposalDraft != null ||
+        chatState.taskProposalDraft != null ||
+        chatState.workflowProposalError != null ||
+        chatState.taskProposalError != null ||
+        chatState.isGeneratingWorkflowProposal ||
+        chatState.isGeneratingTaskProposal;
+    final showCombinedPlanCard = isPlanMode && hasPlanDraft;
 
     return Container(
       width: double.infinity,
@@ -556,16 +595,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      'chat.workflow_title'.tr(),
+                      isPlanMode
+                          ? 'chat.plan_mode_title'.tr()
+                          : 'chat.workflow_title'.tr(),
                       style: theme.textTheme.titleSmall?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      hasContext
-                          ? 'chat.workflow_subtitle'.tr()
-                          : 'chat.workflow_empty'.tr(),
+                      isPlanMode
+                          ? (hasContext
+                                ? 'chat.plan_mode_ready'.tr()
+                                : 'chat.plan_mode_subtitle'.tr())
+                          : (hasContext
+                                ? 'chat.workflow_subtitle'.tr()
+                                : 'chat.workflow_empty'.tr()),
                       style: theme.textTheme.bodySmall?.copyWith(
                         color: theme.colorScheme.onSurfaceVariant,
                       ),
@@ -584,13 +629,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 IconButton(
                   onPressed: isBusy
                       ? null
-                      : () => ref
-                            .read(chatNotifierProvider.notifier)
-                            .generateWorkflowProposal(
-                              languageCode: context.locale.languageCode,
-                            ),
+                      : () => isPlanMode
+                            ? ref
+                                  .read(chatNotifierProvider.notifier)
+                                  .generatePlanProposal(
+                                    languageCode: context.locale.languageCode,
+                                  )
+                            : ref
+                                  .read(chatNotifierProvider.notifier)
+                                  .generateWorkflowProposal(
+                                    languageCode: context.locale.languageCode,
+                                  ),
                   icon: const Icon(Icons.auto_awesome_outlined),
-                  tooltip: 'chat.workflow_generate'.tr(),
+                  tooltip: isPlanMode
+                      ? 'chat.plan_mode_generate'.tr()
+                      : 'chat.workflow_generate'.tr(),
                 ),
               Chip(
                 label: Text(
@@ -599,17 +652,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 visualDensity: VisualDensity.compact,
               ),
               const SizedBox(width: 8),
-              IconButton(
-                onPressed: () =>
-                    _showWorkflowEditor(context, currentConversation),
-                icon: Icon(hasContext ? Icons.edit_outlined : Icons.add),
-                tooltip: hasContext
-                    ? 'chat.workflow_edit'.tr()
-                    : 'chat.workflow_add'.tr(),
-              ),
+              if (!isPlanMode || hasContext)
+                IconButton(
+                  onPressed: () =>
+                      _showWorkflowEditor(context, currentConversation),
+                  icon: Icon(hasContext ? Icons.edit_outlined : Icons.add),
+                  tooltip: hasContext
+                      ? 'chat.workflow_edit'.tr()
+                      : 'chat.workflow_add'.tr(),
+                ),
             ],
           ),
-          if (chatState.workflowProposalDraft != null) ...[
+          if (showCombinedPlanCard) ...[
+            const SizedBox(height: 12),
+            _buildPlanProposalCard(
+              context,
+              currentConversation: currentConversation,
+              chatState: chatState,
+            ),
+          ] else if (chatState.workflowProposalDraft != null) ...[
             const SizedBox(height: 12),
             _buildWorkflowProposalCard(
               context,
@@ -649,18 +710,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
               items: spec.openQuestions,
             ),
           ],
-          const SizedBox(height: 16),
-          _buildWorkflowTasksSection(
-            context,
-            currentConversation: currentConversation,
-            chatState: chatState,
-          ),
-          const SizedBox(height: 16),
-          _buildWorkflowQuickActions(
-            context,
-            currentConversation: currentConversation,
-            isBusy: isBusy,
-          ),
+          if (hasContext) ...[
+            const SizedBox(height: 16),
+            _buildWorkflowTasksSection(
+              context,
+              currentConversation: currentConversation,
+              chatState: chatState,
+              isPlanMode: isPlanMode,
+            ),
+            const SizedBox(height: 16),
+            _buildWorkflowQuickActions(
+              context,
+              currentConversation: currentConversation,
+              isBusy: isBusy,
+            ),
+          ] else if (isPlanMode && !hasPlanDraft) ...[
+            const SizedBox(height: 12),
+            Text(
+              'chat.plan_mode_empty'.tr(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
         ],
       ),
     );
@@ -670,6 +742,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     BuildContext context, {
     required Conversation currentConversation,
     required ChatState chatState,
+    required bool isPlanMode,
   }) {
     final theme = Theme.of(context);
     final tasks = currentConversation.effectiveWorkflowSpec.tasks;
@@ -701,13 +774,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 visualDensity: VisualDensity.compact,
               ),
             const SizedBox(width: 8),
-            if (chatState.isGeneratingTaskProposal)
+            if (!isPlanMode && chatState.isGeneratingTaskProposal)
               const SizedBox(
                 width: 18,
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            else
+            else if (!isPlanMode)
               IconButton(
                 onPressed: !canGenerateTasks || isBusy
                     ? null
@@ -719,7 +792,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 icon: const Icon(Icons.auto_awesome_outlined),
                 tooltip: 'chat.workflow_tasks_generate'.tr(),
               ),
-            const SizedBox(width: 4),
             IconButton(
               onPressed: () => _showWorkflowTaskEditor(
                 context,
@@ -731,7 +803,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ],
         ),
         const SizedBox(height: 8),
-        if (chatState.taskProposalDraft != null) ...[
+        if (!isPlanMode && chatState.taskProposalDraft != null) ...[
           _buildWorkflowTaskProposalCard(
             context,
             currentConversation: currentConversation,
@@ -739,7 +811,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             isGenerating: chatState.isGeneratingTaskProposal,
           ),
           const SizedBox(height: 8),
-        ] else if (chatState.taskProposalError != null) ...[
+        ] else if (!isPlanMode && chatState.taskProposalError != null) ...[
           _buildWorkflowTaskProposalErrorCard(
             context,
             error: chatState.taskProposalError!,
@@ -780,6 +852,257 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 .toList(growable: false),
           ),
       ],
+    );
+  }
+
+  Widget _buildPlanProposalCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ChatState chatState,
+  }) {
+    final theme = Theme.of(context);
+    final workflowDraft = chatState.workflowProposalDraft;
+    final taskDraft = chatState.taskProposalDraft;
+    final workflowSpec = workflowDraft?.workflowSpec;
+    final isGenerating =
+        chatState.isGeneratingWorkflowProposal ||
+        chatState.isGeneratingTaskProposal;
+    final canApprove = workflowDraft != null && taskDraft != null;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.route_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'chat.plan_proposal_title'.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              if (workflowDraft != null)
+                Chip(
+                  label: Text(_workflowStageLabel(workflowDraft.workflowStage)),
+                  visualDensity: VisualDensity.compact,
+                ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'chat.plan_proposal_subtitle'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (isGenerating) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'chat.plan_proposal_generating'.tr(),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          if (workflowSpec != null) ...[
+            if (workflowSpec.goal.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _buildWorkflowTextSection(
+                context,
+                label: 'chat.workflow_goal'.tr(),
+                value: workflowSpec.goal.trim(),
+              ),
+            ],
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_constraints'.tr(),
+              items: workflowSpec.constraints,
+            ),
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_acceptance'.tr(),
+              items: workflowSpec.acceptanceCriteria,
+            ),
+            _buildWorkflowListSection(
+              context,
+              label: 'chat.workflow_open_questions'.tr(),
+              items: workflowSpec.openQuestions,
+            ),
+          ],
+          if (taskDraft != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'chat.workflow_tasks'.tr(),
+              style: theme.textTheme.labelMedium?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+            const SizedBox(height: 8),
+            for (final task in taskDraft.tasks)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 6),
+                child: Text(
+                  '• ${task.title}',
+                  style: theme.textTheme.bodyMedium,
+                ),
+              ),
+          ],
+          if (chatState.workflowProposalError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              chatState.workflowProposalError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          if (chatState.taskProposalError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              chatState.taskProposalError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: canApprove
+                    ? () => _approvePlanAndStart(
+                        context,
+                        currentConversation: currentConversation,
+                        workflowDraft: workflowDraft,
+                        taskDraft: taskDraft,
+                      )
+                    : null,
+                icon: const Icon(Icons.play_circle_outline, size: 18),
+                label: Text('chat.plan_proposal_approve_start'.tr()),
+              ),
+              OutlinedButton.icon(
+                onPressed: isGenerating
+                    ? null
+                    : () => ref
+                          .read(chatNotifierProvider.notifier)
+                          .generatePlanProposal(
+                            languageCode: context.locale.languageCode,
+                          ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text('chat.plan_proposal_regenerate'.tr()),
+              ),
+              if (workflowDraft != null)
+                OutlinedButton.icon(
+                  onPressed: () => _showWorkflowEditor(
+                    context,
+                    currentConversation,
+                    initialWorkflowStage: workflowDraft.workflowStage,
+                    initialWorkflowSpec: workflowDraft.workflowSpec,
+                    dismissWorkflowProposalOnSave: true,
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text('chat.workflow_edit'.tr()),
+                ),
+              TextButton(
+                onPressed: () => ref
+                    .read(chatNotifierProvider.notifier)
+                    .dismissPlanProposal(),
+                child: Text('chat.workflow_dismiss'.tr()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _approvePlanAndStart(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required WorkflowProposalDraft workflowDraft,
+    required WorkflowTaskProposalDraft taskDraft,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final nextTasks = taskDraft.tasks.isEmpty
+        ? const <ConversationWorkflowTask>[]
+        : taskDraft.tasks.indexed
+              .map((entry) {
+                final index = entry.$1;
+                final task = entry.$2;
+                return index == 0
+                    ? task.copyWith(
+                        status:
+                            task.status ==
+                                ConversationWorkflowTaskStatus.completed
+                            ? task.status
+                            : ConversationWorkflowTaskStatus.inProgress,
+                      )
+                    : task;
+              })
+              .toList(growable: false);
+    final nextSpec = workflowDraft.workflowSpec.copyWith(tasks: nextTasks);
+    final initialTask = nextTasks.firstOrNull;
+
+    await conversationsNotifier.updateCurrentWorkflow(
+      workflowStage: initialTask == null
+          ? ConversationWorkflowStage.tasks
+          : ConversationWorkflowStage.implement,
+      workflowSpec: nextSpec,
+    );
+    ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
+
+    if (!context.mounted) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('chat.plan_proposal_started'.tr())));
+
+    await chatNotifier.sendMessage(
+      initialTask == null
+          ? 'chat.plan_proposal_execute_prompt'.tr()
+          : _buildWorkflowTaskPrompt(
+              initialTask,
+              isReview:
+                  initialTask.status ==
+                  ConversationWorkflowTaskStatus.completed,
+            ),
+      languageCode: context.locale.languageCode,
+      bypassPlanMode: true,
     );
   }
 
@@ -1499,6 +1822,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     await chatNotifier.sendMessage(
       action.promptKey.tr(),
       languageCode: context.locale.languageCode,
+      bypassPlanMode: true,
     );
   }
 
@@ -1671,6 +1995,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
 
+    await chatNotifier.sendMessage(
+      _buildWorkflowTaskPrompt(
+        task,
+        isReview: task.status == ConversationWorkflowTaskStatus.completed,
+      ),
+      languageCode: context.locale.languageCode,
+      bypassPlanMode: true,
+    );
+  }
+
+  String _buildWorkflowTaskPrompt(
+    ConversationWorkflowTask task, {
+    required bool isReview,
+  }) {
     final promptLines = <String>[
       'chat.workflow_task_use_prompt_intro'.tr(
         namedArgs: {'title': task.title},
@@ -1696,15 +2034,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       promptLines.add('${'chat.workflow_task_notes'.tr()}: $notes');
     }
     promptLines.add(
-      task.status == ConversationWorkflowTaskStatus.completed
+      isReview
           ? 'chat.workflow_task_review_prompt_outro'.tr()
           : 'chat.workflow_task_use_prompt_outro'.tr(),
     );
-
-    await chatNotifier.sendMessage(
-      promptLines.join('\n'),
-      languageCode: context.locale.languageCode,
-    );
+    return promptLines.join('\n');
   }
 
   String _workflowStageLabel(ConversationWorkflowStage stage) {

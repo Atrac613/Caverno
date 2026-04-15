@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/foundation.dart';
-import '../../../../core/utils/logger.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -11,7 +10,10 @@ import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/voice_providers.dart';
+import '../../../../core/types/assistant_mode.dart';
+import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/content_parser.dart';
+import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
@@ -69,6 +71,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Message? _hiddenPrompt;
   bool _isVoiceMode = false;
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
+  AssistantMode? _assistantModeOverride;
 
   @override
   ChatState build() {
@@ -253,12 +256,14 @@ class ChatNotifier extends Notifier<ChatState> {
     final resolvedLanguage = _settings.language == 'system'
         ? _languageCode
         : _settings.language;
+    final resolvedAssistantMode =
+        _assistantModeOverride ?? _settings.assistantMode;
 
     return Message(
       id: 'system',
       content: SystemPromptBuilder.build(
         now: now,
-        assistantMode: _settings.assistantMode,
+        assistantMode: resolvedAssistantMode,
         languageCode: resolvedLanguage,
         toolNames: toolNames,
         sessionMemoryContext: _sessionMemoryContext,
@@ -315,6 +320,8 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _buildTaskProposalMessages({
     required Conversation currentConversation,
     required String languageCode,
+    ConversationWorkflowStage? workflowStageOverride,
+    ConversationWorkflowSpec? workflowSpecOverride,
     bool compact = false,
   }) {
     final now = DateTime.now();
@@ -330,6 +337,8 @@ class ChatNotifier extends Notifier<ChatState> {
         content: _buildTaskProposalRequest(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          workflowStageOverride: workflowStageOverride,
+          workflowSpecOverride: workflowSpecOverride,
           compact: compact,
         ),
       ),
@@ -392,6 +401,8 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<WorkflowTaskProposalDraft> _requestTaskProposal({
     required Conversation currentConversation,
     required String languageCode,
+    ConversationWorkflowStage? workflowStageOverride,
+    ConversationWorkflowSpec? workflowSpecOverride,
   }) async {
     final attempts = <({bool compact, int maxTokens})>[
       (
@@ -411,6 +422,8 @@ class ChatNotifier extends Notifier<ChatState> {
         messages: _buildTaskProposalMessages(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          workflowStageOverride: workflowStageOverride,
+          workflowSpecOverride: workflowSpecOverride,
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -522,10 +535,15 @@ class ChatNotifier extends Notifier<ChatState> {
   String _buildTaskProposalRequest({
     required Conversation currentConversation,
     required String languageCode,
+    ConversationWorkflowStage? workflowStageOverride,
+    ConversationWorkflowSpec? workflowSpecOverride,
     bool compact = false,
   }) {
     final project = _getActiveCodingProject();
-    final savedSpec = currentConversation.effectiveWorkflowSpec;
+    final savedSpec =
+        workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
+    final savedStage =
+        workflowStageOverride ?? currentConversation.workflowStage;
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
@@ -568,7 +586,7 @@ class ChatNotifier extends Notifier<ChatState> {
     buffer
       ..writeln()
       ..writeln('Saved workflow:')
-      ..writeln('- stage: ${currentConversation.workflowStage.name}')
+      ..writeln('- stage: ${savedStage.name}')
       ..writeln('- goal: ${savedSpec.goal}')
       ..writeln('- constraints: ${savedSpec.constraints.join(' | ')}')
       ..writeln(
@@ -1302,6 +1320,7 @@ class ChatNotifier extends Notifier<ChatState> {
     String? imageMimeType,
     String languageCode = 'en',
     bool isVoiceMode = false,
+    bool bypassPlanMode = false,
   }) async {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
@@ -1319,6 +1338,13 @@ class ChatNotifier extends Notifier<ChatState> {
       userInput: content,
     );
     final shouldUseTemporalTool = _temporalReferenceContext != null;
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final shouldInterceptForPlanMode =
+        !bypassPlanMode &&
+        _settings.assistantMode == AssistantMode.plan &&
+        currentConversation?.workspaceMode == WorkspaceMode.coding;
 
     // Inject memory context only on the first turn of a new session.
     final isFirstTurn = state.messages.isEmpty;
@@ -1345,9 +1371,24 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     state = state.copyWith(
       messages: [...state.messages, userMessage],
-      isLoading: true,
+      isLoading: shouldInterceptForPlanMode,
       error: null,
     );
+
+    if (shouldInterceptForPlanMode) {
+      _onMessagesChanged(
+        state.messages.where((message) => !message.isStreaming).toList(),
+      );
+      if (currentConversation == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+      await _runPlanProposalFlow(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
+      );
+      return;
+    }
 
     // Append a placeholder assistant message for streaming.
     final assistantMessage = Message(
@@ -1364,17 +1405,23 @@ class ChatNotifier extends Notifier<ChatState> {
     // Request extended background execution time on iOS.
     _onSendStarted();
 
-    // Use tool-aware flow when the MCP tool service is available.
-    if (_mcpToolService != null &&
-        (_settings.mcpEnabled || shouldUseTemporalTool)) {
-      final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
-      appLog('[Tool] Sending in tool-aware mode ($mode)');
-      await _sendWithTools();
-    } else {
-      appLog(
-        '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
-      );
-      await _sendWithoutTools();
+    _assistantModeOverride = bypassPlanMode ? AssistantMode.coding : null;
+
+    try {
+      // Use tool-aware flow when the MCP tool service is available.
+      if (_mcpToolService != null &&
+          (_settings.mcpEnabled || shouldUseTemporalTool)) {
+        final mode = _settings.mcpEnabled ? 'MCP' : 'TemporalOnly';
+        appLog('[Tool] Sending in tool-aware mode ($mode)');
+        await _sendWithTools();
+      } else {
+        appLog(
+          '[Tool] Sending in normal mode (mcpToolService: ${_mcpToolService != null}, enabled: ${_settings.mcpEnabled})',
+        );
+        await _sendWithoutTools();
+      }
+    } finally {
+      _assistantModeOverride = null;
     }
   }
 
@@ -1460,6 +1507,24 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
+  Future<void> generatePlanProposal({String languageCode = 'en'}) async {
+    if (!ref.mounted ||
+        state.isGeneratingWorkflowProposal ||
+        state.isGeneratingTaskProposal) {
+      return;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) return;
+
+    await _runPlanProposalFlow(
+      currentConversation: currentConversation,
+      languageCode: languageCode,
+    );
+  }
+
   Future<void> generateTaskProposal({String languageCode = 'en'}) async {
     if (!ref.mounted || state.isGeneratingTaskProposal) return;
 
@@ -1508,6 +1573,11 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  void dismissPlanProposal() {
+    dismissWorkflowProposal();
+    dismissTaskProposal();
+  }
+
   void dismissTaskProposal() {
     if (!ref.mounted) return;
     state = state.copyWith(
@@ -1515,6 +1585,73 @@ class ChatNotifier extends Notifier<ChatState> {
       taskProposalError: null,
       isGeneratingTaskProposal: false,
     );
+  }
+
+  Future<void> _runPlanProposalFlow({
+    required Conversation currentConversation,
+    required String languageCode,
+  }) async {
+    if (!ref.mounted) return;
+
+    state = state.copyWith(
+      isLoading: true,
+      error: null,
+      isGeneratingWorkflowProposal: true,
+      isGeneratingTaskProposal: true,
+      workflowProposalDraft: null,
+      taskProposalDraft: null,
+      workflowProposalError: null,
+      taskProposalError: null,
+    );
+
+    WorkflowProposalDraft? workflowDraft;
+    try {
+      workflowDraft = await _requestWorkflowProposal(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
+      );
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isGeneratingWorkflowProposal: false,
+        workflowProposalDraft: workflowDraft,
+        workflowProposalError: null,
+      );
+    } catch (error) {
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        isGeneratingWorkflowProposal: false,
+        isGeneratingTaskProposal: false,
+        workflowProposalDraft: null,
+        taskProposalDraft: null,
+        workflowProposalError: error.toString(),
+      );
+      return;
+    }
+
+    try {
+      final taskDraft = await _requestTaskProposal(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
+        workflowStageOverride: workflowDraft.workflowStage,
+        workflowSpecOverride: workflowDraft.workflowSpec,
+      );
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        isGeneratingTaskProposal: false,
+        taskProposalDraft: taskDraft,
+        taskProposalError: null,
+      );
+    } catch (error) {
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        isGeneratingTaskProposal: false,
+        taskProposalDraft: null,
+        taskProposalError: error.toString(),
+      );
+    }
   }
 
   /// Sends a streaming request without tools.

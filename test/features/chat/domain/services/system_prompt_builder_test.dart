@@ -111,4 +111,23 @@ void main() {
     );
     expect(prompt, contains('validate: flutter test'));
   });
+
+  test('includes plan mode guidance in plan prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.plan,
+      languageCode: 'en',
+      toolNames: const ['list_directory', 'read_file'],
+      projectName: 'caverno',
+      projectRootPath: '/Users/noguwo/Documents/Workspace/Flutter/caverno',
+    );
+
+    expect(
+      prompt,
+      contains(
+        'When the user is planning software work, first produce a clear plan',
+      ),
+    );
+    expect(prompt, contains('Project name: "caverno".'));
+  });
 }
