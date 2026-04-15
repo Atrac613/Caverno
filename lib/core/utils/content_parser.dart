@@ -58,11 +58,11 @@ class ParseResult {
 /// Parses `\<think>` and `\<tool_call>` tags in LLM responses.
 class ContentParser {
   static final _modelControlTokenPattern = RegExp(
-    r'<\|?[a-zA-Z_][a-zA-Z0-9_-]*\|>',
+    r'<(?:\|/?[a-zA-Z_][a-zA-Z0-9_-]*\|?|/?[a-zA-Z_][a-zA-Z0-9_-]*\|)>',
   );
 
   static final _structuralTagPattern = RegExp(
-    r'</?(?:think|thinking|tool_call|tool_use|tool_result)>',
+    r'(?:</?(?:think|thinking|tool_call|tool_use|tool_result)>|<\|/?(?:think|thinking|tool_call|tool_use|tool_result|end_tool_call|end_tool_use)\|?>)',
   );
 
   // Regex to detect complete tags
@@ -72,12 +72,12 @@ class ContentParser {
   );
 
   static final _toolCallPattern = RegExp(
-    r'<tool_call>(.*?)</tool_call>',
+    r'(?:<tool_call>|<\|tool_call\|?>)(.*?)(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>)',
     dotAll: true,
   );
 
   static final _toolUsePattern = RegExp(
-    r'<tool_use>(.*?)</tool_use>',
+    r'(?:<tool_use>|<\|tool_use\|?>)(.*?)(?:</tool_use>|<\|/tool_use\|?>|<\|end_tool_use\|?>)',
     dotAll: true,
   );
 
@@ -93,12 +93,17 @@ class ContentParser {
   );
 
   static final _incompleteToolCallStart = RegExp(
-    r'<tool_call>(?!.*</tool_call>).*$',
+    r'(?:<tool_call>|<\|tool_call\|?>)(?!.*(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>)).*$',
     dotAll: true,
   );
 
   static final _incompleteToolUseStart = RegExp(
-    r'<tool_use>(?!.*</tool_use>).*$',
+    r'(?:<tool_use>|<\|tool_use\|?>)(?!.*(?:</tool_use>|<\|/tool_use\|?>|<\|end_tool_use\|?>)).*$',
+    dotAll: true,
+  );
+
+  static final _controlToolCallUntilEndPattern = RegExp(
+    r'<\|tool_(?:call|use)\|?>(.*?)(?=<\|(?:/?[a-zA-Z_][a-zA-Z0-9_-]*|end_tool_(?:call|use))\|?>|$)',
     dotAll: true,
   );
 
@@ -302,6 +307,7 @@ class ContentParser {
     final matches = [
       ..._toolCallPattern.allMatches(content),
       ..._toolUsePattern.allMatches(content),
+      ..._controlToolCallUntilEndPattern.allMatches(content),
     ]..sort((a, b) => a.start.compareTo(b.start));
 
     for (final match in matches) {
@@ -351,6 +357,19 @@ class ContentParser {
       }
     } catch (_) {
       // JSON parse failed - try other formats
+    }
+
+    final controlCallMatch = RegExp(
+      r'^call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*(\{.*\})$',
+      dotAll: true,
+    ).firstMatch(trimmed);
+    if (controlCallMatch != null) {
+      final name = controlCallMatch.group(1)!;
+      final objectLiteral = controlCallMatch.group(2)!;
+      final arguments = _parseLooseObjectLiteral(objectLiteral);
+      if (arguments != null) {
+        return ToolCallData(name: name, arguments: arguments, isComplete: true);
+      }
     }
 
     // XML format: tool_name\n<arg_key>key</arg_key>\n<arg_value>value</arg_value>
@@ -428,6 +447,33 @@ class ContentParser {
     return text
         .replaceAll(_modelControlTokenPattern, '')
         .replaceAll(_structuralTagPattern, '');
+  }
+
+  static Map<String, dynamic>? _parseLooseObjectLiteral(String source) {
+    try {
+      final decoded = jsonDecode(source);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      // Fall through to a normalized retry.
+    }
+
+    final normalized = source.replaceAllMapped(
+      RegExp(r'([{\s,])([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)'),
+      (match) => '${match.group(1)}"${match.group(2)}"${match.group(3)}',
+    );
+
+    try {
+      final decoded = jsonDecode(normalized);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+
+    return null;
   }
 }
 

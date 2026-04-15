@@ -48,6 +48,17 @@ void main() {
     expect(toolCalls.first.occurrenceId, isNot(toolCalls.last.occurrenceId));
   });
 
+  test('extractCompletedToolCalls parses control-token tool calls', () {
+    const content =
+        'Planning...\n<|tool_call>call:read_file{"path":"pubspec.yaml"}';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'read_file');
+    expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
+  });
+
   test('parse strips model control tokens from streaming think content', () {
     const content = '<think> <channel|>flutter pub get was executed.';
 
@@ -70,6 +81,23 @@ void main() {
     expect(text, 'Done.  Visible text');
   });
 
+  test('parse hides control-token tool call payloads from text output', () {
+    const content =
+        'Working...\n<|tool_call>call:git_execute_command{"command":"git status"}';
+
+    final result = ContentParser.parse(content);
+    final text = result.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
+
+    expect(result.hasIncompleteTag, isTrue);
+    expect(result.incompleteTagType, 'tool_call');
+    expect(text, 'Working...\n');
+    expect(text, isNot(contains('<|tool_call>')));
+    expect(text, isNot(contains('call:git_execute_command')));
+  });
+
   test('parse extracts tool_result display blocks', () {
     const content =
         'Working...\n<tool_result>{"name":"list_directory","summary":"3 item(s)","details":["[dir] lib","[file] pubspec.yaml"]}</tool_result>';
@@ -80,9 +108,9 @@ void main() {
     expect(result.segments.last.type, ContentType.toolResult);
     expect(result.segments.last.toolCall?.name, 'list_directory');
     expect(result.segments.last.toolCall?.arguments['summary'], '3 item(s)');
-    expect(
-      result.segments.last.toolCall?.arguments['details'],
-      ['[dir] lib', '[file] pubspec.yaml'],
-    );
+    expect(result.segments.last.toolCall?.arguments['details'], [
+      '[dir] lib',
+      '[file] pubspec.yaml',
+    ]);
   });
 }
