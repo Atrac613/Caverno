@@ -395,7 +395,25 @@ class ChatNotifier extends Notifier<ChatState> {
       );
 
       if (result case _WorkflowProposalDraftResponse(:final proposal)) {
-        return proposal;
+        final sanitizedProposal = _removeAnsweredOpenQuestions(
+          proposal,
+          decisionAnswers,
+        );
+        final promotedDecisions = _promoteOpenQuestionsToPlanningPrompts(
+          sanitizedProposal.workflowSpec.openQuestions,
+          decisionAnswers: decisionAnswers,
+        );
+        if (promotedDecisions.isEmpty) {
+          return sanitizedProposal;
+        }
+        final resolvedAnswers = await _collectWorkflowDecisionAnswers(
+          promotedDecisions,
+        );
+        if (resolvedAnswers == null) {
+          throw const _WorkflowProposalCancelled();
+        }
+        _mergeWorkflowDecisionAnswers(decisionAnswers, resolvedAnswers);
+        continue;
       }
 
       if (result case _WorkflowProposalDecisionResponse(:final decisions)) {
@@ -412,6 +430,585 @@ class ChatNotifier extends Notifier<ChatState> {
     throw const FormatException(
       'workflow proposal required too many planning decision rounds',
     );
+  }
+
+  WorkflowProposalDraft _removeAnsweredOpenQuestions(
+    WorkflowProposalDraft proposal,
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  ) {
+    if (decisionAnswers.isEmpty ||
+        proposal.workflowSpec.openQuestions.isEmpty) {
+      return proposal;
+    }
+
+    final answeredQuestions = decisionAnswers
+        .map((answer) => _normalizeWorkflowDecisionText(answer.question))
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    if (answeredQuestions.isEmpty) {
+      return proposal;
+    }
+
+    final remainingOpenQuestions = proposal.workflowSpec.openQuestions
+        .where(
+          (question) => !answeredQuestions.contains(
+            _normalizeWorkflowDecisionText(question),
+          ),
+        )
+        .toList(growable: false);
+    if (remainingOpenQuestions.length ==
+        proposal.workflowSpec.openQuestions.length) {
+      return proposal;
+    }
+
+    return WorkflowProposalDraft(
+      workflowStage: proposal.workflowStage,
+      workflowSpec: proposal.workflowSpec.copyWith(
+        openQuestions: remainingOpenQuestions,
+      ),
+    );
+  }
+
+  List<WorkflowPlanningDecision> _promoteChoiceLikeOpenQuestions(
+    List<String> openQuestions, {
+    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  }) {
+    if (openQuestions.isEmpty) {
+      return const <WorkflowPlanningDecision>[];
+    }
+
+    final answeredQuestions = decisionAnswers
+        .map((answer) => _normalizeWorkflowDecisionText(answer.question))
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final decisions = <WorkflowPlanningDecision>[];
+
+    for (final question in openQuestions.take(3)) {
+      final normalizedQuestion = _normalizeWorkflowDecisionText(question);
+      if (normalizedQuestion.isEmpty ||
+          answeredQuestions.contains(normalizedQuestion)) {
+        continue;
+      }
+
+      final decision =
+          _buildOrderedChoiceDecisionFromOpenQuestion(question) ??
+          _buildAlternativeChoiceDecisionFromOpenQuestion(question) ??
+          _buildYesNoDecisionFromOpenQuestion(question) ??
+          _buildFreeTextDecisionFromOpenQuestion(question);
+      if (decision != null) {
+        decisions.add(decision);
+      }
+    }
+
+    return decisions;
+  }
+
+  List<WorkflowPlanningDecision> _promoteOpenQuestionsToPlanningPrompts(
+    List<String> openQuestions, {
+    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  }) {
+    return _promoteChoiceLikeOpenQuestions(
+      openQuestions,
+      decisionAnswers: decisionAnswers,
+    );
+  }
+
+  WorkflowPlanningDecision? _buildOrderedChoiceDecisionFromOpenQuestion(
+    String question,
+  ) {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) {
+      return null;
+    }
+
+    final normalizedQuestion = _normalizeWorkflowDecisionText(trimmedQuestion);
+    if (normalizedQuestion.isEmpty) {
+      return null;
+    }
+
+    final isJapanese = _containsJapaneseText(trimmedQuestion);
+    final rawOptions = isJapanese
+        ? _extractJapaneseOrderedOptions(trimmedQuestion)
+        : _extractEnglishOrderedOptions(trimmedQuestion);
+    if (rawOptions.length < 2) {
+      return null;
+    }
+
+    final options = rawOptions
+        .map(_cleanDecisionOptionLabel)
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (options.length < 2) {
+      return null;
+    }
+
+    final normalizedOptions = options
+        .map(_normalizeWorkflowDecisionText)
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    if (normalizedOptions.length < 2) {
+      return null;
+    }
+
+    return WorkflowPlanningDecision(
+      id: normalizedQuestion,
+      question: trimmedQuestion,
+      help: isJapanese
+          ? 'この選択は実装の順序を決めます。'
+          : 'Choose the implementation order that should guide the plan.',
+      options: options
+          .map(
+            (option) => WorkflowPlanningDecisionOption(
+              id: _decisionOptionId(option),
+              label: option,
+              description: '',
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  WorkflowPlanningDecision? _buildAlternativeChoiceDecisionFromOpenQuestion(
+    String question,
+  ) {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) {
+      return null;
+    }
+
+    final normalizedQuestion = _normalizeWorkflowDecisionText(trimmedQuestion);
+    if (normalizedQuestion.isEmpty) {
+      return null;
+    }
+
+    final isJapanese = _containsJapaneseText(trimmedQuestion);
+    final rawOptions = isJapanese
+        ? _extractJapaneseAlternativeOptions(trimmedQuestion)
+        : _extractEnglishAlternativeOptions(trimmedQuestion);
+    if (rawOptions.length < 2) {
+      return null;
+    }
+
+    final options = rawOptions
+        .map(_cleanDecisionOptionLabel)
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (options.length < 2) {
+      return null;
+    }
+
+    final normalizedOptions = options
+        .map(_normalizeWorkflowDecisionText)
+        .where((item) => item.isNotEmpty)
+        .toSet();
+    if (normalizedOptions.length < 2) {
+      return null;
+    }
+
+    return WorkflowPlanningDecision(
+      id: normalizedQuestion,
+      question: trimmedQuestion,
+      help: isJapanese
+          ? 'この選択は plan の方向を分けます。'
+          : 'Choose the direction that should drive this plan.',
+      options: options
+          .map(
+            (option) => WorkflowPlanningDecisionOption(
+              id: _decisionOptionId(option),
+              label: option,
+              description: '',
+            ),
+          )
+          .toList(growable: false),
+    );
+  }
+
+  WorkflowPlanningDecision? _buildYesNoDecisionFromOpenQuestion(
+    String question,
+  ) {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) {
+      return null;
+    }
+
+    final normalizedQuestion = _normalizeWorkflowDecisionText(trimmedQuestion);
+    if (normalizedQuestion.isEmpty ||
+        !_looksLikeYesNoOpenQuestion(trimmedQuestion)) {
+      return null;
+    }
+
+    final isJapanese = _containsJapaneseText(trimmedQuestion);
+    return WorkflowPlanningDecision(
+      id: normalizedQuestion,
+      question: trimmedQuestion,
+      help: isJapanese
+          ? 'この判断は plan の進め方に影響します。'
+          : 'This choice changes how the plan should proceed.',
+      options: [
+        WorkflowPlanningDecisionOption(
+          id: isJapanese ? 'yes' : 'yes',
+          label: isJapanese ? 'はい' : 'Yes',
+          description: isJapanese
+              ? 'この前提を採用して plan を進めます。'
+              : 'Proceed with this assumption in the plan.',
+        ),
+        WorkflowPlanningDecisionOption(
+          id: isJapanese ? 'no' : 'no',
+          label: isJapanese ? 'いいえ' : 'No',
+          description: isJapanese
+              ? 'この前提は採用せず、別の方向で plan を立てます。'
+              : 'Do not assume this direction in the plan.',
+        ),
+      ],
+    );
+  }
+
+  WorkflowPlanningDecision? _buildFreeTextDecisionFromOpenQuestion(
+    String question,
+  ) {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) {
+      return null;
+    }
+
+    final normalizedQuestion = _normalizeWorkflowDecisionText(trimmedQuestion);
+    if (normalizedQuestion.isEmpty) {
+      return null;
+    }
+
+    final isJapanese = _containsJapaneseText(trimmedQuestion);
+    return WorkflowPlanningDecision(
+      id: normalizedQuestion,
+      question: trimmedQuestion,
+      help: isJapanese
+          ? '短く入力してもらえれば plan を続けられます。'
+          : 'A short answer here is enough to continue the plan.',
+      allowFreeText: true,
+      freeTextPlaceholder: isJapanese ? 'ここに回答を入力' : 'Type your answer here',
+      options: const [],
+    );
+  }
+
+  List<String> _extractEnglishOrderedOptions(String question) {
+    final trimmedQuestion = question.trim().replaceFirst(
+      RegExp(r'[?.!]+$'),
+      '',
+    );
+
+    final thenPattern = RegExp(
+      r'(.+?\bfirst\b\s*,?\s*then\s+.+?)(?:\s*,?\s*or\s+|\s+or\s+)(.+?\bfirst\b\s*,?\s*then\s+.+)$',
+      caseSensitive: false,
+    );
+    final thenMatch = thenPattern.firstMatch(trimmedQuestion);
+    if (thenMatch != null) {
+      return [
+        thenMatch.group(1)?.trim() ?? '',
+        thenMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    final firstOrPattern = RegExp(
+      r'(.+?\bfirst\b)(?:\s*,?\s*or\s+|\s+or\s+)(.+?\bfirst\b)$',
+      caseSensitive: false,
+    );
+    final firstOrMatch = firstOrPattern.firstMatch(trimmedQuestion);
+    if (firstOrMatch != null) {
+      return [
+        firstOrMatch.group(1)?.trim() ?? '',
+        firstOrMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    return const [];
+  }
+
+  List<String> _extractJapaneseOrderedOptions(String question) {
+    final trimmedQuestion = question.trim().replaceFirst(
+      RegExp(r'[？?！!]+$'),
+      '',
+    );
+
+    final firstPattern = RegExp(
+      r'(.+?(?:先行|先に.+|から始める))(?:\s*(?:または|あるいは|か)\s*)(.+?(?:先行|先に.+|から始める))(?:か|ですか|ますか)?$',
+    );
+    final firstMatch = firstPattern.firstMatch(trimmedQuestion);
+    if (firstMatch != null) {
+      return [
+        firstMatch.group(1)?.trim() ?? '',
+        firstMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    final sequencePattern = RegExp(
+      r'(.+?先に.+?そのあと.+?)(?:\s*(?:または|あるいは|か)\s*)(.+?先に.+?そのあと.+?)(?:か|ですか|ますか)?$',
+    );
+    final sequenceMatch = sequencePattern.firstMatch(trimmedQuestion);
+    if (sequenceMatch != null) {
+      return [
+        sequenceMatch.group(1)?.trim() ?? '',
+        sequenceMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    return const [];
+  }
+
+  List<String> _extractEnglishAlternativeOptions(String question) {
+    final trimmedQuestion = question.trim().replaceFirst(
+      RegExp(r'[?.!]+$'),
+      '',
+    );
+    final lowerQuestion = trimmedQuestion.toLowerCase();
+    if (!lowerQuestion.contains(' or ') &&
+        !lowerQuestion.contains(',') &&
+        !lowerQuestion.contains(':')) {
+      return const [];
+    }
+
+    final colonIndex = trimmedQuestion.indexOf(':');
+    if (colonIndex >= 0 && colonIndex < trimmedQuestion.length - 1) {
+      final afterColon = trimmedQuestion.substring(colonIndex + 1).trim();
+      final colonOptions = _splitEnglishChoiceList(afterColon);
+      if (colonOptions.length >= 2) {
+        return colonOptions;
+      }
+    }
+
+    final actionMatch = RegExp(
+      r'^(?:should|do we|can we|could we|would we|will we|must we|may we|which(?: one)?(?: should we)?|what(?: should we)?)(?:\s+'
+      r'(?:use|build|choose|prefer|ship|target|keep|adopt|start with|focus on|support|make|treat|implement|prioritize))(?:\s+first)?\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(trimmedQuestion);
+    if (actionMatch != null) {
+      final options = _splitEnglishChoiceList(
+        actionMatch.group(1)?.trim() ?? '',
+      );
+      if (options.length >= 2) {
+        return options;
+      }
+    }
+
+    final genericMatch = RegExp(
+      r'^(?:should|do we|can we|could we|would we|will we|must we|may we|which(?: one)?(?: should we)?|what(?: should we)?)(?:\s+prioritize(?:\s+first)?)?\s+(.+)$',
+      caseSensitive: false,
+    ).firstMatch(trimmedQuestion);
+    if (genericMatch != null) {
+      final options = _splitEnglishChoiceList(
+        _stripEnglishChoicePrefix(genericMatch.group(1)?.trim() ?? ''),
+      );
+      if (options.length >= 2) {
+        return options;
+      }
+    }
+
+    return const [];
+  }
+
+  List<String> _extractJapaneseAlternativeOptions(String question) {
+    final trimmedQuestion = question.trim().replaceFirst(
+      RegExp(r'[？?！!]+$'),
+      '',
+    );
+    final normalizedQuestion = trimmedQuestion.replaceAll('，', '、');
+
+    final listQuestionMatch = RegExp(
+      r'^(.+?)\s+の(?:(?:うち)|(?:なかで)|(?:中で))?(?:どれ|どちら|いずれ)',
+    ).firstMatch(normalizedQuestion);
+    if (listQuestionMatch != null) {
+      final options = _splitJapaneseChoiceList(
+        listQuestionMatch.group(1) ?? '',
+      );
+      if (options.length >= 2) {
+        return options;
+      }
+    }
+
+    final eitherMatch = RegExp(
+      r'^(.+?)\s*(?:または|あるいは)\s*(.+?)(?:\s*(?:を|の|で))?(?:使いますか|採用しますか|選びますか|選択しますか|優先しますか|にしますか|にするべきですか|にすべきですか|でしょうか|ですか|ますか)?$',
+    ).firstMatch(normalizedQuestion);
+    if (eitherMatch != null) {
+      return [
+        eitherMatch.group(1)?.trim() ?? '',
+        eitherMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    final whichMatch = RegExp(
+      r'^(.+?)\s+と\s+(.+?)\s+のどちら',
+    ).firstMatch(normalizedQuestion);
+    if (whichMatch != null) {
+      return [
+        whichMatch.group(1)?.trim() ?? '',
+        whichMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    final altKaMatch = RegExp(
+      r'^(.+?)\s+か\s+(.+?)\s+か(?:\s*(?:を|の|で))?(?:選びますか|選択しますか|優先しますか|にしますか|でしょうか|ですか|ますか)?$',
+    ).firstMatch(normalizedQuestion);
+    if (altKaMatch != null) {
+      return [
+        altKaMatch.group(1)?.trim() ?? '',
+        altKaMatch.group(2)?.trim() ?? '',
+      ];
+    }
+
+    return const [];
+  }
+
+  List<String> _splitEnglishChoiceList(String value) {
+    final normalized = value
+        .trim()
+        .replaceAllMapped(
+          RegExp(r'\s*,\s*(?:or|and)\s+', caseSensitive: false),
+          (_) => ',',
+        )
+        .replaceAllMapped(
+          RegExp(r'\s+(?:or|and)\s+', caseSensitive: false),
+          (_) => ',',
+        )
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalized.isEmpty || !normalized.contains(',')) {
+      return const [];
+    }
+
+    return normalized
+        .split(',')
+        .map((item) => item.trim())
+        .map(_stripEnglishChoicePrefix)
+        .map(_stripChoiceSuffix)
+        .where((item) => item.isNotEmpty)
+        .take(4)
+        .toList(growable: false);
+  }
+
+  List<String> _splitJapaneseChoiceList(String value) {
+    var normalized = value.trim();
+    if (normalized.isEmpty) {
+      return const [];
+    }
+
+    normalized = normalized
+        .replaceAll(RegExp(r'\s*(?:または|あるいは)\s*'), '、')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    normalized = normalized.replaceAll(' と ', '、');
+    normalized = normalized.replaceAll('か ', '、');
+
+    if (!normalized.contains('、')) {
+      return const [];
+    }
+
+    return normalized
+        .split('、')
+        .map((item) => item.trim())
+        .map(_stripJapaneseChoicePrefix)
+        .map(_stripChoiceSuffix)
+        .where((item) => item.isNotEmpty)
+        .take(4)
+        .toList(growable: false);
+  }
+
+  String _stripEnglishChoicePrefix(String value) {
+    return value
+        .replaceFirst(
+          RegExp(
+            r'^(?:we|this|the plan|the workflow|the implementation|it)\s+'
+            r'(?:use|build|choose|prefer|ship|target|keep|adopt|support|make|treat|implement|do|start|handle|tackle|prioritize)\s+',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .trim();
+  }
+
+  String _stripJapaneseChoicePrefix(String value) {
+    return value
+        .replaceFirst(RegExp(r'^(?:まず|先に|優先して|今回は|この段階では)\s*'), '')
+        .trim();
+  }
+
+  String _stripChoiceSuffix(String value) {
+    return value
+        .trim()
+        .replaceFirst(
+          RegExp(
+            r'\s+(?:first|initially|to start|to begin with)$',
+            caseSensitive: false,
+          ),
+          '',
+        )
+        .replaceFirst(RegExp(r'(?:を)?(?:先に|優先|優先して)$'), '')
+        .trim();
+  }
+
+  String _cleanDecisionOptionLabel(String value) {
+    return _stripJapaneseChoicePrefix(
+      _stripEnglishChoicePrefix(
+        value
+            .trim()
+            .replaceFirst(RegExp(r'^(?:the|a|an)\s+', caseSensitive: false), '')
+            .replaceFirst(RegExp(r'[?？!！]+$'), '')
+            .replaceFirst(
+              RegExp(
+                r'^(?:should|do we|can we|could we|would we|will we|must we|may we|which(?: one)?(?: should we)?|what(?: should we)?)(?:\s+should we)?\s+',
+                caseSensitive: false,
+              ),
+              '',
+            )
+            .trim(),
+      ),
+    ).trim();
+  }
+
+  String _decisionOptionId(String label) {
+    return _normalizeWorkflowDecisionText(label).replaceAll(' ', '-');
+  }
+
+  bool _looksLikeYesNoOpenQuestion(String question) {
+    final trimmedQuestion = question.trim();
+    if (trimmedQuestion.isEmpty) {
+      return false;
+    }
+
+    final normalizedQuestion = trimmedQuestion.toLowerCase();
+    if (normalizedQuestion.contains(' or ') ||
+        trimmedQuestion.contains('または') ||
+        trimmedQuestion.contains('あるいは')) {
+      return false;
+    }
+
+    if (_containsJapaneseText(trimmedQuestion)) {
+      return RegExp(
+        r'(すべきか|するべきか|しますか|必要がありますか|必要ですか|必要か|可能ですか|よいですか|いいですか|採用しますか|使いますか|許可しますか|優先しますか)',
+      ).hasMatch(trimmedQuestion);
+    }
+
+    return [
+      'should ',
+      'do we ',
+      'is ',
+      'are ',
+      'can ',
+      'could ',
+      'would ',
+      'will ',
+      'must ',
+      'may ',
+    ].any(normalizedQuestion.startsWith);
+  }
+
+  bool _containsJapaneseText(String value) {
+    return RegExp(r'[\u3040-\u30ff\u3400-\u9fff]').hasMatch(value);
+  }
+
+  String _normalizeWorkflowDecisionText(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[?？!！]+$'), '')
+        .replaceAll(RegExp(r'\s+'), ' ');
   }
 
   Future<_WorkflowProposalResponse> _requestWorkflowProposalAttempt({
@@ -579,7 +1176,7 @@ class ChatNotifier extends Notifier<ChatState> {
         'Keep JSON keys and workflowStage enum values in English exactly as shown in the schema.',
       )
       ..writeln(
-        'Schema: {"kind":"proposal|decision","workflowStage":"clarify|plan|tasks|implement|review","goal":string,"constraints":[string],"acceptanceCriteria":[string],"openQuestions":[string],"decisions":[{"id":string,"question":string,"help":string,"options":[{"id":string,"label":string,"description":string}]}]}',
+        'Schema: {"kind":"proposal|decision","workflowStage":"clarify|plan|tasks|implement|review","goal":string,"constraints":[string],"acceptanceCriteria":[string],"openQuestions":[string],"decisions":[{"id":string,"question":string,"help":string,"inputMode":"singleChoice|freeText","placeholder":string,"options":[{"id":string,"label":string,"description":string}]}]}',
       )
       ..writeln('Rules:')
       ..writeln('- Prefer concise, high-signal wording.')
@@ -587,7 +1184,13 @@ class ChatNotifier extends Notifier<ChatState> {
         '- If a user choice would materially change the plan, return kind="decision" instead of guessing.',
       )
       ..writeln(
+        '- Reserve openQuestions for missing facts, unresolved dependencies, or research gaps that cannot be answered as a simple user choice.',
+      )
+      ..writeln(
         '- In decision mode, return one to three single-choice decisions with two to four mutually exclusive options each.',
+      )
+      ..writeln(
+        '- If the user must answer in their own words instead of picking from known options, return inputMode="freeText" with an empty options array.',
       )
       ..writeln(
         '- In proposal mode, return kind="proposal" and set decisions to an empty array.',
@@ -616,6 +1219,9 @@ class ChatNotifier extends Notifier<ChatState> {
         compact
             ? '- If important information is missing, prefer short openQuestions.'
             : '- If important information is missing, use openQuestions.',
+      )
+      ..writeln(
+        '- Do not put yes/no, direct preference choices, or direct user-input prompts into openQuestions when they should be decisions instead.',
       )
       ..writeln('- Never output explanatory prose outside JSON.');
 
@@ -1032,33 +1638,43 @@ class ChatNotifier extends Notifier<ChatState> {
         item['question'] ?? item['title'] ?? item['prompt'] ?? item['質問'],
       );
       final rawOptions = item['options'] ?? item['choices'] ?? item['選択肢'];
-      if (question.isEmpty || rawOptions is! List) {
+      final inputMode = _asCleanString(item['inputMode']).toLowerCase();
+      final allowFreeText =
+          inputMode == 'freetext' ||
+          inputMode == 'free_text' ||
+          item['allowFreeText'] == true;
+      if (question.isEmpty) {
         continue;
       }
 
       final options = <WorkflowPlanningDecisionOption>[];
-      for (final optionEntry in rawOptions.take(4)) {
-        if (optionEntry is! Map) continue;
-        final option = Map<String, dynamic>.from(optionEntry);
-        final label = _asCleanString(
-          option['label'] ?? option['title'] ?? option['name'] ?? option['候補'],
-        );
-        if (label.isEmpty) continue;
-        final optionId = _asCleanString(
-          option['id'] ?? option['value'] ?? option['key'],
-        );
-        options.add(
-          WorkflowPlanningDecisionOption(
-            id: optionId.isEmpty ? label : optionId,
-            label: label,
-            description: _asCleanString(
-              option['description'] ?? option['detail'] ?? option['説明'],
+      if (rawOptions is List) {
+        for (final optionEntry in rawOptions.take(4)) {
+          if (optionEntry is! Map) continue;
+          final option = Map<String, dynamic>.from(optionEntry);
+          final label = _asCleanString(
+            option['label'] ??
+                option['title'] ??
+                option['name'] ??
+                option['候補'],
+          );
+          if (label.isEmpty) continue;
+          final optionId = _asCleanString(
+            option['id'] ?? option['value'] ?? option['key'],
+          );
+          options.add(
+            WorkflowPlanningDecisionOption(
+              id: optionId.isEmpty ? label : optionId,
+              label: label,
+              description: _asCleanString(
+                option['description'] ?? option['detail'] ?? option['説明'],
+              ),
             ),
-          ),
-        );
+          );
+        }
       }
 
-      if (options.length < 2) {
+      if (!allowFreeText && options.length < 2) {
         continue;
       }
 
@@ -1074,6 +1690,10 @@ class ChatNotifier extends Notifier<ChatState> {
                 item['description'] ??
                 item['details'] ??
                 item['補足'],
+          ),
+          allowFreeText: allowFreeText,
+          freeTextPlaceholder: _asCleanString(
+            item['placeholder'] ?? item['inputPlaceholder'] ?? item['入力例'],
           ),
           options: options,
         ),
@@ -1430,6 +2050,17 @@ class ChatNotifier extends Notifier<ChatState> {
       _WorkflowProposalDecisionResponse(:final decisions) => decisions,
       _ => null,
     };
+  }
+
+  @visibleForTesting
+  List<WorkflowPlanningDecision> promoteOpenQuestionsForTest(
+    List<String> openQuestions, {
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
+  }) {
+    return _promoteChoiceLikeOpenQuestions(
+      openQuestions,
+      decisionAnswers: decisionAnswers,
+    );
   }
 
   @visibleForTesting

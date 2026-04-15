@@ -185,10 +185,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
     BuildContext context,
     PendingWorkflowDecision pending,
   ) async {
-    WorkflowPlanningDecisionOption? selectedOption =
-        pending.decision.options.firstOrNull;
+    final isFreeTextDecision =
+        pending.decision.allowFreeText || pending.decision.options.isEmpty;
+    WorkflowPlanningDecisionOption? selectedOption = isFreeTextDecision
+        ? null
+        : pending.decision.options.firstOrNull;
+    final textController = TextEditingController();
 
-    final approvedOption = await showDialog<WorkflowPlanningDecisionOption>(
+    final approvedAnswer = await showDialog<WorkflowPlanningDecisionAnswer>(
       context: context,
       builder: (dialogContext) {
         final theme = Theme.of(dialogContext);
@@ -227,68 +231,91 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ),
                       ],
                       const SizedBox(height: 12),
-                      for (final option in pending.decision.options)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 8),
-                          child: Material(
-                            color: selectedOption?.id == option.id
-                                ? theme.colorScheme.primaryContainer.withValues(
-                                    alpha: 0.6,
-                                  )
-                                : theme.colorScheme.surfaceContainerHighest
-                                      .withValues(alpha: 0.35),
-                            borderRadius: BorderRadius.circular(12),
-                            child: InkWell(
+                      if (isFreeTextDecision)
+                        TextField(
+                          controller: textController,
+                          autofocus: true,
+                          minLines: 1,
+                          maxLines: 4,
+                          decoration: InputDecoration(
+                            hintText:
+                                pending.decision.freeTextPlaceholder
+                                    .trim()
+                                    .isEmpty
+                                ? 'chat.workflow_decision_input_placeholder'
+                                      .tr()
+                                : pending.decision.freeTextPlaceholder.trim(),
+                            border: OutlineInputBorder(
                               borderRadius: BorderRadius.circular(12),
-                              onTap: () {
-                                setState(() {
-                                  selectedOption = option;
-                                });
-                              },
-                              child: Padding(
-                                padding: const EdgeInsets.all(12),
-                                child: Row(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Icon(
-                                      selectedOption?.id == option.id
-                                          ? Icons.radio_button_checked
-                                          : Icons.radio_button_off,
-                                      size: 20,
-                                      color: selectedOption?.id == option.id
-                                          ? theme.colorScheme.primary
-                                          : theme.colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 12),
-                                    Expanded(
-                                      child: Column(
-                                        crossAxisAlignment:
-                                            CrossAxisAlignment.start,
-                                        children: [
-                                          Text(option.label),
-                                          if (option.description
-                                              .trim()
-                                              .isNotEmpty) ...[
-                                            const SizedBox(height: 4),
-                                            Text(
-                                              option.description.trim(),
-                                              style: theme.textTheme.bodySmall
-                                                  ?.copyWith(
-                                                    color: theme
-                                                        .colorScheme
-                                                        .onSurfaceVariant,
-                                                  ),
-                                            ),
-                                          ],
-                                        ],
+                            ),
+                          ),
+                          onChanged: (_) => setState(() {}),
+                        )
+                      else
+                        for (final option in pending.decision.options)
+                          Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Material(
+                              color: selectedOption?.id == option.id
+                                  ? theme.colorScheme.primaryContainer
+                                        .withValues(alpha: 0.6)
+                                  : theme.colorScheme.surfaceContainerHighest
+                                        .withValues(alpha: 0.35),
+                              borderRadius: BorderRadius.circular(12),
+                              child: InkWell(
+                                borderRadius: BorderRadius.circular(12),
+                                onTap: () {
+                                  setState(() {
+                                    selectedOption = option;
+                                  });
+                                },
+                                child: Padding(
+                                  padding: const EdgeInsets.all(12),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Icon(
+                                        selectedOption?.id == option.id
+                                            ? Icons.radio_button_checked
+                                            : Icons.radio_button_off,
+                                        size: 20,
+                                        color: selectedOption?.id == option.id
+                                            ? theme.colorScheme.primary
+                                            : theme
+                                                  .colorScheme
+                                                  .onSurfaceVariant,
                                       ),
-                                    ),
-                                  ],
+                                      const SizedBox(width: 12),
+                                      Expanded(
+                                        child: Column(
+                                          crossAxisAlignment:
+                                              CrossAxisAlignment.start,
+                                          children: [
+                                            Text(option.label),
+                                            if (option.description
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                              const SizedBox(height: 4),
+                                              Text(
+                                                option.description.trim(),
+                                                style: theme.textTheme.bodySmall
+                                                    ?.copyWith(
+                                                      color: theme
+                                                          .colorScheme
+                                                          .onSurfaceVariant,
+                                                    ),
+                                              ),
+                                            ],
+                                          ],
+                                        ),
+                                      ),
+                                    ],
+                                  ),
                                 ),
                               ),
                             ),
                           ),
-                        ),
                     ],
                   ),
                 ),
@@ -299,9 +326,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   child: Text('common.cancel'.tr()),
                 ),
                 FilledButton(
-                  onPressed: selectedOption == null
+                  onPressed: isFreeTextDecision
+                      ? textController.text.trim().isEmpty
+                            ? null
+                            : () => Navigator.pop(
+                                dialogContext,
+                                WorkflowPlanningDecisionAnswer(
+                                  decisionId: pending.decision.id,
+                                  question: pending.decision.question,
+                                  optionId: 'free_text',
+                                  optionLabel: textController.text.trim(),
+                                ),
+                              )
+                      : selectedOption == null
                       ? null
-                      : () => Navigator.pop(dialogContext, selectedOption),
+                      : () => Navigator.pop(
+                          dialogContext,
+                          WorkflowPlanningDecisionAnswer(
+                            decisionId: pending.decision.id,
+                            question: pending.decision.question,
+                            optionId: selectedOption!.id,
+                            optionLabel: selectedOption!.label,
+                          ),
+                        ),
                   child: Text('chat.workflow_decision_confirm'.tr()),
                 ),
               ],
@@ -310,22 +357,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
         );
       },
     );
+    textController.dispose();
 
     if (!mounted) return;
 
     ref
         .read(chatNotifierProvider.notifier)
-        .resolveWorkflowDecision(
-          id: pending.id,
-          answer: approvedOption == null
-              ? null
-              : WorkflowPlanningDecisionAnswer(
-                  decisionId: pending.decision.id,
-                  question: pending.decision.question,
-                  optionId: approvedOption.id,
-                  optionLabel: approvedOption.label,
-                ),
-        );
+        .resolveWorkflowDecision(id: pending.id, answer: approvedAnswer);
   }
 
   @override

@@ -69,6 +69,138 @@ void main() {
     );
   });
 
+  test('parses workflow free-text decision payloads', () {
+    final decisions = notifier.parseWorkflowDecisionsForTest('''
+{"kind":"decision","decisions":[
+  {"id":"environment","question":"What is the deployment environment for this script?","help":"A short answer is enough.","inputMode":"freeText","placeholder":"staging / production / local","options":[]}
+]}
+''');
+
+    expect(decisions, isNotNull);
+    expect(decisions!, hasLength(1));
+    expect(
+      decisions.first.question,
+      'What is the deployment environment for this script?',
+    );
+    expect(decisions.first.allowFreeText, isTrue);
+    expect(decisions.first.freeTextPlaceholder, 'staging / production / local');
+    expect(decisions.first.options, isEmpty);
+  });
+
+  test('promotes yes or no open questions into planning decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Should quick fixes skip workflow generation?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(
+      decisions.first.question,
+      'Should quick fixes skip workflow generation?',
+    );
+    expect(decisions.first.options.map((option) => option.label), [
+      'Yes',
+      'No',
+    ]);
+  });
+
+  test('promotes alternative open questions into planning decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Should we use polling or webhooks?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.question, 'Should we use polling or webhooks?');
+    expect(decisions.first.options.map((option) => option.label), [
+      'polling',
+      'webhooks',
+    ]);
+  });
+
+  test('promotes three-way english open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Which should we prioritize first: backend, API, or UI?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'backend',
+      'API',
+      'UI',
+    ]);
+  });
+
+  test('promotes ordered english open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Should we do backend first or UI first?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'backend first',
+      'UI first',
+    ]);
+  });
+
+  test('promotes sequence english open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Should we do backend first, then UI or UI first, then backend?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'backend first, then UI',
+      'UI first, then backend',
+    ]);
+  });
+
+  test('promotes japanese alternative open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'CLI と UI のどちらを優先しますか？',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'CLI',
+      'UI',
+    ]);
+  });
+
+  test('promotes three-way japanese open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'CLI、UI、API のどれを優先しますか？',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'CLI',
+      'UI',
+      'API',
+    ]);
+  });
+
+  test('promotes ordered japanese open questions into decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest(['CLI先行かUI先行か？']);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.options.map((option) => option.label), [
+      'CLI先行',
+      'UI先行',
+    ]);
+  });
+
+  test('promotes non-choice open questions into free-text prompts', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'What is the deployment environment for this script?',
+    ]);
+
+    expect(decisions, hasLength(1));
+    expect(decisions.first.allowFreeText, isTrue);
+    expect(
+      decisions.first.question,
+      'What is the deployment environment for this script?',
+    );
+  });
+
   test(
     'parses workflow proposal json payloads with localized stage values',
     () {

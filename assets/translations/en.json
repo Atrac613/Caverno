@@ -45,6 +45,7 @@
     "workflow_decision_title": "Choose Before Planning",
     "workflow_decision_subtitle": "Pick the option that best matches how this thread should proceed.",
     "workflow_decision_confirm": "Continue with this choice",
+    "workflow_decision_input_placeholder": "Type your answer",
     "plan_proposal_title": "Suggested plan",
     "plan_proposal_subtitle": "Review the generated workflow and tasks, then approve when you are ready to start implementation.",
     "plan_proposal_generating": "Generating a workflow and task breakdown...",

@@ -158,12 +158,16 @@ class WorkflowPlanningDecision {
     required this.id,
     required this.question,
     this.help = '',
+    this.allowFreeText = false,
+    this.freeTextPlaceholder = '',
     required this.options,
   });
 
   final String id;
   final String question;
   final String help;
+  final bool allowFreeText;
+  final String freeTextPlaceholder;
   final List<WorkflowPlanningDecisionOption> options;
 }
 

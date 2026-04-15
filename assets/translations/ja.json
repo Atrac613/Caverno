@@ -45,6 +45,7 @@
     "workflow_decision_title": "プラン前に選択",
     "workflow_decision_subtitle": "このスレッドの進め方に合う選択肢を選んでください。",
     "workflow_decision_confirm": "この選択で続ける",
+    "workflow_decision_input_placeholder": "回答を入力",
     "plan_proposal_title": "提案された plan",
     "plan_proposal_subtitle": "生成された workflow と task を確認して、準備ができたら承認して実装を開始します。",
     "plan_proposal_generating": "workflow と task を生成しています...",
