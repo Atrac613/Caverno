@@ -59,24 +59,6 @@ class ToolsSettingsPage extends ConsumerWidget {
               ],
             ),
           ),
-          const SizedBox(height: 16),
-          Text(
-            'settings.debug_section'.tr(),
-            style: Theme.of(context).textTheme.titleMedium,
-          ),
-          const SizedBox(height: 8),
-          Card(
-            child: Column(
-              children: [
-                SwitchListTile(
-                  title: Text('settings.show_memory_updates'.tr()),
-                  subtitle: Text('settings.show_memory_updates_desc'.tr()),
-                  value: settings.showMemoryUpdates,
-                  onChanged: notifier.updateShowMemoryUpdates,
-                ),
-              ],
-            ),
-          ),
           const Divider(),
           _buildBuiltInToolsTile(context, settings),
           _buildMcpServersTile(context, settings),

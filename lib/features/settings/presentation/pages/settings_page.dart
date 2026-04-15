@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/settings_notifier.dart';
 import '../widgets/qr_export_dialog.dart';
+import 'debug_settings_page.dart';
 import 'general_settings_page.dart';
 import 'chat_settings_page.dart';
 import 'voice_settings_page.dart';
@@ -179,6 +180,18 @@ class SettingsPage extends ConsumerWidget {
               );
             },
           ),
+          const Divider(height: 1),
+          ListTile(
+            leading: const Icon(Icons.bug_report_outlined),
+            title: Text('settings.menu_debug'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (_) => const DebugSettingsPage()),
+              );
+            },
+          ),
         ],
       ),
     );
@@ -227,8 +240,9 @@ class SettingsPage extends ConsumerWidget {
 
   Future<void> _exportSettings(BuildContext context, WidgetRef ref) async {
     try {
-      final path =
-          await ref.read(settingsNotifierProvider.notifier).exportSettings();
+      final path = await ref
+          .read(settingsNotifierProvider.notifier)
+          .exportSettings();
       if (path != null && context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('settings.export_done'.tr(args: [path]))),
@@ -247,9 +261,9 @@ class SettingsPage extends ConsumerWidget {
 
   Future<void> _importFromQr(BuildContext context, WidgetRef ref) async {
     // Scan first, then ask for confirmation
-    final result = await Navigator.of(context).push<String>(
-      MaterialPageRoute(builder: (_) => const QrScannerPage()),
-    );
+    final result = await Navigator.of(
+      context,
+    ).push<String>(MaterialPageRoute(builder: (_) => const QrScannerPage()));
 
     if (result == null || !context.mounted) return;
 
@@ -273,9 +287,7 @@ class SettingsPage extends ConsumerWidget {
 
     if (confirmed == true && context.mounted) {
       try {
-        await ref
-            .read(settingsNotifierProvider.notifier)
-            .importFromQr(result);
+        await ref.read(settingsNotifierProvider.notifier).importFromQr(result);
         if (context.mounted) {
           ScaffoldMessenger.of(
             context,

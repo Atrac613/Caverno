@@ -103,6 +103,7 @@
     "menu_chat": "Chat & Memory",
     "menu_voice": "Voice",
     "menu_tools": "Tools (MCP)",
+    "menu_debug": "Debug",
     "reset_to_default": "Reset to defaults",
     "saved": "Settings saved",
     "reset_title": "Reset Settings",
