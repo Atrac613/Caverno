@@ -204,6 +204,15 @@ class SystemPromptBuilder {
           buffer.writeln(
             'Prefer moving the highest-priority unfinished saved task forward unless the user redirects you.',
           );
+          buffer.writeln(
+            'When a saved task is complete, continue to the next pending saved task automatically instead of asking for confirmation between tasks.',
+          );
+          buffer.writeln(
+            'Pause only when you are blocked, the requirements changed, or completing the next task would require changing the approved workflow.',
+          );
+          buffer.writeln(
+            'If normal file or command approvals are shown by the app, treat those approvals as sufficient and do not ask for duplicate permission in natural language.',
+          );
         }
         buffer.writeln(
           'If the latest user request changes this workflow, explain the '

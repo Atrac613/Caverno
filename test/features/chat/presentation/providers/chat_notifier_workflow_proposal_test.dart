@@ -44,6 +44,31 @@ void main() {
     ]);
   });
 
+  test('parses workflow planning decision payloads', () {
+    final decisions = notifier.parseWorkflowDecisionsForTest('''
+{"kind":"decision","decisions":[
+  {"id":"scope","question":"Which implementation scope should the plan target?","help":"Pick the slice you want first.","options":[
+    {"id":"minimal","label":"Minimal slice","description":"Ship the smallest end-to-end version first."},
+    {"id":"full","label":"Broader slice","description":"Cover the full workflow in one pass."}
+  ]}
+]}
+''');
+
+    expect(decisions, isNotNull);
+    expect(decisions!, hasLength(1));
+    expect(
+      decisions.first.question,
+      'Which implementation scope should the plan target?',
+    );
+    expect(decisions.first.help, 'Pick the slice you want first.');
+    expect(decisions.first.options, hasLength(2));
+    expect(decisions.first.options.first.label, 'Minimal slice');
+    expect(
+      decisions.first.options.first.description,
+      'Ship the smallest end-to-end version first.',
+    );
+  });
+
   test(
     'parses workflow proposal json payloads with localized stage values',
     () {

@@ -59,6 +59,30 @@ final chatNotifierProvider = NotifierProvider<ChatNotifier, ChatState>(
   ChatNotifier.new,
 );
 
+sealed class _WorkflowProposalResponse {
+  const _WorkflowProposalResponse();
+}
+
+final class _WorkflowProposalDraftResponse extends _WorkflowProposalResponse {
+  const _WorkflowProposalDraftResponse(this.proposal);
+
+  final WorkflowProposalDraft proposal;
+}
+
+final class _WorkflowProposalDecisionResponse
+    extends _WorkflowProposalResponse {
+  const _WorkflowProposalDecisionResponse(this.decisions);
+
+  final List<WorkflowPlanningDecision> decisions;
+}
+
+final class _WorkflowProposalCancelled implements Exception {
+  const _WorkflowProposalCancelled();
+
+  @override
+  String toString() => 'workflow proposal generation was cancelled';
+}
+
 class ChatNotifier extends Notifier<ChatState> {
   late ChatDataSource _dataSource;
   McpToolService? _mcpToolService;
@@ -296,6 +320,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _buildWorkflowProposalMessages({
     required Conversation currentConversation,
     required String languageCode,
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
     bool compact = false,
   }) {
     final now = DateTime.now();
@@ -311,6 +336,7 @@ class ChatNotifier extends Notifier<ChatState> {
         content: _buildWorkflowProposalRequest(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          decisionAnswers: decisionAnswers,
           compact: compact,
         ),
       ),
@@ -349,6 +375,50 @@ class ChatNotifier extends Notifier<ChatState> {
     required Conversation currentConversation,
     required String languageCode,
   }) async {
+    final decisionAnswers = <WorkflowPlanningDecisionAnswer>[];
+    const maxDecisionRounds = 3;
+
+    for (var round = 0; round < maxDecisionRounds; round++) {
+      if (ref.mounted) {
+        state = state.copyWith(
+          isLoading: true,
+          isGeneratingWorkflowProposal: true,
+          workflowProposalError: null,
+          pendingWorkflowDecision: null,
+        );
+      }
+
+      final result = await _requestWorkflowProposalAttempt(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
+        decisionAnswers: decisionAnswers,
+      );
+
+      if (result case _WorkflowProposalDraftResponse(:final proposal)) {
+        return proposal;
+      }
+
+      if (result case _WorkflowProposalDecisionResponse(:final decisions)) {
+        final resolvedAnswers = await _collectWorkflowDecisionAnswers(
+          decisions,
+        );
+        if (resolvedAnswers == null) {
+          throw const _WorkflowProposalCancelled();
+        }
+        _mergeWorkflowDecisionAnswers(decisionAnswers, resolvedAnswers);
+      }
+    }
+
+    throw const FormatException(
+      'workflow proposal required too many planning decision rounds',
+    );
+  }
+
+  Future<_WorkflowProposalResponse> _requestWorkflowProposalAttempt({
+    required Conversation currentConversation,
+    required String languageCode,
+    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  }) async {
     final attempts = <({bool compact, int maxTokens})>[
       (
         compact: false,
@@ -367,6 +437,7 @@ class ChatNotifier extends Notifier<ChatState> {
         messages: _buildWorkflowProposalMessages(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          decisionAnswers: decisionAnswers,
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -374,12 +445,12 @@ class ChatNotifier extends Notifier<ChatState> {
         maxTokens: attempt.maxTokens,
       );
 
-      final proposal = _parseWorkflowProposal(result.content);
-      if (proposal != null) {
+      final response = _parseWorkflowProposalResponse(result.content);
+      if (response != null) {
         if (index > 0) {
           appLog('[Workflow] Workflow proposal recovered on retry');
         }
-        return proposal;
+        return response;
       }
 
       final preview = _proposalPreview(result.content);
@@ -396,6 +467,40 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     throw FormatException(lastError ?? 'workflow proposal parse failed');
+  }
+
+  Future<List<WorkflowPlanningDecisionAnswer>?> _collectWorkflowDecisionAnswers(
+    List<WorkflowPlanningDecision> decisions,
+  ) async {
+    if (decisions.isEmpty) {
+      return const <WorkflowPlanningDecisionAnswer>[];
+    }
+
+    final answers = <WorkflowPlanningDecisionAnswer>[];
+    for (final decision in decisions) {
+      final answer = await requestWorkflowDecision(decision: decision);
+      if (answer == null) {
+        return null;
+      }
+      answers.add(answer);
+    }
+    return answers;
+  }
+
+  void _mergeWorkflowDecisionAnswers(
+    List<WorkflowPlanningDecisionAnswer> current,
+    List<WorkflowPlanningDecisionAnswer> updates,
+  ) {
+    for (final answer in updates) {
+      final existingIndex = current.indexWhere(
+        (item) => item.decisionId == answer.decisionId,
+      );
+      if (existingIndex >= 0) {
+        current[existingIndex] = answer;
+      } else {
+        current.add(answer);
+      }
+    }
   }
 
   Future<WorkflowTaskProposalDraft> _requestTaskProposal({
@@ -458,6 +563,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String _buildWorkflowProposalRequest({
     required Conversation currentConversation,
     required String languageCode,
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
     bool compact = false,
   }) {
     final project = _getActiveCodingProject();
@@ -473,10 +579,19 @@ class ChatNotifier extends Notifier<ChatState> {
         'Keep JSON keys and workflowStage enum values in English exactly as shown in the schema.',
       )
       ..writeln(
-        'Schema: {"workflowStage":"clarify|plan|tasks|implement|review","goal":string,"constraints":[string],"acceptanceCriteria":[string],"openQuestions":[string]}',
+        'Schema: {"kind":"proposal|decision","workflowStage":"clarify|plan|tasks|implement|review","goal":string,"constraints":[string],"acceptanceCriteria":[string],"openQuestions":[string],"decisions":[{"id":string,"question":string,"help":string,"options":[{"id":string,"label":string,"description":string}]}]}',
       )
       ..writeln('Rules:')
       ..writeln('- Prefer concise, high-signal wording.')
+      ..writeln(
+        '- If a user choice would materially change the plan, return kind="decision" instead of guessing.',
+      )
+      ..writeln(
+        '- In decision mode, return one to three single-choice decisions with two to four mutually exclusive options each.',
+      )
+      ..writeln(
+        '- In proposal mode, return kind="proposal" and set decisions to an empty array.',
+      )
       ..writeln(
         compact
             ? '- Keep constraints and acceptanceCriteria to at most three items.'
@@ -522,6 +637,14 @@ class ChatNotifier extends Notifier<ChatState> {
           '- acceptanceCriteria: ${savedSpec.acceptanceCriteria.join(' | ')}',
         )
         ..writeln('- openQuestions: ${savedSpec.openQuestions.join(' | ')}');
+    }
+    if (decisionAnswers.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Selected planning decisions:');
+      for (final answer in decisionAnswers) {
+        buffer.writeln('- ${answer.question}: ${answer.optionLabel}');
+      }
     }
 
     buffer
@@ -643,16 +766,26 @@ class ChatNotifier extends Notifier<ChatState> {
     return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
-  WorkflowProposalDraft? _parseWorkflowProposal(String rawContent) {
+  _WorkflowProposalResponse? _parseWorkflowProposalResponse(String rawContent) {
     final normalizedContent = _normalizeProposalContent(rawContent);
     final decoded = _extractJsonMap(normalizedContent);
-    final fromJson = decoded == null
-        ? null
-        : _parseWorkflowProposalMap(decoded);
-    if (fromJson != null) {
-      return fromJson;
+    if (decoded != null) {
+      final decisionResponse = _parseWorkflowDecisionResponseMap(decoded);
+      if (decisionResponse != null) {
+        return decisionResponse;
+      }
+      final proposalResponse = _parseWorkflowProposalMap(decoded);
+      if (proposalResponse != null) {
+        return _WorkflowProposalDraftResponse(proposalResponse);
+      }
     }
-    return _parseWorkflowProposalFromSections(normalizedContent);
+    final proposalFromSections = _parseWorkflowProposalFromSections(
+      normalizedContent,
+    );
+    if (proposalFromSections != null) {
+      return _WorkflowProposalDraftResponse(proposalFromSections);
+    }
+    return null;
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
@@ -875,6 +1008,82 @@ class ChatNotifier extends Notifier<ChatState> {
       workflowStage: workflowStage,
       workflowSpec: workflowSpec,
     );
+  }
+
+  _WorkflowProposalDecisionResponse? _parseWorkflowDecisionResponseMap(
+    Map<String, dynamic> decoded,
+  ) {
+    final kind = _asCleanString(decoded['kind']).toLowerCase();
+    if (kind.isNotEmpty && kind != 'decision') {
+      return null;
+    }
+
+    final rawDecisions =
+        decoded['decisions'] ?? decoded['planningDecisions'] ?? decoded['選択'];
+    if (rawDecisions is! List) {
+      return null;
+    }
+
+    final decisions = <WorkflowPlanningDecision>[];
+    for (final entry in rawDecisions.take(3)) {
+      if (entry is! Map) continue;
+      final item = Map<String, dynamic>.from(entry);
+      final question = _asCleanString(
+        item['question'] ?? item['title'] ?? item['prompt'] ?? item['質問'],
+      );
+      final rawOptions = item['options'] ?? item['choices'] ?? item['選択肢'];
+      if (question.isEmpty || rawOptions is! List) {
+        continue;
+      }
+
+      final options = <WorkflowPlanningDecisionOption>[];
+      for (final optionEntry in rawOptions.take(4)) {
+        if (optionEntry is! Map) continue;
+        final option = Map<String, dynamic>.from(optionEntry);
+        final label = _asCleanString(
+          option['label'] ?? option['title'] ?? option['name'] ?? option['候補'],
+        );
+        if (label.isEmpty) continue;
+        final optionId = _asCleanString(
+          option['id'] ?? option['value'] ?? option['key'],
+        );
+        options.add(
+          WorkflowPlanningDecisionOption(
+            id: optionId.isEmpty ? label : optionId,
+            label: label,
+            description: _asCleanString(
+              option['description'] ?? option['detail'] ?? option['説明'],
+            ),
+          ),
+        );
+      }
+
+      if (options.length < 2) {
+        continue;
+      }
+
+      final decisionId = _asCleanString(
+        item['id'] ?? item['key'] ?? item['name'],
+      );
+      decisions.add(
+        WorkflowPlanningDecision(
+          id: decisionId.isEmpty ? question : decisionId,
+          question: question,
+          help: _asCleanString(
+            item['help'] ??
+                item['description'] ??
+                item['details'] ??
+                item['補足'],
+          ),
+          options: options,
+        ),
+      );
+    }
+
+    if (decisions.isEmpty) {
+      return null;
+    }
+    return _WorkflowProposalDecisionResponse(decisions);
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposalMap(
@@ -1205,7 +1414,22 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   WorkflowProposalDraft? parseWorkflowProposalForTest(String rawContent) {
-    return _parseWorkflowProposal(rawContent);
+    final response = _parseWorkflowProposalResponse(rawContent);
+    return switch (response) {
+      _WorkflowProposalDraftResponse(:final proposal) => proposal,
+      _ => null,
+    };
+  }
+
+  @visibleForTesting
+  List<WorkflowPlanningDecision>? parseWorkflowDecisionsForTest(
+    String rawContent,
+  ) {
+    final response = _parseWorkflowProposalResponse(rawContent);
+    return switch (response) {
+      _WorkflowProposalDecisionResponse(:final decisions) => decisions,
+      _ => null,
+    };
   }
 
   @visibleForTesting
@@ -1483,6 +1707,7 @@ class ChatNotifier extends Notifier<ChatState> {
       isGeneratingWorkflowProposal: true,
       workflowProposalDraft: null,
       workflowProposalError: null,
+      pendingWorkflowDecision: null,
     );
 
     try {
@@ -1496,6 +1721,14 @@ class ChatNotifier extends Notifier<ChatState> {
         isGeneratingWorkflowProposal: false,
         workflowProposalDraft: proposal,
         workflowProposalError: null,
+      );
+    } on _WorkflowProposalCancelled {
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isGeneratingWorkflowProposal: false,
+        workflowProposalDraft: null,
+        workflowProposalError: null,
+        pendingWorkflowDecision: null,
       );
     } catch (error) {
       if (!ref.mounted) return;
@@ -1570,6 +1803,7 @@ class ChatNotifier extends Notifier<ChatState> {
       workflowProposalDraft: null,
       workflowProposalError: null,
       isGeneratingWorkflowProposal: false,
+      pendingWorkflowDecision: null,
     );
   }
 
@@ -1587,6 +1821,35 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  Future<WorkflowPlanningDecisionAnswer?> requestWorkflowDecision({
+    required WorkflowPlanningDecision decision,
+  }) {
+    final completer = Completer<WorkflowPlanningDecisionAnswer?>();
+    state = state.copyWith(
+      isLoading: false,
+      isGeneratingWorkflowProposal: false,
+      isGeneratingTaskProposal: false,
+      pendingWorkflowDecision: PendingWorkflowDecision(
+        id: const Uuid().v4(),
+        decision: decision,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveWorkflowDecision({
+    required String id,
+    WorkflowPlanningDecisionAnswer? answer,
+  }) {
+    final pending = state.pendingWorkflowDecision;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(answer);
+    }
+    state = state.copyWith(pendingWorkflowDecision: null);
+  }
+
   Future<void> _runPlanProposalFlow({
     required Conversation currentConversation,
     required String languageCode,
@@ -1602,6 +1865,7 @@ class ChatNotifier extends Notifier<ChatState> {
       taskProposalDraft: null,
       workflowProposalError: null,
       taskProposalError: null,
+      pendingWorkflowDecision: null,
     );
 
     WorkflowProposalDraft? workflowDraft;
@@ -1616,6 +1880,19 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowProposalDraft: workflowDraft,
         workflowProposalError: null,
       );
+    } on _WorkflowProposalCancelled {
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        isGeneratingWorkflowProposal: false,
+        isGeneratingTaskProposal: false,
+        workflowProposalDraft: null,
+        taskProposalDraft: null,
+        workflowProposalError: null,
+        taskProposalError: null,
+        pendingWorkflowDecision: null,
+      );
+      return;
     } catch (error) {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -1625,6 +1902,7 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowProposalDraft: null,
         taskProposalDraft: null,
         workflowProposalError: error.toString(),
+        pendingWorkflowDecision: null,
       );
       return;
     }

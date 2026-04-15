@@ -141,6 +141,58 @@ class PendingBleConnect {
   final Completer<bool> completer;
 }
 
+class WorkflowPlanningDecisionOption {
+  const WorkflowPlanningDecisionOption({
+    required this.id,
+    required this.label,
+    this.description = '',
+  });
+
+  final String id;
+  final String label;
+  final String description;
+}
+
+class WorkflowPlanningDecision {
+  const WorkflowPlanningDecision({
+    required this.id,
+    required this.question,
+    this.help = '',
+    required this.options,
+  });
+
+  final String id;
+  final String question;
+  final String help;
+  final List<WorkflowPlanningDecisionOption> options;
+}
+
+class WorkflowPlanningDecisionAnswer {
+  const WorkflowPlanningDecisionAnswer({
+    required this.decisionId,
+    required this.question,
+    required this.optionId,
+    required this.optionLabel,
+  });
+
+  final String decisionId;
+  final String question;
+  final String optionId;
+  final String optionLabel;
+}
+
+class PendingWorkflowDecision {
+  PendingWorkflowDecision({
+    required this.id,
+    required this.decision,
+    required this.completer,
+  });
+
+  final String id;
+  final WorkflowPlanningDecision decision;
+  final Completer<WorkflowPlanningDecisionAnswer?> completer;
+}
+
 @freezed
 abstract class WorkflowProposalDraft with _$WorkflowProposalDraft {
   const factory WorkflowProposalDraft({
@@ -177,6 +229,8 @@ abstract class ChatState with _$ChatState {
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.
     PendingBleConnect? pendingBleConnect,
+    // Workflow planning choice UI flow.
+    PendingWorkflowDecision? pendingWorkflowDecision,
     @Default(false) bool isGeneratingWorkflowProposal,
     WorkflowProposalDraft? workflowProposalDraft,
     String? workflowProposalError,

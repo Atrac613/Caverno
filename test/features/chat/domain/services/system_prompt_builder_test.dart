@@ -110,6 +110,18 @@ void main() {
       ),
     );
     expect(prompt, contains('validate: flutter test'));
+    expect(
+      prompt,
+      contains(
+        'When a saved task is complete, continue to the next pending saved task automatically instead of asking for confirmation between tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If normal file or command approvals are shown by the app, treat those approvals as sufficient and do not ask for duplicate permission in natural language.',
+      ),
+    );
   });
 
   test('includes plan mode guidance in plan prompts', () {

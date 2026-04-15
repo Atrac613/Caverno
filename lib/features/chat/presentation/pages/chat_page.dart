@@ -181,6 +181,153 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ).showSnackBar(SnackBar(content: Text('chat.deleted'.tr())));
   }
 
+  Future<void> _showWorkflowDecisionDialog(
+    BuildContext context,
+    PendingWorkflowDecision pending,
+  ) async {
+    WorkflowPlanningDecisionOption? selectedOption =
+        pending.decision.options.firstOrNull;
+
+    final approvedOption = await showDialog<WorkflowPlanningDecisionOption>(
+      context: context,
+      builder: (dialogContext) {
+        final theme = Theme.of(dialogContext);
+        return StatefulBuilder(
+          builder: (dialogContext, setState) {
+            return AlertDialog(
+              title: Text('chat.workflow_decision_title'.tr()),
+              content: SizedBox(
+                width: 420,
+                child: SingleChildScrollView(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        pending.decision.question,
+                        style: theme.textTheme.titleSmall?.copyWith(
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                      if (pending.decision.help.trim().isNotEmpty) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          pending.decision.help.trim(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'chat.workflow_decision_subtitle'.tr(),
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ],
+                      const SizedBox(height: 12),
+                      for (final option in pending.decision.options)
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Material(
+                            color: selectedOption?.id == option.id
+                                ? theme.colorScheme.primaryContainer.withValues(
+                                    alpha: 0.6,
+                                  )
+                                : theme.colorScheme.surfaceContainerHighest
+                                      .withValues(alpha: 0.35),
+                            borderRadius: BorderRadius.circular(12),
+                            child: InkWell(
+                              borderRadius: BorderRadius.circular(12),
+                              onTap: () {
+                                setState(() {
+                                  selectedOption = option;
+                                });
+                              },
+                              child: Padding(
+                                padding: const EdgeInsets.all(12),
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Icon(
+                                      selectedOption?.id == option.id
+                                          ? Icons.radio_button_checked
+                                          : Icons.radio_button_off,
+                                      size: 20,
+                                      color: selectedOption?.id == option.id
+                                          ? theme.colorScheme.primary
+                                          : theme.colorScheme.onSurfaceVariant,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment:
+                                            CrossAxisAlignment.start,
+                                        children: [
+                                          Text(option.label),
+                                          if (option.description
+                                              .trim()
+                                              .isNotEmpty) ...[
+                                            const SizedBox(height: 4),
+                                            Text(
+                                              option.description.trim(),
+                                              style: theme.textTheme.bodySmall
+                                                  ?.copyWith(
+                                                    color: theme
+                                                        .colorScheme
+                                                        .onSurfaceVariant,
+                                                  ),
+                                            ),
+                                          ],
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.pop(dialogContext),
+                  child: Text('common.cancel'.tr()),
+                ),
+                FilledButton(
+                  onPressed: selectedOption == null
+                      ? null
+                      : () => Navigator.pop(dialogContext, selectedOption),
+                  child: Text('chat.workflow_decision_confirm'.tr()),
+                ),
+              ],
+            );
+          },
+        );
+      },
+    );
+
+    if (!mounted) return;
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveWorkflowDecision(
+          id: pending.id,
+          answer: approvedOption == null
+              ? null
+              : WorkflowPlanningDecisionAnswer(
+                  decisionId: pending.decision.id,
+                  question: pending.decision.question,
+                  optionId: approvedOption.id,
+                  optionLabel: approvedOption.label,
+                ),
+        );
+  }
+
   @override
   Widget build(BuildContext context) {
     final chatState = ref.watch(chatNotifierProvider);
@@ -261,6 +408,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
           _showApprovalDialogOnce(
             next.id,
             () => _showFileOperationDialog(context, next),
+          );
+        }
+      },
+    );
+
+    ref.listen<PendingWorkflowDecision?>(
+      chatNotifierProvider.select((s) => s.pendingWorkflowDecision),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showWorkflowDecisionDialog(context, next),
           );
         }
       },
