@@ -6,7 +6,6 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
 import 'package:integration_test/integration_test.dart';
@@ -29,6 +28,8 @@ import 'package:caverno/features/chat/presentation/providers/coding_projects_not
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+
+import 'test_support/screenshot_capture.dart';
 
 class _NoOpNotificationService extends NotificationService {
   @override
@@ -259,26 +260,12 @@ class _FakePlanModeChatDataSource implements ChatDataSource {
   }
 }
 
-Future<void> _takeScreenshot(
-  IntegrationTestWidgetsFlutterBinding binding,
-  WidgetTester tester,
-  String name,
-) async {
-  await tester.pumpAndSettle();
-  try {
-    await binding.convertFlutterSurfaceToImage();
-    await tester.pump();
-    await binding.takeScreenshot(name);
-  } on MissingPluginException {
-    appLog('[Scenario] Screenshot plugin unavailable, skipping "$name"');
-  }
-}
-
 Future<Widget> _buildScenarioApp({
   required SharedPreferences prefs,
   required Box<String> conversationBox,
   required Box<String> memoryBox,
   required ChatDataSource dataSource,
+  required GlobalKey screenshotBoundaryKey,
 }) async {
   await EasyLocalization.ensureInitialized();
   return EasyLocalization(
@@ -300,6 +287,10 @@ Future<Widget> _buildScenarioApp({
             ),
           ],
           child: MaterialApp(
+            builder: (context, child) => RepaintBoundary(
+              key: screenshotBoundaryKey,
+              child: child ?? const SizedBox.shrink(),
+            ),
             title: 'Caverno',
             debugShowCheckedModeBanner: false,
             localizationsDelegates: context.localizationDelegates,
@@ -396,6 +387,7 @@ void main() {
         'coding_projects': jsonEncode([project.toJson()]),
       });
       final prefs = await SharedPreferences.getInstance();
+      final screenshotBoundaryKey = GlobalKey();
 
       await tester.pumpWidget(
         await _buildScenarioApp(
@@ -403,6 +395,7 @@ void main() {
           conversationBox: conversationBox,
           memoryBox: memoryBox,
           dataSource: _FakePlanModeChatDataSource(scenario),
+          screenshotBoundaryKey: screenshotBoundaryKey,
         ),
       );
       await tester.pumpAndSettle();
@@ -439,10 +432,12 @@ void main() {
       );
       expect(find.text('Approve and start'), findsOneWidget);
 
-      await _takeScreenshot(
-        binding,
-        tester,
-        'plan_mode_${scenario.name}_proposal',
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: 'plan_mode_${scenario.name}_proposal',
+        outputDirectory: scenarioDir,
       );
 
       final approveFinder = find.text('Approve and start');
@@ -485,10 +480,12 @@ void main() {
         scenario.initialTaskTitle,
       );
 
-      await _takeScreenshot(
-        binding,
-        tester,
-        'plan_mode_${scenario.name}_completed',
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: 'plan_mode_${scenario.name}_completed',
+        outputDirectory: scenarioDir,
       );
 
       final report = {

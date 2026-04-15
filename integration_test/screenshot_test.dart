@@ -17,26 +17,17 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
-/// No-op notification service that skips permission requests.
+import 'test_support/screenshot_capture.dart';
+
 class _NoOpNotificationService extends NotificationService {
   @override
   Future<void> init() async {}
 
   @override
-  Future<void> showResponseCompleteNotification(String title, String body) async {}
-}
-
-/// Takes a screenshot via the integration test binding.
-/// Uses convertFlutterSurfaceToImage to capture actual rendered pixels.
-Future<void> takeScreenshot(
-  IntegrationTestWidgetsFlutterBinding binding,
-  WidgetTester tester,
-  String name,
-) async {
-  await tester.pumpAndSettle();
-  await binding.convertFlutterSurfaceToImage();
-  await tester.pump();
-  await binding.takeScreenshot(name);
+  Future<void> showResponseCompleteNotification(
+    String title,
+    String body,
+  ) async {}
 }
 
 /// Builds mock conversations for realistic screenshots.
@@ -51,7 +42,8 @@ List<Conversation> _buildMockConversations() {
       messages: [
         Message(
           id: 'msg-1',
-          content: 'My Flutter ListView is laggy. How can I improve performance?',
+          content:
+              'My Flutter ListView is laggy. How can I improve performance?',
           role: MessageRole.user,
           timestamp: now.subtract(const Duration(minutes: 5)),
         ),
@@ -265,218 +257,311 @@ void main() {
   const loc = (locale: Locale('en'), suffix: '');
 
   group('App Store Screenshots (${loc.locale.languageCode})', () {
-      late Box<String> conversationBox;
-      late Box<String> memoryBox;
+    late Box<String> conversationBox;
+    late Box<String> memoryBox;
 
-      setUp(() async {
-        await Hive.initFlutter();
-        await EasyLocalization.ensureInitialized();
+    setUp(() async {
+      await Hive.initFlutter();
+      await EasyLocalization.ensureInitialized();
 
-        // Open fresh boxes for each test
-        final timestamp = DateTime.now().millisecondsSinceEpoch;
-        conversationBox = await Hive.openBox<String>('test_conv_${loc.locale.languageCode}_$timestamp');
-        memoryBox = await Hive.openBox<String>('test_mem_${loc.locale.languageCode}_$timestamp');
-      });
+      // Open fresh boxes for each test
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      conversationBox = await Hive.openBox<String>(
+        'test_conv_${loc.locale.languageCode}_$timestamp',
+      );
+      memoryBox = await Hive.openBox<String>(
+        'test_mem_${loc.locale.languageCode}_$timestamp',
+      );
+    });
 
-      tearDown(() async {
-        await conversationBox.clear();
-        await memoryBox.clear();
-        await conversationBox.close();
-        await memoryBox.close();
-      });
+    tearDown(() async {
+      await conversationBox.clear();
+      await memoryBox.clear();
+      await conversationBox.close();
+      await memoryBox.close();
+    });
 
-      /// Helper to build the app with dark theme and pre-seeded data.
-      Future<Widget> buildApp({
-        required List<Conversation> conversations,
-      }) async {
-        // Seed the Hive box
-        for (final conv in conversations) {
-          await conversationBox.put(conv.id, jsonEncode(conv.toJson()));
-        }
-
-        SharedPreferences.setMockInitialValues({
-          'baseUrl': 'https://api.example.com/v1',
-          'model': 'gpt-4o',
-          'apiKey': 'sk-demo',
-          'temperature': 0.7,
-          'maxTokens': 4096,
-          'mcpEnabled': true,
-          'mcpUrl': 'http://localhost:8081',
-          'ttsEnabled': true,
-          'autoReadEnabled': false,
-          'speechRate': 1.0,
-          'assistantMode': 'general',
-          'language': loc.locale.languageCode,
-        });
-
-        final prefs = await SharedPreferences.getInstance();
-
-        return EasyLocalization(
-          supportedLocales: const [Locale('en'), Locale('ja')],
-          path: 'assets/translations',
-          fallbackLocale: const Locale('en'),
-          startLocale: loc.locale,
-          useOnlyLangCode: true,
-          child: Builder(
-            builder: (context) {
-              return ProviderScope(
-                overrides: [
-                  sharedPreferencesProvider.overrideWithValue(prefs),
-                  conversationBoxProvider.overrideWithValue(conversationBox),
-                  chatMemoryBoxProvider.overrideWithValue(memoryBox),
-                  notificationServiceProvider.overrideWithValue(
-                    _NoOpNotificationService(),
-                  ),
-                ],
-                child: MaterialApp(
-                  title: 'Caverno',
-                  debugShowCheckedModeBanner: false,
-                  localizationsDelegates: context.localizationDelegates,
-                  supportedLocales: context.supportedLocales,
-                  locale: context.locale,
-                  darkTheme: ThemeData(
-                    colorScheme: ColorScheme.fromSeed(
-                      seedColor: Colors.blue,
-                      brightness: Brightness.dark,
-                    ),
-                    useMaterial3: true,
-                  ),
-                  themeMode: ThemeMode.dark,
-                  home: const ChatPage(),
-                ),
-              );
-            },
-          ),
-        );
+    /// Helper to build the app with dark theme and pre-seeded data.
+    Future<Widget> buildApp({
+      required List<Conversation> conversations,
+      required GlobalKey screenshotBoundaryKey,
+    }) async {
+      // Seed the Hive box
+      for (final conv in conversations) {
+        await conversationBox.put(conv.id, jsonEncode(conv.toJson()));
       }
 
-      testWidgets('1_chat_conversation${loc.suffix}', (tester) async {
-        final conversations = loc.locale.languageCode == 'en'
-            ? _buildMockConversations()
-            : _buildMockConversationsJa();
-        await tester.pumpWidget(await buildApp(conversations: conversations));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        await takeScreenshot(binding, tester, '1_chat_conversation${loc.suffix}');
+      SharedPreferences.setMockInitialValues({
+        'baseUrl': 'https://api.example.com/v1',
+        'model': 'gpt-4o',
+        'apiKey': 'sk-demo',
+        'temperature': 0.7,
+        'maxTokens': 4096,
+        'mcpEnabled': true,
+        'mcpUrl': 'http://localhost:8081',
+        'ttsEnabled': true,
+        'autoReadEnabled': false,
+        'speechRate': 1.0,
+        'assistantMode': 'general',
+        'language': loc.locale.languageCode,
       });
 
-      testWidgets('2_tool_calling${loc.suffix}', (tester) async {
-        final now = DateTime.now();
-        final conversations = [
-          Conversation(
-            id: 'conv-tool',
-            title: loc.locale.languageCode == 'en' ? 'San Francisco Weather' : 'サンフランシスコの天気',
-            messages: [
-              Message(
-                id: 't-1',
-                content: loc.locale.languageCode == 'en'
-                    ? 'What\'s the weather like in San Francisco this weekend?'
-                    : '今週末のサンフランシスコの天気は？',
-                role: MessageRole.user,
-                timestamp: now.subtract(const Duration(minutes: 3)),
+      final prefs = await SharedPreferences.getInstance();
+
+      return EasyLocalization(
+        supportedLocales: const [Locale('en'), Locale('ja')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: loc.locale,
+        useOnlyLangCode: true,
+        child: Builder(
+          builder: (context) {
+            return ProviderScope(
+              overrides: [
+                sharedPreferencesProvider.overrideWithValue(prefs),
+                conversationBoxProvider.overrideWithValue(conversationBox),
+                chatMemoryBoxProvider.overrideWithValue(memoryBox),
+                notificationServiceProvider.overrideWithValue(
+                  _NoOpNotificationService(),
+                ),
+              ],
+              child: MaterialApp(
+                builder: (context, child) => RepaintBoundary(
+                  key: screenshotBoundaryKey,
+                  child: child ?? const SizedBox.shrink(),
+                ),
+                title: 'Caverno',
+                debugShowCheckedModeBanner: false,
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                darkTheme: ThemeData(
+                  colorScheme: ColorScheme.fromSeed(
+                    seedColor: Colors.blue,
+                    brightness: Brightness.dark,
+                  ),
+                  useMaterial3: true,
+                ),
+                themeMode: ThemeMode.dark,
+                home: const ChatPage(),
               ),
-              Message(
-                id: 't-2',
-                content: loc.locale.languageCode == 'en'
-                    ? '<tool_call>{"name":"web_search","arguments":{"query":"San Francisco weekend weather"}}</tool_call>\n\nIt will be sunny and 66°F!'
-                    : '<tool_call>{"name":"web_search","arguments":{"query":"サンフランシスコ 週末 天気"}}</tool_call>\n\n快晴で最高気温は19度になる予報です！',
-                role: MessageRole.assistant,
-                timestamp: now,
-              ),
-            ],
-            createdAt: now.subtract(const Duration(minutes: 3)),
-            updatedAt: now,
-          ),
-        ];
+            );
+          },
+        ),
+      );
+    }
 
-        await tester.pumpWidget(await buildApp(conversations: conversations));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
+    testWidgets('1_chat_conversation${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      final conversations = loc.locale.languageCode == 'en'
+          ? _buildMockConversations()
+          : _buildMockConversationsJa();
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: conversations,
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
 
-        await takeScreenshot(binding, tester, '2_tool_calling${loc.suffix}');
-      });
-
-      testWidgets('3_thinking_block${loc.suffix}', (tester) async {
-        final conversations = loc.locale.languageCode == 'en'
-            ? _buildMockConversations()
-            : _buildMockConversationsJa();
-        await tester.pumpWidget(await buildApp(conversations: conversations));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        await takeScreenshot(binding, tester, '3_thinking_block${loc.suffix}');
-      });
-
-      testWidgets('4_conversation_drawer${loc.suffix}', (tester) async {
-        final conversations = loc.locale.languageCode == 'en'
-            ? _buildMockConversations()
-            : _buildMockConversationsJa();
-        await tester.pumpWidget(await buildApp(conversations: conversations));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        // Open the drawer
-        final scaffoldState = tester.firstState<ScaffoldState>(
-          find.byType(Scaffold),
-        );
-        scaffoldState.openDrawer();
-        await tester.pumpAndSettle();
-
-        await takeScreenshot(binding, tester, '4_conversation_drawer${loc.suffix}');
-      });
-
-      testWidgets('5_settings_page${loc.suffix}', (tester) async {
-        await tester.pumpWidget(await buildApp(conversations: []));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        // Navigate to settings (Using find.byTooltip to be more robust)
-        final settingsButton = find.byWidgetPredicate(
-          (widget) => widget is IconButton && widget.icon is Icon && (widget.icon as Icon).icon == Icons.settings,
-        );
-        await tester.tap(settingsButton.first);
-        await tester.pumpAndSettle();
-
-        await takeScreenshot(binding, tester, '5_settings_page${loc.suffix}');
-      });
-
-      testWidgets('6_voice_mode${loc.suffix}', (tester) async {
-        await tester.pumpWidget(await buildApp(conversations: []));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        // Show voice recorder button or mock overlay
-        await takeScreenshot(binding, tester, '6_voice_mode${loc.suffix}');
-      });
-
-      testWidgets('7_image_attachments${loc.suffix}', (tester) async {
-        final now = DateTime.now();
-        final conversations = [
-          Conversation(
-            id: 'conv-img',
-            title: loc.locale.languageCode == 'en' ? 'Image Analysis' : '画像解析',
-            messages: [
-              Message(
-                id: 'img-1',
-                content: loc.locale.languageCode == 'en' ? 'What\'s in this photo?' : 'この写真には何が写っていますか？',
-                role: MessageRole.user,
-                timestamp: now.subtract(const Duration(minutes: 1)),
-                imageBase64: 'dummy_base64',
-                imageMimeType: 'image/png',
-              ),
-              Message(
-                id: 'img-2',
-                content: loc.locale.languageCode == 'en'
-                    ? 'This is a beautiful landscape of a mountain lake.'
-                    : 'これは山の中にある湖の美しい風景写真ですね。',
-                role: MessageRole.assistant,
-                timestamp: now,
-              ),
-            ],
-            createdAt: now.subtract(const Duration(minutes: 1)),
-            updatedAt: now,
-          ),
-        ];
-
-        await tester.pumpWidget(await buildApp(conversations: conversations));
-        await tester.pumpAndSettle(const Duration(seconds: 2));
-
-        await takeScreenshot(binding, tester, '7_image_attachments${loc.suffix}');
-      });
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '1_chat_conversation${loc.suffix}',
+      );
     });
+
+    testWidgets('2_tool_calling${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      final now = DateTime.now();
+      final conversations = [
+        Conversation(
+          id: 'conv-tool',
+          title: loc.locale.languageCode == 'en'
+              ? 'San Francisco Weather'
+              : 'サンフランシスコの天気',
+          messages: [
+            Message(
+              id: 't-1',
+              content: loc.locale.languageCode == 'en'
+                  ? 'What\'s the weather like in San Francisco this weekend?'
+                  : '今週末のサンフランシスコの天気は？',
+              role: MessageRole.user,
+              timestamp: now.subtract(const Duration(minutes: 3)),
+            ),
+            Message(
+              id: 't-2',
+              content: loc.locale.languageCode == 'en'
+                  ? '<tool_call>{"name":"web_search","arguments":{"query":"San Francisco weekend weather"}}</tool_call>\n\nIt will be sunny and 66°F!'
+                  : '<tool_call>{"name":"web_search","arguments":{"query":"サンフランシスコ 週末 天気"}}</tool_call>\n\n快晴で最高気温は19度になる予報です！',
+              role: MessageRole.assistant,
+              timestamp: now,
+            ),
+          ],
+          createdAt: now.subtract(const Duration(minutes: 3)),
+          updatedAt: now,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: conversations,
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '2_tool_calling${loc.suffix}',
+      );
+    });
+
+    testWidgets('3_thinking_block${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      final conversations = loc.locale.languageCode == 'en'
+          ? _buildMockConversations()
+          : _buildMockConversationsJa();
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: conversations,
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '3_thinking_block${loc.suffix}',
+      );
+    });
+
+    testWidgets('4_conversation_drawer${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      final conversations = loc.locale.languageCode == 'en'
+          ? _buildMockConversations()
+          : _buildMockConversationsJa();
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: conversations,
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      // Open the drawer
+      final scaffoldState = tester.firstState<ScaffoldState>(
+        find.byType(Scaffold),
+      );
+      scaffoldState.openDrawer();
+      await tester.pumpAndSettle();
+
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '4_conversation_drawer${loc.suffix}',
+      );
+    });
+
+    testWidgets('5_settings_page${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: const [],
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      // Navigate to settings (Using find.byTooltip to be more robust)
+      final settingsButton = find.byWidgetPredicate(
+        (widget) =>
+            widget is IconButton &&
+            widget.icon is Icon &&
+            (widget.icon as Icon).icon == Icons.settings,
+      );
+      await tester.tap(settingsButton.first);
+      await tester.pumpAndSettle();
+
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '5_settings_page${loc.suffix}',
+      );
+    });
+
+    testWidgets('6_voice_mode${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: const [],
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      // Show voice recorder button or mock overlay
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '6_voice_mode${loc.suffix}',
+      );
+    });
+
+    testWidgets('7_image_attachments${loc.suffix}', (tester) async {
+      final screenshotBoundaryKey = GlobalKey();
+      final now = DateTime.now();
+      final conversations = [
+        Conversation(
+          id: 'conv-img',
+          title: loc.locale.languageCode == 'en' ? 'Image Analysis' : '画像解析',
+          messages: [
+            Message(
+              id: 'img-1',
+              content: loc.locale.languageCode == 'en'
+                  ? 'What\'s in this photo?'
+                  : 'この写真には何が写っていますか？',
+              role: MessageRole.user,
+              timestamp: now.subtract(const Duration(minutes: 1)),
+              imageBase64: 'dummy_base64',
+              imageMimeType: 'image/png',
+            ),
+            Message(
+              id: 'img-2',
+              content: loc.locale.languageCode == 'en'
+                  ? 'This is a beautiful landscape of a mountain lake.'
+                  : 'これは山の中にある湖の美しい風景写真ですね。',
+              role: MessageRole.assistant,
+              timestamp: now,
+            ),
+          ],
+          createdAt: now.subtract(const Duration(minutes: 1)),
+          updatedAt: now,
+        ),
+      ];
+
+      await tester.pumpWidget(
+        await buildApp(
+          conversations: conversations,
+          screenshotBoundaryKey: screenshotBoundaryKey,
+        ),
+      );
+      await tester.pumpAndSettle(const Duration(seconds: 2));
+
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: '7_image_attachments${loc.suffix}',
+      );
+    });
+  });
 }
