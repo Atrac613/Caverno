@@ -701,13 +701,23 @@ class ChatNotifier extends Notifier<ChatState> {
     var consecutiveErrors = 0;
     String? lastErrorToolName;
     var hasTextResponse = false;
+    final executedToolCallKeys = <String>{};
     // Collect tool results for the final user-role resend.
     final toolResults = <String>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
       final toolCall = currentToolCalls.first;
+      final toolCallKey = _toolExecutionKey(toolCall);
       if (!ref.mounted) return;
+
+      if (executedToolCallKeys.contains(toolCallKey)) {
+        appLog(
+          '[Tool] Duplicate tool call detected, ending loop: ${toolCall.name} ${toolCall.arguments}',
+        );
+        currentToolCalls = [];
+        break;
+      }
 
       appLog('[Tool] Tool loop [$iteration/$maxIterations]');
       appLog('[Tool] Executing tool: ${toolCall.name}');
@@ -726,6 +736,7 @@ class ChatNotifier extends Notifier<ChatState> {
         if (result.isSuccess) {
           toolResult = result.result;
           toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
+          executedToolCallKeys.add(toolCallKey);
           consecutiveErrors = 0;
           lastErrorToolName = null;
         } else {
@@ -959,6 +970,32 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String _contentToolCallHash(ToolCallData toolCall) {
     return '${toolCall.name}:${jsonEncode(toolCall.arguments)}';
+  }
+
+  String _toolExecutionKey(ToolCallInfo toolCall) {
+    return '${toolCall.name}:${_normalizeToolExecutionValue(toolCall.arguments)}';
+  }
+
+  String _normalizeToolExecutionValue(Object? value) {
+    if (value is Map) {
+      final entries = value.entries.toList()
+        ..sort((a, b) => a.key.toString().compareTo(b.key.toString()));
+      final normalized = <String, String>{};
+      for (final entry in entries) {
+        normalized[entry.key.toString()] = _normalizeToolExecutionValue(
+          entry.value,
+        );
+      }
+      return jsonEncode(normalized);
+    }
+
+    if (value is List) {
+      return jsonEncode(
+        value.map(_normalizeToolExecutionValue).toList(growable: false),
+      );
+    }
+
+    return jsonEncode(value);
   }
 
   /// Executes a `tool_call` detected from message content.

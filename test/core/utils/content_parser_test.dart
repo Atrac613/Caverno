@@ -99,6 +99,28 @@ void main() {
     expect(result.incompleteTagContent, 'flutter pub get was executed.');
   });
 
+  test('parse treats thought tags as thinking blocks', () {
+    const content = '<thought>Need to inspect the config first.</thought>Done.';
+
+    final result = ContentParser.parse(content);
+
+    expect(result.segments, hasLength(2));
+    expect(result.segments.first.type, ContentType.thinking);
+    expect(result.segments.first.content, 'Need to inspect the config first.');
+    expect(result.segments.last.type, ContentType.text);
+    expect(result.segments.last.content, 'Done.');
+  });
+
+  test('parse handles incomplete thought tags', () {
+    const content = '<thought>Waiting for tool results';
+
+    final result = ContentParser.parse(content);
+
+    expect(result.hasIncompleteTag, isTrue);
+    expect(result.incompleteTagType, 'thinking');
+    expect(result.incompleteTagContent, 'Waiting for tool results');
+  });
+
   test('parse strips stray structural tags from text segments', () {
     const content = 'Done. <think>Hidden</think> Visible <channel|>text';
 

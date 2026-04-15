@@ -1,9 +1,11 @@
 import 'dart:async';
 import 'dart:convert' as dart_convert;
 
+import 'package:flutter/foundation.dart';
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
 import 'chat_datasource.dart';
@@ -77,6 +79,19 @@ class ChatRemoteDataSource implements ChatDataSource {
       );
 
   final OpenAIClient _client;
+  static final RegExp _rawParseFailurePattern = RegExp(
+    r'Failed to parse input at pos \d+:\s*(.+)$',
+    dotAll: true,
+  );
+  static final RegExp _thoughtChannelStartPattern = RegExp(
+    r'<\|channel\|?>\s*thought\b',
+    caseSensitive: false,
+  );
+  static final RegExp _analysisChannelStartPattern = RegExp(
+    r'<\|channel\|?>\s*analysis\b',
+    caseSensitive: false,
+  );
+  static final RegExp _channelEndPattern = RegExp(r'<channel\|>');
 
   /// Last token usage captured from a streaming or non-streaming response.
   TokenUsage lastUsage = TokenUsage.zero;
@@ -102,7 +117,9 @@ class ChatRemoteDataSource implements ChatDataSource {
     for (final tool in tools) {
       final func = tool['function'] as Map<String, dynamic>;
       appLog('[LLM]   ${func['name']}: ${func['description']}');
-      appLog('[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}');
+      appLog(
+        '[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}',
+      );
     }
     appLog('[LLM] === End Tools ===');
   }
@@ -217,6 +234,12 @@ class ChatRemoteDataSource implements ChatDataSource {
       );
       appLog('[LLM] ========================================');
     } catch (e, stackTrace) {
+      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      if (recoveredText != null) {
+        appLog('[LLM] Recovered raw text response after stream parse failure');
+        yield recoveredText;
+        return;
+      }
       appLog('[LLM] streamChatCompletion error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
@@ -326,9 +349,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         appLog(
           '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
         );
-        appLog(
-          '[LLM] finishReason: ${accumulator.finishReason?.value}',
-        );
+        appLog('[LLM] finishReason: ${accumulator.finishReason?.value}');
         appLog(
           '[LLM] toolCalls: ${accumulator.toolCalls.map((t) => t.function.name).toList()}',
         );
@@ -346,6 +367,23 @@ class ChatRemoteDataSource implements ChatDataSource {
           ),
         );
       } catch (e, stackTrace) {
+        final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+        if (recoveredText != null) {
+          appLog(
+            '[LLM] Recovered raw text response after tool stream parse failure',
+          );
+          yield recoveredText;
+          final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+          completer.complete(
+            ChatCompletionResult(
+              content: recoveredText,
+              toolCalls: embeddedToolCalls,
+              finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+              usage: lastUsage,
+            ),
+          );
+          return;
+        }
         appLog(
           '[LLM] streamChatCompletionWithTools error: ${e.runtimeType}: $e',
         );
@@ -432,6 +470,17 @@ class ChatRemoteDataSource implements ChatDataSource {
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
+      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      if (recoveredText != null) {
+        appLog('[LLM] Recovered raw text response after create parse failure');
+        final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+        return ChatCompletionResult(
+          content: recoveredText,
+          toolCalls: embeddedToolCalls,
+          finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+          usage: lastUsage,
+        );
+      }
       appLog('[LLM] createChatCompletion error: ${e.runtimeType}: $e');
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
@@ -487,68 +536,82 @@ class ChatRemoteDataSource implements ChatDataSource {
       ChatMessage.tool(toolCallId: toolCallId, content: toolResult),
     );
 
-    final stream = _client.chat.completions.createStream(
-      ChatCompletionCreateRequest(
-        model: modelId,
-        messages: formattedMessages,
-        temperature: temperature ?? ApiConstants.defaultTemperature,
-        maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-        streamOptions: const StreamOptions(includeUsage: true),
-      ),
-    );
+    try {
+      final stream = _client.chat.completions.createStream(
+        ChatCompletionCreateRequest(
+          model: modelId,
+          messages: formattedMessages,
+          temperature: temperature ?? ApiConstants.defaultTemperature,
+          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+          streamOptions: const StreamOptions(includeUsage: true),
+        ),
+      );
 
-    final responseBuffer = StringBuffer();
-    var isInReasoning = false;
-    await for (final event in stream) {
-      // Capture usage from the final chunk
-      if (event.usage != null) {
-        lastUsage = _extractUsage(event.usage);
-      }
+      final responseBuffer = StringBuffer();
+      var isInReasoning = false;
+      await for (final event in stream) {
+        // Capture usage from the final chunk
+        if (event.usage != null) {
+          lastUsage = _extractUsage(event.usage);
+        }
 
-      final delta = event.choices?.firstOrNull?.delta;
-      if (delta == null) continue;
+        final delta = event.choices?.firstOrNull?.delta;
+        if (delta == null) continue;
 
-      // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
-      // Tags are batched with adjacent content to avoid intermediate
-      // states where only a bare `<think>` or `</think>` is in the
-      // message, which could briefly render as literal text.
-      final reasoning = delta.reasoningContent ?? delta.reasoning;
-      final content = delta.content;
+        // Handle reasoning_content / reasoning fields (DeepSeek, vLLM, OpenRouter)
+        // Tags are batched with adjacent content to avoid intermediate
+        // states where only a bare `<think>` or `</think>` is in the
+        // message, which could briefly render as literal text.
+        final reasoning = delta.reasoningContent ?? delta.reasoning;
+        final content = delta.content;
 
-      if (reasoning != null && reasoning.isNotEmpty) {
-        if (!isInReasoning) {
-          isInReasoning = true;
-          responseBuffer.write('<think>$reasoning');
-          yield '<think>$reasoning';
-        } else {
-          responseBuffer.write(reasoning);
-          yield reasoning;
+        if (reasoning != null && reasoning.isNotEmpty) {
+          if (!isInReasoning) {
+            isInReasoning = true;
+            responseBuffer.write('<think>$reasoning');
+            yield '<think>$reasoning';
+          } else {
+            responseBuffer.write(reasoning);
+            yield reasoning;
+          }
+        }
+
+        if (content != null && content.isNotEmpty) {
+          if (isInReasoning) {
+            isInReasoning = false;
+            responseBuffer.write('</think>$content');
+            yield '</think>$content';
+          } else {
+            responseBuffer.write(content);
+            yield content;
+          }
         }
       }
-
-      if (content != null && content.isNotEmpty) {
-        if (isInReasoning) {
-          isInReasoning = false;
-          responseBuffer.write('</think>$content');
-          yield '</think>$content';
-        } else {
-          responseBuffer.write(content);
-          yield content;
-        }
+      // Close unclosed reasoning tag at end of stream
+      if (isInReasoning) {
+        responseBuffer.write('</think>');
+        yield '</think>';
       }
-    }
-    // Close unclosed reasoning tag at end of stream
-    if (isInReasoning) {
-      responseBuffer.write('</think>');
-      yield '</think>';
-    }
 
-    appLog('[LLM] === Response (streaming) ===');
-    final responseText = responseBuffer.toString();
-    appLog(
-      '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
-    );
-    appLog('[LLM] ============================================');
+      appLog('[LLM] === Response (streaming) ===');
+      final responseText = responseBuffer.toString();
+      appLog(
+        '[LLM] ${responseText.length > 500 ? '${responseText.substring(0, 500)}...' : responseText}',
+      );
+      appLog('[LLM] ============================================');
+    } catch (e, stackTrace) {
+      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      if (recoveredText != null) {
+        appLog(
+          '[LLM] Recovered raw text response after tool-result stream parse failure',
+        );
+        yield recoveredText;
+        return;
+      }
+      appLog('[LLM] streamWithToolResult error: ${e.runtimeType}: $e');
+      appLog('[LLM] stackTrace: $stackTrace');
+      rethrow;
+    }
   }
 
   /// Get chat completion with tool result (non-streaming, with tool definitions)
@@ -642,6 +705,19 @@ class ChatRemoteDataSource implements ChatDataSource {
         usage: lastUsage = _extractUsage(response.usage),
       );
     } catch (e, stackTrace) {
+      final recoveredText = _tryRecoverRawAssistantTextFromError(e);
+      if (recoveredText != null) {
+        appLog(
+          '[LLM] Recovered raw text response after tool-result parse failure',
+        );
+        final embeddedToolCalls = _parseEmbeddedToolCalls(recoveredText);
+        return ChatCompletionResult(
+          content: recoveredText,
+          toolCalls: embeddedToolCalls,
+          finishReason: embeddedToolCalls == null ? 'stop' : 'tool_calls',
+          usage: lastUsage,
+        );
+      }
       appLog(
         '[LLM] createChatCompletionWithToolResult error: ${e.runtimeType}: $e',
       );
@@ -718,5 +794,48 @@ class ChatRemoteDataSource implements ChatDataSource {
           return ChatMessage.system(m.content);
       }
     }).toList();
+  }
+
+  @visibleForTesting
+  String? tryRecoverRawAssistantTextFromError(Object error) {
+    return _tryRecoverRawAssistantTextFromError(error);
+  }
+
+  @visibleForTesting
+  List<ToolCallInfo>? parseEmbeddedToolCallsForTest(String content) {
+    return _parseEmbeddedToolCalls(content);
+  }
+
+  String? _tryRecoverRawAssistantTextFromError(Object error) {
+    final rawMessage = error.toString();
+    final match = _rawParseFailurePattern.firstMatch(rawMessage);
+    if (match == null) return null;
+
+    final candidate = match.group(1)?.trim();
+    if (candidate == null || candidate.isEmpty) return null;
+    return _normalizeRecoveredAssistantText(candidate);
+  }
+
+  String _normalizeRecoveredAssistantText(String text) {
+    return text
+        .replaceAll(_thoughtChannelStartPattern, '<think>')
+        .replaceAll(_analysisChannelStartPattern, '<think>')
+        .replaceAll(_channelEndPattern, '</think>')
+        .trim();
+  }
+
+  List<ToolCallInfo>? _parseEmbeddedToolCalls(String content) {
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+    if (toolCalls.isEmpty) return null;
+
+    return toolCalls
+        .map(
+          (toolCall) => ToolCallInfo(
+            id: toolCall.occurrenceId ?? 'raw_${toolCall.name}',
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+          ),
+        )
+        .toList(growable: false);
   }
 }

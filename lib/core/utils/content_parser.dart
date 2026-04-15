@@ -62,12 +62,12 @@ class ContentParser {
   );
 
   static final _structuralTagPattern = RegExp(
-    r'(?:</?(?:think|thinking|tool_call|tool_use|tool_result)>|<\|/?(?:think|thinking|tool_call|tool_use|tool_result|end_tool_call|end_tool_use)\|?>)',
+    r'(?:</?(?:think|thinking|thought|tool_call|tool_use|tool_result)>|<\|/?(?:think|thinking|thought|tool_call|tool_use|tool_result|end_tool_call|end_tool_use)\|?>)',
   );
 
   // Regex to detect complete tags
   static final _thinkPattern = RegExp(
-    r'<(think|thinking)>(.*?)</(think|thinking)>',
+    r'<(think|thinking|thought)>(.*?)</(think|thinking|thought)>',
     dotAll: true,
   );
 
@@ -88,7 +88,7 @@ class ContentParser {
 
   // Patterns to detect incomplete tags
   static final _incompleteThinkStart = RegExp(
-    r'<(think|thinking)>(?!.*</(think|thinking)>).*$',
+    r'<(think|thinking|thought)>(?!.*</(think|thinking|thought)>).*$',
     dotAll: true,
   );
 
@@ -262,7 +262,7 @@ class ContentParser {
             // Extract partial thinking content after the opening tag
             final fullMatch = match.group(0) ?? '';
             final tagNameMatch = RegExp(
-              r'^<(think|thinking)>',
+              r'^<(think|thinking|thought)>',
             ).firstMatch(fullMatch);
             if (tagNameMatch != null) {
               capturedIncompleteContent = fullMatch
