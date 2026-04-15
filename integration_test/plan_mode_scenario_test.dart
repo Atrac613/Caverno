@@ -546,6 +546,7 @@ Future<void> _writeFailureScenarioArtifacts({
             line.contains('[Workflow]'),
       )
       .toList(growable: false);
+  final warnings = _collectScenarioWarnings(logs);
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
   await logFile.writeAsString('${logs.join('\n')}\n');
@@ -557,12 +558,36 @@ Future<void> _writeFailureScenarioArtifacts({
     'error': error.toString(),
     'stackTrace': stackTrace.toString(),
     'screenshots': screenshotPaths,
+    'warnings': warnings,
     'capturedLogs': filteredLogs,
   };
   final reportFile = File('${scenarioDir.path}/scenario_report.json');
   await reportFile.writeAsString(
     const JsonEncoder.withIndent('  ').convert(report),
   );
+}
+
+List<String> _collectScenarioWarnings(List<String> logs) {
+  const warningPatterns = <String>[
+    '[Workflow] Workflow proposal parse failed',
+    '[Workflow] Workflow proposal recovered on retry',
+    '[Workflow] Using fallback proposal',
+    '[LLM] Recovered raw text response after create parse failure',
+    'Connection closed before full header was received',
+    '[LLM] streamChatCompletion error:',
+    '[LLM] createChatCompletion error:',
+    '[ChatNotifier] _handleError called',
+  ];
+
+  final warnings = <String>[];
+  for (final line in logs) {
+    final isWarning = warningPatterns.any(line.contains);
+    if (!isWarning || warnings.contains(line)) {
+      continue;
+    }
+    warnings.add(line);
+  }
+  return warnings;
 }
 
 String _buildSuiteMarkdownReport({
@@ -592,19 +617,42 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
     ..writeln()
     ..writeln(
-      '| Scenario | Status | Duration (ms) | Screenshots | Report | Log | Error |',
+      '| Scenario | Status | Duration (ms) | Warnings | Screenshots | Report | Log | Error |',
     )
-    ..writeln('| --- | --- | ---: | ---: | --- | --- | --- |');
+    ..writeln('| --- | --- | ---: | ---: | ---: | --- | --- | --- |');
 
   for (final result in suiteResults) {
     final screenshots = (result['screenshots'] as List<Object?>?) ?? const [];
+    final warnings = (result['warnings'] as List<Object?>?) ?? const [];
     final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
     buffer.writeln(
       '| ${result['scenario']} | ${result['status']} | '
-      '${result['durationMs']} | ${screenshots.length} | '
+      '${result['durationMs']} | ${warnings.length} | ${screenshots.length} | '
       '${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
       '${error.isEmpty ? '-' : error} |',
     );
+  }
+
+  final scenariosWithWarnings = suiteResults
+      .where((result) {
+        final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+        return warnings.isNotEmpty;
+      })
+      .toList(growable: false);
+
+  if (scenariosWithWarnings.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Warnings')
+      ..writeln();
+    for (final result in scenariosWithWarnings) {
+      final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+      buffer.writeln('### ${result['scenario']}');
+      for (final warning in warnings) {
+        buffer.writeln('- $warning');
+      }
+      buffer.writeln();
+    }
   }
 
   return buffer.toString();
@@ -799,6 +847,7 @@ Future<_ScenarioRunResult> _runScenario({
           },
         )
         .toList(growable: false),
+    'warnings': _collectScenarioWarnings(logs),
     'artifacts': <String, String>{
       for (final artifact in scenario.resolvedArtifactExpectations.where(
         (item) => item.shouldExist,
@@ -996,6 +1045,15 @@ void main() {
           final archivedLogPath = File(
             '${archivedScenarioDir.path}/scenario_log.txt',
           );
+          List<dynamic> archivedWarnings = const <dynamic>[];
+          if (archivedReportPath.existsSync()) {
+            final archivedReport =
+                jsonDecode(archivedReportPath.readAsStringSync())
+                    as Map<String, dynamic>;
+            archivedWarnings =
+                archivedReport['warnings'] as List<dynamic>? ??
+                const <dynamic>[];
+          }
           suiteResults.add(<String, Object?>{
             'scenario': scenario.name,
             'mode': config.mode.name,
@@ -1013,6 +1071,7 @@ void main() {
                 ? archivedLogPath.path
                 : null,
             'screenshots': archivedScreenshotPaths,
+            'warnings': archivedWarnings,
             'error': failure?.toString(),
             'stackTrace': failureStackTrace?.toString(),
           });
