@@ -1298,5 +1298,51 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
       ],
     ),
+    PlanModeScenarioSpec(
+      name: 'live_cli_entrypoint_decision',
+      userPrompt:
+          'Create a reviewable plan for a Python host health checker. Before '
+          'you lock the workflow, ask me exactly one planning decision: '
+          'whether the first slice should be a CLI entry point or a reusable '
+          'module. After I choose, do not ask any more planning questions. '
+          'Assume ping-only checks, use click for CLI parsing, use a Markdown '
+          'README, and keep the first implementation slice limited to '
+          'requirements.txt and README.md.',
+      projectName: 'tmp-live-decision',
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      decisionSelections: const <PlanModeScenarioDecisionSelection>[
+        PlanModeScenarioDecisionSelection(
+          question: '',
+          optionLabel: 'CLI Entry Point',
+        ),
+      ],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.decision,
+          text: 'Choose Before Planning',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      artifactExpectations: const <PlanModeArtifactExpectation>[],
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] === Response (streamWithTools) ===',
+          minCount: 1,
+        ),
+      ],
+    ),
   ];
 }

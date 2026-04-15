@@ -204,7 +204,11 @@ Future<void> _resolvePlanningDecisions(
 
   while (resolvedDecisionCount < maxDecisionRounds) {
     await tester.pumpAndSettle();
-    final confirmFinder = find.text('Continue with this choice');
+    final decisionSheetFinder = find.byType(BottomSheet);
+    final confirmFinder = find.descendant(
+      of: decisionSheetFinder,
+      matching: find.text('Continue with this choice'),
+    );
     if (confirmFinder.evaluate().isEmpty) {
       return;
     }
@@ -221,7 +225,8 @@ Future<void> _resolvePlanningDecisions(
     final questionText =
         scriptedSelection?.question ?? _extractVisibleDecisionQuestion(tester);
 
-    if (scriptedSelection != null) {
+    if (scriptedSelection != null &&
+        scriptedSelection.question.trim().isNotEmpty) {
       expect(find.text(scriptedSelection.question), findsOneWidget);
     } else if (!config.usesLiveLlm) {
       throw StateError(
@@ -238,32 +243,36 @@ Future<void> _resolvePlanningDecisions(
     );
 
     if (scriptedSelection?.freeTextAnswer != null) {
+      final decisionTextFieldFinder = find.descendant(
+        of: decisionSheetFinder,
+        matching: find.byType(TextField),
+      );
+      expect(decisionTextFieldFinder, findsOneWidget);
       await tester.enterText(
-        find.byType(TextField).last,
+        decisionTextFieldFinder,
         scriptedSelection!.freeTextAnswer!,
       );
       await tester.pumpAndSettle();
     } else if (scriptedSelection?.optionLabel != null) {
-      final optionFinder = find.text(scriptedSelection!.optionLabel!);
-      expect(optionFinder, findsAtLeastNWidgets(1));
+      final optionFinder = _findDecisionSheetText(
+        tester,
+        decisionSheetFinder,
+        scriptedSelection!.optionLabel!,
+      );
+      expect(
+        optionFinder,
+        findsAtLeastNWidgets(1),
+        reason:
+            'Expected to find decision option '
+            '"${scriptedSelection.optionLabel}" in the planning sheet.',
+      );
       await tester.tap(optionFinder.last, warnIfMissed: false);
       await tester.pumpAndSettle();
     } else if (config.usesLiveLlm) {
-      final textFieldFinder = find.byType(TextField);
-      if (textFieldFinder.evaluate().isNotEmpty) {
-        final answer = _defaultLiveDecisionAnswer(questionText);
-        await tester.enterText(textFieldFinder.last, answer);
-        await tester.pumpAndSettle();
-        appLog(
-          '[ScenarioLive] Auto-answered planning decision'
-          '${questionText != null ? ' "$questionText"' : ''}: $answer',
-        );
-      } else {
-        appLog(
-          '[ScenarioLive] Auto-accepted the default planning option'
-          '${questionText != null ? ' for "$questionText"' : ''}.',
-        );
-      }
+      appLog(
+        '[ScenarioLive] Auto-accepted the default planning option'
+        '${questionText != null ? ' for "$questionText"' : ''}.',
+      );
     }
 
     expect(confirmFinder, findsOneWidget);
@@ -278,6 +287,65 @@ Future<void> _resolvePlanningDecisions(
 
   throw StateError(
     'Planning decisions did not settle after $maxDecisionRounds rounds.',
+  );
+}
+
+Finder _findDecisionSheetText(
+  WidgetTester tester,
+  Finder decisionSheetFinder,
+  String targetText,
+) {
+  final exactFinder = find.descendant(
+    of: decisionSheetFinder,
+    matching: find.text(targetText),
+  );
+  if (exactFinder.evaluate().isNotEmpty) {
+    return exactFinder;
+  }
+
+  final normalizedTarget = targetText.trim().toLowerCase();
+  return find.descendant(
+    of: decisionSheetFinder,
+    matching: find.byWidgetPredicate((widget) {
+      if (widget is! Text) {
+        return false;
+      }
+      final data = widget.data?.trim().toLowerCase();
+      return data != null && data == normalizedTarget;
+    }),
+  );
+}
+
+Future<void> _waitForReadyPlanProposal(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required Duration timeout,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final chatState = container.read(chatNotifierProvider);
+    final isReady =
+        chatState.workflowProposalDraft != null &&
+        chatState.taskProposalDraft != null &&
+        !chatState.isGeneratingWorkflowProposal &&
+        !chatState.isGeneratingTaskProposal;
+    if (isReady) {
+      await tester.pumpAndSettle();
+      return;
+    }
+
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+
+  final chatState = container.read(chatNotifierProvider);
+  throw StateError(
+    'Plan proposal did not become ready. '
+    'workflowDraft=${chatState.workflowProposalDraft != null}, '
+    'taskDraft=${chatState.taskProposalDraft != null}, '
+    'isGeneratingWorkflow=${chatState.isGeneratingWorkflowProposal}, '
+    'isGeneratingTask=${chatState.isGeneratingTaskProposal}, '
+    'workflowError=${chatState.workflowProposalError}, '
+    'taskError=${chatState.taskProposalError}',
   );
 }
 
@@ -303,17 +371,6 @@ String? _extractVisibleDecisionQuestion(WidgetTester tester) {
     }
   }
   return candidates.firstOrNull;
-}
-
-String _defaultLiveDecisionAnswer(String? questionText) {
-  final normalized = questionText?.toLowerCase() ?? '';
-  if (normalized.contains('format')) {
-    return 'Use a simple Markdown README for the first slice.';
-  }
-  if (normalized.contains('cli') || normalized.contains('command')) {
-    return 'Use a CLI-first first slice.';
-  }
-  return 'Use the simplest CLI-first first slice.';
 }
 
 void _assertUiExpectations(
@@ -640,6 +697,14 @@ Future<_ScenarioRunResult> _runScenario({
     scenario,
     screenshotBoundaryKey,
     scenarioDir,
+  );
+
+  await _waitForReadyPlanProposal(
+    tester,
+    container,
+    timeout: config.usesLiveLlm
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 5),
   );
 
   _assertUiExpectations(
