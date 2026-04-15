@@ -33,6 +33,7 @@ import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
 import 'mcp_tool_provider.dart';
+import 'tool_approval_cache.dart';
 
 final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   final settings = ref.watch(settingsNotifierProvider);
@@ -215,6 +216,7 @@ class ChatNotifier extends Notifier<ChatState> {
     cancelStreaming();
     _executedContentToolCalls.clear();
     _seenContentToolCallHashes.clear();
+    _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;
@@ -374,6 +376,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final Set<String> _executedContentToolCalls = {};
   final Set<String> _seenContentToolCallHashes = {};
   final List<String> _pendingContentToolResults = [];
+  final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
 
@@ -391,6 +394,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _hiddenPrompt = null;
     _languageCode = languageCode;
     _isVoiceMode = isVoiceMode;
+    _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
 
@@ -1018,6 +1022,27 @@ class ChatNotifier extends Notifier<ChatState> {
     return '<tool_result>${jsonEncode(payload)}</tool_result>';
   }
 
+  McpToolResult? _lookupToolApprovalResult(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) {
+    final cached = _toolApprovalCache.lookup(toolName, arguments);
+    if (cached != null) {
+      appLog(
+        '[Tool] Reusing cached approval result for $toolName: ${jsonEncode(arguments)}',
+      );
+    }
+    return cached;
+  }
+
+  McpToolResult _rememberToolApprovalResult(
+    String toolName,
+    Map<String, dynamic> arguments,
+    McpToolResult result,
+  ) {
+    return _toolApprovalCache.remember(toolName, arguments, result);
+  }
+
   Map<String, dynamic> _buildContentToolResultPayload(
     String toolName,
     String result,
@@ -1044,9 +1069,10 @@ class ChatNotifier extends Notifier<ChatState> {
       if (lines.isNotEmpty) {
         summary = _truncateToolResultText(lines.first, maxLength: 72);
         details.addAll(
-          lines.skip(1).take(2).map(
-                (line) => _truncateToolResultText(line, maxLength: 96),
-              ),
+          lines
+              .skip(1)
+              .take(2)
+              .map((line) => _truncateToolResultText(line, maxLength: 96)),
         );
       }
     }
@@ -1101,7 +1127,9 @@ class ChatNotifier extends Notifier<ChatState> {
           .where((line) => line.isNotEmpty)
           .toList();
       details.addAll(
-        lines.take(2).map((line) => _truncateToolResultText(line, maxLength: 96)),
+        lines
+            .take(2)
+            .map((line) => _truncateToolResultText(line, maxLength: 96)),
       );
       return _compactToolResultValue(path);
     }
@@ -1123,7 +1151,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final prioritizedEntries = data.entries
-        .where((entry) => entry.value != null && entry.value.toString().isNotEmpty)
+        .where(
+          (entry) => entry.value != null && entry.value.toString().isNotEmpty,
+        )
         .take(3);
     details.addAll(
       prioritizedEntries.map(
@@ -1131,7 +1161,9 @@ class ChatNotifier extends Notifier<ChatState> {
             '${entry.key}: ${_truncateToolResultText(_compactToolResultValue(entry.value), maxLength: 72)}',
       ),
     );
-    return _compactToolResultValue(path ?? data['query'] ?? data['pattern'] ?? 'Completed');
+    return _compactToolResultValue(
+      path ?? data['query'] ?? data['pattern'] ?? 'Completed',
+    );
   }
 
   String _compactToolResultValue(dynamic value) {
@@ -1215,6 +1247,14 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     if (!_settings.confirmFileMutations) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
@@ -1229,17 +1269,26 @@ class ChatNotifier extends Notifier<ChatState> {
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User denied file write',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied file write',
+        ),
       );
     }
 
-    return _mcpToolService!.executeTool(
+    final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: resolvedArguments,
+    );
+    return _rememberToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+      result,
     );
   }
 
@@ -1263,6 +1312,14 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     final preview = ['Old text:', oldText, '', 'New text:', newText].join('\n');
     if (!_settings.confirmFileMutations) {
       return _mcpToolService!.executeTool(
@@ -1278,17 +1335,26 @@ class ChatNotifier extends Notifier<ChatState> {
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User denied file edit',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied file edit',
+        ),
       );
     }
 
-    return _mcpToolService!.executeTool(
+    final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: resolvedArguments,
+    );
+    return _rememberToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+      result,
     );
   }
 
@@ -1322,6 +1388,14 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     if (!_settings.confirmLocalCommands) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
@@ -1335,17 +1409,26 @@ class ChatNotifier extends Notifier<ChatState> {
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User denied local command execution',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        resolvedArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied local command execution',
+        ),
       );
     }
 
-    return _mcpToolService!.executeTool(
+    final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: resolvedArguments,
+    );
+    return _rememberToolApprovalResult(
+      toolCall.name,
+      resolvedArguments,
+      result,
     );
   }
 
@@ -1353,6 +1436,11 @@ class ChatNotifier extends Notifier<ChatState> {
     final host = (toolCall.arguments['host'] as String?)?.trim() ?? '';
     final port = (toolCall.arguments['port'] as num?)?.toInt() ?? 22;
     final username = (toolCall.arguments['username'] as String?)?.trim() ?? '';
+    final cacheArguments = <String, dynamic>{
+      'host': host,
+      'port': port,
+      'username': username,
+    };
 
     if (host.isEmpty) {
       return McpToolResult(
@@ -1363,17 +1451,29 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      cacheArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     final approval = await requestSshConnect(
       host: host,
       port: port,
       username: username,
     );
     if (approval == null) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User cancelled SSH connection',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User cancelled SSH connection',
+        ),
       );
     }
 
@@ -1406,19 +1506,27 @@ class ChatNotifier extends Notifier<ChatState> {
               username: approval.username,
             );
       }
-      return McpToolResult(
-        toolName: toolCall.name,
-        result:
-            'Connected to ${approval.username}@${approval.host}:${approval.port}',
-        isSuccess: true,
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result:
+              'Connected to ${approval.username}@${approval.host}:${approval.port}',
+          isSuccess: true,
+        ),
       );
     } catch (e) {
       appLog('[Tool] SSH connect failed: $e');
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'SSH connect failed: $e',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'SSH connect failed: $e',
+        ),
       );
     }
   }
@@ -1434,6 +1542,15 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cacheArguments = <String, dynamic>{'device_id': deviceId};
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      cacheArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     final bleService = ref.read(bleServiceProvider);
     final scanResults = bleService.getScanResults();
     final device = scanResults.where(
@@ -1446,28 +1563,40 @@ class ChatNotifier extends Notifier<ChatState> {
       deviceName: deviceName,
     );
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User cancelled BLE connection',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User cancelled BLE connection',
+        ),
       );
     }
 
     try {
       await bleService.connect(deviceId);
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: 'Connected to ${deviceName ?? deviceId}',
-        isSuccess: true,
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: 'Connected to ${deviceName ?? deviceId}',
+          isSuccess: true,
+        ),
       );
     } catch (e) {
       appLog('[Tool] BLE connect failed: $e');
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'BLE connect failed: $e',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'BLE connect failed: $e',
+        ),
       );
     }
   }
@@ -1519,22 +1648,35 @@ class ChatNotifier extends Notifier<ChatState> {
         errorMessage: 'command is required',
       );
     }
+    final cacheArguments = <String, dynamic>{'command': command};
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      cacheArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
     final reason = toolCall.arguments['reason'] as String?;
     final approved = await requestSshCommand(command: command, reason: reason);
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User denied SSH command execution',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied SSH command execution',
+        ),
       );
     }
     // Approved — delegate to the tool service, which runs the command on
     // the same SSH session.
-    return _mcpToolService!.executeTool(
+    final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: toolCall.arguments,
     );
+    return _rememberToolApprovalResult(toolCall.name, cacheArguments, result);
   }
 
   /// Puts a pending SSH connect request into state and returns a future
@@ -1647,6 +1789,11 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final cachedResult = _lookupToolApprovalResult(toolCall.name, gitArguments);
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
     if (!_settings.confirmGitWrites) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
@@ -1662,17 +1809,22 @@ class ChatNotifier extends Notifier<ChatState> {
       reason: reason,
     );
     if (!approved) {
-      return McpToolResult(
-        toolName: toolCall.name,
-        result: '',
-        isSuccess: false,
-        errorMessage: 'User denied git command execution',
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        gitArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied git command execution',
+        ),
       );
     }
-    return _mcpToolService!.executeTool(
+    final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
       arguments: gitArguments,
     );
+    return _rememberToolApprovalResult(toolCall.name, gitArguments, result);
   }
 
   /// Puts a pending git command into state and returns a future that
@@ -2329,6 +2481,7 @@ class ChatNotifier extends Notifier<ChatState> {
     cancelStreaming();
     _executedContentToolCalls.clear();
     _seenContentToolCallHashes.clear();
+    _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _sessionMemoryContext = null;

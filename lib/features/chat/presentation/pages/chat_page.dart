@@ -26,6 +26,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage>
     with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  final Set<String> _activeApprovalDialogIds = <String>{};
   late final TabController _workspaceTabController;
 
   @override
@@ -49,6 +50,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
         curve: Curves.easeOut,
       );
     }
+  }
+
+  void _showApprovalDialogOnce(String id, Future<void> Function() showDialog) {
+    if (!_activeApprovalDialogIds.add(id)) return;
+
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _activeApprovalDialogIds.remove(id);
+        return;
+      }
+
+      try {
+        await showDialog();
+      } finally {
+        _activeApprovalDialogIds.remove(id);
+      }
+    });
   }
 
   Future<void> _switchWorkspaceMode(WorkspaceMode workspaceMode) async {
@@ -169,10 +187,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingSshConnect),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showSshConnectDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showSshConnectDialog(context, next),
+          );
         }
       },
     );
@@ -182,10 +200,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingSshCommand),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showSshCommandDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showSshCommandDialog(context, next),
+          );
         }
       },
     );
@@ -195,10 +213,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingGitCommand),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showGitCommandDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showGitCommandDialog(context, next),
+          );
         }
       },
     );
@@ -207,10 +225,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingLocalCommand),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showLocalCommandDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showLocalCommandDialog(context, next),
+          );
         }
       },
     );
@@ -219,10 +237,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingFileOperation),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showFileOperationDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showFileOperationDialog(context, next),
+          );
         }
       },
     );
@@ -232,10 +250,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       chatNotifierProvider.select((s) => s.pendingBleConnect),
       (prev, next) {
         if (next != null && prev?.id != next.id) {
-          WidgetsBinding.instance.addPostFrameCallback((_) {
-            if (!mounted) return;
-            _showBleConnectDialog(context, next);
-          });
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showBleConnectDialog(context, next),
+          );
         }
       },
     );
