@@ -41,6 +41,18 @@ class _NoOpNotificationService extends NotificationService {
   ) async {}
 }
 
+class _ScenarioRunResult {
+  const _ScenarioRunResult({
+    required this.outputDirectoryPath,
+    required this.reportPath,
+    required this.screenshotPaths,
+  });
+
+  final String outputDirectoryPath;
+  final String reportPath;
+  final List<String> screenshotPaths;
+}
+
 Future<Widget> _buildScenarioApp({
   required SharedPreferences prefs,
   required Box<String> conversationBox,
@@ -242,17 +254,26 @@ void _assertLogExpectations(
   }
 }
 
-Future<void> _runScenario({
+List<String> _listScenarioScreenshotPaths(Directory scenarioDir) {
+  final screenshots = scenarioDir
+      .listSync()
+      .whereType<File>()
+      .where((file) => file.path.toLowerCase().endsWith('.png'))
+      .map((file) => file.path)
+      .toList(growable: false);
+  screenshots.sort();
+  return screenshots;
+}
+
+Future<_ScenarioRunResult> _runScenario({
   required WidgetTester tester,
   required IntegrationTestWidgetsFlutterBinding binding,
   required Box<String> conversationBox,
   required Box<String> memoryBox,
   required List<String> logs,
   required PlanModeScenarioSpec scenario,
+  required Directory scenarioDir,
 }) async {
-  final scenarioDir = await Directory.systemTemp.createTemp(
-    'caverno_plan_mode_${scenario.name}_',
-  );
   final project = CodingProject(
     id: 'project-${scenario.name}',
     name: scenario.projectName,
@@ -435,11 +456,18 @@ Future<void> _runScenario({
         )
         .toList(growable: false),
   };
+  final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
+  report['screenshots'] = screenshotPaths;
   final reportFile = File('${scenarioDir.path}/scenario_report.json');
   await reportFile.writeAsString(
     const JsonEncoder.withIndent('  ').convert(report),
   );
   appLog('[Scenario] Report written to ${reportFile.path}');
+  return _ScenarioRunResult(
+    outputDirectoryPath: scenarioDir.path,
+    reportPath: reportFile.path,
+    screenshotPaths: screenshotPaths,
+  );
 }
 
 void main() {
@@ -451,6 +479,7 @@ void main() {
     late Box<String> memoryBox;
     late DebugPrintCallback originalDebugPrint;
     late List<String> logs;
+    final suiteResults = <Map<String, Object?>>[];
 
     setUp(() async {
       await Hive.initFlutter();
@@ -476,16 +505,70 @@ void main() {
       await memoryBox.close();
     });
 
+    tearDownAll(() async {
+      final reportDirectory = Directory(
+        '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/integration_test_reports',
+      );
+      await reportDirectory.create(recursive: true);
+
+      final passedCount = suiteResults
+          .where((result) => result['status'] == 'passed')
+          .length;
+      final suiteReport = <String, Object?>{
+        'generatedAt': DateTime.now().toIso8601String(),
+        'suite': 'plan_mode_scenarios',
+        'scenarioCount': suiteResults.length,
+        'passedCount': passedCount,
+        'failedCount': suiteResults.length - passedCount,
+        'scenarios': suiteResults,
+      };
+      final suiteReportFile = File(
+        '${reportDirectory.path}/plan_mode_suite_report.json',
+      );
+      await suiteReportFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(suiteReport),
+      );
+      appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
+    });
+
     for (final scenario in scenarios) {
       testWidgets('runs ${scenario.name}', (tester) async {
-        await _runScenario(
-          tester: tester,
-          binding: binding,
-          conversationBox: conversationBox,
-          memoryBox: memoryBox,
-          logs: logs,
-          scenario: scenario,
+        final startedAt = DateTime.now();
+        final scenarioDir = await Directory.systemTemp.createTemp(
+          'caverno_plan_mode_${scenario.name}_',
         );
+        _ScenarioRunResult? runResult;
+        Object? failure;
+        try {
+          runResult = await _runScenario(
+            tester: tester,
+            binding: binding,
+            conversationBox: conversationBox,
+            memoryBox: memoryBox,
+            logs: logs,
+            scenario: scenario,
+            scenarioDir: scenarioDir,
+          );
+        } catch (error) {
+          failure = error;
+          rethrow;
+        } finally {
+          final finishedAt = DateTime.now();
+          suiteResults.add(<String, Object?>{
+            'scenario': scenario.name,
+            'status': failure == null ? 'passed' : 'failed',
+            'startedAt': startedAt.toIso8601String(),
+            'finishedAt': finishedAt.toIso8601String(),
+            'durationMs': finishedAt.difference(startedAt).inMilliseconds,
+            'outputDirectory':
+                runResult?.outputDirectoryPath ?? scenarioDir.path,
+            'scenarioReport': runResult?.reportPath,
+            'screenshots':
+                runResult?.screenshotPaths ??
+                _listScenarioScreenshotPaths(scenarioDir),
+            'error': failure?.toString(),
+          });
+        }
       });
     }
   });
