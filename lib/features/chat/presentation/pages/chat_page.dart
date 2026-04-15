@@ -34,6 +34,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
   late final TabController _workspaceTabController;
+  String? _workflowPanelConversationId;
+  bool _isApprovedPlanExpanded = false;
+  bool _wasShowingPlanDraft = false;
 
   @override
   void initState() {
@@ -762,10 +765,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final spec = currentConversation.effectiveWorkflowSpec;
     final hasContext = currentConversation.hasWorkflowContext;
     final isBusy = chatState.isLoading;
-    final workflowPanelMaxHeight =
-        (MediaQuery.sizeOf(context).height * (isPlanMode ? 0.52 : 0.4))
-            .clamp(220.0, 480.0)
-            .toDouble();
     final hasPlanDraft =
         chatState.workflowProposalDraft != null ||
         chatState.taskProposalDraft != null ||
@@ -774,6 +773,27 @@ class _ChatPageState extends ConsumerState<ChatPage>
         chatState.isGeneratingWorkflowProposal ||
         chatState.isGeneratingTaskProposal;
     final showCombinedPlanCard = isPlanMode && hasPlanDraft;
+    final conversationId = currentConversation.id;
+    if (_workflowPanelConversationId != conversationId) {
+      _workflowPanelConversationId = conversationId;
+      _isApprovedPlanExpanded = false;
+      _wasShowingPlanDraft = hasPlanDraft;
+    } else if (_wasShowingPlanDraft &&
+        !hasPlanDraft &&
+        isPlanMode &&
+        hasContext) {
+      _isApprovedPlanExpanded = false;
+      _wasShowingPlanDraft = false;
+    } else {
+      _wasShowingPlanDraft = hasPlanDraft;
+    }
+    final showCompactApprovedPlan =
+        isPlanMode && hasContext && !hasPlanDraft && !_isApprovedPlanExpanded;
+    final workflowPanelMaxHeight =
+        (MediaQuery.sizeOf(context).height *
+                (showCompactApprovedPlan ? 0.22 : (isPlanMode ? 0.52 : 0.4)))
+            .clamp(showCompactApprovedPlan ? 120.0 : 220.0, 480.0)
+            .toDouble();
 
     return Container(
       width: double.infinity,
@@ -876,6 +896,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
                             ? 'chat.workflow_edit'.tr()
                             : 'chat.workflow_add'.tr(),
                       ),
+                    if (isPlanMode && hasContext && !hasPlanDraft)
+                      IconButton(
+                        onPressed: () {
+                          setState(() {
+                            _isApprovedPlanExpanded = !_isApprovedPlanExpanded;
+                          });
+                        },
+                        icon: Icon(
+                          _isApprovedPlanExpanded
+                              ? Icons.unfold_less
+                              : Icons.unfold_more,
+                        ),
+                        tooltip: _isApprovedPlanExpanded
+                            ? 'chat.workflow_collapse'.tr()
+                            : 'chat.workflow_expand'.tr(),
+                      ),
                   ],
                 ),
                 if (showCombinedPlanCard) ...[
@@ -900,7 +936,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     error: chatState.workflowProposalError!,
                   ),
                 ],
-                if (hasContext) ...[
+                if (showCompactApprovedPlan) ...[
+                  const SizedBox(height: 12),
+                  _buildCompactWorkflowSummary(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+                ] else if (hasContext) ...[
                   if (spec.goal.trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildWorkflowTextSection(
@@ -1070,6 +1112,105 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 .toList(growable: false),
           ),
       ],
+    );
+  }
+
+  Widget _buildCompactWorkflowSummary(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) {
+    final theme = Theme.of(context);
+    final spec = currentConversation.effectiveWorkflowSpec;
+    final tasks = spec.tasks;
+    final completedCount = tasks
+        .where(
+          (task) => task.status == ConversationWorkflowTaskStatus.completed,
+        )
+        .length;
+    final remainingCount = tasks.length - completedCount;
+    final nextTask = tasks.firstWhere(
+      (task) => task.status != ConversationWorkflowTaskStatus.completed,
+      orElse: () =>
+          tasks.firstOrNull ??
+          const ConversationWorkflowTask(id: '', title: ''),
+    );
+    final hasNextTask = nextTask.title.trim().isNotEmpty;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: theme.colorScheme.surface.withValues(alpha: 0.45),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (spec.goal.trim().isNotEmpty)
+            Text(
+              spec.goal.trim(),
+              maxLines: 2,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodyMedium?.copyWith(
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          if (spec.goal.trim().isNotEmpty) const SizedBox(height: 10),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              Chip(
+                label: Text(
+                  'chat.workflow_tasks_count'.tr(
+                    namedArgs: {'count': tasks.length.toString()},
+                  ),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              Chip(
+                label: Text(
+                  '$remainingCount ${'chat.workflow_tasks_remaining'.tr()}',
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+              Chip(
+                label: Text(
+                  '$completedCount ${'chat.workflow_task_status_completed'.tr()}',
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          if (hasNextTask) ...[
+            const SizedBox(height: 10),
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  Icons.play_arrow_rounded,
+                  size: 18,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 6),
+                Expanded(
+                  child: Text(
+                    nextTask.title.trim(),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
