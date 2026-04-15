@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
@@ -30,6 +31,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
+  final _uuid = const Uuid();
   late final TabController _workspaceTabController;
 
   @override
@@ -618,10 +620,262 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ],
           const SizedBox(height: 16),
+          _buildWorkflowTasksSection(
+            context,
+            currentConversation: currentConversation,
+            isBusy: isBusy,
+          ),
+          const SizedBox(height: 16),
           _buildWorkflowQuickActions(
             context,
             currentConversation: currentConversation,
             isBusy: isBusy,
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTasksSection(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required bool isBusy,
+  }) {
+    final theme = Theme.of(context);
+    final tasks = currentConversation.effectiveWorkflowSpec.tasks;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Expanded(
+              child: Text(
+                'chat.workflow_tasks'.tr(),
+                style: theme.textTheme.labelMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ),
+            if (tasks.isNotEmpty)
+              Chip(
+                label: Text(
+                  'chat.workflow_tasks_count'.tr(
+                    namedArgs: {'count': tasks.length.toString()},
+                  ),
+                ),
+                visualDensity: VisualDensity.compact,
+              ),
+            const SizedBox(width: 8),
+            IconButton(
+              onPressed: () => _showWorkflowTaskEditor(
+                context,
+                currentConversation: currentConversation,
+              ),
+              icon: const Icon(Icons.add_task_outlined),
+              tooltip: 'chat.workflow_task_add'.tr(),
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
+        if (tasks.isEmpty)
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              border: Border.all(
+                color: theme.colorScheme.outlineVariant.withValues(alpha: 0.8),
+              ),
+            ),
+            child: Text(
+              'chat.workflow_tasks_empty'.tr(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          )
+        else
+          Column(
+            children: tasks
+                .map(
+                  (task) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: _buildWorkflowTaskCard(
+                      context,
+                      currentConversation: currentConversation,
+                      task: task,
+                      isBusy: isBusy,
+                    ),
+                  ),
+                )
+                .toList(growable: false),
+          ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowTaskCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+    required bool isBusy,
+  }) {
+    final theme = Theme.of(context);
+    final normalizedFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: _workflowTaskStatusColor(
+            context,
+            task.status,
+          ).withValues(alpha: 0.35),
+        ),
+        color: _workflowTaskStatusColor(
+          context,
+          task.status,
+        ).withValues(alpha: 0.08),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      task.title.trim(),
+                      style: theme.textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Chip(
+                      label: Text(_workflowTaskStatusLabel(task.status)),
+                      visualDensity: VisualDensity.compact,
+                      side: BorderSide.none,
+                      backgroundColor: _workflowTaskStatusColor(
+                        context,
+                        task.status,
+                      ).withValues(alpha: 0.18),
+                      labelStyle: theme.textTheme.labelSmall?.copyWith(
+                        color: _workflowTaskStatusColor(context, task.status),
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              PopupMenuButton<_WorkflowTaskMenuAction>(
+                onSelected: (action) => _handleWorkflowTaskMenuAction(
+                  context,
+                  currentConversation: currentConversation,
+                  task: task,
+                  action: action,
+                ),
+                itemBuilder: (context) => [
+                  if (task.status != ConversationWorkflowTaskStatus.pending)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.markPending,
+                      child: Text('chat.workflow_task_mark_pending'.tr()),
+                    ),
+                  if (task.status != ConversationWorkflowTaskStatus.inProgress)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.markInProgress,
+                      child: Text('chat.workflow_task_mark_in_progress'.tr()),
+                    ),
+                  if (task.status != ConversationWorkflowTaskStatus.completed)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.markCompleted,
+                      child: Text('chat.workflow_task_mark_completed'.tr()),
+                    ),
+                  if (task.status != ConversationWorkflowTaskStatus.blocked)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.markBlocked,
+                      child: Text('chat.workflow_task_mark_blocked'.tr()),
+                    ),
+                  PopupMenuItem(
+                    value: _WorkflowTaskMenuAction.edit,
+                    child: Text('chat.workflow_task_edit'.tr()),
+                  ),
+                  PopupMenuItem(
+                    value: _WorkflowTaskMenuAction.delete,
+                    child: Text('chat.workflow_task_delete'.tr()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          if (normalizedFiles.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_target_files'.tr(),
+              value: normalizedFiles.join(', '),
+            ),
+          ],
+          if (task.validationCommand.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_validation'.tr(),
+              value: task.validationCommand.trim(),
+              monospace: true,
+            ),
+          ],
+          if (task.notes.trim().isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_notes'.tr(),
+              value: task.notes.trim(),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Row(
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: isBusy
+                    ? null
+                    : () => _runWorkflowTask(
+                        context,
+                        currentConversation: currentConversation,
+                        task: task,
+                      ),
+                icon: Icon(
+                  task.status == ConversationWorkflowTaskStatus.completed
+                      ? Icons.fact_check_outlined
+                      : Icons.play_circle_outline,
+                  size: 18,
+                ),
+                label: Text(
+                  task.status == ConversationWorkflowTaskStatus.completed
+                      ? 'chat.workflow_task_review'.tr()
+                      : 'chat.workflow_task_use'.tr(),
+                ),
+              ),
+              const SizedBox(width: 8),
+              OutlinedButton.icon(
+                onPressed: () => _showWorkflowTaskEditor(
+                  context,
+                  currentConversation: currentConversation,
+                  task: task,
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: Text('chat.workflow_task_edit'.tr()),
+              ),
+            ],
           ),
         ],
       ),
@@ -687,6 +941,34 @@ class _ChatPageState extends ConsumerState<ChatPage>
           style: theme.textTheme.bodySmall?.copyWith(
             color: theme.colorScheme.onSurfaceVariant,
           ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowTaskDetail(
+    BuildContext context, {
+    required String label,
+    required String value,
+    bool monospace = false,
+  }) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          label,
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 2),
+        Text(
+          value,
+          style: monospace
+              ? theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace')
+              : theme.textTheme.bodySmall,
         ),
       ],
     );
@@ -820,6 +1102,211 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
+  Future<void> _handleWorkflowTaskMenuAction(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+    required _WorkflowTaskMenuAction action,
+  }) async {
+    switch (action) {
+      case _WorkflowTaskMenuAction.markPending:
+        await _updateWorkflowTaskStatus(
+          currentConversation: currentConversation,
+          taskId: task.id,
+          status: ConversationWorkflowTaskStatus.pending,
+        );
+      case _WorkflowTaskMenuAction.markInProgress:
+        await _updateWorkflowTaskStatus(
+          currentConversation: currentConversation,
+          taskId: task.id,
+          status: ConversationWorkflowTaskStatus.inProgress,
+        );
+      case _WorkflowTaskMenuAction.markCompleted:
+        await _updateWorkflowTaskStatus(
+          currentConversation: currentConversation,
+          taskId: task.id,
+          status: ConversationWorkflowTaskStatus.completed,
+        );
+      case _WorkflowTaskMenuAction.markBlocked:
+        await _updateWorkflowTaskStatus(
+          currentConversation: currentConversation,
+          taskId: task.id,
+          status: ConversationWorkflowTaskStatus.blocked,
+        );
+      case _WorkflowTaskMenuAction.edit:
+        await _showWorkflowTaskEditor(
+          context,
+          currentConversation: currentConversation,
+          task: task,
+        );
+      case _WorkflowTaskMenuAction.delete:
+        await _replaceWorkflowTasks(
+          currentConversation: currentConversation,
+          tasks: currentConversation.effectiveWorkflowSpec.tasks
+              .where((item) => item.id != task.id)
+              .toList(growable: false),
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('chat.workflow_task_deleted'.tr())),
+          );
+        }
+    }
+  }
+
+  Future<void> _showWorkflowTaskEditor(
+    BuildContext context, {
+    required Conversation currentConversation,
+    ConversationWorkflowTask? task,
+  }) async {
+    final result = await showModalBottomSheet<_WorkflowTaskEditorSubmission>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => _WorkflowTaskEditorSheet(
+        task: task,
+        statusLabelBuilder: _workflowTaskStatusLabel,
+      ),
+    );
+    if (result == null) {
+      return;
+    }
+
+    switch (result.action) {
+      case _WorkflowTaskEditorAction.delete:
+        if (task == null) {
+          return;
+        }
+        await _replaceWorkflowTasks(
+          currentConversation: currentConversation,
+          tasks: currentConversation.effectiveWorkflowSpec.tasks
+              .where((item) => item.id != task.id)
+              .toList(growable: false),
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('chat.workflow_task_deleted'.tr())),
+          );
+        }
+      case _WorkflowTaskEditorAction.save:
+        final existingTasks = currentConversation.effectiveWorkflowSpec.tasks;
+        final nextTask = result.task.id.isEmpty
+            ? result.task.copyWith(id: _uuid.v4())
+            : result.task;
+        final taskIndex = existingTasks.indexWhere(
+          (item) => item.id == nextTask.id,
+        );
+        final nextTasks = [...existingTasks];
+        if (taskIndex >= 0) {
+          nextTasks[taskIndex] = nextTask;
+        } else {
+          nextTasks.add(nextTask);
+        }
+        await _replaceWorkflowTasks(
+          currentConversation: currentConversation,
+          tasks: nextTasks,
+        );
+        if (context.mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('chat.workflow_task_saved'.tr())),
+          );
+        }
+    }
+  }
+
+  Future<void> _replaceWorkflowTasks({
+    required Conversation currentConversation,
+    required List<ConversationWorkflowTask> tasks,
+    ConversationWorkflowStage? workflowStage,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final nextSpec = latestConversation.effectiveWorkflowSpec.copyWith(
+      tasks: tasks,
+    );
+
+    await conversationsNotifier.updateCurrentWorkflow(
+      workflowStage: workflowStage,
+      workflowSpec: nextSpec.hasContent ? nextSpec : null,
+      clearWorkflowSpec: !nextSpec.hasContent,
+    );
+  }
+
+  Future<void> _updateWorkflowTaskStatus({
+    required Conversation currentConversation,
+    required String taskId,
+    required ConversationWorkflowTaskStatus status,
+  }) async {
+    final tasks = currentConversation.effectiveWorkflowSpec.tasks
+        .map((task) => task.id == taskId ? task.copyWith(status: status) : task)
+        .toList(growable: false);
+    await _replaceWorkflowTasks(
+      currentConversation: currentConversation,
+      tasks: tasks,
+      workflowStage: status == ConversationWorkflowTaskStatus.completed
+          ? ConversationWorkflowStage.review
+          : ConversationWorkflowStage.implement,
+    );
+  }
+
+  Future<void> _runWorkflowTask(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+
+    await _updateWorkflowTaskStatus(
+      currentConversation: currentConversation,
+      taskId: task.id,
+      status: task.status == ConversationWorkflowTaskStatus.completed
+          ? ConversationWorkflowTaskStatus.completed
+          : ConversationWorkflowTaskStatus.inProgress,
+    );
+    if (!context.mounted) {
+      return;
+    }
+
+    final promptLines = <String>[
+      'chat.workflow_task_use_prompt_intro'.tr(
+        namedArgs: {'title': task.title},
+      ),
+    ];
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add(
+        '${'chat.workflow_task_target_files'.tr()}: $targetFiles',
+      );
+    }
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add(
+        '${'chat.workflow_task_validation'.tr()}: $validationCommand',
+      );
+    }
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('${'chat.workflow_task_notes'.tr()}: $notes');
+    }
+    promptLines.add(
+      task.status == ConversationWorkflowTaskStatus.completed
+          ? 'chat.workflow_task_review_prompt_outro'.tr()
+          : 'chat.workflow_task_use_prompt_outro'.tr(),
+    );
+
+    await chatNotifier.sendMessage(
+      promptLines.join('\n'),
+      languageCode: context.locale.languageCode,
+    );
+  }
+
   String _workflowStageLabel(ConversationWorkflowStage stage) {
     return switch (stage) {
       ConversationWorkflowStage.idle => 'chat.workflow_stage_idle'.tr(),
@@ -829,6 +1316,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ConversationWorkflowStage.implement =>
         'chat.workflow_stage_implement'.tr(),
       ConversationWorkflowStage.review => 'chat.workflow_stage_review'.tr(),
+    };
+  }
+
+  String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) {
+    return switch (status) {
+      ConversationWorkflowTaskStatus.pending =>
+        'chat.workflow_task_status_pending'.tr(),
+      ConversationWorkflowTaskStatus.inProgress =>
+        'chat.workflow_task_status_in_progress'.tr(),
+      ConversationWorkflowTaskStatus.completed =>
+        'chat.workflow_task_status_completed'.tr(),
+      ConversationWorkflowTaskStatus.blocked =>
+        'chat.workflow_task_status_blocked'.tr(),
+    };
+  }
+
+  Color _workflowTaskStatusColor(
+    BuildContext context,
+    ConversationWorkflowTaskStatus status,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (status) {
+      ConversationWorkflowTaskStatus.pending => scheme.secondary,
+      ConversationWorkflowTaskStatus.inProgress => scheme.primary,
+      ConversationWorkflowTaskStatus.completed => Colors.green.shade700,
+      ConversationWorkflowTaskStatus.blocked => scheme.error,
     };
   }
 
@@ -2549,6 +3062,227 @@ class _WorkflowEditorSheetState extends State<_WorkflowEditorSheet> {
                             openQuestions: _workflowLinesFromText(
                               _openQuestionsController.text,
                             ),
+                            tasks: widget
+                                .currentConversation
+                                .effectiveWorkflowSpec
+                                .tasks,
+                          ),
+                        ),
+                      );
+                    },
+                    child: Text('common.save'.tr()),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+enum _WorkflowTaskMenuAction {
+  markPending,
+  markInProgress,
+  markCompleted,
+  markBlocked,
+  edit,
+  delete,
+}
+
+enum _WorkflowTaskEditorAction { save, delete }
+
+class _WorkflowTaskEditorSubmission {
+  const _WorkflowTaskEditorSubmission.save({required this.task})
+    : action = _WorkflowTaskEditorAction.save;
+
+  const _WorkflowTaskEditorSubmission.delete({required this.task})
+    : action = _WorkflowTaskEditorAction.delete;
+
+  final _WorkflowTaskEditorAction action;
+  final ConversationWorkflowTask task;
+}
+
+class _WorkflowTaskEditorSheet extends StatefulWidget {
+  const _WorkflowTaskEditorSheet({
+    required this.task,
+    required this.statusLabelBuilder,
+  });
+
+  final ConversationWorkflowTask? task;
+  final String Function(ConversationWorkflowTaskStatus status)
+  statusLabelBuilder;
+
+  @override
+  State<_WorkflowTaskEditorSheet> createState() =>
+      _WorkflowTaskEditorSheetState();
+}
+
+class _WorkflowTaskEditorSheetState extends State<_WorkflowTaskEditorSheet> {
+  late final TextEditingController _titleController;
+  late final TextEditingController _targetFilesController;
+  late final TextEditingController _validationController;
+  late final TextEditingController _notesController;
+  late ConversationWorkflowTaskStatus _selectedStatus;
+
+  @override
+  void initState() {
+    super.initState();
+    final task = widget.task;
+    _selectedStatus = task?.status ?? ConversationWorkflowTaskStatus.pending;
+    _titleController = TextEditingController(text: task?.title ?? '');
+    _targetFilesController = TextEditingController(
+      text: task?.targetFiles.join('\n') ?? '',
+    );
+    _validationController = TextEditingController(
+      text: task?.validationCommand ?? '',
+    );
+    _notesController = TextEditingController(text: task?.notes ?? '');
+  }
+
+  @override
+  void dispose() {
+    _titleController.dispose();
+    _targetFilesController.dispose();
+    _validationController.dispose();
+    _notesController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final existingTask = widget.task;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          20 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                existingTask == null
+                    ? 'chat.workflow_task_add'.tr()
+                    : 'chat.workflow_task_edit'.tr(),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                'chat.workflow_task_sheet_subtitle'.tr(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              const SizedBox(height: 20),
+              TextField(
+                controller: _titleController,
+                maxLines: 2,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  labelText: 'chat.workflow_task_title'.tr(),
+                  hintText: 'chat.workflow_task_title_hint'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              DropdownButtonFormField<ConversationWorkflowTaskStatus>(
+                initialValue: _selectedStatus,
+                decoration: InputDecoration(
+                  labelText: 'chat.workflow_task_status'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+                items: ConversationWorkflowTaskStatus.values
+                    .map(
+                      (status) => DropdownMenuItem(
+                        value: status,
+                        child: Text(widget.statusLabelBuilder(status)),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null) return;
+                  setState(() {
+                    _selectedStatus = value;
+                  });
+                },
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _targetFilesController,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  labelText: 'chat.workflow_task_target_files'.tr(),
+                  hintText: 'chat.workflow_task_target_files_hint'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _validationController,
+                maxLines: 3,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  labelText: 'chat.workflow_task_validation'.tr(),
+                  hintText: 'chat.workflow_task_validation_hint'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: _notesController,
+                maxLines: 4,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  labelText: 'chat.workflow_task_notes'.tr(),
+                  hintText: 'chat.workflow_task_notes_hint'.tr(),
+                  border: const OutlineInputBorder(),
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  if (existingTask != null)
+                    TextButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop(
+                          _WorkflowTaskEditorSubmission.delete(
+                            task: existingTask,
+                          ),
+                        );
+                      },
+                      icon: const Icon(Icons.delete_outline),
+                      label: Text('chat.workflow_task_delete'.tr()),
+                    ),
+                  if (existingTask != null) const Spacer(),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('common.cancel'.tr()),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(
+                        _WorkflowTaskEditorSubmission.save(
+                          task: ConversationWorkflowTask(
+                            id: existingTask?.id ?? '',
+                            title: _titleController.text.trim(),
+                            status: _selectedStatus,
+                            targetFiles: _workflowLinesFromText(
+                              _targetFilesController.text,
+                            ),
+                            validationCommand: _validationController.text
+                                .trim(),
+                            notes: _notesController.text.trim(),
                           ),
                         ),
                       );

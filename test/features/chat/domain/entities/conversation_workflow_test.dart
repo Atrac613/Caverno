@@ -19,7 +19,17 @@ void main() {
         goal: 'Add workflow state to coding conversations',
         constraints: ['Do not block quick fixes'],
         acceptanceCriteria: ['Prompt includes the saved workflow'],
-        openQuestions: ['Task nodes are out of scope for now'],
+        openQuestions: ['Task nodes are now in scope'],
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Persist workflow tasks',
+            targetFiles: [
+              'lib/features/chat/domain/entities/conversation_workflow.dart',
+            ],
+            validationCommand: 'flutter test',
+          ),
+        ],
       ),
     );
 
@@ -32,7 +42,17 @@ void main() {
         goal: 'Add workflow state to coding conversations',
         constraints: ['Do not block quick fixes'],
         acceptanceCriteria: ['Prompt includes the saved workflow'],
-        openQuestions: ['Task nodes are out of scope for now'],
+        openQuestions: ['Task nodes are now in scope'],
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Persist workflow tasks',
+            targetFiles: [
+              'lib/features/chat/domain/entities/conversation_workflow.dart',
+            ],
+            validationCommand: 'flutter test',
+          ),
+        ],
       ),
     );
     expect(restored.hasWorkflowContext, isTrue);

@@ -170,6 +170,38 @@ class SystemPromptBuilder {
             'Open questions: ${_joinWorkflowItems(normalizedWorkflowSpec.openQuestions)}',
           );
         }
+        if (normalizedWorkflowSpec.tasks.isNotEmpty) {
+          buffer.writeln('Saved tasks:');
+          for (
+            var index = 0;
+            index < normalizedWorkflowSpec.tasks.length;
+            index++
+          ) {
+            final task = normalizedWorkflowSpec.tasks[index];
+            final taskParts = <String>[
+              '${index + 1}. [${_formatWorkflowTaskStatus(task.status)}] ${task.title.trim()}',
+            ];
+            final targetFiles = task.targetFiles
+                .map((item) => item.trim())
+                .where((item) => item.isNotEmpty)
+                .join(', ');
+            if (targetFiles.isNotEmpty) {
+              taskParts.add('files: $targetFiles');
+            }
+            final validationCommand = task.validationCommand.trim();
+            if (validationCommand.isNotEmpty) {
+              taskParts.add('validate: $validationCommand');
+            }
+            final notes = task.notes.trim();
+            if (notes.isNotEmpty) {
+              taskParts.add('notes: $notes');
+            }
+            buffer.writeln(taskParts.join(' | '));
+          }
+          buffer.writeln(
+            'Prefer moving the highest-priority unfinished saved task forward unless the user redirects you.',
+          );
+        }
         buffer.writeln(
           'If the latest user request changes this workflow, explain the '
           'mismatch and propose the updated plan before making broad changes.',
@@ -292,6 +324,17 @@ class SystemPromptBuilder {
       ConversationWorkflowStage.tasks => 'tasks',
       ConversationWorkflowStage.implement => 'implement',
       ConversationWorkflowStage.review => 'review',
+    };
+  }
+
+  static String _formatWorkflowTaskStatus(
+    ConversationWorkflowTaskStatus value,
+  ) {
+    return switch (value) {
+      ConversationWorkflowTaskStatus.pending => 'pending',
+      ConversationWorkflowTaskStatus.inProgress => 'in_progress',
+      ConversationWorkflowTaskStatus.completed => 'completed',
+      ConversationWorkflowTaskStatus.blocked => 'blocked',
     };
   }
 

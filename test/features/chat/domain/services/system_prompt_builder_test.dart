@@ -71,6 +71,17 @@ void main() {
         constraints: ['Keep the first slice lightweight'],
         acceptanceCriteria: ['Persist the workflow with the conversation'],
         openQuestions: ['Task graph can come later'],
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Add task persistence',
+            status: ConversationWorkflowTaskStatus.inProgress,
+            targetFiles: [
+              'lib/features/chat/domain/entities/conversation_workflow.dart',
+            ],
+            validationCommand: 'flutter test',
+          ),
+        ],
       ),
     );
 
@@ -90,5 +101,14 @@ void main() {
       ),
     );
     expect(prompt, contains('Open questions: Task graph can come later'));
+    expect(prompt, contains('Saved tasks:'));
+    expect(prompt, contains('[in_progress] Add task persistence'));
+    expect(
+      prompt,
+      contains(
+        'files: lib/features/chat/domain/entities/conversation_workflow.dart',
+      ),
+    );
+    expect(prompt, contains('validate: flutter test'));
   });
 }

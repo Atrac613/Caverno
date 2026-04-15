@@ -5,6 +5,49 @@ part 'conversation_workflow.g.dart';
 
 enum ConversationWorkflowStage { idle, clarify, plan, tasks, implement, review }
 
+enum ConversationWorkflowTaskStatus { pending, inProgress, completed, blocked }
+
+List<ConversationWorkflowTask> _workflowTasksFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) =>
+            ConversationWorkflowTask.fromJson(item as Map<String, dynamic>),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _workflowTasksToJson(
+  List<ConversationWorkflowTask> tasks,
+) {
+  return tasks.map((task) => task.toJson()).toList(growable: false);
+}
+
+@freezed
+abstract class ConversationWorkflowTask with _$ConversationWorkflowTask {
+  const ConversationWorkflowTask._();
+
+  const factory ConversationWorkflowTask({
+    required String id,
+    required String title,
+    @Default(ConversationWorkflowTaskStatus.pending)
+    ConversationWorkflowTaskStatus status,
+    @Default(<String>[]) List<String> targetFiles,
+    @Default('') String validationCommand,
+    @Default('') String notes,
+  }) = _ConversationWorkflowTask;
+
+  factory ConversationWorkflowTask.fromJson(Map<String, dynamic> json) =>
+      _$ConversationWorkflowTaskFromJson(json);
+
+  bool get hasMetadata =>
+      targetFiles.any((item) => item.trim().isNotEmpty) ||
+      validationCommand.trim().isNotEmpty ||
+      notes.trim().isNotEmpty;
+}
+
 @freezed
 abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
   const ConversationWorkflowSpec._();
@@ -14,6 +57,9 @@ abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
     @Default(<String>[]) List<String> constraints,
     @Default(<String>[]) List<String> acceptanceCriteria,
     @Default(<String>[]) List<String> openQuestions,
+    @JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson)
+    @Default(<ConversationWorkflowTask>[])
+    List<ConversationWorkflowTask> tasks,
   }) = _ConversationWorkflowSpec;
 
   factory ConversationWorkflowSpec.fromJson(Map<String, dynamic> json) =>
@@ -23,5 +69,6 @@ abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
       goal.trim().isNotEmpty ||
       constraints.any((item) => item.trim().isNotEmpty) ||
       acceptanceCriteria.any((item) => item.trim().isNotEmpty) ||
-      openQuestions.any((item) => item.trim().isNotEmpty);
+      openQuestions.any((item) => item.trim().isNotEmpty) ||
+      tasks.any((task) => task.title.trim().isNotEmpty || task.hasMetadata);
 }

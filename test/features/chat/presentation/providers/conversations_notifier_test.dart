@@ -74,6 +74,12 @@ void main() {
           goal: 'Plan the next feature slice',
           constraints: ['Keep the first iteration small'],
           acceptanceCriteria: ['Prompt receives workflow context'],
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Persist tasks with the conversation',
+            ),
+          ],
         ),
       );
 
@@ -92,12 +98,22 @@ void main() {
           goal: 'Plan the next feature slice',
           constraints: ['Keep the first iteration small'],
           acceptanceCriteria: ['Prompt receives workflow context'],
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Persist tasks with the conversation',
+            ),
+          ],
         ),
       );
 
       final persisted = repository.getById(currentConversation.id);
       expect(persisted?.workflowStage, ConversationWorkflowStage.plan);
       expect(persisted?.workflowSpec?.goal, 'Plan the next feature slice');
+      expect(
+        persisted?.workflowSpec?.tasks.single.title,
+        'Persist tasks with the conversation',
+      );
     },
   );
 }
