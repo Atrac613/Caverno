@@ -326,6 +326,41 @@ Future<void> _writeFailureScenarioArtifacts({
   );
 }
 
+String _buildSuiteMarkdownReport({
+  required List<Map<String, Object?>> suiteResults,
+  required Directory suiteRunDirectory,
+}) {
+  final passedCount = suiteResults
+      .where((result) => result['status'] == 'passed')
+      .length;
+  final buffer = StringBuffer()
+    ..writeln('# Plan Mode Scenario Suite')
+    ..writeln()
+    ..writeln('- Generated at: ${DateTime.now().toIso8601String()}')
+    ..writeln('- Suite directory: ${suiteRunDirectory.path}')
+    ..writeln('- Scenario count: ${suiteResults.length}')
+    ..writeln('- Passed: $passedCount')
+    ..writeln('- Failed: ${suiteResults.length - passedCount}')
+    ..writeln()
+    ..writeln(
+      '| Scenario | Status | Duration (ms) | Screenshots | Report | Log | Error |',
+    )
+    ..writeln('| --- | --- | ---: | ---: | --- | --- | --- |');
+
+  for (final result in suiteResults) {
+    final screenshots = (result['screenshots'] as List<Object?>?) ?? const [];
+    final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
+    buffer.writeln(
+      '| ${result['scenario']} | ${result['status']} | '
+      '${result['durationMs']} | ${screenshots.length} | '
+      '${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
+      '${error.isEmpty ? '-' : error} |',
+    );
+  }
+
+  return buffer.toString();
+}
+
 Future<_ScenarioRunResult> _runScenario({
   required WidgetTester tester,
   required IntegrationTestWidgetsFlutterBinding binding,
@@ -611,6 +646,18 @@ void main() {
       await suiteReportFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(suiteReport),
       );
+      final suiteMarkdown = _buildSuiteMarkdownReport(
+        suiteResults: suiteResults,
+        suiteRunDirectory: suiteRunDirectory,
+      );
+      final suiteRunMarkdownFile = File(
+        '${suiteRunDirectory.path}/plan_mode_suite_report.md',
+      );
+      await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
+      final suiteMarkdownFile = File(
+        '${reportDirectory.path}/plan_mode_suite_report.md',
+      );
+      await suiteMarkdownFile.writeAsString(suiteMarkdown);
       appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
     });
 
