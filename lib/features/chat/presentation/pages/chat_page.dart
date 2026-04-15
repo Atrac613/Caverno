@@ -30,6 +30,7 @@ class ChatPage extends ConsumerStatefulWidget {
 class _ChatPageState extends ConsumerState<ChatPage>
     with SingleTickerProviderStateMixin {
   final _scrollController = ScrollController();
+  final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
   late final TabController _workspaceTabController;
@@ -44,6 +45,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   void dispose() {
     _workspaceTabController.dispose();
     _scrollController.dispose();
+    _workflowPanelScrollController.dispose();
     super.dispose();
   }
 
@@ -592,8 +594,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       child: ConstrainedBox(
         constraints: BoxConstraints(maxHeight: workflowPanelMaxHeight),
         child: Scrollbar(
+          controller: _workflowPanelScrollController,
           thumbVisibility: true,
           child: SingleChildScrollView(
+            controller: _workflowPanelScrollController,
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
