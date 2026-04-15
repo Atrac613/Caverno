@@ -424,11 +424,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           if (isCodingWorkspace &&
               activeProject != null &&
               currentConversation != null)
-            _buildWorkflowPanel(
-              context,
-              currentConversation,
-              chatState.isLoading,
-            ),
+            _buildWorkflowPanel(context, currentConversation, chatState),
           // Message list
           Expanded(
             child: !canCompose
@@ -529,11 +525,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Widget _buildWorkflowPanel(
     BuildContext context,
     Conversation currentConversation,
-    bool isBusy,
+    ChatState chatState,
   ) {
     final theme = Theme.of(context);
     final spec = currentConversation.effectiveWorkflowSpec;
     final hasContext = currentConversation.hasWorkflowContext;
+    final isBusy = chatState.isLoading;
 
     return Container(
       width: double.infinity,
@@ -577,6 +574,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
               ),
               const SizedBox(width: 12),
+              if (chatState.isGeneratingWorkflowProposal)
+                const SizedBox(
+                  width: 18,
+                  height: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              else
+                IconButton(
+                  onPressed: isBusy
+                      ? null
+                      : () => ref
+                            .read(chatNotifierProvider.notifier)
+                            .generateWorkflowProposal(
+                              languageCode: context.locale.languageCode,
+                            ),
+                  icon: const Icon(Icons.auto_awesome_outlined),
+                  tooltip: 'chat.workflow_generate'.tr(),
+                ),
               Chip(
                 label: Text(
                   _workflowStageLabel(currentConversation.workflowStage),
@@ -594,6 +609,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ),
             ],
           ),
+          if (chatState.workflowProposalDraft != null) ...[
+            const SizedBox(height: 12),
+            _buildWorkflowProposalCard(
+              context,
+              currentConversation: currentConversation,
+              proposal: chatState.workflowProposalDraft!,
+              isGenerating: chatState.isGeneratingWorkflowProposal,
+            ),
+          ] else if (chatState.workflowProposalError != null) ...[
+            const SizedBox(height: 12),
+            _buildWorkflowProposalErrorCard(
+              context,
+              error: chatState.workflowProposalError!,
+            ),
+          ],
           if (hasContext) ...[
             if (spec.goal.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
@@ -623,7 +653,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           _buildWorkflowTasksSection(
             context,
             currentConversation: currentConversation,
-            isBusy: isBusy,
+            chatState: chatState,
           ),
           const SizedBox(height: 16),
           _buildWorkflowQuickActions(
@@ -639,10 +669,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Widget _buildWorkflowTasksSection(
     BuildContext context, {
     required Conversation currentConversation,
-    required bool isBusy,
+    required ChatState chatState,
   }) {
     final theme = Theme.of(context);
     final tasks = currentConversation.effectiveWorkflowSpec.tasks;
+    final isBusy = chatState.isLoading;
+    final canGenerateTasks =
+        currentConversation.effectiveWorkflowSpec.hasContent;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -668,6 +701,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 visualDensity: VisualDensity.compact,
               ),
             const SizedBox(width: 8),
+            if (chatState.isGeneratingTaskProposal)
+              const SizedBox(
+                width: 18,
+                height: 18,
+                child: CircularProgressIndicator(strokeWidth: 2),
+              )
+            else
+              IconButton(
+                onPressed: !canGenerateTasks || isBusy
+                    ? null
+                    : () => ref
+                          .read(chatNotifierProvider.notifier)
+                          .generateTaskProposal(
+                            languageCode: context.locale.languageCode,
+                          ),
+                icon: const Icon(Icons.auto_awesome_outlined),
+                tooltip: 'chat.workflow_tasks_generate'.tr(),
+              ),
+            const SizedBox(width: 4),
             IconButton(
               onPressed: () => _showWorkflowTaskEditor(
                 context,
@@ -679,6 +731,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ],
         ),
         const SizedBox(height: 8),
+        if (chatState.taskProposalDraft != null) ...[
+          _buildWorkflowTaskProposalCard(
+            context,
+            currentConversation: currentConversation,
+            proposal: chatState.taskProposalDraft!,
+            isGenerating: chatState.isGeneratingTaskProposal,
+          ),
+          const SizedBox(height: 8),
+        ] else if (chatState.taskProposalError != null) ...[
+          _buildWorkflowTaskProposalErrorCard(
+            context,
+            error: chatState.taskProposalError!,
+          ),
+          const SizedBox(height: 8),
+        ],
         if (tasks.isEmpty)
           Container(
             width: double.infinity,
@@ -713,6 +780,286 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 .toList(growable: false),
           ),
       ],
+    );
+  }
+
+  Widget _buildWorkflowProposalCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required WorkflowProposalDraft proposal,
+    required bool isGenerating,
+  }) {
+    final theme = Theme.of(context);
+    final spec = proposal.workflowSpec;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.25),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'chat.workflow_proposal_title'.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Chip(
+                label: Text(_workflowStageLabel(proposal.workflowStage)),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'chat.workflow_proposal_subtitle'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (spec.goal.trim().isNotEmpty) ...[
+            const SizedBox(height: 12),
+            _buildWorkflowTextSection(
+              context,
+              label: 'chat.workflow_goal'.tr(),
+              value: spec.goal.trim(),
+            ),
+          ],
+          _buildWorkflowListSection(
+            context,
+            label: 'chat.workflow_constraints'.tr(),
+            items: spec.constraints,
+          ),
+          _buildWorkflowListSection(
+            context,
+            label: 'chat.workflow_acceptance'.tr(),
+            items: spec.acceptanceCriteria,
+          ),
+          _buildWorkflowListSection(
+            context,
+            label: 'chat.workflow_open_questions'.tr(),
+            items: spec.openQuestions,
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _applyWorkflowProposal(
+                  context,
+                  currentConversation: currentConversation,
+                  proposal: proposal,
+                ),
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: Text('chat.workflow_proposal_apply'.tr()),
+              ),
+              OutlinedButton.icon(
+                onPressed: isGenerating
+                    ? null
+                    : () => ref
+                          .read(chatNotifierProvider.notifier)
+                          .generateWorkflowProposal(
+                            languageCode: context.locale.languageCode,
+                          ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text('chat.workflow_regenerate'.tr()),
+              ),
+              OutlinedButton.icon(
+                onPressed: () => _showWorkflowEditor(
+                  context,
+                  currentConversation,
+                  initialWorkflowStage: proposal.workflowStage,
+                  initialWorkflowSpec: proposal.workflowSpec,
+                  dismissWorkflowProposalOnSave: true,
+                ),
+                icon: const Icon(Icons.edit_outlined, size: 18),
+                label: Text('chat.workflow_edit'.tr()),
+              ),
+              TextButton(
+                onPressed: () => ref
+                    .read(chatNotifierProvider.notifier)
+                    .dismissWorkflowProposal(),
+                child: Text('chat.workflow_dismiss'.tr()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowProposalErrorCard(
+    BuildContext context, {
+    required String error,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.workflow_generate_error'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            error,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTaskProposalCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required WorkflowTaskProposalDraft proposal,
+    required bool isGenerating,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.3),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: 0.25),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.auto_awesome,
+                size: 18,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'chat.workflow_tasks_proposal_title'.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'chat.workflow_tasks_proposal_subtitle'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final task in proposal.tasks)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: Text('• ${task.title}', style: theme.textTheme.bodyMedium),
+            ),
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _applyTaskProposal(
+                  context,
+                  currentConversation: currentConversation,
+                  proposal: proposal,
+                ),
+                icon: const Icon(Icons.check_circle_outline, size: 18),
+                label: Text('chat.workflow_tasks_apply'.tr()),
+              ),
+              OutlinedButton.icon(
+                onPressed: isGenerating
+                    ? null
+                    : () => ref
+                          .read(chatNotifierProvider.notifier)
+                          .generateTaskProposal(
+                            languageCode: context.locale.languageCode,
+                          ),
+                icon: const Icon(Icons.refresh, size: 18),
+                label: Text('chat.workflow_tasks_regenerate'.tr()),
+              ),
+              TextButton(
+                onPressed: () => ref
+                    .read(chatNotifierProvider.notifier)
+                    .dismissTaskProposal(),
+                child: Text('chat.workflow_dismiss'.tr()),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTaskProposalErrorCard(
+    BuildContext context, {
+    required String error,
+  }) {
+    final theme = Theme.of(context);
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.workflow_tasks_generate_error'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            error,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onErrorContainer,
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1035,8 +1382,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
   Future<void> _showWorkflowEditor(
     BuildContext context,
-    Conversation currentConversation,
-  ) async {
+    Conversation currentConversation, {
+    ConversationWorkflowStage? initialWorkflowStage,
+    ConversationWorkflowSpec? initialWorkflowSpec,
+    bool dismissWorkflowProposalOnSave = false,
+  }) async {
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -1046,6 +1396,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       showDragHandle: true,
       builder: (sheetContext) => _WorkflowEditorSheet(
         currentConversation: currentConversation,
+        initialWorkflowStage: initialWorkflowStage,
+        initialWorkflowSpec: initialWorkflowSpec,
         workflowStageLabelBuilder: _workflowStageLabel,
       ),
     );
@@ -1077,6 +1429,54 @@ class _ChatPageState extends ConsumerState<ChatPage>
             context,
           ).showSnackBar(SnackBar(content: Text('chat.workflow_saved'.tr())));
         }
+    }
+
+    if (dismissWorkflowProposalOnSave) {
+      ref.read(chatNotifierProvider.notifier).dismissWorkflowProposal();
+    }
+  }
+
+  Future<void> _applyWorkflowProposal(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required WorkflowProposalDraft proposal,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final nextSpec = proposal.workflowSpec.copyWith(
+      tasks: currentConversation.effectiveWorkflowSpec.tasks,
+    );
+
+    await conversationsNotifier.updateCurrentWorkflow(
+      workflowStage: proposal.workflowStage,
+      workflowSpec: nextSpec.hasContent ? nextSpec : null,
+      clearWorkflowSpec: !nextSpec.hasContent,
+    );
+    chatNotifier.dismissWorkflowProposal();
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('chat.workflow_saved'.tr())));
+    }
+  }
+
+  Future<void> _applyTaskProposal(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required WorkflowTaskProposalDraft proposal,
+  }) async {
+    await _replaceWorkflowTasks(
+      currentConversation: currentConversation,
+      tasks: proposal.tasks,
+      workflowStage: ConversationWorkflowStage.tasks,
+    );
+    ref.read(chatNotifierProvider.notifier).dismissTaskProposal();
+    if (context.mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('chat.workflow_task_saved'.tr())));
     }
   }
 
@@ -2889,10 +3289,14 @@ class _WorkflowEditorSubmission {
 class _WorkflowEditorSheet extends StatefulWidget {
   const _WorkflowEditorSheet({
     required this.currentConversation,
+    this.initialWorkflowStage,
+    this.initialWorkflowSpec,
     required this.workflowStageLabelBuilder,
   });
 
   final Conversation currentConversation;
+  final ConversationWorkflowStage? initialWorkflowStage;
+  final ConversationWorkflowSpec? initialWorkflowSpec;
   final String Function(ConversationWorkflowStage stage)
   workflowStageLabelBuilder;
 
@@ -2910,8 +3314,11 @@ class _WorkflowEditorSheetState extends State<_WorkflowEditorSheet> {
   @override
   void initState() {
     super.initState();
-    final spec = widget.currentConversation.effectiveWorkflowSpec;
-    _selectedStage = widget.currentConversation.workflowStage;
+    final spec =
+        widget.initialWorkflowSpec ??
+        widget.currentConversation.effectiveWorkflowSpec;
+    _selectedStage =
+        widget.initialWorkflowStage ?? widget.currentConversation.workflowStage;
     _goalController = TextEditingController(text: spec.goal);
     _constraintsController = TextEditingController(
       text: spec.constraints.join('\n'),

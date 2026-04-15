@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 
 part 'chat_state.freezed.dart';
@@ -141,6 +142,21 @@ class PendingBleConnect {
 }
 
 @freezed
+abstract class WorkflowProposalDraft with _$WorkflowProposalDraft {
+  const factory WorkflowProposalDraft({
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowSpec workflowSpec,
+  }) = _WorkflowProposalDraft;
+}
+
+@freezed
+abstract class WorkflowTaskProposalDraft with _$WorkflowTaskProposalDraft {
+  const factory WorkflowTaskProposalDraft({
+    required List<ConversationWorkflowTask> tasks,
+  }) = _WorkflowTaskProposalDraft;
+}
+
+@freezed
 abstract class ChatState with _$ChatState {
   const factory ChatState({
     required List<Message> messages,
@@ -161,6 +177,12 @@ abstract class ChatState with _$ChatState {
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.
     PendingBleConnect? pendingBleConnect,
+    @Default(false) bool isGeneratingWorkflowProposal,
+    WorkflowProposalDraft? workflowProposalDraft,
+    String? workflowProposalError,
+    @Default(false) bool isGeneratingTaskProposal,
+    WorkflowTaskProposalDraft? taskProposalDraft,
+    String? taskProposalError,
   }) = _ChatState;
 
   factory ChatState.initial() =>
