@@ -688,27 +688,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    IconButton(
-                      onPressed: isBusy
-                          ? null
-                          : () => isPlanMode
-                                ? ref
-                                      .read(chatNotifierProvider.notifier)
-                                      .generatePlanProposal(
-                                        languageCode:
-                                            context.locale.languageCode,
-                                      )
-                                : ref
-                                      .read(chatNotifierProvider.notifier)
-                                      .generateWorkflowProposal(
-                                        languageCode:
-                                            context.locale.languageCode,
-                                      ),
-                      icon: const Icon(Icons.auto_awesome_outlined),
-                      tooltip: isPlanMode
-                          ? 'chat.plan_mode_generate'.tr()
-                          : 'chat.workflow_generate'.tr(),
-                    ),
+                    if (!isPlanMode)
+                      IconButton(
+                        onPressed: isBusy
+                            ? null
+                            : () => ref
+                                  .read(chatNotifierProvider.notifier)
+                                  .generateWorkflowProposal(
+                                    languageCode: context.locale.languageCode,
+                                  ),
+                        icon: const Icon(Icons.auto_awesome_outlined),
+                        tooltip: 'chat.workflow_generate'.tr(),
+                      ),
                     if (showWorkflowStageChip) ...[
                       Chip(
                         label: Text(
@@ -810,12 +801,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     chatState: chatState,
                     isPlanMode: isPlanMode,
                   ),
-                  const SizedBox(height: 16),
-                  _buildWorkflowQuickActions(
-                    context,
-                    currentConversation: currentConversation,
-                    isBusy: isBusy,
-                  ),
+                  if (!isPlanMode) ...[
+                    const SizedBox(height: 16),
+                    _buildWorkflowQuickActions(
+                      context,
+                      currentConversation: currentConversation,
+                      isBusy: isBusy,
+                    ),
+                  ],
                 ] else if (isPlanMode && !hasPlanDraft) ...[
                   const SizedBox(height: 12),
                   Text(
