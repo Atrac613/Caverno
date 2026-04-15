@@ -1042,7 +1042,9 @@ class ChatNotifier extends Notifier<ChatState> {
         maxTokens: attempt.maxTokens,
       );
 
-      final response = _parseWorkflowProposalResponse(result.content);
+      final response = _parseWorkflowProposalResponseWithFallback(
+        result.content,
+      );
       if (response != null) {
         if (index > 0) {
           appLog('[Workflow] Workflow proposal recovered on retry');
@@ -1133,7 +1135,7 @@ class ChatNotifier extends Notifier<ChatState> {
         maxTokens: attempt.maxTokens,
       );
 
-      final proposal = _parseTaskProposal(result.content);
+      final proposal = _parseTaskProposalWithFallback(result.content);
       if (proposal != null) {
         if (index > 0) {
           appLog('[Workflow] Task proposal recovered on retry');
@@ -1394,6 +1396,21 @@ class ChatNotifier extends Notifier<ChatState> {
     return null;
   }
 
+  _WorkflowProposalResponse? _parseWorkflowProposalResponseWithFallback(
+    String rawContent,
+  ) {
+    final direct = _parseWorkflowProposalResponse(rawContent);
+    if (direct != null) {
+      return direct;
+    }
+
+    final reasoningContent = _extractProposalReasoningContent(rawContent);
+    if (reasoningContent.isEmpty) {
+      return null;
+    }
+    return _parseWorkflowProposalResponse(reasoningContent);
+  }
+
   WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
     final normalizedContent = _normalizeProposalContent(rawContent);
     final decoded = _extractJsonMap(normalizedContent);
@@ -1402,6 +1419,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return fromJson;
     }
     return _parseTaskProposalFromSections(normalizedContent);
+  }
+
+  WorkflowTaskProposalDraft? _parseTaskProposalWithFallback(String rawContent) {
+    final direct = _parseTaskProposal(rawContent);
+    if (direct != null) {
+      return direct;
+    }
+
+    final reasoningContent = _extractProposalReasoningContent(rawContent);
+    if (reasoningContent.isEmpty) {
+      return null;
+    }
+    return _parseTaskProposal(reasoningContent);
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -1945,6 +1975,22 @@ class ChatNotifier extends Notifier<ChatState> {
         .trim();
   }
 
+  String _extractProposalReasoningContent(String rawContent) {
+    final matches = RegExp(
+      r'<(?:think|thinking|thought)>([\s\S]*?)</(?:think|thinking|thought)>',
+      caseSensitive: false,
+    ).allMatches(rawContent);
+    if (matches.isEmpty) {
+      return '';
+    }
+
+    return matches
+        .map((match) => (match.group(1) ?? '').trim())
+        .where((chunk) => chunk.isNotEmpty)
+        .join('\n')
+        .trim();
+  }
+
   String _stripMarkdownListMarker(String value) {
     return value.replaceFirst(RegExp(r'^(?:[-*•]|\d+[.)])\s*'), '').trim();
   }
@@ -1955,9 +2001,14 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String _proposalPreview(String rawContent) {
-    final normalized = _normalizeProposalContent(
+    var normalized = _normalizeProposalContent(
       rawContent,
     ).replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.isEmpty) {
+      normalized = _extractProposalReasoningContent(
+        rawContent,
+      ).replaceAll(RegExp(r'\s+'), ' ');
+    }
     if (normalized.length <= 220) {
       return normalized;
     }
@@ -2034,7 +2085,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   WorkflowProposalDraft? parseWorkflowProposalForTest(String rawContent) {
-    final response = _parseWorkflowProposalResponse(rawContent);
+    final response = _parseWorkflowProposalResponseWithFallback(rawContent);
     return switch (response) {
       _WorkflowProposalDraftResponse(:final proposal) => proposal,
       _ => null,
@@ -2045,7 +2096,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<WorkflowPlanningDecision>? parseWorkflowDecisionsForTest(
     String rawContent,
   ) {
-    final response = _parseWorkflowProposalResponse(rawContent);
+    final response = _parseWorkflowProposalResponseWithFallback(rawContent);
     return switch (response) {
       _WorkflowProposalDecisionResponse(:final decisions) => decisions,
       _ => null,
@@ -2065,7 +2116,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   @visibleForTesting
   WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
-    return _parseTaskProposal(rawContent);
+    return _parseTaskProposalWithFallback(rawContent);
   }
 
   Map<String, dynamic> _resolveProjectScopedArguments(

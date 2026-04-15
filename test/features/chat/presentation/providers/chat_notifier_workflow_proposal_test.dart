@@ -249,6 +249,27 @@ Open Questions:
     ]);
   });
 
+  test('parses workflow proposals from reasoning-only responses', () {
+    final proposal = notifier.parseWorkflowProposalForTest('''
+<think>
+* Workflow Stage: Plan
+* Goal: Build a Python host health checker
+* Constraint: Keep the first slice lightweight
+* Acceptance Criteria: The script checks the configured hosts successfully
+</think>
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+    expect(proposal.workflowSpec.goal, 'Build a Python host health checker');
+    expect(proposal.workflowSpec.constraints, [
+      'Keep the first slice lightweight',
+    ]);
+    expect(proposal.workflowSpec.acceptanceCriteria, [
+      'The script checks the configured hosts successfully',
+    ]);
+  });
+
   test('parses task proposal json payloads', () {
     final proposal = notifier.parseTaskProposalForTest('''
 {"tasks":[
@@ -307,5 +328,27 @@ Validation command: flutter test
     expect(proposal!.tasks, hasLength(2));
     expect(proposal.tasks.first.title, 'Add workflow proposal card');
     expect(proposal.tasks.last.validationCommand, 'flutter test');
+  });
+
+  test('parses task proposals from reasoning-only responses', () {
+    final proposal = notifier.parseTaskProposalForTest('''
+<think>
+1. Add the host health checker script
+Target files:
+- scripts/health_check.py
+Validation command: python scripts/health_check.py --help
+Notes: Keep the first version minimal
+</think>
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(1));
+    expect(proposal.tasks.first.title, 'Add the host health checker script');
+    expect(proposal.tasks.first.targetFiles, ['scripts/health_check.py']);
+    expect(
+      proposal.tasks.first.validationCommand,
+      'python scripts/health_check.py --help',
+    );
+    expect(proposal.tasks.first.notes, 'Keep the first version minimal');
   });
 }
