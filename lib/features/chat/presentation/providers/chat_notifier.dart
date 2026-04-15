@@ -376,6 +376,8 @@ class ChatNotifier extends Notifier<ChatState> {
     required String languageCode,
   }) async {
     final decisionAnswers = <WorkflowPlanningDecisionAnswer>[];
+    WorkflowProposalDraft? latestProposal;
+    var latestOutstandingDecisions = const <WorkflowPlanningDecision>[];
     const maxDecisionRounds = 3;
 
     for (var round = 0; round < maxDecisionRounds; round++) {
@@ -399,10 +401,12 @@ class ChatNotifier extends Notifier<ChatState> {
           proposal,
           decisionAnswers,
         );
+        latestProposal = sanitizedProposal;
         final promotedDecisions = _promoteOpenQuestionsToPlanningPrompts(
           sanitizedProposal.workflowSpec.openQuestions,
           decisionAnswers: decisionAnswers,
         );
+        latestOutstandingDecisions = promotedDecisions;
         if (promotedDecisions.isEmpty) {
           return sanitizedProposal;
         }
@@ -417,8 +421,23 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       if (result case _WorkflowProposalDecisionResponse(:final decisions)) {
-        final resolvedAnswers = await _collectWorkflowDecisionAnswers(
+        final unresolvedDecisions = _filterUnansweredWorkflowDecisions(
           decisions,
+          decisionAnswers: decisionAnswers,
+        );
+        latestOutstandingDecisions = unresolvedDecisions;
+        if (unresolvedDecisions.isEmpty) {
+          final fallbackProposal = _buildWorkflowProposalFallback(
+            latestProposal: latestProposal,
+            outstandingDecisions: decisions,
+          );
+          if (fallbackProposal != null) {
+            return fallbackProposal;
+          }
+          continue;
+        }
+        final resolvedAnswers = await _collectWorkflowDecisionAnswers(
+          unresolvedDecisions,
         );
         if (resolvedAnswers == null) {
           throw const _WorkflowProposalCancelled();
@@ -427,9 +446,18 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
-    throw const FormatException(
-      'workflow proposal required too many planning decision rounds',
+    final fallbackProposal = _buildWorkflowProposalFallback(
+      latestProposal: latestProposal,
+      outstandingDecisions: latestOutstandingDecisions,
     );
+    if (fallbackProposal != null) {
+      appLog(
+        '[Workflow] Using fallback proposal after repeated planning decision rounds',
+      );
+      return fallbackProposal;
+    }
+
+    throw const FormatException('workflow proposal could not stabilize');
   }
 
   WorkflowProposalDraft _removeAnsweredOpenQuestions(
@@ -1100,6 +1128,99 @@ class ChatNotifier extends Notifier<ChatState> {
         current.add(answer);
       }
     }
+  }
+
+  List<WorkflowPlanningDecision> _filterUnansweredWorkflowDecisions(
+    List<WorkflowPlanningDecision> decisions, {
+    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  }) {
+    if (decisions.isEmpty) {
+      return const <WorkflowPlanningDecision>[];
+    }
+
+    final answeredDecisionIds = decisionAnswers
+        .map((answer) => answer.decisionId.trim())
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final answeredQuestions = decisionAnswers
+        .map((answer) => _normalizeWorkflowDecisionText(answer.question))
+        .where((value) => value.isNotEmpty)
+        .toSet();
+    final emittedKeys = <String>{};
+    final unresolved = <WorkflowPlanningDecision>[];
+
+    for (final decision in decisions) {
+      final normalizedQuestion = _normalizeWorkflowDecisionText(
+        decision.question,
+      );
+      if (normalizedQuestion.isEmpty) {
+        continue;
+      }
+      final emittedKey = decision.id.trim().isNotEmpty
+          ? 'id:${decision.id.trim()}'
+          : 'question:$normalizedQuestion';
+      if (emittedKeys.contains(emittedKey)) {
+        continue;
+      }
+      emittedKeys.add(emittedKey);
+
+      if (answeredDecisionIds.contains(decision.id.trim()) ||
+          answeredQuestions.contains(normalizedQuestion)) {
+        continue;
+      }
+      unresolved.add(decision);
+    }
+
+    return unresolved;
+  }
+
+  WorkflowProposalDraft? _buildWorkflowProposalFallback({
+    WorkflowProposalDraft? latestProposal,
+    required List<WorkflowPlanningDecision> outstandingDecisions,
+  }) {
+    final unresolvedQuestions = outstandingDecisions
+        .map((decision) => decision.question.trim())
+        .where((question) => question.isNotEmpty)
+        .toList(growable: false);
+
+    if (latestProposal != null) {
+      final mergedOpenQuestions = <String>[
+        ...latestProposal.workflowSpec.openQuestions,
+      ];
+      final existingQuestions = mergedOpenQuestions
+          .map(_normalizeWorkflowDecisionText)
+          .where((value) => value.isNotEmpty)
+          .toSet();
+
+      for (final question in unresolvedQuestions) {
+        final normalized = _normalizeWorkflowDecisionText(question);
+        if (normalized.isEmpty || existingQuestions.contains(normalized)) {
+          continue;
+        }
+        existingQuestions.add(normalized);
+        mergedOpenQuestions.add(question);
+      }
+
+      return WorkflowProposalDraft(
+        workflowStage: mergedOpenQuestions.isNotEmpty
+            ? ConversationWorkflowStage.clarify
+            : latestProposal.workflowStage,
+        workflowSpec: latestProposal.workflowSpec.copyWith(
+          openQuestions: mergedOpenQuestions.take(6).toList(growable: false),
+        ),
+      );
+    }
+
+    if (unresolvedQuestions.isEmpty) {
+      return null;
+    }
+
+    return WorkflowProposalDraft(
+      workflowStage: ConversationWorkflowStage.clarify,
+      workflowSpec: ConversationWorkflowSpec(
+        openQuestions: unresolvedQuestions.take(6).toList(growable: false),
+      ),
+    );
   }
 
   Future<WorkflowTaskProposalDraft> _requestTaskProposal({
@@ -2403,6 +2524,22 @@ class ChatNotifier extends Notifier<ChatState> {
   @visibleForTesting
   WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
     return _parseTaskProposalWithFallback(rawContent);
+  }
+
+  @visibleForTesting
+  WorkflowProposalDraft? buildWorkflowProposalFallbackForTest({
+    WorkflowProposalDraft? latestProposal,
+    required List<WorkflowPlanningDecision> decisions,
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
+  }) {
+    final unresolvedDecisions = _filterUnansweredWorkflowDecisions(
+      decisions,
+      decisionAnswers: decisionAnswers,
+    );
+    return _buildWorkflowProposalFallback(
+      latestProposal: latestProposal,
+      outstandingDecisions: unresolvedDecisions,
+    );
   }
 
   Map<String, dynamic> _resolveProjectScopedArguments(

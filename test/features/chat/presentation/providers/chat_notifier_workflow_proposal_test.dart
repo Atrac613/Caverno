@@ -374,4 +374,78 @@ Notes: Keep the first version minimal
     );
     expect(proposal.tasks.first.notes, 'Keep the first version minimal');
   });
+
+  test('builds clarify fallback proposal from unresolved decisions', () {
+    final proposal = notifier.buildWorkflowProposalFallbackForTest(
+      decisions: const [
+        WorkflowPlanningDecision(
+          id: 'metrics',
+          question: 'Which metrics should the script collect?',
+          options: [
+            WorkflowPlanningDecisionOption(
+              id: 'cpu',
+              label: 'CPU only',
+              description: '',
+            ),
+            WorkflowPlanningDecisionOption(
+              id: 'all',
+              label: 'CPU, memory, and disk',
+              description: '',
+            ),
+          ],
+        ),
+      ],
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.clarify);
+    expect(proposal.workflowSpec.openQuestions, [
+      'Which metrics should the script collect?',
+    ]);
+  });
+
+  test('merges unresolved decisions into the latest proposal fallback', () {
+    final proposal = notifier.buildWorkflowProposalFallbackForTest(
+      latestProposal: WorkflowProposalDraft(
+        workflowStage: ConversationWorkflowStage.plan,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Build a host health checker',
+          constraints: ['Keep the first slice lightweight'],
+        ),
+      ),
+      decisions: const [
+        WorkflowPlanningDecision(
+          id: 'metrics',
+          question: 'Which metrics should the script collect?',
+          options: [
+            WorkflowPlanningDecisionOption(
+              id: 'cpu',
+              label: 'CPU only',
+              description: '',
+            ),
+            WorkflowPlanningDecisionOption(
+              id: 'all',
+              label: 'CPU, memory, and disk',
+              description: '',
+            ),
+          ],
+        ),
+      ],
+      decisionAnswers: const [
+        WorkflowPlanningDecisionAnswer(
+          decisionId: 'output',
+          question: 'Which output format should the script use?',
+          optionId: 'json',
+          optionLabel: 'JSON',
+        ),
+      ],
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.clarify);
+    expect(proposal.workflowSpec.goal, 'Build a host health checker');
+    expect(proposal.workflowSpec.openQuestions, [
+      'Which metrics should the script collect?',
+    ]);
+  });
 }
