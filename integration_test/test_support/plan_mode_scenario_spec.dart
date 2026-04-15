@@ -54,6 +54,58 @@ class PlanModeScenarioDecisionSelection {
   final String? freeTextAnswer;
 }
 
+enum PlanModeUiPhase { decision, proposal, finalResult }
+
+class PlanModeUiExpectation {
+  const PlanModeUiExpectation.present({
+    required this.phase,
+    required this.text,
+    this.minCount = 1,
+  }) : shouldBePresent = true;
+
+  const PlanModeUiExpectation.absent({required this.phase, required this.text})
+    : shouldBePresent = false,
+      minCount = 0;
+
+  final PlanModeUiPhase phase;
+  final String text;
+  final bool shouldBePresent;
+  final int minCount;
+}
+
+class PlanModeArtifactExpectation {
+  const PlanModeArtifactExpectation({
+    required this.path,
+    this.shouldExist = true,
+    this.exactContent,
+    this.contains = const <String>[],
+    this.absentSnippets = const <String>[],
+  });
+
+  final String path;
+  final bool shouldExist;
+  final String? exactContent;
+  final List<String> contains;
+  final List<String> absentSnippets;
+}
+
+class PlanModeLogExpectation {
+  const PlanModeLogExpectation({
+    required this.pattern,
+    this.exactCount,
+    this.minCount,
+    this.maxCount,
+  }) : assert(
+         exactCount != null || minCount != null || maxCount != null,
+         'At least one count constraint must be provided.',
+       );
+
+  final String pattern;
+  final int? exactCount;
+  final int? minCount;
+  final int? maxCount;
+}
+
 sealed class PlanModeWorkflowResponseSpec {
   const PlanModeWorkflowResponseSpec();
 
@@ -140,9 +192,9 @@ class PlanModeScenarioSpec {
     required this.finalAnswer,
     this.memorySummary = 'The user is building a host health check tool.',
     this.decisionSelections = const <PlanModeScenarioDecisionSelection>[],
-    this.expectedProposalTextSnippets = const <String>[],
-    this.expectedFinalTextSnippets = const <String>[],
-    this.expectedLogCounts = const <String, int>{},
+    this.uiExpectations = const <PlanModeUiExpectation>[],
+    this.artifactExpectations = const <PlanModeArtifactExpectation>[],
+    this.logExpectations = const <PlanModeLogExpectation>[],
   });
 
   final String name;
@@ -154,15 +206,25 @@ class PlanModeScenarioSpec {
   final String finalAnswer;
   final String memorySummary;
   final List<PlanModeScenarioDecisionSelection> decisionSelections;
-  final List<String> expectedProposalTextSnippets;
-  final List<String> expectedFinalTextSnippets;
-  final Map<String, int> expectedLogCounts;
+  final List<PlanModeUiExpectation> uiExpectations;
+  final List<PlanModeArtifactExpectation> artifactExpectations;
+  final List<PlanModeLogExpectation> logExpectations;
 
   String get initialTaskTitle => taskProposal.first.title;
 
-  Map<String, String> get expectedArtifacts => <String, String>{
-    for (final write in toolWrites) write.path: write.content,
-  };
+  List<PlanModeArtifactExpectation> get resolvedArtifactExpectations {
+    if (artifactExpectations.isNotEmpty) {
+      return artifactExpectations;
+    }
+    return toolWrites
+        .map(
+          (write) => PlanModeArtifactExpectation(
+            path: write.path,
+            exactContent: write.content,
+          ),
+        )
+        .toList(growable: false);
+  }
 
   PlanModeWorkflowProposalResponseSpec get finalWorkflowProposal =>
       workflowResponses.whereType<PlanModeWorkflowProposalResponseSpec>().last;
@@ -394,17 +456,55 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       ],
       finalAnswer:
           'I created requirements.txt and README.md to bootstrap the project scaffold.',
-      expectedProposalTextSnippets: <String>[
-        'Setup project structure and dependencies',
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Suggested plan',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Setup project structure and dependencies',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'requirements.txt and README.md',
+        ),
       ],
-      expectedFinalTextSnippets: <String>['requirements.txt and README.md'],
-      expectedLogCounts: <String, int>{
-        '[ScenarioLLM] workflow proposal': 1,
-        '[ScenarioLLM] task proposal': 1,
-        '[ScenarioLLM] final answer stream': 1,
-        '[ContentTool] Executing tool: write_file': 0,
-        '[McpToolService] Executing tool: write_file': 2,
-      },
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          exactContent: 'ping3>=4.0.0\n',
+          contains: <String>['ping3>=4.0.0'],
+        ),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          exactContent:
+              '# Host Health Check\n\nThis project bootstraps a ping-based host health check tool.\n',
+          contains: <String>['Host Health Check', 'ping-based host health'],
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] task proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] final answer stream',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ContentTool] Executing tool: write_file',
+          exactCount: 0,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[McpToolService] Executing tool: write_file',
+          exactCount: 2,
+        ),
+      ],
     ),
     PlanModeScenarioSpec(
       name: 'cli_entrypoint_decision',
@@ -484,18 +584,69 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           optionLabel: 'CLI entry point',
         ),
       ],
-      expectedProposalTextSnippets: <String>[
-        'Create the CLI scaffold files',
-        'CLI-first Python host health scaffold.',
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.decision,
+          text: 'Choose Before Planning',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.decision,
+          text:
+              'Should the first slice focus on a CLI entry point or a reusable Python module?',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Create the CLI scaffold files',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'CLI-first Python host health scaffold.',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'CLI-first scaffold',
+        ),
       ],
-      expectedFinalTextSnippets: <String>['CLI-first scaffold'],
-      expectedLogCounts: <String, int>{
-        '[ScenarioLLM] workflow decision': 1,
-        '[ScenarioLLM] workflow proposal': 1,
-        '[ScenarioLLM] task proposal': 1,
-        '[ContentTool] Executing tool: write_file': 0,
-        '[McpToolService] Executing tool: write_file': 2,
-      },
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          exactContent: 'ping3>=4.0.0\nclick>=8.1.0\n',
+          contains: <String>['ping3>=4.0.0', 'click>=8.1.0'],
+        ),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          exactContent:
+              '# CLI Host Health Check\n\nThis scaffold starts with a CLI-first health check flow.\n',
+          contains: <String>['CLI Host Health Check', 'CLI-first health check'],
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow decision',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] task proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ContentTool] Executing tool: write_file',
+          exactCount: 0,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[McpToolService] Executing tool: write_file',
+          exactCount: 2,
+        ),
+        PlanModeLogExpectation(
+          pattern:
+              '[Screenshot] Saved "plan_mode_cli_entrypoint_decision_decision_1"',
+          minCount: 1,
+        ),
+      ],
     ),
   ];
 }

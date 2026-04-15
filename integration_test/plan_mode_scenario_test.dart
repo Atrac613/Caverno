@@ -103,7 +103,11 @@ Future<void> _resolvePlanningDecisions(
     final selection = scenario.decisionSelections[index];
 
     await tester.pumpAndSettle();
-    expect(find.text('Choose Before Planning'), findsOneWidget);
+    _assertUiExpectations(
+      tester,
+      scenario.uiExpectations,
+      PlanModeUiPhase.decision,
+    );
     expect(find.text(selection.question), findsOneWidget);
 
     await captureIntegrationScreenshot(
@@ -135,16 +139,101 @@ Future<void> _resolvePlanningDecisions(
   }
 }
 
-void _assertExpectedLogs(
-  List<String> logs,
-  Map<String, int> expectedLogCounts,
+void _assertUiExpectations(
+  WidgetTester tester,
+  List<PlanModeUiExpectation> expectations,
+  PlanModeUiPhase phase,
 ) {
-  for (final entry in expectedLogCounts.entries) {
+  for (final expectation in expectations.where((item) => item.phase == phase)) {
+    final finder = find.textContaining(expectation.text);
+    if (expectation.shouldBePresent) {
+      expect(
+        finder,
+        findsAtLeastNWidgets(expectation.minCount),
+        reason:
+            'Expected UI to show "${expectation.text}" during $phase at least ${expectation.minCount} time(s).',
+      );
+    } else {
+      expect(
+        finder,
+        findsNothing,
+        reason: 'Expected UI to hide "${expectation.text}" during $phase.',
+      );
+    }
+  }
+}
+
+void _assertArtifactExpectations(
+  Directory scenarioDir,
+  List<PlanModeArtifactExpectation> expectations,
+) {
+  for (final expectation in expectations) {
+    final file = File('${scenarioDir.path}/${expectation.path}');
     expect(
-      logs.where((line) => line.contains(entry.key)),
-      hasLength(entry.value),
-      reason: 'Expected ${entry.value} log(s) containing "${entry.key}"',
+      file.existsSync(),
+      expectation.shouldExist,
+      reason: expectation.shouldExist
+          ? 'Missing ${expectation.path}'
+          : 'Expected ${expectation.path} to be absent',
     );
+    if (!expectation.shouldExist) {
+      continue;
+    }
+
+    final content = file.readAsStringSync();
+    if (expectation.exactContent != null) {
+      expect(content, expectation.exactContent);
+    }
+    for (final snippet in expectation.contains) {
+      expect(
+        content,
+        contains(snippet),
+        reason: 'Expected ${expectation.path} to contain "$snippet".',
+      );
+    }
+    for (final snippet in expectation.absentSnippets) {
+      expect(
+        content,
+        isNot(contains(snippet)),
+        reason: 'Expected ${expectation.path} to exclude "$snippet".',
+      );
+    }
+  }
+}
+
+void _assertLogExpectations(
+  List<String> logs,
+  List<PlanModeLogExpectation> expectations,
+) {
+  for (final expectation in expectations) {
+    final count = logs
+        .where((line) => line.contains(expectation.pattern))
+        .length;
+
+    if (expectation.exactCount != null) {
+      expect(
+        count,
+        expectation.exactCount,
+        reason:
+            'Expected exactly ${expectation.exactCount} log(s) containing "${expectation.pattern}".',
+      );
+    }
+    if (expectation.minCount != null) {
+      expect(
+        count,
+        greaterThanOrEqualTo(expectation.minCount!),
+        reason:
+            'Expected at least ${expectation.minCount} log(s) containing "${expectation.pattern}".',
+      );
+    }
+    if (expectation.maxCount != null) {
+      expect(
+        count,
+        lessThanOrEqualTo(expectation.maxCount!),
+        reason:
+            'Expected at most ${expectation.maxCount} log(s) containing "${expectation.pattern}".',
+      );
+    }
   }
 }
 
@@ -230,11 +319,12 @@ Future<void> _runScenario({
     scenarioDir,
   );
 
-  expect(find.text('Suggested plan'), findsOneWidget);
+  _assertUiExpectations(
+    tester,
+    scenario.uiExpectations,
+    PlanModeUiPhase.proposal,
+  );
   expect(find.text('Approve and start'), findsOneWidget);
-  for (final snippet in scenario.expectedProposalTextSnippets) {
-    expect(find.textContaining(snippet), findsAtLeastNWidgets(1));
-  }
 
   await captureIntegrationScreenshot(
     binding: binding,
@@ -250,17 +340,18 @@ Future<void> _runScenario({
   await tester.pump();
   await tester.pumpAndSettle();
 
-  for (final artifact in scenario.expectedArtifacts.entries) {
-    final file = File('${scenarioDir.path}/${artifact.key}');
-    expect(file.existsSync(), isTrue, reason: 'Missing ${artifact.key}');
-    expect(file.readAsStringSync(), artifact.value);
-  }
+  _assertArtifactExpectations(
+    scenarioDir,
+    scenario.resolvedArtifactExpectations,
+  );
 
-  for (final snippet in scenario.expectedFinalTextSnippets) {
-    expect(find.textContaining(snippet), findsAtLeastNWidgets(1));
-  }
+  _assertUiExpectations(
+    tester,
+    scenario.uiExpectations,
+    PlanModeUiPhase.finalResult,
+  );
 
-  _assertExpectedLogs(logs, scenario.expectedLogCounts);
+  _assertLogExpectations(logs, scenario.logExpectations);
 
   final currentConversation = container
       .read(conversationsNotifierProvider)
@@ -298,12 +389,23 @@ Future<void> _runScenario({
         )
         .toList(growable: false),
     'artifacts': <String, String>{
-      for (final artifact in scenario.expectedArtifacts.entries)
-        artifact.key: File(
-          '${scenarioDir.path}/${artifact.key}',
+      for (final artifact in scenario.resolvedArtifactExpectations.where(
+        (item) => item.shouldExist,
+      ))
+        artifact.path: File(
+          '${scenarioDir.path}/${artifact.path}',
         ).readAsStringSync(),
     },
-    'logChecks': scenario.expectedLogCounts,
+    'logChecks': scenario.logExpectations
+        .map(
+          (expectation) => <String, Object?>{
+            'pattern': expectation.pattern,
+            'exactCount': expectation.exactCount,
+            'minCount': expectation.minCount,
+            'maxCount': expectation.maxCount,
+          },
+        )
+        .toList(growable: false),
     'capturedLogs': logs
         .where(
           (line) =>
