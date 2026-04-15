@@ -44,6 +44,24 @@ void main() {
     ]);
   });
 
+  test('treats empty assistant content as not visibly renderable', () {
+    expect(notifier.assistantMessageHasVisibleContentForTest(''), isFalse);
+    expect(notifier.assistantMessageHasVisibleContentForTest('   '), isFalse);
+  });
+
+  test('treats memory update only content as not visibly renderable', () {
+    const content =
+        '<tool_use>{"name":"memory_update","status":"updated"}</tool_use>';
+
+    expect(notifier.assistantMessageHasVisibleContentForTest(content), isFalse);
+  });
+
+  test('treats thinking content as visibly renderable', () {
+    const content = '<think>Inspecting the requirements file.</think>';
+
+    expect(notifier.assistantMessageHasVisibleContentForTest(content), isTrue);
+  });
+
   test('parses workflow planning decision payloads', () {
     final decisions = notifier.parseWorkflowDecisionsForTest('''
 {"kind":"decision","decisions":[

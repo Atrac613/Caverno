@@ -2503,6 +2503,11 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
+  bool assistantMessageHasVisibleContentForTest(String content) {
+    return _assistantMessageHasVisibleContent(content);
+  }
+
+  @visibleForTesting
   WorkflowProposalDraft? buildWorkflowProposalFallbackForTest({
     WorkflowProposalDraft? latestProposal,
     required List<WorkflowPlanningDecision> decisions,
@@ -4599,8 +4604,15 @@ class ChatNotifier extends Notifier<ChatState> {
     final updatedMessages = [...state.messages];
     final lastIndex = updatedMessages.length - 1;
     final lastMessage = updatedMessages[lastIndex];
+    final shouldDropLastAssistant =
+        lastMessage.role == MessageRole.assistant &&
+        !_assistantMessageHasVisibleContent(lastMessage.content);
 
-    updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+    if (shouldDropLastAssistant) {
+      updatedMessages.removeAt(lastIndex);
+    } else {
+      updatedMessages[lastIndex] = lastMessage.copyWith(isStreaming: false);
+    }
 
     // Capture token usage from the data source
     _updateTokenUsage();
@@ -4610,7 +4622,9 @@ class ChatNotifier extends Notifier<ChatState> {
     // Hidden prompt responses are ephemeral — remove from visible history
     // so they are spoken but not persisted in the conversation.
     if (_hiddenPrompt != null) {
-      final cleaned = updatedMessages.sublist(0, lastIndex);
+      final cleaned = shouldDropLastAssistant
+          ? updatedMessages
+          : updatedMessages.sublist(0, lastIndex);
       state = state.copyWith(messages: cleaned);
       _hiddenPrompt = null;
       _onResponseCompleted('');
@@ -4621,21 +4635,50 @@ class ChatNotifier extends Notifier<ChatState> {
     _contentToolContinuationCount = 0;
     _saveMessages();
 
+    if (shouldDropLastAssistant || updatedMessages.isEmpty) {
+      _onResponseCompleted('');
+      return;
+    }
+
     // Trigger auto-read when enabled.
+    final finalizedLastMessage = updatedMessages.last;
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {
-      final lastMsg = updatedMessages[lastIndex];
+      final lastMsg = finalizedLastMessage;
       if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
         _onAutoRead(lastMsg.content);
       }
     }
 
     // Notify when the response completes while the app is in the background.
-    final lastMsg = updatedMessages[lastIndex];
+    final lastMsg = finalizedLastMessage;
     if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {
       _onResponseCompleted(lastMsg.content);
     } else {
       _onResponseCompleted('');
     }
+  }
+
+  bool _assistantMessageHasVisibleContent(String content) {
+    if (content.trim().isEmpty) return false;
+
+    final result = ContentParser.parse(content);
+    for (final segment in result.segments) {
+      switch (segment.type) {
+        case ContentType.text:
+        case ContentType.thinking:
+          if (segment.content.trim().isNotEmpty) {
+            return true;
+          }
+        case ContentType.toolCall:
+        case ContentType.toolResult:
+          final toolName = segment.toolCall?.name.toLowerCase();
+          if (toolName != 'memory_update') {
+            return true;
+          }
+      }
+    }
+
+    return false;
   }
 
   Future<McpToolResult?> _ensureActiveProjectAccess(String toolName) async {
