@@ -107,6 +107,10 @@ class ContentParser {
     dotAll: true,
   );
 
+  static final _bareToolCallPrefixPattern = RegExp(
+    r'call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*\{',
+  );
+
   // Partial tag (unclosed <)
   static final _partialTagPattern = RegExp(r'<[^>]*$');
 
@@ -129,6 +133,10 @@ class ContentParser {
       hasIncompleteTag = true;
       incompleteTagType = 'tool_call';
     } else if (_incompleteToolUseStart.hasMatch(remaining)) {
+      hasIncompleteTag = true;
+      incompleteTagType = 'tool_call';
+    } else if (_findBareToolCallStart(remaining) case final bareStart?
+        when !_hasCompleteBareToolCall(remaining, bareStart)) {
       hasIncompleteTag = true;
       incompleteTagType = 'tool_call';
     } else if (_partialTagPattern.hasMatch(remaining)) {
@@ -173,6 +181,10 @@ class ContentParser {
           innerContent: match.group(1) ?? '',
         ),
       );
+    }
+
+    for (final match in _extractBareToolCallMatches(content, allMatches)) {
+      allMatches.add(match);
     }
 
     // Collect tool_result tags (display only)
@@ -269,6 +281,9 @@ class ContentParser {
             );
             if (toolUseMatch != null) {
               remainingText = remainingText.substring(0, toolUseMatch.start);
+            } else if (_findBareToolCallStart(remainingText)
+                case final bareStart?) {
+              remainingText = remainingText.substring(0, bareStart);
             }
           }
         } else if (incompleteTagType == 'partial') {
@@ -304,14 +319,27 @@ class ContentParser {
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
 
-    final matches = [
-      ..._toolCallPattern.allMatches(content),
-      ..._toolUsePattern.allMatches(content),
-      ..._controlToolCallUntilEndPattern.allMatches(content),
-    ]..sort((a, b) => a.start.compareTo(b.start));
+    final matches =
+        [
+              ..._toolCallPattern.allMatches(content),
+              ..._toolUsePattern.allMatches(content),
+              ..._controlToolCallUntilEndPattern.allMatches(content),
+            ]
+            .map(
+              (match) => _TagMatch(
+                start: match.start,
+                end: match.end,
+                type: ContentType.toolCall,
+                innerContent: match.group(1) ?? '',
+              ),
+            )
+            .toList();
+
+    matches.addAll(_extractBareToolCallMatches(content, matches));
+    matches.sort((a, b) => a.start.compareTo(b.start));
 
     for (final match in matches) {
-      final innerContent = match.group(1) ?? '';
+      final innerContent = match.innerContent;
       final parsed = _parseToolCallContent(innerContent);
       if (parsed != null && parsed.name != 'memory_update') {
         toolCalls.add(
@@ -450,8 +478,13 @@ class ContentParser {
   }
 
   static Map<String, dynamic>? _parseLooseObjectLiteral(String source) {
+    final trimmed = source.trim();
+    if (!trimmed.startsWith('{') || !trimmed.endsWith('}')) {
+      return null;
+    }
+
     try {
-      final decoded = jsonDecode(source);
+      final decoded = jsonDecode(trimmed);
       if (decoded is Map<String, dynamic>) {
         return decoded;
       }
@@ -459,7 +492,7 @@ class ContentParser {
       // Fall through to a normalized retry.
     }
 
-    final normalized = source.replaceAllMapped(
+    final normalized = trimmed.replaceAllMapped(
       RegExp(r'([{\s,])([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)'),
       (match) => '${match.group(1)}"${match.group(2)}"${match.group(3)}',
     );
@@ -470,7 +503,240 @@ class ContentParser {
         return decoded;
       }
     } catch (_) {
-      return null;
+      // Fall through to the manual parser.
+    }
+
+    final result = <String, dynamic>{};
+    var index = 1;
+    while (index < trimmed.length - 1) {
+      index = _skipWhitespaceAndCommas(trimmed, index);
+      if (index >= trimmed.length - 1) {
+        break;
+      }
+
+      final keyToken = _readLooseKey(trimmed, index);
+      if (keyToken == null) return null;
+      final key = keyToken.value;
+      index = _skipWhitespace(trimmed, keyToken.nextIndex);
+      if (index >= trimmed.length || trimmed[index] != ':') return null;
+      index = _skipWhitespace(trimmed, index + 1);
+
+      final valueToken = _readLooseValue(trimmed, index);
+      if (valueToken == null) return null;
+      result[key] = valueToken.value;
+      index = _skipWhitespace(trimmed, valueToken.nextIndex);
+
+      if (index < trimmed.length - 1 && trimmed[index] != ',') {
+        return null;
+      }
+      if (index < trimmed.length - 1 && trimmed[index] == ',') {
+        index += 1;
+      }
+    }
+
+    return result;
+  }
+
+  static List<_TagMatch> _extractBareToolCallMatches(
+    String content,
+    List<_TagMatch> existingMatches,
+  ) {
+    final matches = <_TagMatch>[];
+    for (final prefixMatch in _bareToolCallPrefixPattern.allMatches(content)) {
+      if (_overlapsExistingMatch(prefixMatch.start, prefixMatch.end, [
+        ...existingMatches,
+        ...matches,
+      ])) {
+        continue;
+      }
+
+      final braceStart = content.indexOf('{', prefixMatch.start);
+      if (braceStart < 0) continue;
+      final braceEnd = _findLooseObjectEnd(content, braceStart);
+      if (braceEnd == null || !_onlyWhitespaceAfter(content, braceEnd + 1)) {
+        continue;
+      }
+
+      matches.add(
+        _TagMatch(
+          start: prefixMatch.start,
+          end: braceEnd + 1,
+          type: ContentType.toolCall,
+          innerContent: content.substring(prefixMatch.start, braceEnd + 1),
+        ),
+      );
+    }
+    return matches;
+  }
+
+  static bool _overlapsExistingMatch(
+    int start,
+    int end,
+    List<_TagMatch> matches,
+  ) {
+    for (final match in matches) {
+      if (start < match.end && end > match.start) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static int? _findBareToolCallStart(String content) {
+    final match = _bareToolCallPrefixPattern.firstMatch(content);
+    return match?.start;
+  }
+
+  static bool _hasCompleteBareToolCall(String content, int start) {
+    final braceStart = content.indexOf('{', start);
+    if (braceStart < 0) return false;
+    final braceEnd = _findLooseObjectEnd(content, braceStart);
+    return braceEnd != null && _onlyWhitespaceAfter(content, braceEnd + 1);
+  }
+
+  static bool _onlyWhitespaceAfter(String content, int index) {
+    return content.substring(index).trim().isEmpty;
+  }
+
+  static int _skipWhitespace(String source, int index) {
+    while (index < source.length && RegExp(r'\s').hasMatch(source[index])) {
+      index += 1;
+    }
+    return index;
+  }
+
+  static int _skipWhitespaceAndCommas(String source, int index) {
+    while (index < source.length) {
+      final char = source[index];
+      if (char == ',' || RegExp(r'\s').hasMatch(char)) {
+        index += 1;
+        continue;
+      }
+      break;
+    }
+    return index;
+  }
+
+  static _LooseToken<String>? _readLooseKey(String source, int index) {
+    if (index >= source.length) return null;
+    final char = source[index];
+    if (char == '"' || char == "'") {
+      final end = _findLooseStringEnd(source, index);
+      if (end == null) return null;
+      return _LooseToken(source.substring(index + 1, end), end + 1);
+    }
+
+    final match = RegExp(
+      r'[a-zA-Z_][a-zA-Z0-9_-]*',
+    ).matchAsPrefix(source, index);
+    if (match == null) return null;
+    return _LooseToken(match.group(0)!, match.end);
+  }
+
+  static _LooseToken<dynamic>? _readLooseValue(String source, int index) {
+    if (index >= source.length) return null;
+    final char = source[index];
+
+    if (char == '"' || char == "'") {
+      final end = _findLooseStringEnd(source, index);
+      if (end == null) return null;
+      return _LooseToken(source.substring(index + 1, end), end + 1);
+    }
+
+    if (char == '{') {
+      final end = _findLooseObjectEnd(source, index);
+      if (end == null) return null;
+      final objectValue = _parseLooseObjectLiteral(
+        source.substring(index, end + 1),
+      );
+      return _LooseToken(objectValue, end + 1);
+    }
+
+    if (char == '[') {
+      final end = _findLooseBracketEnd(source, index, '[', ']');
+      if (end == null) return null;
+      final raw = source.substring(index, end + 1);
+      try {
+        return _LooseToken(jsonDecode(raw), end + 1);
+      } catch (_) {
+        return _LooseToken(raw, end + 1);
+      }
+    }
+
+    var end = index;
+    while (end < source.length && source[end] != ',' && source[end] != '}') {
+      end += 1;
+    }
+    final raw = source.substring(index, end).trim();
+    if (raw.isEmpty) return null;
+    if (raw == 'true') return _LooseToken(true, end);
+    if (raw == 'false') return _LooseToken(false, end);
+    if (raw == 'null') return _LooseToken(null, end);
+    final numeric = num.tryParse(raw);
+    if (numeric != null) return _LooseToken(numeric, end);
+    return _LooseToken(raw, end);
+  }
+
+  static int? _findLooseObjectEnd(String source, int openBraceIndex) {
+    return _findLooseBracketEnd(source, openBraceIndex, '{', '}');
+  }
+
+  static int? _findLooseBracketEnd(
+    String source,
+    int startIndex,
+    String openChar,
+    String closeChar,
+  ) {
+    var depth = 0;
+    var index = startIndex;
+
+    while (index < source.length) {
+      final char = source[index];
+      if (char == '"' || char == "'") {
+        final stringEnd = _findLooseStringEnd(source, index);
+        if (stringEnd == null) return null;
+        index = stringEnd + 1;
+        continue;
+      }
+      if (char == openChar) {
+        depth += 1;
+      } else if (char == closeChar) {
+        depth -= 1;
+        if (depth == 0) {
+          return index;
+        }
+      }
+      index += 1;
+    }
+
+    return null;
+  }
+
+  static int? _findLooseStringEnd(String source, int startIndex) {
+    if (startIndex >= source.length) return null;
+    final quote = source[startIndex];
+    var index = startIndex + 1;
+
+    while (index < source.length) {
+      final char = source[index];
+      if (char == r'\') {
+        index += 2;
+        continue;
+      }
+      if (char == quote) {
+        final nextIndex = _skipWhitespace(source, index + 1);
+        if (nextIndex >= source.length) {
+          return index;
+        }
+        final nextChar = source[nextIndex];
+        if (nextChar == ',' ||
+            nextChar == '}' ||
+            nextChar == ']' ||
+            nextChar == ':') {
+          return index;
+        }
+      }
+      index += 1;
     }
 
     return null;
@@ -490,4 +756,11 @@ class _TagMatch {
     required this.type,
     required this.innerContent,
   });
+}
+
+class _LooseToken<T> {
+  final T value;
+  final int nextIndex;
+
+  const _LooseToken(this.value, this.nextIndex);
 }

@@ -59,6 +59,36 @@ void main() {
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
   });
 
+  test('extractCompletedToolCalls parses bare tool calls at message end', () {
+    const content =
+        'Sorry, retrying with the staged file. call:git_execute_command{command:"git status",working_directory:"/tmp/project"}';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'git_execute_command');
+    expect(toolCalls.first.arguments['command'], 'git status');
+    expect(toolCalls.first.arguments['working_directory'], '/tmp/project');
+  });
+
+  test('extractCompletedToolCalls tolerates nested quotes in bare call args', () {
+    const content =
+        'call:git_execute_command{command:"git commit -m "Add tokyo_weather_next_week.csv"",working_directory:"/Users/noguwo/Documents/Workspace/tmp"}';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'git_execute_command');
+    expect(
+      toolCalls.first.arguments['command'],
+      'git commit -m "Add tokyo_weather_next_week.csv"',
+    );
+    expect(
+      toolCalls.first.arguments['working_directory'],
+      '/Users/noguwo/Documents/Workspace/tmp',
+    );
+  });
+
   test('parse strips model control tokens from streaming think content', () {
     const content = '<think> <channel|>flutter pub get was executed.';
 
@@ -96,6 +126,28 @@ void main() {
     expect(text, 'Working...\n');
     expect(text, isNot(contains('<|tool_call>')));
     expect(text, isNot(contains('call:git_execute_command')));
+  });
+
+  test('parse hides bare tool call payloads from text output', () {
+    const content =
+        'Retrying with the staged file. call:git_execute_command{command:"git commit -m "Add tokyo_weather_next_week.csv"",working_directory:"/Users/noguwo/Documents/Workspace/tmp"}';
+
+    final result = ContentParser.parse(content);
+    final text = result.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
+    final toolSegment = result.segments.firstWhere(
+      (segment) => segment.type == ContentType.toolCall,
+    );
+
+    expect(text, 'Retrying with the staged file. ');
+    expect(text, isNot(contains('call:git_execute_command')));
+    expect(toolSegment.toolCall?.name, 'git_execute_command');
+    expect(
+      toolSegment.toolCall?.arguments['command'],
+      'git commit -m "Add tokyo_weather_next_week.csv"',
+    );
   });
 
   test('parse extracts tool_result display blocks', () {
