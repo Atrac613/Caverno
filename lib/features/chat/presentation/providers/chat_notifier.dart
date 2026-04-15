@@ -291,6 +291,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _buildWorkflowProposalMessages({
     required Conversation currentConversation,
     required String languageCode,
+    bool compact = false,
   }) {
     final now = DateTime.now();
     return [
@@ -305,6 +306,7 @@ class ChatNotifier extends Notifier<ChatState> {
         content: _buildWorkflowProposalRequest(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          compact: compact,
         ),
       ),
     ];
@@ -313,6 +315,7 @@ class ChatNotifier extends Notifier<ChatState> {
   List<Message> _buildTaskProposalMessages({
     required Conversation currentConversation,
     required String languageCode,
+    bool compact = false,
   }) {
     final now = DateTime.now();
     return [
@@ -327,14 +330,122 @@ class ChatNotifier extends Notifier<ChatState> {
         content: _buildTaskProposalRequest(
           currentConversation: currentConversation,
           languageCode: languageCode,
+          compact: compact,
         ),
       ),
     ];
   }
 
+  Future<WorkflowProposalDraft> _requestWorkflowProposal({
+    required Conversation currentConversation,
+    required String languageCode,
+  }) async {
+    final attempts = <({bool compact, int maxTokens})>[
+      (
+        compact: false,
+        maxTokens: _settings.maxTokens > 1600 ? 1600 : _settings.maxTokens,
+      ),
+      (
+        compact: true,
+        maxTokens: _settings.maxTokens > 2200 ? 2200 : _settings.maxTokens,
+      ),
+    ];
+
+    String? lastError;
+    for (var index = 0; index < attempts.length; index++) {
+      final attempt = attempts[index];
+      final result = await _dataSource.createChatCompletion(
+        messages: _buildWorkflowProposalMessages(
+          currentConversation: currentConversation,
+          languageCode: languageCode,
+          compact: attempt.compact,
+        ),
+        model: _settings.model,
+        temperature: 0.1,
+        maxTokens: attempt.maxTokens,
+      );
+
+      final proposal = _parseWorkflowProposal(result.content);
+      if (proposal != null) {
+        if (index > 0) {
+          appLog('[Workflow] Workflow proposal recovered on retry');
+        }
+        return proposal;
+      }
+
+      final preview = _proposalPreview(result.content);
+      final truncated = _isCompletionTruncated(result.finishReason);
+      appLog(
+        '[Workflow] Workflow proposal parse failed (attempt ${index + 1}/${attempts.length}, truncated: $truncated): $preview',
+      );
+      lastError = truncated
+          ? 'workflow proposal was truncated: $preview'
+          : 'workflow proposal parse failed: $preview';
+      if (!truncated && index == 0) {
+        continue;
+      }
+    }
+
+    throw FormatException(lastError ?? 'workflow proposal parse failed');
+  }
+
+  Future<WorkflowTaskProposalDraft> _requestTaskProposal({
+    required Conversation currentConversation,
+    required String languageCode,
+  }) async {
+    final attempts = <({bool compact, int maxTokens})>[
+      (
+        compact: false,
+        maxTokens: _settings.maxTokens > 1800 ? 1800 : _settings.maxTokens,
+      ),
+      (
+        compact: true,
+        maxTokens: _settings.maxTokens > 2400 ? 2400 : _settings.maxTokens,
+      ),
+    ];
+
+    String? lastError;
+    for (var index = 0; index < attempts.length; index++) {
+      final attempt = attempts[index];
+      final result = await _dataSource.createChatCompletion(
+        messages: _buildTaskProposalMessages(
+          currentConversation: currentConversation,
+          languageCode: languageCode,
+          compact: attempt.compact,
+        ),
+        model: _settings.model,
+        temperature: 0.1,
+        maxTokens: attempt.maxTokens,
+      );
+
+      final proposal = _parseTaskProposal(result.content);
+      if (proposal != null) {
+        if (index > 0) {
+          appLog('[Workflow] Task proposal recovered on retry');
+        }
+        return proposal;
+      }
+
+      final preview = _proposalPreview(result.content);
+      final truncated = _isCompletionTruncated(result.finishReason);
+      appLog(
+        '[Workflow] Task proposal parse failed (attempt ${index + 1}/${attempts.length}, truncated: $truncated): $preview',
+      );
+      lastError = truncated
+          ? 'task proposal was truncated: $preview'
+          : 'task proposal parse failed: $preview';
+      if (!truncated && index == 0) {
+        continue;
+      }
+    }
+
+    throw FormatException(lastError ?? 'task proposal parse failed');
+  }
+
   String _buildWorkflowProposalRequest({
     required Conversation currentConversation,
     required String languageCode,
+    bool compact = false,
   }) {
     final project = _getActiveCodingProject();
     final savedSpec = currentConversation.effectiveWorkflowSpec;
@@ -346,13 +457,38 @@ class ChatNotifier extends Notifier<ChatState> {
         'Write all text fields in ${_proposalLanguageName(languageCode)}.',
       )
       ..writeln(
+        'Keep JSON keys and workflowStage enum values in English exactly as shown in the schema.',
+      )
+      ..writeln(
         'Schema: {"workflowStage":"clarify|plan|tasks|implement|review","goal":string,"constraints":[string],"acceptanceCriteria":[string],"openQuestions":[string]}',
       )
       ..writeln('Rules:')
       ..writeln('- Prefer concise, high-signal wording.')
-      ..writeln('- Keep each list to at most five items.')
-      ..writeln('- Do not include tasks in this response.')
-      ..writeln('- If important information is missing, use openQuestions.')
+      ..writeln(
+        compact
+            ? '- Keep constraints and acceptanceCriteria to at most three items.'
+            : '- Keep each list to at most five items.',
+      )
+      ..writeln(
+        compact
+            ? '- Keep openQuestions to at most two items and use short phrases.'
+            : '- If important information is missing, use openQuestions.',
+      )
+      ..writeln(
+        compact
+            ? '- Keep goal to one short sentence and keep the whole response under 220 tokens.'
+            : '- Do not include tasks in this response.',
+      )
+      ..writeln(
+        compact
+            ? '- Do not include tasks in this response.'
+            : '- Keep list items short and easy to review.',
+      )
+      ..writeln(
+        compact
+            ? '- If important information is missing, prefer short openQuestions.'
+            : '- If important information is missing, use openQuestions.',
+      )
       ..writeln('- Never output explanatory prose outside JSON.');
 
     if (project != null) {
@@ -386,6 +522,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String _buildTaskProposalRequest({
     required Conversation currentConversation,
     required String languageCode,
+    bool compact = false,
   }) {
     final project = _getActiveCodingProject();
     final savedSpec = currentConversation.effectiveWorkflowSpec;
@@ -396,15 +533,28 @@ class ChatNotifier extends Notifier<ChatState> {
       ..writeln(
         'Write all text fields in ${_proposalLanguageName(languageCode)}.',
       )
+      ..writeln('Keep JSON keys in English exactly as shown in the schema.')
       ..writeln(
         'Schema: {"tasks":[{"title":string,"targetFiles":[string],"validationCommand":string,"notes":string}]}',
       )
       ..writeln('Rules:')
       ..writeln('- Return the full suggested task list for the current thread.')
-      ..writeln('- Keep the list to at most six tasks.')
-      ..writeln('- Keep titles concrete and implementation-oriented.')
+      ..writeln(
+        compact
+            ? '- Keep the list to at most four tasks.'
+            : '- Keep the list to at most six tasks.',
+      )
+      ..writeln(
+        compact
+            ? '- Keep titles concrete, short, and implementation-oriented.'
+            : '- Keep titles concrete and implementation-oriented.',
+      )
       ..writeln('- Use repo-relative file paths when you can infer them.')
-      ..writeln('- validationCommand and notes may be empty strings.')
+      ..writeln(
+        compact
+            ? '- Keep notes brief and keep the whole response under 260 tokens.'
+            : '- validationCommand and notes may be empty strings.',
+      )
       ..writeln('- Never output explanatory prose outside JSON.');
 
     if (project != null) {
@@ -476,55 +626,25 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   WorkflowProposalDraft? _parseWorkflowProposal(String rawContent) {
-    final decoded = _extractJsonMap(rawContent);
-    if (decoded == null) return null;
-
-    final workflowStage =
-        _parseWorkflowStage(decoded['workflowStage']) ??
-        _inferWorkflowStageFromProposal(decoded);
-    if (workflowStage == null ||
-        workflowStage == ConversationWorkflowStage.idle) {
-      return null;
+    final normalizedContent = _normalizeProposalContent(rawContent);
+    final decoded = _extractJsonMap(normalizedContent);
+    final fromJson = decoded == null
+        ? null
+        : _parseWorkflowProposalMap(decoded);
+    if (fromJson != null) {
+      return fromJson;
     }
-
-    final workflowSpec = ConversationWorkflowSpec(
-      goal: _asCleanString(decoded['goal']),
-      constraints: _asStringList(decoded['constraints']),
-      acceptanceCriteria: _asStringList(decoded['acceptanceCriteria']),
-      openQuestions: _asStringList(decoded['openQuestions']),
-    );
-
-    return WorkflowProposalDraft(
-      workflowStage: workflowStage,
-      workflowSpec: workflowSpec,
-    );
+    return _parseWorkflowProposalFromSections(normalizedContent);
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
-    final decoded = _extractJsonMap(rawContent);
-    if (decoded == null) return null;
-    final rawTasks = decoded['tasks'];
-    if (rawTasks is! List) return null;
-
-    final tasks = <ConversationWorkflowTask>[];
-    for (final entry in rawTasks.take(6)) {
-      if (entry is! Map<String, dynamic>) continue;
-      final title = _asCleanString(entry['title']);
-      if (title.isEmpty) continue;
-      tasks.add(
-        ConversationWorkflowTask(
-          id: _uuid.v4(),
-          title: title,
-          status: ConversationWorkflowTaskStatus.pending,
-          targetFiles: _asStringList(entry['targetFiles']),
-          validationCommand: _asCleanString(entry['validationCommand']),
-          notes: _asCleanString(entry['notes']),
-        ),
-      );
+    final normalizedContent = _normalizeProposalContent(rawContent);
+    final decoded = _extractJsonMap(normalizedContent);
+    final fromJson = decoded == null ? null : _parseTaskProposalMap(decoded);
+    if (fromJson != null) {
+      return fromJson;
     }
-
-    if (tasks.isEmpty) return null;
-    return WorkflowTaskProposalDraft(tasks: tasks);
+    return _parseTaskProposalFromSections(normalizedContent);
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -539,13 +659,21 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final direct = _tryDecodeMap(candidate);
     if (direct != null) return direct;
+    final repairedDirect = _tryRepairAndDecodeMap(candidate);
+    if (repairedDirect != null) return repairedDirect;
 
     final firstBrace = candidate.indexOf('{');
     final lastBrace = candidate.lastIndexOf('}');
-    if (firstBrace < 0 || lastBrace <= firstBrace) {
+    if (firstBrace < 0) {
       return null;
     }
-    return _tryDecodeMap(candidate.substring(firstBrace, lastBrace + 1).trim());
+    if (lastBrace > firstBrace) {
+      final sliced = candidate.substring(firstBrace, lastBrace + 1).trim();
+      final slicedDirect = _tryDecodeMap(sliced);
+      if (slicedDirect != null) return slicedDirect;
+      return _tryRepairAndDecodeMap(sliced);
+    }
+    return _tryRepairAndDecodeMap(candidate.substring(firstBrace).trim());
   }
 
   Map<String, dynamic>? _tryDecodeMap(String value) {
@@ -557,14 +685,107 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
+  Map<String, dynamic>? _tryRepairAndDecodeMap(String value) {
+    final repaired = _repairJsonCandidate(value);
+    if (repaired == null) return null;
+    return _tryDecodeMap(repaired);
+  }
+
+  String? _repairJsonCandidate(String value) {
+    var candidate = value.trim();
+    if (candidate.isEmpty || !candidate.contains('{')) {
+      return null;
+    }
+
+    final start = candidate.indexOf('{');
+    candidate = candidate.substring(start).trimRight();
+    if (candidate.isEmpty) return null;
+
+    final buffer = StringBuffer();
+    final closers = <String>[];
+    var inString = false;
+    var isEscaped = false;
+
+    for (var i = 0; i < candidate.length; i++) {
+      final char = candidate[i];
+      buffer.write(char);
+
+      if (inString) {
+        if (isEscaped) {
+          isEscaped = false;
+          continue;
+        }
+        if (char == r'\') {
+          isEscaped = true;
+          continue;
+        }
+        if (char == '"') {
+          inString = false;
+        }
+        continue;
+      }
+
+      if (char == '"') {
+        inString = true;
+        continue;
+      }
+      if (char == '{') {
+        closers.add('}');
+      } else if (char == '[') {
+        closers.add(']');
+      } else if (char == '}' || char == ']') {
+        if (closers.isNotEmpty && closers.last == char) {
+          closers.removeLast();
+        }
+      }
+    }
+
+    var repaired = buffer.toString().trimRight();
+    if (inString && !isEscaped) {
+      repaired = '$repaired"';
+    }
+    repaired = repaired.replaceFirst(RegExp(r'[\s,:]+$'), '');
+    if (repaired.isEmpty) {
+      return null;
+    }
+    if (repaired.endsWith('"') && repaired.split('"').length.isOdd) {
+      repaired = '$repaired"';
+    }
+
+    for (final closer in closers.reversed) {
+      repaired = '$repaired$closer';
+    }
+    return repaired;
+  }
+
+  bool _isCompletionTruncated(String finishReason) {
+    final normalized = finishReason.trim().toLowerCase();
+    return normalized == 'length';
+  }
+
   ConversationWorkflowStage? _parseWorkflowStage(Object? rawStage) {
     final normalized = rawStage?.toString().trim().toLowerCase();
     return switch (normalized) {
       'clarify' => ConversationWorkflowStage.clarify,
+      'clarification' => ConversationWorkflowStage.clarify,
+      'question' => ConversationWorkflowStage.clarify,
+      'questions' => ConversationWorkflowStage.clarify,
+      '確認' => ConversationWorkflowStage.clarify,
       'plan' => ConversationWorkflowStage.plan,
+      'planning' => ConversationWorkflowStage.plan,
+      '計画' => ConversationWorkflowStage.plan,
       'tasks' => ConversationWorkflowStage.tasks,
+      'task' => ConversationWorkflowStage.tasks,
+      'tasking' => ConversationWorkflowStage.tasks,
+      'タスク' => ConversationWorkflowStage.tasks,
+      'タスク化' => ConversationWorkflowStage.tasks,
       'implement' => ConversationWorkflowStage.implement,
+      'implementation' => ConversationWorkflowStage.implement,
+      'coding' => ConversationWorkflowStage.implement,
+      '実装' => ConversationWorkflowStage.implement,
       'review' => ConversationWorkflowStage.review,
+      'validation' => ConversationWorkflowStage.review,
+      'レビュー' => ConversationWorkflowStage.review,
       _ => null,
     };
   }
@@ -592,6 +813,368 @@ class ChatNotifier extends Notifier<ChatState> {
         .where((item) => item.isNotEmpty)
         .take(6)
         .toList(growable: false);
+  }
+
+  WorkflowProposalDraft? _parseWorkflowProposalMap(
+    Map<String, dynamic> decoded,
+  ) {
+    final workflowStage =
+        _parseWorkflowStage(
+          decoded['workflowStage'] ??
+              decoded['stage'] ??
+              decoded['workflow_stage'] ??
+              decoded['ワークフローステージ'] ??
+              decoded['ステージ'],
+        ) ??
+        _inferWorkflowStageFromProposal(decoded);
+    if (workflowStage == null ||
+        workflowStage == ConversationWorkflowStage.idle) {
+      return null;
+    }
+
+    final workflowSpec = ConversationWorkflowSpec(
+      goal: _asCleanString(decoded['goal'] ?? decoded['目的']),
+      constraints: _asStringList(decoded['constraints'] ?? decoded['制約']),
+      acceptanceCriteria: _asStringList(
+        decoded['acceptanceCriteria'] ??
+            decoded['acceptance_criteria'] ??
+            decoded['acceptance'] ??
+            decoded['完了条件'],
+      ),
+      openQuestions: _asStringList(
+        decoded['openQuestions'] ??
+            decoded['open_questions'] ??
+            decoded['questions'] ??
+            decoded['未解決の確認事項'],
+      ),
+    );
+
+    if (!workflowSpec.hasContent) {
+      return null;
+    }
+
+    return WorkflowProposalDraft(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+    );
+  }
+
+  WorkflowTaskProposalDraft? _parseTaskProposalMap(
+    Map<String, dynamic> decoded,
+  ) {
+    final rawTasks = decoded['tasks'] ?? decoded['taskList'] ?? decoded['タスク'];
+    if (rawTasks is! List) return null;
+
+    final tasks = <ConversationWorkflowTask>[];
+    for (final entry in rawTasks.take(6)) {
+      if (entry is! Map) continue;
+      final item = Map<String, dynamic>.from(entry);
+      final title = _asCleanString(
+        item['title'] ?? item['task'] ?? item['taskTitle'] ?? item['タスク名'],
+      );
+      if (title.isEmpty) continue;
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: title,
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: _asStringList(
+            item['targetFiles'] ?? item['files'] ?? item['対象ファイル'],
+          ),
+          validationCommand: _asCleanString(
+            item['validationCommand'] ?? item['validation'] ?? item['確認コマンド'],
+          ),
+          notes: _asCleanString(item['notes'] ?? item['memo'] ?? item['メモ']),
+        ),
+      );
+    }
+
+    if (tasks.isEmpty) return null;
+    return WorkflowTaskProposalDraft(tasks: tasks);
+  }
+
+  WorkflowProposalDraft? _parseWorkflowProposalFromSections(String rawContent) {
+    final sections = _collectProposalSections(rawContent);
+    final workflowStage =
+        _parseWorkflowStage(sections['workflowStage']?.firstOrNull) ??
+        _inferWorkflowStageFromSectionKeys(sections);
+    if (workflowStage == null ||
+        workflowStage == ConversationWorkflowStage.idle) {
+      return null;
+    }
+
+    final workflowSpec = ConversationWorkflowSpec(
+      goal: sections['goal']?.join(' ').trim() ?? '',
+      constraints: sections['constraints'] ?? const [],
+      acceptanceCriteria: sections['acceptanceCriteria'] ?? const [],
+      openQuestions: sections['openQuestions'] ?? const [],
+    );
+    if (!workflowSpec.hasContent) {
+      return null;
+    }
+
+    return WorkflowProposalDraft(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+    );
+  }
+
+  WorkflowTaskProposalDraft? _parseTaskProposalFromSections(String rawContent) {
+    final tasks = <ConversationWorkflowTask>[];
+    String currentTitle = '';
+    final currentTargetFiles = <String>[];
+    String currentValidationCommand = '';
+    String currentNotes = '';
+    String? currentField;
+
+    void commitCurrentTask() {
+      final normalizedTitle = currentTitle.trim();
+      if (normalizedTitle.isEmpty) return;
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: normalizedTitle,
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: List<String>.from(currentTargetFiles),
+          validationCommand: currentValidationCommand.trim(),
+          notes: currentNotes.trim(),
+        ),
+      );
+      currentTitle = '';
+      currentTargetFiles.clear();
+      currentValidationCommand = '';
+      currentNotes = '';
+      currentField = null;
+    }
+
+    for (final rawLine in rawContent.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      final taskTitle = _matchTaskTitleLine(line, currentField: currentField);
+      if (taskTitle != null) {
+        commitCurrentTask();
+        currentTitle = taskTitle;
+        currentField = null;
+        continue;
+      }
+
+      final taskField = _matchTaskFieldLine(line);
+      if (taskField != null) {
+        currentField = taskField.$1;
+        final value = _stripMarkdownListMarker(taskField.$2);
+        if (value.isNotEmpty) {
+          switch (currentField) {
+            case 'targetFiles':
+              currentTargetFiles.add(value);
+              break;
+            case 'validationCommand':
+              currentValidationCommand = value;
+              break;
+            case 'notes':
+              currentNotes = _appendTextValue(currentNotes, value);
+              break;
+          }
+        }
+        continue;
+      }
+
+      if (currentTitle.isEmpty || currentField == null) {
+        continue;
+      }
+
+      final value = _stripMarkdownListMarker(line);
+      if (value.isEmpty) continue;
+      switch (currentField) {
+        case 'targetFiles':
+          currentTargetFiles.add(value);
+          break;
+        case 'validationCommand':
+          currentValidationCommand = _appendTextValue(
+            currentValidationCommand,
+            value,
+          );
+          break;
+        case 'notes':
+          currentNotes = _appendTextValue(currentNotes, value);
+          break;
+      }
+    }
+
+    commitCurrentTask();
+    if (tasks.isEmpty) return null;
+    return WorkflowTaskProposalDraft(tasks: tasks.take(6).toList());
+  }
+
+  Map<String, List<String>> _collectProposalSections(String rawContent) {
+    final sections = <String, List<String>>{
+      'workflowStage': <String>[],
+      'goal': <String>[],
+      'constraints': <String>[],
+      'acceptanceCriteria': <String>[],
+      'openQuestions': <String>[],
+    };
+
+    String? currentSection;
+    for (final rawLine in rawContent.split(RegExp(r'\r?\n'))) {
+      final line = rawLine.trim();
+      if (line.isEmpty) continue;
+
+      final match = _matchWorkflowSectionLine(line);
+      if (match != null) {
+        currentSection = match.$1;
+        final value = _stripMarkdownListMarker(match.$2);
+        if (value.isNotEmpty) {
+          sections[currentSection]!.add(value);
+        }
+        continue;
+      }
+
+      if (currentSection == null) continue;
+      final value = _stripMarkdownListMarker(line);
+      if (value.isEmpty) continue;
+      sections[currentSection]!.add(value);
+    }
+    return sections;
+  }
+
+  (String, String)? _matchWorkflowSectionLine(String line) {
+    final normalizedLine = line.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+    for (final entry in {
+      'workflowStage': ['workflow stage', 'stage', 'ワークフローステージ', 'ステージ'],
+      'goal': ['goal', '目的'],
+      'constraints': ['constraints', 'constraint', '制約'],
+      'acceptanceCriteria': [
+        'acceptance criteria',
+        'acceptance',
+        '完了条件',
+        '受け入れ条件',
+      ],
+      'openQuestions': ['open questions', 'questions', '未解決の確認事項', '確認事項'],
+    }.entries) {
+      for (final label in entry.value) {
+        final inlineMatch = RegExp(
+          '^(?:[-*]\\s*)?${RegExp.escape(label)}\\s*[:：-]\\s*(.*)\$',
+          caseSensitive: false,
+        ).firstMatch(normalizedLine);
+        if (inlineMatch != null) {
+          return (entry.key, inlineMatch.group(1)?.trim() ?? '');
+        }
+        if (normalizedLine.toLowerCase() == label.toLowerCase()) {
+          return (entry.key, '');
+        }
+      }
+    }
+    return null;
+  }
+
+  ConversationWorkflowStage? _inferWorkflowStageFromSectionKeys(
+    Map<String, List<String>> sections,
+  ) {
+    if ((sections['openQuestions'] ?? const []).isNotEmpty) {
+      return ConversationWorkflowStage.clarify;
+    }
+    if ((sections['acceptanceCriteria'] ?? const []).isNotEmpty ||
+        (sections['constraints'] ?? const []).isNotEmpty ||
+        (sections['goal'] ?? const []).isNotEmpty) {
+      return ConversationWorkflowStage.plan;
+    }
+    return null;
+  }
+
+  String _normalizeProposalContent(String rawContent) {
+    return rawContent
+        .replaceAll(
+          RegExp(
+            r'<(?:think|thinking|thought)>[\s\S]*?</(?:think|thinking|thought)>',
+            caseSensitive: false,
+          ),
+          ' ',
+        )
+        .replaceAll(
+          RegExp(r'</?(?:think|thinking|thought)>', caseSensitive: false),
+          ' ',
+        )
+        .trim();
+  }
+
+  String _stripMarkdownListMarker(String value) {
+    return value.replaceFirst(RegExp(r'^(?:[-*•]|\d+[.)])\s*'), '').trim();
+  }
+
+  String _appendTextValue(String current, String next) {
+    if (current.isEmpty) return next;
+    return '$current $next';
+  }
+
+  String _proposalPreview(String rawContent) {
+    final normalized = _normalizeProposalContent(
+      rawContent,
+    ).replaceAll(RegExp(r'\s+'), ' ');
+    if (normalized.length <= 220) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 220)}...';
+  }
+
+  String? _matchTaskTitleLine(String line, {String? currentField}) {
+    final normalizedLine = line.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+    final labeledMatch = RegExp(
+      r'^(?:title|task title|task|タイトル|タスク名)\s*[:：-]\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(normalizedLine);
+    if (labeledMatch != null) {
+      final value = _stripMarkdownListMarker(labeledMatch.group(1) ?? '');
+      return value.isEmpty ? null : value;
+    }
+
+    final bulletMatch = RegExp(
+      r'^([-*•]|\d+[.)])\s+(.+)$',
+    ).firstMatch(normalizedLine);
+    if (bulletMatch == null) return null;
+    final marker = bulletMatch.group(1) ?? '';
+    if (currentField != null && !RegExp(r'^\d+[.)]$').hasMatch(marker)) {
+      return null;
+    }
+
+    final candidate = (bulletMatch.group(2) ?? '').trim();
+    final lowerCandidate = candidate.toLowerCase();
+    if (lowerCandidate.startsWith('target files') ||
+        lowerCandidate.startsWith('validation') ||
+        lowerCandidate.startsWith('notes') ||
+        lowerCandidate.startsWith('files') ||
+        candidate.startsWith('対象ファイル') ||
+        candidate.startsWith('確認コマンド') ||
+        candidate.startsWith('メモ')) {
+      return null;
+    }
+    return candidate;
+  }
+
+  (String, String)? _matchTaskFieldLine(String line) {
+    final normalizedLine = line.replaceFirst(RegExp(r'^#+\s*'), '').trim();
+    for (final entry in {
+      'targetFiles': ['target files', 'files', '対象ファイル'],
+      'validationCommand': [
+        'validation command',
+        'validation',
+        'check',
+        '確認コマンド',
+        '確認方法',
+      ],
+      'notes': ['notes', 'memo', 'メモ'],
+    }.entries) {
+      for (final label in entry.value) {
+        final match = RegExp(
+          '^(?:[-*]\\s*)?${RegExp.escape(label)}\\s*[:：-]\\s*(.*)\$',
+          caseSensitive: false,
+        ).firstMatch(normalizedLine);
+        if (match != null) {
+          return (entry.key, match.group(1)?.trim() ?? '');
+        }
+      }
+    }
+    return null;
   }
 
   String _proposalLanguageName(String languageCode) {
@@ -856,20 +1439,10 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     try {
-      final result = await _dataSource.createChatCompletion(
-        messages: _buildWorkflowProposalMessages(
-          currentConversation: currentConversation,
-          languageCode: languageCode,
-        ),
-        model: _settings.model,
-        temperature: 0.2,
-        maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+      final proposal = await _requestWorkflowProposal(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
       );
-
-      final proposal = _parseWorkflowProposal(result.content);
-      if (proposal == null) {
-        throw const FormatException('workflow proposal json parse failed');
-      }
       if (!ref.mounted) return;
 
       state = state.copyWith(
@@ -905,20 +1478,10 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     try {
-      final result = await _dataSource.createChatCompletion(
-        messages: _buildTaskProposalMessages(
-          currentConversation: currentConversation,
-          languageCode: languageCode,
-        ),
-        model: _settings.model,
-        temperature: 0.2,
-        maxTokens: _settings.maxTokens > 1400 ? 1400 : _settings.maxTokens,
+      final proposal = await _requestTaskProposal(
+        currentConversation: currentConversation,
+        languageCode: languageCode,
       );
-
-      final proposal = _parseTaskProposal(result.content);
-      if (proposal == null) {
-        throw const FormatException('task proposal json parse failed');
-      }
       if (!ref.mounted) return;
 
       state = state.copyWith(
