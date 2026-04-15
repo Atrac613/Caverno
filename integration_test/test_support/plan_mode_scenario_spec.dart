@@ -1283,6 +1283,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         PlanModeArtifactExpectation(path: 'requirements.txt'),
         PlanModeArtifactExpectation(path: 'README.md'),
       ],
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        taskCount: 2,
+        firstTaskTitle: 'Create requirements.txt',
+      ),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
           pattern: '[LLM] ========== createChatCompletion ==========',

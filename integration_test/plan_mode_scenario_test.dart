@@ -378,6 +378,30 @@ void _assertArtifactExpectations(
   }
 }
 
+Future<void> _waitForArtifactExpectations(
+  WidgetTester tester,
+  Directory scenarioDir,
+  List<PlanModeArtifactExpectation> expectations, {
+  Duration timeout = const Duration(seconds: 20),
+}) async {
+  final requiredFiles = expectations
+      .where((item) => item.shouldExist)
+      .map((item) => File('${scenarioDir.path}/${item.path}'))
+      .toList(growable: false);
+  if (requiredFiles.isEmpty) {
+    return;
+  }
+
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final allPresent = requiredFiles.every((file) => file.existsSync());
+    if (allPresent) {
+      return;
+    }
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+}
+
 void _assertLogExpectations(
   List<String> logs,
   List<PlanModeLogExpectation> expectations,
@@ -637,6 +661,16 @@ Future<_ScenarioRunResult> _runScenario({
   await tester.ensureVisible(approveFinder);
   await tester.tap(approveFinder, warnIfMissed: false);
   await tester.pump();
+  await tester.pumpAndSettle();
+
+  await _waitForArtifactExpectations(
+    tester,
+    scenarioDir,
+    scenario.resolvedArtifactExpectations,
+    timeout: config.usesLiveLlm
+        ? const Duration(seconds: 30)
+        : const Duration(seconds: 5),
+  );
   await tester.pumpAndSettle();
 
   _assertArtifactExpectations(
