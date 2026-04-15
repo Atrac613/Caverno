@@ -288,6 +288,44 @@ List<String> _listScenarioScreenshotPaths(Directory scenarioDir) {
   return screenshots;
 }
 
+Future<void> _writeFailureScenarioArtifacts({
+  required PlanModeScenarioSpec scenario,
+  required Directory scenarioDir,
+  required List<String> logs,
+  required Object error,
+  required StackTrace stackTrace,
+}) async {
+  final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
+  final filteredLogs = logs
+      .where(
+        (line) =>
+            line.contains('[ScenarioLLM]') ||
+            line.contains('[Tool]') ||
+            line.contains('[LLM]') ||
+            line.contains('[ContentTool]') ||
+            line.contains('[Screenshot]') ||
+            line.contains('[Workflow]'),
+      )
+      .toList(growable: false);
+
+  final logFile = File('${scenarioDir.path}/scenario_log.txt');
+  await logFile.writeAsString('${logs.join('\n')}\n');
+
+  final report = <String, Object?>{
+    'scenario': scenario.name,
+    'status': 'failed',
+    'projectRoot': scenarioDir.path,
+    'error': error.toString(),
+    'stackTrace': stackTrace.toString(),
+    'screenshots': screenshotPaths,
+    'capturedLogs': filteredLogs,
+  };
+  final reportFile = File('${scenarioDir.path}/scenario_report.json');
+  await reportFile.writeAsString(
+    const JsonEncoder.withIndent('  ').convert(report),
+  );
+}
+
 Future<_ScenarioRunResult> _runScenario({
   required WidgetTester tester,
   required IntegrationTestWidgetsFlutterBinding binding,
@@ -584,6 +622,7 @@ void main() {
         );
         _ScenarioRunResult? runResult;
         Object? failure;
+        StackTrace? failureStackTrace;
         try {
           runResult = await _runScenario(
             tester: tester,
@@ -594,11 +633,21 @@ void main() {
             scenario: scenario,
             scenarioDir: scenarioDir,
           );
-        } catch (error) {
+        } catch (error, stackTrace) {
           failure = error;
+          failureStackTrace = stackTrace;
           rethrow;
         } finally {
           final finishedAt = DateTime.now();
+          if (failure != null && failureStackTrace != null) {
+            await _writeFailureScenarioArtifacts(
+              scenario: scenario,
+              scenarioDir: scenarioDir,
+              logs: logs,
+              error: failure,
+              stackTrace: failureStackTrace,
+            );
+          }
           final archivedScenarioDir = Directory(
             '${suiteRunDirectory.path}/${scenario.name}',
           );
@@ -632,6 +681,7 @@ void main() {
                 : null,
             'screenshots': archivedScreenshotPaths,
             'error': failure?.toString(),
+            'stackTrace': failureStackTrace?.toString(),
           });
         }
       });
