@@ -684,7 +684,9 @@ class McpToolService {
     }
 
     if (name == 'local_execute_command') {
-      final command = (arguments['command'] as String?)?.trim() ?? '';
+      final command = LocalShellTools.normalizeCommand(
+        (arguments['command'] as String?)?.trim() ?? '',
+      );
       final workingDirectory =
           (arguments['working_directory'] as String?)?.trim() ?? '';
       if (command.isEmpty || workingDirectory.isEmpty) {

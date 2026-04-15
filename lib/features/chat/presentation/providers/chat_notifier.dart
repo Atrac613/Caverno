@@ -2566,6 +2566,12 @@ class ChatNotifier extends Notifier<ChatState> {
           aliases: const ['cwd'],
         );
         final resolvedArguments = <String, dynamic>{...arguments};
+        final command = (resolvedArguments['command'] as String?)?.trim();
+        if (command != null && command.isNotEmpty) {
+          resolvedArguments['command'] = LocalShellTools.normalizeCommand(
+            command,
+          );
+        }
         if (resolvedWorkingDirectory != null) {
           resolvedArguments['working_directory'] = resolvedWorkingDirectory;
         }
@@ -3986,7 +3992,9 @@ class ChatNotifier extends Notifier<ChatState> {
       toolCall.name,
       toolCall.arguments,
     );
-    final command = (resolvedArguments['command'] as String?)?.trim() ?? '';
+    final command = LocalShellTools.normalizeCommand(
+      (resolvedArguments['command'] as String?)?.trim() ?? '',
+    );
     final workingDirectory =
         (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
     if (command.isEmpty || workingDirectory.isEmpty) {
@@ -3999,16 +4007,22 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
+    final localArguments = {
+      ...resolvedArguments,
+      'command': command,
+      'working_directory': workingDirectory,
+    };
+
     if (LocalShellTools.isReadOnly(command)) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
-        arguments: resolvedArguments,
+        arguments: localArguments,
       );
     }
 
     final cachedResult = _lookupToolApprovalResult(
       toolCall.name,
-      resolvedArguments,
+      localArguments,
     );
     if (cachedResult != null) {
       return cachedResult;
@@ -4017,7 +4031,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_settings.confirmLocalCommands) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
-        arguments: resolvedArguments,
+        arguments: localArguments,
       );
     }
 
@@ -4029,7 +4043,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!approved) {
       return _rememberToolApprovalResult(
         toolCall.name,
-        resolvedArguments,
+        localArguments,
         McpToolResult(
           toolName: toolCall.name,
           result: '',
@@ -4041,13 +4055,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final result = await _mcpToolService!.executeTool(
       name: toolCall.name,
-      arguments: resolvedArguments,
+      arguments: localArguments,
     );
-    return _rememberToolApprovalResult(
-      toolCall.name,
-      resolvedArguments,
-      result,
-    );
+    return _rememberToolApprovalResult(toolCall.name, localArguments, result);
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {

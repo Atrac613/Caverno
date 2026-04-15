@@ -5,6 +5,13 @@ import 'package:caverno/features/chat/data/datasources/local_shell_tools.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  test('normalizes model control tokens from commands', () {
+    expect(
+      LocalShellTools.normalizeCommand('<|"|>pip install psutil<|"|>'),
+      'pip install psutil',
+    );
+  });
+
   test('marks simple inspection commands as read-only', () {
     expect(LocalShellTools.isReadOnly('pwd'), isTrue);
     expect(LocalShellTools.isReadOnly('ls -la'), isTrue);

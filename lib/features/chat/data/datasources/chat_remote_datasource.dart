@@ -738,8 +738,8 @@ class ChatRemoteDataSource implements ChatDataSource {
       try {
         final argsStr = tc.function.arguments;
         if (argsStr.isNotEmpty) {
-          args = Map<String, dynamic>.from(
-            dart_convert.jsonDecode(argsStr) as Map,
+          args = ContentParser.sanitizeToolArguments(
+            Map<String, dynamic>.from(dart_convert.jsonDecode(argsStr) as Map),
           );
         }
       } catch (e) {

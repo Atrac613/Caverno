@@ -58,7 +58,7 @@ class ParseResult {
 /// Parses `\<think>` and `\<tool_call>` tags in LLM responses.
 class ContentParser {
   static final _modelControlTokenPattern = RegExp(
-    r'<(?:\|/?[a-zA-Z_][a-zA-Z0-9_-]*\|?|/?[a-zA-Z_][a-zA-Z0-9_-]*\|)>',
+    r'<(?:\|[^>]*\|?|/?[a-zA-Z_][a-zA-Z0-9_-]*\|)>',
   );
 
   static final _structuralTagPattern = RegExp(
@@ -366,7 +366,10 @@ class ContentParser {
       // {"name": "web_search", "arguments": {"query": "..."}}
       final json = jsonDecode(trimmed) as Map<String, dynamic>;
       final name = json['name'] as String?;
-      final arguments = json['arguments'] as Map<String, dynamic>?;
+      final rawArguments = json['arguments'];
+      final arguments = rawArguments is Map
+          ? Map<String, dynamic>.from(rawArguments)
+          : null;
 
       if (name != null) {
         final flattenedArguments = <String, dynamic>{};
@@ -379,7 +382,7 @@ class ContentParser {
 
         return ToolCallData(
           name: name,
-          arguments: arguments ?? flattenedArguments,
+          arguments: sanitizeToolArguments(arguments ?? flattenedArguments),
           isComplete: true,
         );
       }
@@ -396,7 +399,11 @@ class ContentParser {
       final objectLiteral = controlCallMatch.group(2)!;
       final arguments = _parseLooseObjectLiteral(objectLiteral);
       if (arguments != null) {
-        return ToolCallData(name: name, arguments: arguments, isComplete: true);
+        return ToolCallData(
+          name: name,
+          arguments: sanitizeToolArguments(arguments),
+          isComplete: true,
+        );
       }
     }
 
@@ -413,7 +420,7 @@ class ContentParser {
       final argValue = xmlMatch.group(3)!.trim();
       return ToolCallData(
         name: name,
-        arguments: {argKey: argValue},
+        arguments: sanitizeToolArguments({argKey: argValue}),
         isComplete: true,
       );
     }
@@ -426,7 +433,7 @@ class ContentParser {
     if (simpleMatch != null) {
       return ToolCallData(
         name: simpleMatch.group(1)!,
-        arguments: {'query': simpleMatch.group(2)},
+        arguments: sanitizeToolArguments({'query': simpleMatch.group(2)}),
         isComplete: true,
       );
     }
@@ -444,9 +451,9 @@ class ContentParser {
     if (nameMatch != null) {
       return ToolCallData(
         name: nameMatch.group(1)!,
-        arguments: queryMatch != null
-            ? {'query': queryMatch.group(1)!.trim()}
-            : {},
+        arguments: sanitizeToolArguments(
+          queryMatch != null ? {'query': queryMatch.group(1)!.trim()} : {},
+        ),
         isComplete: true,
       );
     }
@@ -461,7 +468,7 @@ class ContentParser {
         if (queryText.isNotEmpty) {
           return ToolCallData(
             name: possibleName,
-            arguments: {'query': queryText},
+            arguments: sanitizeToolArguments({'query': queryText}),
             isComplete: true,
           );
         }
@@ -475,6 +482,32 @@ class ContentParser {
     return text
         .replaceAll(_modelControlTokenPattern, '')
         .replaceAll(_structuralTagPattern, '');
+  }
+
+  static Map<String, dynamic> sanitizeToolArguments(Map<String, dynamic> args) {
+    return Map<String, dynamic>.from(
+      args.map(
+        (key, value) => MapEntry(key, _sanitizeToolArgumentValue(value)),
+      ),
+    );
+  }
+
+  static dynamic _sanitizeToolArgumentValue(dynamic value) {
+    if (value is String) {
+      return value.replaceAll(_modelControlTokenPattern, '');
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(
+        value.map(
+          (key, nestedValue) =>
+              MapEntry(key.toString(), _sanitizeToolArgumentValue(nestedValue)),
+        ),
+      );
+    }
+    if (value is List) {
+      return value.map(_sanitizeToolArgumentValue).toList(growable: false);
+    }
+    return value;
   }
 
   static Map<String, dynamic>? _parseLooseObjectLiteral(String source) {

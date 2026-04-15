@@ -10,12 +10,17 @@ class LocalShellTools {
 
   static const int _maxOutputChars = 12000;
   static const Duration _timeout = Duration(seconds: 60);
+  static final RegExp _modelControlTokenPattern = RegExp(r'<\|[^>]*\|>');
 
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
+  static String normalizeCommand(String command) {
+    return command.replaceAll(_modelControlTokenPattern, '').trim();
+  }
+
   static bool isReadOnly(String command) {
-    final trimmed = command.trim();
+    final trimmed = normalizeCommand(command);
     if (trimmed.isEmpty) return false;
 
     final chainedCommands = _splitConditionalCommands(trimmed);
@@ -27,11 +32,11 @@ class LocalShellTools {
   }
 
   static bool _isSingleReadOnlyCommand(String command) {
-    final trimmed = command.trim();
+    final trimmed = normalizeCommand(command);
     if (trimmed.isEmpty) return false;
     if (_hasUnsafeShellSyntax(trimmed)) return false;
 
-    final args = GitTools.splitArgs(trimmed);
+    final args = _splitArgs(trimmed);
     if (args.isEmpty) return false;
 
     final executable = args.first;
@@ -64,16 +69,22 @@ class LocalShellTools {
       });
     }
 
-    final trimmed = command.trim();
-    if (_canExecuteInternally(trimmed)) {
+    final normalizedCommand = normalizeCommand(command);
+    if (normalizedCommand.isEmpty) {
+      return jsonEncode({'error': 'Command is required'});
+    }
+
+    if (_canExecuteInternally(normalizedCommand)) {
       return _executeInternally(
-        command: trimmed,
+        command: normalizedCommand,
         workingDirectory: directory.absolute.path,
       );
     }
 
     final shellExecutable = Platform.isWindows ? 'cmd' : 'sh';
-    final shellArgs = Platform.isWindows ? ['/C', command] : ['-c', command];
+    final shellArgs = Platform.isWindows
+        ? ['/C', normalizedCommand]
+        : ['-c', normalizedCommand];
 
     try {
       final result = await Process.run(
@@ -88,7 +99,7 @@ class LocalShellTools {
       final stderrTruncated = stderr.length > _maxOutputChars;
 
       return jsonEncode({
-        'command': command,
+        'command': normalizedCommand,
         'working_directory': directory.absolute.path,
         'exit_code': result.exitCode,
         'stdout': stdoutTruncated
@@ -102,13 +113,13 @@ class LocalShellTools {
       });
     } on TimeoutException {
       return jsonEncode({
-        'command': command,
+        'command': normalizedCommand,
         'working_directory': directory.absolute.path,
         'error': 'Command timed out after ${_timeout.inSeconds} seconds.',
       });
     } catch (e) {
       return jsonEncode({
-        'command': command,
+        'command': normalizedCommand,
         'working_directory': directory.absolute.path,
         'error': e.toString(),
       });
@@ -127,7 +138,7 @@ class LocalShellTools {
   }
 
   static bool _canExecuteSingleCommandInternally(String command) {
-    final args = GitTools.splitArgs(command.trim());
+    final args = _splitArgs(command.trim());
     if (args.isEmpty) return false;
 
     return switch (args.first) {
@@ -235,7 +246,7 @@ class LocalShellTools {
     String command, {
     required String workingDirectory,
   }) async {
-    final args = GitTools.splitArgs(command);
+    final args = _splitArgs(command);
     if (args.isEmpty) {
       return const _LocalCommandResult(exitCode: 1, stderr: 'Empty command\n');
     }
@@ -261,6 +272,47 @@ class LocalShellTools {
         stderr: 'Unsupported internal command: ${args.first}\n',
       ),
     };
+  }
+
+  static List<String> _splitArgs(String command) {
+    command = normalizeCommand(command);
+    final args = <String>[];
+    final buffer = StringBuffer();
+    String? quoteChar;
+
+    for (var i = 0; i < command.length; i++) {
+      final c = command[i];
+
+      if (quoteChar != null) {
+        if (c == quoteChar) {
+          quoteChar = null;
+        } else {
+          buffer.writeCharCode(c.codeUnitAt(0));
+        }
+        continue;
+      }
+
+      if (c == '"' || c == "'") {
+        quoteChar = c;
+        continue;
+      }
+
+      if (c == ' ' || c == '\t') {
+        if (buffer.isNotEmpty) {
+          args.add(buffer.toString());
+          buffer.clear();
+        }
+        continue;
+      }
+
+      buffer.writeCharCode(c.codeUnitAt(0));
+    }
+
+    if (buffer.isNotEmpty) {
+      args.add(buffer.toString());
+    }
+
+    return args;
   }
 
   static Future<_LocalCommandResult> _executeCat(

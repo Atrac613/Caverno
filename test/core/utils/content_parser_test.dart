@@ -71,6 +71,21 @@ void main() {
     expect(toolCalls.first.arguments['working_directory'], '/tmp/project');
   });
 
+  test(
+    'extractCompletedToolCalls strips model control tokens from command args',
+    () {
+      const content =
+          'call:local_execute_command{command:<|"|>pip install psutil<|"|>,working_directory:"/tmp/project"}';
+
+      final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+      expect(toolCalls, hasLength(1));
+      expect(toolCalls.first.name, 'local_execute_command');
+      expect(toolCalls.first.arguments['command'], 'pip install psutil');
+      expect(toolCalls.first.arguments['working_directory'], '/tmp/project');
+    },
+  );
+
   test('extractCompletedToolCalls tolerates nested quotes in bare call args', () {
     const content =
         'call:git_execute_command{command:"git commit -m "Add tokyo_weather_next_week.csv"",working_directory:"/Users/noguwo/Documents/Workspace/tmp"}';
