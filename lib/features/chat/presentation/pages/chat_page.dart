@@ -9,6 +9,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/git_tools.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -503,6 +504,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return '${(count / 1000).toStringAsFixed(1)}k';
     }
     return count.toString();
+  }
+
+  String _formatGitCommandForDisplay(String command) {
+    final normalized = GitTools.normalizeCommand(command);
+    if (normalized.isEmpty) {
+      return 'git';
+    }
+    return 'git $normalized';
   }
 
   Future<void> _showSshConnectDialog(
@@ -1287,7 +1296,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         const SizedBox(width: 10),
                         Expanded(
                           child: SelectableText(
-                            'git ${pending.command}',
+                            _formatGitCommandForDisplay(pending.command),
                             style: TextStyle(
                               fontFamily: 'monospace',
                               fontSize: 14,

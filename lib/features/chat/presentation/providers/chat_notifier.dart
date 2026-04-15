@@ -1757,10 +1757,12 @@ class ChatNotifier extends Notifier<ChatState> {
     final accessFailure = await _ensureActiveProjectAccess(toolCall.name);
     if (accessFailure != null) return accessFailure;
 
-    final command = (toolCall.arguments['command'] as String?)?.trim() ?? '';
     final resolvedArguments = _resolveProjectScopedArguments(
       toolCall.name,
       toolCall.arguments,
+    );
+    final command = GitTools.normalizeCommand(
+      (resolvedArguments['command'] as String?)?.trim() ?? '',
     );
     final requestedWorkingDirectory =
         (resolvedArguments['working_directory'] as String?)?.trim() ?? '';
@@ -1778,6 +1780,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final gitArguments = {
       ...resolvedArguments,
+      'command': command,
       'working_directory': workingDirectory,
     };
 

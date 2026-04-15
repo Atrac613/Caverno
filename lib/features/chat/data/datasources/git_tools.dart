@@ -9,6 +9,7 @@ import 'dart:io';
 class GitTools {
   /// Maximum characters returned for stdout/stderr.
   static const int _kMaxOutputChars = 8000;
+  static final RegExp _modelControlTokenPattern = RegExp(r'<\|[^>]*\|>');
 
   /// Timeout for git command execution.
   static const Duration _kTimeout = Duration(seconds: 30);
@@ -85,14 +86,45 @@ class GitTools {
     }
   }
 
+  /// Normalizes a git command provided by an LLM or UI layer.
+  ///
+  /// The built-in git tool expects subcommands without the leading `git`
+  /// binary name, but some models still emit `git status` or wrap segments
+  /// in control tokens like `<|"|>`. Strip those artifacts so approval
+  /// dialogs and execution both operate on the intended subcommand.
+  static String normalizeCommand(String command) {
+    var normalized = command.replaceAll(_modelControlTokenPattern, ' ').trim();
+
+    while (true) {
+      final lower = normalized.toLowerCase();
+      if (lower == 'git') {
+        return '';
+      }
+      if (!lower.startsWith('git ')) {
+        break;
+      }
+      normalized = normalized.substring(3).trimLeft();
+    }
+
+    normalized = normalized.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return normalized;
+  }
+
   /// `git branch` is read-only when listing (no create/delete/rename flags
   /// and no positional branch-name argument that would create a branch).
   static bool _isBranchReadOnly(List<String> args) {
     const writeFlags = {
-      '-d', '-D', '--delete',
-      '-m', '-M', '--move',
-      '-c', '-C', '--copy',
-      '--set-upstream-to', '-u',
+      '-d',
+      '-D',
+      '--delete',
+      '-m',
+      '-M',
+      '--move',
+      '-c',
+      '-C',
+      '--copy',
+      '--set-upstream-to',
+      '-u',
       '--unset-upstream',
       '--edit-description',
     };
@@ -134,8 +166,11 @@ class GitTools {
   /// `git config` is read-only for get/list operations only.
   static bool _isConfigReadOnly(List<String> args) {
     const readFlags = {
-      '--get', '--get-all', '--get-regexp',
-      '--list', '-l',
+      '--get',
+      '--get-all',
+      '--get-regexp',
+      '--list',
+      '-l',
       '--get-urlmatch',
     };
     for (var i = 1; i < args.length; i++) {
@@ -157,6 +192,8 @@ class GitTools {
     required String command,
     required String workingDirectory,
   }) async {
+    final normalizedCommand = normalizeCommand(command);
+
     // Validate working directory.
     final dir = Directory(workingDirectory);
     if (!dir.existsSync()) {
@@ -167,23 +204,18 @@ class GitTools {
 
     // Verify it is inside a git repository.
     try {
-      final check = await Process.run(
-        'git',
-        ['rev-parse', '--git-dir'],
-        workingDirectory: workingDirectory,
-      );
+      final check = await Process.run('git', [
+        'rev-parse',
+        '--git-dir',
+      ], workingDirectory: workingDirectory);
       if (check.exitCode != 0) {
-        return jsonEncode({
-          'error': 'Not a git repository: $workingDirectory',
-        });
+        return jsonEncode({'error': 'Not a git repository: $workingDirectory'});
       }
     } catch (e) {
-      return jsonEncode({
-        'error': 'Failed to verify git repository: $e',
-      });
+      return jsonEncode({'error': 'Failed to verify git repository: $e'});
     }
 
-    final args = splitArgs(command);
+    final args = splitArgs(normalizedCommand);
     if (args.isEmpty) {
       return jsonEncode({'error': 'Empty git command'});
     }
@@ -201,7 +233,7 @@ class GitTools {
       final stderrTruncated = stderr.length > _kMaxOutputChars;
 
       return jsonEncode({
-        'command': 'git $command',
+        'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'exit_code': result.exitCode,
         'stdout': stdoutTruncated
@@ -215,7 +247,7 @@ class GitTools {
       });
     } on TimeoutException {
       return jsonEncode({
-        'command': 'git $command',
+        'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'error':
             'Command timed out after ${_kTimeout.inSeconds} seconds. '
@@ -223,7 +255,7 @@ class GitTools {
       });
     } catch (e) {
       return jsonEncode({
-        'command': 'git $command',
+        'command': 'git $normalizedCommand',
         'working_directory': workingDirectory,
         'error': e.toString(),
       });
@@ -237,6 +269,7 @@ class GitTools {
   /// Splits a command string into arguments, respecting single and double
   /// quotes. Does NOT invoke a shell — this is a simple lexer.
   static List<String> splitArgs(String command) {
+    command = normalizeCommand(command);
     final args = <String>[];
     final buffer = StringBuffer();
     String? quoteChar;
