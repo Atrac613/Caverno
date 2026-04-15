@@ -71,6 +71,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   confirmFileMutations: json['confirmFileMutations'] as bool? ?? true,
   confirmLocalCommands: json['confirmLocalCommands'] as bool? ?? true,
   confirmGitWrites: json['confirmGitWrites'] as bool? ?? true,
+  showMemoryUpdates: json['showMemoryUpdates'] as bool? ?? false,
   demoMode: json['demoMode'] as bool? ?? false,
   disabledBuiltInTools:
       (json['disabledBuiltInTools'] as List<dynamic>?)
@@ -102,6 +103,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'confirmFileMutations': instance.confirmFileMutations,
       'confirmLocalCommands': instance.confirmLocalCommands,
       'confirmGitWrites': instance.confirmGitWrites,
+      'showMemoryUpdates': instance.showMemoryUpdates,
       'demoMode': instance.demoMode,
       'disabledBuiltInTools': instance.disabledBuiltInTools,
     };

@@ -74,6 +74,7 @@ abstract class AppSettings with _$AppSettings {
     @Default(true) bool confirmFileMutations,
     @Default(true) bool confirmLocalCommands,
     @Default(true) bool confirmGitWrites,
+    @Default(false) bool showMemoryUpdates,
     @Default(false) bool demoMode,
     @Default(<String>[]) List<String> disabledBuiltInTools,
   }) = _AppSettings;

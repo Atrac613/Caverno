@@ -13,6 +13,7 @@ void main() {
         apiKey: 'test-key',
         temperature: 1.5,
         maxTokens: 2048,
+        showMemoryUpdates: true,
       );
 
       final qrString = service.generateQrString(settings);
@@ -23,7 +24,10 @@ void main() {
     });
 
     test('should throw FormatException for invalid data', () {
-      expect(() => service.parseQrString('invalid-base64'), throwsA(isA<FormatException>()));
+      expect(
+        () => service.parseQrString('invalid-base64'),
+        throwsA(isA<FormatException>()),
+      );
     });
   });
 }

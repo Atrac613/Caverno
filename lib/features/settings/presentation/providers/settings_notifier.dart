@@ -65,9 +65,7 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateMcpServers(List<McpServerConfig> mcpServers) async {
-    final httpServers = mcpServers.where(
-      (s) => s.type == McpServerType.http,
-    );
+    final httpServers = mcpServers.where((s) => s.type == McpServerType.http);
     final activeUrls = AppSettings.activeMcpUrlsFromServers(httpServers);
     state = state.copyWith(
       mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
@@ -210,6 +208,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
 
   Future<void> updateConfirmGitWrites(bool value) async {
     state = state.copyWith(confirmGitWrites: value);
+    await _repository.save(state);
+  }
+
+  Future<void> updateShowMemoryUpdates(bool value) async {
+    state = state.copyWith(showMemoryUpdates: value);
     await _repository.save(state);
   }
 

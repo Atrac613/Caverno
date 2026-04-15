@@ -17,11 +17,13 @@ class ParsedContentView extends StatefulWidget {
     required this.content,
     required this.textColor,
     this.isStreaming = false,
+    this.showMemoryUpdates = false,
   });
 
   final String content;
   final Color textColor;
   final bool isStreaming;
+  final bool showMemoryUpdates;
 
   @override
   State<ParsedContentView> createState() => _ParsedContentViewState();
@@ -107,15 +109,17 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     ThemeData theme,
     int index,
   ) {
+    if (!widget.showMemoryUpdates && _isHiddenDebugSegment(segment)) {
+      return const SizedBox.shrink();
+    }
+
     switch (segment.type) {
       case ContentType.text:
         return SelectionArea(
           child: MarkdownBody(
             data: _escapeHtmlLikeTags(segment.content),
             selectable: false,
-            builders: {
-              'pre': CodeBlockBuilder(theme: theme),
-            },
+            builders: {'pre': CodeBlockBuilder(theme: theme)},
             styleSheet: MarkdownStyleSheet(
               p: TextStyle(color: widget.textColor, fontSize: 14, height: 1.5),
               h1: TextStyle(
@@ -215,6 +219,11 @@ class _ParsedContentViewState extends State<ParsedContentView> {
       case ContentType.toolResult:
         return _buildToolResultBlock(segment, theme);
     }
+  }
+
+  bool _isHiddenDebugSegment(ContentSegment segment) {
+    final toolName = segment.toolCall?.name.toLowerCase();
+    return toolName == 'memory_update';
   }
 
   Widget _buildThinkingBlock(String content, ThemeData theme, int index) {
@@ -572,11 +581,7 @@ class _ParsedContentViewState extends State<ParsedContentView> {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(
-            Icons.build,
-            size: 14,
-            color: theme.colorScheme.primary,
-          ),
+          Icon(Icons.build, size: 14, color: theme.colorScheme.primary),
           const SizedBox(width: 4),
           Text(
             'content.tool_executing'.tr(),

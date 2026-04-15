@@ -169,6 +169,7 @@ class MessageBubble extends ConsumerWidget {
                           : message.content,
                       textColor: theme.colorScheme.onSurface,
                       isStreaming: message.isStreaming,
+                      showMemoryUpdates: settings.showMemoryUpdates,
                     ),
             // Streaming indicator
             if (message.isStreaming)

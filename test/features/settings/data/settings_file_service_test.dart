@@ -378,6 +378,7 @@ void main() {
         voicevoxSpeakerId: 3,
         language: 'ja',
         assistantMode: AssistantMode.coding,
+        showMemoryUpdates: true,
       );
 
       final json =
@@ -402,6 +403,7 @@ void main() {
       expect(restored.voicevoxSpeakerId, settings.voicevoxSpeakerId);
       expect(restored.language, settings.language);
       expect(restored.assistantMode, settings.assistantMode);
+      expect(restored.showMemoryUpdates, settings.showMemoryUpdates);
     });
   });
 }
