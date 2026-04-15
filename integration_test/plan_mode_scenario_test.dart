@@ -193,48 +193,127 @@ Future<Widget> _buildScenarioApp({
 Future<void> _resolvePlanningDecisions(
   WidgetTester tester,
   IntegrationTestWidgetsFlutterBinding binding,
+  _PlanModeScenarioTestConfig config,
   PlanModeScenarioSpec scenario,
   GlobalKey screenshotBoundaryKey,
   Directory outputDirectory,
 ) async {
-  for (var index = 0; index < scenario.decisionSelections.length; index++) {
-    final selection = scenario.decisionSelections[index];
+  var scriptedDecisionIndex = 0;
+  var resolvedDecisionCount = 0;
+  const maxDecisionRounds = 8;
 
+  while (resolvedDecisionCount < maxDecisionRounds) {
     await tester.pumpAndSettle();
+    final confirmFinder = find.text('Continue with this choice');
+    if (confirmFinder.evaluate().isEmpty) {
+      return;
+    }
+
     _assertUiExpectations(
       tester,
       scenario.uiExpectations,
       PlanModeUiPhase.decision,
     );
-    expect(find.text(selection.question), findsOneWidget);
+    final scriptedSelection =
+        scriptedDecisionIndex < scenario.decisionSelections.length
+        ? scenario.decisionSelections[scriptedDecisionIndex]
+        : null;
+    final questionText =
+        scriptedSelection?.question ?? _extractVisibleDecisionQuestion(tester);
+
+    if (scriptedSelection != null) {
+      expect(find.text(scriptedSelection.question), findsOneWidget);
+    } else if (!config.usesLiveLlm) {
+      throw StateError(
+        'Encountered an unexpected planning decision in fake mode.',
+      );
+    }
 
     await captureIntegrationScreenshot(
       binding: binding,
       tester: tester,
       repaintBoundaryKey: screenshotBoundaryKey,
-      name: 'plan_mode_${scenario.name}_decision_${index + 1}',
+      name: 'plan_mode_${scenario.name}_decision_${resolvedDecisionCount + 1}',
       outputDirectory: outputDirectory,
     );
 
-    if (selection.freeTextAnswer != null) {
+    if (scriptedSelection?.freeTextAnswer != null) {
       await tester.enterText(
         find.byType(TextField).last,
-        selection.freeTextAnswer!,
+        scriptedSelection!.freeTextAnswer!,
       );
       await tester.pumpAndSettle();
-    } else {
-      final optionFinder = find.text(selection.optionLabel!);
+    } else if (scriptedSelection?.optionLabel != null) {
+      final optionFinder = find.text(scriptedSelection!.optionLabel!);
       expect(optionFinder, findsAtLeastNWidgets(1));
       await tester.tap(optionFinder.last, warnIfMissed: false);
       await tester.pumpAndSettle();
+    } else if (config.usesLiveLlm) {
+      final textFieldFinder = find.byType(TextField);
+      if (textFieldFinder.evaluate().isNotEmpty) {
+        final answer = _defaultLiveDecisionAnswer(questionText);
+        await tester.enterText(textFieldFinder.last, answer);
+        await tester.pumpAndSettle();
+        appLog(
+          '[ScenarioLive] Auto-answered planning decision'
+          '${questionText != null ? ' "$questionText"' : ''}: $answer',
+        );
+      } else {
+        appLog(
+          '[ScenarioLive] Auto-accepted the default planning option'
+          '${questionText != null ? ' for "$questionText"' : ''}.',
+        );
+      }
     }
 
-    final confirmFinder = find.text('Continue with this choice');
     expect(confirmFinder, findsOneWidget);
     await tester.tap(confirmFinder, warnIfMissed: false);
     await tester.pump();
     await tester.pumpAndSettle();
+    if (scriptedSelection != null) {
+      scriptedDecisionIndex += 1;
+    }
+    resolvedDecisionCount += 1;
   }
+
+  throw StateError(
+    'Planning decisions did not settle after $maxDecisionRounds rounds.',
+  );
+}
+
+String? _extractVisibleDecisionQuestion(WidgetTester tester) {
+  final candidates = tester
+      .widgetList<Text>(find.byType(Text))
+      .map((widget) => widget.data?.trim())
+      .whereType<String>()
+      .where((text) => text.isNotEmpty)
+      .where(
+        (text) =>
+            text != 'Choose Before Planning' &&
+            text != 'Continue with this choice' &&
+            text != 'Cancel' &&
+            text !=
+                'Review the generated workflow and tasks, then approve when you are ready to start implementation.',
+      )
+      .toList(growable: false);
+
+  for (final candidate in candidates) {
+    if (candidate.endsWith('?')) {
+      return candidate;
+    }
+  }
+  return candidates.firstOrNull;
+}
+
+String _defaultLiveDecisionAnswer(String? questionText) {
+  final normalized = questionText?.toLowerCase() ?? '';
+  if (normalized.contains('format')) {
+    return 'Use a simple Markdown README for the first slice.';
+  }
+  if (normalized.contains('cli') || normalized.contains('command')) {
+    return 'Use a CLI-first first slice.';
+  }
+  return 'Use the simplest CLI-first first slice.';
 }
 
 void _assertUiExpectations(
@@ -533,6 +612,7 @@ Future<_ScenarioRunResult> _runScenario({
   await _resolvePlanningDecisions(
     tester,
     binding,
+    config,
     scenario,
     screenshotBoundaryKey,
     scenarioDir,
