@@ -71,6 +71,17 @@ void main() {
     expect(toolCalls.first.arguments['working_directory'], '/tmp/project');
   });
 
+  test('extractCompletedToolCalls parses bare tool calls inside text', () {
+    const content =
+        'まずは、ファイルの存在確認から始めます。call:find_files{pattern:"connection.py"} その後で内容を確認します。';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'find_files');
+    expect(toolCalls.first.arguments['pattern'], 'connection.py');
+  });
+
   test(
     'extractCompletedToolCalls strips model control tokens from command args',
     () {
@@ -185,6 +196,25 @@ void main() {
       toolSegment.toolCall?.arguments['command'],
       'git commit -m "Add tokyo_weather_next_week.csv"',
     );
+  });
+
+  test('parse hides bare tool call payloads inside text output', () {
+    const content =
+        'まずは、ファイルの存在確認から始めます。call:find_files{pattern:"connection.py"} その後で内容を確認します。';
+
+    final result = ContentParser.parse(content);
+    final text = result.segments
+        .where((segment) => segment.type == ContentType.text)
+        .map((segment) => segment.content)
+        .join();
+    final toolSegment = result.segments.firstWhere(
+      (segment) => segment.type == ContentType.toolCall,
+    );
+
+    expect(text, 'まずは、ファイルの存在確認から始めます。 その後で内容を確認します。');
+    expect(text, isNot(contains('call:find_files')));
+    expect(toolSegment.toolCall?.name, 'find_files');
+    expect(toolSegment.toolCall?.arguments['pattern'], 'connection.py');
   });
 
   test('parse extracts tool_result display blocks', () {

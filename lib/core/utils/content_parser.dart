@@ -586,7 +586,7 @@ class ContentParser {
       final braceStart = content.indexOf('{', prefixMatch.start);
       if (braceStart < 0) continue;
       final braceEnd = _findLooseObjectEnd(content, braceStart);
-      if (braceEnd == null || !_onlyWhitespaceAfter(content, braceEnd + 1)) {
+      if (braceEnd == null) {
         continue;
       }
 
@@ -624,11 +624,7 @@ class ContentParser {
     final braceStart = content.indexOf('{', start);
     if (braceStart < 0) return false;
     final braceEnd = _findLooseObjectEnd(content, braceStart);
-    return braceEnd != null && _onlyWhitespaceAfter(content, braceEnd + 1);
-  }
-
-  static bool _onlyWhitespaceAfter(String content, int index) {
-    return content.substring(index).trim().isEmpty;
+    return braceEnd != null;
   }
 
   static int _skipWhitespace(String source, int index) {
