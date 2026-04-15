@@ -491,6 +491,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
               onCancel: () => chatNotifier.cancelStreaming(),
               isLoading: chatState.isLoading,
+              isCodingWorkspace: isCodingWorkspace,
               inputHintKey: isCodingWorkspace
                   ? (isPlanMode
                         ? 'message.input_hint_plan'
@@ -562,6 +563,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final spec = currentConversation.effectiveWorkflowSpec;
     final hasContext = currentConversation.hasWorkflowContext;
     final isBusy = chatState.isLoading;
+    final workflowPanelMaxHeight =
+        (MediaQuery.sizeOf(context).height * (isPlanMode ? 0.52 : 0.4))
+            .clamp(220.0, 480.0)
+            .toDouble();
     final hasPlanDraft =
         chatState.workflowProposalDraft != null ||
         chatState.taskProposalDraft != null ||
@@ -584,156 +589,168 @@ class _ChatPageState extends ConsumerState<ChatPage>
           color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Column(
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxHeight: workflowPanelMaxHeight),
+        child: Scrollbar(
+          thumbVisibility: true,
+          child: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      isPlanMode
-                          ? 'chat.plan_mode_title'.tr()
-                          : 'chat.workflow_title'.tr(),
-                      style: theme.textTheme.titleSmall?.copyWith(
-                        fontWeight: FontWeight.w700,
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            isPlanMode
+                                ? 'chat.plan_mode_title'.tr()
+                                : 'chat.workflow_title'.tr(),
+                            style: theme.textTheme.titleSmall?.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Text(
+                            isPlanMode
+                                ? (hasContext
+                                      ? 'chat.plan_mode_ready'.tr()
+                                      : 'chat.plan_mode_subtitle'.tr())
+                                : (hasContext
+                                      ? 'chat.workflow_subtitle'.tr()
+                                      : 'chat.workflow_empty'.tr()),
+                            style: theme.textTheme.bodySmall?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                    const SizedBox(height: 4),
-                    Text(
-                      isPlanMode
-                          ? (hasContext
-                                ? 'chat.plan_mode_ready'.tr()
-                                : 'chat.plan_mode_subtitle'.tr())
-                          : (hasContext
-                                ? 'chat.workflow_subtitle'.tr()
-                                : 'chat.workflow_empty'.tr()),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(width: 12),
+                    if (chatState.isGeneratingWorkflowProposal)
+                      const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    else
+                      IconButton(
+                        onPressed: isBusy
+                            ? null
+                            : () => isPlanMode
+                                  ? ref
+                                        .read(chatNotifierProvider.notifier)
+                                        .generatePlanProposal(
+                                          languageCode:
+                                              context.locale.languageCode,
+                                        )
+                                  : ref
+                                        .read(chatNotifierProvider.notifier)
+                                        .generateWorkflowProposal(
+                                          languageCode:
+                                              context.locale.languageCode,
+                                        ),
+                        icon: const Icon(Icons.auto_awesome_outlined),
+                        tooltip: isPlanMode
+                            ? 'chat.plan_mode_generate'.tr()
+                            : 'chat.workflow_generate'.tr(),
                       ),
+                    Chip(
+                      label: Text(
+                        _workflowStageLabel(currentConversation.workflowStage),
+                      ),
+                      visualDensity: VisualDensity.compact,
                     ),
+                    const SizedBox(width: 8),
+                    if (!isPlanMode || hasContext)
+                      IconButton(
+                        onPressed: () =>
+                            _showWorkflowEditor(context, currentConversation),
+                        icon: Icon(
+                          hasContext ? Icons.edit_outlined : Icons.add,
+                        ),
+                        tooltip: hasContext
+                            ? 'chat.workflow_edit'.tr()
+                            : 'chat.workflow_add'.tr(),
+                      ),
                   ],
                 ),
-              ),
-              const SizedBox(width: 12),
-              if (chatState.isGeneratingWorkflowProposal)
-                const SizedBox(
-                  width: 18,
-                  height: 18,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                )
-              else
-                IconButton(
-                  onPressed: isBusy
-                      ? null
-                      : () => isPlanMode
-                            ? ref
-                                  .read(chatNotifierProvider.notifier)
-                                  .generatePlanProposal(
-                                    languageCode: context.locale.languageCode,
-                                  )
-                            : ref
-                                  .read(chatNotifierProvider.notifier)
-                                  .generateWorkflowProposal(
-                                    languageCode: context.locale.languageCode,
-                                  ),
-                  icon: const Icon(Icons.auto_awesome_outlined),
-                  tooltip: isPlanMode
-                      ? 'chat.plan_mode_generate'.tr()
-                      : 'chat.workflow_generate'.tr(),
-                ),
-              Chip(
-                label: Text(
-                  _workflowStageLabel(currentConversation.workflowStage),
-                ),
-                visualDensity: VisualDensity.compact,
-              ),
-              const SizedBox(width: 8),
-              if (!isPlanMode || hasContext)
-                IconButton(
-                  onPressed: () =>
-                      _showWorkflowEditor(context, currentConversation),
-                  icon: Icon(hasContext ? Icons.edit_outlined : Icons.add),
-                  tooltip: hasContext
-                      ? 'chat.workflow_edit'.tr()
-                      : 'chat.workflow_add'.tr(),
-                ),
-            ],
+                if (showCombinedPlanCard) ...[
+                  const SizedBox(height: 12),
+                  _buildPlanProposalCard(
+                    context,
+                    currentConversation: currentConversation,
+                    chatState: chatState,
+                  ),
+                ] else if (chatState.workflowProposalDraft != null) ...[
+                  const SizedBox(height: 12),
+                  _buildWorkflowProposalCard(
+                    context,
+                    currentConversation: currentConversation,
+                    proposal: chatState.workflowProposalDraft!,
+                    isGenerating: chatState.isGeneratingWorkflowProposal,
+                  ),
+                ] else if (chatState.workflowProposalError != null) ...[
+                  const SizedBox(height: 12),
+                  _buildWorkflowProposalErrorCard(
+                    context,
+                    error: chatState.workflowProposalError!,
+                  ),
+                ],
+                if (hasContext) ...[
+                  if (spec.goal.trim().isNotEmpty) ...[
+                    const SizedBox(height: 12),
+                    _buildWorkflowTextSection(
+                      context,
+                      label: 'chat.workflow_goal'.tr(),
+                      value: spec.goal.trim(),
+                    ),
+                  ],
+                  _buildWorkflowListSection(
+                    context,
+                    label: 'chat.workflow_constraints'.tr(),
+                    items: spec.constraints,
+                  ),
+                  _buildWorkflowListSection(
+                    context,
+                    label: 'chat.workflow_acceptance'.tr(),
+                    items: spec.acceptanceCriteria,
+                  ),
+                  _buildWorkflowListSection(
+                    context,
+                    label: 'chat.workflow_open_questions'.tr(),
+                    items: spec.openQuestions,
+                  ),
+                ],
+                if (hasContext) ...[
+                  const SizedBox(height: 16),
+                  _buildWorkflowTasksSection(
+                    context,
+                    currentConversation: currentConversation,
+                    chatState: chatState,
+                    isPlanMode: isPlanMode,
+                  ),
+                  const SizedBox(height: 16),
+                  _buildWorkflowQuickActions(
+                    context,
+                    currentConversation: currentConversation,
+                    isBusy: isBusy,
+                  ),
+                ] else if (isPlanMode && !hasPlanDraft) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    'chat.plan_mode_empty'.tr(),
+                    style: theme.textTheme.bodySmall?.copyWith(
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+              ],
+            ),
           ),
-          if (showCombinedPlanCard) ...[
-            const SizedBox(height: 12),
-            _buildPlanProposalCard(
-              context,
-              currentConversation: currentConversation,
-              chatState: chatState,
-            ),
-          ] else if (chatState.workflowProposalDraft != null) ...[
-            const SizedBox(height: 12),
-            _buildWorkflowProposalCard(
-              context,
-              currentConversation: currentConversation,
-              proposal: chatState.workflowProposalDraft!,
-              isGenerating: chatState.isGeneratingWorkflowProposal,
-            ),
-          ] else if (chatState.workflowProposalError != null) ...[
-            const SizedBox(height: 12),
-            _buildWorkflowProposalErrorCard(
-              context,
-              error: chatState.workflowProposalError!,
-            ),
-          ],
-          if (hasContext) ...[
-            if (spec.goal.trim().isNotEmpty) ...[
-              const SizedBox(height: 12),
-              _buildWorkflowTextSection(
-                context,
-                label: 'chat.workflow_goal'.tr(),
-                value: spec.goal.trim(),
-              ),
-            ],
-            _buildWorkflowListSection(
-              context,
-              label: 'chat.workflow_constraints'.tr(),
-              items: spec.constraints,
-            ),
-            _buildWorkflowListSection(
-              context,
-              label: 'chat.workflow_acceptance'.tr(),
-              items: spec.acceptanceCriteria,
-            ),
-            _buildWorkflowListSection(
-              context,
-              label: 'chat.workflow_open_questions'.tr(),
-              items: spec.openQuestions,
-            ),
-          ],
-          if (hasContext) ...[
-            const SizedBox(height: 16),
-            _buildWorkflowTasksSection(
-              context,
-              currentConversation: currentConversation,
-              chatState: chatState,
-              isPlanMode: isPlanMode,
-            ),
-            const SizedBox(height: 16),
-            _buildWorkflowQuickActions(
-              context,
-              currentConversation: currentConversation,
-              isBusy: isBusy,
-            ),
-          ] else if (isPlanMode && !hasPlanDraft) ...[
-            const SizedBox(height: 12),
-            Text(
-              'chat.plan_mode_empty'.tr(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-        ],
+        ),
       ),
     );
   }
