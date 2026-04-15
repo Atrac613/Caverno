@@ -470,6 +470,19 @@ void main() {
         logs.any((line) => line.contains('[ScenarioLLM] final answer stream')),
         isTrue,
       );
+      expect(
+        logs.where(
+          (line) => line.contains('[ContentTool] Executing tool: write_file'),
+        ),
+        isEmpty,
+      );
+      expect(
+        logs.where(
+          (line) =>
+              line.contains('[McpToolService] Executing tool: write_file'),
+        ),
+        hasLength(2),
+      );
 
       final currentConversation = container
           .read(conversationsNotifierProvider)

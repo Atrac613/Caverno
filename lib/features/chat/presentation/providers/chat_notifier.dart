@@ -3435,6 +3435,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   void _appendToolUseToLastMessage(ToolCallInfo toolCall) {
+    _markToolCallSeenForContentDedup(toolCall.name, toolCall.arguments);
     final payload = <String, dynamic>{
       'name': toolCall.name,
       'arguments': toolCall.arguments,
@@ -3485,11 +3486,19 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   String _contentToolCallHash(ToolCallData toolCall) {
-    return '${toolCall.name}:${jsonEncode(toolCall.arguments)}';
+    return _toolCallDedupKey(toolCall.name, toolCall.arguments);
   }
 
   String _toolExecutionKey(ToolCallInfo toolCall) {
-    return '${toolCall.name}:${_normalizeToolExecutionValue(toolCall.arguments)}';
+    return _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  }
+
+  String _toolCallDedupKey(String name, Object? arguments) {
+    return '$name:${_normalizeToolExecutionValue(arguments)}';
+  }
+
+  void _markToolCallSeenForContentDedup(String name, Object? arguments) {
+    _seenContentToolCallHashes.add(_toolCallDedupKey(name, arguments));
   }
 
   String _normalizeToolExecutionValue(Object? value) {
