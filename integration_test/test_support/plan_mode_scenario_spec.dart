@@ -3,7 +3,10 @@ import 'dart:convert';
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
 class PlanModeScenarioTaskSpec {
@@ -52,6 +55,38 @@ class PlanModeScenarioDecisionSelection {
   final String question;
   final String? optionLabel;
   final String? freeTextAnswer;
+}
+
+class PlanModeSavedWorkflowExpectation {
+  const PlanModeSavedWorkflowExpectation({
+    this.stage,
+    this.goal,
+    this.taskCount,
+    this.firstTaskTitle,
+    this.openQuestionsContain = const <String>[],
+  });
+
+  final ConversationWorkflowStage? stage;
+  final String? goal;
+  final int? taskCount;
+  final String? firstTaskTitle;
+  final List<String> openQuestionsContain;
+}
+
+class PlanModeScenarioToolOverrideSpec {
+  const PlanModeScenarioToolOverrideSpec({
+    required this.name,
+    required this.arguments,
+    required this.result,
+    required this.isSuccess,
+    this.errorMessage,
+  });
+
+  final String name;
+  final Map<String, dynamic> arguments;
+  final String result;
+  final bool isSuccess;
+  final String? errorMessage;
 }
 
 enum PlanModeUiPhase { decision, proposal, finalResult }
@@ -110,6 +145,21 @@ sealed class PlanModeWorkflowResponseSpec {
   const PlanModeWorkflowResponseSpec();
 
   ChatCompletionResult toChatCompletionResult();
+}
+
+class PlanModeWorkflowRawResponseSpec extends PlanModeWorkflowResponseSpec {
+  const PlanModeWorkflowRawResponseSpec({
+    required this.content,
+    this.finishReason = 'stop',
+  });
+
+  final String content;
+  final String finishReason;
+
+  @override
+  ChatCompletionResult toChatCompletionResult() {
+    return ChatCompletionResult(content: content, finishReason: finishReason);
+  }
 }
 
 class PlanModeWorkflowProposalResponseSpec
@@ -189,12 +239,14 @@ class PlanModeScenarioSpec {
     required this.workflowResponses,
     required this.taskProposal,
     required this.toolWrites,
-    required this.finalAnswer,
+    required this.continuationStreams,
     this.memorySummary = 'The user is building a host health check tool.',
     this.decisionSelections = const <PlanModeScenarioDecisionSelection>[],
     this.uiExpectations = const <PlanModeUiExpectation>[],
     this.artifactExpectations = const <PlanModeArtifactExpectation>[],
     this.logExpectations = const <PlanModeLogExpectation>[],
+    this.savedWorkflowExpectation,
+    this.toolOverrides = const <PlanModeScenarioToolOverrideSpec>[],
   });
 
   final String name;
@@ -203,12 +255,14 @@ class PlanModeScenarioSpec {
   final List<PlanModeWorkflowResponseSpec> workflowResponses;
   final List<PlanModeScenarioTaskSpec> taskProposal;
   final List<PlanModeScenarioToolWriteSpec> toolWrites;
-  final String finalAnswer;
+  final List<String> continuationStreams;
   final String memorySummary;
   final List<PlanModeScenarioDecisionSelection> decisionSelections;
   final List<PlanModeUiExpectation> uiExpectations;
   final List<PlanModeArtifactExpectation> artifactExpectations;
   final List<PlanModeLogExpectation> logExpectations;
+  final PlanModeSavedWorkflowExpectation? savedWorkflowExpectation;
+  final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -226,8 +280,28 @@ class PlanModeScenarioSpec {
         .toList(growable: false);
   }
 
-  PlanModeWorkflowProposalResponseSpec get finalWorkflowProposal =>
-      workflowResponses.whereType<PlanModeWorkflowProposalResponseSpec>().last;
+  PlanModeWorkflowProposalResponseSpec? get lastExplicitWorkflowProposal {
+    for (final response in workflowResponses.reversed) {
+      if (response is PlanModeWorkflowProposalResponseSpec) {
+        return response;
+      }
+    }
+    return null;
+  }
+
+  PlanModeSavedWorkflowExpectation get resolvedWorkflowExpectation {
+    if (savedWorkflowExpectation != null) {
+      return savedWorkflowExpectation!;
+    }
+
+    final proposal = lastExplicitWorkflowProposal;
+    return PlanModeSavedWorkflowExpectation(
+      goal: proposal?.goal,
+      taskCount: taskProposal.length,
+      firstTaskTitle: taskProposal.firstOrNull?.title,
+      openQuestionsContain: proposal?.openQuestions ?? const <String>[],
+    );
+  }
 }
 
 class FakePlanModeChatDataSource implements ChatDataSource {
@@ -237,6 +311,7 @@ class FakePlanModeChatDataSource implements ChatDataSource {
 
   int _workflowResponseIndex = 0;
   int _toolWriteIndex = 0;
+  int _continuationStreamIndex = 0;
 
   @override
   Future<ChatCompletionResult> createChatCompletion({
@@ -305,10 +380,25 @@ class FakePlanModeChatDataSource implements ChatDataSource {
   }) async* {
     final prompt = messages.last.content;
     if (prompt.startsWith(
-      'Please answer the user\'s question based on the following search results.',
-    )) {
-      appLog('[ScenarioLLM] final answer stream');
-      yield scenario.finalAnswer;
+          'Please answer the user\'s question based on the following search results.',
+        ) ||
+        prompt.startsWith(
+          'Continue the task using the following tool results.',
+        )) {
+      if (_continuationStreamIndex >= scenario.continuationStreams.length) {
+        appLog('[ScenarioLLM] continuation stream exhausted');
+        return;
+      }
+
+      final response = scenario.continuationStreams[_continuationStreamIndex++];
+      final isLastStream =
+          _continuationStreamIndex == scenario.continuationStreams.length;
+      appLog(
+        isLastStream
+            ? '[ScenarioLLM] final answer stream'
+            : '[ScenarioLLM] continuation stream',
+      );
+      yield response;
       return;
     }
 
@@ -406,8 +496,519 @@ class FakePlanModeChatDataSource implements ChatDataSource {
   }
 }
 
+class FakePlanModeMcpToolService extends McpToolService {
+  FakePlanModeMcpToolService(this.scenario) : super();
+
+  final PlanModeScenarioSpec scenario;
+  int _toolOverrideIndex = 0;
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    final override = _nextMatchingOverride(name: name, arguments: arguments);
+    if (override != null) {
+      appLog('[ScenarioTool] Overriding tool result for $name');
+      return McpToolResult(
+        toolName: name,
+        result: override.result,
+        isSuccess: override.isSuccess,
+        errorMessage: override.errorMessage,
+      );
+    }
+
+    return super.executeTool(name: name, arguments: arguments);
+  }
+
+  PlanModeScenarioToolOverrideSpec? _nextMatchingOverride({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) {
+    if (_toolOverrideIndex >= scenario.toolOverrides.length) {
+      return null;
+    }
+
+    final override = scenario.toolOverrides[_toolOverrideIndex];
+    if (override.name != name) {
+      return null;
+    }
+    if (!_matchesScenarioArguments(override.arguments, arguments)) {
+      return null;
+    }
+
+    _toolOverrideIndex += 1;
+    return override;
+  }
+}
+
+bool _matchesScenarioArguments(
+  Map<String, dynamic> expected,
+  Map<String, dynamic> actual,
+) {
+  for (final entry in expected.entries) {
+    final actualValue = actual[entry.key];
+    if (!_scenarioArgumentValueMatches(
+      entry.value,
+      actualValue,
+      key: entry.key,
+    )) {
+      return false;
+    }
+  }
+  return true;
+}
+
+bool _scenarioArgumentValueMatches(
+  Object? expected,
+  Object? actual, {
+  String? key,
+}) {
+  if (expected is Map && actual is Map) {
+    return _matchesScenarioArguments(
+      Map<String, dynamic>.from(expected),
+      Map<String, dynamic>.from(actual),
+    );
+  }
+
+  if (expected is List && actual is List) {
+    if (expected.length != actual.length) {
+      return false;
+    }
+    for (var index = 0; index < expected.length; index++) {
+      if (!_scenarioArgumentValueMatches(expected[index], actual[index])) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  if (key == 'path' && expected is String && actual is String) {
+    return actual == expected || actual.endsWith('/$expected');
+  }
+
+  return expected == actual;
+}
+
 List<PlanModeScenarioSpec> buildPlanModeScenarios() {
   return <PlanModeScenarioSpec>[
+    PlanModeScenarioSpec(
+      name: 'clarify_fallback_after_decisions',
+      userPrompt:
+          'Create a monitoring script plan and keep asking if the direction still needs clarification.',
+      projectName: 'tmp',
+      workflowResponses: <PlanModeWorkflowResponseSpec>[
+        const PlanModeWorkflowProposalResponseSpec(
+          workflowStage: 'plan',
+          goal: 'Plan a small monitoring script scaffold.',
+          constraints: <String>[
+            'Keep the first slice reviewable.',
+            'Document the unresolved direction before implementation.',
+          ],
+          acceptanceCriteria: <String>[
+            'The saved workflow captures the remaining blocker clearly.',
+          ],
+          openQuestions: <String>[
+            'Should we use SSH checks or HTTP checks?',
+          ],
+        ),
+        PlanModeWorkflowDecisionResponseSpec(
+          decisions: <WorkflowPlanningDecision>[
+            WorkflowPlanningDecision(
+              id: 'delivery_shape',
+              question:
+                  'Should the scaffold start with a CLI entry point or a background job?',
+              help: 'Pick the initial delivery shape.',
+              options: const <WorkflowPlanningDecisionOption>[
+                WorkflowPlanningDecisionOption(
+                  id: 'cli',
+                  label: 'CLI entry point',
+                  description: 'Start with a command line entry point.',
+                ),
+                WorkflowPlanningDecisionOption(
+                  id: 'job',
+                  label: 'Background job',
+                  description: 'Start with a scheduled job scaffold.',
+                ),
+              ],
+            ),
+          ],
+        ),
+        PlanModeWorkflowDecisionResponseSpec(
+          decisions: <WorkflowPlanningDecision>[
+            WorkflowPlanningDecision(
+              id: 'report_format',
+              question: 'Which report format should the first slice generate?',
+              help: 'Choose the first reporting format.',
+              options: const <WorkflowPlanningDecisionOption>[
+                WorkflowPlanningDecisionOption(
+                  id: 'json',
+                  label: 'JSON report',
+                  description: 'Emit a machine-readable JSON summary.',
+                ),
+                WorkflowPlanningDecisionOption(
+                  id: 'markdown',
+                  label: 'Markdown report',
+                  description: 'Emit a markdown status summary.',
+                ),
+              ],
+            ),
+          ],
+        ),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[
+        PlanModeScenarioTaskSpec(
+          title: 'Capture the unresolved reporting blocker',
+          targetFiles: <String>['clarify_notes.md'],
+          validationCommand: 'ls clarify_notes.md',
+          notes:
+              'Record the remaining open question before implementation proceeds.',
+        ),
+      ],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[
+        PlanModeScenarioToolWriteSpec(
+          path: 'clarify_notes.md',
+          content:
+              '# Clarify Next\n\nOpen question: Which report format should the first slice generate?\n',
+        ),
+      ],
+      continuationStreams: const <String>[
+        'I captured the remaining reporting blocker in clarify_notes.md so the next planning pass can converge faster.',
+      ],
+      decisionSelections: const <PlanModeScenarioDecisionSelection>[
+        PlanModeScenarioDecisionSelection(
+          question: 'Should we use SSH checks or HTTP checks?',
+          optionLabel: 'SSH checks',
+        ),
+        PlanModeScenarioDecisionSelection(
+          question:
+              'Should the scaffold start with a CLI entry point or a background job?',
+          optionLabel: 'CLI entry point',
+        ),
+        PlanModeScenarioDecisionSelection(
+          question: 'Which report format should the first slice generate?',
+          optionLabel: 'JSON report',
+        ),
+      ],
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        stage: ConversationWorkflowStage.implement,
+        goal: 'Plan a small monitoring script scaffold.',
+        taskCount: 1,
+        firstTaskTitle: 'Capture the unresolved reporting blocker',
+        openQuestionsContain: <String>[
+          'Which report format should the first slice generate?',
+        ],
+      ),
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Plan a small monitoring script scaffold.',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Which report format should the first slice generate?',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'remaining reporting blocker',
+        ),
+      ],
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'clarify_notes.md',
+          exactContent:
+              '# Clarify Next\n\nOpen question: Which report format should the first slice generate?\n',
+          contains: <String>[
+            'Which report format should the first slice generate?',
+          ],
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Using fallback proposal after repeated planning decision rounds',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow decision',
+          exactCount: 2,
+        ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'reasoning_only_proposal_recovery',
+      userPrompt:
+          'Create a Python readiness plan for a host health checker with a minimal first slice.',
+      projectName: 'tmp',
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(
+          content: '''
+<think>
+* Workflow Stage: Plan
+* Goal: Create a Python host health checker scaffold.
+* Constraints: Keep the first slice lightweight.
+* Acceptance Criteria: The scaffold documents the first runnable slice.
+* Open Questions: Which host configuration source should the script read first?
+</think>
+''',
+        ),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[
+        PlanModeScenarioTaskSpec(
+          title: 'Document the recovered scaffold plan',
+          targetFiles: <String>['plan.md'],
+          validationCommand: 'ls plan.md',
+          notes:
+              'Capture the recovered workflow summary in a single planning note.',
+        ),
+      ],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[
+        PlanModeScenarioToolWriteSpec(
+          path: 'plan.md',
+          content:
+              '# Plan\n\nGoal: Create a Python host health checker scaffold.\n',
+        ),
+      ],
+      continuationStreams: const <String>[
+        'I recovered the reasoning-only proposal and documented it in plan.md.',
+      ],
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        stage: ConversationWorkflowStage.implement,
+        goal: 'Create a Python host health checker scaffold.',
+        taskCount: 1,
+        firstTaskTitle: 'Document the recovered scaffold plan',
+        openQuestionsContain: <String>[
+          'Which host configuration source should the script read first?',
+        ],
+      ),
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Create a Python host health checker scaffold.',
+        ),
+        PlanModeUiExpectation.absent(
+          phase: PlanModeUiPhase.proposal,
+          text: '\'workflowStage\'',
+        ),
+        PlanModeUiExpectation.absent(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Recent Context:',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'reasoning-only proposal',
+        ),
+      ],
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'plan.md',
+          exactContent:
+              '# Plan\n\nGoal: Create a Python host health checker scaffold.\n',
+          contains: <String>['Create a Python host health checker scaffold.'],
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] workflow proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] task proposal',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] final answer stream',
+          exactCount: 1,
+        ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'permission_denied_blocks_auto_continue',
+      userPrompt:
+          'Create a Python host health scaffold and keep moving through the saved tasks automatically.',
+      projectName: 'tmp',
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowProposalResponseSpec(
+          workflowStage: 'plan',
+          goal:
+              'Create a Python host health scaffold with automatic task progression.',
+          constraints: <String>['Keep the first slice small and file-based.'],
+          acceptanceCriteria: <String>[
+            'The scaffold is created.',
+            'Automatic continuation stops when file access is denied.',
+          ],
+        ),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[
+        PlanModeScenarioTaskSpec(
+          title: 'Create the scaffold files',
+          targetFiles: <String>['requirements.txt', 'README.md'],
+          validationCommand: 'ls README.md',
+          notes: 'Start with the project scaffold.',
+        ),
+        PlanModeScenarioTaskSpec(
+          title: 'Implement the executable entry point',
+          targetFiles: <String>['main.py'],
+          validationCommand: 'python main.py --help',
+          notes: 'Create the first runnable command after the scaffold exists.',
+        ),
+      ],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[
+        PlanModeScenarioToolWriteSpec(
+          path: 'requirements.txt',
+          content: 'ping3>=4.0.0\n',
+        ),
+        PlanModeScenarioToolWriteSpec(
+          path: 'README.md',
+          content:
+              '# Host Health Check\n\nThis scaffold starts with a simple ping-based flow.\n',
+        ),
+      ],
+      continuationStreams: const <String>[
+        'Task 1 is complete. Starting task 2 now.\n<tool_use>{"name":"write_file","arguments":{"path":"main.py","content":"from ping3 import ping\\n\\nprint(\\"ready\\")\\n"}}</tool_use>',
+      ],
+      toolOverrides: const <PlanModeScenarioToolOverrideSpec>[
+        PlanModeScenarioToolOverrideSpec(
+          name: 'write_file',
+          arguments: <String, dynamic>{
+            'path': 'main.py',
+            'content': 'from ping3 import ping\n\nprint("ready")\n',
+          },
+          result:
+              '{"error":"Access denied for the selected project","code":"permission_denied","path":"main.py"}',
+          isSuccess: false,
+          errorMessage: 'permission_denied',
+        ),
+      ],
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'Task 1 is complete. Starting task 2 now.',
+        ),
+      ],
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          exactContent: 'ping3>=4.0.0\n',
+        ),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          exactContent:
+              '# Host Health Check\n\nThis scaffold starts with a simple ping-based flow.\n',
+        ),
+        PlanModeArtifactExpectation(path: 'main.py', shouldExist: false),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ContentTool] Execution failed: permission_denied',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] final answer stream',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] continuation stream',
+          exactCount: 0,
+        ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'auto_continue_across_saved_tasks',
+      userPrompt:
+          'Create a Python host health scaffold and keep moving through the saved tasks automatically.',
+      projectName: 'tmp',
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowProposalResponseSpec(
+          workflowStage: 'plan',
+          goal:
+              'Create a Python host health scaffold that auto-continues across saved tasks.',
+          constraints: <String>[
+            'Finish the first two saved tasks automatically.',
+          ],
+          acceptanceCriteria: <String>[
+            'The scaffold files are created.',
+            'main.py exists after the second saved task runs.',
+          ],
+        ),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[
+        PlanModeScenarioTaskSpec(
+          title: 'Create the scaffold files',
+          targetFiles: <String>['requirements.txt', 'README.md'],
+          validationCommand: 'ls README.md',
+          notes: 'Start with the project scaffold.',
+        ),
+        PlanModeScenarioTaskSpec(
+          title: 'Implement the executable entry point',
+          targetFiles: <String>['main.py'],
+          validationCommand: 'python main.py --help',
+          notes: 'Create the first runnable command after the scaffold exists.',
+        ),
+      ],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[
+        PlanModeScenarioToolWriteSpec(
+          path: 'requirements.txt',
+          content: 'ping3>=4.0.0\n',
+        ),
+        PlanModeScenarioToolWriteSpec(
+          path: 'README.md',
+          content:
+              '# Host Health Check\n\nThis scaffold starts with a simple ping-based flow.\n',
+        ),
+      ],
+      continuationStreams: const <String>[
+        'Task 1 is complete. Starting task 2 now.\n<tool_use>{"name":"write_file","arguments":{"path":"main.py","content":"from ping3 import ping\\n\\n\\ndef main() -> None:\\n    print(\\"ready\\")\\n\\n\\nif __name__ == \\"__main__\\":\\n    main()\\n"}}</tool_use>',
+        'I completed task 2 by creating main.py, so the scaffold auto-continued through both saved tasks.',
+      ],
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'auto-continued through both saved tasks',
+        ),
+      ],
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          exactContent: 'ping3>=4.0.0\n',
+        ),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          exactContent:
+              '# Host Health Check\n\nThis scaffold starts with a simple ping-based flow.\n',
+        ),
+        PlanModeArtifactExpectation(
+          path: 'main.py',
+          contains: <String>[
+            'from ping3 import ping',
+            'def main() -> None:',
+            'print("ready")',
+          ],
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] continuation stream',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] final answer stream',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ContentTool] Executing tool: write_file',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[McpToolService] Executing tool: write_file',
+          exactCount: 3,
+        ),
+      ],
+    ),
     PlanModeScenarioSpec(
       name: 'host_health_scaffold',
       userPrompt:
@@ -454,8 +1055,9 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
               '# Host Health Check\n\nThis project bootstraps a ping-based host health check tool.\n',
         ),
       ],
-      finalAnswer:
-          'I created requirements.txt and README.md to bootstrap the project scaffold.',
+      continuationStreams: const <String>[
+        'I created requirements.txt and README.md to bootstrap the project scaffold.',
+      ],
       uiExpectations: <PlanModeUiExpectation>[
         PlanModeUiExpectation.present(
           phase: PlanModeUiPhase.proposal,
@@ -575,8 +1177,9 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
               '# CLI Host Health Check\n\nThis scaffold starts with a CLI-first health check flow.\n',
         ),
       ],
-      finalAnswer:
-          'I created a CLI-first scaffold with requirements.txt and README.md.',
+      continuationStreams: const <String>[
+        'I created a CLI-first scaffold with requirements.txt and README.md.',
+      ],
       decisionSelections: const <PlanModeScenarioDecisionSelection>[
         PlanModeScenarioDecisionSelection(
           question:

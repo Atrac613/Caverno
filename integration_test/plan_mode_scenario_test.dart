@@ -23,6 +23,7 @@ import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -45,6 +46,7 @@ Future<Widget> _buildScenarioApp({
   required Box<String> conversationBox,
   required Box<String> memoryBox,
   required ChatDataSource dataSource,
+  required PlanModeScenarioSpec scenario,
   required GlobalKey screenshotBoundaryKey,
 }) async {
   await EasyLocalization.ensureInitialized();
@@ -62,6 +64,9 @@ Future<Widget> _buildScenarioApp({
             conversationBoxProvider.overrideWithValue(conversationBox),
             chatMemoryBoxProvider.overrideWithValue(memoryBox),
             chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+            mcpToolServiceProvider.overrideWithValue(
+              FakePlanModeMcpToolService(scenario),
+            ),
             notificationServiceProvider.overrideWithValue(
               _NoOpNotificationService(),
             ),
@@ -281,6 +286,7 @@ Future<void> _runScenario({
       conversationBox: conversationBox,
       memoryBox: memoryBox,
       dataSource: FakePlanModeChatDataSource(scenario),
+      scenario: scenario,
       screenshotBoundaryKey: screenshotBoundaryKey,
     ),
   );
@@ -357,14 +363,24 @@ Future<void> _runScenario({
       .read(conversationsNotifierProvider)
       .currentConversation;
   expect(currentConversation, isNotNull);
-  expect(
-    currentConversation!.workflowSpec?.goal,
-    scenario.finalWorkflowProposal.goal,
-  );
-  expect(
-    currentConversation.workflowSpec?.tasks.first.title,
-    scenario.initialTaskTitle,
-  );
+  final conversation = currentConversation!;
+  final workflowExpectation = scenario.resolvedWorkflowExpectation;
+  final savedWorkflow = conversation.effectiveWorkflowSpec;
+  if (workflowExpectation.stage != null) {
+    expect(conversation.workflowStage, workflowExpectation.stage);
+  }
+  if (workflowExpectation.goal != null) {
+    expect(savedWorkflow.goal, workflowExpectation.goal);
+  }
+  if (workflowExpectation.taskCount != null) {
+    expect(savedWorkflow.tasks, hasLength(workflowExpectation.taskCount!));
+  }
+  if (workflowExpectation.firstTaskTitle != null) {
+    expect(savedWorkflow.tasks.first.title, workflowExpectation.firstTaskTitle);
+  }
+  for (final openQuestion in workflowExpectation.openQuestionsContain) {
+    expect(savedWorkflow.openQuestions, contains(openQuestion));
+  }
 
   await captureIntegrationScreenshot(
     binding: binding,
@@ -378,7 +394,9 @@ Future<void> _runScenario({
     'scenario': scenario.name,
     'status': 'passed',
     'projectRoot': scenarioDir.path,
-    'workflowGoal': currentConversation.workflowSpec?.goal,
+    'workflowStage': conversation.workflowStage.name,
+    'workflowGoal': savedWorkflow.goal,
+    'workflowOpenQuestions': savedWorkflow.openQuestions,
     'selectedDecisions': scenario.decisionSelections
         .map(
           (selection) => <String, String?>{
