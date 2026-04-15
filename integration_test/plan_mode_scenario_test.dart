@@ -46,11 +46,13 @@ class _ScenarioRunResult {
     required this.outputDirectoryPath,
     required this.reportPath,
     required this.screenshotPaths,
+    required this.logPath,
   });
 
   final String outputDirectoryPath;
   final String reportPath;
   final List<String> screenshotPaths;
+  final String logPath;
 }
 
 Future<Widget> _buildScenarioApp({
@@ -249,6 +251,27 @@ void _assertLogExpectations(
         lessThanOrEqualTo(expectation.maxCount!),
         reason:
             'Expected at most ${expectation.maxCount} log(s) containing "${expectation.pattern}".',
+      );
+    }
+  }
+}
+
+Future<void> _copyDirectoryContents({
+  required Directory source,
+  required Directory destination,
+}) async {
+  await destination.create(recursive: true);
+  for (final entity in source.listSync()) {
+    if (entity is File) {
+      await entity.copy('${destination.path}/${entity.uri.pathSegments.last}');
+      continue;
+    }
+    if (entity is Directory) {
+      await _copyDirectoryContents(
+        source: entity,
+        destination: Directory(
+          '${destination.path}/${entity.uri.pathSegments.last}',
+        ),
       );
     }
   }
@@ -458,6 +481,8 @@ Future<_ScenarioRunResult> _runScenario({
   };
   final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
   report['screenshots'] = screenshotPaths;
+  final logFile = File('${scenarioDir.path}/scenario_log.txt');
+  await logFile.writeAsString('${logs.join('\n')}\n');
   final reportFile = File('${scenarioDir.path}/scenario_report.json');
   await reportFile.writeAsString(
     const JsonEncoder.withIndent('  ').convert(report),
@@ -467,6 +492,7 @@ Future<_ScenarioRunResult> _runScenario({
     outputDirectoryPath: scenarioDir.path,
     reportPath: reportFile.path,
     screenshotPaths: screenshotPaths,
+    logPath: logFile.path,
   );
 }
 
@@ -479,7 +505,19 @@ void main() {
     late Box<String> memoryBox;
     late DebugPrintCallback originalDebugPrint;
     late List<String> logs;
+    late Directory suiteRunDirectory;
     final suiteResults = <Map<String, Object?>>[];
+
+    setUpAll(() async {
+      final reportRoot = Directory(
+        '${Directory.current.path}/build/integration_test_reports',
+      );
+      await reportRoot.create(recursive: true);
+      suiteRunDirectory = Directory(
+        '${reportRoot.path}/plan_mode_suite_${DateTime.now().millisecondsSinceEpoch}',
+      );
+      await suiteRunDirectory.create(recursive: true);
+    });
 
     setUp(() async {
       await Hive.initFlutter();
@@ -507,7 +545,7 @@ void main() {
 
     tearDownAll(() async {
       final reportDirectory = Directory(
-        '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/integration_test_reports',
+        '${Directory.current.path}/build/integration_test_reports',
       );
       await reportDirectory.create(recursive: true);
 
@@ -517,11 +555,18 @@ void main() {
       final suiteReport = <String, Object?>{
         'generatedAt': DateTime.now().toIso8601String(),
         'suite': 'plan_mode_scenarios',
+        'suiteDirectory': suiteRunDirectory.path,
         'scenarioCount': suiteResults.length,
         'passedCount': passedCount,
         'failedCount': suiteResults.length - passedCount,
         'scenarios': suiteResults,
       };
+      final suiteRunReportFile = File(
+        '${suiteRunDirectory.path}/plan_mode_suite_report.json',
+      );
+      await suiteRunReportFile.writeAsString(
+        const JsonEncoder.withIndent('  ').convert(suiteReport),
+      );
       final suiteReportFile = File(
         '${reportDirectory.path}/plan_mode_suite_report.json',
       );
@@ -554,18 +599,38 @@ void main() {
           rethrow;
         } finally {
           final finishedAt = DateTime.now();
+          final archivedScenarioDir = Directory(
+            '${suiteRunDirectory.path}/${scenario.name}',
+          );
+          await _copyDirectoryContents(
+            source: scenarioDir,
+            destination: archivedScenarioDir,
+          );
+          final archivedScreenshotPaths = _listScenarioScreenshotPaths(
+            archivedScenarioDir,
+          );
+          final archivedReportPath = File(
+            '${archivedScenarioDir.path}/scenario_report.json',
+          );
+          final archivedLogPath = File(
+            '${archivedScenarioDir.path}/scenario_log.txt',
+          );
           suiteResults.add(<String, Object?>{
             'scenario': scenario.name,
             'status': failure == null ? 'passed' : 'failed',
             'startedAt': startedAt.toIso8601String(),
             'finishedAt': finishedAt.toIso8601String(),
             'durationMs': finishedAt.difference(startedAt).inMilliseconds,
-            'outputDirectory':
+            'tempOutputDirectory':
                 runResult?.outputDirectoryPath ?? scenarioDir.path,
-            'scenarioReport': runResult?.reportPath,
-            'screenshots':
-                runResult?.screenshotPaths ??
-                _listScenarioScreenshotPaths(scenarioDir),
+            'archivedOutputDirectory': archivedScenarioDir.path,
+            'scenarioReport': archivedReportPath.existsSync()
+                ? archivedReportPath.path
+                : null,
+            'scenarioLog': archivedLogPath.existsSync()
+                ? archivedLogPath.path
+                : null,
+            'screenshots': archivedScreenshotPaths,
             'error': failure?.toString(),
           });
         }
