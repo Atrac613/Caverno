@@ -521,8 +521,7 @@ class ChatNotifier extends Notifier<ChatState> {
       final decision =
           _buildOrderedChoiceDecisionFromOpenQuestion(question) ??
           _buildAlternativeChoiceDecisionFromOpenQuestion(question) ??
-          _buildYesNoDecisionFromOpenQuestion(question) ??
-          _buildFreeTextDecisionFromOpenQuestion(question);
+          _buildYesNoDecisionFromOpenQuestion(question);
       if (decision != null) {
         decisions.add(decision);
       }
@@ -688,32 +687,6 @@ class ChatNotifier extends Notifier<ChatState> {
               : 'Do not assume this direction in the plan.',
         ),
       ],
-    );
-  }
-
-  WorkflowPlanningDecision? _buildFreeTextDecisionFromOpenQuestion(
-    String question,
-  ) {
-    final trimmedQuestion = question.trim();
-    if (trimmedQuestion.isEmpty) {
-      return null;
-    }
-
-    final normalizedQuestion = _normalizeWorkflowDecisionText(trimmedQuestion);
-    if (normalizedQuestion.isEmpty) {
-      return null;
-    }
-
-    final isJapanese = _containsJapaneseText(trimmedQuestion);
-    return WorkflowPlanningDecision(
-      id: normalizedQuestion,
-      question: trimmedQuestion,
-      help: isJapanese
-          ? '短く入力してもらえれば plan を続けられます。'
-          : 'A short answer here is enough to continue the plan.',
-      allowFreeText: true,
-      freeTextPlaceholder: isJapanese ? 'ここに回答を入力' : 'Type your answer here',
-      options: const [],
     );
   }
 
@@ -1314,6 +1287,9 @@ class ChatNotifier extends Notifier<ChatState> {
       )
       ..writeln(
         '- If the user must answer in their own words instead of picking from known options, return inputMode="freeText" with an empty options array.',
+      )
+      ..writeln(
+        '- Use freeText decisions only when the answer is truly required to shape the initial plan right now. Otherwise, keep the item in openQuestions.',
       )
       ..writeln(
         '- In proposal mode, return kind="proposal" and set decisions to an empty array.',

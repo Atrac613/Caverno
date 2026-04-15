@@ -188,18 +188,16 @@ void main() {
     ]);
   });
 
-  test('promotes non-choice open questions into free-text prompts', () {
-    final decisions = notifier.promoteOpenQuestionsForTest([
-      'What is the deployment environment for this script?',
-    ]);
+  test(
+    'does not promote non-choice open questions into planning decisions',
+    () {
+      final decisions = notifier.promoteOpenQuestionsForTest([
+        'What is the deployment environment for this script?',
+      ]);
 
-    expect(decisions, hasLength(1));
-    expect(decisions.first.allowFreeText, isTrue);
-    expect(
-      decisions.first.question,
-      'What is the deployment environment for this script?',
-    );
-  });
+      expect(decisions, isEmpty);
+    },
+  );
 
   test(
     'parses workflow proposal json payloads with localized stage values',
