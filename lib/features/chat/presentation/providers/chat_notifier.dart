@@ -2679,6 +2679,7 @@ class ChatNotifier extends Notifier<ChatState> {
     // Do not send empty input with no attached image.
     if (content.trim().isEmpty && imageBase64 == null) return;
     if (!ref.mounted) return;
+    if (state.isLoading) return;
 
     _hiddenPrompt = null;
     _languageCode = languageCode;
@@ -2725,7 +2726,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!ref.mounted) return;
     state = state.copyWith(
       messages: [...state.messages, userMessage],
-      isLoading: shouldInterceptForPlanMode,
+      isLoading: true,
       error: null,
     );
 
