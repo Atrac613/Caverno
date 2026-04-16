@@ -361,6 +361,8 @@ Future<void> _waitForReadyPlanProposal(
   ProviderContainer container, {
   required Duration timeout,
 }) async {
+  var recoveredTaskProposal = false;
+
   bool isProposalReady(ChatState chatState) {
     return chatState.workflowProposalDraft != null &&
         chatState.taskProposalDraft != null &&
@@ -374,6 +376,17 @@ Future<void> _waitForReadyPlanProposal(
     if (isProposalReady(chatState)) {
       await tester.pumpAndSettle();
       return;
+    }
+    if (!recoveredTaskProposal &&
+        chatState.workflowProposalDraft != null &&
+        chatState.taskProposalDraft == null &&
+        chatState.taskProposalError == null &&
+        !chatState.isGeneratingWorkflowProposal &&
+        !chatState.isGeneratingTaskProposal) {
+      recoveredTaskProposal = true;
+      await container.read(chatNotifierProvider.notifier).generateTaskProposal();
+      await tester.pump();
+      continue;
     }
 
     await tester.pump(const Duration(milliseconds: 200));
