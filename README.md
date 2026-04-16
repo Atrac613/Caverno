@@ -224,6 +224,36 @@ Optional filters:
 - `CAVERNO_PLAN_MODE_TAGS=smoke` to run scenarios matching any listed tag
 - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` to fail the run when warnings are recorded
 
+Current live scenario names:
+
+- `live_host_health_scaffold`
+- `live_cli_entrypoint_decision`
+- `live_clarify_recovery`
+
+Current live tags:
+
+- `smoke`
+- `decision`
+- `recovery`
+
+Examples:
+
+```bash
+# Run all live smoke scenarios
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+CAVERNO_PLAN_MODE_TAGS=smoke \
+tool/run_plan_mode_live_test.sh
+
+# Run only the clarify/recovery live scenario
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+CAVERNO_PLAN_MODE_SCENARIOS=live_clarify_recovery \
+tool/run_plan_mode_live_test.sh
+```
+
 Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json`, `build/integration_test_reports/plan_mode_live_suite_report.md`, and `build/integration_test_reports/plan_mode_live_suite_report.xml`.
 
 ## Architecture
