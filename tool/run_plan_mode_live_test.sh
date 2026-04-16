@@ -4,9 +4,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
-BASE_URL="${CAVERNO_LLM_BASE_URL:-http://192.168.100.241:1234/v1}"
-API_KEY="${CAVERNO_LLM_API_KEY:-no-key}"
-MODEL="${CAVERNO_LLM_MODEL:-gemma-4-26B-A4B-it-Q4_K_M.gguf}"
+: "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the live Plan mode suite.}"
+: "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the live Plan mode suite.}"
+: "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the live Plan mode suite.}"
+
+BASE_URL="${CAVERNO_LLM_BASE_URL}"
+API_KEY="${CAVERNO_LLM_API_KEY}"
+MODEL="${CAVERNO_LLM_MODEL}"
 SCENARIOS="${CAVERNO_PLAN_MODE_SCENARIOS:-}"
 TAGS="${CAVERNO_PLAN_MODE_TAGS:-}"
 DEVICE="${CAVERNO_PLAN_MODE_DEVICE:-macos}"

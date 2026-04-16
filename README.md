@@ -197,17 +197,26 @@ Use the helper script to run the same Plan mode flow against a real OpenAI-compa
 tool/run_plan_mode_live_test.sh
 ```
 
-The script defaults to this environment:
+Set these required environment variables in your shell before running it:
 
-| Variable | Default |
-|----------|---------|
-| `CAVERNO_LLM_BASE_URL` | `http://192.168.100.241:1234/v1` |
-| `CAVERNO_LLM_API_KEY` | `no-key` |
-| `CAVERNO_LLM_MODEL` | `gemma-4-26B-A4B-it-Q4_K_M.gguf` |
-| `CAVERNO_PLAN_MODE_DEVICE` | `macos` |
-| `CAVERNO_PLAN_MODE_REPORTER` | `compact` |
-| `CAVERNO_PLAN_MODE_TAGS` | `` |
-| `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS` | `0` |
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `CAVERNO_LLM_BASE_URL` | Yes | OpenAI-compatible base URL for the live test server |
+| `CAVERNO_LLM_API_KEY` | Yes | API key or any token your server expects |
+| `CAVERNO_LLM_MODEL` | Yes | Model ID used for the live Plan mode suite |
+| `CAVERNO_PLAN_MODE_DEVICE` | No | Defaults to `macos` |
+| `CAVERNO_PLAN_MODE_REPORTER` | No | Defaults to `compact` |
+| `CAVERNO_PLAN_MODE_TAGS` | No | Optional tag filter |
+| `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS` | No | Defaults to `0` |
+
+Example:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_plan_mode_live_test.sh
+```
 
 Optional filters:
 

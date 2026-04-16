@@ -94,6 +94,14 @@ bool _envFlagEnabled(String name) {
       rawValue == 'on';
 }
 
+String _requireNonEmptyEnv(String name) {
+  final value = Platform.environment[name]?.trim();
+  if (value == null || value.isEmpty) {
+    throw StateError('Set $name before running live Plan mode scenarios.');
+  }
+  return value;
+}
+
 _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
   final failOnWarnings = _envFlagEnabled('CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS');
@@ -159,9 +167,9 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
     failOnWarnings: failOnWarnings,
     requestedScenarioNames: requestedScenarioNames,
     requestedTags: requestedTags,
-    baseUrl: Platform.environment['CAVERNO_LLM_BASE_URL']?.trim(),
-    apiKey: Platform.environment['CAVERNO_LLM_API_KEY']?.trim(),
-    model: Platform.environment['CAVERNO_LLM_MODEL']?.trim(),
+    baseUrl: _requireNonEmptyEnv('CAVERNO_LLM_BASE_URL'),
+    apiKey: _requireNonEmptyEnv('CAVERNO_LLM_API_KEY'),
+    model: _requireNonEmptyEnv('CAVERNO_LLM_MODEL'),
   );
 }
 
