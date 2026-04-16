@@ -224,6 +224,8 @@ Optional filters:
 - `CAVERNO_PLAN_MODE_TAGS=smoke` to run scenarios matching any listed tag
 - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` to fail the run when warnings are recorded
 
+When `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` is enabled, the suite fails only on unexpected warnings. Scenario-specific expected warnings are still captured in the reports as allowed warnings.
+
 Current live scenario names:
 
 - `live_host_health_scaffold`
