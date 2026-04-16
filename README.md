@@ -206,10 +206,12 @@ The script defaults to this environment:
 | `CAVERNO_LLM_MODEL` | `gemma-4-26B-A4B-it-Q4_K_M.gguf` |
 | `CAVERNO_PLAN_MODE_DEVICE` | `macos` |
 | `CAVERNO_PLAN_MODE_REPORTER` | `compact` |
+| `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS` | `0` |
 
 Optional filters:
 
 - `CAVERNO_PLAN_MODE_SCENARIOS=live_host_health_scaffold`
+- `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` to fail the run when warnings are recorded
 
 Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json` and `build/integration_test_reports/plan_mode_live_suite_report.md`.
 

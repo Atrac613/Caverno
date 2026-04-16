@@ -64,6 +64,7 @@ class _PlanModeScenarioTestConfig {
     required this.suiteName,
     required this.reportPrefix,
     required this.scenarios,
+    required this.failOnWarnings,
     this.baseUrl,
     this.apiKey,
     this.model,
@@ -73,6 +74,7 @@ class _PlanModeScenarioTestConfig {
   final String suiteName;
   final String reportPrefix;
   final List<PlanModeScenarioSpec> scenarios;
+  final bool failOnWarnings;
   final String? baseUrl;
   final String? apiKey;
   final String? model;
@@ -90,6 +92,7 @@ bool _envFlagEnabled(String name) {
 
 _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
+  final failOnWarnings = _envFlagEnabled('CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS');
   final requestedScenarios =
       (Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS']
                   ?.split(',')
@@ -120,6 +123,7 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
       suiteName: 'plan_mode_scenarios',
       reportPrefix: 'plan_mode_suite',
       scenarios: filteredScenarios,
+      failOnWarnings: failOnWarnings,
     );
   }
 
@@ -128,6 +132,7 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
     suiteName: 'plan_mode_live_scenarios',
     reportPrefix: 'plan_mode_live_suite',
     scenarios: filteredScenarios,
+    failOnWarnings: failOnWarnings,
     baseUrl: Platform.environment['CAVERNO_LLM_BASE_URL']?.trim(),
     apiKey: Platform.environment['CAVERNO_LLM_API_KEY']?.trim(),
     model: Platform.environment['CAVERNO_LLM_MODEL']?.trim(),
@@ -604,6 +609,7 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Generated at: ${DateTime.now().toIso8601String()}')
     ..writeln('- Suite: ${config.suiteName}')
     ..writeln('- Mode: ${config.mode.name}')
+    ..writeln('- Fail on warnings: ${config.failOnWarnings}')
     ..writeln('- Suite directory: ${suiteRunDirectory.path}')
     ..writeln(
       '- Model: ${config.model?.isNotEmpty == true ? config.model : 'default'}',
@@ -798,6 +804,13 @@ Future<_ScenarioRunResult> _runScenario({
   );
 
   _assertLogExpectations(logs, scenario.logExpectations);
+  final warnings = _collectScenarioWarnings(logs);
+  if (config.failOnWarnings && warnings.isNotEmpty) {
+    throw StateError(
+      'Scenario emitted warnings while fail-on-warning mode was enabled:\n'
+      '${warnings.join('\n')}',
+    );
+  }
 
   final currentConversation = container
       .read(conversationsNotifierProvider)
@@ -847,7 +860,7 @@ Future<_ScenarioRunResult> _runScenario({
           },
         )
         .toList(growable: false),
-    'warnings': _collectScenarioWarnings(logs),
+    'warnings': warnings,
     'artifacts': <String, String>{
       for (final artifact in scenario.resolvedArtifactExpectations.where(
         (item) => item.shouldExist,
@@ -961,6 +974,7 @@ void main() {
         'suiteDirectory': suiteRunDirectory.path,
         'model': config.model,
         'baseUrl': config.baseUrl,
+        'failOnWarnings': config.failOnWarnings,
         'scenarioCount': suiteResults.length,
         'passedCount': passedCount,
         'failedCount': suiteResults.length - passedCount,

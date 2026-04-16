@@ -10,11 +10,13 @@ MODEL="${CAVERNO_LLM_MODEL:-gemma-4-26B-A4B-it-Q4_K_M.gguf}"
 SCENARIOS="${CAVERNO_PLAN_MODE_SCENARIOS:-}"
 DEVICE="${CAVERNO_PLAN_MODE_DEVICE:-macos}"
 REPORTER="${CAVERNO_PLAN_MODE_REPORTER:-compact}"
+FAIL_ON_WARNINGS="${CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS:-0}"
 
 echo "Running Plan mode live scenarios"
 echo "  Base URL: ${BASE_URL}"
 echo "  Model: ${MODEL}"
 echo "  Device: ${DEVICE}"
+echo "  Fail on warnings: ${FAIL_ON_WARNINGS}"
 if [[ -n "${SCENARIOS}" ]]; then
   echo "  Scenarios: ${SCENARIOS}"
 fi
@@ -26,4 +28,5 @@ CAVERNO_LLM_BASE_URL="${BASE_URL}" \
 CAVERNO_LLM_API_KEY="${API_KEY}" \
 CAVERNO_LLM_MODEL="${MODEL}" \
 CAVERNO_PLAN_MODE_SCENARIOS="${SCENARIOS}" \
+CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS="${FAIL_ON_WARNINGS}" \
 flutter test integration_test/plan_mode_scenario_test.dart -d "${DEVICE}" -r "${REPORTER}"
