@@ -451,7 +451,37 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    _toolWriteIndex += 1;
+    return createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: [
+        ToolResultInfo(
+          id: toolCallId,
+          name: toolName,
+          arguments: toolArguments.isEmpty
+              ? const <String, dynamic>{}
+              : jsonDecode(toolArguments) as Map<String, dynamic>,
+          result: toolResult,
+        ),
+      ],
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    _toolWriteIndex += toolResults.length;
     if (_toolWriteIndex < scenario.toolWrites.length) {
       appLog('[ScenarioLLM] follow-up tool call');
       return _toolWriteResultAt(_toolWriteIndex);
