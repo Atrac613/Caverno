@@ -1026,6 +1026,12 @@ Future<_ScenarioRunResult> _runScenario({
   if (workflowExpectation.taskCount != null) {
     expect(savedWorkflow.tasks, hasLength(workflowExpectation.taskCount!));
   }
+  if (workflowExpectation.minTaskCount != null) {
+    expect(
+      savedWorkflow.tasks.length,
+      greaterThanOrEqualTo(workflowExpectation.minTaskCount!),
+    );
+  }
   if (workflowExpectation.firstTaskTitle != null) {
     expect(savedWorkflow.tasks.first.title, workflowExpectation.firstTaskTitle);
   }

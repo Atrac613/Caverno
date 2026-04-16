@@ -2526,11 +2526,27 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  @visibleForTesting
+  Map<String, dynamic> normalizeWriteFileArgumentsForTest(
+    Map<String, dynamic> arguments,
+  ) {
+    return _normalizeWriteFileArgumentAliases(arguments);
+  }
+
   Map<String, dynamic> _resolveProjectScopedArguments(
     String toolName,
     Map<String, dynamic> arguments,
   ) {
-    final projectRoot = _getActiveProjectRootPath();
+    String? projectRoot;
+    var projectRootLoaded = false;
+
+    String? loadProjectRoot() {
+      if (!projectRootLoaded) {
+        projectRoot = _getActiveProjectRootPath();
+        projectRootLoaded = true;
+      }
+      return projectRoot;
+    }
 
     String? resolvePathArg(
       String key, {
@@ -2547,7 +2563,10 @@ class ChatNotifier extends Notifier<ChatState> {
       if ((rawValue == null || rawValue.isEmpty) && !allowEmpty) {
         return null;
       }
-      return FilesystemTools.resolvePath(rawValue, defaultRoot: projectRoot);
+      return FilesystemTools.resolvePath(
+        rawValue,
+        defaultRoot: loadProjectRoot(),
+      );
     }
 
     return switch (toolName) {
@@ -2561,7 +2580,9 @@ class ChatNotifier extends Notifier<ChatState> {
       }(),
       'read_file' || 'write_file' || 'edit_file' => () {
         final resolvedPath = resolvePathArg('path');
-        final resolvedArguments = <String, dynamic>{...arguments};
+        final resolvedArguments = toolName == 'write_file'
+            ? _normalizeWriteFileArgumentAliases(arguments)
+            : <String, dynamic>{...arguments};
         if (resolvedPath != null) {
           resolvedArguments['path'] = resolvedPath;
         }
@@ -2599,6 +2620,20 @@ class ChatNotifier extends Notifier<ChatState> {
       }(),
       _ => arguments,
     };
+  }
+
+  Map<String, dynamic> _normalizeWriteFileArgumentAliases(
+    Map<String, dynamic> arguments,
+  ) {
+    final normalizedArguments = <String, dynamic>{...arguments};
+    final content = (normalizedArguments['content'] as String?)?.trim();
+    final contents = (normalizedArguments['contents'] as String?)?.trim();
+    if ((content == null || content.isEmpty) &&
+        contents != null &&
+        contents.isNotEmpty) {
+      normalizedArguments['content'] = contents;
+    }
+    return normalizedArguments;
   }
 
   /// Prepares the message list sent to the LLM, including system messages.

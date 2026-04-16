@@ -62,6 +62,14 @@ void main() {
     expect(notifier.assistantMessageHasVisibleContentForTest(content), isTrue);
   });
 
+  test('normalizes write_file contents alias into content', () {
+    final resolved = notifier.normalizeWriteFileArgumentsForTest({
+      'contents': '# README',
+    });
+
+    expect(resolved['content'], '# README');
+  });
+
   test('parses workflow planning decision payloads', () {
     final decisions = notifier.parseWorkflowDecisionsForTest('''
 {"kind":"decision","decisions":[

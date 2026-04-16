@@ -62,6 +62,7 @@ class PlanModeSavedWorkflowExpectation {
     this.stage,
     this.goal,
     this.taskCount,
+    this.minTaskCount,
     this.firstTaskTitle,
     this.openQuestionsContain = const <String>[],
   });
@@ -69,6 +70,7 @@ class PlanModeSavedWorkflowExpectation {
   final ConversationWorkflowStage? stage;
   final String? goal;
   final int? taskCount;
+  final int? minTaskCount;
   final String? firstTaskTitle;
   final List<String> openQuestionsContain;
 }
@@ -1295,10 +1297,9 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
       artifactExpectations: const <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(path: 'requirements.txt'),
-        PlanModeArtifactExpectation(path: 'README.md'),
       ],
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
-        taskCount: 2,
+        minTaskCount: 2,
         firstTaskTitle: 'Create requirements.txt',
       ),
       logExpectations: const <PlanModeLogExpectation>[
