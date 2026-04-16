@@ -218,6 +218,28 @@ void main() {
   );
 
   test(
+    'does not promote example lists in open questions into planning decisions',
+    () {
+      final decisions = notifier.promoteOpenQuestionsForTest([
+        'Which system metrics (e.g., CPU, RAM, Disk) should be prioritized in the next slice?',
+      ]);
+
+      expect(decisions, isEmpty);
+    },
+  );
+
+  test(
+    'does not promote comma-only choice hints into planning decisions',
+    () {
+      final decisions = notifier.promoteOpenQuestionsForTest([
+        'Which operating systems (Linux, macOS, Windows) are the primary targets?',
+      ]);
+
+      expect(decisions, isEmpty);
+    },
+  );
+
+  test(
     'parses workflow proposal json payloads with localized stage values',
     () {
       final proposal = notifier.parseWorkflowProposalForTest('''

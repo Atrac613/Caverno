@@ -760,9 +760,12 @@ class ChatNotifier extends Notifier<ChatState> {
       '',
     );
     final lowerQuestion = trimmedQuestion.toLowerCase();
-    if (!lowerQuestion.contains(' or ') &&
-        !lowerQuestion.contains(',') &&
-        !lowerQuestion.contains(':')) {
+    if (lowerQuestion.contains('e.g.') ||
+        lowerQuestion.contains('i.e.') ||
+        lowerQuestion.contains('for example')) {
+      return const [];
+    }
+    if (!lowerQuestion.contains(' or ') && !lowerQuestion.contains(':')) {
       return const [];
     }
 

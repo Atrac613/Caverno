@@ -22,6 +22,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
@@ -360,15 +361,17 @@ Future<void> _waitForReadyPlanProposal(
   ProviderContainer container, {
   required Duration timeout,
 }) async {
-  final deadline = DateTime.now().add(timeout);
-  while (DateTime.now().isBefore(deadline)) {
-    final chatState = container.read(chatNotifierProvider);
-    final isReady =
-        chatState.workflowProposalDraft != null &&
+  bool isProposalReady(ChatState chatState) {
+    return chatState.workflowProposalDraft != null &&
         chatState.taskProposalDraft != null &&
         !chatState.isGeneratingWorkflowProposal &&
         !chatState.isGeneratingTaskProposal;
-    if (isReady) {
+  }
+
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final chatState = container.read(chatNotifierProvider);
+    if (isProposalReady(chatState)) {
       await tester.pumpAndSettle();
       return;
     }
@@ -377,6 +380,11 @@ Future<void> _waitForReadyPlanProposal(
   }
 
   final chatState = container.read(chatNotifierProvider);
+  if (isProposalReady(chatState)) {
+    await tester.pumpAndSettle();
+    return;
+  }
+
   throw StateError(
     'Plan proposal did not become ready. '
     'workflowDraft=${chatState.workflowProposalDraft != null}, '
