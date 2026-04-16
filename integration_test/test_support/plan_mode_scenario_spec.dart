@@ -247,6 +247,7 @@ class PlanModeScenarioSpec {
     this.logExpectations = const <PlanModeLogExpectation>[],
     this.savedWorkflowExpectation,
     this.toolOverrides = const <PlanModeScenarioToolOverrideSpec>[],
+    this.tags = const <String>[],
   });
 
   final String name;
@@ -263,6 +264,7 @@ class PlanModeScenarioSpec {
   final List<PlanModeLogExpectation> logExpectations;
   final PlanModeSavedWorkflowExpectation? savedWorkflowExpectation;
   final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
+  final List<String> tags;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -597,6 +599,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a monitoring script plan and keep asking if the direction still needs clarification.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'recovery', 'clarify', 'decision'],
       workflowResponses: <PlanModeWorkflowResponseSpec>[
         const PlanModeWorkflowProposalResponseSpec(
           workflowStage: 'plan',
@@ -742,6 +745,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python readiness plan for a host health checker with a minimal first slice.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'recovery', 'proposal'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowRawResponseSpec(
           content: '''
@@ -829,6 +833,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python host health scaffold and keep moving through the saved tasks automatically.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'tool-error', 'auto-continue'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowProposalResponseSpec(
           workflowStage: 'plan',
@@ -920,6 +925,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python host health scaffold and keep moving through the saved tasks automatically.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'artifact', 'auto-continue'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowProposalResponseSpec(
           workflowStage: 'plan',
@@ -1012,6 +1018,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python script to diagnose the health of a specific host using ping.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'smoke', 'artifact'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowProposalResponseSpec(
           workflowStage: 'plan',
@@ -1111,6 +1118,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python host health tool and decide whether the first slice should be a CLI or a reusable module.',
       projectName: 'tmp',
+      tags: const <String>['fake', 'smoke', 'decision', 'artifact'],
       workflowResponses: <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowDecisionResponseSpec(
           decisions: <WorkflowPlanningDecision>[
@@ -1263,6 +1271,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           'For the first implementation slice, create only requirements.txt '
           'and README.md.',
       projectName: 'tmp-live',
+      tags: const <String>['live', 'smoke', 'artifact'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowRawResponseSpec(content: '{}'),
       ],
@@ -1309,6 +1318,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           'README, and keep the first implementation slice limited to '
           'requirements.txt and README.md.',
       projectName: 'tmp-live-decision',
+      tags: const <String>['live', 'smoke', 'decision'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowRawResponseSpec(content: '{}'),
       ],

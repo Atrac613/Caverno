@@ -65,6 +65,8 @@ class _PlanModeScenarioTestConfig {
     required this.reportPrefix,
     required this.scenarios,
     required this.failOnWarnings,
+    required this.requestedScenarioNames,
+    required this.requestedTags,
     this.baseUrl,
     this.apiKey,
     this.model,
@@ -75,6 +77,8 @@ class _PlanModeScenarioTestConfig {
   final String reportPrefix;
   final List<PlanModeScenarioSpec> scenarios;
   final bool failOnWarnings;
+  final List<String> requestedScenarioNames;
+  final List<String> requestedTags;
   final String? baseUrl;
   final String? apiKey;
   final String? model;
@@ -93,27 +97,45 @@ bool _envFlagEnabled(String name) {
 _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
   final failOnWarnings = _envFlagEnabled('CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS');
-  final requestedScenarios =
+  final requestedScenarioNames =
       (Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS']
                   ?.split(',')
                   .map((value) => value.trim())
                   .where((value) => value.isNotEmpty) ??
               const Iterable<String>.empty())
-          .toSet();
+          .toList(growable: false);
+  final requestedScenarioNameSet = requestedScenarioNames.toSet();
+  final requestedTags =
+      (Platform.environment['CAVERNO_PLAN_MODE_TAGS']
+                  ?.split(',')
+                  .map((value) => value.trim().toLowerCase())
+                  .where((value) => value.isNotEmpty) ??
+              const Iterable<String>.empty())
+          .toList(growable: false);
+  final requestedTagSet = requestedTags.toSet();
 
   final scenarios = usesLiveLlm
       ? buildLivePlanModeScenarios()
       : buildPlanModeScenarios();
-  final filteredScenarios = requestedScenarios.isEmpty
-      ? scenarios
-      : scenarios
-            .where((scenario) => requestedScenarios.contains(scenario.name))
-            .toList(growable: false);
+  final filteredScenarios = scenarios
+      .where((scenario) {
+        final matchesName =
+            requestedScenarioNameSet.isEmpty ||
+            requestedScenarioNameSet.contains(scenario.name);
+        final matchesTag =
+            requestedTagSet.isEmpty ||
+            scenario.tags.any(
+              (tag) => requestedTagSet.contains(tag.trim().toLowerCase()),
+            );
+        return matchesName && matchesTag;
+      })
+      .toList(growable: false);
 
   if (filteredScenarios.isEmpty) {
     throw StateError(
       'No plan mode scenarios matched '
-      '"${Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS'] ?? ''}".',
+      'names="${Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS'] ?? ''}" '
+      'tags="${Platform.environment['CAVERNO_PLAN_MODE_TAGS'] ?? ''}".',
     );
   }
 
@@ -124,6 +146,8 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
       reportPrefix: 'plan_mode_suite',
       scenarios: filteredScenarios,
       failOnWarnings: failOnWarnings,
+      requestedScenarioNames: requestedScenarioNames,
+      requestedTags: requestedTags,
     );
   }
 
@@ -133,6 +157,8 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
     reportPrefix: 'plan_mode_live_suite',
     scenarios: filteredScenarios,
     failOnWarnings: failOnWarnings,
+    requestedScenarioNames: requestedScenarioNames,
+    requestedTags: requestedTags,
     baseUrl: Platform.environment['CAVERNO_LLM_BASE_URL']?.trim(),
     apiKey: Platform.environment['CAVERNO_LLM_API_KEY']?.trim(),
     model: Platform.environment['CAVERNO_LLM_MODEL']?.trim(),
@@ -610,6 +636,12 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Suite: ${config.suiteName}')
     ..writeln('- Mode: ${config.mode.name}')
     ..writeln('- Fail on warnings: ${config.failOnWarnings}')
+    ..writeln(
+      '- Scenario filter: ${config.requestedScenarioNames.isEmpty ? 'all' : config.requestedScenarioNames.join(', ')}',
+    )
+    ..writeln(
+      '- Tag filter: ${config.requestedTags.isEmpty ? 'all' : config.requestedTags.join(', ')}',
+    )
     ..writeln('- Suite directory: ${suiteRunDirectory.path}')
     ..writeln(
       '- Model: ${config.model?.isNotEmpty == true ? config.model : 'default'}',
@@ -623,16 +655,17 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
     ..writeln()
     ..writeln(
-      '| Scenario | Status | Duration (ms) | Warnings | Screenshots | Report | Log | Error |',
+      '| Scenario | Tags | Status | Duration (ms) | Warnings | Screenshots | Report | Log | Error |',
     )
-    ..writeln('| --- | --- | ---: | ---: | ---: | --- | --- | --- |');
+    ..writeln('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |');
 
   for (final result in suiteResults) {
     final screenshots = (result['screenshots'] as List<Object?>?) ?? const [];
     final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+    final tags = (result['tags'] as List<Object?>?) ?? const [];
     final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
     buffer.writeln(
-      '| ${result['scenario']} | ${result['status']} | '
+      '| ${result['scenario']} | ${tags.isEmpty ? '-' : tags.join(', ')} | ${result['status']} | '
       '${result['durationMs']} | ${warnings.length} | ${screenshots.length} | '
       '${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
       '${error.isEmpty ? '-' : error} |',
@@ -845,6 +878,7 @@ Future<_ScenarioRunResult> _runScenario({
 
   final report = <String, dynamic>{
     'scenario': scenario.name,
+    'tags': scenario.tags,
     'status': 'passed',
     'executionMode': config.mode.name,
     'projectRoot': scenarioDir.path,
@@ -971,6 +1005,8 @@ void main() {
         'generatedAt': DateTime.now().toIso8601String(),
         'suite': config.suiteName,
         'mode': config.mode.name,
+        'requestedScenarioNames': config.requestedScenarioNames,
+        'requestedTags': config.requestedTags,
         'suiteDirectory': suiteRunDirectory.path,
         'model': config.model,
         'baseUrl': config.baseUrl,
@@ -1070,6 +1106,7 @@ void main() {
           }
           suiteResults.add(<String, Object?>{
             'scenario': scenario.name,
+            'tags': scenario.tags,
             'mode': config.mode.name,
             'status': failure == null ? 'passed' : 'failed',
             'startedAt': startedAt.toIso8601String(),
