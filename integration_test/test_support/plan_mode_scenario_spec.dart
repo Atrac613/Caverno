@@ -1354,5 +1354,52 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
       ],
     ),
+    PlanModeScenarioSpec(
+      name: 'live_clarify_recovery',
+      userPrompt:
+          'Create a reviewable plan for a Python host health checker. You may '
+          'ask exactly one planning decision if the scope is still ambiguous, '
+          'and if anything remains unresolved after that, keep it in open '
+          'questions instead of blocking the workflow. Use the exact option '
+          'labels "JSON Report" and "Markdown Report" if you ask about the '
+          'first reporting format. Keep the first implementation slice limited '
+          'to requirements.txt and README.md.',
+      projectName: 'tmp-live-clarify',
+      tags: const <String>['live', 'smoke', 'recovery'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      decisionSelections: const <PlanModeScenarioDecisionSelection>[
+        PlanModeScenarioDecisionSelection(
+          question: '',
+          optionLabel: 'JSON Report',
+        ),
+      ],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Suggested plan',
+        ),
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      artifactExpectations: const <PlanModeArtifactExpectation>[],
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] === Response (streamWithTools) ===',
+          minCount: 1,
+        ),
+      ],
+    ),
   ];
 }
