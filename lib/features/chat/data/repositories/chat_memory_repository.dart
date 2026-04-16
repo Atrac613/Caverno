@@ -37,7 +37,8 @@ class ChatMemoryRepository {
   static const _memoriesKey = 'memories';
 
   UserMemoryProfile loadProfile() {
-    final raw = _box.get(_profileKey);
+    if (!_box.isOpen) return UserMemoryProfile.empty();
+    final raw = _readOrNull<String>(() => _box.get(_profileKey));
     if (raw == null || raw.isEmpty) {
       return UserMemoryProfile.empty();
     }
@@ -51,11 +52,14 @@ class ChatMemoryRepository {
   }
 
   Future<void> saveProfile(UserMemoryProfile profile) async {
-    await _box.put(_profileKey, jsonEncode(profile.toJson()));
+    await _writeSafely(() {
+      return _box.put(_profileKey, jsonEncode(profile.toJson()));
+    });
   }
 
   List<MemorySessionSummary> loadSessionSummaries() {
-    final raw = _box.get(_sessionSummariesKey);
+    if (!_box.isOpen) return [];
+    final raw = _readOrNull<String>(() => _box.get(_sessionSummariesKey));
     if (raw == null || raw.isEmpty) return [];
     try {
       final data = jsonDecode(raw) as List<dynamic>;
@@ -74,6 +78,7 @@ class ChatMemoryRepository {
     MemorySessionSummary summary, {
     int maxItems = 20,
   }) async {
+    if (!_box.isOpen) return;
     final summaries = loadSessionSummaries();
     final existingIndex = summaries.indexWhere(
       (s) => s.conversationId == summary.conversationId,
@@ -90,14 +95,17 @@ class ChatMemoryRepository {
       summaries.removeRange(maxItems, summaries.length);
     }
 
-    await _box.put(
-      _sessionSummariesKey,
-      jsonEncode(summaries.map((s) => s.toJson()).toList()),
-    );
+    await _writeSafely(() {
+      return _box.put(
+        _sessionSummariesKey,
+        jsonEncode(summaries.map((s) => s.toJson()).toList()),
+      );
+    });
   }
 
   List<MemoryEntry> loadMemories() {
-    final raw = _box.get(_memoriesKey);
+    if (!_box.isOpen) return [];
+    final raw = _readOrNull<String>(() => _box.get(_memoriesKey));
     if (raw == null || raw.isEmpty) return [];
     try {
       final data = jsonDecode(raw) as List<dynamic>;
@@ -117,6 +125,9 @@ class ChatMemoryRepository {
     List<MemoryEntry> entries, {
     int maxItems = 300,
   }) async {
+    if (!_box.isOpen) {
+      return const MemoryUpsertResult(addedCount: 0, updatedCount: 0);
+    }
     final memories = loadMemories();
     var addedCount = 0;
     var updatedCount = 0;
@@ -160,10 +171,12 @@ class ChatMemoryRepository {
       memories.removeRange(maxItems, memories.length);
     }
 
-    await _box.put(
-      _memoriesKey,
-      jsonEncode(memories.map((m) => m.toJson()).toList()),
-    );
+    await _writeSafely(() {
+      return _box.put(
+        _memoriesKey,
+        jsonEncode(memories.map((m) => m.toJson()).toList()),
+      );
+    });
 
     return MemoryUpsertResult(
       addedCount: addedCount,
@@ -172,12 +185,36 @@ class ChatMemoryRepository {
   }
 
   Future<void> clearAll() async {
-    await _box.delete(_profileKey);
-    await _box.delete(_sessionSummariesKey);
-    await _box.delete(_memoriesKey);
+    await _writeSafely(() => _box.delete(_profileKey));
+    await _writeSafely(() => _box.delete(_sessionSummariesKey));
+    await _writeSafely(() => _box.delete(_memoriesKey));
   }
 
   String _normalize(String text) {
     return text.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  T? _readOrNull<T>(T? Function() read) {
+    try {
+      return read();
+    } catch (error) {
+      if (_isClosedBoxError(error)) return null;
+      rethrow;
+    }
+  }
+
+  Future<void> _writeSafely(Future<void> Function() write) async {
+    if (!_box.isOpen) return;
+    try {
+      await write();
+    } catch (error) {
+      if (_isClosedBoxError(error)) return;
+      rethrow;
+    }
+  }
+
+  bool _isClosedBoxError(Object error) {
+    return error is HiveError &&
+        error.message.toLowerCase().contains('already been closed');
   }
 }
