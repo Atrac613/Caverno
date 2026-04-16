@@ -248,6 +248,7 @@ class PlanModeScenarioSpec {
     this.savedWorkflowExpectation,
     this.toolOverrides = const <PlanModeScenarioToolOverrideSpec>[],
     this.tags = const <String>[],
+    this.allowedWarningPatterns = const <String>[],
   });
 
   final String name;
@@ -265,6 +266,7 @@ class PlanModeScenarioSpec {
   final PlanModeSavedWorkflowExpectation? savedWorkflowExpectation;
   final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
   final List<String> tags;
+  final List<String> allowedWarningPatterns;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -738,6 +740,9 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           pattern: '[ScenarioLLM] workflow decision',
           exactCount: 2,
         ),
+      ],
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Using fallback proposal',
       ],
     ),
     PlanModeScenarioSpec(
@@ -1399,6 +1404,12 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] === Response (streamWithTools) ===',
           minCount: 1,
         ),
+      ],
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Workflow proposal parse failed',
+        '[Workflow] Workflow proposal recovered on retry',
+        '[Workflow] Using fallback proposal',
+        '[LLM] Recovered raw text response after create parse failure',
       ],
     ),
   ];

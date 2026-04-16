@@ -586,6 +586,10 @@ Future<void> _writeFailureScenarioArtifacts({
       )
       .toList(growable: false);
   final warnings = _collectScenarioWarnings(logs);
+  final warningSummary = _summarizeScenarioWarnings(
+    warnings,
+    scenario.allowedWarningPatterns,
+  );
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
   await logFile.writeAsString('${logs.join('\n')}\n');
@@ -598,6 +602,8 @@ Future<void> _writeFailureScenarioArtifacts({
     'stackTrace': stackTrace.toString(),
     'screenshots': screenshotPaths,
     'warnings': warnings,
+    'allowedWarnings': warningSummary.allowedWarnings,
+    'unexpectedWarnings': warningSummary.unexpectedWarnings,
     'capturedLogs': filteredLogs,
   };
   final reportFile = File('${scenarioDir.path}/scenario_report.json');
@@ -627,6 +633,38 @@ List<String> _collectScenarioWarnings(List<String> logs) {
     warnings.add(line);
   }
   return warnings;
+}
+
+class _ScenarioWarningSummary {
+  const _ScenarioWarningSummary({
+    required this.allowedWarnings,
+    required this.unexpectedWarnings,
+  });
+
+  final List<String> allowedWarnings;
+  final List<String> unexpectedWarnings;
+}
+
+_ScenarioWarningSummary _summarizeScenarioWarnings(
+  List<String> warnings,
+  List<String> allowedPatterns,
+) {
+  final allowedWarnings = <String>[];
+  final unexpectedWarnings = <String>[];
+
+  for (final warning in warnings) {
+    final isAllowed = allowedPatterns.any(warning.contains);
+    if (isAllowed) {
+      allowedWarnings.add(warning);
+    } else {
+      unexpectedWarnings.add(warning);
+    }
+  }
+
+  return _ScenarioWarningSummary(
+    allowedWarnings: allowedWarnings,
+    unexpectedWarnings: unexpectedWarnings,
+  );
 }
 
 String _xmlEscape(String value) {
@@ -669,6 +707,8 @@ String _buildSuiteJUnitReport({
     final durationSeconds = ((result['durationMs'] as int? ?? 0) / 1000)
         .toStringAsFixed(3);
     final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+    final allowedWarnings =
+        (result['allowedWarnings'] as List<Object?>?) ?? const [];
     final reportPath = result['scenarioReport'] as String?;
     final logPath = result['scenarioLog'] as String?;
     buffer.writeln(
@@ -689,7 +729,10 @@ String _buildSuiteJUnitReport({
       if (reportPath != null) 'report=$reportPath',
       if (logPath != null) 'log=$logPath',
       'warnings=${warnings.length}',
+      'allowedWarnings=${allowedWarnings.length}',
       if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
+      if (allowedWarnings.isNotEmpty)
+        ...allowedWarnings.map((warning) => 'allowedWarning=$warning'),
     ].join('\n');
     if (systemOut.isNotEmpty) {
       buffer.writeln('      <system-out>${_xmlEscape(systemOut)}</system-out>');
@@ -737,19 +780,23 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
     ..writeln()
     ..writeln(
-      '| Scenario | Tags | Status | Duration (ms) | Warnings | Screenshots | Report | Log | Error |',
+      '| Scenario | Tags | Status | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
     )
-    ..writeln('| --- | --- | --- | ---: | ---: | ---: | --- | --- | --- |');
+    ..writeln(
+      '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
+    );
 
   for (final result in suiteResults) {
     final screenshots = (result['screenshots'] as List<Object?>?) ?? const [];
     final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+    final allowedWarnings =
+        (result['allowedWarnings'] as List<Object?>?) ?? const [];
     final tags = (result['tags'] as List<Object?>?) ?? const [];
     final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
     buffer.writeln(
       '| ${result['scenario']} | ${tags.isEmpty ? '-' : tags.join(', ')} | ${result['status']} | '
-      '${result['durationMs']} | ${warnings.length} | ${screenshots.length} | '
-      '${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
+      '${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
+      '${screenshots.length} | ${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
       '${error.isEmpty ? '-' : error} |',
     );
   }
@@ -770,6 +817,30 @@ String _buildSuiteMarkdownReport({
       final warnings = (result['warnings'] as List<Object?>?) ?? const [];
       buffer.writeln('### ${result['scenario']}');
       for (final warning in warnings) {
+        buffer.writeln('- $warning');
+      }
+      buffer.writeln();
+    }
+  }
+
+  final scenariosWithAllowedWarnings = suiteResults
+      .where((result) {
+        final allowedWarnings =
+            (result['allowedWarnings'] as List<Object?>?) ?? const [];
+        return allowedWarnings.isNotEmpty;
+      })
+      .toList(growable: false);
+
+  if (scenariosWithAllowedWarnings.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Allowed Warnings')
+      ..writeln();
+    for (final result in scenariosWithAllowedWarnings) {
+      final allowedWarnings =
+          (result['allowedWarnings'] as List<Object?>?) ?? const [];
+      buffer.writeln('### ${result['scenario']}');
+      for (final warning in allowedWarnings) {
         buffer.writeln('- $warning');
       }
       buffer.writeln();
@@ -920,10 +991,14 @@ Future<_ScenarioRunResult> _runScenario({
 
   _assertLogExpectations(logs, scenario.logExpectations);
   final warnings = _collectScenarioWarnings(logs);
-  if (config.failOnWarnings && warnings.isNotEmpty) {
+  final warningSummary = _summarizeScenarioWarnings(
+    warnings,
+    scenario.allowedWarningPatterns,
+  );
+  if (config.failOnWarnings && warningSummary.unexpectedWarnings.isNotEmpty) {
     throw StateError(
       'Scenario emitted warnings while fail-on-warning mode was enabled:\n'
-      '${warnings.join('\n')}',
+      '${warningSummary.unexpectedWarnings.join('\n')}',
     );
   }
 
@@ -977,6 +1052,8 @@ Future<_ScenarioRunResult> _runScenario({
         )
         .toList(growable: false),
     'warnings': warnings,
+    'allowedWarnings': warningSummary.allowedWarnings,
+    'unexpectedWarnings': warningSummary.unexpectedWarnings,
     'artifacts': <String, String>{
       for (final artifact in scenario.resolvedArtifactExpectations.where(
         (item) => item.shouldExist,
@@ -1190,12 +1267,17 @@ void main() {
             '${archivedScenarioDir.path}/scenario_log.txt',
           );
           List<dynamic> archivedWarnings = const <dynamic>[];
+          List<dynamic> archivedAllowedWarnings = const <dynamic>[];
           if (archivedReportPath.existsSync()) {
             final archivedReport =
                 jsonDecode(archivedReportPath.readAsStringSync())
                     as Map<String, dynamic>;
             archivedWarnings =
+                archivedReport['unexpectedWarnings'] as List<dynamic>? ??
                 archivedReport['warnings'] as List<dynamic>? ??
+                const <dynamic>[];
+            archivedAllowedWarnings =
+                archivedReport['allowedWarnings'] as List<dynamic>? ??
                 const <dynamic>[];
           }
           suiteResults.add(<String, Object?>{
@@ -1217,6 +1299,7 @@ void main() {
                 : null,
             'screenshots': archivedScreenshotPaths,
             'warnings': archivedWarnings,
+            'allowedWarnings': archivedAllowedWarnings,
             'error': failure?.toString(),
             'stackTrace': failureStackTrace?.toString(),
           });
