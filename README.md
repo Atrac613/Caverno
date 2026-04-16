@@ -187,7 +187,7 @@ The repository includes deterministic Plan mode scenarios and an optional live L
 flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
 ```
 
-Results are written to `build/integration_test_reports/plan_mode_suite_report.json` and `build/integration_test_reports/plan_mode_suite_report.md`.
+Results are written to `build/integration_test_reports/plan_mode_suite_report.json`, `build/integration_test_reports/plan_mode_suite_report.md`, and `build/integration_test_reports/plan_mode_suite_report.xml`.
 
 ### Live LLM suite
 
@@ -215,7 +215,7 @@ Optional filters:
 - `CAVERNO_PLAN_MODE_TAGS=smoke` to run scenarios matching any listed tag
 - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` to fail the run when warnings are recorded
 
-Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json` and `build/integration_test_reports/plan_mode_live_suite_report.md`.
+Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json`, `build/integration_test_reports/plan_mode_live_suite_report.md`, and `build/integration_test_reports/plan_mode_live_suite_report.xml`.
 
 ## Architecture
 

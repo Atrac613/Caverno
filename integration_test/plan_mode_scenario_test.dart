@@ -621,6 +621,80 @@ List<String> _collectScenarioWarnings(List<String> logs) {
   return warnings;
 }
 
+String _xmlEscape(String value) {
+  return value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&apos;');
+}
+
+String _buildSuiteJUnitReport({
+  required _PlanModeScenarioTestConfig config,
+  required List<Map<String, Object?>> suiteResults,
+}) {
+  final failureCount = suiteResults
+      .where((result) => result['status'] != 'passed')
+      .length;
+  final totalDurationSeconds = suiteResults.fold<num>(
+    0,
+    (sum, result) => sum + ((result['durationMs'] as int? ?? 0) / 1000),
+  );
+
+  final buffer = StringBuffer()
+    ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
+    ..writeln(
+      '<testsuites tests="${suiteResults.length}" '
+      'failures="$failureCount" '
+      'time="${totalDurationSeconds.toStringAsFixed(3)}">',
+    )
+    ..writeln(
+      '  <testsuite name="${_xmlEscape(config.suiteName)}" '
+      'tests="${suiteResults.length}" '
+      'failures="$failureCount" '
+      'time="${totalDurationSeconds.toStringAsFixed(3)}">',
+    );
+
+  for (final result in suiteResults) {
+    final scenarioName = (result['scenario'] as String?) ?? 'unknown';
+    final durationSeconds = ((result['durationMs'] as int? ?? 0) / 1000)
+        .toStringAsFixed(3);
+    final warnings = (result['warnings'] as List<Object?>?) ?? const [];
+    final reportPath = result['scenarioReport'] as String?;
+    final logPath = result['scenarioLog'] as String?;
+    buffer.writeln(
+      '    <testcase classname="${_xmlEscape(config.suiteName)}" '
+      'name="${_xmlEscape(scenarioName)}" '
+      'time="$durationSeconds">',
+    );
+    if (result['status'] != 'passed') {
+      final message = (result['error'] as String?) ?? 'Scenario failed';
+      final stackTrace = (result['stackTrace'] as String?) ?? '';
+      buffer.writeln(
+        '      <failure message="${_xmlEscape(message)}">'
+        '${_xmlEscape(stackTrace)}'
+        '</failure>',
+      );
+    }
+    final systemOut = <String>[
+      if (reportPath != null) 'report=$reportPath',
+      if (logPath != null) 'log=$logPath',
+      'warnings=${warnings.length}',
+      if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
+    ].join('\n');
+    if (systemOut.isNotEmpty) {
+      buffer.writeln('      <system-out>${_xmlEscape(systemOut)}</system-out>');
+    }
+    buffer.writeln('    </testcase>');
+  }
+
+  buffer
+    ..writeln('  </testsuite>')
+    ..writeln('</testsuites>');
+  return buffer.toString();
+}
+
 String _buildSuiteMarkdownReport({
   required _PlanModeScenarioTestConfig config,
   required List<Map<String, Object?>> suiteResults,
@@ -1033,14 +1107,26 @@ void main() {
         suiteResults: suiteResults,
         suiteRunDirectory: suiteRunDirectory,
       );
+      final suiteJUnit = _buildSuiteJUnitReport(
+        config: config,
+        suiteResults: suiteResults,
+      );
       final suiteRunMarkdownFile = File(
         '${suiteRunDirectory.path}/${config.reportPrefix}_report.md',
       );
       await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
+      final suiteRunJUnitFile = File(
+        '${suiteRunDirectory.path}/${config.reportPrefix}_report.xml',
+      );
+      await suiteRunJUnitFile.writeAsString(suiteJUnit);
       final suiteMarkdownFile = File(
         '${reportDirectory.path}/${config.reportPrefix}_report.md',
       );
       await suiteMarkdownFile.writeAsString(suiteMarkdown);
+      final suiteJUnitFile = File(
+        '${reportDirectory.path}/${config.reportPrefix}_report.xml',
+      );
+      await suiteJUnitFile.writeAsString(suiteJUnit);
       appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
     });
 
