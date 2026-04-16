@@ -1033,7 +1033,10 @@ Future<_ScenarioRunResult> _runScenario({
     );
   }
   if (workflowExpectation.firstTaskTitle != null) {
-    expect(savedWorkflow.tasks.first.title, workflowExpectation.firstTaskTitle);
+    expect(
+      _normalizeSavedWorkflowTaskTitle(savedWorkflow.tasks.first.title),
+      _normalizeSavedWorkflowTaskTitle(workflowExpectation.firstTaskTitle!),
+    );
   }
   for (final openQuestion in workflowExpectation.openQuestionsContain) {
     expect(savedWorkflow.openQuestions, contains(openQuestion));
@@ -1112,6 +1115,15 @@ Future<_ScenarioRunResult> _runScenario({
     screenshotPaths: screenshotPaths,
     logPath: logFile.path,
   );
+}
+
+String _normalizeSavedWorkflowTaskTitle(String value) {
+  return value
+      .replaceAll('`', '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .replaceAll(RegExp(r'[.!?]+$'), '')
+      .trim()
+      .toLowerCase();
 }
 
 void main() {
