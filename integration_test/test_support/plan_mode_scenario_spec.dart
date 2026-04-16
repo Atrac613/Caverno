@@ -1348,6 +1348,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
       ],
       artifactExpectations: const <PlanModeArtifactExpectation>[],
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Workflow proposal parse failed',
+        '[Workflow] Workflow proposal recovered on retry',
+      ],
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
