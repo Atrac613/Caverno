@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../domain/entities/message.dart';
 import 'chat_remote_datasource.dart';
 
@@ -70,4 +72,34 @@ abstract class ChatDataSource {
     double? temperature,
     int? maxTokens,
   });
+
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    if (toolResults.length != 1) {
+      throw UnimplementedError(
+        'Batch tool results are not supported by this data source.',
+      );
+    }
+
+    final toolResult = toolResults.single;
+    return createChatCompletionWithToolResult(
+      messages: messages,
+      toolCallId: toolResult.id,
+      toolName: toolResult.name,
+      toolArguments: jsonEncode(toolResult.arguments),
+      toolResult: toolResult.result,
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
 }

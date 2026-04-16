@@ -3253,118 +3253,129 @@ class ChatNotifier extends Notifier<ChatState> {
     var currentAssistantContent = assistantContent;
     const maxIterations = 5; // Prevent infinite loops.
     var iteration = 0;
-    var consecutiveErrors = 0;
-    String? lastErrorToolName;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
+    final toolFailureCounts = <String, int>{};
     // Collect tool results for the final user-role resend.
     final toolResults = <String>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
-      final toolCall = currentToolCalls.first;
-      final toolCallKey = _toolExecutionKey(toolCall);
       if (!ref.mounted) return;
 
-      if (executedToolCallKeys.contains(toolCallKey)) {
-        appLog(
-          '[Tool] Duplicate tool call detected, ending loop: ${toolCall.name} ${toolCall.arguments}',
-        );
+      appLog('[Tool] Tool loop [$iteration/$maxIterations]');
+      final batchToolResults = <ToolResultInfo>[];
+
+      for (final toolCall in currentToolCalls) {
+        final toolCallKey = _toolExecutionKey(toolCall);
+        if (executedToolCallKeys.contains(toolCallKey)) {
+          appLog(
+            '[Tool] Duplicate tool call detected, skipping: ${toolCall.name} ${toolCall.arguments}',
+          );
+          continue;
+        }
+
+        appLog('[Tool] Executing tool: ${toolCall.name}');
+        appLog('[Tool] Arguments: ${toolCall.arguments}');
+
+        _appendToolUseToLastMessage(toolCall);
+
+        try {
+          // Execute the tool. SSH tools that require a UI dialog are
+          // intercepted here so ChatNotifier can surface a Completer-based
+          // confirmation via ChatState; everything else dispatches straight
+          // to McpToolService.
+          final McpToolResult result = await _dispatchToolCall(toolCall);
+          final toolResult = result.isSuccess
+              ? result.result
+              : 'Error: ${result.errorMessage}';
+
+          toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
+          batchToolResults.add(
+            ToolResultInfo(
+              id: toolCall.id,
+              name: toolCall.name,
+              arguments: toolCall.arguments,
+              result: toolResult,
+            ),
+          );
+
+          if (result.isSuccess) {
+            executedToolCallKeys.add(toolCallKey);
+            toolFailureCounts.remove(toolCallKey);
+          } else {
+            final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
+            toolFailureCounts[toolCallKey] = failureCount;
+            if (failureCount >= 2) {
+              appLog(
+                '[Tool] Same tool (${toolCall.name}) failed $failureCount times consecutively, ending loop',
+              );
+              _appendToLastMessage(
+                '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
+              );
+              hasTextResponse = true;
+              break;
+            }
+          }
+        } catch (e) {
+          appLog('[Tool] Error: $e');
+          _appendToLastMessage('[Search error: $e]\n');
+          hasTextResponse = true;
+          break;
+        }
+      }
+
+      if (hasTextResponse) {
+        break;
+      }
+      if (batchToolResults.isEmpty) {
         currentToolCalls = [];
         break;
       }
 
-      appLog('[Tool] Tool loop [$iteration/$maxIterations]');
-      appLog('[Tool] Executing tool: ${toolCall.name}');
-      appLog('[Tool] Arguments: ${toolCall.arguments}');
+      appLog(
+        '[Tool] Retrieved ${batchToolResults.length} tool result(s) in this loop',
+      );
 
-      _appendToolUseToLastMessage(toolCall);
+      // Show a thinking indicator while waiting for the follow-up request.
+      _appendToLastMessage('<think>');
 
-      try {
-        // Execute the tool. SSH tools that require a UI dialog are
-        // intercepted here so ChatNotifier can surface a Completer-based
-        // confirmation via ChatState; everything else dispatches straight
-        // to McpToolService.
-        final McpToolResult result = await _dispatchToolCall(toolCall);
+      // Send the tool results back to the LLM and check for follow-up calls.
+      // Use a non-streaming request with tool definitions included.
+      final mcpToolService = _mcpToolService;
+      if (mcpToolService == null) {
+        await _sendWithoutTools();
+        return;
+      }
+      final tools = mcpToolService.getOpenAiToolDefinitions();
+      final nextResult = await _dataSource.createChatCompletionWithToolResults(
+        messages: _prepareMessagesForLLM(),
+        toolResults: batchToolResults,
+        assistantContent: currentAssistantContent,
+        tools: tools,
+        model: _settings.model,
+        temperature: _settings.temperature,
+        maxTokens: _settings.maxTokens,
+      );
 
-        String toolResult;
-        if (result.isSuccess) {
-          toolResult = result.result;
-          toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
-          executedToolCallKeys.add(toolCallKey);
-          consecutiveErrors = 0;
-          lastErrorToolName = null;
-        } else {
-          toolResult = 'Error: ${result.errorMessage}';
-          // Count repeated failures for the same tool.
-          if (lastErrorToolName == toolCall.name) {
-            consecutiveErrors++;
-          } else {
-            consecutiveErrors = 1;
-            lastErrorToolName = toolCall.name;
-          }
-          if (consecutiveErrors >= 2) {
-            appLog(
-              '[Tool] Same tool (${toolCall.name}) failed $consecutiveErrors times consecutively, ending loop',
-            );
-            _appendToLastMessage(
-              '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
-            );
-            hasTextResponse = true;
-            break;
-          }
-        }
+      if (!ref.mounted) return;
 
-        appLog('[Tool] Result retrieved: ${toolResult.length} chars');
+      // Remove the temporary thinking indicator.
+      _removeTrailingThinkTag();
 
-        // Show a thinking indicator while waiting for the follow-up request.
-        _appendToLastMessage('<think>');
-
-        // Send the tool result back to the LLM and check for follow-up calls.
-        // Use a non-streaming request with tool definitions included.
-        final mcpToolService = _mcpToolService;
-        if (mcpToolService == null) {
-          await _sendWithoutTools();
-          return;
-        }
-        final tools = mcpToolService.getOpenAiToolDefinitions();
-        final nextResult = await _dataSource.createChatCompletionWithToolResult(
-          messages: _prepareMessagesForLLM(),
-          toolCallId: toolCall.id,
-          toolName: toolCall.name,
-          toolArguments: jsonEncode(toolCall.arguments),
-          toolResult: toolResult,
-          assistantContent: currentAssistantContent,
-          tools: tools,
-          model: _settings.model,
-          temperature: _settings.temperature,
-          maxTokens: _settings.maxTokens,
-        );
-
-        if (!ref.mounted) return;
-
-        // Remove the temporary thinking indicator.
-        _removeTrailingThinkTag();
-
-        // Continue looping if the LLM asks for another tool call.
-        if (nextResult.hasToolCalls) {
-          appLog('[Tool] LLM requested additional tool calls');
-          currentToolCalls = nextResult.toolCalls!;
-          currentAssistantContent = nextResult.content.isNotEmpty
-              ? nextResult.content
-              : null;
-        } else {
-          // End the loop on a text response, but delay rendering it.
-          appLog('[Tool] LLM returned final text response (via tool role)');
-          currentToolCalls = [];
-          // Responses through the tool role often claim real-time data is
-          // unavailable, so resend the results later as a user message.
-        }
-      } catch (e) {
-        appLog('[Tool] Error: $e');
-        _appendToLastMessage('[Search error: $e]\n');
+      // Continue looping if the LLM asks for another tool call.
+      if (nextResult.hasToolCalls) {
+        appLog('[Tool] LLM requested additional tool calls');
+        currentToolCalls = nextResult.toolCalls!;
+        currentAssistantContent = nextResult.content.isNotEmpty
+            ? nextResult.content
+            : null;
+      } else {
+        // End the loop on a text response, but delay rendering it.
+        appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
-        hasTextResponse = true;
+        // Responses through the tool role often claim real-time data is
+        // unavailable, so resend the results later as a user message.
       }
     }
 
@@ -3383,7 +3394,7 @@ class ChatNotifier extends Notifier<ChatState> {
         Message(
           id: 'tool_result_${DateTime.now().millisecondsSinceEpoch}',
           content:
-              'Please answer the user\'s question based on the following search results.\n\n$resultsText',
+              'Please answer the user\'s question based on the following tool results.\n\n$resultsText',
           role: MessageRole.user,
           timestamp: DateTime.now(),
         ),

@@ -27,10 +27,7 @@ class DemoDataSource implements ChatDataSource {
     final userMessage = _lastUserMessage(messages);
     final response = _selectResponse(userMessage);
     await Future<void>.delayed(const Duration(milliseconds: 200));
-    return ChatCompletionResult(
-      content: response,
-      finishReason: 'stop',
-    );
+    return ChatCompletionResult(content: response, finishReason: 'stop');
   }
 
   @override
@@ -67,7 +64,26 @@ class DemoDataSource implements ChatDataSource {
   }) async {
     await Future<void>.delayed(const Duration(milliseconds: 200));
     return ChatCompletionResult(
-      content: 'Here are the results. In demo mode, tool results are simulated.',
+      content:
+          'Here are the results. In demo mode, tool results are simulated.',
+      finishReason: 'stop',
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    return ChatCompletionResult(
+      content:
+          'Here are the results. In demo mode, tool results are simulated.',
       finishReason: 'stop',
     );
   }
@@ -114,7 +130,14 @@ class DemoDataSource implements ChatDataSource {
     }
 
     // Greeting
-    if (_matchesAny(lower, ['hello', 'hi ', 'hey', 'good morning', 'good afternoon', 'good evening'])) {
+    if (_matchesAny(lower, [
+      'hello',
+      'hi ',
+      'hey',
+      'good morning',
+      'good afternoon',
+      'good evening',
+    ])) {
       return '<think>The user is greeting me. I should introduce myself and '
           'explain that I\'m running in demo mode so they understand what to '
           'expect.</think>'
@@ -130,7 +153,16 @@ class DemoDataSource implements ChatDataSource {
     }
 
     // Code request
-    if (_matchesAny(lower, ['code', 'function', 'program', 'flutter', 'dart', 'widget', 'implement', 'write a'])) {
+    if (_matchesAny(lower, [
+      'code',
+      'function',
+      'program',
+      'flutter',
+      'dart',
+      'widget',
+      'implement',
+      'write a',
+    ])) {
       return '<think>The user is asking about code. Let me show a practical '
           'Flutter example to demonstrate that Caverno renders markdown and '
           'code blocks nicely.</think>'
@@ -167,7 +199,14 @@ class DemoDataSource implements ChatDataSource {
     }
 
     // Explanation
-    if (_matchesAny(lower, ['explain', 'what is', 'how does', 'why', 'tell me about', 'describe'])) {
+    if (_matchesAny(lower, [
+      'explain',
+      'what is',
+      'how does',
+      'why',
+      'tell me about',
+      'describe',
+    ])) {
       return '<think>The user wants an explanation. I\'ll give a structured '
           'overview to showcase the app\'s markdown rendering.</think>'
           '## How Caverno Works\n\n'
@@ -187,7 +226,15 @@ class DemoDataSource implements ChatDataSource {
     }
 
     // Math
-    if (_matchesAny(lower, ['calculate', 'math', 'sum', 'multiply', 'divide', 'plus', 'minus'])) {
+    if (_matchesAny(lower, [
+      'calculate',
+      'math',
+      'sum',
+      'multiply',
+      'divide',
+      'plus',
+      'minus',
+    ])) {
       return '<think>The user is asking about math. I\'ll demonstrate step-by-step '
           'reasoning.</think>'
           'Here\'s an example of step-by-step problem solving:\n\n'
@@ -201,7 +248,12 @@ class DemoDataSource implements ChatDataSource {
     }
 
     // Help
-    if (_matchesAny(lower, ['help', 'what can you do', 'features', 'capability'])) {
+    if (_matchesAny(lower, [
+      'help',
+      'what can you do',
+      'features',
+      'capability',
+    ])) {
       return 'Here\'s what **Caverno** can do:\n\n'
           '| Feature | Description |\n'
           '|---------|-------------|\n'
@@ -230,7 +282,12 @@ class DemoDataSource implements ChatDataSource {
   }
 
   String _selectJapaneseResponse(String lower, String original) {
-    if (_matchesAny(lower, ['\u3053\u3093\u306B\u3061\u306F', '\u3084\u3042', '\u304A\u306F\u3088\u3046', '\u306F\u3058\u3081\u307E\u3057\u3066'])) {
+    if (_matchesAny(lower, [
+      '\u3053\u3093\u306B\u3061\u306F',
+      '\u3084\u3042',
+      '\u304A\u306F\u3088\u3046',
+      '\u306F\u3058\u3081\u307E\u3057\u3066',
+    ])) {
       return '<think>\u30E6\u30FC\u30B6\u30FC\u304C\u65E5\u672C\u8A9E\u3067\u6328\u62F6\u3057\u3066\u3044\u308B\u3002'
           '\u30C7\u30E2\u30E2\u30FC\u30C9\u306E\u8AAC\u660E\u3092\u3057\u3088\u3046\u3002</think>'
           '**Caverno**\u3078\u3088\u3046\u3053\u305D\uFF01\u{1F44B}\n\n'
