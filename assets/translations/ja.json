@@ -232,7 +232,7 @@
     "assistant_plan": "プランモード",
     "assistant_general_desc": "汎用アシスタントとして応答します",
     "assistant_coding_desc": "技術タスクでは、より厳密なエンジニア寄りの応答をします",
-    "assistant_plan_desc": "コーディング依頼に対して、実装前に承認できる workflow と task plan を作成します",
+    "assistant_plan_desc": "新しいコーディングスレッドで planning を自動開始し、実装前に workflow を確認できるようにします",
     "memory_section": "会話メモリ",
     "memory_refresh": "メモリ状態を更新",
     "memory_status": "保存状況",

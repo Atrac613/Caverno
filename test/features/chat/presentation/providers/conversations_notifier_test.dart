@@ -118,6 +118,42 @@ void main() {
     },
   );
 
+  test('planning session state is persisted per conversation', () async {
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.activateWorkspace(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      createIfMissing: true,
+    );
+
+    await notifier.enterPlanningSession();
+
+    final currentConversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+
+    expect(currentConversation, isNotNull);
+    expect(currentConversation!.isPlanningSession, isTrue);
+    expect(
+      repository.getById(currentConversation.id)?.executionMode,
+      ConversationExecutionMode.planning,
+    );
+
+    await notifier.exitPlanningSession();
+
+    final updatedConversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+
+    expect(updatedConversation, isNotNull);
+    expect(updatedConversation!.isPlanningSession, isFalse);
+    expect(
+      repository.getById(updatedConversation.id)?.executionMode,
+      ConversationExecutionMode.normal,
+    );
+  });
+
   test(
     'updateCurrentConversation keeps the default title for image-only input',
     () async {

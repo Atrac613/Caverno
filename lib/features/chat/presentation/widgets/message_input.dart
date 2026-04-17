@@ -13,7 +13,6 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
-import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInput extends ConsumerStatefulWidget {
@@ -22,6 +21,8 @@ class MessageInput extends ConsumerStatefulWidget {
     required this.onSend,
     required this.onCancel,
     required this.isLoading,
+    required this.assistantMode,
+    this.onAssistantModeSelected,
     this.inputHintKey = 'message.input_hint',
     this.isCodingWorkspace = false,
   });
@@ -34,6 +35,8 @@ class MessageInput extends ConsumerStatefulWidget {
   onSend;
   final VoidCallback onCancel;
   final bool isLoading;
+  final AssistantMode assistantMode;
+  final ValueChanged<AssistantMode>? onAssistantModeSelected;
   final String inputHintKey;
   final bool isCodingWorkspace;
 
@@ -458,9 +461,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final assistantMode = ref.watch(
-      settingsNotifierProvider.select((settings) => settings.assistantMode),
-    );
+    final assistantMode = widget.assistantMode;
 
     final composerColor = _isRecording
         ? theme.colorScheme.errorContainer.withValues(alpha: 0.3)
@@ -644,11 +645,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
                           enabled: !widget.isLoading,
                           tooltip: 'message.mode_tooltip'.tr(),
                           padding: EdgeInsets.zero,
-                          onSelected: (mode) {
-                            ref
-                                .read(settingsNotifierProvider.notifier)
-                                .updateAssistantMode(mode);
-                          },
+                          onSelected: widget.onAssistantModeSelected,
                           itemBuilder: (context) => [
                             CheckedPopupMenuItem<AssistantMode>(
                               value: AssistantMode.general,

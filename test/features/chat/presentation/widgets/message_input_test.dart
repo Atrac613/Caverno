@@ -8,18 +8,6 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
-import 'package:caverno/features/settings/domain/entities/app_settings.dart';
-import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
-
-class _TestSettingsNotifier extends SettingsNotifier {
-  @override
-  AppSettings build() {
-    return AppSettings.defaults().copyWith(
-      assistantMode: AssistantMode.general,
-      demoMode: false,
-    );
-  }
-}
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -54,9 +42,6 @@ Future<void> _pumpMessageInput(
         child: Builder(
           builder: (context) {
             return ProviderScope(
-              overrides: [
-                settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
-              ],
               child: MaterialApp(
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
@@ -69,6 +54,7 @@ Future<void> _pumpMessageInput(
                         onSend: (_, _, _) {},
                         onCancel: onCancel,
                         isLoading: loading,
+                        assistantMode: AssistantMode.general,
                       );
                     },
                   ),

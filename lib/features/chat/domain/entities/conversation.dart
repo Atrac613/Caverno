@@ -32,6 +32,9 @@ abstract class Conversation with _$Conversation {
     @Default(WorkspaceMode.chat)
     WorkspaceMode workspaceMode,
     @Default('') String projectId,
+    @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)
+    @Default(ConversationExecutionMode.normal)
+    ConversationExecutionMode executionMode,
     @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)
     @Default(ConversationWorkflowStage.idle)
     ConversationWorkflowStage workflowStage,
@@ -46,6 +49,9 @@ abstract class Conversation with _$Conversation {
     final trimmed = projectId.trim();
     return trimmed.isEmpty ? null : trimmed;
   }
+
+  bool get isPlanningSession =>
+      executionMode == ConversationExecutionMode.planning;
 
   ConversationWorkflowSpec get effectiveWorkflowSpec =>
       workflowSpec ?? const ConversationWorkflowSpec();
