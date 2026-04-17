@@ -193,4 +193,32 @@ void main() {
       );
     },
   );
+
+  test(
+    'updateCurrentConversation trims and truncates long user titles',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      await notifier.updateCurrentConversation([
+        Message(
+          id: 'user-text',
+          content:
+              '   This title should trim leading spaces and stop after thirty visible chars   ',
+          role: MessageRole.user,
+          timestamp: DateTime(2026),
+        ),
+      ]);
+
+      final updatedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+
+      expect(updatedConversation, isNotNull);
+      expect(updatedConversation!.title, 'This title should trim leading...');
+      expect(
+        repository.getById(updatedConversation.id)?.title,
+        'This title should trim leading...',
+      );
+    },
+  );
 }
