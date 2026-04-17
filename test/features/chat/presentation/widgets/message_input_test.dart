@@ -2,7 +2,6 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
-import 'package:easy_logger/easy_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -86,10 +85,7 @@ Future<void> _pumpMessageInput(
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
-  EasyLocalization.logger.enableLevels = const <LevelMessages>[
-    LevelMessages.warning,
-    LevelMessages.error,
-  ];
+  EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
 
   testWidgets('disables the composer and shows cancel while loading', (
     tester,
