@@ -99,12 +99,14 @@ void main() {
       speechEndHandler =
           invocation.positionalArguments.first
               as Future<void> Function(Uint8List wavBytes)?;
+      return null;
     });
     when(() => mockRecorder.onSpeechDetected = any()).thenReturn(null);
     when(() => mockRecorder.onAmplitudeChanged = any()).thenReturn(null);
     when(() => mockPlayer.onQueueComplete = any()).thenAnswer((invocation) {
       queueCompleteHandler =
           invocation.positionalArguments.first as void Function()?;
+      return null;
     });
     when(() => mockRecorder.stopRecording()).thenAnswer((_) async {});
     when(() => mockPlayer.stop()).thenAnswer((_) async {});
