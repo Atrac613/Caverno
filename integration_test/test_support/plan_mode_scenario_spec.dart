@@ -410,12 +410,16 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async* {
     final prompt = messages.last.content;
-    if (prompt.startsWith(
-          'Please answer the user\'s question based on the following search results.',
-        ) ||
-        prompt.startsWith(
-          'Continue the task using the following tool results.',
-        )) {
+    final isFinalToolAnswerPrompt = prompt.startsWith(
+      'Please answer the user\'s question based on the following tool results.',
+    );
+    final isSearchAnswerPrompt = prompt.startsWith(
+      'Please answer the user\'s question based on the following search results.',
+    );
+    final isContinuationPrompt = prompt.startsWith(
+      'Continue the task using the following tool results.',
+    );
+    if (isFinalToolAnswerPrompt || isSearchAnswerPrompt || isContinuationPrompt) {
       if (_continuationStreamIndex >= scenario.continuationStreams.length) {
         appLog('[ScenarioLLM] continuation stream exhausted');
         return;
