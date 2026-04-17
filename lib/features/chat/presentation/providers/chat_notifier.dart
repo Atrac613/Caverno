@@ -3327,7 +3327,9 @@ class ChatNotifier extends Notifier<ChatState> {
           final McpToolResult result = await _dispatchToolCall(toolCall);
           final toolResult = result.isSuccess
               ? result.result
-              : 'Error: ${result.errorMessage}';
+              : (result.result.trim().isNotEmpty
+                    ? result.result
+                    : 'Error: ${result.errorMessage}');
 
           toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
           batchToolResults.add(
@@ -3839,6 +3841,11 @@ class ChatNotifier extends Notifier<ChatState> {
   /// Dispatches a tool call to the MCP tool service, intercepting SSH
   /// tools that require a UI dialog for user confirmation.
   Future<McpToolResult> _dispatchToolCall(ToolCallInfo toolCall) async {
+    final planningPolicyResult = _enforcePlanningToolPolicy(toolCall);
+    if (planningPolicyResult != null) {
+      return planningPolicyResult;
+    }
+
     switch (toolCall.name) {
       case 'list_directory':
       case 'read_file':
@@ -3879,6 +3886,117 @@ class ChatNotifier extends Notifier<ChatState> {
         toolCall.name,
         toolCall.arguments,
       ),
+    );
+  }
+
+  McpToolResult? _enforcePlanningToolPolicy(ToolCallInfo toolCall) {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (!(currentConversation?.isPlanningSession ?? false)) {
+      return null;
+    }
+
+    switch (toolCall.name) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+      case 'get_current_datetime':
+      case 'search_past_conversations':
+      case 'recall_memory':
+      case 'ping':
+      case 'whois_lookup':
+      case 'dns_lookup':
+      case 'port_check':
+      case 'ssl_certificate':
+      case 'http_status':
+      case 'http_get':
+      case 'http_head':
+      case 'web_search':
+      case 'web_url_read':
+      case 'wifi_scan':
+      case 'wifi_get_scan_results':
+      case 'wifi_get_connection_info':
+      case 'lan_scan':
+      case 'lan_get_scan_results':
+        return null;
+      case 'local_execute_command':
+        final resolvedArguments = _resolveProjectScopedArguments(
+          toolCall.name,
+          toolCall.arguments,
+        );
+        final command = LocalShellTools.normalizeCommand(
+          (resolvedArguments['command'] as String?)?.trim() ?? '',
+        );
+        return LocalShellTools.isReadOnly(command)
+            ? null
+            : _buildPlanningToolDeniedResult(
+                toolCall,
+                detail: command.isEmpty
+                    ? 'Planning mode only allows read-only local commands.'
+                    : 'Planning mode blocked local command: $command',
+              );
+      case 'git_execute_command':
+        final resolvedArguments = _resolveProjectScopedArguments(
+          toolCall.name,
+          toolCall.arguments,
+        );
+        final command = GitTools.normalizeCommand(
+          (resolvedArguments['command'] as String?)?.trim() ?? '',
+        );
+        return GitTools.isReadOnly(command)
+            ? null
+            : _buildPlanningToolDeniedResult(
+                toolCall,
+                detail: command.isEmpty
+                    ? 'Planning mode only allows read-only git commands.'
+                    : 'Planning mode blocked git command: git $command',
+              );
+      default:
+        return _isPlanningDeniedToolName(toolCall.name)
+            ? _buildPlanningToolDeniedResult(toolCall)
+            : null;
+    }
+  }
+
+  bool _isPlanningDeniedToolName(String toolName) {
+    if (toolName.startsWith('ssh_') || toolName.startsWith('ble_')) {
+      return true;
+    }
+
+    return switch (toolName) {
+      'write_file' ||
+      'edit_file' ||
+      'rollback_last_file_change' ||
+      'http_post' ||
+      'http_put' ||
+      'http_patch' ||
+      'http_delete' => true,
+      _ => false,
+    };
+  }
+
+  McpToolResult _buildPlanningToolDeniedResult(
+    ToolCallInfo toolCall, {
+    String? detail,
+  }) {
+    final payload = jsonEncode({
+      'error':
+          'Planning mode allows only read-only tools. Approve the plan and '
+          'start implementation before retrying this action.',
+      'code': 'permission_denied',
+      'reason': 'planning_mode_requires_read_only_tools',
+      'tool': toolCall.name,
+      if (detail != null && detail.isNotEmpty) 'detail': detail,
+    });
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage:
+          detail ?? 'Planning mode blocks non-read-only tool execution',
     );
   }
 

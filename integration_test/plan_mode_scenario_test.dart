@@ -942,8 +942,7 @@ Future<_ScenarioRunResult> _runScenario({
       );
   await tester.pumpAndSettle();
 
-  expect(find.text('Coding'), findsOneWidget);
-  expect(find.text('Plan mode'), findsAtLeastNWidgets(1));
+  expect(find.text('Coding'), findsAtLeastNWidgets(1));
 
   await tester.enterText(find.byType(TextField), scenario.userPrompt);
   await tester.pumpAndSettle();

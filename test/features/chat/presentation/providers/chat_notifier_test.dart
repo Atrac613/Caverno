@@ -18,6 +18,7 @@ import 'package:caverno/features/chat/data/repositories/chat_memory_repository.d
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
+import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -93,6 +94,21 @@ class _TestSessionMemoryService extends SessionMemoryService {
     DateTime? now,
   }) {
     return null;
+  }
+
+  @override
+  Future<MemoryUpdateResult> updateFromConversation({
+    required String conversationId,
+    required List<Message> messages,
+    DateTime? now,
+    MemoryExtractionDraft? draft,
+  }) async {
+    return const MemoryUpdateResult.none();
+  }
+
+  @override
+  UserMemoryProfile loadProfile() {
+    return UserMemoryProfile.empty();
   }
 }
 
@@ -641,6 +657,223 @@ void main() {
         expect(proposalDataSource.requests, hasLength(2));
       } finally {
         planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'planning sessions block write tools with permission_denied results',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_file',
+            arguments: const {
+              'path': '/tmp/plan-notes.md',
+              'content': 'draft plan',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'write_file': 'unexpected write'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = toolContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+          createIfMissing: true,
+        );
+        await conversationsNotifier.enterPlanningSession();
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Inspect the plan before implementation',
+          bypassPlanMode: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.name, 'write_file');
+        expect(result.result, contains('"code":"permission_denied"'));
+        expect(
+          result.result,
+          contains('planning_mode_requires_read_only_tools'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('planning sessions allow read-only local commands to execute', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: const {'command': 'pwd', 'working_directory': '/tmp'},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'local_execute_command': '{"command":"pwd","stdout":"/tmp"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          _TestCodingProjectsNotifier.new,
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final conversationsNotifier = toolContainer.read(
+        conversationsNotifierProvider.notifier,
+      );
+      conversationsNotifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+      await conversationsNotifier.enterPlanningSession();
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage(
+        'Inspect the working directory first',
+        bypassPlanMode: true,
+      );
+      await Future<void>.delayed(Duration.zero);
+
+      expect(toolService.executedToolNames, ['local_execute_command']);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.name, 'local_execute_command');
+      expect(result.result, isNot(contains('"code":"permission_denied"')));
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test(
+    'planning sessions block git write commands with permission_denied results',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'git_execute_command',
+            arguments: const {
+              'command': 'checkout -b temp-branch',
+              'working_directory': '/tmp',
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'git_execute_command': 'unexpected git write'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = toolContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+          createIfMissing: true,
+        );
+        await conversationsNotifier.enterPlanningSession();
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage(
+          'Inspect repository state only',
+          bypassPlanMode: true,
+        );
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolService.executedToolNames, isEmpty);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.name, 'git_execute_command');
+        expect(result.result, contains('"code":"permission_denied"'));
+      } finally {
+        toolContainer.dispose();
       }
     },
   );
