@@ -321,17 +321,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final conversation = state.currentConversation;
     if (conversation == null) return;
 
-    // Derive the title from the first user message.
     String title = conversation.title;
     if (title == defaultConversationTitle && messages.isNotEmpty) {
-      final firstUserMessage = messages.firstWhere(
-        (m) => m.role == MessageRole.user,
-        orElse: () => messages.first,
-      );
-      // Use the first 30 characters as the title.
-      title = firstUserMessage.content.length > 30
-          ? '${firstUserMessage.content.substring(0, 30)}...'
-          : firstUserMessage.content;
+      title = _deriveDefaultTitle(messages) ?? title;
     }
 
     final updatedConversation = conversation.copyWith(
@@ -340,6 +332,19 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  String? _deriveDefaultTitle(List<Message> messages) {
+    for (final message in messages) {
+      if (message.role != MessageRole.user) continue;
+
+      final trimmed = message.content.trim();
+      if (trimmed.isEmpty) continue;
+
+      return trimmed.length > 30 ? '${trimmed.substring(0, 30)}...' : trimmed;
+    }
+
+    return null;
   }
 
   Future<void> updateCurrentWorkflow({

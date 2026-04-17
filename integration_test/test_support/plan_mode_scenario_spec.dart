@@ -251,6 +251,7 @@ class PlanModeScenarioSpec {
     this.toolOverrides = const <PlanModeScenarioToolOverrideSpec>[],
     this.tags = const <String>[],
     this.allowedWarningPatterns = const <String>[],
+    this.toolCallBatchSizes = const <int>[],
   });
 
   final String name;
@@ -269,6 +270,7 @@ class PlanModeScenarioSpec {
   final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
   final List<String> tags;
   final List<String> allowedWarningPatterns;
+  final List<int> toolCallBatchSizes;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -308,6 +310,28 @@ class PlanModeScenarioSpec {
       openQuestionsContain: proposal?.openQuestions ?? const <String>[],
     );
   }
+
+  List<int> get resolvedToolCallBatchSizes {
+    if (toolWrites.isEmpty) {
+      return const <int>[];
+    }
+    if (toolCallBatchSizes.isEmpty) {
+      return List<int>.filled(toolWrites.length, 1, growable: false);
+    }
+
+    final totalWrites = toolCallBatchSizes.fold<int>(
+      0,
+      (sum, batchSize) => sum + batchSize,
+    );
+    if (totalWrites != toolWrites.length) {
+      throw StateError(
+        'Scenario "$name" configured toolCallBatchSizes=$toolCallBatchSizes '
+        'for ${toolWrites.length} tool writes.',
+      );
+    }
+
+    return toolCallBatchSizes;
+  }
 }
 
 class FakePlanModeChatDataSource implements ChatDataSource {
@@ -317,6 +341,7 @@ class FakePlanModeChatDataSource implements ChatDataSource {
 
   int _workflowResponseIndex = 0;
   int _toolWriteIndex = 0;
+  int _toolCallBatchIndex = 0;
   int _continuationStreamIndex = 0;
 
   @override
@@ -385,12 +410,16 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async* {
     final prompt = messages.last.content;
-    if (prompt.startsWith(
-          'Please answer the user\'s question based on the following search results.',
-        ) ||
-        prompt.startsWith(
-          'Continue the task using the following tool results.',
-        )) {
+    final isFinalToolAnswerPrompt = prompt.startsWith(
+      'Please answer the user\'s question based on the following tool results.',
+    );
+    final isSearchAnswerPrompt = prompt.startsWith(
+      'Please answer the user\'s question based on the following search results.',
+    );
+    final isContinuationPrompt = prompt.startsWith(
+      'Continue the task using the following tool results.',
+    );
+    if (isFinalToolAnswerPrompt || isSearchAnswerPrompt || isContinuationPrompt) {
       if (_continuationStreamIndex >= scenario.continuationStreams.length) {
         appLog('[ScenarioLLM] continuation stream exhausted');
         return;
@@ -425,7 +454,7 @@ class FakePlanModeChatDataSource implements ChatDataSource {
       appLog('[ScenarioLLM] implementation tool call stream');
       return StreamWithToolsResult(
         stream: const Stream<String>.empty(),
-        completion: Future.value(_toolWriteResultAt(_toolWriteIndex)),
+        completion: Future.value(_toolWriteResultBatchAt(_toolWriteIndex)),
       );
     }
 
@@ -451,10 +480,40 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
-    _toolWriteIndex += 1;
+    return createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: [
+        ToolResultInfo(
+          id: toolCallId,
+          name: toolName,
+          arguments: toolArguments.isEmpty
+              ? const <String, dynamic>{}
+              : jsonDecode(toolArguments) as Map<String, dynamic>,
+          result: toolResult,
+        ),
+      ],
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    _toolWriteIndex += toolResults.length;
     if (_toolWriteIndex < scenario.toolWrites.length) {
       appLog('[ScenarioLLM] follow-up tool call');
-      return _toolWriteResultAt(_toolWriteIndex);
+      return _toolWriteResultBatchAt(_toolWriteIndex);
     }
 
     appLog('[ScenarioLLM] tool loop complete');
@@ -483,21 +542,36 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     return scenario.workflowResponses.last;
   }
 
-  ChatCompletionResult _toolWriteResultAt(int index) {
-    final write = scenario.toolWrites[index];
+  ChatCompletionResult _toolWriteResultBatchAt(int startIndex) {
+    final batchSizes = scenario.resolvedToolCallBatchSizes;
+    final batchSize = batchSizes[_toolCallBatchIndex++];
+    final writes = scenario.toolWrites
+        .skip(startIndex)
+        .take(batchSize)
+        .toList(growable: false);
+
+    if (writes.length != batchSize) {
+      throw StateError(
+        'Scenario "${scenario.name}" requested $batchSize tool writes in a '
+        'batch but only ${writes.length} remained.',
+      );
+    }
+
     return ChatCompletionResult(
       content: '',
       finishReason: 'tool_calls',
-      toolCalls: <ToolCallInfo>[
-        ToolCallInfo(
-          id: 'tool-write-$index',
+      toolCalls: List<ToolCallInfo>.generate(writes.length, (offset) {
+        final writeIndex = startIndex + offset;
+        final write = writes[offset];
+        return ToolCallInfo(
+          id: 'tool-write-$writeIndex',
           name: 'write_file',
           arguments: <String, dynamic>{
             'path': write.path,
             'content': write.content,
           },
-        ),
-      ],
+        );
+      }, growable: false),
     );
   }
 }
@@ -1117,6 +1191,86 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
         PlanModeLogExpectation(
           pattern: '[McpToolService] Executing tool: write_file',
           exactCount: 2,
+        ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'batched_tool_calls',
+      userPrompt:
+          'Create the first scaffold files for a host health tool and return related file writes together.',
+      projectName: 'tmp',
+      tags: const <String>['fake', 'smoke', 'artifact', 'batch'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowProposalResponseSpec(
+          workflowStage: 'plan',
+          goal:
+              'Create the first host health scaffold files in one implementation pass.',
+          constraints: <String>[
+            'Keep the first saved task small.',
+            'Write the initial scaffold files in a single assistant turn.',
+          ],
+          acceptanceCriteria: <String>[
+            'requirements.txt exists with the initial dependency.',
+            'README.md describes the scaffolded project.',
+          ],
+        ),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[
+        PlanModeScenarioTaskSpec(
+          title: 'Write the initial scaffold files',
+          targetFiles: <String>['requirements.txt', 'README.md'],
+          validationCommand: 'ls README.md',
+          notes: 'Create both scaffold files in the first implementation turn.',
+        ),
+      ],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[
+        PlanModeScenarioToolWriteSpec(
+          path: 'requirements.txt',
+          content: 'ping3>=4.0.0\n',
+        ),
+        PlanModeScenarioToolWriteSpec(
+          path: 'README.md',
+          content:
+              '# Host Health Check\n\nThis scaffold was written from one batched tool-call turn.\n',
+        ),
+      ],
+      toolCallBatchSizes: const <int>[2],
+      continuationStreams: const <String>[
+        'I created requirements.txt and README.md from a single batched tool-call turn.',
+      ],
+      uiExpectations: <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.finalResult,
+          text: 'single batched tool-call turn',
+        ),
+      ],
+      artifactExpectations: <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          exactContent: 'ping3>=4.0.0\n',
+        ),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          exactContent:
+              '# Host Health Check\n\nThis scaffold was written from one batched tool-call turn.\n',
+        ),
+      ],
+      logExpectations: <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] implementation tool call stream',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[Tool] Retrieved 2 tool result(s) in this loop',
+          exactCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[McpToolService] Executing tool: write_file',
+          exactCount: 2,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[ScenarioLLM] final answer stream',
+          exactCount: 1,
         ),
       ],
     ),

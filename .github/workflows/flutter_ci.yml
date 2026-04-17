@@ -135,3 +135,38 @@ jobs:
 
       - name: Run tests
         run: flutter test
+
+  plan-mode-smoke:
+    name: Plan Mode Smoke
+    runs-on: macos-latest
+    timeout-minutes: 40
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Read Flutter version from .fvmrc
+        id: flutter-version
+        shell: bash
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          if [ -z "$version" ]; then
+            echo "Could not read Flutter version from .fvmrc."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
+          channel: stable
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Plan mode smoke scenarios
+        env:
+          CAVERNO_PLAN_MODE_TAGS: smoke
+        run: flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact

@@ -71,6 +71,20 @@ class ToolCallInfo {
   final Map<String, dynamic> arguments;
 }
 
+class ToolResultInfo {
+  ToolResultInfo({
+    required this.id,
+    required this.name,
+    required this.arguments,
+    required this.result,
+  });
+
+  final String id;
+  final String name;
+  final Map<String, dynamic> arguments;
+  final String result;
+}
+
 class ChatRemoteDataSource implements ChatDataSource {
   ChatRemoteDataSource({String? baseUrl, String? apiKey})
     : _client = OpenAIClient.withApiKey(
@@ -630,39 +644,89 @@ class ChatRemoteDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    return createChatCompletionWithToolResults(
+      messages: messages,
+      toolResults: [
+        ToolResultInfo(
+          id: toolCallId,
+          name: toolName,
+          arguments: toolArguments.isEmpty
+              ? const <String, dynamic>{}
+              : ContentParser.sanitizeToolArguments(
+                  Map<String, dynamic>.from(
+                    dart_convert.jsonDecode(toolArguments) as Map,
+                  ),
+                ),
+          result: toolResult,
+        ),
+      ],
+      assistantContent: assistantContent,
+      tools: tools,
+      model: model,
+      temperature: temperature,
+      maxTokens: maxTokens,
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
     final formattedMessages = _formatMessages(messages, stripImages: true);
     final modelId = model ?? ApiConstants.defaultModel;
 
-    appLog('[LLM] ========== createChatCompletionWithToolResult ==========');
-    appLog('[LLM] model: $modelId, toolCallId: $toolCallId');
+    appLog('[LLM] ========== createChatCompletionWithToolResults ==========');
+    appLog('[LLM] model: $modelId, toolResults: ${toolResults.length}');
     _logMessages(messages);
     _logTools(tools);
-    appLog('[LLM] === Tool Call Info ===');
-    appLog('[LLM] toolName: $toolName, arguments: $toolArguments');
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
-    appLog('[LLM] === Tool Result ===');
-    appLog(
-      '[LLM] ${toolResult.length > 500 ? '${toolResult.substring(0, 500)}...' : toolResult}',
-    );
-    appLog('[LLM] === End Tool Result ===');
+    for (final toolResult in toolResults) {
+      appLog('[LLM] === Tool Call Info ===');
+      appLog('[LLM] toolCallId: ${toolResult.id}');
+      appLog('[LLM] toolName: ${toolResult.name}');
+      appLog(
+        '[LLM] arguments: ${dart_convert.jsonEncode(toolResult.arguments)}',
+      );
+      appLog('[LLM] === Tool Result ===');
+      appLog(
+        '[LLM] ${toolResult.result.length > 500 ? '${toolResult.result.substring(0, 500)}...' : toolResult.result}',
+      );
+      appLog('[LLM] === End Tool Result ===');
+    }
 
-    // Add assistant tool_calls message
+    // Add assistant tool_calls message.
     formattedMessages.add(
       AssistantMessage(
         content: assistantContent ?? '',
-        toolCalls: [
-          ToolCall(
-            id: toolCallId,
-            type: 'function',
-            function: FunctionCall(name: toolName, arguments: toolArguments),
-          ),
-        ],
+        toolCalls: toolResults
+            .map(
+              (toolResult) => ToolCall(
+                id: toolResult.id,
+                type: 'function',
+                function: FunctionCall(
+                  name: toolResult.name,
+                  arguments: dart_convert.jsonEncode(toolResult.arguments),
+                ),
+              ),
+            )
+            .toList(growable: false),
       ),
     );
 
-    // Add tool result message
-    formattedMessages.add(
-      ChatMessage.tool(toolCallId: toolCallId, content: toolResult),
+    // Add tool result messages.
+    formattedMessages.addAll(
+      toolResults.map(
+        (toolResult) => ChatMessage.tool(
+          toolCallId: toolResult.id,
+          content: toolResult.result,
+        ),
+      ),
     );
 
     final request = ChatCompletionCreateRequest(
@@ -719,7 +783,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         );
       }
       appLog(
-        '[LLM] createChatCompletionWithToolResult error: ${e.runtimeType}: $e',
+        '[LLM] createChatCompletionWithToolResults error: ${e.runtimeType}: $e',
       );
       appLog('[LLM] stackTrace: $stackTrace');
       rethrow;
