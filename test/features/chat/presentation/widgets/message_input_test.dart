@@ -1,3 +1,8 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:easy_localization/easy_localization.dart';
+import 'package:easy_logger/easy_logger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -17,37 +22,74 @@ class _TestSettingsNotifier extends SettingsNotifier {
   }
 }
 
+class _TestTranslationLoader extends AssetLoader {
+  const _TestTranslationLoader();
+
+  @override
+  Future<Map<String, dynamic>> load(String path, Locale locale) async {
+    final localeName = locale.countryCode == null || locale.countryCode!.isEmpty
+        ? locale.languageCode
+        : '${locale.languageCode}-${locale.countryCode}';
+    final file = File('$path/$localeName.json');
+    final fallbackFile = File('$path/${locale.languageCode}.json');
+    final source = file.existsSync() ? file : fallbackFile;
+    return jsonDecode(source.readAsStringSync()) as Map<String, dynamic>;
+  }
+}
+
 Future<void> _pumpMessageInput(
   WidgetTester tester, {
   required ValueNotifier<bool> isLoading,
   required VoidCallback onCancel,
 }) async {
-  await tester.pumpWidget(
-    ProviderScope(
-      overrides: [
-        settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
-      ],
-      child: MaterialApp(
-        home: Scaffold(
-          body: ValueListenableBuilder<bool>(
-            valueListenable: isLoading,
-            builder: (context, loading, child) {
-              return MessageInput(
-                onSend: (_, _, _) {},
-                onCancel: onCancel,
-                isLoading: loading,
-              );
-            },
-          ),
+  await tester.runAsync(() async {
+    await tester.pumpWidget(
+      EasyLocalization(
+        supportedLocales: const [Locale('en')],
+        path: 'assets/translations',
+        fallbackLocale: const Locale('en'),
+        startLocale: const Locale('en'),
+        useOnlyLangCode: true,
+        saveLocale: false,
+        assetLoader: const _TestTranslationLoader(),
+        child: Builder(
+          builder: (context) {
+            return ProviderScope(
+              overrides: [
+                settingsNotifierProvider.overrideWith(_TestSettingsNotifier.new),
+              ],
+              child: MaterialApp(
+                localizationsDelegates: context.localizationDelegates,
+                supportedLocales: context.supportedLocales,
+                locale: context.locale,
+                home: Scaffold(
+                  body: ValueListenableBuilder<bool>(
+                    valueListenable: isLoading,
+                    builder: (context, loading, child) {
+                      return MessageInput(
+                        onSend: (_, _, _) {},
+                        onCancel: onCancel,
+                        isLoading: loading,
+                      );
+                    },
+                  ),
+                ),
+              ),
+            );
+          },
         ),
       ),
-    ),
-  );
+    );
+  });
   await tester.pump();
 }
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
+  EasyLocalization.logger.enableLevels = const <LevelMessages>[
+    LevelMessages.warning,
+    LevelMessages.error,
+  ];
 
   testWidgets('disables the composer and shows cancel while loading', (
     tester,
