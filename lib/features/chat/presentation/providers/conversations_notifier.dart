@@ -369,6 +369,29 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await _persistUpdatedConversation(updatedConversation);
   }
 
+  Future<void> enterPlanningSession() async {
+    await _updateCurrentExecutionMode(ConversationExecutionMode.planning);
+  }
+
+  Future<void> exitPlanningSession() async {
+    await _updateCurrentExecutionMode(ConversationExecutionMode.normal);
+  }
+
+  Future<void> _updateCurrentExecutionMode(
+    ConversationExecutionMode executionMode,
+  ) async {
+    final conversation = state.currentConversation;
+    if (conversation == null || conversation.executionMode == executionMode) {
+      return;
+    }
+
+    final updatedConversation = conversation.copyWith(
+      executionMode: executionMode,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
   /// Returns messages for the current conversation.
   List<Message> getCurrentMessages() {
     return state.currentConversation?.messages ?? [];

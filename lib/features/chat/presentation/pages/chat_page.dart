@@ -318,11 +318,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final settings = ref.watch(settingsNotifierProvider);
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
-    final isPlanMode = settings.assistantMode == AssistantMode.plan;
     final activeProject = codingProjectsState.findById(
       conversationsState.activeProjectId,
     );
     final currentConversation = conversationsState.currentConversation;
+    final isPlanMode = currentConversation?.isPlanningSession ?? false;
+    final effectiveAssistantMode = isPlanMode
+        ? AssistantMode.plan
+        : switch (settings.assistantMode) {
+            AssistantMode.plan =>
+              isCodingWorkspace ? AssistantMode.coding : AssistantMode.general,
+            final mode => mode,
+          };
     final rawTitle = currentConversation?.title ?? 'Caverno';
     final currentTitle = rawTitle == defaultConversationTitle
         ? (isCodingWorkspace
@@ -529,6 +536,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
               onCancel: () => chatNotifier.cancelStreaming(),
               isLoading: chatState.isLoading,
+              assistantMode: effectiveAssistantMode,
+              onAssistantModeSelected: (mode) async {
+                final settingsNotifier = ref.read(
+                  settingsNotifierProvider.notifier,
+                );
+                if (mode == AssistantMode.plan) {
+                  if (!isCodingWorkspace || currentConversation == null) {
+                    return;
+                  }
+                  await conversationsNotifier.enterPlanningSession();
+                  return;
+                }
+
+                if (currentConversation?.isPlanningSession ?? false) {
+                  await conversationsNotifier.exitPlanningSession();
+                  ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
+                }
+                await settingsNotifier.updateAssistantMode(mode);
+              },
               isCodingWorkspace: isCodingWorkspace,
               inputHintKey: isCodingWorkspace
                   ? (isPlanMode
@@ -1269,6 +1295,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           : ConversationWorkflowStage.implement,
       workflowSpec: nextSpec,
     );
+    await conversationsNotifier.exitPlanningSession();
     ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
 
     if (!context.mounted) {

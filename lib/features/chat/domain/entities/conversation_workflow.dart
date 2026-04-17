@@ -3,6 +3,8 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 part 'conversation_workflow.freezed.dart';
 part 'conversation_workflow.g.dart';
 
+enum ConversationExecutionMode { normal, planning }
+
 enum ConversationWorkflowStage { idle, clarify, plan, tasks, implement, review }
 
 enum ConversationWorkflowTaskStatus { pending, inProgress, completed, blocked }

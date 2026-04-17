@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,15 +13,19 @@ import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
+import 'package:caverno/core/types/workspace_mode.dart';
 
 class _TestSettingsNotifier extends SettingsNotifier {
   @override
@@ -36,6 +41,44 @@ class _TestSettingsNotifier extends SettingsNotifier {
 class _TestConversationsNotifier extends ConversationsNotifier {
   @override
   ConversationsState build() => ConversationsState.initial();
+}
+
+class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
+  @override
+  CodingProjectsState build() => CodingProjectsState.initial();
+}
+
+class _MockConversationBox extends Mock implements Box<String> {}
+
+class _FakeConversationRepository extends ConversationRepository {
+  _FakeConversationRepository() : super(_MockConversationBox());
+
+  final Map<String, Conversation> _store = {};
+
+  @override
+  List<Conversation> getAll() {
+    final conversations = _store.values.toList();
+    conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return conversations;
+  }
+
+  @override
+  Conversation? getById(String id) => _store[id];
+
+  @override
+  Future<void> save(Conversation conversation) async {
+    _store[conversation.id] = conversation;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _store.remove(id);
+  }
+
+  @override
+  Future<void> deleteAll() async {
+    _store.clear();
+  }
 }
 
 class _MockMemoryBox extends Mock implements Box<String> {}
@@ -254,6 +297,17 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   }
 }
 
+class _PlanSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.plan,
+      mcpEnabled: false,
+      demoMode: false,
+    );
+  }
+}
+
 class _FakeMcpToolService extends McpToolService {
   _FakeMcpToolService({required this.results});
 
@@ -293,6 +347,91 @@ class _FakeMcpToolService extends McpToolService {
       result: results[name] ?? '',
       isSuccess: true,
     );
+  }
+}
+
+class _QueuedProposalDataSource implements ChatDataSource {
+  _QueuedProposalDataSource(List<ChatCompletionResult> responses)
+    : _responses = Queue<ChatCompletionResult>.from(responses);
+
+  final Queue<ChatCompletionResult> _responses;
+  final List<List<Message>> requests = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    requests.add(List<Message>.from(messages));
+    return _responses.removeFirst();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
   }
 }
 
@@ -434,4 +573,75 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage auto-enters planning for a new coding thread when configured',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Add explicit planning state","constraints":["Keep behavior backward compatible"],"acceptanceCriteria":["Planning is stored per thread"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        planContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: 'project-1',
+              createIfMissing: true,
+            );
+        final planNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await planNotifier.sendMessage('Plan the next coding slice');
+
+        final currentConversation = planContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        expect(currentConversation, isNotNull);
+        expect(currentConversation!.isPlanningSession, isTrue);
+        expect(currentConversation.messages, hasLength(1));
+        expect(
+          currentConversation.messages.single.content,
+          'Plan the next coding slice',
+        );
+        expect(planNotifier.state.workflowProposalError, isNull);
+        expect(planNotifier.state.taskProposalError, isNull);
+        expect(planNotifier.state.isLoading, isFalse);
+        expect(proposalDataSource.requests, hasLength(2));
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
 }

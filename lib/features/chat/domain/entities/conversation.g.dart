@@ -23,6 +23,13 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
           ) ??
           WorkspaceMode.chat,
       projectId: json['projectId'] as String? ?? '',
+      executionMode:
+          $enumDecodeNullable(
+            _$ConversationExecutionModeEnumMap,
+            json['executionMode'],
+            unknownValue: ConversationExecutionMode.normal,
+          ) ??
+          ConversationExecutionMode.normal,
       workflowStage:
           $enumDecodeNullable(
             _$ConversationWorkflowStageEnumMap,
@@ -45,6 +52,7 @@ Map<String, dynamic> _$ConversationToJson(
   'updatedAt': instance.updatedAt.toIso8601String(),
   'workspaceMode': _$WorkspaceModeEnumMap[instance.workspaceMode]!,
   'projectId': instance.projectId,
+  'executionMode': _$ConversationExecutionModeEnumMap[instance.executionMode]!,
   'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
   'workflowSpec': _workflowSpecToJson(instance.workflowSpec),
 };
@@ -52,6 +60,11 @@ Map<String, dynamic> _$ConversationToJson(
 const _$WorkspaceModeEnumMap = {
   WorkspaceMode.chat: 'chat',
   WorkspaceMode.coding: 'coding',
+};
+
+const _$ConversationExecutionModeEnumMap = {
+  ConversationExecutionMode.normal: 'normal',
+  ConversationExecutionMode.planning: 'planning',
 };
 
 const _$ConversationWorkflowStageEnumMap = {

@@ -280,8 +280,9 @@ class ChatNotifier extends Notifier<ChatState> {
     final resolvedLanguage = _settings.language == 'system'
         ? _languageCode
         : _settings.language;
-    final resolvedAssistantMode =
-        _assistantModeOverride ?? _settings.assistantMode;
+    final resolvedAssistantMode = _resolveAssistantMode(
+      currentConversation: currentConversation,
+    );
 
     return Message(
       id: 'system',
@@ -302,6 +303,33 @@ class ChatNotifier extends Notifier<ChatState> {
       role: MessageRole.system,
       timestamp: now,
     );
+  }
+
+  AssistantMode _resolveAssistantMode({Conversation? currentConversation}) {
+    final override = _assistantModeOverride;
+    if (override != null) {
+      return override;
+    }
+    if (currentConversation?.isPlanningSession ?? false) {
+      return AssistantMode.plan;
+    }
+    return switch (_settings.assistantMode) {
+      AssistantMode.plan => AssistantMode.coding,
+      final mode => mode,
+    };
+  }
+
+  bool _shouldAutoEnterPlanningSession(Conversation? currentConversation) {
+    if (currentConversation == null ||
+        currentConversation.workspaceMode != WorkspaceMode.coding ||
+        currentConversation.isPlanningSession) {
+      return false;
+    }
+    if (_settings.assistantMode != AssistantMode.plan) {
+      return false;
+    }
+    return currentConversation.messages.isEmpty &&
+        !currentConversation.hasWorkflowContext;
   }
 
   CodingProject? _getActiveCodingProject() {
@@ -2693,12 +2721,23 @@ class ChatNotifier extends Notifier<ChatState> {
       userInput: content,
     );
     final shouldUseTemporalTool = _temporalReferenceContext != null;
-    final currentConversation = ref
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    var currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
+    final shouldAutoEnterPlanning =
+        !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
+    if (shouldAutoEnterPlanning) {
+      await conversationsNotifier.enterPlanningSession();
+      currentConversation = ref
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+    }
     final shouldInterceptForPlanMode =
         !bypassPlanMode &&
-        _settings.assistantMode == AssistantMode.plan &&
+        (currentConversation?.isPlanningSession ?? false) &&
         currentConversation?.workspaceMode == WorkspaceMode.coding;
 
     // Inject memory context only on the first turn of a new session.
