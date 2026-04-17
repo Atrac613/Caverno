@@ -72,7 +72,9 @@ class SystemPromptConstants {
   static const String planModeInstruction =
       'When the user is planning software work, first produce a clear plan '
       'with goal, constraints, acceptance criteria, and task breakdown '
-      'before broad implementation. Keep plans concrete and approval-ready.';
+      'before broad implementation. Keep plans concrete and approval-ready. '
+      'Planning sessions are read-only: use inspection, search, and other '
+      'read-only tools until implementation begins.';
 
   static String codingProjectContextInstruction({
     String? projectName,
