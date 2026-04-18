@@ -3,9 +3,7 @@ import 'dart:async';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:url_launcher/url_launcher.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
@@ -28,15 +26,16 @@ import '../../domain/services/conversation_validation_tool_result_inference.dart
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
-import '../widgets/code_block_builder.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
+import '../widgets/plan/plan_markdown_preview.dart';
 import '../widgets/plan/plan_open_question_section.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
+import '../widgets/plan/timeline_plan_card.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -52,7 +51,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
   late final TabController _workspaceTabController;
-  String? _timelinePlanConversationId;
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
   bool _wasShowingPlanDraft = false;
@@ -666,11 +664,34 @@ class _ChatPageState extends ConsumerState<ChatPage>
           top: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: _buildTimelinePlanCard(
-        context,
+      child: TimelinePlanCard(
         currentConversation: currentConversation,
         chatState: chatState,
         isPlanMode: isPlanMode,
+        isApprovedExpanded: _isApprovedPlanExpanded,
+        onToggleApprovedExpanded: () {
+          setState(() {
+            _isApprovedPlanExpanded = !_isApprovedPlanExpanded;
+          });
+        },
+        onApprove: () {
+          _approveCurrentPlanAndStart(
+            context,
+            currentConversation: currentConversation,
+          );
+        },
+        onEdit: () {
+          _editPlanInChat(
+            context,
+            currentConversation: currentConversation,
+          );
+        },
+        onCancel: () {
+          _cancelPlanReview(
+            context,
+            currentConversation: currentConversation,
+          );
+        },
       ),
     );
   }
@@ -790,400 +811,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return 'git';
     }
     return 'git $normalized';
-  }
-
-  Widget _buildPlanMarkdownPreview(
-    BuildContext context, {
-    required String markdown,
-    required double maxHeight,
-  }) {
-    final theme = Theme.of(context);
-    final textColor = theme.colorScheme.onSurface;
-
-    return Container(
-      width: double.infinity,
-      constraints: BoxConstraints(maxHeight: maxHeight),
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: SingleChildScrollView(
-        child: SelectionArea(
-          child: MarkdownBody(
-            data: markdown,
-            selectable: false,
-            builders: {'pre': CodeBlockBuilder(theme: theme)},
-            styleSheet: MarkdownStyleSheet(
-              p: TextStyle(color: textColor, fontSize: 14, height: 1.5),
-              h1: TextStyle(
-                color: textColor,
-                fontSize: 22,
-                fontWeight: FontWeight.bold,
-              ),
-              h2: TextStyle(
-                color: textColor,
-                fontSize: 20,
-                fontWeight: FontWeight.bold,
-              ),
-              h3: TextStyle(
-                color: textColor,
-                fontSize: 18,
-                fontWeight: FontWeight.bold,
-              ),
-              h4: TextStyle(
-                color: textColor,
-                fontSize: 16,
-                fontWeight: FontWeight.bold,
-              ),
-              strong: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-              ),
-              em: TextStyle(
-                color: textColor,
-                fontStyle: FontStyle.italic,
-              ),
-              code: TextStyle(
-                color: theme.colorScheme.primary,
-                backgroundColor: theme.colorScheme.primaryContainer.withValues(
-                  alpha: 0.3,
-                ),
-                fontSize: 13,
-                fontFamily: 'monospace',
-              ),
-              codeblockDecoration: BoxDecoration(
-                color: theme.colorScheme.surfaceContainerLow.withValues(
-                  alpha: 0.8,
-                ),
-                borderRadius: BorderRadius.circular(8),
-                border: Border.all(
-                  color: theme.colorScheme.outline.withValues(alpha: 0.2),
-                ),
-              ),
-              codeblockPadding: const EdgeInsets.all(12),
-              blockquoteDecoration: BoxDecoration(
-                border: Border(
-                  left: BorderSide(
-                    color: theme.colorScheme.primary.withValues(alpha: 0.5),
-                    width: 3,
-                  ),
-                ),
-              ),
-              blockquotePadding: const EdgeInsets.only(
-                left: 12,
-                top: 4,
-                bottom: 4,
-              ),
-              listBullet: TextStyle(color: textColor),
-              a: TextStyle(
-                color: theme.colorScheme.primary,
-                decoration: TextDecoration.underline,
-              ),
-              tableBorder: TableBorder.all(
-                color: theme.colorScheme.outline.withValues(alpha: 0.3),
-              ),
-              tableHead: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-              ),
-              tableBody: TextStyle(color: textColor),
-              horizontalRuleDecoration: BoxDecoration(
-                border: Border(
-                  top: BorderSide(
-                    color: theme.colorScheme.outline.withValues(alpha: 0.3),
-                  ),
-                ),
-              ),
-            ),
-            onTapLink: (text, href, title) {
-              if (href == null) {
-                return;
-              }
-              launchUrl(Uri.parse(href));
-            },
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildTimelinePlanCard(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ChatState chatState,
-    required bool isPlanMode,
-  }) {
-    if (_timelinePlanConversationId != currentConversation.id) {
-      _timelinePlanConversationId = currentConversation.id;
-      _isApprovedPlanExpanded = false;
-    }
-
-    final theme = Theme.of(context);
-    final planArtifact = currentConversation.effectivePlanArtifact;
-    final isGenerating =
-        chatState.isGeneratingWorkflowProposal ||
-        chatState.isGeneratingTaskProposal;
-    final isDraftState =
-        isPlanMode ||
-        planArtifact.hasPendingEdits ||
-        !planArtifact.hasApproved ||
-        chatState.workflowProposalDraft != null ||
-        chatState.taskProposalDraft != null ||
-        chatState.workflowProposalError != null ||
-        chatState.taskProposalError != null ||
-        isGenerating;
-    final markdown = planArtifact.displayMarkdown(isPlanning: isDraftState);
-    final planValidation = markdown == null
-        ? null
-        : ConversationPlanProjectionService.validateDocument(
-            markdown: markdown,
-            requireTasks: true,
-          );
-    final showApproveAction = isDraftState;
-    final canApprove = isDraftState && (planValidation?.isValid ?? false);
-    final canCancel =
-        isDraftState ||
-        chatState.workflowProposalError != null ||
-        chatState.taskProposalError != null;
-    final showEdit = markdown != null || isDraftState;
-    final titleKey = isDraftState
-        ? 'chat.plan_proposal_title'
-        : 'chat.plan_document_title';
-    final statusKey = isDraftState
-        ? (planArtifact.hasApproved && planArtifact.hasPendingEdits
-              ? 'chat.plan_document_status_pending'
-              : 'chat.plan_document_status_draft')
-        : 'chat.plan_document_status_approved';
-    final subtitleKey = isDraftState
-        ? 'chat.plan_proposal_subtitle'
-        : 'chat.plan_document_approved_subtitle';
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHighest.withValues(
-          alpha: 0.45,
-        ),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Icon(
-                Icons.route_outlined,
-                size: 18,
-                color: theme.colorScheme.primary,
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: Text(
-                  titleKey.tr(),
-                  style: theme.textTheme.titleSmall?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-              ),
-              Chip(
-                label: Text(statusKey.tr()),
-                visualDensity: VisualDensity.compact,
-              ),
-            ],
-          ),
-          const SizedBox(height: 6),
-          Text(
-            subtitleKey.tr(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          if (isGenerating) ...[
-            const SizedBox(height: 10),
-            Row(
-              children: [
-                const SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(strokeWidth: 2),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'chat.plan_proposal_generating'.tr(),
-                    style: theme.textTheme.bodySmall,
-                  ),
-                ),
-              ],
-            ),
-          ],
-          const SizedBox(height: 10),
-          if (isDraftState)
-            _buildPlanMarkdownPreview(
-              context,
-              markdown: markdown ?? 'chat.plan_mode_empty'.tr(),
-              maxHeight: 320,
-            )
-          else
-            _buildApprovedTimelinePlanSection(
-              context,
-              markdown: markdown ?? 'chat.plan_mode_empty'.tr(),
-            ),
-          if (chatState.workflowProposalError != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              chatState.workflowProposalError!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ],
-          if (chatState.taskProposalError != null) ...[
-            const SizedBox(height: 10),
-            Text(
-              chatState.taskProposalError!,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.error,
-              ),
-            ),
-          ],
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              if (showApproveAction)
-                FilledButton.tonalIcon(
-                  onPressed: chatState.isLoading || isGenerating || !canApprove
-                      ? null
-                      : () => _approveCurrentPlanAndStart(
-                            context,
-                            currentConversation: currentConversation,
-                          ),
-                  icon: isGenerating
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onSecondaryContainer,
-                          ),
-                        )
-                      : const Icon(Icons.play_circle_outline, size: 18),
-                  label: Text('chat.plan_proposal_approve_start'.tr()),
-                ),
-              if (showEdit)
-                OutlinedButton.icon(
-                  onPressed: chatState.isLoading || isGenerating
-                      ? null
-                      : () => _editPlanInChat(
-                            context,
-                            currentConversation: currentConversation,
-                          ),
-                  icon: const Icon(Icons.edit_outlined, size: 18),
-                  label: Text(
-                    (planArtifact.hasApproved
-                            ? 'chat.plan_document_edit_approved'
-                            : 'chat.plan_document_edit_draft')
-                        .tr(),
-                  ),
-                ),
-              if (canCancel)
-                TextButton(
-                  onPressed: chatState.isLoading || isGenerating
-                      ? null
-                      : () => _cancelPlanReview(
-                            context,
-                            currentConversation: currentConversation,
-                          ),
-                  child: Text('common.cancel'.tr()),
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildApprovedTimelinePlanSection(
-    BuildContext context, {
-    required String markdown,
-  }) {
-    final theme = Theme.of(context);
-
-    return Container(
-      width: double.infinity,
-      decoration: BoxDecoration(
-        color: theme.colorScheme.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(10),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Material(
-            color: Colors.transparent,
-            child: InkWell(
-              borderRadius: BorderRadius.circular(10),
-              onTap: () {
-                setState(() {
-                  _isApprovedPlanExpanded = !_isApprovedPlanExpanded;
-                });
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 12,
-                ),
-                child: Row(
-                  children: [
-                    Icon(
-                      _isApprovedPlanExpanded
-                          ? Icons.expand_less
-                          : Icons.expand_more,
-                      size: 18,
-                      color: theme.colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 8),
-                    Expanded(
-                      child: Text(
-                        _isApprovedPlanExpanded
-                            ? 'chat.workflow_collapse'.tr()
-                            : 'chat.workflow_expand'.tr(),
-                        style: theme.textTheme.labelLarge?.copyWith(
-                          fontWeight: FontWeight.w600,
-                          color: theme.colorScheme.onSurface,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          AnimatedCrossFade(
-            firstChild: const SizedBox.shrink(),
-            secondChild: Padding(
-              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: _buildPlanMarkdownPreview(
-                context,
-                markdown: markdown,
-                maxHeight: 320,
-              ),
-            ),
-            crossFadeState: _isApprovedPlanExpanded
-                ? CrossFadeState.showSecond
-                : CrossFadeState.showFirst,
-            duration: const Duration(milliseconds: 180),
-            sizeCurve: Curves.easeOut,
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _editPlanInChat(
@@ -2317,8 +1944,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ),
           const SizedBox(height: 10),
-          _buildPlanMarkdownPreview(
-            context,
+          PlanMarkdownPreview(
             markdown: markdown,
             maxHeight: isPlanMode ? 320 : 240,
           ),
