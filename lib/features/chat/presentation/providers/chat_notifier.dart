@@ -15,6 +15,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
+import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
@@ -28,6 +29,7 @@ import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/conversation_workflow.dart';
@@ -147,8 +149,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Persists messages to the conversation store. Replaces the previous
   /// `onMessagesChanged` callback wired in via the provider builder.
-  void _onMessagesChanged(List<Message> messages) {
-    ref
+  Future<void> _onMessagesChanged(List<Message> messages) {
+    return ref
         .read(conversationsNotifierProvider.notifier)
         .updateCurrentConversation(messages);
   }
@@ -298,6 +300,7 @@ class ChatNotifier extends Notifier<ChatState> {
             currentConversation?.workflowStage ??
             ConversationWorkflowStage.idle,
         workflowSpec: currentConversation?.workflowSpec,
+        planArtifact: currentConversation?.planArtifact,
         isVoiceMode: _isVoiceMode,
       ),
       role: MessageRole.system,
@@ -1292,6 +1295,8 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final project = _getActiveCodingProject();
     final savedSpec = currentConversation.effectiveWorkflowSpec;
+    final savedPlanMarkdown = currentConversation.effectivePlanArtifact
+        .preferredMarkdown(preferDraft: true);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a workflow proposal for the current coding thread.')
@@ -1374,6 +1379,12 @@ class ChatNotifier extends Notifier<ChatState> {
         )
         ..writeln('- openQuestions: ${savedSpec.openQuestions.join(' | ')}');
     }
+    if (savedPlanMarkdown != null) {
+      buffer
+        ..writeln()
+        ..writeln('Saved plan document:')
+        ..writeln(_clipProposalPlanDocument(savedPlanMarkdown));
+    }
     if (decisionAnswers.isNotEmpty) {
       buffer
         ..writeln()
@@ -1403,6 +1414,8 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     final savedStage =
         workflowStageOverride ?? currentConversation.workflowStage;
+    final savedPlanMarkdown = currentConversation.effectivePlanArtifact
+        .preferredMarkdown(preferDraft: true);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
@@ -1461,6 +1474,12 @@ class ChatNotifier extends Notifier<ChatState> {
         );
       }
     }
+    if (savedPlanMarkdown != null) {
+      buffer
+        ..writeln()
+        ..writeln('Saved plan document:')
+        ..writeln(_clipProposalPlanDocument(savedPlanMarkdown));
+    }
 
     buffer
       ..writeln()
@@ -1489,6 +1508,14 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return buffer.toString().trimRight();
+  }
+
+  String _clipProposalPlanDocument(String markdown) {
+    final normalized = markdown.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    if (normalized.length <= 1800) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 1800)}...';
   }
 
   String _extractPlainTextForProposal(String content) {
@@ -2727,6 +2754,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
+    conversationId = currentConversation?.id;
     final shouldAutoEnterPlanning =
         !bypassPlanMode && _shouldAutoEnterPlanningSession(currentConversation);
     if (shouldAutoEnterPlanning) {
@@ -2734,6 +2762,7 @@ class ChatNotifier extends Notifier<ChatState> {
       currentConversation = ref
           .read(conversationsNotifierProvider)
           .currentConversation;
+      conversationId = currentConversation?.id;
     }
     final shouldInterceptForPlanMode =
         !bypassPlanMode &&
@@ -2770,9 +2799,17 @@ class ChatNotifier extends Notifier<ChatState> {
     );
 
     if (shouldInterceptForPlanMode) {
-      _onMessagesChanged(
+      await _onMessagesChanged(
         state.messages.where((message) => !message.isStreaming).toList(),
       );
+      if (currentConversation == null) {
+        state = state.copyWith(isLoading: false);
+        return;
+      }
+      currentConversation = ref
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      conversationId = currentConversation?.id;
       if (currentConversation == null) {
         state = state.copyWith(isLoading: false);
         return;
@@ -3050,6 +3087,10 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowProposalDraft: workflowDraft,
         workflowProposalError: null,
       );
+      await _persistPlanArtifactDraft(
+        workflowStage: workflowDraft.workflowStage,
+        workflowSpec: workflowDraft.workflowSpec,
+      );
     } on _WorkflowProposalCancelled {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -3091,6 +3132,11 @@ class ChatNotifier extends Notifier<ChatState> {
         taskProposalDraft: taskDraft,
         taskProposalError: null,
       );
+      await _persistPlanArtifactDraft(
+        workflowStage: workflowDraft.workflowStage,
+        workflowSpec: workflowDraft.workflowSpec,
+        tasks: taskDraft.tasks,
+      );
     } catch (error) {
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -3100,6 +3146,38 @@ class ChatNotifier extends Notifier<ChatState> {
         taskProposalError: error.toString(),
       );
     }
+  }
+
+  Future<void> _persistPlanArtifactDraft({
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowSpec workflowSpec,
+    List<ConversationWorkflowTask> tasks = const [],
+  }) async {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return;
+    }
+
+    final existingArtifact =
+        currentConversation.planArtifact ?? const ConversationPlanArtifact();
+    final markdown = ConversationPlanDocumentBuilder.build(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+      tasks: tasks,
+    );
+    final nextArtifact = existingArtifact.copyWith(
+      draftMarkdown: markdown,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentPlanArtifact(
+          planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+          clearPlanArtifact: !nextArtifact.hasContent,
+        );
   }
 
   /// Sends a streaming request without tools.
@@ -5006,7 +5084,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
-    _onMessagesChanged(messagesToSave);
+    unawaited(_onMessagesChanged(messagesToSave));
 
     final currentConversationId = conversationId;
     if (currentConversationId != null && targetAssistantMessageId != null) {
@@ -5053,7 +5131,7 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages);
 
     final normalized = updatedMessages.where((m) => !m.isStreaming).toList();
-    _onMessagesChanged(normalized);
+    unawaited(_onMessagesChanged(normalized));
   }
 
   Future<MemoryExtractionDraft?> _extractMemoryDraftWithLlm(

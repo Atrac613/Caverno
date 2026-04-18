@@ -82,6 +82,18 @@ class _FakeConversationRepository extends ConversationRepository {
   }
 }
 
+class _DelayedConversationRepository extends _FakeConversationRepository {
+  _DelayedConversationRepository({required this.saveDelay});
+
+  final Duration saveDelay;
+
+  @override
+  Future<void> save(Conversation conversation) async {
+    await Future<void>.delayed(saveDelay);
+    await super.save(conversation);
+  }
+}
+
 class _MockMemoryBox extends Mock implements Box<String> {}
 
 class _TestSessionMemoryService extends SessionMemoryService {
@@ -655,6 +667,76 @@ void main() {
         expect(planNotifier.state.taskProposalError, isNull);
         expect(planNotifier.state.isLoading, isFalse);
         expect(proposalDataSource.requests, hasLength(2));
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'planning proposal keeps workflow and task drafts when message saves lag',
+    () async {
+      final conversationRepository = _DelayedConversationRepository(
+        saveDelay: const Duration(milliseconds: 50),
+      );
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Add explicit planning state","constraints":["Keep behavior backward compatible"],"acceptanceCriteria":["Planning is stored per thread"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        planContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: 'project-1',
+              createIfMissing: true,
+            );
+        final planNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await planNotifier.sendMessage('Plan the next coding slice');
+
+        final chatState = planNotifier.state;
+        final currentConversation = planContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        expect(chatState.workflowProposalDraft, isNotNull);
+        expect(chatState.taskProposalDraft, isNotNull);
+        expect(currentConversation?.planArtifact?.draftMarkdown, isNotNull);
+        expect(
+          currentConversation?.planArtifact?.draftMarkdown,
+          contains('Persist planning state on conversations'),
+        );
       } finally {
         planContainer.dispose();
       }

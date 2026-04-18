@@ -1,5 +1,6 @@
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
 
 class SystemPromptBuilder {
@@ -25,6 +26,7 @@ class SystemPromptBuilder {
     String? projectRootPath,
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
+    ConversationPlanArtifact? planArtifact,
     bool isVoiceMode = false,
   }) {
     final uniqueToolNames = toolNames.toSet().toList()..sort();
@@ -219,6 +221,23 @@ class SystemPromptBuilder {
           'mismatch and propose the updated plan before making broad changes.',
         );
       }
+      final preferredPlanMarkdown = planArtifact?.preferredMarkdown(
+        preferDraft: assistantMode == AssistantMode.plan,
+      );
+      if (preferredPlanMarkdown != null) {
+        buffer.writeln(
+          assistantMode == AssistantMode.plan
+              ? 'Current plan document draft for this coding thread:'
+              : 'Approved plan document for this coding thread:',
+        );
+        buffer.writeln(_clipPlanDocumentForPrompt(preferredPlanMarkdown));
+        if (assistantMode != AssistantMode.plan &&
+            (planArtifact?.hasPendingEdits ?? false)) {
+          buffer.writeln(
+            'A newer draft plan document exists, but the last approved document remains the source of truth until the draft is approved.',
+          );
+        }
+      }
     }
 
     if (isVoiceMode) {
@@ -355,5 +374,13 @@ class SystemPromptBuilder {
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .join(' | ');
+  }
+
+  static String _clipPlanDocumentForPrompt(String markdown) {
+    final normalized = markdown.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    if (normalized.length <= 2200) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 2200)}...';
   }
 }

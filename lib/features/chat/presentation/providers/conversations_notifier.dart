@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../data/repositories/conversation_repository.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 
@@ -366,6 +367,26 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
 
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> updateCurrentPlanArtifact({
+    ConversationPlanArtifact? planArtifact,
+    bool clearPlanArtifact = false,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
+
+    final nextPlanArtifact = clearPlanArtifact
+        ? null
+        : (planArtifact?.hasContent ?? false)
+        ? planArtifact
+        : null;
+
+    final updatedConversation = conversation.copyWith(
+      planArtifact: nextPlanArtifact,
+      updatedAt: DateTime.now(),
+    );
     await _persistUpdatedConversation(updatedConversation);
   }
 
