@@ -79,4 +79,33 @@ void main() {
     expect(updated, contains('Keep the edited notes'));
     expect(updated, contains('Preserve manual edits'));
   });
+
+  test('reuses task ids when the approved plan wording changes slightly', () {
+    const previousTasks = [
+      ConversationWorkflowTask(
+        id: 'derived-task-1-stable',
+        title: 'Ship the execution handoff',
+        validationCommand: 'flutter test',
+        targetFiles: ['lib/features/chat/presentation/pages/chat_page.dart'],
+      ),
+    ];
+
+    const nextWorkflowSpec = ConversationWorkflowSpec(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'derived-task-1-new',
+          title: 'Ship the execution handoff flow',
+          validationCommand: 'flutter test',
+          targetFiles: ['lib/features/chat/presentation/pages/chat_page.dart'],
+        ),
+      ],
+    );
+
+    final stabilized = ConversationPlanProjectionService.stabilizeTaskIds(
+      previousTasks: previousTasks,
+      workflowSpec: nextWorkflowSpec,
+    );
+
+    expect(stabilized.tasks.single.id, 'derived-task-1-stable');
+  });
 }

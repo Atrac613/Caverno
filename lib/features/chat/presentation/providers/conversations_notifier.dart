@@ -591,15 +591,20 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           ConversationPlanProjectionService.deriveExecutionProjection(
             approvedMarkdown: approvedMarkdown,
           );
+      final stabilizedWorkflowSpec =
+          ConversationPlanProjectionService.stabilizeTaskIds(
+            previousTasks: conversation.projectedExecutionTasks,
+            workflowSpec: projection.workflowSpec,
+          );
       await updateCurrentWorkflow(
         workflowStage: projection.workflowStage,
-        workflowSpec: projection.workflowSpec,
+        workflowSpec: stabilizedWorkflowSpec,
         workflowSourceHash: projection.sourceHash,
         workflowDerivedAt: projection.derivedAt,
         preserveWorkflowProjection: true,
       );
       await retainExecutionTaskProgress(
-        projection.workflowSpec.tasks.map((task) => task.id).toSet(),
+        stabilizedWorkflowSpec.tasks.map((task) => task.id).toSet(),
       );
       return true;
     } on FormatException {

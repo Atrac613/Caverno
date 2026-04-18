@@ -18,6 +18,8 @@ class ConversationPlanProjection {
 class ConversationPlanProjectionService {
   ConversationPlanProjectionService._();
 
+  static const _taskIdReuseThreshold = 0.75;
+
   static ConversationPlanProjection deriveExecutionProjection({
     required String approvedMarkdown,
     DateTime? derivedAt,
@@ -61,6 +63,40 @@ class ConversationPlanProjectionService {
       sourceHash: computeSourceHash(normalizedMarkdown),
       derivedAt: derivedAt ?? DateTime.now(),
     );
+  }
+
+  static ConversationWorkflowSpec stabilizeTaskIds({
+    required List<ConversationWorkflowTask> previousTasks,
+    required ConversationWorkflowSpec workflowSpec,
+  }) {
+    if (previousTasks.isEmpty || workflowSpec.tasks.isEmpty) {
+      return workflowSpec;
+    }
+
+    final remainingCandidates = previousTasks.indexed
+        .map((entry) => _TaskCandidate(index: entry.$1, task: entry.$2))
+        .toList(growable: true);
+    final stabilizedTasks = <ConversationWorkflowTask>[];
+
+    for (final entry in workflowSpec.tasks.indexed) {
+      final nextIndex = entry.$1;
+      final nextTask = entry.$2;
+      final bestMatch = _pickBestTaskCandidate(
+        nextTask: nextTask,
+        nextIndex: nextIndex,
+        candidates: remainingCandidates,
+      );
+
+      if (bestMatch == null) {
+        stabilizedTasks.add(nextTask);
+        continue;
+      }
+
+      remainingCandidates.remove(bestMatch);
+      stabilizedTasks.add(nextTask.copyWith(id: bestMatch.task.id));
+    }
+
+    return workflowSpec.copyWith(tasks: stabilizedTasks);
   }
 
   static String computeSourceHash(String markdown) {
@@ -255,7 +291,116 @@ class ConversationPlanProjectionService {
     );
     return 'derived-task-$index-${hashedTitle.substring(0, 6)}';
   }
+
+  static _TaskCandidate? _pickBestTaskCandidate({
+    required ConversationWorkflowTask nextTask,
+    required int nextIndex,
+    required List<_TaskCandidate> candidates,
+  }) {
+    _TaskCandidate? bestCandidate;
+    var bestScore = 0.0;
+
+    for (final candidate in candidates) {
+      final score = _scoreTaskMatch(
+        previousTask: candidate.task,
+        previousIndex: candidate.index,
+        nextTask: nextTask,
+        nextIndex: nextIndex,
+      );
+      if (score <= bestScore) {
+        continue;
+      }
+      bestScore = score;
+      bestCandidate = candidate;
+    }
+
+    if (bestScore < _taskIdReuseThreshold) {
+      return null;
+    }
+    return bestCandidate;
+  }
+
+  static double _scoreTaskMatch({
+    required ConversationWorkflowTask previousTask,
+    required int previousIndex,
+    required ConversationWorkflowTask nextTask,
+    required int nextIndex,
+  }) {
+    final titleSimilarity = _taskTitleSimilarity(
+      previousTask.title,
+      nextTask.title,
+    );
+    if (titleSimilarity == 0) {
+      return 0;
+    }
+
+    var score = titleSimilarity;
+    if (_normalizedText(previousTask.validationCommand) ==
+            _normalizedText(nextTask.validationCommand) &&
+        _normalizedText(previousTask.validationCommand).isNotEmpty) {
+      score += 0.15;
+    }
+    if (_normalizedSet(
+      previousTask.targetFiles,
+    ).intersection(_normalizedSet(nextTask.targetFiles)).isNotEmpty) {
+      score += 0.1;
+    }
+    if (previousTask.status == nextTask.status) {
+      score += 0.05;
+    }
+    if (previousIndex == nextIndex) {
+      score += 0.05;
+    }
+    return score;
+  }
+
+  static double _taskTitleSimilarity(String previousTitle, String nextTitle) {
+    final previousTokens = _titleTokens(previousTitle);
+    final nextTokens = _titleTokens(nextTitle);
+    if (previousTokens.isEmpty || nextTokens.isEmpty) {
+      return 0;
+    }
+    final overlap = previousTokens.intersection(nextTokens).length;
+    if (overlap == 0) {
+      return 0;
+    }
+    final union = previousTokens.union(nextTokens).length;
+    return overlap / union;
+  }
+
+  static Set<String> _titleTokens(String title) {
+    return title
+        .toLowerCase()
+        .split(RegExp(r'[^a-z0-9]+'))
+        .map((token) => token.trim())
+        .where(
+          (token) => token.length >= 3 && !_ignoredTitleTokens.contains(token),
+        )
+        .toSet();
+  }
+
+  static String _normalizedText(String value) => value.trim().toLowerCase();
+
+  static Set<String> _normalizedSet(Iterable<String> values) {
+    return values
+        .map(_normalizedText)
+        .where((value) => value.isNotEmpty)
+        .toSet();
+  }
 }
+
+const _ignoredTitleTokens = <String>{
+  'the',
+  'and',
+  'for',
+  'with',
+  'from',
+  'into',
+  'that',
+  'this',
+  'task',
+  'step',
+};
 
 class _TaskDraft {
   _TaskDraft({required this.id, required this.title});
@@ -278,4 +423,11 @@ class _TaskDraft {
       notes: notes,
     );
   }
+}
+
+class _TaskCandidate {
+  const _TaskCandidate({required this.index, required this.task});
+
+  final int index;
+  final ConversationWorkflowTask task;
 }
