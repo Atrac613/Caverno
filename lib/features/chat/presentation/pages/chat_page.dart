@@ -227,6 +227,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
       }
     });
 
+    ref.listen<String?>(
+      conversationsNotifierProvider.select(
+        (state) => state.currentConversationId,
+      ),
+      (previous, next) {
+        if (previous == next || next == null) {
+          return;
+        }
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (!mounted) {
+            return;
+          }
+          conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
+        });
+      },
+    );
+
     // SSH connect confirmation dialog. Dialogs are deferred to the next
     // frame so they don't fire during a build / InheritedElement
     // lifecycle transition (avoids `_dependents.isEmpty` assertions).
@@ -629,6 +646,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final spec = currentConversation.effectiveWorkflowSpec;
     final planArtifact = currentConversation.effectivePlanArtifact;
     final hasContext = currentConversation.hasWorkflowContext;
+    final shouldPreferPlanDocument =
+        currentConversation.shouldPreferPlanDocument;
     final isBusy = chatState.isLoading;
     final hasPlanDraft =
         chatState.workflowProposalDraft != null ||
@@ -654,6 +673,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
     final showCompactApprovedPlan =
         isPlanMode && hasContext && !hasPlanDraft && !_isApprovedPlanExpanded;
+    final showCompactPlanSupport =
+        hasContext &&
+        shouldPreferPlanDocument &&
+        (!isPlanMode || showCompactApprovedPlan);
     final showWorkflowStageChip =
         currentConversation.workflowStage != ConversationWorkflowStage.idle;
     final workflowPanelMaxHeight =
@@ -799,13 +822,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     isPlanMode: isPlanMode,
                   ),
                 ],
-                if (showCompactApprovedPlan) ...[
+                if (showCompactPlanSupport) ...[
                   const SizedBox(height: 12),
                   _buildCompactWorkflowSummary(
                     context,
                     currentConversation: currentConversation,
                   ),
-                ] else if (hasContext) ...[
+                ] else if (hasContext && !shouldPreferPlanDocument) ...[
                   if (spec.goal.trim().isNotEmpty) ...[
                     const SizedBox(height: 12),
                     _buildWorkflowTextSection(
@@ -1360,7 +1383,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) {
     final theme = Theme.of(context);
     final planArtifact = currentConversation.effectivePlanArtifact;
-    final markdown = planArtifact.preferredMarkdown(preferDraft: isPlanMode);
+    final markdown = currentConversation.displayPlanDocument(
+      isPlanning: isPlanMode,
+    );
     if (markdown == null) {
       return const SizedBox.shrink();
     }
@@ -4057,9 +4082,7 @@ class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
     super.initState();
     _markdownController = TextEditingController(
       text:
-          widget.planArtifact.preferredMarkdown(
-            preferDraft: widget.preferDraft,
-          ) ??
+          widget.planArtifact.displayMarkdown(isPlanning: widget.preferDraft) ??
           '',
     );
   }

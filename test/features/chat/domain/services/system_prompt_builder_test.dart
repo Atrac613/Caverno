@@ -159,12 +159,23 @@ void main() {
       ),
     );
 
-    expect(prompt, contains('Approved plan document for this coding thread:'));
+    expect(
+      prompt,
+      contains(
+        'Approved plan document for this coding thread (source of truth while implementing):',
+      ),
+    );
     expect(prompt, contains('# Plan\n## Goal\nApproved'));
     expect(
       prompt,
       contains(
         'A newer draft plan document exists, but the last approved document remains the source of truth until the draft is approved.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Treat the structured workflow data below as a supporting execution projection, not as a separate source of truth.',
       ),
     );
   });

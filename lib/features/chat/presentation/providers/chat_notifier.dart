@@ -1866,8 +1866,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final project = _getActiveCodingProject();
     final savedSpec = currentConversation.effectiveWorkflowSpec;
-    final savedPlanMarkdown = currentConversation.effectivePlanArtifact
-        .preferredMarkdown(preferDraft: true);
+    final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a workflow proposal for the current coding thread.')
@@ -1994,8 +1993,7 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     final savedStage =
         workflowStageOverride ?? currentConversation.workflowStage;
-    final savedPlanMarkdown = currentConversation.effectivePlanArtifact
-        .preferredMarkdown(preferDraft: true);
+    final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
@@ -3360,6 +3358,11 @@ class ChatNotifier extends Notifier<ChatState> {
           .currentConversation;
       conversationId = currentConversation?.id;
     }
+    await conversationsNotifier.ensureCurrentPlanArtifactBackfilled();
+    currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    conversationId = currentConversation?.id;
     final shouldInterceptForPlanMode =
         !bypassPlanMode &&
         (currentConversation?.isPlanningSession ?? false) &&

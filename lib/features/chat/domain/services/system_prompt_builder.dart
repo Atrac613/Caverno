@@ -149,6 +149,28 @@ class SystemPromptBuilder {
       }
       if (workflowStage != ConversationWorkflowStage.idle ||
           normalizedWorkflowSpec.hasContent) {
+        final planningPlanMarkdown = planArtifact?.planningMarkdown;
+        final executionPlanMarkdown = planArtifact?.executionMarkdown;
+        final preferredPlanMarkdown = assistantMode == AssistantMode.plan
+            ? planningPlanMarkdown
+            : executionPlanMarkdown;
+        if (preferredPlanMarkdown != null) {
+          buffer.writeln(
+            assistantMode == AssistantMode.plan
+                ? 'Current plan document draft for this coding thread (source of truth while planning):'
+                : 'Approved plan document for this coding thread (source of truth while implementing):',
+          );
+          buffer.writeln(_clipPlanDocumentForPrompt(preferredPlanMarkdown));
+          if (assistantMode != AssistantMode.plan &&
+              (planArtifact?.hasPendingEdits ?? false)) {
+            buffer.writeln(
+              'A newer draft plan document exists, but the last approved document remains the source of truth until the draft is approved.',
+            );
+          }
+          buffer.writeln(
+            'Treat the structured workflow data below as a supporting execution projection, not as a separate source of truth.',
+          );
+        }
         buffer.writeln(
           'Current workflow stage for this coding thread: '
           '${_formatWorkflowStage(workflowStage)}.',
@@ -221,22 +243,21 @@ class SystemPromptBuilder {
           'mismatch and propose the updated plan before making broad changes.',
         );
       }
-      final preferredPlanMarkdown = planArtifact?.preferredMarkdown(
-        preferDraft: assistantMode == AssistantMode.plan,
-      );
-      if (preferredPlanMarkdown != null) {
+      if ((workflowStage == ConversationWorkflowStage.idle &&
+              !normalizedWorkflowSpec.hasContent) &&
+          (planArtifact?.displayMarkdown(
+                isPlanning: assistantMode == AssistantMode.plan,
+              ) !=
+              null)) {
+        final preferredPlanMarkdown = planArtifact!.displayMarkdown(
+          isPlanning: assistantMode == AssistantMode.plan,
+        )!;
         buffer.writeln(
           assistantMode == AssistantMode.plan
-              ? 'Current plan document draft for this coding thread:'
-              : 'Approved plan document for this coding thread:',
+              ? 'Current plan document draft for this coding thread (source of truth while planning):'
+              : 'Approved plan document for this coding thread (source of truth while implementing):',
         );
         buffer.writeln(_clipPlanDocumentForPrompt(preferredPlanMarkdown));
-        if (assistantMode != AssistantMode.plan &&
-            (planArtifact?.hasPendingEdits ?? false)) {
-          buffer.writeln(
-            'A newer draft plan document exists, but the last approved document remains the source of truth until the draft is approved.',
-          );
-        }
       }
     }
 

@@ -7,6 +7,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/services/conversation_plan_document_builder.dart';
 
 /// State for the conversation list.
 class ConversationsState {
@@ -95,12 +96,19 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   @override
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
-    return _buildScopedState(
+    final scopedState = _buildScopedState(
       conversations: _repository.getAll(),
       workspaceMode: WorkspaceMode.chat,
       projectId: null,
       createIfMissing: true,
     );
+    Future<void>.microtask(() async {
+      if (!ref.mounted) {
+        return;
+      }
+      await ensureCurrentPlanArtifactBackfilled();
+    });
+    return scopedState;
   }
 
   ConversationsState _buildScopedState({
@@ -233,6 +241,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       activeProjectId: conversation.normalizedProjectId,
       clearActiveProject: conversation.workspaceMode == WorkspaceMode.chat,
     );
+    ensureCurrentPlanArtifactBackfilled();
   }
 
   void activateWorkspace({
@@ -247,6 +256,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       preferredConversationId: state.currentConversationId,
       createIfMissing: createIfMissing,
     );
+    ensureCurrentPlanArtifactBackfilled();
   }
 
   /// Deletes a conversation.
@@ -368,6 +378,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
 
     await _persistUpdatedConversation(updatedConversation);
+    await ensureCurrentPlanArtifactBackfilled();
   }
 
   Future<void> updateCurrentPlanArtifact({
@@ -385,6 +396,26 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final updatedConversation = conversation.copyWith(
       planArtifact: nextPlanArtifact,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> ensureCurrentPlanArtifactBackfilled() async {
+    final conversation = state.currentConversation;
+    if (conversation == null ||
+        conversation.hasPlanArtifact ||
+        !conversation.hasWorkflowContext) {
+      return;
+    }
+
+    final planArtifact = ConversationPlanDocumentBuilder.buildApprovedArtifact(
+      workflowStage: conversation.workflowStage,
+      workflowSpec: conversation.effectiveWorkflowSpec,
+      updatedAt: DateTime.now(),
+    );
+    final updatedConversation = conversation.copyWith(
+      planArtifact: planArtifact,
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
