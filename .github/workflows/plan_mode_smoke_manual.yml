@@ -26,6 +26,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
+      CAVERNO_PLAN_MODE_DEVICE: linux
+      CAVERNO_PLAN_MODE_HEADLESS: '1'
       CAVERNO_PLAN_MODE_SCENARIOS: ${{ inputs.scenarios }}
       CAVERNO_PLAN_MODE_TAGS: ${{ inputs.tags }}
 
@@ -80,4 +82,4 @@ jobs:
         run: flutter pub get
 
       - name: Run Plan mode smoke scenarios
-        run: xvfb-run -a flutter test integration_test/plan_mode_scenario_test.dart -d linux -r compact
+        run: bash tool/run_plan_mode_smoke_test.sh

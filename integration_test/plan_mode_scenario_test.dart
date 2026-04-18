@@ -61,6 +61,7 @@ enum _PlanModeScenarioExecutionMode { fake, live }
 
 class _PlanModeScenarioTestConfig {
   const _PlanModeScenarioTestConfig({
+    required this.deviceName,
     required this.mode,
     required this.suiteName,
     required this.reportPrefix,
@@ -73,6 +74,7 @@ class _PlanModeScenarioTestConfig {
     this.model,
   });
 
+  final String deviceName;
   final _PlanModeScenarioExecutionMode mode;
   final String suiteName;
   final String reportPrefix;
@@ -103,9 +105,28 @@ String _requireNonEmptyEnv(String name) {
   return value;
 }
 
+String _defaultPlanModeDeviceName() {
+  if (Platform.isLinux) {
+    return 'linux';
+  }
+  if (Platform.isMacOS) {
+    return 'macos';
+  }
+  if (Platform.isWindows) {
+    return 'windows';
+  }
+  return Platform.operatingSystem.toLowerCase();
+}
+
 _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
   final failOnWarnings = _envFlagEnabled('CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS');
+  final deviceName = Platform.environment['CAVERNO_PLAN_MODE_DEVICE']
+      ?.trim()
+      .toLowerCase();
+  final resolvedDeviceName = deviceName == null || deviceName.isEmpty
+      ? _defaultPlanModeDeviceName()
+      : deviceName;
   final requestedScenarioNames =
       (Platform.environment['CAVERNO_PLAN_MODE_SCENARIOS']
                   ?.split(',')
@@ -150,9 +171,10 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
 
   if (!usesLiveLlm) {
     return _PlanModeScenarioTestConfig(
+      deviceName: resolvedDeviceName,
       mode: _PlanModeScenarioExecutionMode.fake,
-      suiteName: 'plan_mode_scenarios',
-      reportPrefix: 'plan_mode_suite',
+      suiteName: 'plan_mode_scenarios_$resolvedDeviceName',
+      reportPrefix: 'plan_mode_suite_$resolvedDeviceName',
       scenarios: filteredScenarios,
       failOnWarnings: failOnWarnings,
       requestedScenarioNames: requestedScenarioNames,
@@ -161,9 +183,10 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   }
 
   return _PlanModeScenarioTestConfig(
+    deviceName: resolvedDeviceName,
     mode: _PlanModeScenarioExecutionMode.live,
-    suiteName: 'plan_mode_live_scenarios',
-    reportPrefix: 'plan_mode_live_suite',
+    suiteName: 'plan_mode_live_scenarios_$resolvedDeviceName',
+    reportPrefix: 'plan_mode_live_suite_$resolvedDeviceName',
     scenarios: filteredScenarios,
     failOnWarnings: failOnWarnings,
     requestedScenarioNames: requestedScenarioNames,
@@ -1176,7 +1199,8 @@ void main() {
       );
       await suiteRunDirectory.create(recursive: true);
       appLog(
-        '[ScenarioSuite] Running ${config.suiteName} in ${config.mode.name} mode',
+        '[ScenarioSuite] Running ${config.suiteName} on ${config.deviceName} '
+        'in ${config.mode.name} mode',
       );
     });
 

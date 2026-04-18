@@ -172,5 +172,6 @@ jobs:
 
       - name: Run Plan mode smoke scenarios
         env:
+          CAVERNO_PLAN_MODE_DEVICE: macos
           CAVERNO_PLAN_MODE_TAGS: smoke
-        run: flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
+        run: bash tool/run_plan_mode_smoke_test.sh
