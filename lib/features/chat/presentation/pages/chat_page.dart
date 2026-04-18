@@ -20,7 +20,6 @@ import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
-import '../../domain/services/conversation_execution_summary_service.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../providers/chat_notifier.dart';
@@ -29,6 +28,11 @@ import '../providers/conversations_notifier.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
+import '../widgets/plan/plan_document_approval_sheet.dart';
+import '../widgets/plan/plan_document_editor_sheet.dart';
+import '../widgets/plan/plan_hydrated_task_row.dart';
+import '../widgets/plan/plan_open_question_section.dart';
+import '../widgets/plan/plan_revision_history_sheet.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -1599,9 +1603,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   .where((item) => item.trim().isNotEmpty)
                   .isNotEmpty) ...[
             const SizedBox(height: 10),
-            _buildOpenQuestionView(
-              context,
+            PlanOpenQuestionSection(
               currentConversation: currentConversation,
+              onStatusSelected: (question, status) => _setOpenQuestionStatus(
+                context,
+                question: question,
+                status: status,
+              ),
+              onAnswerPressed: (question, existingNote) => _answerOpenQuestion(
+                context,
+                question: question,
+                existingNote: existingNote,
+              ),
             ),
           ],
           if (!isPlanMode &&
@@ -2009,186 +2022,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ),
           const SizedBox(height: 10),
           for (final task in tasks) ...[
-            _buildHydratedPlanTaskRow(
-              context,
-              currentConversation: currentConversation,
+            PlanHydratedTaskRow(
               task: task,
+              progress: currentConversation.executionProgressForTask(task.id),
             ),
             if (task != tasks.last) const SizedBox(height: 8),
           ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOpenQuestionView(
-    BuildContext context, {
-    required Conversation currentConversation,
-  }) {
-    final theme = Theme.of(context);
-    final openQuestions = currentConversation
-        .effectiveWorkflowSpec
-        .openQuestions
-        .where((item) => item.trim().isNotEmpty)
-        .toList(growable: false);
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.22),
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(
-          color: theme.colorScheme.tertiary.withValues(alpha: 0.16),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'chat.plan_document_open_questions_title'.tr(),
-            style: theme.textTheme.labelLarge?.copyWith(
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'chat.plan_document_open_questions_subtitle'.tr(),
-            style: theme.textTheme.bodySmall?.copyWith(
-              color: theme.colorScheme.onSurfaceVariant,
-            ),
-          ),
-          const SizedBox(height: 10),
-          for (final question in openQuestions) ...[
-            _buildOpenQuestionRow(
-              context,
-              currentConversation: currentConversation,
-              question: question,
-            ),
-            if (question != openQuestions.last) const SizedBox(height: 8),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOpenQuestionRow(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required String question,
-  }) {
-    final theme = Theme.of(context);
-    final progress = currentConversation.openQuestionProgressForQuestion(
-      question,
-    );
-    final status =
-        progress?.status ?? ConversationOpenQuestionStatus.unresolved;
-    final note = progress?.normalizedNote;
-    final needsAnswerFlow =
-        status == ConversationOpenQuestionStatus.unresolved ||
-        status == ConversationOpenQuestionStatus.needsUserInput;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: theme.colorScheme.surface.withValues(alpha: 0.7),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  question.trim(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Chip(
-                label: Text(_openQuestionStatusLabel(context, status)),
-                visualDensity: VisualDensity.compact,
-                side: BorderSide.none,
-                backgroundColor: _openQuestionStatusColor(
-                  context,
-                  status,
-                ).withValues(alpha: 0.16),
-                labelStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: _openQuestionStatusColor(context, status),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-              PopupMenuButton<ConversationOpenQuestionStatus>(
-                onSelected: (nextStatus) => _setOpenQuestionStatus(
-                  context,
-                  question: question,
-                  status: nextStatus,
-                ),
-                itemBuilder: (popupContext) => ConversationOpenQuestionStatus
-                    .values
-                    .map(
-                      (candidate) => PopupMenuItem(
-                        value: candidate,
-                        child: Text(
-                          _openQuestionStatusMenuLabel(popupContext, candidate),
-                        ),
-                      ),
-                    )
-                    .toList(growable: false),
-              ),
-            ],
-          ),
-          if (note != null) ...[
-            const SizedBox(height: 6),
-            Text(
-              note,
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              FilledButton.tonalIcon(
-                onPressed: () => _answerOpenQuestion(
-                  context,
-                  question: question,
-                  existingNote: note,
-                ),
-                icon: Icon(
-                  needsAnswerFlow
-                      ? Icons.question_answer_outlined
-                      : Icons.edit_note_outlined,
-                  size: 18,
-                ),
-                label: Text(
-                  needsAnswerFlow
-                      ? 'chat.open_question_answer'.tr()
-                      : 'chat.open_question_edit_answer'.tr(),
-                ),
-              ),
-              if (status != ConversationOpenQuestionStatus.needsUserInput)
-                OutlinedButton.icon(
-                  onPressed: () => _setOpenQuestionStatus(
-                    context,
-                    question: question,
-                    status: ConversationOpenQuestionStatus.needsUserInput,
-                  ),
-                  icon: const Icon(Icons.contact_support_outlined, size: 18),
-                  label: Text(
-                    'chat.open_question_mark_needs_user_input'.tr(),
-                  ),
-                ),
-            ],
-          ),
         ],
       ),
     );
@@ -2260,152 +2099,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
       SnackBar(
         content: Text(
           'chat.plan_document_open_question_status_changed'.tr(
-            namedArgs: {'status': _openQuestionStatusLabel(context, status)},
+            namedArgs: {
+              'status': switch (status) {
+                ConversationOpenQuestionStatus.unresolved =>
+                  'chat.open_question_status_unresolved'.tr(),
+                ConversationOpenQuestionStatus.needsUserInput =>
+                  'chat.open_question_status_needs_user_input'.tr(),
+                ConversationOpenQuestionStatus.resolved =>
+                  'chat.open_question_status_resolved'.tr(),
+                ConversationOpenQuestionStatus.deferred =>
+                  'chat.open_question_status_deferred'.tr(),
+              },
+            },
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildHydratedPlanTaskRow(
-    BuildContext context, {
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) {
-    final theme = Theme.of(context);
-    final progress = currentConversation.executionProgressForTask(task.id);
-    final executionSummary = ConversationExecutionSummaryService.summarize(
-      progress,
-    );
-    final validationStatus =
-        progress?.validationStatus ??
-        ConversationExecutionValidationStatus.unknown;
-    final blockedReason = progress?.normalizedBlockedReason;
-    final validationSummary = executionSummary.lastValidation;
-    final summary = executionSummary.lastOutcome;
-    final validationCommand = executionSummary.lastValidationCommand;
-    final blockedSince = executionSummary.blockedSince;
-
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(10),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(10),
-        color: theme.colorScheme.surface.withValues(alpha: 0.7),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Expanded(
-                child: Text(
-                  task.title.trim(),
-                  style: theme.textTheme.bodyMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Chip(
-                label: Text(_workflowTaskStatusLabel(task.status)),
-                visualDensity: VisualDensity.compact,
-                side: BorderSide.none,
-                backgroundColor: _workflowTaskStatusColor(
-                  context,
-                  task.status,
-                ).withValues(alpha: 0.16),
-                labelStyle: theme.textTheme.labelSmall?.copyWith(
-                  color: _workflowTaskStatusColor(context, task.status),
-                  fontWeight: FontWeight.w700,
-                ),
-              ),
-            ],
-          ),
-          if (summary != null) ...[
-            const SizedBox(height: 6),
-            _buildWorkflowTaskDetail(
-              context,
-              label: 'chat.plan_document_hydrated_last_outcome'.tr(),
-              value: summary,
-            ),
-          ],
-          if (blockedReason != null) ...[
-            const SizedBox(height: 6),
-            _buildWorkflowTaskDetail(
-              context,
-              label: 'chat.workflow_task_blocked_reason'.tr(),
-              value: blockedReason,
-            ),
-          ],
-          if (validationStatus !=
-                  ConversationExecutionValidationStatus.unknown ||
-              validationSummary != null) ...[
-            const SizedBox(height: 6),
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  crossAxisAlignment: WrapCrossAlignment.center,
-                  children: [
-                    if (validationStatus !=
-                        ConversationExecutionValidationStatus.unknown)
-                      Chip(
-                        label: Text(
-                          _workflowValidationStatusLabel(validationStatus),
-                        ),
-                        visualDensity: VisualDensity.compact,
-                        side: BorderSide.none,
-                        backgroundColor: _workflowValidationStatusColor(
-                          context,
-                          validationStatus,
-                        ).withValues(alpha: 0.16),
-                        labelStyle: theme.textTheme.labelSmall?.copyWith(
-                          color: _workflowValidationStatusColor(
-                            context,
-                            validationStatus,
-                          ),
-                          fontWeight: FontWeight.w700,
-                        ),
-                      ),
-                    if (validationSummary != null)
-                      ConstrainedBox(
-                        constraints: const BoxConstraints(
-                          minWidth: 0,
-                          maxWidth: 420,
-                        ),
-                        child: Text(
-                          validationSummary,
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                  ],
-                ),
-                if (validationCommand != null) ...[
-                  const SizedBox(height: 6),
-                  _buildWorkflowTaskDetail(
-                    context,
-                    label: 'chat.plan_document_hydrated_last_validation'.tr(),
-                    value: validationCommand,
-                  ),
-                ],
-              ],
-            ),
-          ],
-          if (blockedSince != null) ...[
-            const SizedBox(height: 6),
-            _buildWorkflowTaskDetail(
-              context,
-              label: 'chat.plan_document_hydrated_blocked_since'.tr(),
-              value: DateFormat('MM/dd HH:mm').format(blockedSince.toLocal()),
-            ),
-          ],
-        ],
       ),
     );
   }
@@ -2419,11 +2126,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
     final planArtifact = latestConversation.effectivePlanArtifact;
-    final result = await showModalBottomSheet<_PlanDocumentEditorSubmission>(
+    final result = await showModalBottomSheet<PlanDocumentEditorSubmission>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
-      builder: (sheetContext) => _PlanDocumentEditorSheet(
+      builder: (sheetContext) => PlanDocumentEditorSheet(
         planArtifact: planArtifact,
         preferDraft: preferDraft,
       ),
@@ -2517,7 +2224,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           context: context,
           isScrollControlled: true,
           showDragHandle: true,
-          builder: (sheetContext) => _PlanDocumentApprovalSheet(
+          builder: (sheetContext) => PlanDocumentApprovalSheet(
             markdown: draftMarkdown,
             validation: validation,
           ),
@@ -2720,7 +2427,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           isScrollControlled: true,
           showDragHandle: true,
           builder: (sheetContext) =>
-              _PlanRevisionHistorySheet(planArtifact: artifact),
+              PlanRevisionHistorySheet(planArtifact: artifact),
         );
     if (selectedRevision == null) {
       return;
@@ -4672,38 +4379,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     };
   }
 
-  String _openQuestionStatusLabel(
-    BuildContext context,
-    ConversationOpenQuestionStatus status,
-  ) {
-    return switch (status) {
-      ConversationOpenQuestionStatus.unresolved =>
-        'chat.open_question_status_unresolved'.tr(),
-      ConversationOpenQuestionStatus.needsUserInput =>
-        'chat.open_question_status_needs_user_input'.tr(),
-      ConversationOpenQuestionStatus.resolved =>
-        'chat.open_question_status_resolved'.tr(),
-      ConversationOpenQuestionStatus.deferred =>
-        'chat.open_question_status_deferred'.tr(),
-    };
-  }
-
-  String _openQuestionStatusMenuLabel(
-    BuildContext context,
-    ConversationOpenQuestionStatus status,
-  ) {
-    return switch (status) {
-      ConversationOpenQuestionStatus.unresolved =>
-        'chat.open_question_menu_mark_unresolved'.tr(),
-      ConversationOpenQuestionStatus.needsUserInput =>
-        'chat.open_question_menu_mark_needs_user_input'.tr(),
-      ConversationOpenQuestionStatus.resolved =>
-        'chat.open_question_menu_mark_resolved'.tr(),
-      ConversationOpenQuestionStatus.deferred =>
-        'chat.open_question_menu_mark_deferred'.tr(),
-    };
-  }
-
   String _workflowValidationStatusLabel(
     ConversationExecutionValidationStatus status,
   ) {
@@ -4773,18 +4448,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     return '$prefix: ${entry.displayTitle}';
   }
 
-  Color _workflowValidationStatusColor(
-    BuildContext context,
-    ConversationExecutionValidationStatus status,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (status) {
-      ConversationExecutionValidationStatus.unknown => scheme.onSurfaceVariant,
-      ConversationExecutionValidationStatus.passed => Colors.green.shade700,
-      ConversationExecutionValidationStatus.failed => scheme.error,
-    };
-  }
-
   Color _workflowTaskStatusColor(
     BuildContext context,
     ConversationWorkflowTaskStatus status,
@@ -4795,19 +4458,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ConversationWorkflowTaskStatus.inProgress => scheme.primary,
       ConversationWorkflowTaskStatus.completed => Colors.green.shade700,
       ConversationWorkflowTaskStatus.blocked => scheme.error,
-    };
-  }
-
-  Color _openQuestionStatusColor(
-    BuildContext context,
-    ConversationOpenQuestionStatus status,
-  ) {
-    final scheme = Theme.of(context).colorScheme;
-    return switch (status) {
-      ConversationOpenQuestionStatus.unresolved => scheme.secondary,
-      ConversationOpenQuestionStatus.needsUserInput => scheme.tertiary,
-      ConversationOpenQuestionStatus.resolved => Colors.green.shade700,
-      ConversationOpenQuestionStatus.deferred => scheme.onSurfaceVariant,
     };
   }
 
@@ -6341,545 +5991,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 }
 
-class _PlanDocumentEditorSubmission {
-  const _PlanDocumentEditorSubmission({
-    required this.markdown,
-    required this.validation,
-  });
-
-  final String markdown;
-  final ConversationPlanValidationResult validation;
-}
-
-class _PlanDocumentEditorSheet extends StatefulWidget {
-  const _PlanDocumentEditorSheet({
-    required this.planArtifact,
-    required this.preferDraft,
-  });
-
-  final ConversationPlanArtifact planArtifact;
-  final bool preferDraft;
-
-  @override
-  State<_PlanDocumentEditorSheet> createState() =>
-      _PlanDocumentEditorSheetState();
-}
-
-class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
-  late final TextEditingController _markdownController;
-  late ConversationPlanValidationResult _validation;
-
-  @override
-  void initState() {
-    super.initState();
-    _markdownController = TextEditingController(
-      text:
-          widget.planArtifact.displayMarkdown(isPlanning: widget.preferDraft) ??
-          '',
-    );
-    _validation = _validate(_markdownController.text);
-    _markdownController.addListener(_handleMarkdownChanged);
-  }
-
-  @override
-  void dispose() {
-    _markdownController.removeListener(_handleMarkdownChanged);
-    _markdownController.dispose();
-    super.dispose();
-  }
-
-  void _handleMarkdownChanged() {
-    final nextValidation = _validate(_markdownController.text);
-    if (nextValidation.isValid == _validation.isValid &&
-        nextValidation.errorMessage == _validation.errorMessage &&
-        nextValidation.workflowStage == _validation.workflowStage &&
-        _sameTaskPreview(
-          nextValidation.previewTasks,
-          _validation.previewTasks,
-        )) {
-      return;
-    }
-    setState(() {
-      _validation = nextValidation;
-    });
-  }
-
-  ConversationPlanValidationResult _validate(String markdown) {
-    return ConversationPlanProjectionService.validateDocument(
-      markdown: markdown,
-      requireTasks: false,
-    );
-  }
-
-  bool _sameTaskPreview(
-    List<ConversationWorkflowTask> left,
-    List<ConversationWorkflowTask> right,
-  ) {
-    if (left.length != right.length) {
-      return false;
-    }
-    for (var index = 0; index < left.length; index++) {
-      if (left[index].title != right[index].title ||
-          left[index].status != right[index].status) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final previewTasks = _validation.previewTasks;
-    final previewOpenQuestions = _validation.previewOpenQuestions;
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          8,
-          20,
-          20 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'chat.plan_document_edit'.tr(),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'chat.plan_document_sheet_subtitle'.tr(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 20),
-              TextField(
-                controller: _markdownController,
-                maxLines: 18,
-                minLines: 12,
-                textInputAction: TextInputAction.newline,
-                decoration: InputDecoration(
-                  labelText: 'chat.plan_document_title'.tr(),
-                  border: const OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-              ),
-              const SizedBox(height: 12),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: _validation.isValid
-                      ? theme.colorScheme.primaryContainer.withValues(
-                          alpha: 0.35,
-                        )
-                      : theme.colorScheme.errorContainer.withValues(alpha: 0.4),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      _validation.isValid
-                          ? 'chat.plan_document_validation_valid'.tr()
-                          : 'chat.plan_document_validation_invalid'.tr(),
-                      style: theme.textTheme.labelLarge?.copyWith(
-                        fontWeight: FontWeight.w700,
-                        color: _validation.isValid
-                            ? theme.colorScheme.onPrimaryContainer
-                            : theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      _validation.isValid
-                          ? 'chat.plan_document_validation_preview'.tr()
-                          : (_validation.issues.isNotEmpty
-                                ? _validation.issues.join('\n')
-                                : _validation.errorMessage ??
-                                      'chat.plan_document_validation_fallback'
-                                          .tr()),
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: _validation.isValid
-                            ? theme.colorScheme.onPrimaryContainer
-                            : theme.colorScheme.onErrorContainer,
-                      ),
-                    ),
-                    if (_validation.isValid) ...[
-                      const SizedBox(height: 10),
-                      Text(
-                        '${'chat.plan_document_preview_stage'.tr()}: ${_validation.workflowStage?.name ?? 'idle'}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${'chat.plan_document_preview_tasks'.tr()}: ${previewTasks.length}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      const SizedBox(height: 6),
-                      Text(
-                        '${'chat.plan_document_preview_open_questions'.tr()}: ${previewOpenQuestions.length}',
-                        style: theme.textTheme.bodySmall,
-                      ),
-                      if (previewTasks.isNotEmpty) ...[
-                        const SizedBox(height: 6),
-                        for (final entry in previewTasks.take(4).indexed)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 2),
-                            child: Text(
-                              '${entry.$1 + 1}. ${entry.$2.title}',
-                              style: theme.textTheme.bodySmall,
-                            ),
-                          ),
-                        if (previewTasks.length > 4)
-                          Padding(
-                            padding: const EdgeInsets.only(top: 4),
-                            child: Text(
-                              'chat.plan_document_preview_more_tasks'.tr(
-                                namedArgs: {
-                                  'count': (previewTasks.length - 4).toString(),
-                                },
-                              ),
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                              ),
-                            ),
-                          ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  if (widget.planArtifact.hasApproved)
-                    TextButton.icon(
-                      onPressed: () {
-                        _markdownController.text =
-                            widget.planArtifact.normalizedApprovedMarkdown ??
-                            '';
-                      },
-                      icon: const Icon(Icons.restart_alt),
-                      label: Text('common.reset'.tr()),
-                    ),
-                  const Spacer(),
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text('common.cancel'.tr()),
-                  ),
-                  const SizedBox(width: 12),
-                  FilledButton(
-                    onPressed: _validation.isValid
-                        ? () => Navigator.of(context).pop(
-                            _PlanDocumentEditorSubmission(
-                              markdown: _markdownController.text,
-                              validation: _validation,
-                            ),
-                          )
-                        : null,
-                    child: Text('common.save'.tr()),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanDocumentApprovalSheet extends StatelessWidget {
-  const _PlanDocumentApprovalSheet({
-    required this.markdown,
-    required this.validation,
-  });
-
-  final String markdown;
-  final ConversationPlanValidationResult validation;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final previewTasks = validation.previewTasks;
-    final previewOpenQuestions = validation.previewOpenQuestions;
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          8,
-          20,
-          20 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: SingleChildScrollView(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(
-                'chat.plan_document_approve_review'.tr(),
-                style: theme.textTheme.titleMedium?.copyWith(
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'chat.plan_document_approve_preview_subtitle'.tr(),
-                style: theme.textTheme.bodySmall?.copyWith(
-                  color: theme.colorScheme.onSurfaceVariant,
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.primaryContainer.withValues(
-                    alpha: 0.35,
-                  ),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      '${'chat.plan_document_preview_stage'.tr()}: ${validation.workflowStage?.name ?? 'idle'}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${'chat.plan_document_preview_tasks'.tr()}: ${previewTasks.length}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      '${'chat.plan_document_preview_open_questions'.tr()}: ${previewOpenQuestions.length}',
-                      style: theme.textTheme.bodySmall,
-                    ),
-                    if (previewTasks.isNotEmpty) ...[
-                      const SizedBox(height: 10),
-                      for (final entry in previewTasks.indexed.take(6))
-                        Padding(
-                          padding: const EdgeInsets.only(top: 3),
-                          child: Text(
-                            '${entry.$1 + 1}. ${entry.$2.title}',
-                            style: theme.textTheme.bodySmall,
-                          ),
-                        ),
-                      if (previewTasks.length > 6) ...[
-                        const SizedBox(height: 4),
-                        Text(
-                          'chat.plan_document_preview_more_tasks'.tr(
-                            namedArgs: {
-                              'count': (previewTasks.length - 6).toString(),
-                            },
-                          ),
-                          style: theme.textTheme.bodySmall?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ],
-                    ],
-                  ],
-                ),
-              ),
-              const SizedBox(height: 16),
-              Container(
-                width: double.infinity,
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: theme.colorScheme.surfaceContainerHigh,
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  markdown,
-                  maxLines: 18,
-                  overflow: TextOverflow.ellipsis,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    height: 1.35,
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ),
-              const SizedBox(height: 20),
-              Row(
-                children: [
-                  OutlinedButton(
-                    onPressed: () => Navigator.of(context).pop(false),
-                    child: Text('common.cancel'.tr()),
-                  ),
-                  const Spacer(),
-                  FilledButton(
-                    onPressed: () => Navigator.of(context).pop(true),
-                    child: Text('chat.plan_document_approve'.tr()),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _PlanRevisionHistorySheet extends StatelessWidget {
-  const _PlanRevisionHistorySheet({required this.planArtifact});
-
-  final ConversationPlanArtifact planArtifact;
-
-  @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final revisions = planArtifact.historyEntries;
-
-    return SafeArea(
-      child: Padding(
-        padding: EdgeInsets.fromLTRB(
-          20,
-          8,
-          20,
-          20 + MediaQuery.of(context).viewInsets.bottom,
-        ),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(
-              'chat.plan_document_history_title'.tr(),
-              style: theme.textTheme.titleMedium?.copyWith(
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              'chat.plan_document_history_subtitle'.tr(),
-              style: theme.textTheme.bodySmall?.copyWith(
-                color: theme.colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 16),
-            Flexible(
-              child: revisions.isEmpty
-                  ? Center(
-                      child: Text(
-                        'chat.plan_document_history_empty'.tr(),
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                      ),
-                    )
-                  : ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: revisions.length,
-                      separatorBuilder: (_, _) => const SizedBox(height: 10),
-                      itemBuilder: (context, index) {
-                        final revision = revisions[index];
-                        final markdownPreview =
-                            revision.normalizedMarkdown?.split('\n').skip(1).take(3).join(' ').trim() ??
-                            '';
-                        return Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            color: theme.colorScheme.surfaceContainerHigh,
-                            borderRadius: BorderRadius.circular(12),
-                          ),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Expanded(
-                                    child: Column(
-                                      crossAxisAlignment:
-                                          CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          revision.normalizedLabel ??
-                                              switch (revision.kind) {
-                                                ConversationPlanRevisionKind.draft =>
-                                                  'chat.plan_document_revision_kind_draft'
-                                                      .tr(),
-                                                ConversationPlanRevisionKind.approved =>
-                                                  'chat.plan_document_revision_kind_approved'
-                                                      .tr(),
-                                                ConversationPlanRevisionKind.restored =>
-                                                  'chat.plan_document_revision_kind_restored'
-                                                      .tr(),
-                                              },
-                                          style: theme.textTheme.labelLarge
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        const SizedBox(height: 4),
-                                        Text(
-                                          '${switch (revision.kind) {
-                                            ConversationPlanRevisionKind.draft => 'chat.plan_document_revision_kind_draft'.tr(),
-                                            ConversationPlanRevisionKind.approved => 'chat.plan_document_revision_kind_approved'.tr(),
-                                            ConversationPlanRevisionKind.restored => 'chat.plan_document_revision_kind_restored'.tr(),
-                                          }} • ${DateFormat('MM/dd HH:mm').format(revision.createdAt.toLocal())}',
-                                          style: theme.textTheme.bodySmall
-                                              ?.copyWith(
-                                                color: theme
-                                                    .colorScheme
-                                                    .onSurfaceVariant,
-                                              ),
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-                                  OutlinedButton(
-                                    onPressed: () =>
-                                        Navigator.of(context).pop(revision),
-                                    child: Text(
-                                      'chat.plan_document_history_restore_draft'
-                                          .tr(),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                              if (markdownPreview.isNotEmpty) ...[
-                                const SizedBox(height: 8),
-                                Text(
-                                  markdownPreview,
-                                  maxLines: 3,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: theme.textTheme.bodySmall?.copyWith(
-                                    color:
-                                        theme.colorScheme.onSurfaceVariant,
-                                  ),
-                                ),
-                              ],
-                            ],
-                          ),
-                        );
-                      },
-                    ),
-            ),
-            const SizedBox(height: 16),
-            Align(
-              alignment: Alignment.centerRight,
-              child: OutlinedButton(
-                onPressed: () => Navigator.of(context).pop(),
-                child: Text('common.close'.tr()),
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
 
 enum _WorkflowEditorAction { save, clear }
 
