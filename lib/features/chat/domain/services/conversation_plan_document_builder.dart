@@ -18,6 +18,11 @@ class ConversationPlanDocumentBuilder {
     return ConversationPlanArtifact(
       approvedMarkdown: markdown,
       updatedAt: updatedAt,
+    ).recordRevision(
+      markdown: markdown,
+      kind: ConversationPlanRevisionKind.approved,
+      label: 'Built approved plan document',
+      createdAt: updatedAt,
     );
   }
 
