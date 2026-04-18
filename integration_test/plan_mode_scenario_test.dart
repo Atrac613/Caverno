@@ -97,6 +97,14 @@ bool _envFlagEnabled(String name) {
       rawValue == 'on';
 }
 
+String _envValueOrDefault(String name, String fallback) {
+  final rawValue = Platform.environment[name]?.trim().toLowerCase();
+  if (rawValue == null || rawValue.isEmpty) {
+    return fallback;
+  }
+  return rawValue;
+}
+
 String _requireNonEmptyEnv(String name) {
   final value = Platform.environment[name]?.trim();
   if (value == null || value.isEmpty) {
@@ -121,6 +129,7 @@ String _defaultPlanModeDeviceName() {
 _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
   final usesLiveLlm = _envFlagEnabled('CAVERNO_PLAN_MODE_LIVE_LLM');
   final failOnWarnings = _envFlagEnabled('CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS');
+  final tagMatchMode = _envValueOrDefault('CAVERNO_PLAN_MODE_TAG_MATCH', 'any');
   final deviceName = Platform.environment['CAVERNO_PLAN_MODE_DEVICE']
       ?.trim()
       .toLowerCase();
@@ -154,9 +163,15 @@ _PlanModeScenarioTestConfig _resolveScenarioTestConfig() {
             requestedScenarioNameSet.contains(scenario.name);
         final matchesTag =
             requestedTagSet.isEmpty ||
-            scenario.tags.any(
-              (tag) => requestedTagSet.contains(tag.trim().toLowerCase()),
-            );
+            (tagMatchMode == 'all'
+                ? requestedTagSet.every(
+                    (tag) => scenario.tags.any(
+                      (candidate) => candidate.trim().toLowerCase() == tag,
+                    ),
+                  )
+                : scenario.tags.any(
+                    (tag) => requestedTagSet.contains(tag.trim().toLowerCase()),
+                  ));
         return matchesName && matchesTag;
       })
       .toList(growable: false);
