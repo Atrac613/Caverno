@@ -52,6 +52,8 @@ abstract class Conversation with _$Conversation {
     ConversationWorkflowStage workflowStage,
     @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)
     ConversationWorkflowSpec? workflowSpec,
+    @Default('') String workflowSourceHash,
+    DateTime? workflowDerivedAt,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
     ConversationPlanArtifact? planArtifact,
   }) = _Conversation;
@@ -89,4 +91,7 @@ abstract class Conversation with _$Conversation {
   bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
 
   bool get shouldPreferPlanDocument => hasPlanArtifact;
+
+  bool get hasWorkflowProjection =>
+      workflowSourceHash.trim().isNotEmpty && workflowDerivedAt != null;
 }

@@ -15,6 +15,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_plan_projection_service.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -1340,17 +1341,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
               .toList(growable: false);
     final nextSpec = workflowDraft.workflowSpec.copyWith(tasks: nextTasks);
     final initialTask = nextTasks.firstOrNull;
+    final approvedWorkflowStage = initialTask == null
+        ? ConversationWorkflowStage.tasks
+        : ConversationWorkflowStage.implement;
     await _snapshotApprovedPlanDocument(
       workflowDraft: workflowDraft,
       taskDraft: taskDraft.copyWith(tasks: nextTasks),
+      approvedWorkflowStage: approvedWorkflowStage,
     );
 
-    await conversationsNotifier.updateCurrentWorkflow(
-      workflowStage: initialTask == null
-          ? ConversationWorkflowStage.tasks
-          : ConversationWorkflowStage.implement,
-      workflowSpec: nextSpec,
-    );
+    final refreshed = await conversationsNotifier
+        .refreshCurrentWorkflowProjectionFromApprovedPlan();
+    if (!refreshed) {
+      await conversationsNotifier.updateCurrentWorkflow(
+        workflowStage: approvedWorkflowStage,
+        workflowSpec: nextSpec,
+      );
+    }
     await conversationsNotifier.exitPlanningSession();
     ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
 
@@ -1524,6 +1531,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Future<void> _snapshotApprovedPlanDocument({
     required WorkflowProposalDraft workflowDraft,
     required WorkflowTaskProposalDraft taskDraft,
+    required ConversationWorkflowStage approvedWorkflowStage,
   }) async {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
@@ -1533,13 +1541,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final currentArtifact = currentConversation.effectivePlanArtifact;
-    final approvedMarkdown =
-        currentArtifact.normalizedDraftMarkdown ??
-        ConversationPlanDocumentBuilder.build(
-          workflowStage: workflowDraft.workflowStage,
-          workflowSpec: workflowDraft.workflowSpec,
-          tasks: taskDraft.tasks,
-        );
+    final approvedMarkdown = currentArtifact.normalizedDraftMarkdown != null
+        ? ConversationPlanProjectionService.replaceWorkflowStage(
+            markdown: currentArtifact.normalizedDraftMarkdown!,
+            workflowStage: approvedWorkflowStage,
+          )
+        : ConversationPlanDocumentBuilder.build(
+            workflowStage: approvedWorkflowStage,
+            workflowSpec: workflowDraft.workflowSpec,
+            tasks: taskDraft.tasks,
+          );
     final nextArtifact = currentArtifact.copyWith(
       draftMarkdown: approvedMarkdown,
       approvedMarkdown: approvedMarkdown,
