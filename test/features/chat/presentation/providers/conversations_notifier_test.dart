@@ -315,6 +315,81 @@ void main() {
   );
 
   test(
+    'refreshCurrentWorkflowProjectionFromApprovedPlan prunes stale execution progress',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Run execution from the approved plan\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Keep the first derived task\n'
+              '   - Status: pending\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final firstConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final firstTaskId = firstConversation!.projectedExecutionTasks.single.id;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: firstTaskId,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: 'Completed before the plan changed.',
+      );
+      expect(
+        container
+            .read(conversationsNotifierProvider)
+            .currentConversation
+            ?.executionProgress,
+        hasLength(1),
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Run execution from the approved plan\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Replace the derived task\n'
+              '   - Status: pending\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(refreshedConversation, isNotNull);
+      expect(refreshedConversation!.executionProgress, isEmpty);
+    },
+  );
+
+  test(
     'updateCurrentConversation keeps the default title for image-only input',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

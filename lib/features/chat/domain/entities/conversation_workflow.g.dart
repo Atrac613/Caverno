@@ -44,6 +44,35 @@ const _$ConversationWorkflowTaskStatusEnumMap = {
   ConversationWorkflowTaskStatus.blocked: 'blocked',
 };
 
+_ConversationExecutionTaskProgress _$ConversationExecutionTaskProgressFromJson(
+  Map<String, dynamic> json,
+) => _ConversationExecutionTaskProgress(
+  taskId: json['taskId'] as String,
+  status:
+      $enumDecodeNullable(
+        _$ConversationWorkflowTaskStatusEnumMap,
+        json['status'],
+      ) ??
+      ConversationWorkflowTaskStatus.pending,
+  updatedAt: json['updatedAt'] == null
+      ? null
+      : DateTime.parse(json['updatedAt'] as String),
+  lastRunAt: json['lastRunAt'] == null
+      ? null
+      : DateTime.parse(json['lastRunAt'] as String),
+  summary: json['summary'] as String? ?? '',
+);
+
+Map<String, dynamic> _$ConversationExecutionTaskProgressToJson(
+  _ConversationExecutionTaskProgress instance,
+) => <String, dynamic>{
+  'taskId': instance.taskId,
+  'status': _$ConversationWorkflowTaskStatusEnumMap[instance.status]!,
+  'updatedAt': instance.updatedAt?.toIso8601String(),
+  'lastRunAt': instance.lastRunAt?.toIso8601String(),
+  'summary': instance.summary,
+};
+
 _ConversationWorkflowSpec _$ConversationWorkflowSpecFromJson(
   Map<String, dynamic> json,
 ) => _ConversationWorkflowSpec(

@@ -1,6 +1,7 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../services/conversation_plan_hash.dart';
 import 'message.dart';
 import 'conversation_plan_artifact.dart';
 import 'conversation_workflow.dart';
@@ -30,6 +31,27 @@ Map<String, dynamic>? _planArtifactToJson(ConversationPlanArtifact? artifact) {
   return artifact?.toJson();
 }
 
+List<ConversationExecutionTaskProgress> _executionProgressFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) => ConversationExecutionTaskProgress.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _executionProgressToJson(
+  List<ConversationExecutionTaskProgress> progress,
+) {
+  return progress.map((item) => item.toJson()).toList(growable: false);
+}
+
 @freezed
 abstract class Conversation with _$Conversation {
   const Conversation._();
@@ -54,6 +76,12 @@ abstract class Conversation with _$Conversation {
     ConversationWorkflowSpec? workflowSpec,
     @Default('') String workflowSourceHash,
     DateTime? workflowDerivedAt,
+    @JsonKey(
+      fromJson: _executionProgressFromJson,
+      toJson: _executionProgressToJson,
+    )
+    @Default(<ConversationExecutionTaskProgress>[])
+    List<ConversationExecutionTaskProgress> executionProgress,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
     ConversationPlanArtifact? planArtifact,
   }) = _Conversation;
@@ -75,6 +103,11 @@ abstract class Conversation with _$Conversation {
   ConversationPlanArtifact get effectivePlanArtifact =>
       planArtifact ?? const ConversationPlanArtifact();
 
+  List<ConversationExecutionTaskProgress> get effectiveExecutionProgress =>
+      executionProgress
+          .where((entry) => entry.taskId.trim().isNotEmpty)
+          .toList(growable: false);
+
   String? get effectivePlanningDocument =>
       effectivePlanArtifact.planningMarkdown;
 
@@ -93,5 +126,53 @@ abstract class Conversation with _$Conversation {
   bool get shouldPreferPlanDocument => hasPlanArtifact;
 
   bool get hasWorkflowProjection =>
-      workflowSourceHash.trim().isNotEmpty && workflowDerivedAt != null;
+      workflowSourceHash.trim().isNotEmpty &&
+      workflowDerivedAt != null &&
+      effectiveWorkflowSpec.hasContent;
+
+  String? get effectiveExecutionDocumentHash {
+    final markdown = effectiveExecutionDocument;
+    if (markdown == null) {
+      return null;
+    }
+    return computeConversationPlanHash(markdown);
+  }
+
+  bool get isWorkflowProjectionFresh =>
+      hasWorkflowProjection &&
+      effectiveExecutionDocumentHash != null &&
+      workflowSourceHash == effectiveExecutionDocumentHash;
+
+  bool get isWorkflowProjectionStale =>
+      effectiveExecutionDocumentHash != null &&
+      workflowSourceHash.trim().isNotEmpty &&
+      workflowSourceHash != effectiveExecutionDocumentHash;
+
+  bool get needsWorkflowProjectionRefresh =>
+      effectiveExecutionDocument != null &&
+      (!hasWorkflowProjection || !isWorkflowProjectionFresh);
+
+  ConversationExecutionTaskProgress? executionProgressForTask(String taskId) {
+    final normalizedTaskId = taskId.trim();
+    if (normalizedTaskId.isEmpty) {
+      return null;
+    }
+    for (final entry in effectiveExecutionProgress) {
+      if (entry.taskId == normalizedTaskId) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  List<ConversationWorkflowTask> get projectedExecutionTasks =>
+      effectiveWorkflowSpec.tasks
+          .map((task) {
+            final progress = executionProgressForTask(task.id);
+            if (progress == null) {
+              return task;
+            }
+            return task.copyWith(status: progress.status);
+          })
+          .toList(growable: false);
 }
