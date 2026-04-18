@@ -1104,6 +1104,131 @@ void main() {
   );
 
   test(
+    'generatePlanProposalWithContext includes blocker context in proposal prompts',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"clarify","goal":"Resolve the blocker before continuing implementation","constraints":["Preserve the approved plan unless the blocker requires a change"],"acceptanceCriteria":["The blocker is either removed or reflected in the next draft"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Unblock the missing host setup","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Refresh the plan around the blocker."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = planContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+          createIfMissing: true,
+        );
+        const approvedMarkdown =
+            '# Plan\n'
+            '\n'
+            '## Stage\n'
+            'implement\n'
+            '\n'
+            '## Goal\n'
+            'Keep execution moving with blocker-aware replans\n'
+            '\n'
+            '## Tasks\n'
+            '\n'
+            '1. Bring the host setup online\n'
+            '   - Status: blocked\n'
+            '   - Validation: flutter test\n';
+        await conversationsNotifier.updateCurrentPlanArtifact(
+          planArtifact: const ConversationPlanArtifact(
+            approvedMarkdown: approvedMarkdown,
+          ),
+        );
+        await conversationsNotifier.updateCurrentWorkflow(
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'derived-task-1-legacy',
+                title: 'Bring the host setup online',
+                validationCommand: 'flutter test',
+              ),
+            ],
+          ),
+          workflowSourceHash: computeConversationPlanHash(
+            approvedMarkdown.trim(),
+          ),
+          workflowDerivedAt: DateTime(2026, 4, 18, 14, 30),
+          preserveWorkflowProjection: true,
+        );
+        await conversationsNotifier.updateCurrentExecutionTaskProgress(
+          taskId: 'derived-task-1-legacy',
+          status: ConversationWorkflowTaskStatus.blocked,
+          summary: 'The host setup is blocked on missing credentials.',
+          blockedReason:
+              'Missing SSH credentials for the shared development host.',
+        );
+        final chatNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await chatNotifier.generatePlanProposalWithContext(
+          additionalPlanningContext:
+              'Focus on the blocked host setup task and either unblock it or add the minimum follow-up work needed.',
+        );
+
+        expect(proposalDataSource.requests, hasLength(2));
+        final workflowPrompt = proposalDataSource.requests.first.last.content;
+        final taskPrompt = proposalDataSource.requests.last.last.content;
+        expect(workflowPrompt, contains('Requested replan focus:'));
+        expect(
+          workflowPrompt,
+          contains('Focus on the blocked host setup task'),
+        );
+        expect(
+          workflowPrompt,
+          contains(
+            'blockedReason: Missing SSH credentials for the shared development host.',
+          ),
+        );
+        expect(taskPrompt, contains('Requested replan focus:'));
+        expect(
+          taskPrompt,
+          contains(
+            'either unblock it or add the minimum follow-up work needed',
+          ),
+        );
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'planning sessions block write tools with permission_denied results',
     () async {
       final conversationRepository = _FakeConversationRepository();

@@ -43,6 +43,7 @@ void main() {
       'Should stale tasks show a badge?',
     ]);
     expect(projection.workflowSpec.tasks, hasLength(1));
+    expect(projection.workflowSpec.tasks.single.id, 'task-1');
     expect(
       projection.workflowSpec.tasks.single.status,
       ConversationWorkflowTaskStatus.inProgress,
@@ -52,6 +53,7 @@ void main() {
       'flutter test',
     );
     expect(projection.sourceHash, isNotEmpty);
+    expect(projection.anchoredTaskIndexes, {0});
   });
 
   test('replaces the stage section without discarding the edited markdown', () {
@@ -107,6 +109,32 @@ void main() {
     );
 
     expect(stabilized.tasks.single.id, 'derived-task-1-stable');
+  });
+
+  test('preserves explicit task anchors during stabilization', () {
+    const previousTasks = [
+      ConversationWorkflowTask(
+        id: 'derived-task-1-stable',
+        title: 'Ship the execution handoff',
+      ),
+    ];
+
+    const nextWorkflowSpec = ConversationWorkflowSpec(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-anchor-ship-handoff',
+          title: 'Ship the execution handoff with review polish',
+        ),
+      ],
+    );
+
+    final stabilized = ConversationPlanProjectionService.stabilizeTaskIds(
+      previousTasks: previousTasks,
+      workflowSpec: nextWorkflowSpec,
+      anchoredTaskIndexes: {0},
+    );
+
+    expect(stabilized.tasks.single.id, 'task-anchor-ship-handoff');
   });
 
   test('validateDocument reports a missing Stage section', () {
@@ -196,5 +224,21 @@ void main() {
       validation.previewTasks.single.title,
       'Refresh the saved plan projection',
     );
+  });
+
+  test('builder emits task anchors into the markdown plan document', () {
+    final markdown = ConversationPlanDocumentBuilder.build(
+      workflowStage: ConversationWorkflowStage.tasks,
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-anchor-1',
+            title: 'Keep task ids stable across replans',
+          ),
+        ],
+      ),
+    );
+
+    expect(markdown, contains('- Task ID: task-anchor-1'));
   });
 }
