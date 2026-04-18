@@ -1,7 +1,25 @@
 import '../entities/conversation_workflow.dart';
+import '../entities/conversation_plan_artifact.dart';
 
 class ConversationPlanDocumentBuilder {
   ConversationPlanDocumentBuilder._();
+
+  static ConversationPlanArtifact buildApprovedArtifact({
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowSpec workflowSpec,
+    List<ConversationWorkflowTask>? tasks,
+    DateTime? updatedAt,
+  }) {
+    final markdown = build(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+      tasks: tasks,
+    );
+    return ConversationPlanArtifact(
+      approvedMarkdown: markdown,
+      updatedAt: updatedAt,
+    );
+  }
 
   static String build({
     required ConversationWorkflowStage workflowStage,

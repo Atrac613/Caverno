@@ -116,6 +116,11 @@ void main() {
         persisted?.workflowSpec?.tasks.single.title,
         'Persist tasks with the conversation',
       );
+      expect(persisted?.planArtifact?.normalizedApprovedMarkdown, isNotNull);
+      expect(
+        persisted?.planArtifact?.normalizedApprovedMarkdown,
+        contains('Plan the next feature slice'),
+      );
     },
   );
 
@@ -197,6 +202,59 @@ void main() {
       expect(
         persisted?.planArtifact?.normalizedApprovedMarkdown,
         '# Plan\n\n## Goal\nShip PR2',
+      );
+    },
+  );
+
+  test(
+    'selectConversation backfills a plan artifact from legacy workflow data',
+    () async {
+      final now = DateTime(2026, 4, 18, 11, 0);
+      final legacyConversation = Conversation(
+        id: 'legacy-conversation',
+        title: 'Legacy workflow',
+        messages: const [],
+        createdAt: now,
+        updatedAt: now,
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Keep the approved plan readable',
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Backfill the plan document',
+            ),
+          ],
+        ),
+      );
+      await repository.save(legacyConversation);
+
+      container.dispose();
+      container = ProviderContainer(
+        overrides: [
+          conversationRepositoryProvider.overrideWithValue(repository),
+        ],
+      );
+
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: false,
+      );
+      notifier.selectConversation('legacy-conversation');
+      await Future<void>.delayed(Duration.zero);
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.planArtifact, isNotNull);
+      expect(
+        currentConversation.planArtifact!.normalizedApprovedMarkdown,
+        contains('Keep the approved plan readable'),
       );
     },
   );

@@ -36,10 +36,21 @@ abstract class ConversationPlanArtifact with _$ConversationPlanArtifact {
       normalizedDraftMarkdown != null &&
       normalizedDraftMarkdown != normalizedApprovedMarkdown;
 
+  String? get planningMarkdown =>
+      normalizedDraftMarkdown ?? normalizedApprovedMarkdown;
+
+  String? get executionMarkdown =>
+      normalizedApprovedMarkdown ?? normalizedDraftMarkdown;
+
+  bool get hasExecutionDocument => executionMarkdown != null;
+
+  bool get hasPlanningDocument => planningMarkdown != null;
+
+  String? displayMarkdown({required bool isPlanning}) {
+    return isPlanning ? planningMarkdown : executionMarkdown;
+  }
+
   String? preferredMarkdown({required bool preferDraft}) {
-    if (preferDraft) {
-      return normalizedDraftMarkdown ?? normalizedApprovedMarkdown;
-    }
-    return normalizedApprovedMarkdown ?? normalizedDraftMarkdown;
+    return displayMarkdown(isPlanning: preferDraft);
   }
 }

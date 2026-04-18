@@ -73,9 +73,20 @@ abstract class Conversation with _$Conversation {
   ConversationPlanArtifact get effectivePlanArtifact =>
       planArtifact ?? const ConversationPlanArtifact();
 
+  String? get effectivePlanningDocument =>
+      effectivePlanArtifact.planningMarkdown;
+
+  String? get effectiveExecutionDocument =>
+      effectivePlanArtifact.executionMarkdown;
+
+  String? displayPlanDocument({required bool isPlanning}) =>
+      effectivePlanArtifact.displayMarkdown(isPlanning: isPlanning);
+
   bool get hasWorkflowContext =>
       workflowStage != ConversationWorkflowStage.idle ||
       effectiveWorkflowSpec.hasContent;
 
   bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
+
+  bool get shouldPreferPlanDocument => hasPlanArtifact;
 }
