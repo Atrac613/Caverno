@@ -198,6 +198,9 @@ void main() {
       validation.errorMessage,
       'task details must follow a numbered task heading',
     );
+    expect(validation.issues, [
+      'task details must follow a numbered task heading',
+    ]);
   });
 
   test('validateDocument exposes preview tasks for valid markdown', () {
@@ -224,6 +227,38 @@ void main() {
       validation.previewTasks.single.title,
       'Refresh the saved plan projection',
     );
+  });
+
+  test('validateDocument rejects duplicate explicit task ids', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Stage\n'
+        'implement\n'
+        '\n'
+        '## Tasks\n'
+        '\n'
+        '1. Refresh the saved plan projection\n'
+        '   - Task ID: task-anchor-refresh\n'
+        '   - Status: pending\n'
+        '\n'
+        '2. Rebuild the execution preview\n'
+        '   - Task ID: task-anchor-refresh\n'
+        '   - Status: pending\n';
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: true,
+    );
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.errorMessage,
+      'plan document contains a duplicate Task ID "task-anchor-refresh"',
+    );
+    expect(validation.issues, [
+      'plan document contains a duplicate Task ID "task-anchor-refresh"',
+    ]);
   });
 
   test('builder emits task anchors into the markdown plan document', () {
