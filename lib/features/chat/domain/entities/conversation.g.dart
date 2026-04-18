@@ -47,6 +47,11 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       executionProgress: json['executionProgress'] == null
           ? const <ConversationExecutionTaskProgress>[]
           : _executionProgressFromJson(json['executionProgress'] as List?),
+      openQuestionProgress: json['openQuestionProgress'] == null
+          ? const <ConversationOpenQuestionProgress>[]
+          : _openQuestionProgressFromJson(
+              json['openQuestionProgress'] as List?,
+            ),
       planArtifact: _planArtifactFromJson(
         json['planArtifact'] as Map<String, dynamic>?,
       ),
@@ -68,6 +73,9 @@ Map<String, dynamic> _$ConversationToJson(
   'workflowSourceHash': instance.workflowSourceHash,
   'workflowDerivedAt': instance.workflowDerivedAt?.toIso8601String(),
   'executionProgress': _executionProgressToJson(instance.executionProgress),
+  'openQuestionProgress': _openQuestionProgressToJson(
+    instance.openQuestionProgress,
+  ),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
 };
 

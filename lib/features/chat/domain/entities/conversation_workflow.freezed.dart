@@ -13,6 +13,281 @@ part of 'conversation_workflow.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$ConversationOpenQuestionProgress {
+
+ String get questionId; String get question; ConversationOpenQuestionStatus get status; String get note; DateTime? get updatedAt;
+/// Create a copy of ConversationOpenQuestionProgress
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationOpenQuestionProgressCopyWith<ConversationOpenQuestionProgress> get copyWith => _$ConversationOpenQuestionProgressCopyWithImpl<ConversationOpenQuestionProgress>(this as ConversationOpenQuestionProgress, _$identity);
+
+  /// Serializes this ConversationOpenQuestionProgress to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationOpenQuestionProgress&&(identical(other.questionId, questionId) || other.questionId == questionId)&&(identical(other.question, question) || other.question == question)&&(identical(other.status, status) || other.status == status)&&(identical(other.note, note) || other.note == note)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,questionId,question,status,note,updatedAt);
+
+@override
+String toString() {
+  return 'ConversationOpenQuestionProgress(questionId: $questionId, question: $question, status: $status, note: $note, updatedAt: $updatedAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationOpenQuestionProgressCopyWith<$Res>  {
+  factory $ConversationOpenQuestionProgressCopyWith(ConversationOpenQuestionProgress value, $Res Function(ConversationOpenQuestionProgress) _then) = _$ConversationOpenQuestionProgressCopyWithImpl;
+@useResult
+$Res call({
+ String questionId, String question, ConversationOpenQuestionStatus status, String note, DateTime? updatedAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationOpenQuestionProgressCopyWithImpl<$Res>
+    implements $ConversationOpenQuestionProgressCopyWith<$Res> {
+  _$ConversationOpenQuestionProgressCopyWithImpl(this._self, this._then);
+
+  final ConversationOpenQuestionProgress _self;
+  final $Res Function(ConversationOpenQuestionProgress) _then;
+
+/// Create a copy of ConversationOpenQuestionProgress
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? questionId = null,Object? question = null,Object? status = null,Object? note = null,Object? updatedAt = freezed,}) {
+  return _then(_self.copyWith(
+questionId: null == questionId ? _self.questionId : questionId // ignore: cast_nullable_to_non_nullable
+as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationOpenQuestionStatus,note: null == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
+as String,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationOpenQuestionProgress].
+extension ConversationOpenQuestionProgressPatterns on ConversationOpenQuestionProgress {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationOpenQuestionProgress value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationOpenQuestionProgress value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationOpenQuestionProgress value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String questionId,  String question,  ConversationOpenQuestionStatus status,  String note,  DateTime? updatedAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress() when $default != null:
+return $default(_that.questionId,_that.question,_that.status,_that.note,_that.updatedAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String questionId,  String question,  ConversationOpenQuestionStatus status,  String note,  DateTime? updatedAt)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress():
+return $default(_that.questionId,_that.question,_that.status,_that.note,_that.updatedAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String questionId,  String question,  ConversationOpenQuestionStatus status,  String note,  DateTime? updatedAt)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationOpenQuestionProgress() when $default != null:
+return $default(_that.questionId,_that.question,_that.status,_that.note,_that.updatedAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationOpenQuestionProgress extends ConversationOpenQuestionProgress {
+  const _ConversationOpenQuestionProgress({required this.questionId, required this.question, this.status = ConversationOpenQuestionStatus.unresolved, this.note = '', this.updatedAt}): super._();
+  factory _ConversationOpenQuestionProgress.fromJson(Map<String, dynamic> json) => _$ConversationOpenQuestionProgressFromJson(json);
+
+@override final  String questionId;
+@override final  String question;
+@override@JsonKey() final  ConversationOpenQuestionStatus status;
+@override@JsonKey() final  String note;
+@override final  DateTime? updatedAt;
+
+/// Create a copy of ConversationOpenQuestionProgress
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationOpenQuestionProgressCopyWith<_ConversationOpenQuestionProgress> get copyWith => __$ConversationOpenQuestionProgressCopyWithImpl<_ConversationOpenQuestionProgress>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationOpenQuestionProgressToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationOpenQuestionProgress&&(identical(other.questionId, questionId) || other.questionId == questionId)&&(identical(other.question, question) || other.question == question)&&(identical(other.status, status) || other.status == status)&&(identical(other.note, note) || other.note == note)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,questionId,question,status,note,updatedAt);
+
+@override
+String toString() {
+  return 'ConversationOpenQuestionProgress(questionId: $questionId, question: $question, status: $status, note: $note, updatedAt: $updatedAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationOpenQuestionProgressCopyWith<$Res> implements $ConversationOpenQuestionProgressCopyWith<$Res> {
+  factory _$ConversationOpenQuestionProgressCopyWith(_ConversationOpenQuestionProgress value, $Res Function(_ConversationOpenQuestionProgress) _then) = __$ConversationOpenQuestionProgressCopyWithImpl;
+@override @useResult
+$Res call({
+ String questionId, String question, ConversationOpenQuestionStatus status, String note, DateTime? updatedAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationOpenQuestionProgressCopyWithImpl<$Res>
+    implements _$ConversationOpenQuestionProgressCopyWith<$Res> {
+  __$ConversationOpenQuestionProgressCopyWithImpl(this._self, this._then);
+
+  final _ConversationOpenQuestionProgress _self;
+  final $Res Function(_ConversationOpenQuestionProgress) _then;
+
+/// Create a copy of ConversationOpenQuestionProgress
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? questionId = null,Object? question = null,Object? status = null,Object? note = null,Object? updatedAt = freezed,}) {
+  return _then(_ConversationOpenQuestionProgress(
+questionId: null == questionId ? _self.questionId : questionId // ignore: cast_nullable_to_non_nullable
+as String,question: null == question ? _self.question : question // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationOpenQuestionStatus,note: null == note ? _self.note : note // ignore: cast_nullable_to_non_nullable
+as String,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ConversationWorkflowTask {
 
  String get id; String get title; ConversationWorkflowTaskStatus get status; List<String> get targetFiles; String get validationCommand; String get notes;

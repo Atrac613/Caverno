@@ -1880,6 +1880,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final savedSpec = currentConversation.effectiveWorkflowSpec;
     final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
     final executionDelta = _buildExecutionDeltaBlock(currentConversation);
+    final openQuestionDelta = _buildOpenQuestionDeltaBlock(currentConversation);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a workflow proposal for the current coding thread.')
@@ -1974,6 +1975,12 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln('Execution progress:')
         ..writeln(executionDelta);
     }
+    if (openQuestionDelta != null) {
+      buffer
+        ..writeln()
+        ..writeln('Open question progress:')
+        ..writeln(openQuestionDelta);
+    }
     if (researchContext.hasContent) {
       buffer
         ..writeln()
@@ -2026,6 +2033,7 @@ class ChatNotifier extends Notifier<ChatState> {
         currentConversation.projectedExecutionTasks;
     final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
     final executionDelta = _buildExecutionDeltaBlock(currentConversation);
+    final openQuestionDelta = _buildOpenQuestionDeltaBlock(currentConversation);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
@@ -2095,6 +2103,12 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln()
         ..writeln('Execution progress:')
         ..writeln(executionDelta);
+    }
+    if (openQuestionDelta != null) {
+      buffer
+        ..writeln()
+        ..writeln('Open question progress:')
+        ..writeln(openQuestionDelta);
     }
     if (researchContext.hasContent) {
       buffer
@@ -2179,6 +2193,34 @@ class ChatNotifier extends Notifier<ChatState> {
           '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | blockedReason: ${blockedReason ?? ''} | recentEvents: ${recentEvents ?? ''} | updatedAt: $updatedAt',
         );
       }
+    }
+
+    return buffer.toString().trimRight();
+  }
+
+  String? _buildOpenQuestionDeltaBlock(Conversation currentConversation) {
+    final openQuestions = currentConversation
+        .effectiveWorkflowSpec
+        .openQuestions
+        .where((question) => question.trim().isNotEmpty)
+        .toList(growable: false);
+    if (openQuestions.isEmpty) {
+      return null;
+    }
+
+    final buffer = StringBuffer();
+    for (final question in openQuestions) {
+      final progress = currentConversation.openQuestionProgressForQuestion(
+        question,
+      );
+      final status =
+          progress?.status.name ??
+          ConversationOpenQuestionStatus.unresolved.name;
+      final note = progress?.normalizedNote;
+      final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
+      buffer.writeln(
+        '- [$status] ${question.trim()} | note: ${note ?? ''} | updatedAt: $updatedAt',
+      );
     }
 
     return buffer.toString().trimRight();

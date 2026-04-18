@@ -6,6 +6,40 @@ part of 'conversation_workflow.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_ConversationOpenQuestionProgress _$ConversationOpenQuestionProgressFromJson(
+  Map<String, dynamic> json,
+) => _ConversationOpenQuestionProgress(
+  questionId: json['questionId'] as String,
+  question: json['question'] as String,
+  status:
+      $enumDecodeNullable(
+        _$ConversationOpenQuestionStatusEnumMap,
+        json['status'],
+      ) ??
+      ConversationOpenQuestionStatus.unresolved,
+  note: json['note'] as String? ?? '',
+  updatedAt: json['updatedAt'] == null
+      ? null
+      : DateTime.parse(json['updatedAt'] as String),
+);
+
+Map<String, dynamic> _$ConversationOpenQuestionProgressToJson(
+  _ConversationOpenQuestionProgress instance,
+) => <String, dynamic>{
+  'questionId': instance.questionId,
+  'question': instance.question,
+  'status': _$ConversationOpenQuestionStatusEnumMap[instance.status]!,
+  'note': instance.note,
+  'updatedAt': instance.updatedAt?.toIso8601String(),
+};
+
+const _$ConversationOpenQuestionStatusEnumMap = {
+  ConversationOpenQuestionStatus.unresolved: 'unresolved',
+  ConversationOpenQuestionStatus.needsUserInput: 'needsUserInput',
+  ConversationOpenQuestionStatus.resolved: 'resolved',
+  ConversationOpenQuestionStatus.deferred: 'deferred',
+};
+
 _ConversationWorkflowTask _$ConversationWorkflowTaskFromJson(
   Map<String, dynamic> json,
 ) => _ConversationWorkflowTask(

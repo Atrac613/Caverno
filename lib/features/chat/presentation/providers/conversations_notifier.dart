@@ -666,6 +666,72 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
   }
 
+  Future<void> updateCurrentOpenQuestionProgress({
+    required String question,
+    required ConversationOpenQuestionStatus status,
+    String? note,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final normalizedQuestion = question.trim();
+    if (normalizedQuestion.isEmpty) {
+      return;
+    }
+
+    final questionId = Conversation.openQuestionIdFor(normalizedQuestion);
+    final progress = [...conversation.effectiveOpenQuestionProgress];
+    final index = progress.indexWhere(
+      (entry) => entry.questionId == questionId,
+    );
+    final nextEntry = ConversationOpenQuestionProgress(
+      questionId: questionId,
+      question: normalizedQuestion,
+      status: status,
+      note: note?.trim() ?? (index >= 0 ? progress[index].note : ''),
+      updatedAt: DateTime.now(),
+    );
+
+    if (index >= 0) {
+      progress[index] = nextEntry;
+    } else {
+      progress.add(nextEntry);
+    }
+
+    final updatedConversation = conversation.copyWith(
+      openQuestionProgress: progress,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> retainOpenQuestionProgress(Iterable<String> questions) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final retainedQuestionIds = questions
+        .map(Conversation.openQuestionIdFor)
+        .where((questionId) => questionId.isNotEmpty)
+        .toSet();
+    final retained = conversation.effectiveOpenQuestionProgress
+        .where((entry) => retainedQuestionIds.contains(entry.questionId))
+        .toList(growable: false);
+
+    if (retained.length == conversation.effectiveOpenQuestionProgress.length) {
+      return;
+    }
+
+    final updatedConversation = conversation.copyWith(
+      openQuestionProgress: retained,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
   Future<void> ensureCurrentPlanArtifactBackfilled() async {
     final conversation = state.currentConversation;
     if (conversation == null ||
@@ -718,6 +784,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       await retainExecutionTaskProgress(
         stabilizedWorkflowSpec.tasks.map((task) => task.id).toSet(),
       );
+      await retainOpenQuestionProgress(stabilizedWorkflowSpec.openQuestions);
       return true;
     } on FormatException {
       return false;

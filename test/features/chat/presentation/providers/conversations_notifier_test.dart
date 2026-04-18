@@ -208,6 +208,66 @@ void main() {
   );
 
   test(
+    'open question progress is persisted and retained across refreshes',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.clarify,
+        workflowSpec: const ConversationWorkflowSpec(
+          openQuestions: [
+            'Should the CLI scaffold validate before writing files?',
+            'Should the first slice include retry handling?',
+          ],
+        ),
+      );
+
+      await notifier.updateCurrentOpenQuestionProgress(
+        question: 'Should the CLI scaffold validate before writing files?',
+        status: ConversationOpenQuestionStatus.needsUserInput,
+      );
+      await notifier.updateCurrentOpenQuestionProgress(
+        question: 'Should the first slice include retry handling?',
+        status: ConversationOpenQuestionStatus.deferred,
+      );
+
+      var currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.effectiveOpenQuestionProgress, hasLength(2));
+      expect(
+        currentConversation
+            .openQuestionProgressForQuestion(
+              'Should the CLI scaffold validate before writing files?',
+            )
+            ?.status,
+        ConversationOpenQuestionStatus.needsUserInput,
+      );
+
+      await notifier.retainOpenQuestionProgress([
+        'Should the CLI scaffold validate before writing files?',
+      ]);
+
+      currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.effectiveOpenQuestionProgress, hasLength(1));
+      expect(
+        currentConversation.effectiveOpenQuestionProgress.single.question,
+        'Should the CLI scaffold validate before writing files?',
+      );
+    },
+  );
+
+  test(
     'selectConversation backfills a plan artifact from legacy workflow data',
     () async {
       final now = DateTime(2026, 4, 18, 11, 0);

@@ -52,6 +52,27 @@ List<Map<String, dynamic>> _executionProgressToJson(
   return progress.map((item) => item.toJson()).toList(growable: false);
 }
 
+List<ConversationOpenQuestionProgress> _openQuestionProgressFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) => ConversationOpenQuestionProgress.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _openQuestionProgressToJson(
+  List<ConversationOpenQuestionProgress> progress,
+) {
+  return progress.map((item) => item.toJson()).toList(growable: false);
+}
+
 @freezed
 abstract class Conversation with _$Conversation {
   const Conversation._();
@@ -82,6 +103,12 @@ abstract class Conversation with _$Conversation {
     )
     @Default(<ConversationExecutionTaskProgress>[])
     List<ConversationExecutionTaskProgress> executionProgress,
+    @JsonKey(
+      fromJson: _openQuestionProgressFromJson,
+      toJson: _openQuestionProgressToJson,
+    )
+    @Default(<ConversationOpenQuestionProgress>[])
+    List<ConversationOpenQuestionProgress> openQuestionProgress,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
     ConversationPlanArtifact? planArtifact,
   }) = _Conversation;
@@ -106,6 +133,11 @@ abstract class Conversation with _$Conversation {
   List<ConversationExecutionTaskProgress> get effectiveExecutionProgress =>
       executionProgress
           .where((entry) => entry.taskId.trim().isNotEmpty)
+          .toList(growable: false);
+
+  List<ConversationOpenQuestionProgress> get effectiveOpenQuestionProgress =>
+      openQuestionProgress
+          .where((entry) => entry.questionId.trim().isNotEmpty)
           .toList(growable: false);
 
   String? get effectivePlanningDocument =>
@@ -163,6 +195,37 @@ abstract class Conversation with _$Conversation {
       }
     }
     return null;
+  }
+
+  ConversationOpenQuestionProgress? openQuestionProgressForQuestion(
+    String question,
+  ) {
+    final questionId = openQuestionIdFor(question);
+    for (final entry in effectiveOpenQuestionProgress) {
+      if (entry.questionId == questionId) {
+        return entry;
+      }
+    }
+    return null;
+  }
+
+  List<ConversationOpenQuestionProgress> get unresolvedOpenQuestionProgress =>
+      effectiveOpenQuestionProgress
+          .where(
+            (entry) =>
+                entry.status == ConversationOpenQuestionStatus.unresolved ||
+                entry.status == ConversationOpenQuestionStatus.needsUserInput,
+          )
+          .toList(growable: false);
+
+  static String openQuestionIdFor(String question) {
+    final normalized = question.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return '';
+    }
+    final hash = computeConversationPlanHash(normalized);
+    final prefix = hash.length <= 10 ? hash : hash.substring(0, 10);
+    return 'open-question-$prefix';
   }
 
   List<ConversationWorkflowTask> get projectedExecutionTasks =>
