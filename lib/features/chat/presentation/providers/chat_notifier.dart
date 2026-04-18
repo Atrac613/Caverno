@@ -913,6 +913,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required String languageCode,
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
+    String? additionalPlanningContext,
     bool compact = false,
   }) {
     final now = DateTime.now();
@@ -930,6 +931,7 @@ class ChatNotifier extends Notifier<ChatState> {
           languageCode: languageCode,
           researchContext: researchContext,
           decisionAnswers: decisionAnswers,
+          additionalPlanningContext: additionalPlanningContext,
           compact: compact,
         ),
       ),
@@ -942,6 +944,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     ConversationWorkflowStage? workflowStageOverride,
     ConversationWorkflowSpec? workflowSpecOverride,
+    String? additionalPlanningContext,
     bool compact = false,
   }) {
     final now = DateTime.now();
@@ -960,6 +963,7 @@ class ChatNotifier extends Notifier<ChatState> {
           researchContext: researchContext,
           workflowStageOverride: workflowStageOverride,
           workflowSpecOverride: workflowSpecOverride,
+          additionalPlanningContext: additionalPlanningContext,
           compact: compact,
         ),
       ),
@@ -970,6 +974,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required Conversation currentConversation,
     required String languageCode,
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
+    String? additionalPlanningContext,
   }) async {
     final decisionAnswers = <WorkflowPlanningDecisionAnswer>[];
     WorkflowProposalDraft? latestProposal;
@@ -991,6 +996,7 @@ class ChatNotifier extends Notifier<ChatState> {
         languageCode: languageCode,
         researchContext: researchContext,
         decisionAnswers: decisionAnswers,
+        additionalPlanningContext: additionalPlanningContext,
       );
 
       if (result case _WorkflowProposalDraftResponse(:final proposal)) {
@@ -1617,6 +1623,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required String languageCode,
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+    String? additionalPlanningContext,
   }) async {
     final attempts = <({bool compact, int maxTokens})>[
       (
@@ -1638,6 +1645,7 @@ class ChatNotifier extends Notifier<ChatState> {
           languageCode: languageCode,
           researchContext: researchContext,
           decisionAnswers: decisionAnswers,
+          additionalPlanningContext: additionalPlanningContext,
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -1804,6 +1812,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     ConversationWorkflowStage? workflowStageOverride,
     ConversationWorkflowSpec? workflowSpecOverride,
+    String? additionalPlanningContext,
   }) async {
     final attempts = <({bool compact, int maxTokens})>[
       (
@@ -1826,6 +1835,7 @@ class ChatNotifier extends Notifier<ChatState> {
           researchContext: researchContext,
           workflowStageOverride: workflowStageOverride,
           workflowSpecOverride: workflowSpecOverride,
+          additionalPlanningContext: additionalPlanningContext,
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -1862,6 +1872,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required String languageCode,
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
+    String? additionalPlanningContext,
     bool compact = false,
   }) {
     final project = _getActiveCodingProject();
@@ -1978,6 +1989,14 @@ class ChatNotifier extends Notifier<ChatState> {
         buffer.writeln('- ${answer.question}: ${answer.optionLabel}');
       }
     }
+    final normalizedPlanningContext = additionalPlanningContext?.trim();
+    if (normalizedPlanningContext != null &&
+        normalizedPlanningContext.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Requested replan focus:')
+        ..writeln(_clipAdditionalPlanningContext(normalizedPlanningContext));
+    }
 
     buffer
       ..writeln()
@@ -1993,6 +2012,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _PlanningResearchContext researchContext = const _PlanningResearchContext(),
     ConversationWorkflowStage? workflowStageOverride,
     ConversationWorkflowSpec? workflowSpecOverride,
+    String? additionalPlanningContext,
     bool compact = false,
   }) {
     final project = _getActiveCodingProject();
@@ -2083,6 +2103,14 @@ class ChatNotifier extends Notifier<ChatState> {
           _clipPlanningResearchContext(researchContext.toPromptBlock()),
         );
     }
+    final normalizedPlanningContext = additionalPlanningContext?.trim();
+    if (normalizedPlanningContext != null &&
+        normalizedPlanningContext.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('Requested replan focus:')
+        ..writeln(_clipAdditionalPlanningContext(normalizedPlanningContext));
+    }
 
     buffer
       ..writeln()
@@ -2133,9 +2161,10 @@ class ChatNotifier extends Notifier<ChatState> {
       for (final task in projectedTasks) {
         final progress = currentConversation.executionProgressForTask(task.id);
         final summary = progress?.normalizedSummary;
+        final blockedReason = progress?.normalizedBlockedReason;
         final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
         buffer.writeln(
-          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | updatedAt: $updatedAt',
+          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | blockedReason: ${blockedReason ?? ''} | updatedAt: $updatedAt',
         );
       }
     }
@@ -2178,6 +2207,14 @@ class ChatNotifier extends Notifier<ChatState> {
       return normalized;
     }
     return '${normalized.substring(0, 1600)}...';
+  }
+
+  String _clipAdditionalPlanningContext(String context) {
+    final normalized = context.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    if (normalized.length <= 1200) {
+      return normalized;
+    }
+    return '${normalized.substring(0, 1200)}...';
   }
 
   String _extractPlainTextForProposal(String content) {
@@ -3619,6 +3656,13 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   Future<void> generatePlanProposal({String languageCode = 'en'}) async {
+    await generatePlanProposalWithContext(languageCode: languageCode);
+  }
+
+  Future<void> generatePlanProposalWithContext({
+    String languageCode = 'en',
+    String? additionalPlanningContext,
+  }) async {
     if (!ref.mounted ||
         state.isGeneratingWorkflowProposal ||
         state.isGeneratingTaskProposal) {
@@ -3633,6 +3677,7 @@ class ChatNotifier extends Notifier<ChatState> {
     await _runPlanProposalFlow(
       currentConversation: currentConversation,
       languageCode: languageCode,
+      additionalPlanningContext: additionalPlanningContext,
     );
   }
 
@@ -3735,6 +3780,7 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _runPlanProposalFlow({
     required Conversation currentConversation,
     required String languageCode,
+    String? additionalPlanningContext,
   }) async {
     if (!ref.mounted) return;
 
@@ -3760,6 +3806,7 @@ class ChatNotifier extends Notifier<ChatState> {
         currentConversation: currentConversation,
         languageCode: languageCode,
         researchContext: researchContext,
+        additionalPlanningContext: additionalPlanningContext,
       );
       if (!ref.mounted) return;
       state = state.copyWith(
@@ -3807,6 +3854,7 @@ class ChatNotifier extends Notifier<ChatState> {
         researchContext: researchContext,
         workflowStageOverride: workflowDraft.workflowStage,
         workflowSpecOverride: workflowDraft.workflowSpec,
+        additionalPlanningContext: additionalPlanningContext,
       );
       if (!ref.mounted) return;
       state = state.copyWith(

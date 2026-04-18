@@ -1596,6 +1596,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final canUseProjection =
         !currentConversation.shouldPreferPlanDocument ||
         currentConversation.isWorkflowProjectionFresh;
+    final blockedTask = _blockedWorkflowTask(currentConversation);
     final nextTask = _nextWorkflowTask(currentConversation);
     final activeTask = _activeWorkflowTask(currentConversation);
     final validationTask = _validationWorkflowTask(currentConversation);
@@ -1655,6 +1656,42 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 : () => _refreshExecutionTasksFromPlan(context),
             icon: const Icon(Icons.sync_outlined, size: 18),
             label: Text('chat.plan_document_refresh_tasks'.tr()),
+          ),
+        if (!isPlanMode && blockedTask != null)
+          OutlinedButton.icon(
+            onPressed: isBusy || !canUseProjection
+                ? null
+                : () => _markWorkflowTaskUnblocked(
+                    context,
+                    currentConversation: currentConversation,
+                    task: blockedTask,
+                  ),
+            icon: const Icon(Icons.lock_open_outlined, size: 18),
+            label: Text('chat.workflow_task_mark_unblocked'.tr()),
+          ),
+        if (!isPlanMode && blockedTask != null)
+          OutlinedButton.icon(
+            onPressed: isBusy || !canUseProjection
+                ? null
+                : () => _editWorkflowTaskBlockedReason(
+                    context,
+                    currentConversation: currentConversation,
+                    task: blockedTask,
+                  ),
+            icon: const Icon(Icons.edit_note_outlined, size: 18),
+            label: Text('chat.workflow_task_edit_blocked_reason'.tr()),
+          ),
+        if (!isPlanMode && blockedTask != null)
+          FilledButton.tonalIcon(
+            onPressed: isBusy
+                ? null
+                : () => _replanFromBlockedTask(
+                    context,
+                    currentConversation: currentConversation,
+                    task: blockedTask,
+                  ),
+            icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+            label: Text('chat.workflow_task_replan_from_blocker'.tr()),
           ),
         if (!isPlanMode && nextTask != null)
           FilledButton.tonalIcon(
@@ -2340,6 +2377,28 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       value: _WorkflowTaskMenuAction.markBlocked,
                       child: Text('chat.workflow_task_mark_blocked'.tr()),
                     ),
+                  if (currentConversation.shouldPreferPlanDocument &&
+                      task.status == ConversationWorkflowTaskStatus.blocked)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.markUnblocked,
+                      child: Text('chat.workflow_task_mark_unblocked'.tr()),
+                    ),
+                  if (currentConversation.shouldPreferPlanDocument &&
+                      task.status == ConversationWorkflowTaskStatus.blocked)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.editBlockedReason,
+                      child: Text(
+                        'chat.workflow_task_edit_blocked_reason'.tr(),
+                      ),
+                    ),
+                  if (currentConversation.shouldPreferPlanDocument &&
+                      task.status == ConversationWorkflowTaskStatus.blocked)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.replanFromBlocker,
+                      child: Text(
+                        'chat.workflow_task_replan_from_blocker'.tr(),
+                      ),
+                    ),
                   if (canEditTask)
                     PopupMenuItem(
                       value: _WorkflowTaskMenuAction.edit,
@@ -2423,7 +2482,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ],
           const SizedBox(height: 12),
-          Row(
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
               FilledButton.tonalIcon(
                 onPressed: !canRunTask
@@ -2445,8 +2506,46 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       : 'chat.workflow_task_use'.tr(),
                 ),
               ),
-              if (canEditTask) ...[
-                const SizedBox(width: 8),
+              if (currentConversation.shouldPreferPlanDocument &&
+                  task.status == ConversationWorkflowTaskStatus.blocked)
+                OutlinedButton.icon(
+                  onPressed: !canRunTask
+                      ? null
+                      : () => _markWorkflowTaskUnblocked(
+                          context,
+                          currentConversation: currentConversation,
+                          task: task,
+                        ),
+                  icon: const Icon(Icons.lock_open_outlined, size: 18),
+                  label: Text('chat.workflow_task_mark_unblocked'.tr()),
+                ),
+              if (currentConversation.shouldPreferPlanDocument &&
+                  task.status == ConversationWorkflowTaskStatus.blocked)
+                OutlinedButton.icon(
+                  onPressed: !canRunTask
+                      ? null
+                      : () => _editWorkflowTaskBlockedReason(
+                          context,
+                          currentConversation: currentConversation,
+                          task: task,
+                        ),
+                  icon: const Icon(Icons.edit_note_outlined, size: 18),
+                  label: Text('chat.workflow_task_edit_blocked_reason'.tr()),
+                ),
+              if (currentConversation.shouldPreferPlanDocument &&
+                  task.status == ConversationWorkflowTaskStatus.blocked)
+                FilledButton.icon(
+                  onPressed: isBusy
+                      ? null
+                      : () => _replanFromBlockedTask(
+                          context,
+                          currentConversation: currentConversation,
+                          task: task,
+                        ),
+                  icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
+                  label: Text('chat.workflow_task_replan_from_blocker'.tr()),
+                ),
+              if (canEditTask)
                 OutlinedButton.icon(
                   onPressed: () => _showWorkflowTaskEditor(
                     context,
@@ -2456,7 +2555,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: Text('chat.workflow_task_edit'.tr()),
                 ),
-              ],
             ],
           ),
         ],
@@ -2793,6 +2891,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
           summary: 'Marked blocked from the task menu.',
           blockedReason: 'This task is blocked and needs follow-up.',
         );
+      case _WorkflowTaskMenuAction.markUnblocked:
+        await _markWorkflowTaskUnblocked(
+          context,
+          currentConversation: currentConversation,
+          task: task,
+        );
+      case _WorkflowTaskMenuAction.editBlockedReason:
+        await _editWorkflowTaskBlockedReason(
+          context,
+          currentConversation: currentConversation,
+          task: task,
+        );
+      case _WorkflowTaskMenuAction.replanFromBlocker:
+        await _replanFromBlockedTask(
+          context,
+          currentConversation: currentConversation,
+          task: task,
+        );
       case _WorkflowTaskMenuAction.edit:
         if (currentConversation.shouldPreferPlanDocument) {
           return;
@@ -2970,6 +3086,187 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ? ConversationWorkflowStage.review
           : ConversationWorkflowStage.implement,
     );
+  }
+
+  Future<void> _markWorkflowTaskUnblocked(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    await _setWorkflowTaskStatus(
+      currentConversation: currentConversation,
+      task: task,
+      status: ConversationWorkflowTaskStatus.pending,
+      summary: 'Cleared the blocker and moved the task back to pending.',
+      blockedReason: '',
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.workflow_task_unblocked'.tr())),
+    );
+  }
+
+  Future<void> _editWorkflowTaskBlockedReason(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    if (!currentConversation.shouldPreferPlanDocument) {
+      return;
+    }
+
+    final existingReason =
+        currentConversation
+            .executionProgressForTask(task.id)
+            ?.normalizedBlockedReason ??
+        'This task is blocked and needs follow-up.';
+    final result = await _showBlockedReasonEditor(
+      context,
+      initialReason: existingReason,
+    );
+    if (result == null) {
+      return;
+    }
+
+    final nextReason = result.trim();
+    if (nextReason.isEmpty) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('chat.workflow_task_blocked_reason_required'.tr()),
+        ),
+      );
+      return;
+    }
+
+    await _setWorkflowTaskStatus(
+      currentConversation: currentConversation,
+      task: task,
+      status: ConversationWorkflowTaskStatus.blocked,
+      summary: 'Updated the blocker details from the approved plan flow.',
+      blockedReason: nextReason,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.workflow_task_blocked_reason_saved'.tr())),
+    );
+  }
+
+  Future<String?> _showBlockedReasonEditor(
+    BuildContext context, {
+    required String initialReason,
+  }) async {
+    final controller = TextEditingController(text: initialReason);
+    try {
+      return await showDialog<String>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: Text('chat.workflow_task_blocked_reason_editor_title'.tr()),
+          content: TextField(
+            controller: controller,
+            autofocus: true,
+            minLines: 3,
+            maxLines: 6,
+            decoration: InputDecoration(
+              hintText: 'chat.workflow_task_blocked_reason_editor_hint'.tr(),
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(dialogContext).pop(),
+              child: Text('common.cancel'.tr()),
+            ),
+            FilledButton(
+              onPressed: () =>
+                  Navigator.of(dialogContext).pop(controller.text.trim()),
+              child: Text('common.save'.tr()),
+            ),
+          ],
+        ),
+      );
+    } finally {
+      controller.dispose();
+    }
+  }
+
+  Future<void> _replanFromBlockedTask(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    if (!currentConversation.shouldPreferPlanDocument) {
+      return;
+    }
+
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final blockedReason =
+        latestConversation
+            .executionProgressForTask(task.id)
+            ?.normalizedBlockedReason ??
+        'This task is currently blocked.';
+    final languageCode = context.locale.languageCode;
+
+    if (!latestConversation.isPlanningSession) {
+      await conversationsNotifier.enterPlanningSession();
+    }
+
+    await chatNotifier.generatePlanProposalWithContext(
+      languageCode: languageCode,
+      additionalPlanningContext: _buildBlockedTaskReplanContext(
+        task: task,
+        blockedReason: blockedReason,
+      ),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('chat.workflow_task_replan_from_blocker_started'.tr()),
+      ),
+    );
+  }
+
+  String _buildBlockedTaskReplanContext({
+    required ConversationWorkflowTask task,
+    required String blockedReason,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('Focus the next draft on resolving the active blocker.')
+      ..writeln('- blockedTask: ${task.title.trim()}')
+      ..writeln('- blockedReason: ${blockedReason.trim()}');
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      buffer.writeln('- targetFiles: $targetFiles');
+    }
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      buffer.writeln('- validationCommand: $validationCommand');
+    }
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      buffer.writeln('- notes: $notes');
+    }
+    buffer.writeln(
+      '- expectation: either remove the blocker from the plan or add the minimum follow-up work needed to unblock implementation.',
+    );
+    return buffer.toString().trimRight();
   }
 
   Future<void> _runWorkflowTask(
@@ -3166,8 +3463,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return activeTask;
     }
     for (final task in currentConversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.pending ||
-          task.status == ConversationWorkflowTaskStatus.blocked) {
+      if (task.status == ConversationWorkflowTaskStatus.pending) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  ConversationWorkflowTask? _blockedWorkflowTask(
+    Conversation currentConversation,
+  ) {
+    for (final task in currentConversation.projectedExecutionTasks) {
+      if (task.status == ConversationWorkflowTaskStatus.blocked) {
         return task;
       }
     }
@@ -5282,6 +5589,9 @@ enum _WorkflowTaskMenuAction {
   markInProgress,
   markCompleted,
   markBlocked,
+  markUnblocked,
+  editBlockedReason,
+  replanFromBlocker,
   edit,
   delete,
 }
