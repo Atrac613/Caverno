@@ -504,6 +504,7 @@
     "save_settings": "Save Settings",
     "language_section": "Language",
     "language_system": "System Default",
+    "language_helper": "Applies to both the app UI and assistant language.",
     "language_ja": "日本語",
     "language_en": "English",
     "import_export_section": "Backup & Restore",

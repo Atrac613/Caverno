@@ -10,6 +10,7 @@ import '../../../../core/services/whisper_service.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../../settings/domain/entities/app_settings.dart';
+import '../../../settings/domain/services/app_language_resolver.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../domain/entities/message.dart';
 import 'chat_notifier.dart';
@@ -282,8 +283,10 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
           state = state.copyWith(status: VoiceModeStatus.processing);
           
           final settings = _getSettings();
-          final localeLang = PlatformDispatcher.instance.locale.languageCode;
-          final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+          final resolvedLang = resolveAppLanguageCode(
+            preference: settings.language,
+            systemLocale: PlatformDispatcher.instance.locale,
+          );
           
           _llmStopwatch = Stopwatch()..start();
           _isFirstTokenLogged = false;
@@ -345,8 +348,10 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
       
       // Send the text to the chat.
       final settings = _getSettings();
-      final localeLang = PlatformDispatcher.instance.locale.languageCode;
-      final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+      final resolvedLang = resolveAppLanguageCode(
+        preference: settings.language,
+        systemLocale: PlatformDispatcher.instance.locale,
+      );
       
       _llmStopwatch = Stopwatch()..start();
       _isFirstTokenLogged = false;
@@ -437,8 +442,10 @@ class VoiceModeNotifier extends Notifier<VoiceModeState> {
         _hasNotifiedToolUseThisTurn = true;
         
         final settings = _getSettings();
-        final localeLang = PlatformDispatcher.instance.locale.languageCode;
-        final resolvedLang = settings.language == 'system' ? localeLang : settings.language;
+        final resolvedLang = resolveAppLanguageCode(
+          preference: settings.language,
+          systemLocale: PlatformDispatcher.instance.locale,
+        );
         
         final phrase = _getToolNotificationPhrase(resolvedLang);
         appLog('[VoiceModeNotifier] Tool use detected. Playing notification: $phrase');

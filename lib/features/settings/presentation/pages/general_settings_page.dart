@@ -276,8 +276,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
           const SizedBox(height: 8),
           DropdownButtonFormField<String>(
             initialValue: settings.language,
-            decoration: const InputDecoration(
-              border: OutlineInputBorder(),
+            decoration: InputDecoration(
+              border: const OutlineInputBorder(),
+              helperText: 'settings.language_helper'.tr(),
             ),
             items: [
               DropdownMenuItem(
