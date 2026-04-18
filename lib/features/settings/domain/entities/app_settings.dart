@@ -49,11 +49,24 @@ abstract class McpServerConfig with _$McpServerConfig {
       args.isEmpty ? command.trim() : '${command.trim()} ${args.join(' ')}',
   };
 
+  String get trustSourceLabel => switch (type) {
+    McpServerType.http => 'Remote MCP endpoint',
+    McpServerType.stdio => 'Local stdio command',
+  };
+
+  String get trustIdentity => switch (type) {
+    McpServerType.http => 'http:${normalizedUrl.toLowerCase()}',
+    McpServerType.stdio =>
+      'stdio:${command.trim().toLowerCase()}::${args.join('\u{1f}')}',
+  };
+
   bool get isTrusted => trustState == McpServerTrustState.trusted;
 
   bool get isBlocked => trustState == McpServerTrustState.blocked;
 
   bool get needsTrustReview => trustState == McpServerTrustState.pending;
+
+  bool get exposesToolsToModel => enabled && isValid && isTrusted;
 }
 
 @freezed

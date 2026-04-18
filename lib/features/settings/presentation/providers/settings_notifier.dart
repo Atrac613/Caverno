@@ -65,12 +65,22 @@ class SettingsNotifier extends Notifier<AppSettings> {
   }
 
   Future<void> updateMcpServers(List<McpServerConfig> mcpServers) async {
-    final httpServers = mcpServers.where((s) => s.type == McpServerType.http);
+    final normalizedServers = <McpServerConfig>[
+      for (var index = 0; index < mcpServers.length; index++)
+        _normalizeMcpServerForPersistence(
+          previous: index < state.configuredMcpServers.length
+              ? state.configuredMcpServers[index]
+              : null,
+          next: mcpServers[index],
+        ),
+    ];
+
+    final httpServers = normalizedServers.where((s) => s.type == McpServerType.http);
     final activeUrls = AppSettings.activeMcpUrlsFromServers(httpServers);
     state = state.copyWith(
       mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
       mcpUrls: activeUrls,
-      mcpServers: List<McpServerConfig>.from(mcpServers),
+      mcpServers: normalizedServers,
     );
     await _repository.save(state);
   }
@@ -283,5 +293,27 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final settings = _qrService.parseQrString(data);
     state = settings;
     await _repository.save(state);
+  }
+
+  McpServerConfig _normalizeMcpServerForPersistence({
+    required McpServerConfig? previous,
+    required McpServerConfig next,
+  }) {
+    final normalized = next.type == McpServerType.http
+        ? next.copyWith(url: next.normalizedUrl)
+        : next.copyWith(command: next.command.trim());
+
+    if (previous == null) {
+      return normalized;
+    }
+
+    if (previous.trustIdentity != normalized.trustIdentity) {
+      return normalized.copyWith(
+        trustState: McpServerTrustState.pending,
+        trustedAt: null,
+      );
+    }
+
+    return normalized;
   }
 }
