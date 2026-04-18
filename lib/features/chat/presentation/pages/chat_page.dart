@@ -677,6 +677,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
                 ),
               ),
+              IconButton(
+                tooltip: 'Refresh summary',
+                onPressed: () async {
+                  final messenger = ScaffoldMessenger.of(context);
+                  await ref
+                      .read(conversationsNotifierProvider.notifier)
+                      .rebuildCurrentConversationCompaction();
+                  if (!mounted) {
+                    return;
+                  }
+                  messenger.showSnackBar(
+                    const SnackBar(
+                      content: Text('Compacted summary refreshed'),
+                    ),
+                  );
+                },
+                icon: const Icon(Icons.refresh_outlined, size: 18),
+              ),
               TextButton(
                 onPressed: () {
                   showDialog<void>(
@@ -708,7 +726,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
           const SizedBox(height: 6),
           Text(
             'Compacted turns: ${artifact.compactedMessageCount} • '
-            'Estimated prompt tokens: ${artifact.estimatedPromptTokens}',
+            'Source messages: ${artifact.sourceMessageCount} • '
+            'Estimated prompt tokens: ${artifact.estimatedPromptTokens} • '
+            'v${artifact.version}',
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.onSurfaceVariant,
             ),

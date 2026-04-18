@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../../chat/data/repositories/chat_memory_repository.dart';
+import '../../../chat/data/repositories/conversation_repository.dart';
 import '../../../chat/domain/entities/session_memory.dart';
 import '../../../chat/domain/services/session_memory_service.dart';
 import '../providers/settings_notifier.dart';
@@ -166,6 +167,31 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     return '${value.year.toString().padLeft(4, '0')}/${value.month.toString().padLeft(2, '0')}/${value.day.toString().padLeft(2, '0')} ${value.hour.toString().padLeft(2, '0')}:${value.minute.toString().padLeft(2, '0')}';
   }
 
+  String _resolveMemorySourceLabel(String? conversationId) {
+    if (conversationId == null || conversationId.trim().isEmpty) {
+      return 'Unknown source';
+    }
+
+    final conversation = ref.read(conversationRepositoryProvider).getById(
+      conversationId,
+    );
+    final summary = _sessionSummaries
+        .where((item) => item.conversationId == conversationId)
+        .firstOrNull;
+    final title = conversation?.title.trim();
+
+    if (summary != null && title != null && title.isNotEmpty) {
+      return '$title • ${summary.summary}';
+    }
+    if (summary != null) {
+      return summary.summary;
+    }
+    if (title != null && title.isNotEmpty) {
+      return title;
+    }
+    return conversationId;
+  }
+
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsNotifierProvider);
@@ -261,6 +287,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                   Text('Review queue: ${_memorySnapshot.reviewCount}'),
                   Text('Suppression rules: ${_memorySnapshot.suppressionCount}'),
                   Text(
+                    'Suppressed candidates: ${_memorySnapshot.suppressionHitCount}',
+                  ),
+                  Text(
                     'settings.last_updated'.tr(
                       namedArgs: {
                         'date': _formatDateTime(_memorySnapshot.lastUpdatedAt),
@@ -337,6 +366,18 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                         '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • importance ${item.importance.toStringAsFixed(2)}',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
+                      if (item.sourceConversationId != null) ...[
+                        const SizedBox(height: 4),
+                        Text(
+                          'Source: ${_resolveMemorySourceLabel(item.sourceConversationId)}',
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                        ),
+                      ],
                       const SizedBox(height: 8),
                       Wrap(
                         spacing: 8,
@@ -372,7 +413,11 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                 child: ListTile(
                   title: Text(item.text),
                   subtitle: Text(
-                    '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • updated ${_formatDateTime(item.updatedAt)}',
+                    [
+                      '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • updated ${_formatDateTime(item.updatedAt)}',
+                      if (item.sourceConversationId != null)
+                        'Source: ${_resolveMemorySourceLabel(item.sourceConversationId)}',
+                    ].join('\n'),
                   ),
                   trailing: PopupMenuButton<String>(
                     onSelected: (value) {

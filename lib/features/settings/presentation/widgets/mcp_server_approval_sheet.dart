@@ -18,6 +18,7 @@ class McpServerApprovalSheet extends StatelessWidget {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final canApprove = connectionError == null;
+    final reviewPendingLabel = server.isBlocked ? 'Move to pending' : 'Keep pending';
 
     return SafeArea(
       child: Padding(
@@ -40,6 +41,8 @@ class McpServerApprovalSheet extends StatelessWidget {
               ),
             ),
             const SizedBox(height: 16),
+            Text('Source: ${server.trustSourceLabel}'),
+            const SizedBox(height: 4),
             Text('Transport: ${server.type.name}'),
             const SizedBox(height: 4),
             Text('Endpoint: ${server.displayLabel}'),
@@ -64,6 +67,13 @@ class McpServerApprovalSheet extends StatelessWidget {
                   fontWeight: FontWeight.w700,
                 ),
               ),
+              const SizedBox(height: 4),
+              Text(
+                'These tool names will be exposed to the model after trust is granted.',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
               const SizedBox(height: 8),
               ...toolNames.map(
                 (toolName) => Padding(
@@ -75,6 +85,17 @@ class McpServerApprovalSheet extends StatelessWidget {
             const SizedBox(height: 20),
             Row(
               children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(
+                        context,
+                      ).pop(McpServerTrustState.pending);
+                    },
+                    child: Text(reviewPendingLabel),
+                  ),
+                ),
+                const SizedBox(width: 12),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
@@ -105,9 +126,9 @@ class McpServerApprovalSheet extends StatelessWidget {
               alignment: Alignment.centerRight,
               child: TextButton(
                 onPressed: () {
-                  Navigator.of(context).pop(McpServerTrustState.pending);
+                  Navigator.of(context).pop();
                 },
-                child: const Text('Cancel'),
+                child: const Text('Keep current state'),
               ),
             ),
           ],

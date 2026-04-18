@@ -17,6 +17,7 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
   final List<MemoryEntry> memories = [];
   final List<MemoryReviewItem> reviewQueue = [];
   final List<MemorySuppressionRule> suppressionRules = [];
+  int suppressionHitCount = 0;
 
   @override
   UserMemoryProfile loadProfile() => profile;
@@ -102,6 +103,14 @@ class _InMemoryChatMemoryRepository extends ChatMemoryRepository {
     );
     suppressionRules.add(rule);
   }
+
+  @override
+  int loadSuppressionHitCount() => suppressionHitCount;
+
+  @override
+  Future<void> incrementSuppressionHitCount(int count) async {
+    suppressionHitCount += count;
+  }
 }
 
 void main() {
@@ -150,5 +159,65 @@ void main() {
       repository.memories.single.text,
       'The user prefers concise code review summaries.',
     );
+  });
+
+  test('tracks suppression hits and preserves source ids in memory artifacts', () async {
+    final repository = _InMemoryChatMemoryRepository();
+    final service = SessionMemoryService(repository);
+    await repository.addSuppressionRule(
+      MemorySuppressionRule(
+        id: 'rule-1',
+        textPattern: 'release note summaries',
+        createdAt: DateTime(2026, 4, 18, 10, 45),
+      ),
+    );
+
+    final result = await service.updateFromConversation(
+      conversationId: 'conversation-2',
+      messages: [
+        Message(
+          id: 'message-2',
+          content: 'Remember both my review and release note preferences.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 18, 11, 0),
+        ),
+      ],
+      draft: const MemoryExtractionDraft(
+        summary: 'The user described review and release note preferences.',
+        openLoops: [],
+        persona: [],
+        preferences: [],
+        doNot: [],
+        entries: [
+          MemoryDraftEntry(
+            text: 'The user prefers concise code review summaries.',
+            type: 'preference',
+            confidence: 0.9,
+            importance: 0.8,
+          ),
+          MemoryDraftEntry(
+            text: 'The user prefers short release note summaries.',
+            type: 'preference',
+            confidence: 0.86,
+            importance: 0.6,
+          ),
+          MemoryDraftEntry(
+            text: 'The user may want changelog links included.',
+            type: 'topic',
+            confidence: 0.42,
+            importance: 0.3,
+          ),
+        ],
+      ),
+    );
+
+    final snapshot = service.loadSnapshot();
+
+    expect(result.addedMemoryCount, 1);
+    expect(result.queuedReviewCount, 1);
+    expect(result.suppressedCandidateCount, 1);
+    expect(snapshot.suppressionHitCount, 1);
+    expect(repository.memories.single.sourceConversationId, 'conversation-2');
+    expect(repository.reviewQueue.single.sourceConversationId, 'conversation-2');
   });
 }

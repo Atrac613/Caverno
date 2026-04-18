@@ -319,10 +319,23 @@ class _McpServersSettingsPageState
                       mcpToolService: ref.read(mcpToolServiceProvider),
                     ),
                     child: Text(
-                      server.isTrusted ? 'Review trust' : 'Review & trust',
+                      switch (server.trustState) {
+                        McpServerTrustState.trusted => 'Review trust',
+                        McpServerTrustState.blocked => 'Review blocked server',
+                        McpServerTrustState.pending => 'Review & trust',
+                      },
                     ),
                   ),
               ],
+            ),
+            const SizedBox(height: 6),
+            Text(
+              server.exposesToolsToModel
+                  ? 'This server can currently expose tools to the model.'
+                  : 'This server stays hidden from the model until it is trusted.',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
             ),
             const SizedBox(height: 10),
             Row(

@@ -1,6 +1,22 @@
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../entities/mcp_tool_entity.dart';
 
+enum ToolExecutionBatchMode { serial, parallelFileRead, parallelNetworkRead }
+
+class ToolExecutionBatchTelemetry {
+  const ToolExecutionBatchTelemetry({
+    required this.mode,
+    required this.toolNames,
+    this.note,
+  });
+
+  final ToolExecutionBatchMode mode;
+  final List<String> toolNames;
+  final String? note;
+
+  int get batchSize => toolNames.length;
+}
+
 class ScheduledToolExecutionResult {
   const ScheduledToolExecutionResult({
     required this.toolCall,
@@ -18,11 +34,21 @@ class ScheduledToolExecutionResult {
 class ToolExecutionScheduler {
   ToolExecutionScheduler._();
 
-  static const Set<String> _concurrencySafeToolNames = {
+  static const int maxParallelBatchSize = 3;
+
+  static const Set<String> _fileReadToolNames = {
     'list_directory',
     'read_file',
     'find_files',
     'search_files',
+    'search_past_conversations',
+    'recall_memory',
+    'get_current_datetime',
+    'web_search',
+    'web_url_read',
+  };
+
+  static const Set<String> _networkReadToolNames = {
     'ping',
     'whois_lookup',
     'dns_lookup',
@@ -31,20 +57,26 @@ class ToolExecutionScheduler {
     'http_status',
     'http_get',
     'http_head',
-    'search_past_conversations',
-    'recall_memory',
-    'get_current_datetime',
-    'web_search',
-    'web_url_read',
   };
 
   static bool isConcurrencySafe(ToolCallInfo toolCall) {
-    return _concurrencySafeToolNames.contains(toolCall.name);
+    return executionModeFor(toolCall) != ToolExecutionBatchMode.serial;
+  }
+
+  static ToolExecutionBatchMode executionModeFor(ToolCallInfo toolCall) {
+    if (_fileReadToolNames.contains(toolCall.name)) {
+      return ToolExecutionBatchMode.parallelFileRead;
+    }
+    if (_networkReadToolNames.contains(toolCall.name)) {
+      return ToolExecutionBatchMode.parallelNetworkRead;
+    }
+    return ToolExecutionBatchMode.serial;
   }
 
   static Future<List<ScheduledToolExecutionResult>> executeBatch({
     required List<ToolCallInfo> toolCalls,
     required Future<McpToolResult> Function(ToolCallInfo toolCall) execute,
+    void Function(ToolExecutionBatchTelemetry telemetry)? onBatch,
   }) async {
     if (toolCalls.isEmpty) {
       return const [];
@@ -55,18 +87,38 @@ class ToolExecutionScheduler {
       null,
     );
     final parallelBatch = <Future<void>>[];
+    final parallelBatchNames = <String>[];
+    ToolExecutionBatchMode? parallelBatchMode;
 
-    Future<void> flushParallelBatch() async {
+    Future<void> flushParallelBatch({String? note}) async {
       if (parallelBatch.isEmpty) {
         return;
       }
       await Future.wait(parallelBatch);
+      onBatch?.call(
+        ToolExecutionBatchTelemetry(
+          mode: parallelBatchMode ?? ToolExecutionBatchMode.parallelFileRead,
+          toolNames: List<String>.from(parallelBatchNames),
+          note: note,
+        ),
+      );
       parallelBatch.clear();
+      parallelBatchNames.clear();
+      parallelBatchMode = null;
     }
 
     for (var index = 0; index < toolCalls.length; index++) {
       final toolCall = toolCalls[index];
-      if (isConcurrencySafe(toolCall)) {
+      final executionMode = executionModeFor(toolCall);
+      if (executionMode != ToolExecutionBatchMode.serial) {
+        if (parallelBatchMode != null && parallelBatchMode != executionMode) {
+          await flushParallelBatch(note: 'group switch');
+        }
+        if (parallelBatch.length >= maxParallelBatchSize) {
+          await flushParallelBatch(note: 'parallel batch limit');
+        }
+        parallelBatchMode ??= executionMode;
+        parallelBatchNames.add(toolCall.name);
         parallelBatch.add(
           _execute(toolCall, execute).then((value) {
             orderedResults[index] = value;
@@ -75,8 +127,15 @@ class ToolExecutionScheduler {
         continue;
       }
 
-      await flushParallelBatch();
+      await flushParallelBatch(note: 'serial fallback');
       orderedResults[index] = await _execute(toolCall, execute);
+      onBatch?.call(
+        ToolExecutionBatchTelemetry(
+          mode: ToolExecutionBatchMode.serial,
+          toolNames: [toolCall.name],
+          note: 'non-concurrency-safe tool',
+        ),
+      );
     }
 
     await flushParallelBatch();

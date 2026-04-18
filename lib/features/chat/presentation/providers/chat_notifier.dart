@@ -3136,6 +3136,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final freshArtifact = ConversationCompactionService.buildArtifact(
       messages: messages,
+      planDocument: currentConversation?.displayPlanDocument(
+        isPlanning: currentConversation.isPlanningSession,
+      ),
       now: currentConversation?.effectiveCompactionArtifact.updatedAt,
     );
     if (freshArtifact != null) {
@@ -3886,6 +3889,13 @@ class ChatNotifier extends Notifier<ChatState> {
       final scheduledResults = await ToolExecutionScheduler.executeBatch(
         toolCalls: pendingBatchCalls,
         execute: _dispatchToolCall,
+        onBatch: (telemetry) {
+          appLog(
+            '[Tool] Scheduler ${telemetry.mode.name} batch '
+            '(size=${telemetry.batchSize}, tools=${telemetry.toolNames.join(', ')})'
+            '${telemetry.note == null ? '' : ' • ${telemetry.note}'}',
+          );
+        },
       );
 
       for (final scheduledResult in scheduledResults) {
@@ -5827,6 +5837,8 @@ class ChatNotifier extends Notifier<ChatState> {
         'summaryUpdated': result.summaryUpdated,
         'added': result.addedMemoryCount,
         'updated': result.updatedMemoryCount,
+        'queuedReview': result.queuedReviewCount,
+        'suppressed': result.suppressedCandidateCount,
         'profileUpdated': result.profileUpdated,
         'method': result.generationMethod.name,
       },

@@ -18,12 +18,14 @@ class ParsedContentView extends StatefulWidget {
     required this.textColor,
     this.isStreaming = false,
     this.showMemoryUpdates = false,
+    this.onReviewMemory,
   });
 
   final String content;
   final Color textColor;
   final bool isStreaming;
   final bool showMemoryUpdates;
+  final VoidCallback? onReviewMemory;
 
   @override
   State<ParsedContentView> createState() => _ParsedContentViewState();
@@ -300,6 +302,9 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     final toolName = toolCall?.name ?? 'content.tool_default'.tr();
     final arguments = toolCall?.arguments ?? const <String, dynamic>{};
     final argumentText = _formatToolArguments(arguments);
+    if (toolName.toLowerCase() == 'memory_update') {
+      return _buildMemoryUpdateBlock(arguments, theme);
+    }
 
     return Container(
       margin: const EdgeInsets.symmetric(vertical: 4),
@@ -351,6 +356,12 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   Widget _buildToolResultBlock(ContentSegment segment, ThemeData theme) {
     final toolResult = segment.toolCall;
     final toolName = toolResult?.name ?? 'content.tool_default'.tr();
+    if (toolName.toLowerCase() == 'memory_update') {
+      return _buildMemoryUpdateBlock(
+        toolResult?.arguments ?? const <String, dynamic>{},
+        theme,
+      );
+    }
     final summary =
         toolResult?.arguments['summary'] as String? ??
         'content.tool_result_ready'.tr();
@@ -417,6 +428,73 @@ class _ParsedContentViewState extends State<ParsedContentView> {
                     ),
                 ],
               ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMemoryUpdateBlock(
+    Map<String, dynamic> arguments,
+    ThemeData theme,
+  ) {
+    final added = arguments['added'] ?? 0;
+    final updated = arguments['updated'] ?? 0;
+    final queuedReview = arguments['queuedReview'] ?? 0;
+    final suppressed = arguments['suppressed'] ?? 0;
+    final method = arguments['method']?.toString() ?? 'ruleBased';
+    final chips = <String>[
+      if (added is num && added > 0) 'added $added',
+      if (updated is num && updated > 0) 'updated $updated',
+      if (queuedReview is num && queuedReview > 0) 'review $queuedReview',
+      if (suppressed is num && suppressed > 0) 'suppressed $suppressed',
+      'via $method',
+    ];
+
+    return Container(
+      margin: const EdgeInsets.symmetric(vertical: 4),
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.35),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: 0.24),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.psychology_alt_outlined,
+                size: 16,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'Memory updated',
+                style: TextStyle(
+                  color: theme.colorScheme.secondary,
+                  fontWeight: FontWeight.w700,
+                  fontSize: 13,
+                ),
+              ),
+              const Spacer(),
+              if (widget.onReviewMemory != null)
+                TextButton(
+                  onPressed: widget.onReviewMemory,
+                  child: const Text('Review'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(
+            chips.join(' • '),
+            style: TextStyle(
+              color: theme.colorScheme.onSurface.withValues(alpha: 0.72),
+              fontSize: 12,
             ),
           ),
         ],

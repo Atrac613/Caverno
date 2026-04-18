@@ -208,6 +208,57 @@ void main() {
   );
 
   test(
+    'updateCurrentPlanArtifact refreshes compaction with plan context',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      final messages = List<Message>.generate(16, (index) {
+        final isUser = index.isEven;
+        return Message(
+          id: 'message-$index',
+          content:
+              '${isUser ? 'User' : 'Assistant'} turn $index with enough detail '
+              'to keep the compaction artifact populated for this test.',
+          role: isUser ? MessageRole.user : MessageRole.assistant,
+          timestamp: DateTime(2026, 4, 18, 9, index),
+        );
+      });
+      await notifier.updateCurrentConversation(messages);
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n\n## Goal\nKeep the compaction summary grounded\n\n'
+              '- Validate before editing files',
+          updatedAt: DateTime(2026, 4, 18, 10, 0),
+        ),
+      );
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.compactionArtifact, isNotNull);
+      expect(
+        currentConversation.compactionArtifact!.normalizedSummary,
+        contains('Active plan context'),
+      );
+      expect(
+        currentConversation.compactionArtifact!.normalizedSummary,
+        contains('Keep the compaction summary grounded'),
+      );
+      expect(currentConversation.compactionArtifact!.sourceMessageCount, 16);
+    },
+  );
+
+  test(
     'open question progress is persisted and retained across refreshes',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

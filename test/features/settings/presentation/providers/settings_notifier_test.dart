@@ -53,4 +53,37 @@ void main() {
       isFalse,
     );
   });
+
+  test('bulk MCP server updates invalidate trust when identity changes', () async {
+    SharedPreferences.setMockInitialValues({});
+    final prefs = await SharedPreferences.getInstance();
+    final container = ProviderContainer(
+      overrides: [sharedPreferencesProvider.overrideWithValue(prefs)],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(settingsNotifierProvider.notifier);
+
+    await notifier.updateMcpServers([
+      const McpServerConfig(
+        url: 'http://localhost:8081',
+        enabled: true,
+        trustState: McpServerTrustState.trusted,
+      ),
+    ]);
+
+    var settings = container.read(settingsNotifierProvider);
+    expect(settings.configuredMcpServers.single.isTrusted, isTrue);
+
+    await notifier.updateMcpServers([
+      settings.configuredMcpServers.single.copyWith(url: 'http://localhost:8082'),
+    ]);
+
+    settings = container.read(settingsNotifierProvider);
+    expect(
+      settings.configuredMcpServers.single.trustState,
+      McpServerTrustState.pending,
+    );
+    expect(settings.enabledMcpServers, isEmpty);
+  });
 }
