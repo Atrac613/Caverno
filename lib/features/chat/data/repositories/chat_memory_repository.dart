@@ -201,19 +201,19 @@ class ChatMemoryRepository {
   }
 
   List<MemoryReviewItem> loadReviewQueue() {
-    if (!_box.isOpen) return const [];
+    if (!_box.isOpen) return <MemoryReviewItem>[];
     final raw = _readOrNull<String>(() => _box.get(_memoryReviewQueueKey));
-    if (raw == null || raw.isEmpty) return const [];
+    if (raw == null || raw.isEmpty) return <MemoryReviewItem>[];
     try {
       final data = jsonDecode(raw) as List<dynamic>;
       final items = data.whereType<Map>().map((entry) {
         return MemoryReviewItem.fromJson(Map<String, dynamic>.from(entry));
-      }).toList();
+      }).toList(growable: true);
       items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return items;
     } catch (e) {
       appLog('[ChatMemoryRepository] Failed to parse review queue: $e');
-      return const [];
+      return <MemoryReviewItem>[];
     }
   }
 
@@ -264,21 +264,21 @@ class ChatMemoryRepository {
   }
 
   List<MemorySuppressionRule> loadSuppressionRules() {
-    if (!_box.isOpen) return const [];
+    if (!_box.isOpen) return <MemorySuppressionRule>[];
     final raw = _readOrNull<String>(() => _box.get(_memorySuppressionRulesKey));
-    if (raw == null || raw.isEmpty) return const [];
+    if (raw == null || raw.isEmpty) return <MemorySuppressionRule>[];
     try {
       final data = jsonDecode(raw) as List<dynamic>;
       final rules = data.whereType<Map>().map((entry) {
         return MemorySuppressionRule.fromJson(
           Map<String, dynamic>.from(entry),
         );
-      }).toList();
+      }).toList(growable: true);
       rules.sort((a, b) => b.createdAt.compareTo(a.createdAt));
       return rules;
     } catch (e) {
       appLog('[ChatMemoryRepository] Failed to parse suppression rules: $e');
-      return const [];
+      return <MemorySuppressionRule>[];
     }
   }
 
