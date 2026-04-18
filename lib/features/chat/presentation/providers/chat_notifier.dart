@@ -16,6 +16,7 @@ import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_execution_summary_service.dart';
 import '../../domain/services/system_prompt_builder.dart';
 import '../../domain/services/session_memory_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
@@ -2175,22 +2176,15 @@ class ChatNotifier extends Notifier<ChatState> {
       buffer.writeln('- tasks:');
       for (final task in projectedTasks) {
         final progress = currentConversation.executionProgressForTask(task.id);
-        final summary = progress?.normalizedSummary;
+        final taskSummary = ConversationExecutionSummaryService.summarize(
+          progress,
+        );
+        final summary = taskSummary.lastOutcome;
         final blockedReason = progress?.normalizedBlockedReason;
         final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
-        final recentEvents = progress?.recentEvents.reversed
-            .take(3)
-            .map((event) {
-              final eventSummary =
-                  event.normalizedSummary ??
-                  event.normalizedValidationSummary ??
-                  event.normalizedBlockedReason ??
-                  event.status.name;
-              return '${event.type.name}: $eventSummary';
-            })
-            .join(' || ');
+        final blockedSince = taskSummary.blockedSince?.toIso8601String() ?? '';
         buffer.writeln(
-          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | blockedReason: ${blockedReason ?? ''} | recentEvents: ${recentEvents ?? ''} | updatedAt: $updatedAt',
+          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | validation: ${taskSummary.lastValidation ?? ''} | blockedReason: ${blockedReason ?? ''} | blockedSince: $blockedSince | updatedAt: $updatedAt',
         );
       }
     }

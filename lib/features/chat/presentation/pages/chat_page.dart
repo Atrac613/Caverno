@@ -17,6 +17,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_execution_summary_service.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../providers/chat_notifier.dart';
@@ -2169,12 +2170,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) {
     final theme = Theme.of(context);
     final progress = currentConversation.executionProgressForTask(task.id);
+    final executionSummary = ConversationExecutionSummaryService.summarize(
+      progress,
+    );
     final validationStatus =
         progress?.validationStatus ??
         ConversationExecutionValidationStatus.unknown;
     final blockedReason = progress?.normalizedBlockedReason;
-    final validationSummary = progress?.normalizedValidationSummary;
-    final summary = progress?.normalizedSummary;
+    final validationSummary = executionSummary.lastValidation;
+    final summary = executionSummary.lastOutcome;
+    final validationCommand = executionSummary.lastValidationCommand;
+    final blockedSince = executionSummary.blockedSince;
 
     return Container(
       width: double.infinity,
@@ -2217,7 +2223,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             const SizedBox(height: 6),
             _buildWorkflowTaskDetail(
               context,
-              label: 'chat.plan_document_hydrated_execution_note'.tr(),
+              label: 'chat.plan_document_hydrated_last_outcome'.tr(),
               value: summary,
             ),
           ],
@@ -2233,45 +2239,66 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ConversationExecutionValidationStatus.unknown ||
               validationSummary != null) ...[
             const SizedBox(height: 6),
-            Wrap(
-              spacing: 8,
-              runSpacing: 6,
-              crossAxisAlignment: WrapCrossAlignment.center,
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                if (validationStatus !=
-                    ConversationExecutionValidationStatus.unknown)
-                  Chip(
-                    label: Text(
-                      _workflowValidationStatusLabel(validationStatus),
-                    ),
-                    visualDensity: VisualDensity.compact,
-                    side: BorderSide.none,
-                    backgroundColor: _workflowValidationStatusColor(
-                      context,
-                      validationStatus,
-                    ).withValues(alpha: 0.16),
-                    labelStyle: theme.textTheme.labelSmall?.copyWith(
-                      color: _workflowValidationStatusColor(
-                        context,
-                        validationStatus,
+                Wrap(
+                  spacing: 8,
+                  runSpacing: 6,
+                  crossAxisAlignment: WrapCrossAlignment.center,
+                  children: [
+                    if (validationStatus !=
+                        ConversationExecutionValidationStatus.unknown)
+                      Chip(
+                        label: Text(
+                          _workflowValidationStatusLabel(validationStatus),
+                        ),
+                        visualDensity: VisualDensity.compact,
+                        side: BorderSide.none,
+                        backgroundColor: _workflowValidationStatusColor(
+                          context,
+                          validationStatus,
+                        ).withValues(alpha: 0.16),
+                        labelStyle: theme.textTheme.labelSmall?.copyWith(
+                          color: _workflowValidationStatusColor(
+                            context,
+                            validationStatus,
+                          ),
+                          fontWeight: FontWeight.w700,
+                        ),
                       ),
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                if (validationSummary != null)
-                  ConstrainedBox(
-                    constraints: const BoxConstraints(
-                      minWidth: 0,
-                      maxWidth: 420,
-                    ),
-                    child: Text(
-                      validationSummary,
-                      style: theme.textTheme.bodySmall?.copyWith(
-                        color: theme.colorScheme.onSurfaceVariant,
+                    if (validationSummary != null)
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(
+                          minWidth: 0,
+                          maxWidth: 420,
+                        ),
+                        child: Text(
+                          validationSummary,
+                          style: theme.textTheme.bodySmall?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
                       ),
-                    ),
+                  ],
+                ),
+                if (validationCommand != null) ...[
+                  const SizedBox(height: 6),
+                  _buildWorkflowTaskDetail(
+                    context,
+                    label: 'chat.plan_document_hydrated_last_validation'.tr(),
+                    value: validationCommand,
                   ),
+                ],
               ],
+            ),
+          ],
+          if (blockedSince != null) ...[
+            const SizedBox(height: 6),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.plan_document_hydrated_blocked_since'.tr(),
+              value: DateFormat('MM/dd HH:mm').format(blockedSince.toLocal()),
             ),
           ],
         ],
