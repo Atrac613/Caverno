@@ -1,0 +1,83 @@
+name: Plan Mode Smoke Manual
+
+on:
+  workflow_dispatch:
+    inputs:
+      scenarios:
+        description: Optional comma-separated scenario names to run
+        required: false
+        type: string
+      tags:
+        description: Optional comma-separated tags to run
+        required: false
+        default: smoke
+        type: string
+
+concurrency:
+  group: plan-mode-smoke-manual-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  plan-mode-smoke-manual:
+    name: Plan Mode Smoke Manual
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      CAVERNO_PLAN_MODE_SCENARIOS: ${{ inputs.scenarios }}
+      CAVERNO_PLAN_MODE_TAGS: ${{ inputs.tags }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v6
+
+      - name: Read Flutter version from .fvmrc
+        id: flutter-version
+        shell: bash
+        run: |
+          version="$(sed -n 's/.*"flutter"[[:space:]]*:[[:space:]]*"\([^"]*\)".*/\1/p' .fvmrc)"
+          if [ -z "$version" ]; then
+            echo "Could not read Flutter version from .fvmrc."
+            exit 1
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          flutter-version: ${{ steps.flutter-version.outputs.version }}
+          channel: stable
+          cache: true
+
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libblkid-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer1.0-dev \
+            libgtk-3-dev \
+            liblzma-dev \
+            libsecret-1-dev \
+            ninja-build \
+            pkg-config \
+            xvfb
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Run Plan mode smoke scenarios
+        run: xvfb-run -a flutter test integration_test/plan_mode_scenario_test.dart -d linux -r compact
