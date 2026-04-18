@@ -136,13 +136,9 @@ jobs:
       - name: Run tests
         run: flutter test
 
-  # Temporarily disabled while the Linux smoke lane is rebuilt in follow-up
-  # changes. Re-enable after the manual Ubuntu workflow, runner-agnostic test
-  # setup, and fast smoke subset are stable in CI.
   plan-mode-smoke:
-    name: Plan Mode Smoke (Temporarily Disabled)
-    if: ${{ false }}
-    runs-on: macos-latest
+    name: Plan Mode Smoke
+    runs-on: ubuntu-latest
     timeout-minutes: 40
 
     steps:
@@ -167,11 +163,32 @@ jobs:
           channel: stable
           cache: true
 
+      - name: Install Linux desktop dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            clang \
+            cmake \
+            libblkid-dev \
+            libgstreamer-plugins-base1.0-dev \
+            libgstreamer1.0-dev \
+            libgtk-3-dev \
+            liblzma-dev \
+            libsecret-1-dev \
+            ninja-build \
+            pkg-config \
+            xvfb
+
+      - name: Enable Linux desktop
+        run: flutter config --enable-linux-desktop
+
       - name: Install dependencies
         run: flutter pub get
 
       - name: Run Plan mode smoke scenarios
         env:
-          CAVERNO_PLAN_MODE_DEVICE: macos
-          CAVERNO_PLAN_MODE_TAGS: smoke
+          CAVERNO_PLAN_MODE_DEVICE: linux
+          CAVERNO_PLAN_MODE_HEADLESS: '1'
+          CAVERNO_PLAN_MODE_TAGS: smoke,ci
+          CAVERNO_PLAN_MODE_TAG_MATCH: all
         run: bash tool/run_plan_mode_smoke_test.sh
