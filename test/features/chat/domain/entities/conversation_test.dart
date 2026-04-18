@@ -55,4 +55,28 @@ void main() {
     expect(staleConversation.isWorkflowProjectionStale, isTrue);
     expect(staleConversation.needsWorkflowProjectionRefresh, isTrue);
   });
+
+  test('execution progress exposes validation and blocked metadata', () {
+    const progress = ConversationExecutionTaskProgress(
+      taskId: 'task-1',
+      status: ConversationWorkflowTaskStatus.blocked,
+      validationStatus: ConversationExecutionValidationStatus.failed,
+      summary: 'Validation failed during review.',
+      blockedReason: 'Waiting for the failing test to be fixed.',
+      lastValidationCommand: 'flutter test',
+      lastValidationSummary: 'The smoke test failed on macOS.',
+    );
+
+    expect(progress.hasMeaningfulState, isTrue);
+    expect(progress.normalizedSummary, 'Validation failed during review.');
+    expect(
+      progress.normalizedBlockedReason,
+      'Waiting for the failing test to be fixed.',
+    );
+    expect(progress.normalizedValidationCommand, 'flutter test');
+    expect(
+      progress.normalizedValidationSummary,
+      'The smoke test failed on macOS.',
+    );
+  });
 }

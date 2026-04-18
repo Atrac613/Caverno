@@ -415,7 +415,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required String taskId,
     required ConversationWorkflowTaskStatus status,
     DateTime? lastRunAt,
-    String summary = '',
+    DateTime? lastValidationAt,
+    ConversationExecutionValidationStatus? validationStatus,
+    String? summary,
+    String? blockedReason,
+    String? lastValidationCommand,
+    String? lastValidationSummary,
   }) async {
     final conversation = state.currentConversation;
     if (conversation == null) {
@@ -436,9 +441,23 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final nextEntry = ConversationExecutionTaskProgress(
       taskId: normalizedTaskId,
       status: status,
+      validationStatus:
+          validationStatus ??
+          previous?.validationStatus ??
+          ConversationExecutionValidationStatus.unknown,
       updatedAt: now,
       lastRunAt: lastRunAt ?? previous?.lastRunAt,
-      summary: summary.trim(),
+      lastValidationAt: lastValidationAt ?? previous?.lastValidationAt,
+      summary: summary?.trim() ?? previous?.summary ?? '',
+      blockedReason: blockedReason?.trim() ?? previous?.blockedReason ?? '',
+      lastValidationCommand:
+          lastValidationCommand?.trim() ??
+          previous?.lastValidationCommand ??
+          '',
+      lastValidationSummary:
+          lastValidationSummary?.trim() ??
+          previous?.lastValidationSummary ??
+          '',
     );
 
     if (!nextEntry.hasMeaningfulState) {

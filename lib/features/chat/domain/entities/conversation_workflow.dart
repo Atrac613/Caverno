@@ -9,6 +9,8 @@ enum ConversationWorkflowStage { idle, clarify, plan, tasks, implement, review }
 
 enum ConversationWorkflowTaskStatus { pending, inProgress, completed, blocked }
 
+enum ConversationExecutionValidationStatus { unknown, passed, failed }
+
 List<ConversationWorkflowTask> _workflowTasksFromJson(List<dynamic>? json) {
   if (json == null) {
     return const [];
@@ -59,9 +61,15 @@ abstract class ConversationExecutionTaskProgress
     required String taskId,
     @Default(ConversationWorkflowTaskStatus.pending)
     ConversationWorkflowTaskStatus status,
+    @Default(ConversationExecutionValidationStatus.unknown)
+    ConversationExecutionValidationStatus validationStatus,
     DateTime? updatedAt,
     DateTime? lastRunAt,
+    DateTime? lastValidationAt,
     @Default('') String summary,
+    @Default('') String blockedReason,
+    @Default('') String lastValidationCommand,
+    @Default('') String lastValidationSummary,
   }) = _ConversationExecutionTaskProgress;
 
   factory ConversationExecutionTaskProgress.fromJson(
@@ -73,10 +81,30 @@ abstract class ConversationExecutionTaskProgress
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  String? get normalizedBlockedReason {
+    final trimmed = blockedReason.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedValidationCommand {
+    final trimmed = lastValidationCommand.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedValidationSummary {
+    final trimmed = lastValidationSummary.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
   bool get hasMeaningfulState =>
       status != ConversationWorkflowTaskStatus.pending ||
       lastRunAt != null ||
-      normalizedSummary != null;
+      lastValidationAt != null ||
+      validationStatus != ConversationExecutionValidationStatus.unknown ||
+      normalizedSummary != null ||
+      normalizedBlockedReason != null ||
+      normalizedValidationCommand != null ||
+      normalizedValidationSummary != null;
 }
 
 @freezed
