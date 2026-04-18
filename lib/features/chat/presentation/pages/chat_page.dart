@@ -741,7 +741,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       ),
                     ),
                     const SizedBox(width: 12),
-                    if (!isPlanMode)
+                    if (!isPlanMode && !shouldPreferPlanDocument)
                       IconButton(
                         onPressed: isBusy
                             ? null
@@ -764,7 +764,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       ),
                       const SizedBox(width: 8),
                     ],
-                    if (!isPlanMode || hasContext)
+                    if ((!isPlanMode || hasContext) &&
+                        !shouldPreferPlanDocument)
                       IconButton(
                         onPressed: () =>
                             _showWorkflowEditor(context, currentConversation),
@@ -1357,7 +1358,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 icon: const Icon(Icons.refresh, size: 18),
                 label: Text('chat.plan_proposal_regenerate'.tr()),
               ),
-              if (workflowDraft != null)
+              if (workflowDraft != null && !currentConversation.hasPlanArtifact)
                 OutlinedButton.icon(
                   onPressed: () => _showWorkflowEditor(
                     context,
@@ -2549,6 +2550,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ConversationWorkflowSpec? initialWorkflowSpec,
     bool dismissWorkflowProposalOnSave = false,
   }) async {
+    if (currentConversation.shouldPreferPlanDocument) {
+      if (currentConversation.hasPlanArtifact) {
+        await _showPlanDocumentEditor(
+          context,
+          currentConversation,
+          preferDraft: currentConversation.isPlanningSession,
+        );
+      }
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('chat.workflow_edit_blocked_by_plan'.tr()),
+          ),
+        );
+      }
+      return;
+    }
+
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );

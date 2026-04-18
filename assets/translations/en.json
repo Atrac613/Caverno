@@ -133,6 +133,7 @@
     "workflow_tasks_projection_stale": "The approved plan changed after the last task projection refresh. Refresh execution tasks before relying on them.",
     "workflow_tasks_projection_unavailable": "Execution tasks are not available yet. Refresh them from the approved plan document first.",
     "workflow_task_add": "Add task",
+    "workflow_edit_blocked_by_plan": "Edit the saved plan document instead of editing the derived workflow projection.",
     "workflow_task_edit": "Edit task",
     "workflow_task_delete": "Delete task",
     "workflow_task_saved": "Task saved",
