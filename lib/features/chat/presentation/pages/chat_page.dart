@@ -15,6 +15,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -1582,6 +1583,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
               currentConversation: currentConversation,
             ),
           ],
+          if (!isPlanMode &&
+              planArtifact.hasApproved &&
+              planArtifact.hasPendingEdits) ...[
+            const SizedBox(height: 10),
+            _buildPlanDocumentDiffPreview(
+              context,
+              currentConversation: currentConversation,
+            ),
+          ],
           const SizedBox(height: 8),
           if (showActionBar)
             _buildPlanDocumentActions(
@@ -1590,6 +1600,137 @@ class _ChatPageState extends ConsumerState<ChatPage>
               chatState: chatState,
               isPlanMode: isPlanMode,
             ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPlanDocumentDiffPreview(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) {
+    final theme = Theme.of(context);
+    final artifact = currentConversation.effectivePlanArtifact;
+    final approvedMarkdown = artifact.normalizedApprovedMarkdown;
+    final draftMarkdown = artifact.normalizedDraftMarkdown;
+    if (approvedMarkdown == null || draftMarkdown == null) {
+      return const SizedBox.shrink();
+    }
+
+    final diff = ConversationPlanDiffService.buildTaskDiff(
+      approvedMarkdown: approvedMarkdown,
+      draftMarkdown: draftMarkdown,
+    );
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.plan_document_diff_title'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            diff.isValid
+                ? 'chat.plan_document_diff_subtitle'.tr()
+                : 'chat.plan_document_diff_invalid'.tr(
+                    namedArgs: {
+                      'error':
+                          diff.errorMessage ??
+                          'draft plan document could not be parsed',
+                    },
+                  ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (diff.isValid) ...[
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                Chip(
+                  label: Text(
+                    'chat.plan_document_diff_added'.tr(
+                      namedArgs: {
+                        'count': diff
+                            .countByType(ConversationPlanTaskDiffType.added)
+                            .toString(),
+                      },
+                    ),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                Chip(
+                  label: Text(
+                    'chat.plan_document_diff_changed'.tr(
+                      namedArgs: {
+                        'count': diff
+                            .countByType(ConversationPlanTaskDiffType.changed)
+                            .toString(),
+                      },
+                    ),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+                Chip(
+                  label: Text(
+                    'chat.plan_document_diff_removed'.tr(
+                      namedArgs: {
+                        'count': diff
+                            .countByType(ConversationPlanTaskDiffType.removed)
+                            .toString(),
+                      },
+                    ),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                ),
+              ],
+            ),
+            if (diff.entries.isEmpty) ...[
+              const SizedBox(height: 8),
+              Text(
+                'chat.plan_document_diff_no_changes'.tr(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ] else ...[
+              const SizedBox(height: 8),
+              for (final entry in diff.entries.take(6)) ...[
+                Text(
+                  _planDocumentDiffEntryLabel(context, entry),
+                  style: theme.textTheme.bodySmall,
+                ),
+                if (entry != diff.entries.take(6).last)
+                  const SizedBox(height: 4),
+              ],
+              if (diff.entries.length > 6) ...[
+                const SizedBox(height: 4),
+                Text(
+                  'chat.plan_document_diff_more'.tr(
+                    namedArgs: {'count': (diff.entries.length - 6).toString()},
+                  ),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ],
+          ],
         ],
       ),
     );
@@ -1702,6 +1843,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
             icon: const Icon(Icons.auto_fix_high_outlined, size: 18),
             label: Text('chat.workflow_task_replan_from_blocker'.tr()),
+          ),
+        if (!isPlanMode && activeTask != null)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _replanCurrentTask(
+                    context,
+                    currentConversation: currentConversation,
+                    task: activeTask,
+                  ),
+            icon: const Icon(Icons.alt_route_outlined, size: 18),
+            label: Text('chat.plan_document_replan_current_task'.tr()),
+          ),
+        if (!isPlanMode &&
+            validationTask != null &&
+            validationTask.validationCommand.trim().isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _replanValidationPath(
+                    context,
+                    currentConversation: currentConversation,
+                    task: validationTask,
+                  ),
+            icon: const Icon(Icons.route_outlined, size: 18),
+            label: Text('chat.plan_document_replan_validation'.tr()),
           ),
         if (!isPlanMode && nextTask != null)
           FilledButton.tonalIcon(
@@ -3438,10 +3605,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
 
-    final conversationsNotifier = ref.read(
-      conversationsNotifierProvider.notifier,
-    );
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final latestConversation =
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
@@ -3450,44 +3613,110 @@ class _ChatPageState extends ConsumerState<ChatPage>
             .executionProgressForTask(task.id)
             ?.normalizedBlockedReason ??
         'This task is currently blocked.';
+    await _startScopedReplan(
+      context,
+      currentConversation: latestConversation,
+      task: task,
+      snackBarMessage: 'chat.workflow_task_replan_from_blocker_started'.tr(),
+      eventSummary:
+          'Started a blocker-focused replan from the approved plan flow.',
+      planningContext: _buildBlockedTaskReplanContext(
+        currentConversation: latestConversation,
+        task: task,
+        blockedReason: blockedReason,
+      ),
+    );
+  }
+
+  Future<void> _replanCurrentTask(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    if (!currentConversation.shouldPreferPlanDocument) {
+      return;
+    }
+
+    await _startScopedReplan(
+      context,
+      currentConversation: currentConversation,
+      task: task,
+      snackBarMessage: 'chat.plan_document_replan_current_task_started'.tr(),
+      eventSummary:
+          'Started a current-task-focused replan from the approved plan flow.',
+      planningContext: _buildScopedTaskReplanContext(
+        currentConversation: currentConversation,
+        task: task,
+      ),
+    );
+  }
+
+  Future<void> _replanValidationPath(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    if (!currentConversation.shouldPreferPlanDocument) {
+      return;
+    }
+
+    await _startScopedReplan(
+      context,
+      currentConversation: currentConversation,
+      task: task,
+      snackBarMessage: 'chat.plan_document_replan_validation_started'.tr(),
+      eventSummary:
+          'Started a validation-path-focused replan from the approved plan flow.',
+      planningContext: _buildValidationScopedReplanContext(
+        currentConversation: currentConversation,
+        task: task,
+      ),
+    );
+  }
+
+  Future<void> _startScopedReplan(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+    required String snackBarMessage,
+    required String eventSummary,
+    required String planningContext,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final languageCode = context.locale.languageCode;
 
-    if (!latestConversation.isPlanningSession) {
+    if (!currentConversation.isPlanningSession) {
       await conversationsNotifier.enterPlanningSession();
     }
 
     await conversationsNotifier.appendCurrentExecutionTaskEvent(
       taskId: task.id,
       eventType: ConversationExecutionTaskEventType.replanned,
-      summary: 'Started a blocker-focused replan from the approved plan flow.',
+      summary: eventSummary,
     );
 
     await chatNotifier.generatePlanProposalWithContext(
       languageCode: languageCode,
-      additionalPlanningContext: _buildBlockedTaskReplanContext(
-        task: task,
-        blockedReason: blockedReason,
-      ),
+      additionalPlanningContext: planningContext,
     );
 
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('chat.workflow_task_replan_from_blocker_started'.tr()),
-      ),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
   }
 
   String _buildBlockedTaskReplanContext({
+    required Conversation currentConversation,
     required ConversationWorkflowTask task,
     required String blockedReason,
   }) {
-    final progress = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation
-        ?.executionProgressForTask(task.id);
+    final progress = currentConversation.executionProgressForTask(task.id);
     final buffer = StringBuffer()
       ..writeln('Focus the next draft on resolving the active blocker.')
       ..writeln('- blockedTask: ${task.title.trim()}')
@@ -3521,10 +3750,90 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (recentEvents != null && recentEvents.isNotEmpty) {
       buffer.writeln('- recentEvents: $recentEvents');
     }
+    buffer.write(
+      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
+    );
     buffer.writeln(
       '- expectation: either remove the blocker from the plan or add the minimum follow-up work needed to unblock implementation.',
     );
     return buffer.toString().trimRight();
+  }
+
+  String _buildScopedTaskReplanContext({
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) {
+    final progress = currentConversation.executionProgressForTask(task.id);
+    final buffer = StringBuffer()
+      ..writeln('Focus the next draft on the current implementation task only.')
+      ..writeln('- currentTaskId: ${task.id}')
+      ..writeln('- currentTask: ${task.title.trim()}');
+    final summary = progress?.normalizedSummary;
+    if (summary != null) {
+      buffer.writeln('- executionSummary: $summary');
+    }
+    final blockedReason = progress?.normalizedBlockedReason;
+    if (blockedReason != null) {
+      buffer.writeln('- blockedReason: $blockedReason');
+    }
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      buffer.writeln('- notes: $notes');
+    }
+    buffer.write(
+      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
+    );
+    buffer.writeln(
+      '- expectation: keep unaffected tasks unchanged by Task ID unless the focused task truly requires a narrow follow-up adjustment.',
+    );
+    return buffer.toString().trimRight();
+  }
+
+  String _buildValidationScopedReplanContext({
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) {
+    final progress = currentConversation.executionProgressForTask(task.id);
+    final buffer = StringBuffer()
+      ..writeln(
+        'Focus the next draft on the saved validation path for the current task.',
+      )
+      ..writeln('- validationTaskId: ${task.id}')
+      ..writeln('- validationTask: ${task.title.trim()}')
+      ..writeln('- validationCommand: ${task.validationCommand.trim()}');
+    final validationSummary = progress?.normalizedValidationSummary;
+    if (validationSummary != null) {
+      buffer.writeln('- validationSummary: $validationSummary');
+    }
+    final blockedReason = progress?.normalizedBlockedReason;
+    if (blockedReason != null) {
+      buffer.writeln('- blockedReason: $blockedReason');
+    }
+    buffer.write(
+      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
+    );
+    buffer.writeln(
+      '- expectation: keep unrelated tasks unchanged and update only the minimum validation steps needed to move execution forward.',
+    );
+    return buffer.toString().trimRight();
+  }
+
+  String _buildPreservedTasksBlock(
+    Conversation currentConversation, {
+    required ConversationWorkflowTask focusedTask,
+  }) {
+    final preservedTasks = currentConversation.projectedExecutionTasks
+        .where((task) => task.id != focusedTask.id)
+        .toList(growable: false);
+    if (preservedTasks.isEmpty) {
+      return '';
+    }
+
+    final buffer = StringBuffer()..writeln('- preserveTaskIds:');
+    for (final task in preservedTasks) {
+      buffer.writeln('  - ${task.id}: ${task.title.trim()}');
+    }
+    return buffer.toString();
   }
 
   Future<void> _runWorkflowTask(
@@ -3885,6 +4194,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
         event.normalizedBlockedReason ??
         _workflowTaskStatusLabel(event.status);
     return '$timestamp · ${_workflowTaskEventLabel(event.type)} · $summary';
+  }
+
+  String _planDocumentDiffEntryLabel(
+    BuildContext context,
+    ConversationPlanTaskDiffEntry entry,
+  ) {
+    final prefix = switch (entry.type) {
+      ConversationPlanTaskDiffType.added =>
+        'chat.plan_document_diff_entry_added'.tr(),
+      ConversationPlanTaskDiffType.removed =>
+        'chat.plan_document_diff_entry_removed'.tr(),
+      ConversationPlanTaskDiffType.changed =>
+        'chat.plan_document_diff_entry_changed'.tr(),
+    };
+    final beforeTitle = entry.beforeTask?.title.trim();
+    final afterTitle = entry.afterTask?.title.trim();
+
+    if (entry.type == ConversationPlanTaskDiffType.changed &&
+        beforeTitle != null &&
+        afterTitle != null &&
+        beforeTitle != afterTitle) {
+      return '$prefix: $beforeTitle -> $afterTitle';
+    }
+    return '$prefix: ${entry.displayTitle}';
   }
 
   Color _workflowValidationStatusColor(
