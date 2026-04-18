@@ -423,6 +423,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     String? blockedReason,
     String? lastValidationCommand,
     String? lastValidationSummary,
+    ConversationExecutionTaskEventType? eventType,
+    String? eventSummary,
+    DateTime? eventTimestamp,
   }) async {
     final conversation = state.currentConversation;
     if (conversation == null) {
@@ -440,26 +443,39 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       (entry) => entry.taskId == normalizedTaskId,
     );
     final previous = index >= 0 ? progress[index] : null;
+    final nextValidationStatus =
+        validationStatus ??
+        previous?.validationStatus ??
+        ConversationExecutionValidationStatus.unknown;
+    final nextSummary = summary?.trim() ?? previous?.summary ?? '';
+    final nextBlockedReason =
+        blockedReason?.trim() ?? previous?.blockedReason ?? '';
+    final nextValidationCommand =
+        lastValidationCommand?.trim() ?? previous?.lastValidationCommand ?? '';
+    final nextValidationSummary =
+        lastValidationSummary?.trim() ?? previous?.lastValidationSummary ?? '';
     final nextEntry = ConversationExecutionTaskProgress(
       taskId: normalizedTaskId,
       status: status,
-      validationStatus:
-          validationStatus ??
-          previous?.validationStatus ??
-          ConversationExecutionValidationStatus.unknown,
+      validationStatus: nextValidationStatus,
       updatedAt: now,
       lastRunAt: lastRunAt ?? previous?.lastRunAt,
       lastValidationAt: lastValidationAt ?? previous?.lastValidationAt,
-      summary: summary?.trim() ?? previous?.summary ?? '',
-      blockedReason: blockedReason?.trim() ?? previous?.blockedReason ?? '',
-      lastValidationCommand:
-          lastValidationCommand?.trim() ??
-          previous?.lastValidationCommand ??
-          '',
-      lastValidationSummary:
-          lastValidationSummary?.trim() ??
-          previous?.lastValidationSummary ??
-          '',
+      summary: nextSummary,
+      blockedReason: nextBlockedReason,
+      lastValidationCommand: nextValidationCommand,
+      lastValidationSummary: nextValidationSummary,
+      events: _appendExecutionEvent(
+        previous?.events ?? const [],
+        eventType: eventType,
+        eventTimestamp: eventTimestamp ?? now,
+        status: status,
+        validationStatus: nextValidationStatus,
+        summary: eventSummary?.trim() ?? nextSummary,
+        blockedReason: nextBlockedReason,
+        validationCommand: nextValidationCommand,
+        validationSummary: nextValidationSummary,
+      ),
     );
 
     if (!nextEntry.hasMeaningfulState) {
@@ -508,6 +524,16 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       lastValidationSummary: isValidationRun
           ? inference.validationSummary ?? inference.summary
           : null,
+      eventType: isValidationRun
+          ? ConversationExecutionTaskEventType.validated
+          : switch (inference.status) {
+              ConversationWorkflowTaskStatus.completed =>
+                ConversationExecutionTaskEventType.completed,
+              ConversationWorkflowTaskStatus.blocked =>
+                ConversationExecutionTaskEventType.blocked,
+              _ => null,
+            },
+      eventSummary: inference.summary,
     );
 
     if (!conversation.shouldPreferPlanDocument) {
@@ -559,6 +585,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       lastValidationAt: DateTime.now(),
       lastValidationCommand: inference.validationCommand,
       lastValidationSummary: inference.validationSummary,
+      eventType: ConversationExecutionTaskEventType.validated,
+      eventSummary: inference.summary,
     );
 
     if (!conversation.shouldPreferPlanDocument) {
@@ -603,6 +631,39 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> appendCurrentExecutionTaskEvent({
+    required String taskId,
+    required ConversationExecutionTaskEventType eventType,
+    String? summary,
+    DateTime? createdAt,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final progress = conversation.executionProgressForTask(taskId);
+    final projectedTask = conversation.projectedExecutionTasks
+        .where((task) => task.id == taskId)
+        .firstOrNull;
+
+    await updateCurrentExecutionTaskProgress(
+      taskId: taskId,
+      status:
+          progress?.status ??
+          projectedTask?.status ??
+          ConversationWorkflowTaskStatus.pending,
+      validationStatus: progress?.validationStatus,
+      summary: progress?.summary,
+      blockedReason: progress?.blockedReason,
+      lastValidationCommand: progress?.lastValidationCommand,
+      lastValidationSummary: progress?.lastValidationSummary,
+      eventType: eventType,
+      eventSummary: summary,
+      eventTimestamp: createdAt,
+    );
   }
 
   Future<void> ensureCurrentPlanArtifactBackfilled() async {
@@ -689,5 +750,41 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// Returns messages for the current conversation.
   List<Message> getCurrentMessages() {
     return state.currentConversation?.messages ?? [];
+  }
+
+  List<ConversationExecutionTaskEvent> _appendExecutionEvent(
+    List<ConversationExecutionTaskEvent> existingEvents, {
+    required ConversationExecutionTaskEventType? eventType,
+    required DateTime eventTimestamp,
+    required ConversationWorkflowTaskStatus status,
+    required ConversationExecutionValidationStatus validationStatus,
+    required String summary,
+    required String blockedReason,
+    required String validationCommand,
+    required String validationSummary,
+  }) {
+    if (eventType == null) {
+      return existingEvents.toList(growable: false);
+    }
+
+    final nextEvents = [...existingEvents];
+    nextEvents.add(
+      ConversationExecutionTaskEvent(
+        type: eventType,
+        createdAt: eventTimestamp,
+        summary: summary,
+        status: status,
+        validationStatus: validationStatus,
+        blockedReason: blockedReason,
+        validationCommand: validationCommand,
+        validationSummary: validationSummary,
+      ),
+    );
+
+    const maxEventsPerTask = 12;
+    if (nextEvents.length <= maxEventsPerTask) {
+      return nextEvents;
+    }
+    return nextEvents.sublist(nextEvents.length - maxEventsPerTask);
   }
 }

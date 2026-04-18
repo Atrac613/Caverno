@@ -75,4 +75,77 @@ void main() {
 
     expect(result, isNull);
   });
+
+  test('infers passed validation from a successful ping result', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-4',
+        title: 'Check host reachability',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'ping',
+          rawResult:
+              '{"host":"example.com","resolved_ip":"93.184.216.34","results":[{"seq":1,"ttl":55,"time_ms":12.3}],"summary":{"transmitted":1,"received":1,"loss_percent":0.0}}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(result.validationCommand, 'ping example.com');
+    expect(result.validationSummary, contains('Received 1 of 1 ping response'));
+  });
+
+  test('infers failed validation from an HTTP status error', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-5',
+        title: 'Check health endpoint',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'http_status',
+          rawResult:
+              '{"url":"https://example.com/health","status_code":503,"reason_phrase":"Service Unavailable","response_time_ms":48}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.blocked);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.failed,
+    );
+    expect(result.validationCommand, 'GET https://example.com/health');
+    expect(result.blockedReason, contains('HTTP 503 Service Unavailable'));
+  });
+
+  test('infers SSH validation results from formatted command output', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-6',
+        title: 'Run remote validation',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'ssh_execute_command',
+          rawResult: 'exit_code: 0\n--- stdout ---\nremote validation passed\n',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(result.validationSummary, contains('remote validation passed'));
+  });
 }

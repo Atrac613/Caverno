@@ -11,6 +11,15 @@ enum ConversationWorkflowTaskStatus { pending, inProgress, completed, blocked }
 
 enum ConversationExecutionValidationStatus { unknown, passed, failed }
 
+enum ConversationExecutionTaskEventType {
+  started,
+  validated,
+  blocked,
+  unblocked,
+  completed,
+  replanned,
+}
+
 List<ConversationWorkflowTask> _workflowTasksFromJson(List<dynamic>? json) {
   if (json == null) {
     return const [];
@@ -27,6 +36,27 @@ List<Map<String, dynamic>> _workflowTasksToJson(
   List<ConversationWorkflowTask> tasks,
 ) {
   return tasks.map((task) => task.toJson()).toList(growable: false);
+}
+
+List<ConversationExecutionTaskEvent> _executionEventsFromJson(
+  List<dynamic>? json,
+) {
+  if (json == null) {
+    return const [];
+  }
+  return json
+      .map(
+        (item) => ConversationExecutionTaskEvent.fromJson(
+          item as Map<String, dynamic>,
+        ),
+      )
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _executionEventsToJson(
+  List<ConversationExecutionTaskEvent> events,
+) {
+  return events.map((event) => event.toJson()).toList(growable: false);
 }
 
 @freezed
@@ -70,6 +100,9 @@ abstract class ConversationExecutionTaskProgress
     @Default('') String blockedReason,
     @Default('') String lastValidationCommand,
     @Default('') String lastValidationSummary,
+    @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson)
+    @Default(<ConversationExecutionTaskEvent>[])
+    List<ConversationExecutionTaskEvent> events,
   }) = _ConversationExecutionTaskProgress;
 
   factory ConversationExecutionTaskProgress.fromJson(
@@ -96,6 +129,9 @@ abstract class ConversationExecutionTaskProgress
     return trimmed.isEmpty ? null : trimmed;
   }
 
+  List<ConversationExecutionTaskEvent> get recentEvents =>
+      events.toList(growable: false);
+
   bool get hasMeaningfulState =>
       status != ConversationWorkflowTaskStatus.pending ||
       lastRunAt != null ||
@@ -104,7 +140,50 @@ abstract class ConversationExecutionTaskProgress
       normalizedSummary != null ||
       normalizedBlockedReason != null ||
       normalizedValidationCommand != null ||
-      normalizedValidationSummary != null;
+      normalizedValidationSummary != null ||
+      events.isNotEmpty;
+}
+
+@freezed
+abstract class ConversationExecutionTaskEvent
+    with _$ConversationExecutionTaskEvent {
+  const ConversationExecutionTaskEvent._();
+
+  const factory ConversationExecutionTaskEvent({
+    required ConversationExecutionTaskEventType type,
+    required DateTime createdAt,
+    @Default('') String summary,
+    @Default(ConversationWorkflowTaskStatus.pending)
+    ConversationWorkflowTaskStatus status,
+    @Default(ConversationExecutionValidationStatus.unknown)
+    ConversationExecutionValidationStatus validationStatus,
+    @Default('') String blockedReason,
+    @Default('') String validationCommand,
+    @Default('') String validationSummary,
+  }) = _ConversationExecutionTaskEvent;
+
+  factory ConversationExecutionTaskEvent.fromJson(Map<String, dynamic> json) =>
+      _$ConversationExecutionTaskEventFromJson(json);
+
+  String? get normalizedSummary {
+    final trimmed = summary.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedBlockedReason {
+    final trimmed = blockedReason.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedValidationCommand {
+    final trimmed = validationCommand.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedValidationSummary {
+    final trimmed = validationSummary.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 }
 
 @freezed

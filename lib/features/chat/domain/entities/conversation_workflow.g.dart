@@ -73,6 +73,9 @@ _ConversationExecutionTaskProgress _$ConversationExecutionTaskProgressFromJson(
   blockedReason: json['blockedReason'] as String? ?? '',
   lastValidationCommand: json['lastValidationCommand'] as String? ?? '',
   lastValidationSummary: json['lastValidationSummary'] as String? ?? '',
+  events: json['events'] == null
+      ? const <ConversationExecutionTaskEvent>[]
+      : _executionEventsFromJson(json['events'] as List?),
 );
 
 Map<String, dynamic> _$ConversationExecutionTaskProgressToJson(
@@ -90,12 +93,60 @@ Map<String, dynamic> _$ConversationExecutionTaskProgressToJson(
   'blockedReason': instance.blockedReason,
   'lastValidationCommand': instance.lastValidationCommand,
   'lastValidationSummary': instance.lastValidationSummary,
+  'events': _executionEventsToJson(instance.events),
 };
 
 const _$ConversationExecutionValidationStatusEnumMap = {
   ConversationExecutionValidationStatus.unknown: 'unknown',
   ConversationExecutionValidationStatus.passed: 'passed',
   ConversationExecutionValidationStatus.failed: 'failed',
+};
+
+_ConversationExecutionTaskEvent _$ConversationExecutionTaskEventFromJson(
+  Map<String, dynamic> json,
+) => _ConversationExecutionTaskEvent(
+  type: $enumDecode(_$ConversationExecutionTaskEventTypeEnumMap, json['type']),
+  createdAt: DateTime.parse(json['createdAt'] as String),
+  summary: json['summary'] as String? ?? '',
+  status:
+      $enumDecodeNullable(
+        _$ConversationWorkflowTaskStatusEnumMap,
+        json['status'],
+      ) ??
+      ConversationWorkflowTaskStatus.pending,
+  validationStatus:
+      $enumDecodeNullable(
+        _$ConversationExecutionValidationStatusEnumMap,
+        json['validationStatus'],
+      ) ??
+      ConversationExecutionValidationStatus.unknown,
+  blockedReason: json['blockedReason'] as String? ?? '',
+  validationCommand: json['validationCommand'] as String? ?? '',
+  validationSummary: json['validationSummary'] as String? ?? '',
+);
+
+Map<String, dynamic> _$ConversationExecutionTaskEventToJson(
+  _ConversationExecutionTaskEvent instance,
+) => <String, dynamic>{
+  'type': _$ConversationExecutionTaskEventTypeEnumMap[instance.type]!,
+  'createdAt': instance.createdAt.toIso8601String(),
+  'summary': instance.summary,
+  'status': _$ConversationWorkflowTaskStatusEnumMap[instance.status]!,
+  'validationStatus':
+      _$ConversationExecutionValidationStatusEnumMap[instance
+          .validationStatus]!,
+  'blockedReason': instance.blockedReason,
+  'validationCommand': instance.validationCommand,
+  'validationSummary': instance.validationSummary,
+};
+
+const _$ConversationExecutionTaskEventTypeEnumMap = {
+  ConversationExecutionTaskEventType.started: 'started',
+  ConversationExecutionTaskEventType.validated: 'validated',
+  ConversationExecutionTaskEventType.blocked: 'blocked',
+  ConversationExecutionTaskEventType.unblocked: 'unblocked',
+  ConversationExecutionTaskEventType.completed: 'completed',
+  ConversationExecutionTaskEventType.replanned: 'replanned',
 };
 
 _ConversationWorkflowSpec _$ConversationWorkflowSpecFromJson(
