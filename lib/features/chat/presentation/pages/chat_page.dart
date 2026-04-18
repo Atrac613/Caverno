@@ -12,6 +12,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
@@ -19,6 +20,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
@@ -4494,11 +4496,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: languageCode,
       bypassPlanMode: true,
     );
-    await _captureExecutionProgressFromLatestAssistantTurn(
+    final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
       task: task,
       previousAssistantMessageId: previousAssistantMessageId,
-      isValidationRun: false,
+      toolResults: chatNotifier.takeLatestToolResults(),
     );
+    if (!toolResultApplied) {
+      await _captureExecutionProgressFromLatestAssistantTurn(
+        task: task,
+        previousAssistantMessageId: previousAssistantMessageId,
+        isValidationRun: false,
+      );
+    }
     if (!context.mounted) {
       return;
     }
@@ -4639,11 +4648,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!context.mounted) {
       return;
     }
-    await _captureExecutionProgressFromLatestAssistantTurn(
+    final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
       task: nextTask,
       previousAssistantMessageId: previousAssistantMessageId,
-      isValidationRun: false,
+      toolResults: chatNotifier.takeLatestToolResults(),
     );
+    if (!toolResultApplied) {
+      await _captureExecutionProgressFromLatestAssistantTurn(
+        task: nextTask,
+        previousAssistantMessageId: previousAssistantMessageId,
+        isValidationRun: false,
+      );
+    }
     if (!context.mounted) {
       return;
     }
@@ -4681,6 +4697,92 @@ class _ChatPageState extends ConsumerState<ChatPage>
           assistantResponse: latestAssistantMessage.content,
           isValidationRun: isValidationRun,
         );
+  }
+
+  Future<bool> _captureExecutionProgressFromLatestToolResults({
+    required ConversationWorkflowTask task,
+    required String? previousAssistantMessageId,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestAssistantMessage = _latestAssistantMessage(currentConversation);
+    final latestAssistantResponse =
+        latestAssistantMessage == null ||
+            latestAssistantMessage.id == previousAssistantMessageId
+        ? ''
+        : latestAssistantMessage.content;
+    final assistantInference = ConversationExecutionProgressInference.infer(
+      assistantResponse: latestAssistantResponse,
+      task: task,
+      isValidationRun: false,
+    );
+    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked ||
+        assistantInference.status == ConversationWorkflowTaskStatus.completed) {
+      return false;
+    }
+
+    if (_toolResultsContainFailure(toolResults)) {
+      return false;
+    }
+
+    final hasExecutionMutation = toolResults.any(
+      (toolResult) => switch (toolResult.name) {
+        'write_file' ||
+        'edit_file' ||
+        'rollback_last_file_change' ||
+        'local_execute_command' ||
+        'git_execute_command' => true,
+        _ => false,
+      },
+    );
+    if (!hasExecutionMutation) {
+      return false;
+    }
+
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final summary =
+        latestAssistantResponse.trim().isNotEmpty &&
+            latestAssistantResponse.toLowerCase().contains('next task')
+        ? 'Marked complete from successful tool results after the assistant advanced to the next task.'
+        : 'Marked complete from successful task tool results.';
+    await conversationsNotifier.updateCurrentExecutionTaskProgress(
+      taskId: task.id,
+      status: ConversationWorkflowTaskStatus.completed,
+      summary: summary,
+      eventType: ConversationExecutionTaskEventType.completed,
+      eventSummary: summary,
+    );
+    return true;
+  }
+
+  bool _toolResultsContainFailure(List<ToolResultInfo> toolResults) {
+    for (final toolResult in toolResults) {
+      final normalized = toolResult.result.trim().toLowerCase();
+      if (normalized.isEmpty) {
+        continue;
+      }
+      if (normalized.startsWith('error:') ||
+          normalized.contains('failed to') ||
+          normalized.contains('no matching tool available') ||
+          normalized.contains('"issuccess":false') ||
+          normalized.contains('"success":false') ||
+          normalized.contains('"errormessage"')) {
+        return true;
+      }
+    }
+    return false;
   }
 
   Message? _latestAssistantMessage(Conversation conversation) {
