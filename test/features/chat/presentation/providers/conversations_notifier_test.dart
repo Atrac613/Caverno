@@ -390,6 +390,86 @@ void main() {
   );
 
   test(
+    'refreshCurrentWorkflowProjectionFromApprovedPlan preserves progress for wording-only task updates',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Run execution from the approved plan\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Ship the execution handoff\n'
+              '   - Status: pending\n'
+              '   - Target files: lib/features/chat/presentation/pages/chat_page.dart\n'
+              '   - Validation: flutter test\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final firstConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final firstTaskId = firstConversation!.projectedExecutionTasks.single.id;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: firstTaskId,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: 'Completed before the wording-only replan.',
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Run execution from the approved plan\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Ship the execution handoff flow\n'
+              '   - Status: pending\n'
+              '   - Target files: lib/features/chat/presentation/pages/chat_page.dart\n'
+              '   - Validation: flutter test\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(refreshedConversation, isNotNull);
+      expect(refreshedConversation!.executionProgress, hasLength(1));
+      expect(
+        refreshedConversation.executionProgress.single.taskId,
+        refreshedConversation.projectedExecutionTasks.single.id,
+      );
+      expect(
+        refreshedConversation.executionProgress.single.summary,
+        'Completed before the wording-only replan.',
+      );
+    },
+  );
+
+  test(
     'updateCurrentExecutionTaskProgress stores rich execution metadata',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
