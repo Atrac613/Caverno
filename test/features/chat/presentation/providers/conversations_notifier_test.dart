@@ -260,6 +260,61 @@ void main() {
   );
 
   test(
+    'refreshCurrentWorkflowProjectionFromApprovedPlan stores projection metadata',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Run execution from the approved plan\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Refresh projection metadata\n'
+              '   - Status: inProgress\n'
+              '   - Validation: flutter test\n',
+        ),
+      );
+
+      final refreshed = await notifier
+          .refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(refreshed, isTrue);
+      expect(currentConversation, isNotNull);
+      expect(
+        currentConversation!.workflowStage,
+        ConversationWorkflowStage.implement,
+      );
+      expect(
+        currentConversation.workflowSpec?.goal,
+        'Run execution from the approved plan',
+      );
+      expect(
+        currentConversation.workflowSpec?.tasks.single.title,
+        'Refresh projection metadata',
+      );
+      expect(currentConversation.workflowSourceHash, isNotEmpty);
+      expect(currentConversation.workflowDerivedAt, isNotNull);
+    },
+  );
+
+  test(
     'updateCurrentConversation keeps the default title for image-only input',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

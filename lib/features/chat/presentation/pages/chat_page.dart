@@ -15,6 +15,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_plan_projection_service.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -819,6 +820,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   _buildPlanDocumentCard(
                     context,
                     currentConversation: currentConversation,
+                    chatState: chatState,
                     isPlanMode: isPlanMode,
                   ),
                 ],
@@ -1228,7 +1230,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
             _buildPlanDocumentCard(
               context,
               currentConversation: currentConversation,
+              chatState: chatState,
               isPlanMode: true,
+              showActionBar: false,
             ),
           ],
           if (chatState.workflowProposalError != null) ...[
@@ -1340,17 +1344,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
               .toList(growable: false);
     final nextSpec = workflowDraft.workflowSpec.copyWith(tasks: nextTasks);
     final initialTask = nextTasks.firstOrNull;
+    final approvedWorkflowStage = initialTask == null
+        ? ConversationWorkflowStage.tasks
+        : ConversationWorkflowStage.implement;
     await _snapshotApprovedPlanDocument(
       workflowDraft: workflowDraft,
       taskDraft: taskDraft.copyWith(tasks: nextTasks),
+      approvedWorkflowStage: approvedWorkflowStage,
     );
 
-    await conversationsNotifier.updateCurrentWorkflow(
-      workflowStage: initialTask == null
-          ? ConversationWorkflowStage.tasks
-          : ConversationWorkflowStage.implement,
-      workflowSpec: nextSpec,
-    );
+    final refreshed = await conversationsNotifier
+        .refreshCurrentWorkflowProjectionFromApprovedPlan();
+    if (!refreshed) {
+      await conversationsNotifier.updateCurrentWorkflow(
+        workflowStage: approvedWorkflowStage,
+        workflowSpec: nextSpec,
+      );
+    }
     await conversationsNotifier.exitPlanningSession();
     ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
 
@@ -1379,7 +1389,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
   Widget _buildPlanDocumentCard(
     BuildContext context, {
     required Conversation currentConversation,
+    required ChatState chatState,
     required bool isPlanMode,
+    bool showActionBar = true,
   }) {
     final theme = Theme.of(context);
     final planArtifact = currentConversation.effectivePlanArtifact;
@@ -1462,17 +1474,96 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ),
           const SizedBox(height: 8),
-          OutlinedButton.icon(
-            onPressed: () => _showPlanDocumentEditor(
+          if (showActionBar)
+            _buildPlanDocumentActions(
               context,
-              currentConversation,
-              preferDraft: isPlanMode,
+              currentConversation: currentConversation,
+              chatState: chatState,
+              isPlanMode: isPlanMode,
             ),
-            icon: const Icon(Icons.edit_note_outlined, size: 18),
-            label: Text('chat.plan_document_edit'.tr()),
-          ),
         ],
       ),
+    );
+  }
+
+  Widget _buildPlanDocumentActions(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+  }) {
+    final planArtifact = currentConversation.effectivePlanArtifact;
+    final isBusy = chatState.isLoading;
+
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        OutlinedButton.icon(
+          onPressed: isBusy
+              ? null
+              : () => _showPlanDocumentEditor(
+                  context,
+                  currentConversation,
+                  preferDraft: isPlanMode,
+                ),
+          icon: const Icon(Icons.edit_note_outlined, size: 18),
+          label: Text('chat.plan_document_edit'.tr()),
+        ),
+        if (planArtifact.hasPendingEdits)
+          FilledButton.tonalIcon(
+            onPressed: isBusy
+                ? null
+                : () => _approveDraftPlanDocument(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+            icon: const Icon(Icons.verified_outlined, size: 18),
+            label: Text('chat.plan_document_approve'.tr()),
+          ),
+        if (planArtifact.hasApproved && planArtifact.hasPendingEdits)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _revertDraftPlanDocument(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+            icon: const Icon(Icons.restore_outlined, size: 18),
+            label: Text('chat.plan_document_revert'.tr()),
+          ),
+        if (!isPlanMode && planArtifact.hasExecutionDocument)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _regenerateDraftPlan(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+            icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+            label: Text('chat.plan_document_regenerate_draft'.tr()),
+          ),
+        if (!isPlanMode && planArtifact.hasExecutionDocument)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _refreshExecutionTasksFromPlan(context),
+            icon: const Icon(Icons.sync_outlined, size: 18),
+            label: Text('chat.plan_document_refresh_tasks'.tr()),
+          ),
+        if (isPlanMode)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => ref
+                      .read(chatNotifierProvider.notifier)
+                      .generatePlanProposal(
+                        languageCode: context.locale.languageCode,
+                      ),
+            icon: const Icon(Icons.refresh, size: 18),
+            label: Text('chat.plan_proposal_regenerate'.tr()),
+          ),
+      ],
     );
   }
 
@@ -1521,9 +1612,133 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ).showSnackBar(SnackBar(content: Text('chat.plan_document_saved'.tr())));
   }
 
+  Future<void> _approveDraftPlanDocument(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final currentArtifact = latestConversation.effectivePlanArtifact;
+    final draftMarkdown = currentArtifact.normalizedDraftMarkdown;
+    if (draftMarkdown == null) {
+      return;
+    }
+
+    final approvedMarkdown =
+        ConversationPlanProjectionService.replaceWorkflowStage(
+          markdown: draftMarkdown,
+          workflowStage: _preferredApprovedWorkflowStage(latestConversation),
+        );
+    final nextArtifact = currentArtifact.copyWith(
+      draftMarkdown: approvedMarkdown,
+      approvedMarkdown: approvedMarkdown,
+      updatedAt: DateTime.now(),
+    );
+
+    await conversationsNotifier.updateCurrentPlanArtifact(
+      planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+      clearPlanArtifact: !nextArtifact.hasContent,
+    );
+    final refreshed = await conversationsNotifier
+        .refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          refreshed
+              ? 'chat.plan_document_approved'.tr()
+              : 'chat.plan_document_approved_refresh_failed'.tr(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _revertDraftPlanDocument(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final currentArtifact = latestConversation.effectivePlanArtifact;
+    if (!currentArtifact.hasApproved) {
+      return;
+    }
+
+    final approvedMarkdown = currentArtifact.normalizedApprovedMarkdown ?? '';
+    final nextArtifact = currentArtifact.copyWith(
+      draftMarkdown: approvedMarkdown,
+      updatedAt: DateTime.now(),
+    );
+    await conversationsNotifier.updateCurrentPlanArtifact(
+      planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+      clearPlanArtifact: !nextArtifact.hasContent,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('chat.plan_document_reverted'.tr())));
+  }
+
+  Future<void> _refreshExecutionTasksFromPlan(BuildContext context) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final refreshed = await conversationsNotifier
+        .refreshCurrentWorkflowProjectionFromApprovedPlan();
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          refreshed
+              ? 'chat.plan_document_tasks_refreshed'.tr()
+              : 'chat.plan_document_tasks_refresh_failed'.tr(),
+        ),
+      ),
+    );
+  }
+
+  Future<void> _regenerateDraftPlan(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final languageCode = context.locale.languageCode;
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    if (!currentConversation.isPlanningSession) {
+      await conversationsNotifier.enterPlanningSession();
+    }
+    await chatNotifier.generatePlanProposal(languageCode: languageCode);
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.plan_document_regeneration_started'.tr())),
+    );
+  }
+
   Future<void> _snapshotApprovedPlanDocument({
     required WorkflowProposalDraft workflowDraft,
     required WorkflowTaskProposalDraft taskDraft,
+    required ConversationWorkflowStage approvedWorkflowStage,
   }) async {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
@@ -1533,13 +1748,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final currentArtifact = currentConversation.effectivePlanArtifact;
-    final approvedMarkdown =
-        currentArtifact.normalizedDraftMarkdown ??
-        ConversationPlanDocumentBuilder.build(
-          workflowStage: workflowDraft.workflowStage,
-          workflowSpec: workflowDraft.workflowSpec,
-          tasks: taskDraft.tasks,
-        );
+    final approvedMarkdown = currentArtifact.normalizedDraftMarkdown != null
+        ? ConversationPlanProjectionService.replaceWorkflowStage(
+            markdown: currentArtifact.normalizedDraftMarkdown!,
+            workflowStage: approvedWorkflowStage,
+          )
+        : ConversationPlanDocumentBuilder.build(
+            workflowStage: approvedWorkflowStage,
+            workflowSpec: workflowDraft.workflowSpec,
+            tasks: taskDraft.tasks,
+          );
     final nextArtifact = currentArtifact.copyWith(
       draftMarkdown: approvedMarkdown,
       approvedMarkdown: approvedMarkdown,
@@ -1552,6 +1770,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
           planArtifact: nextArtifact.hasContent ? nextArtifact : null,
           clearPlanArtifact: !nextArtifact.hasContent,
         );
+  }
+
+  ConversationWorkflowStage _preferredApprovedWorkflowStage(
+    Conversation currentConversation,
+  ) {
+    return switch (currentConversation.workflowStage) {
+      ConversationWorkflowStage.tasks ||
+      ConversationWorkflowStage.implement ||
+      ConversationWorkflowStage.review => currentConversation.workflowStage,
+      _ =>
+        currentConversation.effectiveWorkflowSpec.tasks.isEmpty
+            ? ConversationWorkflowStage.tasks
+            : ConversationWorkflowStage.implement,
+    };
   }
 
   Widget _buildWorkflowProposalCard(

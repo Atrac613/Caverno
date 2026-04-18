@@ -1,0 +1,82 @@
+import 'package:flutter_test/flutter_test.dart';
+
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_document_builder.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
+
+void main() {
+  test('derives workflow projection from a structured plan document', () {
+    final markdown = ConversationPlanDocumentBuilder.build(
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Ship projection refresh',
+        constraints: ['Keep markdown as the source of truth'],
+        acceptanceCriteria: ['Tasks can be derived from the approved plan'],
+        openQuestions: ['Should stale tasks show a badge?'],
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Parse the approved markdown',
+            status: ConversationWorkflowTaskStatus.inProgress,
+            targetFiles: ['lib/features/chat/domain/services'],
+            validationCommand: 'flutter test',
+            notes: 'Use a deterministic parser',
+          ),
+        ],
+      ),
+    );
+
+    final projection =
+        ConversationPlanProjectionService.deriveExecutionProjection(
+          approvedMarkdown: markdown,
+        );
+
+    expect(projection.workflowStage, ConversationWorkflowStage.implement);
+    expect(projection.workflowSpec.goal, 'Ship projection refresh');
+    expect(projection.workflowSpec.constraints, [
+      'Keep markdown as the source of truth',
+    ]);
+    expect(projection.workflowSpec.acceptanceCriteria, [
+      'Tasks can be derived from the approved plan',
+    ]);
+    expect(projection.workflowSpec.openQuestions, [
+      'Should stale tasks show a badge?',
+    ]);
+    expect(projection.workflowSpec.tasks, hasLength(1));
+    expect(
+      projection.workflowSpec.tasks.single.status,
+      ConversationWorkflowTaskStatus.inProgress,
+    );
+    expect(
+      projection.workflowSpec.tasks.single.validationCommand,
+      'flutter test',
+    );
+    expect(projection.sourceHash, isNotEmpty);
+  });
+
+  test('replaces the stage section without discarding the edited markdown', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Stage\n'
+        'plan\n'
+        '\n'
+        '## Goal\n'
+        'Keep the edited notes\n'
+        '\n'
+        '## Tasks\n'
+        '\n'
+        '1. Refresh the projection\n'
+        '   - Status: pending\n'
+        '   - Notes: Preserve manual edits\n';
+
+    final updated = ConversationPlanProjectionService.replaceWorkflowStage(
+      markdown: markdown,
+      workflowStage: ConversationWorkflowStage.implement,
+    );
+
+    expect(updated, contains('## Stage\nimplement'));
+    expect(updated, contains('Keep the edited notes'));
+    expect(updated, contains('Preserve manual edits'));
+  });
+}

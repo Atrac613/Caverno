@@ -17,6 +17,7 @@ import 'package:caverno/features/chat/data/repositories/conversation_repository.
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
@@ -908,6 +909,81 @@ void main() {
         expect(
           currentConversation?.planArtifact?.draftMarkdown,
           contains('Persist planning state on conversations'),
+        );
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'generatePlanProposal keeps the approved markdown while refreshing the draft',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Replan from the approved baseline","constraints":["Keep the approved execution plan stable"],"acceptanceCriteria":["A new draft is generated"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Refresh the draft plan","targetFiles":["README.md"],"validationCommand":"flutter test","notes":"Reuse the approved plan as context."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = planContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+          createIfMissing: true,
+        );
+        await conversationsNotifier.updateCurrentPlanArtifact(
+          planArtifact: const ConversationPlanArtifact(
+            approvedMarkdown: '# Plan\n\n## Goal\nApproved baseline',
+          ),
+        );
+        final chatNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await chatNotifier.generatePlanProposal();
+
+        final currentConversation = planContainer
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        expect(currentConversation, isNotNull);
+        expect(
+          currentConversation!.planArtifact?.normalizedApprovedMarkdown,
+          '# Plan\n\n## Goal\nApproved baseline',
+        );
+        expect(
+          currentConversation.planArtifact?.normalizedDraftMarkdown,
+          contains('Refresh the draft plan'),
         );
       } finally {
         planContainer.dispose();
