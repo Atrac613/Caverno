@@ -236,6 +236,94 @@ class _StreamingChatDataSource implements ChatDataSource {
   }
 }
 
+class _QueuedStreamingChatDataSource implements ChatDataSource {
+  _QueuedStreamingChatDataSource(List<List<String>> responses)
+    : _responses = Queue<List<String>>.from(responses);
+
+  final Queue<List<String>> _responses;
+  final List<List<Message>> requests = [];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    requests.add(List<Message>.from(messages));
+    if (_responses.isEmpty) {
+      return const Stream<String>.empty();
+    }
+    return Stream<String>.fromIterable(_responses.removeFirst());
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 class _ToolBatchChatDataSource implements ChatDataSource {
   _ToolBatchChatDataSource({required this.initialToolCalls});
 
@@ -338,6 +426,19 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
+    );
+  }
+}
+
+class _ContentToolSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: false,
+      demoMode: false,
+      confirmFileMutations: true,
+      confirmLocalCommands: true,
     );
   }
 }
@@ -702,6 +803,101 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'content tool calls that require approval are processed sequentially',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final streamingDataSource = _QueuedStreamingChatDataSource([
+        [
+          '<tool_call>{"name":"write_file","arguments":{"path":"src/ping_utils.py","content":"print(1)","create_parents":true}}</tool_call>'
+              '<tool_call>{"name":"write_file","arguments":{"path":"tests/test_ping_utils.py","content":"print(2)","create_parents":true}}</tool_call>',
+        ],
+        ['Finished applying the requested files.'],
+      ]);
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file':
+              '{"path":"/tmp/content-tools/file.py","bytes_written":1,"created":true}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'tmp',
+        rootPath: '/tmp/content-tools-project',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create the ping utility files');
+        await Future<void>.delayed(Duration.zero);
+
+        final firstPending = toolNotifier.state.pendingFileOperation;
+        expect(firstPending, isNotNull);
+        expect(
+          firstPending!.path,
+          '/tmp/content-tools-project/src/ping_utils.py',
+        );
+
+        toolNotifier.resolveFileOperation(id: firstPending.id, approved: true);
+        await Future<void>.delayed(Duration.zero);
+
+        final secondPending = toolNotifier.state.pendingFileOperation;
+        expect(secondPending, isNotNull);
+        expect(
+          secondPending!.path,
+          '/tmp/content-tools-project/tests/test_ping_utils.py',
+        );
+
+        toolNotifier.resolveFileOperation(id: secondPending.id, approved: true);
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(toolNotifier.state.pendingFileOperation, isNull);
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Finished applying the requested files.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage auto-enters planning for a new coding thread when configured',

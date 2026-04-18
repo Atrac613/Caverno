@@ -371,6 +371,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
+    _contentToolExecutionTail = Future<void>.value();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     this.conversationId = conversationId;
@@ -3161,6 +3162,7 @@ class ChatNotifier extends Notifier<ChatState> {
   final ToolApprovalCache _toolApprovalCache = ToolApprovalCache();
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
+  Future<void> _contentToolExecutionTail = Future<void>.value();
 
   Future<void> sendMessage(
     String content, {
@@ -3181,6 +3183,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
+    _contentToolExecutionTail = Future<void>.value();
     _latestCompletedToolResults = const [];
 
     _temporalReferenceContext = TemporalContextBuilder.build(
@@ -4154,12 +4157,23 @@ class ChatNotifier extends Notifier<ChatState> {
       if (!_executedContentToolCalls.contains(hash)) {
         appLog('[ContentTool] Starting execution: $hash');
         _executedContentToolCalls.add(hash);
-        final future = _executeContentToolCall(tc);
+        final future = _enqueueContentToolCall(tc);
         _pendingToolExecutions.add(future);
       } else {
         appLog('[ContentTool] Already executed: $hash');
       }
     }
+  }
+
+  Future<void> _enqueueContentToolCall(ToolCallData tc) {
+    final future = _contentToolExecutionTail.then((_) {
+      if (!ref.mounted) {
+        return Future<void>.value();
+      }
+      return _executeContentToolCall(tc);
+    });
+    _contentToolExecutionTail = future.catchError((_) {});
+    return future;
   }
 
   String _contentToolCallHash(ToolCallData toolCall) {
@@ -5834,6 +5848,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
+    _contentToolExecutionTail = Future<void>.value();
     _sessionMemoryContext = null;
     _temporalReferenceContext = null;
     state = ChatState.initial();
