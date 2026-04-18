@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
@@ -2070,6 +2072,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final status =
         progress?.status ?? ConversationOpenQuestionStatus.unresolved;
     final note = progress?.normalizedNote;
+    final needsAnswerFlow =
+        status == ConversationOpenQuestionStatus.unresolved ||
+        status == ConversationOpenQuestionStatus.needsUserInput;
 
     return Container(
       width: double.infinity,
@@ -2135,8 +2140,95 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ),
             ),
           ],
+          const SizedBox(height: 8),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              FilledButton.tonalIcon(
+                onPressed: () => _answerOpenQuestion(
+                  context,
+                  question: question,
+                  existingNote: note,
+                ),
+                icon: Icon(
+                  needsAnswerFlow
+                      ? Icons.question_answer_outlined
+                      : Icons.edit_note_outlined,
+                  size: 18,
+                ),
+                label: Text(
+                  needsAnswerFlow
+                      ? 'chat.open_question_answer'.tr()
+                      : 'chat.open_question_edit_answer'.tr(),
+                ),
+              ),
+              if (status != ConversationOpenQuestionStatus.needsUserInput)
+                OutlinedButton.icon(
+                  onPressed: () => _setOpenQuestionStatus(
+                    context,
+                    question: question,
+                    status: ConversationOpenQuestionStatus.needsUserInput,
+                  ),
+                  icon: const Icon(Icons.contact_support_outlined, size: 18),
+                  label: Text(
+                    'chat.open_question_mark_needs_user_input'.tr(),
+                  ),
+                ),
+            ],
+          ),
         ],
       ),
+    );
+  }
+
+  Future<void> _answerOpenQuestion(
+    BuildContext context, {
+    required String question,
+    String? existingNote,
+  }) async {
+    final pending = PendingWorkflowDecision(
+      id: 'open-question-${_uuid.v4()}',
+      decision: WorkflowPlanningDecision(
+        id: Conversation.openQuestionIdFor(question),
+        question: question.trim(),
+        help: 'chat.open_question_answer_subtitle'.tr(),
+        allowFreeText: true,
+        freeTextPlaceholder: 'chat.open_question_answer_placeholder'.tr(),
+        options: const [],
+      ),
+      completer: Completer<WorkflowPlanningDecisionAnswer?>(),
+    );
+    final answer =
+        await showModalBottomSheet<WorkflowPlanningDecisionAnswer>(
+          context: context,
+          isDismissible: true,
+          enableDrag: true,
+          isScrollControlled: true,
+          backgroundColor: Colors.transparent,
+          builder: (sheetContext) => _WorkflowDecisionSheet(
+            pending: pending,
+            initialFreeText: existingNote,
+            titleText: 'chat.open_question_answer_title'.tr(),
+          ),
+        );
+    if (answer == null || !context.mounted) {
+      return;
+    }
+
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentOpenQuestionProgress(
+          question: question,
+          status: ConversationOpenQuestionStatus.resolved,
+          note: answer.optionLabel,
+        );
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.open_question_answer_saved'.tr())),
     );
   }
 
@@ -6919,9 +7011,15 @@ class _WorkflowTaskEditorSheetState extends State<_WorkflowTaskEditorSheet> {
 }
 
 class _WorkflowDecisionSheet extends StatefulWidget {
-  const _WorkflowDecisionSheet({required this.pending});
+  const _WorkflowDecisionSheet({
+    required this.pending,
+    this.initialFreeText,
+    this.titleText,
+  });
 
   final PendingWorkflowDecision pending;
+  final String? initialFreeText;
+  final String? titleText;
 
   @override
   State<_WorkflowDecisionSheet> createState() => _WorkflowDecisionSheetState();
@@ -6938,7 +7036,7 @@ class _WorkflowDecisionSheetState extends State<_WorkflowDecisionSheet> {
   @override
   void initState() {
     super.initState();
-    _textController = TextEditingController();
+    _textController = TextEditingController(text: widget.initialFreeText ?? '');
     _selectedOption = _isFreeTextDecision
         ? null
         : widget.pending.decision.options.firstOrNull;
@@ -7045,7 +7143,9 @@ class _WorkflowDecisionSheetState extends State<_WorkflowDecisionSheet> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
-                              'chat.workflow_decision_title'.tr(),
+                              widget.titleText?.trim().isNotEmpty == true
+                                  ? widget.titleText!.trim()
+                                  : 'chat.workflow_decision_title'.tr(),
                               style: theme.textTheme.titleMedium?.copyWith(
                                 fontWeight: FontWeight.bold,
                               ),
