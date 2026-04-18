@@ -736,6 +736,47 @@ void main() {
     },
   );
 
+  test(
+    'parseWorkflowProposalForTest recovers malformed JSON-like proposal content',
+    () {
+      const rawContent = '''
+{
+  "kind": "decision",
+  "workflowStage": "plan",
+  "goal": "設定ファイルによるホスト管理機能の実装",
+  "constraints": [
+    "既存のpingロジックとの統合",
+    "依存ライブラリの最小化"
+  ],
+  "acceptanceCriteria": [
+    "設定ファイルからホスト一覧が読み込める",
+    "CLI から利用できる"
+  ],
+  "openQuestions": [
+    "設定ファイル形式は YAML でよいか"
+  ],
+''';
+
+      final proposal = notifier.parseWorkflowProposalForTest(rawContent);
+
+      expect(proposal, isNotNull);
+      expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+      expect(proposal.workflowSpec.goal, '設定ファイルによるホスト管理機能の実装');
+      expect(
+        proposal.workflowSpec.constraints,
+        containsAll(<String>['既存のpingロジックとの統合', '依存ライブラリの最小化']),
+      );
+      expect(
+        proposal.workflowSpec.acceptanceCriteria,
+        containsAll(<String>['設定ファイルからホスト一覧が読み込める', 'CLI から利用できる']),
+      );
+      expect(
+        proposal.workflowSpec.openQuestions,
+        contains('設定ファイル形式は YAML でよいか'),
+      );
+    },
+  );
+
   test('sendMessage executes every tool call in the same batch', () async {
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [

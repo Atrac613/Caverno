@@ -1951,6 +1951,12 @@ class ChatNotifier extends Notifier<ChatState> {
     if (proposalFromSections != null) {
       return _WorkflowProposalDraftResponse(proposalFromSections);
     }
+    final looseProposal = _parseWorkflowProposalFromLooseJson(
+      normalizedContent,
+    );
+    if (looseProposal != null) {
+      return _WorkflowProposalDraftResponse(looseProposal);
+    }
     return null;
   }
 
@@ -2183,6 +2189,18 @@ class ChatNotifier extends Notifier<ChatState> {
     return ConversationWorkflowStage.plan;
   }
 
+  ConversationWorkflowStage _inferWorkflowStageFromLooseProposalContent(
+    String rawContent,
+  ) {
+    final openQuestions = _extractLooseJsonStringList(
+      rawContent,
+      keys: const ['openQuestions', 'open_questions', 'questions', '未解決の確認事項'],
+    );
+    return openQuestions.isNotEmpty
+        ? ConversationWorkflowStage.clarify
+        : ConversationWorkflowStage.plan;
+  }
+
   String _asCleanString(Object? value) {
     return value?.toString().trim() ?? '';
   }
@@ -2390,6 +2408,125 @@ class ChatNotifier extends Notifier<ChatState> {
       workflowStage: workflowStage,
       workflowSpec: workflowSpec,
     );
+  }
+
+  WorkflowProposalDraft? _parseWorkflowProposalFromLooseJson(
+    String rawContent,
+  ) {
+    final workflowStage =
+        _parseWorkflowStage(
+          _extractLooseJsonScalar(
+            rawContent,
+            keys: const [
+              'workflowStage',
+              'stage',
+              'workflow_stage',
+              'ワークフローステージ',
+              'ステージ',
+            ],
+          ),
+        ) ??
+        _inferWorkflowStageFromLooseProposalContent(rawContent);
+    if (workflowStage == ConversationWorkflowStage.idle) {
+      return null;
+    }
+
+    final workflowSpec = ConversationWorkflowSpec(
+      goal:
+          _extractLooseJsonScalar(rawContent, keys: const ['goal', '目的']) ?? '',
+      constraints: _extractLooseJsonStringList(
+        rawContent,
+        keys: const ['constraints', '制約'],
+      ),
+      acceptanceCriteria: _extractLooseJsonStringList(
+        rawContent,
+        keys: const [
+          'acceptanceCriteria',
+          'acceptance_criteria',
+          'acceptance',
+          '完了条件',
+        ],
+      ),
+      openQuestions: _extractLooseJsonStringList(
+        rawContent,
+        keys: const [
+          'openQuestions',
+          'open_questions',
+          'questions',
+          '未解決の確認事項',
+        ],
+      ),
+    );
+    if (!workflowSpec.hasContent) {
+      return null;
+    }
+
+    return WorkflowProposalDraft(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+    );
+  }
+
+  String? _extractLooseJsonScalar(
+    String rawContent, {
+    required List<String> keys,
+  }) {
+    for (final key in keys) {
+      final quotedPattern = RegExp(
+        "[\\\"']?${RegExp.escape(key)}[\\\"']?\\s*:\\s*(?:\\\"([^\\\"]*)\\\"|'([^']*)'|([A-Za-z_]+))",
+        caseSensitive: false,
+        dotAll: true,
+      );
+      final quotedMatch = quotedPattern.firstMatch(rawContent);
+      if (quotedMatch == null) {
+        continue;
+      }
+      final value =
+          quotedMatch.group(1) ??
+          quotedMatch.group(2) ??
+          quotedMatch.group(3) ??
+          '';
+      final normalized = value.trim();
+      if (normalized.isNotEmpty) {
+        return normalized;
+      }
+    }
+    return null;
+  }
+
+  List<String> _extractLooseJsonStringList(
+    String rawContent, {
+    required List<String> keys,
+  }) {
+    for (final key in keys) {
+      final listPattern = RegExp(
+        "[\\\"']?${RegExp.escape(key)}[\\\"']?\\s*:\\s*\\[(.*?)(?:\\]\\s*(?:,|\\}|\$)|\$)",
+        caseSensitive: false,
+        dotAll: true,
+      );
+      final match = listPattern.firstMatch(rawContent);
+      if (match == null) {
+        continue;
+      }
+      final body = match.group(1)?.trim() ?? '';
+      if (body.isEmpty) {
+        continue;
+      }
+
+      final items = RegExp("\\\"([^\\\"]*)\\\"|'([^']*)'", dotAll: true)
+          .allMatches(body)
+          .map((entry) {
+            return (entry.group(1) ?? entry.group(2) ?? '').trim();
+          })
+          .where((item) => item.isNotEmpty)
+          .take(6)
+          .toList(growable: false);
+
+      if (items.isNotEmpty) {
+        return items;
+      }
+    }
+    return const [];
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposalFromSections(String rawContent) {
