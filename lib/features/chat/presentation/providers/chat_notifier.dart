@@ -37,6 +37,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/session_memory.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/memory_extraction_json_parser.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import 'chat_state.dart';
@@ -5743,14 +5744,13 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   MemoryExtractionDraft? _parseMemoryExtractionDraft(String rawContent) {
-    final jsonText = _extractJsonObject(rawContent);
-    if (jsonText == null) return null;
+    final parseResult = MemoryExtractionJsonParser.parse(rawContent);
+    if (parseResult == null) {
+      return null;
+    }
 
     try {
-      final decoded = jsonDecode(jsonText);
-      if (decoded is! Map) return null;
-      final map = Map<String, dynamic>.from(decoded);
-
+      final map = parseResult.decoded;
       final summary = (map['summary'] as String?)?.trim() ?? '';
       final openLoops = _stringList(map['open_loops'], maxLength: 3);
 
@@ -5797,26 +5797,14 @@ class ChatNotifier extends Notifier<ChatState> {
         doNot: doNot,
         entries: entries,
       );
+      if (parseResult.wasRepaired) {
+        appLog('[Memory] Repaired malformed memory extraction JSON');
+      }
       return draft.isEmpty ? null : draft;
     } catch (e) {
       appLog('[Memory] Failed to parse memory extraction JSON: $e');
       return null;
     }
-  }
-
-  String? _extractJsonObject(String raw) {
-    var text = raw.trim();
-    if (text.startsWith('```')) {
-      text = text
-          .replaceFirst(RegExp(r'^```[a-zA-Z]*\s*'), '')
-          .replaceFirst(RegExp(r'\s*```$'), '')
-          .trim();
-    }
-
-    final first = text.indexOf('{');
-    final last = text.lastIndexOf('}');
-    if (first < 0 || last <= first) return null;
-    return text.substring(first, last + 1);
   }
 
   List<String> _stringList(Object? raw, {required int maxLength}) {
