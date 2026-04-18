@@ -431,6 +431,69 @@ void main() {
   );
 
   test(
+    'updateCurrentExecutionTaskProgressFromAssistantTurn infers blocked validation state',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Track assistant-driven execution progress\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Run validation from the approved plan\n'
+              '   - Status: inProgress\n'
+              '   - Validation: flutter test\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse:
+            'Validation failed because flutter test reported one failing smoke test.',
+        isValidationRun: true,
+      );
+
+      final progress = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.executionProgress
+          .single;
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.blocked);
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.failed,
+      );
+      expect(progress.blockedReason, contains('Validation failed'));
+      expect(progress.lastValidationCommand, 'flutter test');
+      expect(
+        progress.lastValidationSummary,
+        contains('Validation failed because flutter test reported'),
+      );
+    },
+  );
+
+  test(
     'updateCurrentConversation keeps the default title for image-only input',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

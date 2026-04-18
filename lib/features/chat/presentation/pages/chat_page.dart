@@ -14,6 +14,7 @@ import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
+import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../providers/chat_notifier.dart';
@@ -2941,6 +2942,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      ref.read(conversationsNotifierProvider).currentConversation ??
+          currentConversation,
+    );
 
     await _setWorkflowTaskStatus(
       currentConversation: currentConversation,
@@ -2967,6 +2972,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
+    await _captureExecutionProgressFromLatestAssistantTurn(
+      task: task,
+      previousAssistantMessageId: previousAssistantMessageId,
+      isValidationRun: false,
+    );
   }
 
   Future<void> _runWorkflowTaskValidation(
@@ -2975,6 +2985,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      ref.read(conversationsNotifierProvider).currentConversation ??
+          currentConversation,
+    );
     final validationCommand = task.validationCommand.trim();
     final validationStartedAt = DateTime.now();
     await _setWorkflowTaskStatus(
@@ -3000,6 +3014,40 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
+    await _captureExecutionProgressFromLatestAssistantTurn(
+      task: task,
+      previousAssistantMessageId: previousAssistantMessageId,
+      isValidationRun: true,
+    );
+  }
+
+  Future<void> _captureExecutionProgressFromLatestAssistantTurn({
+    required ConversationWorkflowTask task,
+    required String? previousAssistantMessageId,
+    required bool isValidationRun,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return;
+    }
+
+    final latestAssistantMessage = _latestAssistantMessage(currentConversation);
+    if (latestAssistantMessage == null ||
+        latestAssistantMessage.id == previousAssistantMessageId) {
+      return;
+    }
+
+    await conversationsNotifier
+        .updateCurrentExecutionTaskProgressFromAssistantTurn(
+          task: task,
+          assistantResponse: latestAssistantMessage.content,
+          isValidationRun: isValidationRun,
+        );
   }
 
   String _buildWorkflowTaskPrompt(
@@ -3108,6 +3156,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
     return null;
   }
+
+  Message? _latestAssistantMessage(Conversation conversation) {
+    for (final message in conversation.messages.reversed) {
+      if (message.role == MessageRole.assistant &&
+          !message.isStreaming &&
+          message.content.trim().isNotEmpty) {
+        return message;
+      }
+    }
+    return null;
+  }
+
+  String? _latestAssistantMessageId(Conversation conversation) =>
+      _latestAssistantMessage(conversation)?.id;
 
   String _workflowProjectionStatusLabelKey(Conversation currentConversation) {
     if (currentConversation.isWorkflowProjectionFresh) {
