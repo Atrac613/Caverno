@@ -54,13 +54,25 @@ _ConversationExecutionTaskProgress _$ConversationExecutionTaskProgressFromJson(
         json['status'],
       ) ??
       ConversationWorkflowTaskStatus.pending,
+  validationStatus:
+      $enumDecodeNullable(
+        _$ConversationExecutionValidationStatusEnumMap,
+        json['validationStatus'],
+      ) ??
+      ConversationExecutionValidationStatus.unknown,
   updatedAt: json['updatedAt'] == null
       ? null
       : DateTime.parse(json['updatedAt'] as String),
   lastRunAt: json['lastRunAt'] == null
       ? null
       : DateTime.parse(json['lastRunAt'] as String),
+  lastValidationAt: json['lastValidationAt'] == null
+      ? null
+      : DateTime.parse(json['lastValidationAt'] as String),
   summary: json['summary'] as String? ?? '',
+  blockedReason: json['blockedReason'] as String? ?? '',
+  lastValidationCommand: json['lastValidationCommand'] as String? ?? '',
+  lastValidationSummary: json['lastValidationSummary'] as String? ?? '',
 );
 
 Map<String, dynamic> _$ConversationExecutionTaskProgressToJson(
@@ -68,9 +80,22 @@ Map<String, dynamic> _$ConversationExecutionTaskProgressToJson(
 ) => <String, dynamic>{
   'taskId': instance.taskId,
   'status': _$ConversationWorkflowTaskStatusEnumMap[instance.status]!,
+  'validationStatus':
+      _$ConversationExecutionValidationStatusEnumMap[instance
+          .validationStatus]!,
   'updatedAt': instance.updatedAt?.toIso8601String(),
   'lastRunAt': instance.lastRunAt?.toIso8601String(),
+  'lastValidationAt': instance.lastValidationAt?.toIso8601String(),
   'summary': instance.summary,
+  'blockedReason': instance.blockedReason,
+  'lastValidationCommand': instance.lastValidationCommand,
+  'lastValidationSummary': instance.lastValidationSummary,
+};
+
+const _$ConversationExecutionValidationStatusEnumMap = {
+  ConversationExecutionValidationStatus.unknown: 'unknown',
+  ConversationExecutionValidationStatus.passed: 'passed',
+  ConversationExecutionValidationStatus.failed: 'failed',
 };
 
 _ConversationWorkflowSpec _$ConversationWorkflowSpecFromJson(

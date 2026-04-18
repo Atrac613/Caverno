@@ -390,6 +390,47 @@ void main() {
   );
 
   test(
+    'updateCurrentExecutionTaskProgress stores rich execution metadata',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: 'task-1',
+        status: ConversationWorkflowTaskStatus.blocked,
+        summary: 'Waiting for a follow-up fix.',
+        blockedReason: 'The current validation run is failing.',
+        lastValidationCommand: 'flutter test',
+        lastValidationSummary: '1 smoke test failed on macOS.',
+        validationStatus: ConversationExecutionValidationStatus.failed,
+        lastValidationAt: DateTime(2026, 4, 18, 13, 30),
+      );
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(currentConversation, isNotNull);
+      final progress = currentConversation!.executionProgress.single;
+      expect(progress.taskId, 'task-1');
+      expect(progress.status, ConversationWorkflowTaskStatus.blocked);
+      expect(progress.summary, 'Waiting for a follow-up fix.');
+      expect(progress.blockedReason, 'The current validation run is failing.');
+      expect(progress.lastValidationCommand, 'flutter test');
+      expect(progress.lastValidationSummary, '1 smoke test failed on macOS.');
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.failed,
+      );
+      expect(progress.lastValidationAt, DateTime(2026, 4, 18, 13, 30));
+    },
+  );
+
+  test(
     'updateCurrentConversation keeps the default title for image-only input',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
