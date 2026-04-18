@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
 
@@ -141,5 +142,30 @@ void main() {
       ),
     );
     expect(prompt, contains('Project name: "caverno".'));
+  });
+
+  test('includes plan document context in coding prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.coding,
+      languageCode: 'en',
+      workflowStage: ConversationWorkflowStage.implement,
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Ship an editable plan artifact',
+      ),
+      planArtifact: const ConversationPlanArtifact(
+        draftMarkdown: '# Plan\n\n## Goal\nDraft',
+        approvedMarkdown: '# Plan\n\n## Goal\nApproved',
+      ),
+    );
+
+    expect(prompt, contains('Approved plan document for this coding thread:'));
+    expect(prompt, contains('# Plan\n## Goal\nApproved'));
+    expect(
+      prompt,
+      contains(
+        'A newer draft plan document exists, but the last approved document remains the source of truth until the draft is approved.',
+      ),
+    );
   });
 }

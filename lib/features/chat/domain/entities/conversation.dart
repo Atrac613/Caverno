@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import 'message.dart';
+import 'conversation_plan_artifact.dart';
 import 'conversation_workflow.dart';
 
 part 'conversation.freezed.dart';
@@ -16,6 +17,17 @@ ConversationWorkflowSpec? _workflowSpecFromJson(Map<String, dynamic>? json) {
 
 Map<String, dynamic>? _workflowSpecToJson(ConversationWorkflowSpec? spec) {
   return spec?.toJson();
+}
+
+ConversationPlanArtifact? _planArtifactFromJson(Map<String, dynamic>? json) {
+  if (json == null) {
+    return null;
+  }
+  return ConversationPlanArtifact.fromJson(json);
+}
+
+Map<String, dynamic>? _planArtifactToJson(ConversationPlanArtifact? artifact) {
+  return artifact?.toJson();
 }
 
 @freezed
@@ -40,6 +52,8 @@ abstract class Conversation with _$Conversation {
     ConversationWorkflowStage workflowStage,
     @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)
     ConversationWorkflowSpec? workflowSpec,
+    @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
+    ConversationPlanArtifact? planArtifact,
   }) = _Conversation;
 
   factory Conversation.fromJson(Map<String, dynamic> json) =>
@@ -56,7 +70,12 @@ abstract class Conversation with _$Conversation {
   ConversationWorkflowSpec get effectiveWorkflowSpec =>
       workflowSpec ?? const ConversationWorkflowSpec();
 
+  ConversationPlanArtifact get effectivePlanArtifact =>
+      planArtifact ?? const ConversationPlanArtifact();
+
   bool get hasWorkflowContext =>
       workflowStage != ConversationWorkflowStage.idle ||
       effectiveWorkflowSpec.hasContent;
+
+  bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
 }

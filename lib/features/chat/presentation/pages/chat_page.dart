@@ -12,7 +12,9 @@ import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
+import '../../domain/services/conversation_plan_document_builder.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -625,6 +627,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) {
     final theme = Theme.of(context);
     final spec = currentConversation.effectiveWorkflowSpec;
+    final planArtifact = currentConversation.effectivePlanArtifact;
     final hasContext = currentConversation.hasWorkflowContext;
     final isBusy = chatState.isLoading;
     final hasPlanDraft =
@@ -786,6 +789,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   _buildWorkflowProposalErrorCard(
                     context,
                     error: chatState.workflowProposalError!,
+                  ),
+                ],
+                if (!showCombinedPlanCard && planArtifact.hasContent) ...[
+                  const SizedBox(height: 12),
+                  _buildPlanDocumentCard(
+                    context,
+                    currentConversation: currentConversation,
+                    isPlanMode: isPlanMode,
                   ),
                 ],
                 if (showCompactApprovedPlan) ...[
@@ -1074,6 +1085,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ChatState chatState,
   }) {
     final theme = Theme.of(context);
+    final planArtifact = currentConversation.effectivePlanArtifact;
     final workflowDraft = chatState.workflowProposalDraft;
     final taskDraft = chatState.taskProposalDraft;
     final workflowSpec = workflowDraft?.workflowSpec;
@@ -1188,6 +1200,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
               ),
           ],
+          if (planArtifact.hasContent) ...[
+            const SizedBox(height: 12),
+            _buildPlanDocumentCard(
+              context,
+              currentConversation: currentConversation,
+              isPlanMode: true,
+            ),
+          ],
           if (chatState.workflowProposalError != null) ...[
             const SizedBox(height: 10),
             Text(
@@ -1246,6 +1266,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: Text('chat.workflow_edit'.tr()),
                 ),
+              OutlinedButton.icon(
+                onPressed: () => _showPlanDocumentEditor(
+                  context,
+                  currentConversation,
+                  preferDraft: true,
+                ),
+                icon: const Icon(Icons.description_outlined, size: 18),
+                label: Text('chat.plan_document_edit'.tr()),
+              ),
               TextButton(
                 onPressed: () => ref
                     .read(chatNotifierProvider.notifier)
@@ -1288,6 +1317,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
               .toList(growable: false);
     final nextSpec = workflowDraft.workflowSpec.copyWith(tasks: nextTasks);
     final initialTask = nextTasks.firstOrNull;
+    await _snapshotApprovedPlanDocument(
+      workflowDraft: workflowDraft,
+      taskDraft: taskDraft.copyWith(tasks: nextTasks),
+    );
 
     await conversationsNotifier.updateCurrentWorkflow(
       workflowStage: initialTask == null
@@ -1318,6 +1351,182 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
+  }
+
+  Widget _buildPlanDocumentCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required bool isPlanMode,
+  }) {
+    final theme = Theme.of(context);
+    final planArtifact = currentConversation.effectivePlanArtifact;
+    final markdown = planArtifact.preferredMarkdown(preferDraft: isPlanMode);
+    if (markdown == null) {
+      return const SizedBox.shrink();
+    }
+
+    final statusKey = isPlanMode || !planArtifact.hasApproved
+        ? 'chat.plan_document_status_draft'
+        : planArtifact.hasPendingEdits
+        ? 'chat.plan_document_status_pending'
+        : 'chat.plan_document_status_approved';
+    final subtitleKey = isPlanMode || !planArtifact.hasApproved
+        ? 'chat.plan_document_draft_subtitle'
+        : planArtifact.hasPendingEdits
+        ? 'chat.plan_document_pending_subtitle'
+        : 'chat.plan_document_approved_subtitle';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surface.withValues(alpha: 0.55),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.9),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.description_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'chat.plan_document_title'.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Chip(
+                label: Text(statusKey.tr()),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitleKey.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              markdown,
+              maxLines: isPlanMode ? 18 : 12,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                height: 1.35,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: () => _showPlanDocumentEditor(
+              context,
+              currentConversation,
+              preferDraft: isPlanMode,
+            ),
+            icon: const Icon(Icons.edit_note_outlined, size: 18),
+            label: Text('chat.plan_document_edit'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _showPlanDocumentEditor(
+    BuildContext context,
+    Conversation currentConversation, {
+    required bool preferDraft,
+  }) async {
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final planArtifact = latestConversation.effectivePlanArtifact;
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      showDragHandle: true,
+      builder: (sheetContext) => _PlanDocumentEditorSheet(
+        planArtifact: planArtifact,
+        preferDraft: preferDraft,
+      ),
+    );
+    if (result == null) {
+      return;
+    }
+
+    final normalizedDraft = result.trim().isEmpty
+        ? (planArtifact.normalizedApprovedMarkdown ?? '')
+        : result.trimRight();
+    final nextArtifact = planArtifact.copyWith(
+      draftMarkdown: normalizedDraft,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentPlanArtifact(
+          planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+          clearPlanArtifact: !nextArtifact.hasContent,
+        );
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('chat.plan_document_saved'.tr())));
+  }
+
+  Future<void> _snapshotApprovedPlanDocument({
+    required WorkflowProposalDraft workflowDraft,
+    required WorkflowTaskProposalDraft taskDraft,
+  }) async {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return;
+    }
+
+    final currentArtifact = currentConversation.effectivePlanArtifact;
+    final approvedMarkdown =
+        currentArtifact.normalizedDraftMarkdown ??
+        ConversationPlanDocumentBuilder.build(
+          workflowStage: workflowDraft.workflowStage,
+          workflowSpec: workflowDraft.workflowSpec,
+          tasks: taskDraft.tasks,
+        );
+    final nextArtifact = currentArtifact.copyWith(
+      draftMarkdown: approvedMarkdown,
+      approvedMarkdown: approvedMarkdown,
+      updatedAt: DateTime.now(),
+    );
+
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentPlanArtifact(
+          planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+          clearPlanArtifact: !nextArtifact.hasContent,
+        );
   }
 
   Widget _buildWorkflowProposalCard(
@@ -1947,6 +2156,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
         await conversationsNotifier.updateCurrentWorkflow(
           workflowStage: ConversationWorkflowStage.idle,
           clearWorkflowSpec: true,
+        );
+        await conversationsNotifier.updateCurrentPlanArtifact(
+          clearPlanArtifact: true,
         );
         if (context.mounted) {
           ScaffoldMessenger.of(
@@ -3761,55 +3973,172 @@ class _ChatPageState extends ConsumerState<ChatPage>
     return Center(
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              isDefault ? Icons.settings_suggest : Icons.chat_bubble_outline,
-              size: 64,
-              color: Theme.of(context).colorScheme.outline,
-            ),
-            const SizedBox(height: 16),
-            if (isDefault && !isCodingWorkspace) ...[
-              Text(
-                'chat.setup_title'.tr(),
-                style: Theme.of(context).textTheme.titleMedium,
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'chat.setup_message'.tr(),
-                style: TextStyle(color: Theme.of(context).colorScheme.outline),
-                textAlign: TextAlign.center,
+        child: SingleChildScrollView(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Icon(
+                isDefault ? Icons.settings_suggest : Icons.chat_bubble_outline,
+                size: 64,
+                color: Theme.of(context).colorScheme.outline,
               ),
               const SizedBox(height: 16),
-              FilledButton.icon(
-                onPressed: () {
-                  ref
-                      .read(settingsNotifierProvider.notifier)
-                      .updateDemoMode(true);
-                },
-                icon: const Icon(Icons.play_arrow),
-                label: Text('chat.try_demo'.tr()),
+              if (isDefault && !isCodingWorkspace) ...[
+                Text(
+                  'chat.setup_title'.tr(),
+                  style: Theme.of(context).textTheme.titleMedium,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'chat.setup_message'.tr(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 16),
+                FilledButton.icon(
+                  onPressed: () {
+                    ref
+                        .read(settingsNotifierProvider.notifier)
+                        .updateDemoMode(true);
+                  },
+                  icon: const Icon(Icons.play_arrow),
+                  label: Text('chat.try_demo'.tr()),
+                ),
+                const SizedBox(height: 8),
+                OutlinedButton.icon(
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const SettingsPage()),
+                    );
+                  },
+                  icon: const Icon(Icons.settings),
+                  label: Text('chat.setup_button'.tr()),
+                ),
+              ] else
+                Text(
+                  isCodingWorkspace
+                      ? 'chat.coding_empty_state'.tr()
+                      : 'chat.empty_state'.tr(),
+                  style: TextStyle(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanDocumentEditorSheet extends StatefulWidget {
+  const _PlanDocumentEditorSheet({
+    required this.planArtifact,
+    required this.preferDraft,
+  });
+
+  final ConversationPlanArtifact planArtifact;
+  final bool preferDraft;
+
+  @override
+  State<_PlanDocumentEditorSheet> createState() =>
+      _PlanDocumentEditorSheetState();
+}
+
+class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
+  late final TextEditingController _markdownController;
+
+  @override
+  void initState() {
+    super.initState();
+    _markdownController = TextEditingController(
+      text:
+          widget.planArtifact.preferredMarkdown(
+            preferDraft: widget.preferDraft,
+          ) ??
+          '',
+    );
+  }
+
+  @override
+  void dispose() {
+    _markdownController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          20 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: SingleChildScrollView(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'chat.plan_document_edit'.tr(),
+                style: theme.textTheme.titleMedium?.copyWith(
+                  fontWeight: FontWeight.bold,
+                ),
               ),
               const SizedBox(height: 8),
-              OutlinedButton.icon(
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const SettingsPage()),
-                  );
-                },
-                icon: const Icon(Icons.settings),
-                label: Text('chat.setup_button'.tr()),
-              ),
-            ] else
               Text(
-                isCodingWorkspace
-                    ? 'chat.coding_empty_state'.tr()
-                    : 'chat.empty_state'.tr(),
-                style: TextStyle(color: Theme.of(context).colorScheme.outline),
+                'chat.plan_document_sheet_subtitle'.tr(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
               ),
-          ],
+              const SizedBox(height: 20),
+              TextField(
+                controller: _markdownController,
+                maxLines: 18,
+                minLines: 12,
+                textInputAction: TextInputAction.newline,
+                decoration: InputDecoration(
+                  labelText: 'chat.plan_document_title'.tr(),
+                  border: const OutlineInputBorder(),
+                  alignLabelWithHint: true,
+                ),
+              ),
+              const SizedBox(height: 20),
+              Row(
+                children: [
+                  if (widget.planArtifact.hasApproved)
+                    TextButton.icon(
+                      onPressed: () {
+                        _markdownController.text =
+                            widget.planArtifact.normalizedApprovedMarkdown ??
+                            '';
+                      },
+                      icon: const Icon(Icons.restart_alt),
+                      label: Text('common.reset'.tr()),
+                    ),
+                  const Spacer(),
+                  OutlinedButton(
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: Text('common.cancel'.tr()),
+                  ),
+                  const SizedBox(width: 12),
+                  FilledButton(
+                    onPressed: () =>
+                        Navigator.of(context).pop(_markdownController.text),
+                    child: Text('common.save'.tr()),
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
       ),
     );

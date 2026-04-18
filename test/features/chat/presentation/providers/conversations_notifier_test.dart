@@ -6,6 +6,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -153,6 +154,52 @@ void main() {
       ConversationExecutionMode.normal,
     );
   });
+
+  test(
+    'updateCurrentPlanArtifact persists plan markdown for the thread',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: ConversationPlanArtifact(
+          draftMarkdown: '# Plan\n\n## Goal\nShip PR3',
+          approvedMarkdown: '# Plan\n\n## Goal\nShip PR2',
+          updatedAt: DateTime(2026, 4, 18, 9, 30),
+        ),
+      );
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.planArtifact, isNotNull);
+      expect(
+        currentConversation.planArtifact!.normalizedDraftMarkdown,
+        '# Plan\n\n## Goal\nShip PR3',
+      );
+      expect(
+        currentConversation.planArtifact!.normalizedApprovedMarkdown,
+        '# Plan\n\n## Goal\nShip PR2',
+      );
+
+      final persisted = repository.getById(currentConversation.id);
+      expect(
+        persisted?.planArtifact?.normalizedDraftMarkdown,
+        '# Plan\n\n## Goal\nShip PR3',
+      );
+      expect(
+        persisted?.planArtifact?.normalizedApprovedMarkdown,
+        '# Plan\n\n## Goal\nShip PR2',
+      );
+    },
+  );
 
   test(
     'updateCurrentConversation keeps the default title for image-only input',

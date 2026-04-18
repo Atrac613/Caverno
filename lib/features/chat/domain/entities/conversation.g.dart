@@ -40,6 +40,9 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       workflowSpec: _workflowSpecFromJson(
         json['workflowSpec'] as Map<String, dynamic>?,
       ),
+      planArtifact: _planArtifactFromJson(
+        json['planArtifact'] as Map<String, dynamic>?,
+      ),
     );
 
 Map<String, dynamic> _$ConversationToJson(
@@ -55,6 +58,7 @@ Map<String, dynamic> _$ConversationToJson(
   'executionMode': _$ConversationExecutionModeEnumMap[instance.executionMode]!,
   'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
   'workflowSpec': _workflowSpecToJson(instance.workflowSpec),
+  'planArtifact': _planArtifactToJson(instance.planArtifact),
 };
 
 const _$WorkspaceModeEnumMap = {
