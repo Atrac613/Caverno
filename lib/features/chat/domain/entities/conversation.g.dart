@@ -40,6 +40,10 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       workflowSpec: _workflowSpecFromJson(
         json['workflowSpec'] as Map<String, dynamic>?,
       ),
+      workflowSourceHash: json['workflowSourceHash'] as String? ?? '',
+      workflowDerivedAt: json['workflowDerivedAt'] == null
+          ? null
+          : DateTime.parse(json['workflowDerivedAt'] as String),
       planArtifact: _planArtifactFromJson(
         json['planArtifact'] as Map<String, dynamic>?,
       ),
@@ -58,6 +62,8 @@ Map<String, dynamic> _$ConversationToJson(
   'executionMode': _$ConversationExecutionModeEnumMap[instance.executionMode]!,
   'workflowStage': _$ConversationWorkflowStageEnumMap[instance.workflowStage]!,
   'workflowSpec': _workflowSpecToJson(instance.workflowSpec),
+  'workflowSourceHash': instance.workflowSourceHash,
+  'workflowDerivedAt': instance.workflowDerivedAt?.toIso8601String(),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
 };
 

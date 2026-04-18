@@ -8,6 +8,7 @@ import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_plan_projection_service.dart';
 
 /// State for the conversation list.
 class ConversationsState {
@@ -361,7 +362,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Future<void> updateCurrentWorkflow({
     ConversationWorkflowStage? workflowStage,
     ConversationWorkflowSpec? workflowSpec,
+    String? workflowSourceHash,
+    DateTime? workflowDerivedAt,
     bool clearWorkflowSpec = false,
+    bool preserveWorkflowProjection = false,
   }) async {
     final conversation = state.currentConversation;
     if (conversation == null) return;
@@ -374,6 +378,12 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final updatedConversation = conversation.copyWith(
       workflowStage: nextStage,
       workflowSpec: nextWorkflowSpec,
+      workflowSourceHash: preserveWorkflowProjection
+          ? (workflowSourceHash ?? conversation.workflowSourceHash)
+          : '',
+      workflowDerivedAt: preserveWorkflowProjection
+          ? (workflowDerivedAt ?? conversation.workflowDerivedAt)
+          : null,
       updatedAt: DateTime.now(),
     );
 
@@ -419,6 +429,35 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<bool> refreshCurrentWorkflowProjectionFromApprovedPlan() async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return false;
+    }
+
+    final approvedMarkdown = conversation.effectiveExecutionDocument;
+    if (approvedMarkdown == null) {
+      return false;
+    }
+
+    try {
+      final projection =
+          ConversationPlanProjectionService.deriveExecutionProjection(
+            approvedMarkdown: approvedMarkdown,
+          );
+      await updateCurrentWorkflow(
+        workflowStage: projection.workflowStage,
+        workflowSpec: projection.workflowSpec,
+        workflowSourceHash: projection.sourceHash,
+        workflowDerivedAt: projection.derivedAt,
+        preserveWorkflowProjection: true,
+      );
+      return true;
+    } on FormatException {
+      return false;
+    }
   }
 
   Future<void> enterPlanningSession() async {
