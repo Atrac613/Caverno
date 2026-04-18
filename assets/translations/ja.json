@@ -128,6 +128,8 @@
     "plan_document_replan_current_task_started": "Started a current-task-focused replan draft.",
     "plan_document_replan_validation": "Replan validation path",
     "plan_document_replan_validation_started": "Started a validation-path-focused replan draft.",
+    "workflow_task_recovery_title": "Suggested next step",
+    "workflow_task_retry_validation": "Retry validation",
     "workflow_subtitle": "このコーディングスレッドに、目的・制約・完了条件を固定しておけます。",
     "workflow_empty": "まだワークフローがありません。実装が広がる前に現在の目的を残しておけます。",
     "workflow_generate": "ワークフローを提案",

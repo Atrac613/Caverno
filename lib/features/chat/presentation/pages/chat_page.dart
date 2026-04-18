@@ -19,6 +19,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
+import '../../domain/services/conversation_execution_recovery_service.dart';
 import '../../domain/services/conversation_execution_summary_service.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -2975,6 +2976,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
         .toList(growable: false);
+    final recoverySuggestions = ConversationExecutionRecoveryService.suggest(
+      task: task,
+      progress: progress,
+    );
+    final showValidationRecoveryActions =
+        currentConversation.shouldPreferPlanDocument &&
+        progress?.validationStatus ==
+            ConversationExecutionValidationStatus.failed &&
+        task.validationCommand.trim().isNotEmpty;
 
     return Container(
       width: double.infinity,
@@ -3162,6 +3172,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
             const SizedBox(height: 8),
             _buildWorkflowTaskTimeline(context, events: progress.recentEvents),
           ],
+          if (recoverySuggestions.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildWorkflowTaskRecoverySuggestions(
+              context,
+              suggestions: recoverySuggestions,
+            ),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -3187,6 +3204,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       : 'chat.workflow_task_use'.tr(),
                 ),
               ),
+              if (showValidationRecoveryActions)
+                OutlinedButton.icon(
+                  onPressed: !canRunTask
+                      ? null
+                      : () => _runWorkflowTaskValidation(
+                          context,
+                          currentConversation: currentConversation,
+                          task: task,
+                        ),
+                  icon: const Icon(Icons.refresh_outlined, size: 18),
+                  label: Text('chat.workflow_task_retry_validation'.tr()),
+                ),
+              if (showValidationRecoveryActions)
+                FilledButton.icon(
+                  onPressed: isBusy
+                      ? null
+                      : () => _replanValidationPath(
+                          context,
+                          currentConversation: currentConversation,
+                          task: task,
+                        ),
+                  icon: const Icon(Icons.rule_folder_outlined, size: 18),
+                  label: Text('chat.plan_document_replan_validation'.tr()),
+                ),
               if (currentConversation.shouldPreferPlanDocument &&
                   task.status == ConversationWorkflowTaskStatus.blocked)
                 OutlinedButton.icon(
@@ -3238,6 +3279,43 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
             ],
           ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildWorkflowTaskRecoverySuggestions(
+    BuildContext context, {
+    required List<ConversationExecutionRecoverySuggestion> suggestions,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.32),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.workflow_task_recovery_title'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 6),
+          for (final suggestion in suggestions) ...[
+            Text(
+              '• ${suggestion.reason}',
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            if (suggestion != suggestions.last) const SizedBox(height: 4),
+          ],
         ],
       ),
     );
