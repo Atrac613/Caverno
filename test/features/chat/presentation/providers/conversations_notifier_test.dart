@@ -567,6 +567,7 @@ void main() {
         lastValidationSummary: '1 smoke test failed on macOS.',
         validationStatus: ConversationExecutionValidationStatus.failed,
         lastValidationAt: DateTime(2026, 4, 18, 13, 30),
+        eventType: ConversationExecutionTaskEventType.blocked,
       );
 
       final currentConversation = container
@@ -585,6 +586,11 @@ void main() {
         ConversationExecutionValidationStatus.failed,
       );
       expect(progress.lastValidationAt, DateTime(2026, 4, 18, 13, 30));
+      expect(progress.recentEvents, hasLength(1));
+      expect(
+        progress.recentEvents.single.type,
+        ConversationExecutionTaskEventType.blocked,
+      );
     },
   );
 
@@ -715,6 +721,55 @@ void main() {
       expect(
         progress.lastValidationSummary,
         contains('1 smoke test failed on macOS.'),
+      );
+      expect(progress.recentEvents, hasLength(1));
+      expect(
+        progress.recentEvents.single.type,
+        ConversationExecutionTaskEventType.validated,
+      );
+    },
+  );
+
+  test(
+    'appendCurrentExecutionTaskEvent stores replanned timeline entries',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: 'task-1',
+        status: ConversationWorkflowTaskStatus.blocked,
+        summary: 'Waiting for a host fix.',
+        blockedReason: 'Missing credentials on the remote host.',
+      );
+
+      await notifier.appendCurrentExecutionTaskEvent(
+        taskId: 'task-1',
+        eventType: ConversationExecutionTaskEventType.replanned,
+        summary:
+            'Started a blocker-focused replan from the approved plan flow.',
+        createdAt: DateTime(2026, 4, 18, 15, 0),
+      );
+
+      final progress = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.executionProgress
+          .single;
+      expect(progress, isNotNull);
+      expect(progress!.recentEvents, hasLength(1));
+      expect(
+        progress.recentEvents.single.type,
+        ConversationExecutionTaskEventType.replanned,
+      );
+      expect(
+        progress.recentEvents.single.normalizedSummary,
+        'Started a blocker-focused replan from the approved plan flow.',
       );
     },
   );

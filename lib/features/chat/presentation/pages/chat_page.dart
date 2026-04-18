@@ -1724,6 +1724,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     task: activeTask,
                     status: ConversationWorkflowTaskStatus.completed,
                     summary: 'Marked complete from the approved plan document.',
+                    eventType: ConversationExecutionTaskEventType.completed,
                   ),
             icon: const Icon(Icons.task_alt_outlined, size: 18),
             label: Text('chat.plan_document_mark_current_complete'.tr()),
@@ -2659,6 +2660,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
               value: progress!.normalizedValidationSummary!,
             ),
           ],
+          if (progress != null && progress.recentEvents.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskTimeline(context, events: progress.recentEvents),
+          ],
           const SizedBox(height: 12),
           Wrap(
             spacing: 8,
@@ -2828,6 +2833,50 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ? theme.textTheme.bodySmall?.copyWith(fontFamily: 'monospace')
               : theme.textTheme.bodySmall,
         ),
+      ],
+    );
+  }
+
+  Widget _buildWorkflowTaskTimeline(
+    BuildContext context, {
+    required List<ConversationExecutionTaskEvent> events,
+  }) {
+    final theme = Theme.of(context);
+    final recentEvents = events.reversed.take(4).toList(growable: false);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'chat.workflow_task_recent_events'.tr(),
+          style: theme.textTheme.labelSmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const SizedBox(height: 4),
+        for (final event in recentEvents) ...[
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '• ',
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+              Expanded(
+                child: Text(
+                  _workflowTaskEventSummary(context, event),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          if (event != recentEvents.last) const SizedBox(height: 2),
+        ],
       ],
     );
   }
@@ -3060,6 +3109,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           task: task,
           status: ConversationWorkflowTaskStatus.completed,
           summary: 'Marked complete from the task menu.',
+          eventType: ConversationExecutionTaskEventType.completed,
         );
       case _WorkflowTaskMenuAction.markBlocked:
         await _setWorkflowTaskStatus(
@@ -3068,6 +3118,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           status: ConversationWorkflowTaskStatus.blocked,
           summary: 'Marked blocked from the task menu.',
           blockedReason: 'This task is blocked and needs follow-up.',
+          eventType: ConversationExecutionTaskEventType.blocked,
         );
       case _WorkflowTaskMenuAction.markUnblocked:
         await _markWorkflowTaskUnblocked(
@@ -3218,6 +3269,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     String? blockedReason,
     String? lastValidationCommand,
     String? lastValidationSummary,
+    ConversationExecutionTaskEventType? eventType,
   }) async {
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
@@ -3236,6 +3288,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
             : '',
         lastValidationCommand: lastValidationCommand,
         lastValidationSummary: lastValidationSummary,
+        eventType: eventType,
+        eventSummary: summary,
       );
       if (status == ConversationWorkflowTaskStatus.completed) {
         await conversationsNotifier.updateCurrentWorkflow(
@@ -3277,6 +3331,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       status: ConversationWorkflowTaskStatus.pending,
       summary: 'Cleared the blocker and moved the task back to pending.',
       blockedReason: '',
+      eventType: ConversationExecutionTaskEventType.unblocked,
     );
     if (!context.mounted) {
       return;
@@ -3327,6 +3382,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       status: ConversationWorkflowTaskStatus.blocked,
       summary: 'Updated the blocker details from the approved plan flow.',
       blockedReason: nextReason,
+      eventType: ConversationExecutionTaskEventType.blocked,
     );
     if (!context.mounted) {
       return;
@@ -3400,6 +3456,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
       await conversationsNotifier.enterPlanningSession();
     }
 
+    await conversationsNotifier.appendCurrentExecutionTaskEvent(
+      taskId: task.id,
+      eventType: ConversationExecutionTaskEventType.replanned,
+      summary: 'Started a blocker-focused replan from the approved plan flow.',
+    );
+
     await chatNotifier.generatePlanProposalWithContext(
       languageCode: languageCode,
       additionalPlanningContext: _buildBlockedTaskReplanContext(
@@ -3422,6 +3484,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
     required String blockedReason,
   }) {
+    final progress = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation
+        ?.executionProgressForTask(task.id);
     final buffer = StringBuffer()
       ..writeln('Focus the next draft on resolving the active blocker.')
       ..writeln('- blockedTask: ${task.title.trim()}')
@@ -3440,6 +3506,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final notes = task.notes.trim();
     if (notes.isNotEmpty) {
       buffer.writeln('- notes: $notes');
+    }
+    final recentEvents = progress?.recentEvents.reversed
+        .take(3)
+        .map((event) {
+          final detail =
+              event.normalizedSummary ??
+              event.normalizedValidationSummary ??
+              event.normalizedBlockedReason ??
+              event.status.name;
+          return '${event.type.name}: $detail';
+        })
+        .join(' || ');
+    if (recentEvents != null && recentEvents.isNotEmpty) {
+      buffer.writeln('- recentEvents: $recentEvents');
     }
     buffer.writeln(
       '- expectation: either remove the blocker from the plan or add the minimum follow-up work needed to unblock implementation.',
@@ -3470,6 +3550,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       lastRunAt: task.status == ConversationWorkflowTaskStatus.completed
           ? null
           : DateTime.now(),
+      eventType: task.status == ConversationWorkflowTaskStatus.completed
+          ? null
+          : ConversationExecutionTaskEventType.started,
     );
     if (!context.mounted) {
       return;
@@ -3770,6 +3853,38 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ConversationExecutionValidationStatus.failed =>
         'chat.workflow_task_validation_status_failed'.tr(),
     };
+  }
+
+  String _workflowTaskEventLabel(ConversationExecutionTaskEventType type) {
+    return switch (type) {
+      ConversationExecutionTaskEventType.started =>
+        'chat.workflow_task_event_started'.tr(),
+      ConversationExecutionTaskEventType.validated =>
+        'chat.workflow_task_event_validated'.tr(),
+      ConversationExecutionTaskEventType.blocked =>
+        'chat.workflow_task_event_blocked'.tr(),
+      ConversationExecutionTaskEventType.unblocked =>
+        'chat.workflow_task_event_unblocked'.tr(),
+      ConversationExecutionTaskEventType.completed =>
+        'chat.workflow_task_event_completed'.tr(),
+      ConversationExecutionTaskEventType.replanned =>
+        'chat.workflow_task_event_replanned'.tr(),
+    };
+  }
+
+  String _workflowTaskEventSummary(
+    BuildContext context,
+    ConversationExecutionTaskEvent event,
+  ) {
+    final timestamp = DateFormat(
+      'MM/dd HH:mm',
+    ).format(event.createdAt.toLocal());
+    final summary =
+        event.normalizedSummary ??
+        event.normalizedValidationSummary ??
+        event.normalizedBlockedReason ??
+        _workflowTaskStatusLabel(event.status);
+    return '$timestamp · ${_workflowTaskEventLabel(event.type)} · $summary';
   }
 
   Color _workflowValidationStatusColor(

@@ -299,7 +299,7 @@ as String,
 /// @nodoc
 mixin _$ConversationExecutionTaskProgress {
 
- String get taskId; ConversationWorkflowTaskStatus get status; ConversationExecutionValidationStatus get validationStatus; DateTime? get updatedAt; DateTime? get lastRunAt; DateTime? get lastValidationAt; String get summary; String get blockedReason; String get lastValidationCommand; String get lastValidationSummary;
+ String get taskId; ConversationWorkflowTaskStatus get status; ConversationExecutionValidationStatus get validationStatus; DateTime? get updatedAt; DateTime? get lastRunAt; DateTime? get lastValidationAt; String get summary; String get blockedReason; String get lastValidationCommand; String get lastValidationSummary;@JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) List<ConversationExecutionTaskEvent> get events;
 /// Create a copy of ConversationExecutionTaskProgress
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -312,16 +312,16 @@ $ConversationExecutionTaskProgressCopyWith<ConversationExecutionTaskProgress> ge
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary)&&const DeepCollectionEquality().equals(other.events, events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary);
+int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary,const DeepCollectionEquality().hash(events));
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary)';
+  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary, events: $events)';
 }
 
 
@@ -332,7 +332,7 @@ abstract mixin class $ConversationExecutionTaskProgressCopyWith<$Res>  {
   factory $ConversationExecutionTaskProgressCopyWith(ConversationExecutionTaskProgress value, $Res Function(ConversationExecutionTaskProgress) _then) = _$ConversationExecutionTaskProgressCopyWithImpl;
 @useResult
 $Res call({
- String taskId, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, DateTime? updatedAt, DateTime? lastRunAt, DateTime? lastValidationAt, String summary, String blockedReason, String lastValidationCommand, String lastValidationSummary
+ String taskId, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, DateTime? updatedAt, DateTime? lastRunAt, DateTime? lastValidationAt, String summary, String blockedReason, String lastValidationCommand, String lastValidationSummary,@JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) List<ConversationExecutionTaskEvent> events
 });
 
 
@@ -349,7 +349,7 @@ class _$ConversationExecutionTaskProgressCopyWithImpl<$Res>
 
 /// Create a copy of ConversationExecutionTaskProgress
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? status = null,Object? validationStatus = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? lastValidationAt = freezed,Object? summary = null,Object? blockedReason = null,Object? lastValidationCommand = null,Object? lastValidationSummary = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? status = null,Object? validationStatus = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? lastValidationAt = freezed,Object? summary = null,Object? blockedReason = null,Object? lastValidationCommand = null,Object? lastValidationSummary = null,Object? events = null,}) {
   return _then(_self.copyWith(
 taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -361,7 +361,8 @@ as DateTime?,summary: null == summary ? _self.summary : summary // ignore: cast_
 as String,blockedReason: null == blockedReason ? _self.blockedReason : blockedReason // ignore: cast_nullable_to_non_nullable
 as String,lastValidationCommand: null == lastValidationCommand ? _self.lastValidationCommand : lastValidationCommand // ignore: cast_nullable_to_non_nullable
 as String,lastValidationSummary: null == lastValidationSummary ? _self.lastValidationSummary : lastValidationSummary // ignore: cast_nullable_to_non_nullable
-as String,
+as String,events: null == events ? _self.events : events // ignore: cast_nullable_to_non_nullable
+as List<ConversationExecutionTaskEvent>,
   ));
 }
 
@@ -446,10 +447,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary, @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson)  List<ConversationExecutionTaskEvent> events)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _ConversationExecutionTaskProgress() when $default != null:
-return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary);case _:
+return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary,_that.events);case _:
   return orElse();
 
 }
@@ -467,10 +468,10 @@ return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary, @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson)  List<ConversationExecutionTaskEvent> events)  $default,) {final _that = this;
 switch (_that) {
 case _ConversationExecutionTaskProgress():
-return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary);case _:
+return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary,_that.events);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -487,10 +488,10 @@ return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String taskId,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  DateTime? updatedAt,  DateTime? lastRunAt,  DateTime? lastValidationAt,  String summary,  String blockedReason,  String lastValidationCommand,  String lastValidationSummary, @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson)  List<ConversationExecutionTaskEvent> events)?  $default,) {final _that = this;
 switch (_that) {
 case _ConversationExecutionTaskProgress() when $default != null:
-return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary);case _:
+return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt,_that.lastRunAt,_that.lastValidationAt,_that.summary,_that.blockedReason,_that.lastValidationCommand,_that.lastValidationSummary,_that.events);case _:
   return null;
 
 }
@@ -502,7 +503,7 @@ return $default(_that.taskId,_that.status,_that.validationStatus,_that.updatedAt
 @JsonSerializable()
 
 class _ConversationExecutionTaskProgress extends ConversationExecutionTaskProgress {
-  const _ConversationExecutionTaskProgress({required this.taskId, this.status = ConversationWorkflowTaskStatus.pending, this.validationStatus = ConversationExecutionValidationStatus.unknown, this.updatedAt, this.lastRunAt, this.lastValidationAt, this.summary = '', this.blockedReason = '', this.lastValidationCommand = '', this.lastValidationSummary = ''}): super._();
+  const _ConversationExecutionTaskProgress({required this.taskId, this.status = ConversationWorkflowTaskStatus.pending, this.validationStatus = ConversationExecutionValidationStatus.unknown, this.updatedAt, this.lastRunAt, this.lastValidationAt, this.summary = '', this.blockedReason = '', this.lastValidationCommand = '', this.lastValidationSummary = '', @JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) final  List<ConversationExecutionTaskEvent> events = const <ConversationExecutionTaskEvent>[]}): _events = events,super._();
   factory _ConversationExecutionTaskProgress.fromJson(Map<String, dynamic> json) => _$ConversationExecutionTaskProgressFromJson(json);
 
 @override final  String taskId;
@@ -515,6 +516,13 @@ class _ConversationExecutionTaskProgress extends ConversationExecutionTaskProgre
 @override@JsonKey() final  String blockedReason;
 @override@JsonKey() final  String lastValidationCommand;
 @override@JsonKey() final  String lastValidationSummary;
+ final  List<ConversationExecutionTaskEvent> _events;
+@override@JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) List<ConversationExecutionTaskEvent> get events {
+  if (_events is EqualUnmodifiableListView) return _events;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_events);
+}
+
 
 /// Create a copy of ConversationExecutionTaskProgress
 /// with the given fields replaced by the non-null parameter values.
@@ -529,16 +537,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.lastValidationAt, lastValidationAt) || other.lastValidationAt == lastValidationAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.lastValidationCommand, lastValidationCommand) || other.lastValidationCommand == lastValidationCommand)&&(identical(other.lastValidationSummary, lastValidationSummary) || other.lastValidationSummary == lastValidationSummary)&&const DeepCollectionEquality().equals(other._events, _events));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary);
+int get hashCode => Object.hash(runtimeType,taskId,status,validationStatus,updatedAt,lastRunAt,lastValidationAt,summary,blockedReason,lastValidationCommand,lastValidationSummary,const DeepCollectionEquality().hash(_events));
 
 @override
 String toString() {
-  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary)';
+  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, validationStatus: $validationStatus, updatedAt: $updatedAt, lastRunAt: $lastRunAt, lastValidationAt: $lastValidationAt, summary: $summary, blockedReason: $blockedReason, lastValidationCommand: $lastValidationCommand, lastValidationSummary: $lastValidationSummary, events: $events)';
 }
 
 
@@ -549,7 +557,7 @@ abstract mixin class _$ConversationExecutionTaskProgressCopyWith<$Res> implement
   factory _$ConversationExecutionTaskProgressCopyWith(_ConversationExecutionTaskProgress value, $Res Function(_ConversationExecutionTaskProgress) _then) = __$ConversationExecutionTaskProgressCopyWithImpl;
 @override @useResult
 $Res call({
- String taskId, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, DateTime? updatedAt, DateTime? lastRunAt, DateTime? lastValidationAt, String summary, String blockedReason, String lastValidationCommand, String lastValidationSummary
+ String taskId, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, DateTime? updatedAt, DateTime? lastRunAt, DateTime? lastValidationAt, String summary, String blockedReason, String lastValidationCommand, String lastValidationSummary,@JsonKey(fromJson: _executionEventsFromJson, toJson: _executionEventsToJson) List<ConversationExecutionTaskEvent> events
 });
 
 
@@ -566,7 +574,7 @@ class __$ConversationExecutionTaskProgressCopyWithImpl<$Res>
 
 /// Create a copy of ConversationExecutionTaskProgress
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? taskId = null,Object? status = null,Object? validationStatus = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? lastValidationAt = freezed,Object? summary = null,Object? blockedReason = null,Object? lastValidationCommand = null,Object? lastValidationSummary = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? taskId = null,Object? status = null,Object? validationStatus = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? lastValidationAt = freezed,Object? summary = null,Object? blockedReason = null,Object? lastValidationCommand = null,Object? lastValidationSummary = null,Object? events = null,}) {
   return _then(_ConversationExecutionTaskProgress(
 taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
 as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
@@ -578,6 +586,291 @@ as DateTime?,summary: null == summary ? _self.summary : summary // ignore: cast_
 as String,blockedReason: null == blockedReason ? _self.blockedReason : blockedReason // ignore: cast_nullable_to_non_nullable
 as String,lastValidationCommand: null == lastValidationCommand ? _self.lastValidationCommand : lastValidationCommand // ignore: cast_nullable_to_non_nullable
 as String,lastValidationSummary: null == lastValidationSummary ? _self.lastValidationSummary : lastValidationSummary // ignore: cast_nullable_to_non_nullable
+as String,events: null == events ? _self._events : events // ignore: cast_nullable_to_non_nullable
+as List<ConversationExecutionTaskEvent>,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$ConversationExecutionTaskEvent {
+
+ ConversationExecutionTaskEventType get type; DateTime get createdAt; String get summary; ConversationWorkflowTaskStatus get status; ConversationExecutionValidationStatus get validationStatus; String get blockedReason; String get validationCommand; String get validationSummary;
+/// Create a copy of ConversationExecutionTaskEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationExecutionTaskEventCopyWith<ConversationExecutionTaskEvent> get copyWith => _$ConversationExecutionTaskEventCopyWithImpl<ConversationExecutionTaskEvent>(this as ConversationExecutionTaskEvent, _$identity);
+
+  /// Serializes this ConversationExecutionTaskEvent to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.validationSummary, validationSummary) || other.validationSummary == validationSummary));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,createdAt,summary,status,validationStatus,blockedReason,validationCommand,validationSummary);
+
+@override
+String toString() {
+  return 'ConversationExecutionTaskEvent(type: $type, createdAt: $createdAt, summary: $summary, status: $status, validationStatus: $validationStatus, blockedReason: $blockedReason, validationCommand: $validationCommand, validationSummary: $validationSummary)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationExecutionTaskEventCopyWith<$Res>  {
+  factory $ConversationExecutionTaskEventCopyWith(ConversationExecutionTaskEvent value, $Res Function(ConversationExecutionTaskEvent) _then) = _$ConversationExecutionTaskEventCopyWithImpl;
+@useResult
+$Res call({
+ ConversationExecutionTaskEventType type, DateTime createdAt, String summary, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, String blockedReason, String validationCommand, String validationSummary
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationExecutionTaskEventCopyWithImpl<$Res>
+    implements $ConversationExecutionTaskEventCopyWith<$Res> {
+  _$ConversationExecutionTaskEventCopyWithImpl(this._self, this._then);
+
+  final ConversationExecutionTaskEvent _self;
+  final $Res Function(ConversationExecutionTaskEvent) _then;
+
+/// Create a copy of ConversationExecutionTaskEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? type = null,Object? createdAt = null,Object? summary = null,Object? status = null,Object? validationStatus = null,Object? blockedReason = null,Object? validationCommand = null,Object? validationSummary = null,}) {
+  return _then(_self.copyWith(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as ConversationExecutionTaskEventType,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationWorkflowTaskStatus,validationStatus: null == validationStatus ? _self.validationStatus : validationStatus // ignore: cast_nullable_to_non_nullable
+as ConversationExecutionValidationStatus,blockedReason: null == blockedReason ? _self.blockedReason : blockedReason // ignore: cast_nullable_to_non_nullable
+as String,validationCommand: null == validationCommand ? _self.validationCommand : validationCommand // ignore: cast_nullable_to_non_nullable
+as String,validationSummary: null == validationSummary ? _self.validationSummary : validationSummary // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationExecutionTaskEvent].
+extension ConversationExecutionTaskEventPatterns on ConversationExecutionTaskEvent {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationExecutionTaskEvent value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationExecutionTaskEvent value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationExecutionTaskEvent value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( ConversationExecutionTaskEventType type,  DateTime createdAt,  String summary,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  String blockedReason,  String validationCommand,  String validationSummary)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent() when $default != null:
+return $default(_that.type,_that.createdAt,_that.summary,_that.status,_that.validationStatus,_that.blockedReason,_that.validationCommand,_that.validationSummary);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( ConversationExecutionTaskEventType type,  DateTime createdAt,  String summary,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  String blockedReason,  String validationCommand,  String validationSummary)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent():
+return $default(_that.type,_that.createdAt,_that.summary,_that.status,_that.validationStatus,_that.blockedReason,_that.validationCommand,_that.validationSummary);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( ConversationExecutionTaskEventType type,  DateTime createdAt,  String summary,  ConversationWorkflowTaskStatus status,  ConversationExecutionValidationStatus validationStatus,  String blockedReason,  String validationCommand,  String validationSummary)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskEvent() when $default != null:
+return $default(_that.type,_that.createdAt,_that.summary,_that.status,_that.validationStatus,_that.blockedReason,_that.validationCommand,_that.validationSummary);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationExecutionTaskEvent extends ConversationExecutionTaskEvent {
+  const _ConversationExecutionTaskEvent({required this.type, required this.createdAt, this.summary = '', this.status = ConversationWorkflowTaskStatus.pending, this.validationStatus = ConversationExecutionValidationStatus.unknown, this.blockedReason = '', this.validationCommand = '', this.validationSummary = ''}): super._();
+  factory _ConversationExecutionTaskEvent.fromJson(Map<String, dynamic> json) => _$ConversationExecutionTaskEventFromJson(json);
+
+@override final  ConversationExecutionTaskEventType type;
+@override final  DateTime createdAt;
+@override@JsonKey() final  String summary;
+@override@JsonKey() final  ConversationWorkflowTaskStatus status;
+@override@JsonKey() final  ConversationExecutionValidationStatus validationStatus;
+@override@JsonKey() final  String blockedReason;
+@override@JsonKey() final  String validationCommand;
+@override@JsonKey() final  String validationSummary;
+
+/// Create a copy of ConversationExecutionTaskEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationExecutionTaskEventCopyWith<_ConversationExecutionTaskEvent> get copyWith => __$ConversationExecutionTaskEventCopyWithImpl<_ConversationExecutionTaskEvent>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationExecutionTaskEventToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskEvent&&(identical(other.type, type) || other.type == type)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.summary, summary) || other.summary == summary)&&(identical(other.status, status) || other.status == status)&&(identical(other.validationStatus, validationStatus) || other.validationStatus == validationStatus)&&(identical(other.blockedReason, blockedReason) || other.blockedReason == blockedReason)&&(identical(other.validationCommand, validationCommand) || other.validationCommand == validationCommand)&&(identical(other.validationSummary, validationSummary) || other.validationSummary == validationSummary));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,type,createdAt,summary,status,validationStatus,blockedReason,validationCommand,validationSummary);
+
+@override
+String toString() {
+  return 'ConversationExecutionTaskEvent(type: $type, createdAt: $createdAt, summary: $summary, status: $status, validationStatus: $validationStatus, blockedReason: $blockedReason, validationCommand: $validationCommand, validationSummary: $validationSummary)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationExecutionTaskEventCopyWith<$Res> implements $ConversationExecutionTaskEventCopyWith<$Res> {
+  factory _$ConversationExecutionTaskEventCopyWith(_ConversationExecutionTaskEvent value, $Res Function(_ConversationExecutionTaskEvent) _then) = __$ConversationExecutionTaskEventCopyWithImpl;
+@override @useResult
+$Res call({
+ ConversationExecutionTaskEventType type, DateTime createdAt, String summary, ConversationWorkflowTaskStatus status, ConversationExecutionValidationStatus validationStatus, String blockedReason, String validationCommand, String validationSummary
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationExecutionTaskEventCopyWithImpl<$Res>
+    implements _$ConversationExecutionTaskEventCopyWith<$Res> {
+  __$ConversationExecutionTaskEventCopyWithImpl(this._self, this._then);
+
+  final _ConversationExecutionTaskEvent _self;
+  final $Res Function(_ConversationExecutionTaskEvent) _then;
+
+/// Create a copy of ConversationExecutionTaskEvent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? type = null,Object? createdAt = null,Object? summary = null,Object? status = null,Object? validationStatus = null,Object? blockedReason = null,Object? validationCommand = null,Object? validationSummary = null,}) {
+  return _then(_ConversationExecutionTaskEvent(
+type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
+as ConversationExecutionTaskEventType,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationWorkflowTaskStatus,validationStatus: null == validationStatus ? _self.validationStatus : validationStatus // ignore: cast_nullable_to_non_nullable
+as ConversationExecutionValidationStatus,blockedReason: null == blockedReason ? _self.blockedReason : blockedReason // ignore: cast_nullable_to_non_nullable
+as String,validationCommand: null == validationCommand ? _self.validationCommand : validationCommand // ignore: cast_nullable_to_non_nullable
+as String,validationSummary: null == validationSummary ? _self.validationSummary : validationSummary // ignore: cast_nullable_to_non_nullable
 as String,
   ));
 }

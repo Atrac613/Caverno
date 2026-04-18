@@ -2164,8 +2164,19 @@ class ChatNotifier extends Notifier<ChatState> {
         final summary = progress?.normalizedSummary;
         final blockedReason = progress?.normalizedBlockedReason;
         final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
+        final recentEvents = progress?.recentEvents.reversed
+            .take(3)
+            .map((event) {
+              final eventSummary =
+                  event.normalizedSummary ??
+                  event.normalizedValidationSummary ??
+                  event.normalizedBlockedReason ??
+                  event.status.name;
+              return '${event.type.name}: $eventSummary';
+            })
+            .join(' || ');
         buffer.writeln(
-          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | blockedReason: ${blockedReason ?? ''} | updatedAt: $updatedAt',
+          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | blockedReason: ${blockedReason ?? ''} | recentEvents: ${recentEvents ?? ''} | updatedAt: $updatedAt',
         );
       }
     }
