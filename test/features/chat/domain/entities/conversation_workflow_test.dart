@@ -31,6 +31,14 @@ void main() {
           ),
         ],
       ),
+      openQuestionProgress: const [
+        ConversationOpenQuestionProgress(
+          questionId: 'open-question-task-nodes',
+          question: 'Task nodes are now in scope',
+          status: ConversationOpenQuestionStatus.needsUserInput,
+          note: 'The execution handoff still depends on this decision.',
+        ),
+      ],
     );
 
     final restored = Conversation.fromJson(conversation.toJson());
@@ -56,5 +64,13 @@ void main() {
       ),
     );
     expect(restored.hasWorkflowContext, isTrue);
+    expect(restored.effectiveOpenQuestionProgress, [
+      const ConversationOpenQuestionProgress(
+        questionId: 'open-question-task-nodes',
+        question: 'Task nodes are now in scope',
+        status: ConversationOpenQuestionStatus.needsUserInput,
+        note: 'The execution handoff still depends on this decision.',
+      ),
+    ]);
   });
 }

@@ -1576,6 +1576,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ),
           if (!isPlanMode &&
               currentConversation.shouldPreferPlanDocument &&
+              currentConversation.effectiveWorkflowSpec.openQuestions
+                  .where((item) => item.trim().isNotEmpty)
+                  .isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildOpenQuestionView(
+              context,
+              currentConversation: currentConversation,
+            ),
+          ],
+          if (!isPlanMode &&
+              currentConversation.shouldPreferPlanDocument &&
               currentConversation.projectedExecutionTasks.isNotEmpty) ...[
             const SizedBox(height: 10),
             _buildHydratedPlanView(
@@ -1971,6 +1982,162 @@ class _ChatPageState extends ConsumerState<ChatPage>
             if (task != tasks.last) const SizedBox(height: 8),
           ],
         ],
+      ),
+    );
+  }
+
+  Widget _buildOpenQuestionView(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) {
+    final theme = Theme.of(context);
+    final openQuestions = currentConversation
+        .effectiveWorkflowSpec
+        .openQuestions
+        .where((item) => item.trim().isNotEmpty)
+        .toList(growable: false);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.tertiaryContainer.withValues(alpha: 0.22),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.tertiary.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.plan_document_open_questions_title'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            'chat.plan_document_open_questions_subtitle'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final question in openQuestions) ...[
+            _buildOpenQuestionRow(
+              context,
+              currentConversation: currentConversation,
+              question: question,
+            ),
+            if (question != openQuestions.last) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildOpenQuestionRow(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required String question,
+  }) {
+    final theme = Theme.of(context);
+    final progress = currentConversation.openQuestionProgressForQuestion(
+      question,
+    );
+    final status =
+        progress?.status ?? ConversationOpenQuestionStatus.unresolved;
+    final note = progress?.normalizedNote;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: theme.colorScheme.surface.withValues(alpha: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  question.trim(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Chip(
+                label: Text(_openQuestionStatusLabel(context, status)),
+                visualDensity: VisualDensity.compact,
+                side: BorderSide.none,
+                backgroundColor: _openQuestionStatusColor(
+                  context,
+                  status,
+                ).withValues(alpha: 0.16),
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  color: _openQuestionStatusColor(context, status),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+              PopupMenuButton<ConversationOpenQuestionStatus>(
+                onSelected: (nextStatus) => _setOpenQuestionStatus(
+                  context,
+                  question: question,
+                  status: nextStatus,
+                ),
+                itemBuilder: (popupContext) => ConversationOpenQuestionStatus
+                    .values
+                    .map(
+                      (candidate) => PopupMenuItem(
+                        value: candidate,
+                        child: Text(
+                          _openQuestionStatusMenuLabel(popupContext, candidate),
+                        ),
+                      ),
+                    )
+                    .toList(growable: false),
+              ),
+            ],
+          ),
+          if (note != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              note,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Future<void> _setOpenQuestionStatus(
+    BuildContext context, {
+    required String question,
+    required ConversationOpenQuestionStatus status,
+  }) async {
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentOpenQuestionProgress(question: question, status: status);
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          'chat.plan_document_open_question_status_changed'.tr(
+            namedArgs: {'status': _openQuestionStatusLabel(context, status)},
+          ),
+        ),
       ),
     );
   }
@@ -4166,6 +4333,38 @@ class _ChatPageState extends ConsumerState<ChatPage>
     };
   }
 
+  String _openQuestionStatusLabel(
+    BuildContext context,
+    ConversationOpenQuestionStatus status,
+  ) {
+    return switch (status) {
+      ConversationOpenQuestionStatus.unresolved =>
+        'chat.open_question_status_unresolved'.tr(),
+      ConversationOpenQuestionStatus.needsUserInput =>
+        'chat.open_question_status_needs_user_input'.tr(),
+      ConversationOpenQuestionStatus.resolved =>
+        'chat.open_question_status_resolved'.tr(),
+      ConversationOpenQuestionStatus.deferred =>
+        'chat.open_question_status_deferred'.tr(),
+    };
+  }
+
+  String _openQuestionStatusMenuLabel(
+    BuildContext context,
+    ConversationOpenQuestionStatus status,
+  ) {
+    return switch (status) {
+      ConversationOpenQuestionStatus.unresolved =>
+        'chat.open_question_menu_mark_unresolved'.tr(),
+      ConversationOpenQuestionStatus.needsUserInput =>
+        'chat.open_question_menu_mark_needs_user_input'.tr(),
+      ConversationOpenQuestionStatus.resolved =>
+        'chat.open_question_menu_mark_resolved'.tr(),
+      ConversationOpenQuestionStatus.deferred =>
+        'chat.open_question_menu_mark_deferred'.tr(),
+    };
+  }
+
   String _workflowValidationStatusLabel(
     ConversationExecutionValidationStatus status,
   ) {
@@ -4257,6 +4456,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ConversationWorkflowTaskStatus.inProgress => scheme.primary,
       ConversationWorkflowTaskStatus.completed => Colors.green.shade700,
       ConversationWorkflowTaskStatus.blocked => scheme.error,
+    };
+  }
+
+  Color _openQuestionStatusColor(
+    BuildContext context,
+    ConversationOpenQuestionStatus status,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (status) {
+      ConversationOpenQuestionStatus.unresolved => scheme.secondary,
+      ConversationOpenQuestionStatus.needsUserInput => scheme.tertiary,
+      ConversationOpenQuestionStatus.resolved => Colors.green.shade700,
+      ConversationOpenQuestionStatus.deferred => scheme.onSurfaceVariant,
     };
   }
 

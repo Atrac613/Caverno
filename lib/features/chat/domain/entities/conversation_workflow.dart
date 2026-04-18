@@ -11,6 +11,13 @@ enum ConversationWorkflowTaskStatus { pending, inProgress, completed, blocked }
 
 enum ConversationExecutionValidationStatus { unknown, passed, failed }
 
+enum ConversationOpenQuestionStatus {
+  unresolved,
+  needsUserInput,
+  resolved,
+  deferred,
+}
+
 enum ConversationExecutionTaskEventType {
   started,
   validated,
@@ -57,6 +64,30 @@ List<Map<String, dynamic>> _executionEventsToJson(
   List<ConversationExecutionTaskEvent> events,
 ) {
   return events.map((event) => event.toJson()).toList(growable: false);
+}
+
+@freezed
+abstract class ConversationOpenQuestionProgress
+    with _$ConversationOpenQuestionProgress {
+  const ConversationOpenQuestionProgress._();
+
+  const factory ConversationOpenQuestionProgress({
+    required String questionId,
+    required String question,
+    @Default(ConversationOpenQuestionStatus.unresolved)
+    ConversationOpenQuestionStatus status,
+    @Default('') String note,
+    DateTime? updatedAt,
+  }) = _ConversationOpenQuestionProgress;
+
+  factory ConversationOpenQuestionProgress.fromJson(
+    Map<String, dynamic> json,
+  ) => _$ConversationOpenQuestionProgressFromJson(json);
+
+  String? get normalizedNote {
+    final trimmed = note.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
 }
 
 @freezed
