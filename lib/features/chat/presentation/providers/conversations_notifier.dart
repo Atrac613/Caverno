@@ -7,6 +7,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 
@@ -475,6 +476,58 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: now,
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> updateCurrentExecutionTaskProgressFromAssistantTurn({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+    required bool isValidationRun,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final inference = ConversationExecutionProgressInference.infer(
+      assistantResponse: assistantResponse,
+      task: task,
+      isValidationRun: isValidationRun,
+    );
+
+    await updateCurrentExecutionTaskProgress(
+      taskId: task.id,
+      status: inference.status,
+      summary: inference.summary,
+      blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
+          ? inference.blockedReason
+          : '',
+      validationStatus: isValidationRun ? inference.validationStatus : null,
+      lastValidationAt: isValidationRun ? DateTime.now() : null,
+      lastValidationCommand: isValidationRun ? task.validationCommand : null,
+      lastValidationSummary: isValidationRun
+          ? inference.validationSummary ?? inference.summary
+          : null,
+    );
+
+    if (!conversation.shouldPreferPlanDocument) {
+      return;
+    }
+
+    if (inference.status == ConversationWorkflowTaskStatus.completed) {
+      await updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.review,
+        preserveWorkflowProjection: true,
+      );
+      return;
+    }
+
+    if (inference.status == ConversationWorkflowTaskStatus.inProgress ||
+        inference.status == ConversationWorkflowTaskStatus.blocked) {
+      await updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        preserveWorkflowProjection: true,
+      );
+    }
   }
 
   Future<void> retainExecutionTaskProgress(Set<String> taskIds) async {
