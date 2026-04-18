@@ -388,13 +388,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
         currentConversation.hasPlanArtifact &&
         !(chatState.isGeneratingWorkflowProposal ||
             chatState.isGeneratingTaskProposal);
-    final shouldShowPlanProgressMessage =
+    final shouldShowPlanStatusMessage =
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null &&
         isPlanMode &&
         (chatState.isGeneratingWorkflowProposal ||
-            chatState.isGeneratingTaskProposal);
+            chatState.isGeneratingTaskProposal ||
+            ((chatState.workflowProposalError != null ||
+                    chatState.taskProposalError != null) &&
+                !currentConversation.hasPlanArtifact &&
+                chatState.workflowProposalDraft == null &&
+                chatState.taskProposalDraft == null));
     _maybePresentPlanReviewSheet(
       context,
       currentConversation: currentConversation,
@@ -557,11 +562,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     padding: const EdgeInsets.symmetric(vertical: 8),
                     itemCount:
                         chatState.messages.length +
-                        (shouldShowPlanProgressMessage ? 1 : 0),
+                        (shouldShowPlanStatusMessage ? 1 : 0),
                     itemBuilder: (context, index) {
                       if (index >= chatState.messages.length) {
                         return MessageBubble(
-                          message: _buildPlanProgressMessage(context),
+                          message: _buildPlanStatusMessage(
+                            context,
+                            chatState: chatState,
+                          ),
                           onReselectProject: isCodingWorkspace
                               ? () => _pickAndActivateProject(context)
                               : null,
@@ -714,13 +722,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
-  Message _buildPlanProgressMessage(BuildContext context) {
+  Message _buildPlanStatusMessage(
+    BuildContext context, {
+    required ChatState chatState,
+  }) {
+    final hasError =
+        chatState.workflowProposalError != null ||
+        chatState.taskProposalError != null;
     return Message(
       id: 'plan_progress_message',
-      content: 'chat.plan_proposal_generating'.tr(),
+      content: hasError
+          ? 'chat.workflow_generate_error'.tr()
+          : 'chat.plan_proposal_generating'.tr(),
       role: MessageRole.assistant,
       timestamp: DateTime.now(),
-      isStreaming: true,
+      isStreaming: !hasError,
     );
   }
 
