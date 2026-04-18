@@ -16,7 +16,7 @@ Future<Uint8List> captureIntegrationScreenshot({
   required String name,
   Directory? outputDirectory,
 }) async {
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   try {
     await binding.convertFlutterSurfaceToImage();
@@ -89,4 +89,17 @@ Future<Uint8List> _captureWithRepaintBoundary({
   );
 
   return bytes;
+}
+
+Future<void> _pumpUntilIdle(
+  WidgetTester tester, {
+  Duration step = const Duration(milliseconds: 100),
+  int maxPumps = 50,
+}) async {
+  for (var index = 0; index < maxPumps; index++) {
+    await tester.pump(step);
+    if (!tester.binding.hasScheduledFrame) {
+      return;
+    }
+  }
 }

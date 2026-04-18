@@ -895,10 +895,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required bool isPlanMode,
   }) {
     final theme = Theme.of(context);
-    final tasks = currentConversation.effectiveWorkflowSpec.tasks;
+    final tasks = currentConversation.projectedExecutionTasks;
     final isBusy = chatState.isLoading;
     final canGenerateTasks =
-        currentConversation.effectiveWorkflowSpec.hasContent;
+        currentConversation.effectiveWorkflowSpec.hasContent &&
+        !currentConversation.shouldPreferPlanDocument;
+    final canEditTasks = !currentConversation.shouldPreferPlanDocument;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -930,7 +932,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 height: 18,
                 child: CircularProgressIndicator(strokeWidth: 2),
               )
-            else if (!isPlanMode)
+            else if (!isPlanMode &&
+                !currentConversation.shouldPreferPlanDocument)
               IconButton(
                 onPressed: !canGenerateTasks || isBusy
                     ? null
@@ -942,17 +945,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 icon: const Icon(Icons.auto_awesome_outlined),
                 tooltip: 'chat.workflow_tasks_generate'.tr(),
               ),
-            IconButton(
-              onPressed: () => _showWorkflowTaskEditor(
-                context,
-                currentConversation: currentConversation,
+            if (canEditTasks)
+              IconButton(
+                onPressed: () => _showWorkflowTaskEditor(
+                  context,
+                  currentConversation: currentConversation,
+                ),
+                icon: const Icon(Icons.add_task_outlined),
+                tooltip: 'chat.workflow_task_add'.tr(),
               ),
-              icon: const Icon(Icons.add_task_outlined),
-              tooltip: 'chat.workflow_task_add'.tr(),
-            ),
           ],
         ),
         const SizedBox(height: 8),
+        if (!isPlanMode && currentConversation.shouldPreferPlanDocument) ...[
+          _buildWorkflowProjectionBanner(
+            context,
+            currentConversation: currentConversation,
+            isBusy: isBusy,
+          ),
+          const SizedBox(height: 8),
+        ],
         if (!isPlanMode && chatState.taskProposalDraft != null) ...[
           _buildWorkflowTaskProposalCard(
             context,
@@ -979,7 +991,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ),
             ),
             child: Text(
-              'chat.workflow_tasks_empty'.tr(),
+              currentConversation.shouldPreferPlanDocument &&
+                      currentConversation.needsWorkflowProjectionRefresh
+                  ? 'chat.workflow_tasks_refresh_required'.tr()
+                  : 'chat.workflow_tasks_empty'.tr(),
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.onSurfaceVariant,
               ),
@@ -1005,13 +1020,74 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
+  Widget _buildWorkflowProjectionBanner(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required bool isBusy,
+  }) {
+    final theme = Theme.of(context);
+    final labelKey = _workflowProjectionStatusLabelKey(currentConversation);
+    final color = _workflowProjectionStatusColor(context, currentConversation);
+    final messageKey = currentConversation.isWorkflowProjectionFresh
+        ? 'chat.workflow_tasks_projection_fresh'
+        : currentConversation.isWorkflowProjectionStale
+        ? 'chat.workflow_tasks_projection_stale'
+        : 'chat.workflow_tasks_projection_unavailable';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(12),
+        color: color.withValues(alpha: 0.08),
+        border: Border.all(color: color.withValues(alpha: 0.25)),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(Icons.assignment_turned_in_outlined, size: 18, color: color),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  labelKey.tr(),
+                  style: theme.textTheme.labelMedium?.copyWith(
+                    color: color,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  messageKey.tr(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onSurfaceVariant,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _refreshExecutionTasksFromPlan(context),
+            icon: const Icon(Icons.sync_outlined, size: 18),
+            label: Text('chat.plan_document_refresh_tasks'.tr()),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildCompactWorkflowSummary(
     BuildContext context, {
     required Conversation currentConversation,
   }) {
     final theme = Theme.of(context);
     final spec = currentConversation.effectiveWorkflowSpec;
-    final tasks = spec.tasks;
+    final tasks = currentConversation.projectedExecutionTasks;
     final completedCount = tasks
         .where(
           (task) => task.status == ConversationWorkflowTaskStatus.completed,
@@ -1446,6 +1522,27 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 label: Text(statusKey.tr()),
                 visualDensity: VisualDensity.compact,
               ),
+              if (!isPlanMode && planArtifact.hasExecutionDocument) ...[
+                const SizedBox(width: 6),
+                Chip(
+                  label: Text(
+                    _workflowProjectionStatusLabelKey(currentConversation).tr(),
+                  ),
+                  visualDensity: VisualDensity.compact,
+                  side: BorderSide.none,
+                  backgroundColor: _workflowProjectionStatusColor(
+                    context,
+                    currentConversation,
+                  ).withValues(alpha: 0.14),
+                  labelStyle: theme.textTheme.labelSmall?.copyWith(
+                    color: _workflowProjectionStatusColor(
+                      context,
+                      currentConversation,
+                    ),
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ],
             ],
           ),
           const SizedBox(height: 6),
@@ -1494,6 +1591,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) {
     final planArtifact = currentConversation.effectivePlanArtifact;
     final isBusy = chatState.isLoading;
+    final canUseProjection =
+        !currentConversation.shouldPreferPlanDocument ||
+        currentConversation.isWorkflowProjectionFresh;
+    final nextTask = _nextWorkflowTask(currentConversation);
+    final activeTask = _activeWorkflowTask(currentConversation);
+    final validationTask = _validationWorkflowTask(currentConversation);
 
     return Wrap(
       spacing: 8,
@@ -1550,6 +1653,43 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 : () => _refreshExecutionTasksFromPlan(context),
             icon: const Icon(Icons.sync_outlined, size: 18),
             label: Text('chat.plan_document_refresh_tasks'.tr()),
+          ),
+        if (!isPlanMode && nextTask != null)
+          FilledButton.tonalIcon(
+            onPressed: isBusy || !canUseProjection
+                ? null
+                : () => _runWorkflowTask(
+                    context,
+                    currentConversation: currentConversation,
+                    task: nextTask,
+                  ),
+            icon: const Icon(Icons.play_circle_outline, size: 18),
+            label: Text('chat.plan_document_start_next_task'.tr()),
+          ),
+        if (!isPlanMode && activeTask != null)
+          OutlinedButton.icon(
+            onPressed: isBusy || !canUseProjection
+                ? null
+                : () => _setWorkflowTaskStatus(
+                    currentConversation: currentConversation,
+                    task: activeTask,
+                    status: ConversationWorkflowTaskStatus.completed,
+                    summary: 'Marked complete from the approved plan document.',
+                  ),
+            icon: const Icon(Icons.task_alt_outlined, size: 18),
+            label: Text('chat.plan_document_mark_current_complete'.tr()),
+          ),
+        if (!isPlanMode && validationTask != null)
+          OutlinedButton.icon(
+            onPressed: isBusy || !canUseProjection
+                ? null
+                : () => _runWorkflowTaskValidation(
+                    context,
+                    currentConversation: currentConversation,
+                    task: validationTask,
+                  ),
+            icon: const Icon(Icons.fact_check_outlined, size: 18),
+            label: Text('chat.plan_document_run_validation'.tr()),
           ),
         if (isPlanMode)
           OutlinedButton.icon(
@@ -2073,6 +2213,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required bool isBusy,
   }) {
     final theme = Theme.of(context);
+    final progress = currentConversation.executionProgressForTask(task.id);
+    final canEditTask = !currentConversation.shouldPreferPlanDocument;
+    final canRunTask =
+        !isBusy &&
+        (!currentConversation.shouldPreferPlanDocument ||
+            currentConversation.isWorkflowProjectionFresh);
     final normalizedFiles = task.targetFiles
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -2128,6 +2274,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
               ),
               PopupMenuButton<_WorkflowTaskMenuAction>(
+                enabled: canEditTask || canRunTask,
                 onSelected: (action) => _handleWorkflowTaskMenuAction(
                   context,
                   currentConversation: currentConversation,
@@ -2155,14 +2302,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       value: _WorkflowTaskMenuAction.markBlocked,
                       child: Text('chat.workflow_task_mark_blocked'.tr()),
                     ),
-                  PopupMenuItem(
-                    value: _WorkflowTaskMenuAction.edit,
-                    child: Text('chat.workflow_task_edit'.tr()),
-                  ),
-                  PopupMenuItem(
-                    value: _WorkflowTaskMenuAction.delete,
-                    child: Text('chat.workflow_task_delete'.tr()),
-                  ),
+                  if (canEditTask)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.edit,
+                      child: Text('chat.workflow_task_edit'.tr()),
+                    ),
+                  if (canEditTask)
+                    PopupMenuItem(
+                      value: _WorkflowTaskMenuAction.delete,
+                      child: Text('chat.workflow_task_delete'.tr()),
+                    ),
                 ],
               ),
             ],
@@ -2192,11 +2341,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
               value: task.notes.trim(),
             ),
           ],
+          if (progress?.normalizedSummary != null) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_progress_summary'.tr(),
+              value: progress!.normalizedSummary!,
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
               FilledButton.tonalIcon(
-                onPressed: isBusy
+                onPressed: !canRunTask
                     ? null
                     : () => _runWorkflowTask(
                         context,
@@ -2215,16 +2372,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       : 'chat.workflow_task_use'.tr(),
                 ),
               ),
-              const SizedBox(width: 8),
-              OutlinedButton.icon(
-                onPressed: () => _showWorkflowTaskEditor(
-                  context,
-                  currentConversation: currentConversation,
-                  task: task,
+              if (canEditTask) ...[
+                const SizedBox(width: 8),
+                OutlinedButton.icon(
+                  onPressed: () => _showWorkflowTaskEditor(
+                    context,
+                    currentConversation: currentConversation,
+                    task: task,
+                  ),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text('chat.workflow_task_edit'.tr()),
                 ),
-                icon: const Icon(Icons.edit_outlined, size: 18),
-                label: Text('chat.workflow_task_edit'.tr()),
-              ),
+              ],
             ],
           ),
         ],
@@ -2517,36 +2676,46 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) async {
     switch (action) {
       case _WorkflowTaskMenuAction.markPending:
-        await _updateWorkflowTaskStatus(
+        await _setWorkflowTaskStatus(
           currentConversation: currentConversation,
-          taskId: task.id,
+          task: task,
           status: ConversationWorkflowTaskStatus.pending,
+          summary: 'Moved back to pending from the task menu.',
         );
       case _WorkflowTaskMenuAction.markInProgress:
-        await _updateWorkflowTaskStatus(
+        await _setWorkflowTaskStatus(
           currentConversation: currentConversation,
-          taskId: task.id,
+          task: task,
           status: ConversationWorkflowTaskStatus.inProgress,
+          summary: 'Marked in progress from the task menu.',
         );
       case _WorkflowTaskMenuAction.markCompleted:
-        await _updateWorkflowTaskStatus(
+        await _setWorkflowTaskStatus(
           currentConversation: currentConversation,
-          taskId: task.id,
+          task: task,
           status: ConversationWorkflowTaskStatus.completed,
+          summary: 'Marked complete from the task menu.',
         );
       case _WorkflowTaskMenuAction.markBlocked:
-        await _updateWorkflowTaskStatus(
+        await _setWorkflowTaskStatus(
           currentConversation: currentConversation,
-          taskId: task.id,
+          task: task,
           status: ConversationWorkflowTaskStatus.blocked,
+          summary: 'Marked blocked from the task menu.',
         );
       case _WorkflowTaskMenuAction.edit:
+        if (currentConversation.shouldPreferPlanDocument) {
+          return;
+        }
         await _showWorkflowTaskEditor(
           context,
           currentConversation: currentConversation,
           task: task,
         );
       case _WorkflowTaskMenuAction.delete:
+        if (currentConversation.shouldPreferPlanDocument) {
+          return;
+        }
         await _replaceWorkflowTasks(
           currentConversation: currentConversation,
           tasks: currentConversation.effectiveWorkflowSpec.tasks
@@ -2566,6 +2735,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required Conversation currentConversation,
     ConversationWorkflowTask? task,
   }) async {
+    if (currentConversation.shouldPreferPlanDocument) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('chat.workflow_task_edit_blocked_by_plan'.tr()),
+          ),
+        );
+      }
+      return;
+    }
+
     final result = await showModalBottomSheet<_WorkflowTaskEditorSubmission>(
       context: context,
       isScrollControlled: true,
@@ -2643,13 +2823,43 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
-  Future<void> _updateWorkflowTaskStatus({
+  Future<void> _setWorkflowTaskStatus({
     required Conversation currentConversation,
-    required String taskId,
+    required ConversationWorkflowTask task,
     required ConversationWorkflowTaskStatus status,
+    String summary = '',
+    DateTime? lastRunAt,
   }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+
+    if (currentConversation.shouldPreferPlanDocument) {
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: status,
+        lastRunAt: lastRunAt,
+        summary: summary,
+      );
+      if (status == ConversationWorkflowTaskStatus.completed) {
+        await conversationsNotifier.updateCurrentWorkflow(
+          workflowStage: ConversationWorkflowStage.review,
+          preserveWorkflowProjection: true,
+        );
+      } else if (status == ConversationWorkflowTaskStatus.inProgress ||
+          status == ConversationWorkflowTaskStatus.blocked) {
+        await conversationsNotifier.updateCurrentWorkflow(
+          workflowStage: ConversationWorkflowStage.implement,
+          preserveWorkflowProjection: true,
+        );
+      }
+      return;
+    }
+
     final tasks = currentConversation.effectiveWorkflowSpec.tasks
-        .map((task) => task.id == taskId ? task.copyWith(status: status) : task)
+        .map(
+          (item) => item.id == task.id ? item.copyWith(status: status) : item,
+        )
         .toList(growable: false);
     await _replaceWorkflowTasks(
       currentConversation: currentConversation,
@@ -2667,12 +2877,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
 
-    await _updateWorkflowTaskStatus(
+    await _setWorkflowTaskStatus(
       currentConversation: currentConversation,
-      taskId: task.id,
+      task: task,
       status: task.status == ConversationWorkflowTaskStatus.completed
           ? ConversationWorkflowTaskStatus.completed
           : ConversationWorkflowTaskStatus.inProgress,
+      summary: task.status == ConversationWorkflowTaskStatus.completed
+          ? 'Reopened the completed task for review.'
+          : 'Started from the approved plan execution flow.',
+      lastRunAt: task.status == ConversationWorkflowTaskStatus.completed
+          ? null
+          : DateTime.now(),
     );
     if (!context.mounted) {
       return;
@@ -2683,6 +2899,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
         task,
         isReview: task.status == ConversationWorkflowTaskStatus.completed,
       ),
+      languageCode: context.locale.languageCode,
+      bypassPlanMode: true,
+    );
+  }
+
+  Future<void> _runWorkflowTaskValidation(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) async {
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await _setWorkflowTaskStatus(
+      currentConversation: currentConversation,
+      task: task,
+      status: task.status == ConversationWorkflowTaskStatus.completed
+          ? ConversationWorkflowTaskStatus.completed
+          : ConversationWorkflowTaskStatus.inProgress,
+      summary: 'Ran the saved validation step from the approved plan.',
+      lastRunAt: DateTime.now(),
+    );
+    if (!context.mounted) {
+      return;
+    }
+
+    await chatNotifier.sendMessage(
+      _buildWorkflowValidationPrompt(task),
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
@@ -2722,6 +2964,101 @@ class _ChatPageState extends ConsumerState<ChatPage>
           : 'chat.workflow_task_use_prompt_outro'.tr(),
     );
     return promptLines.join('\n');
+  }
+
+  String _buildWorkflowValidationPrompt(ConversationWorkflowTask task) {
+    final promptLines = <String>[
+      'chat.workflow_task_validation_prompt_intro'.tr(
+        namedArgs: {'title': task.title},
+      ),
+    ];
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add(
+        '${'chat.workflow_task_validation'.tr()}: $validationCommand',
+      );
+    }
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add(
+        '${'chat.workflow_task_target_files'.tr()}: $targetFiles',
+      );
+    }
+    promptLines.add('chat.workflow_task_validation_prompt_outro'.tr());
+    return promptLines.join('\n');
+  }
+
+  ConversationWorkflowTask? _activeWorkflowTask(
+    Conversation currentConversation,
+  ) {
+    for (final task in currentConversation.projectedExecutionTasks) {
+      if (task.status == ConversationWorkflowTaskStatus.inProgress) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  ConversationWorkflowTask? _nextWorkflowTask(
+    Conversation currentConversation,
+  ) {
+    final activeTask = _activeWorkflowTask(currentConversation);
+    if (activeTask != null) {
+      return activeTask;
+    }
+    for (final task in currentConversation.projectedExecutionTasks) {
+      if (task.status == ConversationWorkflowTaskStatus.pending ||
+          task.status == ConversationWorkflowTaskStatus.blocked) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  ConversationWorkflowTask? _validationWorkflowTask(
+    Conversation currentConversation,
+  ) {
+    final candidates = [
+      _activeWorkflowTask(currentConversation),
+      _nextWorkflowTask(currentConversation),
+      ...currentConversation.projectedExecutionTasks,
+    ];
+    for (final task in candidates) {
+      if (task == null) {
+        continue;
+      }
+      if (task.validationCommand.trim().isNotEmpty) {
+        return task;
+      }
+    }
+    return null;
+  }
+
+  String _workflowProjectionStatusLabelKey(Conversation currentConversation) {
+    if (currentConversation.isWorkflowProjectionFresh) {
+      return 'chat.plan_document_projection_fresh';
+    }
+    if (currentConversation.isWorkflowProjectionStale) {
+      return 'chat.plan_document_projection_stale';
+    }
+    return 'chat.plan_document_projection_unavailable';
+  }
+
+  Color _workflowProjectionStatusColor(
+    BuildContext context,
+    Conversation currentConversation,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    if (currentConversation.isWorkflowProjectionFresh) {
+      return Colors.green.shade700;
+    }
+    if (currentConversation.isWorkflowProjectionStale) {
+      return scheme.tertiary;
+    }
+    return scheme.error;
   }
 
   String _workflowStageLabel(ConversationWorkflowStage stage) {

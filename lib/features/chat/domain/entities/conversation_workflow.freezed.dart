@@ -297,6 +297,281 @@ as String,
 
 
 /// @nodoc
+mixin _$ConversationExecutionTaskProgress {
+
+ String get taskId; ConversationWorkflowTaskStatus get status; DateTime? get updatedAt; DateTime? get lastRunAt; String get summary;
+/// Create a copy of ConversationExecutionTaskProgress
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$ConversationExecutionTaskProgressCopyWith<ConversationExecutionTaskProgress> get copyWith => _$ConversationExecutionTaskProgressCopyWithImpl<ConversationExecutionTaskProgress>(this as ConversationExecutionTaskProgress, _$identity);
+
+  /// Serializes this ConversationExecutionTaskProgress to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.summary, summary) || other.summary == summary));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,taskId,status,updatedAt,lastRunAt,summary);
+
+@override
+String toString() {
+  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, updatedAt: $updatedAt, lastRunAt: $lastRunAt, summary: $summary)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $ConversationExecutionTaskProgressCopyWith<$Res>  {
+  factory $ConversationExecutionTaskProgressCopyWith(ConversationExecutionTaskProgress value, $Res Function(ConversationExecutionTaskProgress) _then) = _$ConversationExecutionTaskProgressCopyWithImpl;
+@useResult
+$Res call({
+ String taskId, ConversationWorkflowTaskStatus status, DateTime? updatedAt, DateTime? lastRunAt, String summary
+});
+
+
+
+
+}
+/// @nodoc
+class _$ConversationExecutionTaskProgressCopyWithImpl<$Res>
+    implements $ConversationExecutionTaskProgressCopyWith<$Res> {
+  _$ConversationExecutionTaskProgressCopyWithImpl(this._self, this._then);
+
+  final ConversationExecutionTaskProgress _self;
+  final $Res Function(ConversationExecutionTaskProgress) _then;
+
+/// Create a copy of ConversationExecutionTaskProgress
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? taskId = null,Object? status = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? summary = null,}) {
+  return _then(_self.copyWith(
+taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationWorkflowTaskStatus,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastRunAt: freezed == lastRunAt ? _self.lastRunAt : lastRunAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [ConversationExecutionTaskProgress].
+extension ConversationExecutionTaskProgressPatterns on ConversationExecutionTaskProgress {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _ConversationExecutionTaskProgress value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _ConversationExecutionTaskProgress value)  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _ConversationExecutionTaskProgress value)?  $default,){
+final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  DateTime? updatedAt,  DateTime? lastRunAt,  String summary)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress() when $default != null:
+return $default(_that.taskId,_that.status,_that.updatedAt,_that.lastRunAt,_that.summary);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String taskId,  ConversationWorkflowTaskStatus status,  DateTime? updatedAt,  DateTime? lastRunAt,  String summary)  $default,) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress():
+return $default(_that.taskId,_that.status,_that.updatedAt,_that.lastRunAt,_that.summary);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String taskId,  ConversationWorkflowTaskStatus status,  DateTime? updatedAt,  DateTime? lastRunAt,  String summary)?  $default,) {final _that = this;
+switch (_that) {
+case _ConversationExecutionTaskProgress() when $default != null:
+return $default(_that.taskId,_that.status,_that.updatedAt,_that.lastRunAt,_that.summary);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _ConversationExecutionTaskProgress extends ConversationExecutionTaskProgress {
+  const _ConversationExecutionTaskProgress({required this.taskId, this.status = ConversationWorkflowTaskStatus.pending, this.updatedAt, this.lastRunAt, this.summary = ''}): super._();
+  factory _ConversationExecutionTaskProgress.fromJson(Map<String, dynamic> json) => _$ConversationExecutionTaskProgressFromJson(json);
+
+@override final  String taskId;
+@override@JsonKey() final  ConversationWorkflowTaskStatus status;
+@override final  DateTime? updatedAt;
+@override final  DateTime? lastRunAt;
+@override@JsonKey() final  String summary;
+
+/// Create a copy of ConversationExecutionTaskProgress
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$ConversationExecutionTaskProgressCopyWith<_ConversationExecutionTaskProgress> get copyWith => __$ConversationExecutionTaskProgressCopyWithImpl<_ConversationExecutionTaskProgress>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$ConversationExecutionTaskProgressToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _ConversationExecutionTaskProgress&&(identical(other.taskId, taskId) || other.taskId == taskId)&&(identical(other.status, status) || other.status == status)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&(identical(other.summary, summary) || other.summary == summary));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,taskId,status,updatedAt,lastRunAt,summary);
+
+@override
+String toString() {
+  return 'ConversationExecutionTaskProgress(taskId: $taskId, status: $status, updatedAt: $updatedAt, lastRunAt: $lastRunAt, summary: $summary)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$ConversationExecutionTaskProgressCopyWith<$Res> implements $ConversationExecutionTaskProgressCopyWith<$Res> {
+  factory _$ConversationExecutionTaskProgressCopyWith(_ConversationExecutionTaskProgress value, $Res Function(_ConversationExecutionTaskProgress) _then) = __$ConversationExecutionTaskProgressCopyWithImpl;
+@override @useResult
+$Res call({
+ String taskId, ConversationWorkflowTaskStatus status, DateTime? updatedAt, DateTime? lastRunAt, String summary
+});
+
+
+
+
+}
+/// @nodoc
+class __$ConversationExecutionTaskProgressCopyWithImpl<$Res>
+    implements _$ConversationExecutionTaskProgressCopyWith<$Res> {
+  __$ConversationExecutionTaskProgressCopyWithImpl(this._self, this._then);
+
+  final _ConversationExecutionTaskProgress _self;
+  final $Res Function(_ConversationExecutionTaskProgress) _then;
+
+/// Create a copy of ConversationExecutionTaskProgress
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? taskId = null,Object? status = null,Object? updatedAt = freezed,Object? lastRunAt = freezed,Object? summary = null,}) {
+  return _then(_ConversationExecutionTaskProgress(
+taskId: null == taskId ? _self.taskId : taskId // ignore: cast_nullable_to_non_nullable
+as String,status: null == status ? _self.status : status // ignore: cast_nullable_to_non_nullable
+as ConversationWorkflowTaskStatus,updatedAt: freezed == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,lastRunAt: freezed == lastRunAt ? _self.lastRunAt : lastRunAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,summary: null == summary ? _self.summary : summary // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$ConversationWorkflowSpec {
 
  String get goal; List<String> get constraints; List<String> get acceptanceCriteria; List<String> get openQuestions;@JsonKey(fromJson: _workflowTasksFromJson, toJson: _workflowTasksToJson) List<ConversationWorkflowTask> get tasks;

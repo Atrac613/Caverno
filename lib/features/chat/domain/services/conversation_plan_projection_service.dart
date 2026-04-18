@@ -1,4 +1,5 @@
 import '../entities/conversation_workflow.dart';
+import 'conversation_plan_hash.dart';
 
 class ConversationPlanProjection {
   const ConversationPlanProjection({
@@ -63,14 +64,7 @@ class ConversationPlanProjectionService {
   }
 
   static String computeSourceHash(String markdown) {
-    const int offsetBasis = 0x811c9dc5;
-    const int prime = 0x01000193;
-    var hash = offsetBasis;
-    for (final codeUnit in markdown.codeUnits) {
-      hash ^= codeUnit;
-      hash = (hash * prime) & 0xffffffff;
-    }
-    return hash.toRadixString(16).padLeft(8, '0');
+    return computeConversationPlanHash(markdown);
   }
 
   static String replaceWorkflowStage({
@@ -197,7 +191,7 @@ class ConversationPlanProjectionService {
           tasks.add(currentTask.build());
         }
         currentTask = _TaskDraft(
-          id: 'derived-task-${tasks.length + 1}',
+          id: _deriveTaskId(headingMatch.group(2)!.trim(), tasks.length + 1),
           title: headingMatch.group(2)!.trim(),
         );
         continue;
@@ -252,6 +246,14 @@ class ConversationPlanProjectionService {
       'blocked' => ConversationWorkflowTaskStatus.blocked,
       _ => ConversationWorkflowTaskStatus.pending,
     };
+  }
+
+  static String _deriveTaskId(String title, int index) {
+    final normalizedTitle = title.trim();
+    final hashedTitle = computeConversationPlanHash(
+      normalizedTitle.isEmpty ? 'task-$index' : normalizedTitle,
+    );
+    return 'derived-task-$index-${hashedTitle.substring(0, 6)}';
   }
 }
 

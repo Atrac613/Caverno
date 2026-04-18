@@ -51,6 +51,35 @@ abstract class ConversationWorkflowTask with _$ConversationWorkflowTask {
 }
 
 @freezed
+abstract class ConversationExecutionTaskProgress
+    with _$ConversationExecutionTaskProgress {
+  const ConversationExecutionTaskProgress._();
+
+  const factory ConversationExecutionTaskProgress({
+    required String taskId,
+    @Default(ConversationWorkflowTaskStatus.pending)
+    ConversationWorkflowTaskStatus status,
+    DateTime? updatedAt,
+    DateTime? lastRunAt,
+    @Default('') String summary,
+  }) = _ConversationExecutionTaskProgress;
+
+  factory ConversationExecutionTaskProgress.fromJson(
+    Map<String, dynamic> json,
+  ) => _$ConversationExecutionTaskProgressFromJson(json);
+
+  String? get normalizedSummary {
+    final trimmed = summary.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  bool get hasMeaningfulState =>
+      status != ConversationWorkflowTaskStatus.pending ||
+      lastRunAt != null ||
+      normalizedSummary != null;
+}
+
+@freezed
 abstract class ConversationWorkflowSpec with _$ConversationWorkflowSpec {
   const ConversationWorkflowSpec._();
 

@@ -1867,6 +1867,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final project = _getActiveCodingProject();
     final savedSpec = currentConversation.effectiveWorkflowSpec;
     final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
+    final executionDelta = _buildExecutionDeltaBlock(currentConversation);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a workflow proposal for the current coding thread.')
@@ -1955,6 +1956,12 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln('Saved plan document:')
         ..writeln(_clipProposalPlanDocument(savedPlanMarkdown));
     }
+    if (executionDelta != null) {
+      buffer
+        ..writeln()
+        ..writeln('Execution progress:')
+        ..writeln(executionDelta);
+    }
     if (researchContext.hasContent) {
       buffer
         ..writeln()
@@ -1993,7 +2000,11 @@ class ChatNotifier extends Notifier<ChatState> {
         workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     final savedStage =
         workflowStageOverride ?? currentConversation.workflowStage;
+    final savedTasks =
+        workflowSpecOverride?.tasks ??
+        currentConversation.projectedExecutionTasks;
     final savedPlanMarkdown = currentConversation.effectivePlanningDocument;
+    final executionDelta = _buildExecutionDeltaBlock(currentConversation);
     final transcript = _buildProposalTranscript();
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
@@ -2044,9 +2055,9 @@ class ChatNotifier extends Notifier<ChatState> {
       )
       ..writeln('- openQuestions: ${savedSpec.openQuestions.join(' | ')}');
 
-    if (savedSpec.tasks.isNotEmpty) {
+    if (savedTasks.isNotEmpty) {
       buffer.writeln('- existingTasks:');
-      for (final task in savedSpec.tasks) {
+      for (final task in savedTasks) {
         buffer.writeln(
           '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | notes: ${task.notes}',
         );
@@ -2057,6 +2068,12 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln()
         ..writeln('Saved plan document:')
         ..writeln(_clipProposalPlanDocument(savedPlanMarkdown));
+    }
+    if (executionDelta != null) {
+      buffer
+        ..writeln()
+        ..writeln('Execution progress:')
+        ..writeln(executionDelta);
     }
     if (researchContext.hasContent) {
       buffer
@@ -2071,6 +2088,57 @@ class ChatNotifier extends Notifier<ChatState> {
       ..writeln()
       ..writeln('Recent conversation:')
       ..writeln(transcript.isEmpty ? '- (empty)' : transcript);
+
+    return buffer.toString().trimRight();
+  }
+
+  String? _buildExecutionDeltaBlock(Conversation currentConversation) {
+    final projectedTasks = currentConversation.projectedExecutionTasks;
+    final progressEntries = currentConversation.effectiveExecutionProgress;
+    if (projectedTasks.isEmpty && progressEntries.isEmpty) {
+      return null;
+    }
+
+    final buffer = StringBuffer();
+    if (currentConversation.effectiveExecutionDocument != null) {
+      buffer.writeln(
+        '- projectionState: ${currentConversation.isWorkflowProjectionFresh
+            ? 'fresh'
+            : currentConversation.isWorkflowProjectionStale
+            ? 'stale'
+            : 'unavailable'}',
+      );
+    }
+
+    final completed = projectedTasks
+        .where(
+          (task) => task.status == ConversationWorkflowTaskStatus.completed,
+        )
+        .length;
+    final inProgress = projectedTasks
+        .where(
+          (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
+        )
+        .length;
+    final blocked = projectedTasks
+        .where((task) => task.status == ConversationWorkflowTaskStatus.blocked)
+        .length;
+    final pending = projectedTasks.length - completed - inProgress - blocked;
+    buffer.writeln(
+      '- taskCounts: pending=$pending, inProgress=$inProgress, completed=$completed, blocked=$blocked',
+    );
+
+    if (projectedTasks.isNotEmpty) {
+      buffer.writeln('- tasks:');
+      for (final task in projectedTasks) {
+        final progress = currentConversation.executionProgressForTask(task.id);
+        final summary = progress?.normalizedSummary;
+        final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
+        buffer.writeln(
+          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary ?? ''} | updatedAt: $updatedAt',
+        );
+      }
+    }
 
     return buffer.toString().trimRight();
   }

@@ -18,9 +18,11 @@ import 'package:caverno/features/chat/data/repositories/chat_memory_repository.d
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -984,6 +986,116 @@ void main() {
         expect(
           currentConversation.planArtifact?.normalizedDraftMarkdown,
           contains('Refresh the draft plan'),
+        );
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'generatePlanProposal includes execution progress when replanning',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Refresh the plan from current execution progress","constraints":["Keep the approved plan stable until a new draft is approved"],"acceptanceCriteria":["Execution progress shapes the next draft"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Update the draft from execution progress","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Use completed tasks as context."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final conversationsNotifier = planContainer.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversationsNotifier.activateWorkspace(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'project-1',
+          createIfMissing: true,
+        );
+        const approvedMarkdown =
+            '# Plan\n'
+            '\n'
+            '## Stage\n'
+            'implement\n'
+            '\n'
+            '## Goal\n'
+            'Ground replans in current execution state\n'
+            '\n'
+            '## Tasks\n'
+            '\n'
+            '1. Ship the first execution improvement\n'
+            '   - Status: pending\n'
+            '   - Validation: flutter test\n';
+        await conversationsNotifier.updateCurrentPlanArtifact(
+          planArtifact: const ConversationPlanArtifact(
+            approvedMarkdown: approvedMarkdown,
+          ),
+        );
+        await conversationsNotifier.updateCurrentWorkflow(
+          workflowStage: ConversationWorkflowStage.implement,
+          workflowSpec: const ConversationWorkflowSpec(
+            tasks: [
+              ConversationWorkflowTask(
+                id: 'derived-task-1-legacy',
+                title: 'Ship the first execution improvement',
+                validationCommand: 'flutter test',
+              ),
+            ],
+          ),
+          workflowSourceHash: computeConversationPlanHash(
+            approvedMarkdown.trim(),
+          ),
+          workflowDerivedAt: DateTime(2026, 4, 18, 13, 0),
+          preserveWorkflowProjection: true,
+        );
+        await conversationsNotifier.updateCurrentExecutionTaskProgress(
+          taskId: 'derived-task-1-legacy',
+          status: ConversationWorkflowTaskStatus.completed,
+          summary: 'Completed during the last implementation pass.',
+        );
+        final chatNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await chatNotifier.generatePlanProposal();
+
+        final workflowPrompt = proposalDataSource.requests.first.last.content;
+        expect(workflowPrompt, contains('Execution progress:'));
+        expect(workflowPrompt, contains('projectionState: fresh'));
+        expect(
+          workflowPrompt,
+          contains('[completed] Ship the first execution improvement'),
+        );
+        expect(
+          workflowPrompt,
+          contains('Completed during the last implementation pass.'),
         );
       } finally {
         planContainer.dispose();
