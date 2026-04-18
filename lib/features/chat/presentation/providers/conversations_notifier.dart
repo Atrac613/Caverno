@@ -10,6 +10,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
+import '../../domain/services/conversation_validation_tool_result_inference.dart';
 
 /// State for the conversation list.
 class ConversationsState {
@@ -528,6 +529,55 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         preserveWorkflowProjection: true,
       );
     }
+  }
+
+  Future<bool> updateCurrentValidationProgressFromToolResults({
+    required ConversationWorkflowTask task,
+    required Iterable<ConversationValidationToolResultInput> toolResults,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return false;
+    }
+
+    final inference = ConversationValidationToolResultInference.infer(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (inference == null) {
+      return false;
+    }
+
+    await updateCurrentExecutionTaskProgress(
+      taskId: task.id,
+      status: inference.status,
+      summary: inference.summary,
+      blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
+          ? inference.blockedReason ?? ''
+          : '',
+      validationStatus: inference.validationStatus,
+      lastValidationAt: DateTime.now(),
+      lastValidationCommand: inference.validationCommand,
+      lastValidationSummary: inference.validationSummary,
+    );
+
+    if (!conversation.shouldPreferPlanDocument) {
+      return true;
+    }
+
+    if (inference.status == ConversationWorkflowTaskStatus.completed) {
+      await updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.review,
+        preserveWorkflowProjection: true,
+      );
+      return true;
+    }
+
+    await updateCurrentWorkflow(
+      workflowStage: ConversationWorkflowStage.implement,
+      preserveWorkflowProjection: true,
+    );
+    return true;
   }
 
   Future<void> retainExecutionTaskProgress(Set<String> taskIds) async {

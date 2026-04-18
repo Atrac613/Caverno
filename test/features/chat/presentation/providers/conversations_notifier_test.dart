@@ -9,6 +9,7 @@ import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
 class _MockConversationBox extends Mock implements Box<String> {}
@@ -569,6 +570,74 @@ void main() {
       expect(
         progress.lastValidationSummary,
         contains('Validation failed because flutter test reported'),
+      );
+    },
+  );
+
+  test(
+    'updateCurrentValidationProgressFromToolResults stores tool-grounded failures',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Track validation results from command output\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Run validation from the approved plan\n'
+              '   - Status: inProgress\n'
+              '   - Validation: flutter test\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      final updated = await notifier.updateCurrentValidationProgressFromToolResults(
+        task: task,
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"flutter test","exit_code":1,"stdout":"Running tests...","stderr":"1 smoke test failed on macOS."}',
+          ),
+        ],
+      );
+
+      expect(updated, isTrue);
+      final progress = container
+          .read(conversationsNotifierProvider)
+          .currentConversation
+          ?.executionProgress
+          .single;
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.blocked);
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.failed,
+      );
+      expect(progress.blockedReason, contains('1 smoke test failed on macOS.'));
+      expect(progress.lastValidationCommand, 'flutter test');
+      expect(
+        progress.lastValidationSummary,
+        contains('1 smoke test failed on macOS.'),
       );
     },
   );

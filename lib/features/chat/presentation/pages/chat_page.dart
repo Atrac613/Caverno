@@ -17,6 +17,7 @@ import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
+import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -3318,6 +3319,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
     final previousAssistantMessageId = _latestAssistantMessageId(
       ref.read(conversationsNotifierProvider).currentConversation ??
           currentConversation,
@@ -3347,11 +3351,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
-    await _captureExecutionProgressFromLatestAssistantTurn(
-      task: task,
-      previousAssistantMessageId: previousAssistantMessageId,
-      isValidationRun: true,
-    );
+    final toolResultApplied = await conversationsNotifier
+        .updateCurrentValidationProgressFromToolResults(
+          task: task,
+          toolResults: chatNotifier
+              .takeLatestToolResults()
+              .map(
+                (result) => ConversationValidationToolResultInput(
+                  toolName: result.name,
+                  rawResult: result.result,
+                ),
+              )
+              .toList(growable: false),
+        );
+    if (!toolResultApplied) {
+      await _captureExecutionProgressFromLatestAssistantTurn(
+        task: task,
+        previousAssistantMessageId: previousAssistantMessageId,
+        isValidationRun: true,
+      );
+    }
   }
 
   Future<void> _captureExecutionProgressFromLatestAssistantTurn({
