@@ -365,6 +365,14 @@ class ChatNotifier extends Notifier<ChatState> {
       return;
     }
 
+    // While a response is in flight, the local chat state is authoritative for
+    // the active conversation. Persisted conversation updates can lag behind
+    // and would otherwise cancel streaming or discard pending content-tool
+    // continuations mid-task.
+    if (sameConversation && state.isLoading) {
+      return;
+    }
+
     cancelStreaming();
     _executedContentToolCalls.clear();
     _seenContentToolCallHashes.clear();

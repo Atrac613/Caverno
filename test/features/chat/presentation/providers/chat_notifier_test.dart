@@ -768,6 +768,27 @@ void main() {
   });
 
   test(
+    'syncConversation ignores stale updates for the active conversation while loading',
+    () async {
+      final activeConversationId = container
+          .read(conversationsNotifierProvider)
+          .currentConversationId;
+
+      await notifier.sendMessage('Inspect the workspace');
+
+      final messagesBeforeSync = List<Message>.from(notifier.state.messages);
+      notifier.syncConversation(
+        conversationId: activeConversationId,
+        messages: const [],
+      );
+
+      expect(notifier.state.isLoading, isTrue);
+      expect(notifier.state.messages, messagesBeforeSync);
+      expect(notifier.state.messages.last.isStreaming, isTrue);
+    },
+  );
+
+  test(
     'sendMessage ignores new user input while a reply is in flight',
     () async {
       await notifier.sendMessage('First request');
