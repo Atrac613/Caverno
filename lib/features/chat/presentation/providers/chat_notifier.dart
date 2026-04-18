@@ -4369,6 +4369,26 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!result.isSuccess) {
         appLog('[ContentTool] Execution failed: ${result.errorMessage}');
+        final failureResult = _buildContentToolFailureResult(
+          tc.name,
+          result.errorMessage,
+        );
+        if (ref.mounted && state.messages.isNotEmpty) {
+          final updatedMessages = [...state.messages];
+          final lastIndex = updatedMessages.length - 1;
+          final lastMessage = updatedMessages[lastIndex];
+
+          updatedMessages[lastIndex] = lastMessage.copyWith(
+            content:
+                '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
+          );
+
+          state = state.copyWith(messages: updatedMessages);
+          appLog('[ContentTool] Appended failure result to message');
+        }
+        _pendingContentToolResults.add(
+          '[Result of ${tc.name}]\n$failureResult',
+        );
         return;
       }
 
@@ -4394,18 +4414,42 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     } catch (e) {
       appLog('[ContentTool] Error: $e');
+      final failureResult = _buildContentToolFailureResult(tc.name, '$e');
       if (ref.mounted && state.messages.isNotEmpty) {
         final updatedMessages = [...state.messages];
         final lastIndex = updatedMessages.length - 1;
         final lastMessage = updatedMessages[lastIndex];
 
         updatedMessages[lastIndex] = lastMessage.copyWith(
-          content: '${lastMessage.content}\n\n[Tool execution error: $e]',
+          content:
+              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, failureResult)}',
         );
 
         state = state.copyWith(messages: updatedMessages);
+        appLog('[ContentTool] Appended thrown failure result to message');
       }
+      _pendingContentToolResults.add('[Result of ${tc.name}]\n$failureResult');
     }
+  }
+
+  String _buildContentToolFailureResult(String toolName, String? errorMessage) {
+    final error = (errorMessage ?? 'Tool execution failed').trim();
+    final code = _contentToolFailureCode(error);
+    return jsonEncode({'toolName': toolName, 'error': error, 'code': code});
+  }
+
+  String _contentToolFailureCode(String errorMessage) {
+    final normalized = errorMessage.toLowerCase();
+    if (normalized.contains('no matching tool available')) {
+      return 'tool_not_available';
+    }
+    if (normalized.contains('permission_denied')) {
+      return 'permission_denied';
+    }
+    if (normalized.contains('timeout')) {
+      return 'timeout';
+    }
+    return 'tool_execution_failed';
   }
 
   String _buildContentToolResultTag(String toolName, String result) {
@@ -5698,6 +5742,8 @@ class ChatNotifier extends Notifier<ChatState> {
             'Do not repeat a tool call with the same arguments after a '
             'successful result. Reuse the tool result that is already '
             'provided and continue from it. '
+            'If a tool result reports code=tool_not_available, do not retry '
+            'that tool name and continue with the tools that actually exist. '
             'Do not repeat a tool call with the same arguments after a '
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '

@@ -497,6 +497,54 @@ class _FakeMcpToolService extends McpToolService {
   }
 }
 
+class _SelectiveFakeMcpToolService extends McpToolService {
+  _SelectiveFakeMcpToolService({required this.results});
+
+  final Map<String, String> results;
+  final List<String> executedToolNames = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return <String>{...results.keys, 'google'}
+        .map(
+          (toolName) => {
+            'type': 'function',
+            'function': {
+              'name': toolName,
+              'description': 'Fake tool $toolName',
+              'parameters': const <String, dynamic>{'type': 'object'},
+            },
+          },
+        )
+        .toList(growable: false);
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    final result = results[name];
+    if (result == null) {
+      return McpToolResult(
+        toolName: name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'No matching tool available: $name',
+      );
+    }
+    return McpToolResult(toolName: name, result: result, isSuccess: true);
+  }
+}
+
 class _PlanningResearchMcpToolService extends McpToolService {
   final List<String> executedToolNames = [];
   final List<({String name, Map<String, dynamic> arguments})> executedCalls =
@@ -939,6 +987,84 @@ void main() {
       }
     },
   );
+
+  test('content tool failures are forwarded into continuation prompts', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final streamingDataSource = _QueuedStreamingChatDataSource([
+      [
+        '<tool_call>{"name":"google","arguments":{}}</tool_call>'
+            '<tool_call>{"name":"write_file","arguments":{"path":"config/hosts.yaml","content":"hosts: []","create_parents":true}}</tool_call>',
+      ],
+      ['Continue with the available configuration tooling only.'],
+    ]);
+    final toolService = _SelectiveFakeMcpToolService(
+      results: const {
+        'write_file':
+            '{"path":"/tmp/content-tools/config/hosts.yaml","bytes_written":9,"created":true}',
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'tmp',
+      rootPath: '/tmp/content-tools-project',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ContentToolSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create the config files');
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = toolNotifier.state.pendingFileOperation;
+      expect(pending, isNotNull);
+      toolNotifier.resolveFileOperation(id: pending!.id, approved: true);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(streamingDataSource.requests, hasLength(2));
+      final continuationPrompt = streamingDataSource.requests.last.last.content;
+      expect(continuationPrompt, contains('[Result of google]'));
+      expect(continuationPrompt, contains('"code":"tool_not_available"'));
+      expect(continuationPrompt, contains('[Result of write_file]'));
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Continue with the available configuration tooling only.'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test(
     'sendMessage auto-enters planning for a new coding thread when configured',
