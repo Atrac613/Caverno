@@ -34,6 +34,14 @@ class ConversationValidationToolResultInference {
   static const _supportedToolNames = <String>{
     'local_execute_command',
     'git_execute_command',
+    'ssh_execute_command',
+    'ping',
+    'dns_lookup',
+    'port_check',
+    'ssl_certificate',
+    'http_status',
+    'http_get',
+    'http_head',
   };
 
   static ConversationValidationToolResultInferenceResult? infer({
@@ -54,9 +62,8 @@ class ConversationValidationToolResultInference {
 
     if (selected.isFailure) {
       final detail =
-          _normalizeDetail(selected.stderr, maxLength: 280) ??
-          _normalizeDetail(selected.error, maxLength: 280) ??
-          'The validation command failed without a structured error.';
+          _normalizeDetail(selected.failureDetail, maxLength: 280) ??
+          'The validation step failed without a structured error.';
       final summary = command.isEmpty
           ? 'Validation failed.'
           : 'Validation failed while running $command.';
@@ -71,8 +78,8 @@ class ConversationValidationToolResultInference {
     }
 
     final detail =
-        _normalizeDetail(selected.stdout, maxLength: 280) ??
-        'The validation command completed successfully.';
+        _normalizeDetail(selected.successDetail, maxLength: 280) ??
+        'The validation step completed successfully.';
     final summary = command.isEmpty
         ? 'Validation passed.'
         : 'Validation passed while running $command.';
@@ -106,9 +113,27 @@ class ConversationValidationToolResultInference {
       return null;
     }
 
+    return switch (input.toolName) {
+      'local_execute_command' ||
+      'git_execute_command' => _parseCommandToolResult(rawResult),
+      'ssh_execute_command' => _parseSshToolResult(rawResult),
+      'ping' => _parsePingToolResult(rawResult),
+      'dns_lookup' => _parseDnsLookupToolResult(rawResult),
+      'port_check' => _parsePortCheckToolResult(rawResult),
+      'ssl_certificate' => _parseSslCertificateToolResult(rawResult),
+      'http_status' ||
+      'http_get' ||
+      'http_head' => _parseHttpToolResult(rawResult),
+      _ => null,
+    };
+  }
+
+  static _ParsedValidationToolResult? _parseCommandToolResult(
+    String rawResult,
+  ) {
     final decoded = _tryDecodeMap(rawResult);
     if (decoded == null) {
-      return _ParsedValidationToolResult(error: rawResult);
+      return _ParsedValidationToolResult(failureDetail: rawResult);
     }
 
     final command = _normalizeText(decoded['command']);
@@ -126,10 +151,287 @@ class ConversationValidationToolResultInference {
 
     return _ParsedValidationToolResult(
       command: command,
+      successDetail: stdout ?? 'The validation command completed successfully.',
+      failureDetail: error ?? stderr,
       exitCode: exitCode,
-      error: error,
-      stdout: stdout,
-      stderr: stderr,
+    );
+  }
+
+  static _ParsedValidationToolResult? _parseSshToolResult(String rawResult) {
+    final exitCodeMatch = RegExp(
+      r'^exit_code:\s*(.+)$',
+      multiLine: true,
+    ).firstMatch(rawResult);
+    final exitCodeLabel = exitCodeMatch?.group(1)?.trim();
+    final exitCode = exitCodeLabel == null || exitCodeLabel == 'n/a'
+        ? null
+        : int.tryParse(exitCodeLabel);
+
+    final stdout = _extractSection(rawResult, 'stdout');
+    final stderr = _extractSection(rawResult, 'stderr');
+    if (exitCode == null && stdout == null && stderr == null) {
+      return _ParsedValidationToolResult(failureDetail: rawResult);
+    }
+
+    return _ParsedValidationToolResult(
+      successDetail:
+          stdout ?? 'The SSH validation command completed successfully.',
+      failureDetail: stderr,
+      exitCode: exitCode,
+    );
+  }
+
+  static _ParsedValidationToolResult? _parsePingToolResult(String rawResult) {
+    final decoded = _tryDecodeMap(rawResult);
+    if (decoded == null) {
+      return null;
+    }
+
+    final host = _normalizeText(decoded['host']);
+    final resolvedIp = _normalizeText(decoded['resolved_ip']);
+    final summary = decoded['summary'];
+    final results = decoded['results'];
+    final received = summary is Map<String, dynamic>
+        ? _parseInt(summary['received'])
+        : null;
+    final transmitted = summary is Map<String, dynamic>
+        ? _parseInt(summary['transmitted'])
+        : null;
+    final lossPercent = summary is Map<String, dynamic>
+        ? _parseNum(summary['loss_percent'])
+        : null;
+    final firstError = results is List
+        ? results
+              .map(
+                (entry) => entry is Map<String, dynamic>
+                    ? _normalizeText(entry['message'])
+                    : null,
+              )
+              .whereType<String>()
+              .firstOrNull
+        : null;
+    final command = host == null ? 'ping' : 'ping $host';
+
+    if (received == null || received <= 0) {
+      final detail =
+          firstError ??
+          (host == null
+              ? 'Ping did not receive any response packets.'
+              : 'Ping did not receive any response packets from $host.');
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: detail,
+      );
+    }
+
+    final detailBuffer = StringBuffer()..write('Received $received');
+    if (transmitted != null) {
+      detailBuffer.write(' of $transmitted ping response(s)');
+    }
+    if (resolvedIp != null) {
+      detailBuffer.write(' from $resolvedIp');
+    }
+    if (lossPercent != null) {
+      detailBuffer.write(
+        ' with ${lossPercent.toStringAsFixed(1)}% packet loss',
+      );
+    }
+    detailBuffer.write('.');
+
+    return _ParsedValidationToolResult(
+      command: command,
+      successDetail: detailBuffer.toString(),
+    );
+  }
+
+  static _ParsedValidationToolResult? _parseDnsLookupToolResult(
+    String rawResult,
+  ) {
+    final decoded = _tryDecodeMap(rawResult);
+    if (decoded == null) {
+      return null;
+    }
+
+    final host = _normalizeText(decoded['host']);
+    final error = _normalizeText(decoded['error']);
+    final records = decoded['records'];
+    final recordCount = records is List ? records.length : 0;
+    final command = host == null ? 'dns_lookup' : 'dns_lookup $host';
+
+    if (error != null || recordCount == 0) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail:
+            error ??
+            (host == null
+                ? 'DNS lookup returned no records.'
+                : 'DNS lookup returned no records for $host.'),
+      );
+    }
+
+    final addresses = records is List
+        ? records
+              .map(
+                (entry) => entry is Map<String, dynamic>
+                    ? _normalizeText(entry['address'])
+                    : null,
+              )
+              .whereType<String>()
+              .toList(growable: false)
+        : const <String>[];
+
+    return _ParsedValidationToolResult(
+      command: command,
+      successDetail: addresses.isEmpty
+          ? 'Resolved $recordCount DNS record(s).'
+          : 'Resolved $recordCount DNS record(s): ${addresses.join(', ')}.',
+    );
+  }
+
+  static _ParsedValidationToolResult? _parsePortCheckToolResult(
+    String rawResult,
+  ) {
+    final decoded = _tryDecodeMap(rawResult);
+    if (decoded == null) {
+      return null;
+    }
+
+    final host = _normalizeText(decoded['host']);
+    final port = _parseInt(decoded['port']);
+    final open = decoded['open'] == true;
+    final error = _normalizeText(decoded['error']);
+    final responseTimeMs = _parseNum(decoded['response_time_ms']);
+    final endpoint = [
+      host,
+      if (port != null) '$port',
+    ].whereType<String>().join(':');
+    final command = endpoint.isEmpty ? 'port_check' : 'port_check $endpoint';
+
+    if (!open) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail:
+            error ??
+            (endpoint.isEmpty
+                ? 'Port check reported that the target port is closed.'
+                : 'Port check reported that $endpoint is closed.'),
+      );
+    }
+
+    final detail = endpoint.isEmpty
+        ? 'The target port is open.'
+        : responseTimeMs == null
+        ? '$endpoint is open.'
+        : '$endpoint is open (${responseTimeMs.toStringAsFixed(0)} ms).';
+    return _ParsedValidationToolResult(command: command, successDetail: detail);
+  }
+
+  static _ParsedValidationToolResult? _parseSslCertificateToolResult(
+    String rawResult,
+  ) {
+    final decoded = _tryDecodeMap(rawResult);
+    if (decoded == null) {
+      return null;
+    }
+
+    final host = _normalizeText(decoded['host']);
+    final port = _parseInt(decoded['port']);
+    final error = _normalizeText(decoded['error']);
+    final subject = _normalizeText(decoded['subject']);
+    final issuer = _normalizeText(decoded['issuer']);
+    final validUntil = _normalizeText(decoded['valid_until']);
+    final isValidNow = decoded['is_valid_now'];
+    final endpoint = [
+      host,
+      if (port != null) '$port',
+    ].whereType<String>().join(':');
+    final command = endpoint.isEmpty
+        ? 'ssl_certificate'
+        : 'ssl_certificate $endpoint';
+
+    if (error != null) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: error,
+      );
+    }
+
+    if (isValidNow == false) {
+      final detail = validUntil == null
+          ? 'The certificate is not currently valid.'
+          : 'The certificate is not currently valid and expires at $validUntil.';
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: detail,
+      );
+    }
+
+    if (subject == null) {
+      return null;
+    }
+
+    final detailBuffer = StringBuffer()..write('Certificate subject: $subject');
+    if (issuer != null) {
+      detailBuffer.write('; issuer: $issuer');
+    }
+    if (validUntil != null) {
+      detailBuffer.write('; valid until: $validUntil');
+    }
+    detailBuffer.write('.');
+
+    return _ParsedValidationToolResult(
+      command: command,
+      successDetail: detailBuffer.toString(),
+    );
+  }
+
+  static _ParsedValidationToolResult? _parseHttpToolResult(String rawResult) {
+    final decoded = _tryDecodeMap(rawResult);
+    if (decoded == null) {
+      return null;
+    }
+
+    final method = _normalizeText(decoded['method']) ?? 'GET';
+    final url = _normalizeText(decoded['url']);
+    final statusCode = _parseInt(decoded['status_code']);
+    final reasonPhrase = _normalizeText(decoded['reason_phrase']);
+    final error = _normalizeText(decoded['error']);
+    final responseTimeMs = _parseNum(decoded['response_time_ms']);
+    final command = url == null ? method : '$method $url';
+
+    if (error != null) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: error,
+      );
+    }
+
+    if (statusCode == null) {
+      return null;
+    }
+
+    final detailBuffer = StringBuffer()..write('Received HTTP $statusCode');
+    if (reasonPhrase != null) {
+      detailBuffer.write(' $reasonPhrase');
+    }
+    if (url != null) {
+      detailBuffer.write(' from $url');
+    }
+    if (responseTimeMs != null) {
+      detailBuffer.write(' (${responseTimeMs.toStringAsFixed(0)} ms)');
+    }
+    detailBuffer.write('.');
+
+    if (statusCode >= 400) {
+      return _ParsedValidationToolResult(
+        command: command,
+        failureDetail: detailBuffer.toString(),
+      );
+    }
+
+    return _ParsedValidationToolResult(
+      command: command,
+      successDetail: detailBuffer.toString(),
     );
   }
 
@@ -151,6 +453,35 @@ class ConversationValidationToolResultInference {
     }
     if (value is String) {
       return int.tryParse(value.trim());
+    }
+    return null;
+  }
+
+  static int? _parseInt(dynamic value) {
+    if (value is int) {
+      return value;
+    }
+    if (value is num) {
+      return value.toInt();
+    }
+    if (value is String) {
+      return int.tryParse(value.trim());
+    }
+    return null;
+  }
+
+  static double? _parseNum(dynamic value) {
+    if (value is double) {
+      return value;
+    }
+    if (value is int) {
+      return value.toDouble();
+    }
+    if (value is num) {
+      return value.toDouble();
+    }
+    if (value is String) {
+      return double.tryParse(value.trim());
     }
     return null;
   }
@@ -181,22 +512,36 @@ class ConversationValidationToolResultInference {
     }
     return '${normalized.substring(0, maxLength - 3)}...';
   }
+
+  static String? _extractSection(String rawResult, String label) {
+    final startMarker = '--- $label ---';
+    final startIndex = rawResult.indexOf(startMarker);
+    if (startIndex < 0) {
+      return null;
+    }
+
+    final contentStart = startIndex + startMarker.length;
+    final nextMarkerIndex = rawResult.indexOf('--- ', contentStart);
+    final section = nextMarkerIndex < 0
+        ? rawResult.substring(contentStart)
+        : rawResult.substring(contentStart, nextMarkerIndex);
+    return _normalizeText(section);
+  }
 }
 
 class _ParsedValidationToolResult {
   const _ParsedValidationToolResult({
     this.command,
+    this.successDetail,
+    this.failureDetail,
     this.exitCode,
-    this.error,
-    this.stdout,
-    this.stderr,
   });
 
   final String? command;
+  final String? successDetail;
+  final String? failureDetail;
   final int? exitCode;
-  final String? error;
-  final String? stdout;
-  final String? stderr;
 
-  bool get isFailure => error != null || (exitCode != null && exitCode != 0);
+  bool get isFailure =>
+      failureDetail != null || (exitCode != null && exitCode != 0);
 }
