@@ -1954,7 +1954,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
-    final chatNotifier = ref.read(chatNotifierProvider.notifier);
     final nextTasks = taskDraft.tasks.isEmpty
         ? const <ConversationWorkflowTask>[]
         : taskDraft.tasks.indexed
@@ -2002,24 +2001,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
       context,
     ).showSnackBar(SnackBar(content: Text('chat.plan_proposal_started'.tr())));
 
-    await chatNotifier.sendMessage(
-      initialTask == null
-          ? 'chat.plan_proposal_execute_prompt'.tr()
-          : ConversationPlanExecutionCoordinator.buildTaskPrompt(
-              task: initialTask,
-              intro: 'chat.workflow_task_use_prompt_intro'.tr(
-                namedArgs: {'title': initialTask.title},
-              ),
-              targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
-              validationLabel: 'chat.workflow_task_validation'.tr(),
-              notesLabel: 'chat.workflow_task_notes'.tr(),
-              outro:
-                  initialTask.status == ConversationWorkflowTaskStatus.completed
-                  ? 'chat.workflow_task_review_prompt_outro'.tr()
-                  : 'chat.workflow_task_use_prompt_outro'.tr(),
-            ),
-      languageCode: context.locale.languageCode,
-      bypassPlanMode: true,
+    final latestConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (initialTask == null || latestConversation == null) {
+      await ref
+          .read(chatNotifierProvider.notifier)
+          .sendMessage(
+            'chat.plan_proposal_execute_prompt'.tr(),
+            languageCode: context.locale.languageCode,
+            bypassPlanMode: true,
+          );
+      return;
+    }
+
+    final latestTask =
+        latestConversation.projectedExecutionTasks
+            .where((task) => task.id == initialTask.id)
+            .firstOrNull ??
+        initialTask;
+    await _runWorkflowTask(
+      context,
+      currentConversation: latestConversation,
+      task: latestTask,
     );
   }
 
