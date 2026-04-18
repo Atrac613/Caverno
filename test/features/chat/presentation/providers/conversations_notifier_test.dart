@@ -231,6 +231,7 @@ void main() {
       await notifier.updateCurrentOpenQuestionProgress(
         question: 'Should the CLI scaffold validate before writing files?',
         status: ConversationOpenQuestionStatus.needsUserInput,
+        note: 'Answer this before we lock the first execution slice.',
       );
       await notifier.updateCurrentOpenQuestionProgress(
         question: 'Should the first slice include retry handling?',
@@ -249,6 +250,14 @@ void main() {
             )
             ?.status,
         ConversationOpenQuestionStatus.needsUserInput,
+      );
+      expect(
+        currentConversation
+            .openQuestionProgressForQuestion(
+              'Should the CLI scaffold validate before writing files?',
+            )
+            ?.normalizedNote,
+        'Answer this before we lock the first execution slice.',
       );
 
       await notifier.retainOpenQuestionProgress([

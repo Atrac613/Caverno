@@ -50,6 +50,8 @@ void main() {
             ),
             question: 'Should blocked tasks force a replan immediately?',
             status: ConversationOpenQuestionStatus.needsUserInput,
+            note:
+                'Yes. Trigger a narrow replan when the validation path stays red.',
           ),
         ],
       );
@@ -76,6 +78,12 @@ void main() {
         prompt,
         contains(
           '[needsUserInput] Should blocked tasks force a replan immediately?',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'note: Yes. Trigger a narrow replan when the validation path stays red.',
         ),
       );
       expect(prompt, contains('Requested replan focus:'));
