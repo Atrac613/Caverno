@@ -5777,12 +5777,60 @@ class ChatNotifier extends Notifier<ChatState> {
           '[ChatNotifier] _continueAfterContentToolResults onError: ${error.runtimeType}: $error',
         );
         appLog('[ChatNotifier] stackTrace: $stackTrace');
-        _handleError(error.toString());
+        unawaited(
+          _recoverAfterContentToolResultsStreamError(
+            messagesForLLM,
+            error,
+            stackTrace,
+          ),
+        );
       },
       onDone: () {
         _finishStreaming();
       },
+      cancelOnError: true,
     );
+  }
+
+  Future<void> _recoverAfterContentToolResultsStreamError(
+    List<Message> messagesForLLM,
+    Object error,
+    StackTrace stackTrace,
+  ) async {
+    try {
+      final result = await _dataSource.createChatCompletion(
+        messages: messagesForLLM,
+        model: _settings.model,
+        temperature: _settings.temperature,
+        maxTokens: _settings.maxTokens,
+      );
+
+      if (!ref.mounted || state.messages.isEmpty) {
+        return;
+      }
+
+      if (result.content.trim().isEmpty) {
+        appLog(
+          '[ChatNotifier] Content-tool continuation fallback returned empty content',
+        );
+        _handleError(error.toString());
+        return;
+      }
+
+      appLog(
+        '[ChatNotifier] Recovered content-tool continuation with non-streaming completion',
+      );
+      _replaceLastMessageContent(result.content);
+      _checkForContentToolCalls(result.content);
+      await _finishStreaming();
+    } catch (fallbackError, fallbackStackTrace) {
+      appLog(
+        '[ChatNotifier] Content-tool continuation fallback failed: ${fallbackError.runtimeType}: $fallbackError',
+      );
+      appLog('[ChatNotifier] fallbackStackTrace: $fallbackStackTrace');
+      appLog('[ChatNotifier] originalStackTrace: $stackTrace');
+      _handleError(error.toString());
+    }
   }
 
   /// Persists the current conversation messages.

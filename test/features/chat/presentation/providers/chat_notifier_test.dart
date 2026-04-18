@@ -324,6 +324,103 @@ class _QueuedStreamingChatDataSource implements ChatDataSource {
   }
 }
 
+class _ContinuationFallbackChatDataSource implements ChatDataSource {
+  final List<List<Message>> streamRequests = [];
+  final List<List<Message>> completionRequests = [];
+  var _streamCallCount = 0;
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    streamRequests.add(List<Message>.from(messages));
+    _streamCallCount += 1;
+    if (_streamCallCount == 1) {
+      return Stream<String>.fromIterable(const [
+        '<tool_call>{"name":"read_file","arguments":{"path":"src/config_loader.py"}}</tool_call>',
+      ]);
+    }
+    return Stream<String>.error(
+      Exception(
+        'ClientException: Connection closed before full header was received',
+      ),
+    );
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    completionRequests.add(List<Message>.from(messages));
+    return ChatCompletionResult(
+      content: 'Recovered continuation after stream failure.',
+      finishReason: 'stop',
+    );
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 class _ToolBatchChatDataSource implements ChatDataSource {
   _ToolBatchChatDataSource({required this.initialToolCalls});
 
@@ -1086,6 +1183,81 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'content tool continuations fall back to non-streaming completion on stream errors',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final dataSource = _ContinuationFallbackChatDataSource();
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'read_file':
+              '{"path":"/tmp/content-tools-project/src/config_loader.py","content":"class ConfigLoader:\\n    pass\\n"}',
+        },
+      );
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'tmp',
+        rootPath: '/tmp/content-tools-project',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ContentToolSettingsNotifier.new,
+          ),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(dataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        toolContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the config loader');
+        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(Duration.zero);
+
+        expect(dataSource.streamRequests, hasLength(2));
+        expect(dataSource.completionRequests, isNotEmpty);
+        expect(
+          dataSource.completionRequests.first.last.content,
+          contains('Continue the task using the following tool results.'),
+        );
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(toolNotifier.state.error, isNull);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered continuation after stream failure.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage auto-enters planning for a new coding thread when configured',
