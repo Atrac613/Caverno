@@ -915,6 +915,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             markdown: markdown,
             requireTasks: true,
           );
+    final showApproveAction = isDraftState;
     final canApprove = isDraftState && (planValidation?.isValid ?? false);
     final canCancel =
         isDraftState ||
@@ -1025,20 +1026,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (canApprove)
+              if (showApproveAction)
                 FilledButton.tonalIcon(
-                  onPressed: chatState.isLoading
+                  onPressed: chatState.isLoading || isGenerating || !canApprove
                       ? null
                       : () => _approveCurrentPlanAndStart(
                             context,
                             currentConversation: currentConversation,
                           ),
-                  icon: const Icon(Icons.play_circle_outline, size: 18),
+                  icon: isGenerating
+                      ? SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            color: theme.colorScheme.onSecondaryContainer,
+                          ),
+                        )
+                      : const Icon(Icons.play_circle_outline, size: 18),
                   label: Text('chat.plan_proposal_approve_start'.tr()),
                 ),
               if (showEdit)
                 OutlinedButton.icon(
-                  onPressed: chatState.isLoading
+                  onPressed: chatState.isLoading || isGenerating
                       ? null
                       : () => _editPlanInChat(
                             context,
@@ -1054,7 +1064,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ),
               if (canCancel)
                 TextButton(
-                  onPressed: chatState.isLoading
+                  onPressed: chatState.isLoading || isGenerating
                       ? null
                       : () => _cancelPlanReview(
                             context,
