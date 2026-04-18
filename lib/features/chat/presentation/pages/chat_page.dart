@@ -20,6 +20,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
+import '../../domain/services/conversation_plan_hash.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -29,13 +30,14 @@ import '../providers/conversations_notifier.dart';
 import '../widgets/conversation_drawer.dart';
 import '../widgets/message_bubble.dart';
 import '../widgets/message_input.dart';
+import '../widgets/plan/compact_plan_footer_card.dart';
 import '../widgets/plan/plan_document_approval_sheet.dart';
 import '../widgets/plan/plan_document_editor_sheet.dart';
 import '../widgets/plan/plan_hydrated_task_row.dart';
 import '../widgets/plan/plan_markdown_preview.dart';
 import '../widgets/plan/plan_open_question_section.dart';
+import '../widgets/plan/plan_review_sheet.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
-import '../widgets/plan/timeline_plan_card.dart';
 
 class ChatPage extends ConsumerStatefulWidget {
   const ChatPage({super.key});
@@ -50,9 +52,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
+  final Map<String, String> _acknowledgedPlanReviewSignatures = {};
   late final TabController _workspaceTabController;
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
+  bool _isPresentingPlanReviewSheet = false;
   bool _wasShowingPlanDraft = false;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
@@ -381,13 +385,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null &&
-        (currentConversation.hasPlanArtifact ||
-            chatState.workflowProposalDraft != null ||
-            chatState.taskProposalDraft != null ||
-            chatState.isGeneratingWorkflowProposal ||
-            chatState.isGeneratingTaskProposal ||
-            chatState.workflowProposalError != null ||
-            chatState.taskProposalError != null);
+        _shouldShowCompactPlanFooter(
+          currentConversation: currentConversation,
+          chatState: chatState,
+          isPlanMode: isPlanMode,
+        );
+    final shouldShowPlanProgressMessage =
+        isCodingWorkspace &&
+        activeProject != null &&
+        currentConversation != null &&
+        isPlanMode &&
+        (chatState.isGeneratingWorkflowProposal ||
+            chatState.isGeneratingTaskProposal);
+    _maybePresentPlanReviewSheet(
+      context,
+      currentConversation: currentConversation,
+      chatState: chatState,
+      isPlanMode: isPlanMode,
+    );
 
     return Scaffold(
       appBar: AppBar(
@@ -542,8 +557,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: chatState.messages.length,
+                    itemCount:
+                        chatState.messages.length +
+                        (shouldShowPlanProgressMessage ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (index >= chatState.messages.length) {
+                        return MessageBubble(
+                          message: _buildPlanProgressMessage(context),
+                          onReselectProject: isCodingWorkspace
+                              ? () => _pickAndActivateProject(context)
+                              : null,
+                        );
+                      }
                       return MessageBubble(
                         message: chatState.messages[index],
                         onReselectProject: isCodingWorkspace
@@ -664,15 +689,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
           top: BorderSide(color: theme.colorScheme.outlineVariant),
         ),
       ),
-      child: TimelinePlanCard(
+      child: CompactPlanFooterCard(
         currentConversation: currentConversation,
-        chatState: chatState,
         isPlanMode: isPlanMode,
-        isApprovedExpanded: _isApprovedPlanExpanded,
-        onToggleApprovedExpanded: () {
-          setState(() {
-            _isApprovedPlanExpanded = !_isApprovedPlanExpanded;
-          });
+        onOpen: () {
+          _openPlanReviewSheet(
+            context,
+            currentConversation: currentConversation,
+            chatState: chatState,
+            isPlanMode: isPlanMode,
+          );
         },
         onApprove: () {
           _approveCurrentPlanAndStart(
@@ -681,19 +707,181 @@ class _ChatPageState extends ConsumerState<ChatPage>
           );
         },
         onEdit: () {
-          _editPlanInChat(
-            context,
-            currentConversation: currentConversation,
-          );
+          _editPlanInChat(context, currentConversation: currentConversation);
         },
         onCancel: () {
-          _cancelPlanReview(
-            context,
-            currentConversation: currentConversation,
-          );
+          _cancelPlanReview(context, currentConversation: currentConversation);
         },
       ),
     );
+  }
+
+  Message _buildPlanProgressMessage(BuildContext context) {
+    return Message(
+      id: 'plan_progress_message',
+      content: 'chat.plan_proposal_generating'.tr(),
+      role: MessageRole.assistant,
+      timestamp: DateTime.now(),
+      isStreaming: true,
+    );
+  }
+
+  String? _currentPlanReviewSignature(
+    Conversation? currentConversation,
+    ChatState chatState, {
+    required bool isPlanMode,
+  }) {
+    if (currentConversation == null) {
+      return null;
+    }
+    if (chatState.isGeneratingWorkflowProposal ||
+        chatState.isGeneratingTaskProposal ||
+        chatState.workflowProposalError != null ||
+        chatState.taskProposalError != null) {
+      return null;
+    }
+
+    final artifact = currentConversation.effectivePlanArtifact;
+    final draftMarkdown = artifact.normalizedDraftMarkdown;
+    if (draftMarkdown == null) {
+      return null;
+    }
+
+    final requiresReview =
+        isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
+    if (!requiresReview) {
+      return null;
+    }
+
+    final updatedAt = artifact.updatedAt?.millisecondsSinceEpoch ?? 0;
+    return '${currentConversation.id}:$updatedAt:${computeConversationPlanHash(draftMarkdown)}';
+  }
+
+  bool _shouldShowCompactPlanFooter({
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+  }) {
+    if (!currentConversation.hasPlanArtifact) {
+      return false;
+    }
+
+    final reviewSignature = _currentPlanReviewSignature(
+      currentConversation,
+      chatState,
+      isPlanMode: isPlanMode,
+    );
+    if (reviewSignature == null) {
+      return true;
+    }
+
+    return _acknowledgedPlanReviewSignatures[currentConversation.id] ==
+        reviewSignature;
+  }
+
+  void _maybePresentPlanReviewSheet(
+    BuildContext context, {
+    required Conversation? currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+  }) {
+    if (currentConversation == null || _isPresentingPlanReviewSheet) {
+      return;
+    }
+
+    final reviewSignature = _currentPlanReviewSignature(
+      currentConversation,
+      chatState,
+      isPlanMode: isPlanMode,
+    );
+    if (reviewSignature == null) {
+      return;
+    }
+    if (_acknowledgedPlanReviewSignatures[currentConversation.id] ==
+        reviewSignature) {
+      return;
+    }
+
+    _isPresentingPlanReviewSheet = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      if (!mounted) {
+        _isPresentingPlanReviewSheet = false;
+        return;
+      }
+      await _openPlanReviewSheet(
+        context,
+        currentConversation: currentConversation,
+        chatState: chatState,
+        isPlanMode: isPlanMode,
+        reviewSignatureOverride: reviewSignature,
+      );
+      _isPresentingPlanReviewSheet = false;
+    });
+  }
+
+  Future<void> _openPlanReviewSheet(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+    String? reviewSignatureOverride,
+  }) async {
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final reviewSignature =
+        reviewSignatureOverride ??
+        _currentPlanReviewSignature(
+          latestConversation,
+          chatState,
+          isPlanMode: isPlanMode,
+        );
+    final artifact = latestConversation.effectivePlanArtifact;
+    if (!artifact.hasContent) {
+      return;
+    }
+
+    final isDraftState =
+        isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
+    final action = await showModalBottomSheet<PlanReviewSheetAction>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      showDragHandle: true,
+      builder: (sheetContext) => FractionallySizedBox(
+        heightFactor: 0.96,
+        child: PlanReviewSheet(
+          planArtifact: artifact,
+          isPlanMode: isPlanMode,
+          canApprove: isDraftState,
+          canCancel: isDraftState,
+        ),
+      ),
+    );
+
+    if (reviewSignature != null) {
+      _acknowledgedPlanReviewSignatures[currentConversation.id] =
+          reviewSignature;
+    }
+    if (!mounted || !context.mounted) {
+      return;
+    }
+    setState(() {});
+
+    if (action == PlanReviewSheetAction.approve) {
+      await _approveCurrentPlanAndStart(
+        context,
+        currentConversation: latestConversation,
+      );
+      return;
+    }
+    if (action == PlanReviewSheetAction.edit) {
+      _editPlanInChat(context, currentConversation: latestConversation);
+      return;
+    }
+    if (action == PlanReviewSheetAction.cancel) {
+      await _cancelPlanReview(context, currentConversation: latestConversation);
+    }
   }
 
   Widget _buildConversationCompactionBanner(
@@ -1843,8 +2031,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
               targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
               validationLabel: 'chat.workflow_task_validation'.tr(),
               notesLabel: 'chat.workflow_task_notes'.tr(),
-              outro: initialTask.status ==
-                      ConversationWorkflowTaskStatus.completed
+              outro:
+                  initialTask.status == ConversationWorkflowTaskStatus.completed
                   ? 'chat.workflow_task_review_prompt_outro'.tr()
                   : 'chat.workflow_task_use_prompt_outro'.tr(),
             ),
@@ -2409,19 +2597,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
       ),
       completer: Completer<WorkflowPlanningDecisionAnswer?>(),
     );
-    final answer =
-        await showModalBottomSheet<WorkflowPlanningDecisionAnswer>(
-          context: context,
-          isDismissible: true,
-          enableDrag: true,
-          isScrollControlled: true,
-          backgroundColor: Colors.transparent,
-          builder: (sheetContext) => _WorkflowDecisionSheet(
-            pending: pending,
-            initialFreeText: existingNote,
-            titleText: 'chat.open_question_answer_title'.tr(),
-          ),
-        );
+    final answer = await showModalBottomSheet<WorkflowPlanningDecisionAnswer>(
+      context: context,
+      isDismissible: true,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) => _WorkflowDecisionSheet(
+        pending: pending,
+        initialFreeText: existingNote,
+        titleText: 'chat.open_question_answer_title'.tr(),
+      ),
+    );
     if (answer == null || !context.mounted) {
       return;
     }
@@ -4179,12 +4366,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.workflow_task_replan_from_blocker_started'.tr(),
       eventSummary:
           'Started a blocker-focused replan from the approved plan flow.',
-      planningContext: ConversationPlanExecutionCoordinator
-          .buildBlockedTaskReplanContext(
-        conversation: latestConversation,
-        task: task,
-        blockedReason: blockedReason,
-      ),
+      planningContext:
+          ConversationPlanExecutionCoordinator.buildBlockedTaskReplanContext(
+            conversation: latestConversation,
+            task: task,
+            blockedReason: blockedReason,
+          ),
     );
   }
 
@@ -4204,11 +4391,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.plan_document_replan_current_task_started'.tr(),
       eventSummary:
           'Started a current-task-focused replan from the approved plan flow.',
-      planningContext: ConversationPlanExecutionCoordinator
-          .buildScopedTaskReplanContext(
-        conversation: currentConversation,
-        task: task,
-      ),
+      planningContext:
+          ConversationPlanExecutionCoordinator.buildScopedTaskReplanContext(
+            conversation: currentConversation,
+            task: task,
+          ),
     );
   }
 
@@ -4228,11 +4415,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.plan_document_replan_validation_started'.tr(),
       eventSummary:
           'Started a validation-path-focused replan from the approved plan flow.',
-      planningContext: ConversationPlanExecutionCoordinator
-          .buildValidationScopedReplanContext(
-        conversation: currentConversation,
-        task: task,
-      ),
+      planningContext:
+          ConversationPlanExecutionCoordinator.buildValidationScopedReplanContext(
+            conversation: currentConversation,
+            task: task,
+          ),
     );
   }
 
@@ -6126,7 +6313,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 }
-
 
 enum _WorkflowEditorAction { save, clear }
 
