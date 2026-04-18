@@ -136,8 +136,12 @@ jobs:
       - name: Run tests
         run: flutter test
 
+  # Temporarily disabled while the Linux smoke lane is rebuilt in follow-up
+  # changes. Re-enable after the manual Ubuntu workflow, runner-agnostic test
+  # setup, and fast smoke subset are stable in CI.
   plan-mode-smoke:
-    name: Plan Mode Smoke
+    name: Plan Mode Smoke (Temporarily Disabled)
+    if: ${{ false }}
     runs-on: macos-latest
     timeout-minutes: 40
 
