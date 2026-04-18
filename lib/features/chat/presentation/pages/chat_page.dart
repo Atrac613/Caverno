@@ -4432,6 +4432,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final languageCode = context.locale.languageCode;
     final previousAssistantMessageId = _latestAssistantMessageId(
       ref.read(conversationsNotifierProvider).currentConversation ??
           currentConversation,
@@ -4470,7 +4471,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ? 'chat.workflow_task_review_prompt_outro'.tr()
             : 'chat.workflow_task_use_prompt_outro'.tr(),
       ),
-      languageCode: context.locale.languageCode,
+      languageCode: languageCode,
       bypassPlanMode: true,
     );
     await _captureExecutionProgressFromLatestAssistantTurn(
@@ -4478,6 +4479,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       previousAssistantMessageId: previousAssistantMessageId,
       isValidationRun: false,
     );
+    if (!context.mounted) {
+      return;
+    }
+    await _continueToNextPendingTaskIfNeeded(context, completedTask: task);
   }
 
   Future<void> _runWorkflowTaskValidation(
@@ -4486,6 +4491,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final languageCode = context.locale.languageCode;
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -4523,7 +4529,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         validationLabel: 'chat.workflow_task_validation'.tr(),
         outro: 'chat.workflow_task_validation_prompt_outro'.tr(),
       ),
-      languageCode: context.locale.languageCode,
+      languageCode: languageCode,
       bypassPlanMode: true,
     );
     final toolResultApplied = await conversationsNotifier
@@ -4546,6 +4552,86 @@ class _ChatPageState extends ConsumerState<ChatPage>
         isValidationRun: true,
       );
     }
+    if (!context.mounted) {
+      return;
+    }
+    await _continueToNextPendingTaskIfNeeded(context, completedTask: task);
+  }
+
+  Future<void> _continueToNextPendingTaskIfNeeded(
+    BuildContext context, {
+    required ConversationWorkflowTask completedTask,
+    int depth = 0,
+  }) async {
+    if (depth >= 8) {
+      return;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return;
+    }
+
+    final latestCompletedTask = currentConversation.projectedExecutionTasks
+        .where((task) => task.id == completedTask.id)
+        .firstOrNull;
+    if (latestCompletedTask == null ||
+        latestCompletedTask.status !=
+            ConversationWorkflowTaskStatus.completed) {
+      return;
+    }
+
+    final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+      currentConversation,
+    );
+    if (nextTask == null || nextTask.id == latestCompletedTask.id) {
+      return;
+    }
+
+    final languageCode = context.locale.languageCode;
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      currentConversation,
+    );
+    await _setWorkflowTaskStatus(
+      currentConversation: currentConversation,
+      task: nextTask,
+      status: ConversationWorkflowTaskStatus.inProgress,
+      summary:
+          'Auto-continued to the next saved task after completing "${latestCompletedTask.title}".',
+      lastRunAt: DateTime.now(),
+      eventType: ConversationExecutionTaskEventType.started,
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendHiddenPrompt(
+      ConversationPlanExecutionCoordinator.buildAutoContinueTaskPrompt(
+        completedTask: latestCompletedTask,
+        nextTask: nextTask,
+      ),
+      languageCode: languageCode,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    await _captureExecutionProgressFromLatestAssistantTurn(
+      task: nextTask,
+      previousAssistantMessageId: previousAssistantMessageId,
+      isValidationRun: false,
+    );
+    if (!context.mounted) {
+      return;
+    }
+    await _continueToNextPendingTaskIfNeeded(
+      context,
+      completedTask: nextTask,
+      depth: depth + 1,
+    );
   }
 
   Future<void> _captureExecutionProgressFromLatestAssistantTurn({

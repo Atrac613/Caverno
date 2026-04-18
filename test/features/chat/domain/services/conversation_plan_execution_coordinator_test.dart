@@ -58,8 +58,8 @@ void main() {
       ],
     );
 
-    final context = ConversationPlanExecutionCoordinator
-        .buildBlockedTaskReplanContext(
+    final context =
+        ConversationPlanExecutionCoordinator.buildBlockedTaskReplanContext(
           conversation: conversation,
           task: conversation.projectedExecutionTasks.first,
           blockedReason: 'Validation is red.',
@@ -68,9 +68,41 @@ void main() {
     expect(context, contains('- blockedTask: Unblock the current task'));
     expect(context, contains('- blockedReason: Validation is red.'));
     expect(context, contains('- preserveTaskIds:'));
+    expect(context, contains('task-2: Keep the next validation slice stable'));
+  });
+
+  test('buildAutoContinueTaskPrompt carries the next task metadata', () {
+    const completedTask = ConversationWorkflowTask(
+      id: 'task-1',
+      title: 'Implement the ping utility',
+    );
+    const nextTask = ConversationWorkflowTask(
+      id: 'task-2',
+      title: 'Load the config file',
+      targetFiles: ['src/config_loader.py', 'config/config.yaml'],
+      validationCommand: 'pytest tests/test_config_loader.py',
+      notes: 'Keep the initial loader synchronous.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildAutoContinueTaskPrompt(
+          completedTask: completedTask,
+          nextTask: nextTask,
+        );
+
+    expect(prompt, contains('Completed task: Implement the ping utility'));
+    expect(prompt, contains('Next task: Load the config file'));
     expect(
-      context,
-      contains('task-2: Keep the next validation slice stable'),
+      prompt,
+      contains('Target files: src/config_loader.py, config/config.yaml'),
+    );
+    expect(prompt, contains('Validation: pytest tests/test_config_loader.py'));
+    expect(prompt, contains('Notes: Keep the initial loader synchronous.'));
+    expect(
+      prompt,
+      contains(
+        'Continue immediately with the next pending saved task without asking for confirmation.',
+      ),
     );
   });
 

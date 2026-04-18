@@ -55,6 +55,40 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildAutoContinueTaskPrompt({
+    required ConversationWorkflowTask completedTask,
+    required ConversationWorkflowTask nextTask,
+  }) {
+    final promptLines = <String>[
+      'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+      'Completed task: ${completedTask.title.trim()}',
+      'Next task: ${nextTask.title.trim()}',
+    ];
+
+    final targetFiles = nextTask.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final validationCommand = nextTask.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = nextTask.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.add(
+      'Implement the next task now. Only pause if you are blocked, the requirements changed, or completing it would require changing the approved workflow.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildBlockedTaskReplanContext({
     required Conversation conversation,
     required ConversationWorkflowTask task,
@@ -94,9 +128,7 @@ class ConversationPlanExecutionCoordinator {
     if (recentEvents != null && recentEvents.isNotEmpty) {
       buffer.writeln('- recentEvents: $recentEvents');
     }
-    buffer.write(
-      _buildPreservedTasksBlock(conversation, focusedTask: task),
-    );
+    buffer.write(_buildPreservedTasksBlock(conversation, focusedTask: task));
     buffer.writeln(
       '- expectation: either remove the blocker from the plan or add the minimum follow-up work needed to unblock implementation.',
     );
@@ -124,9 +156,7 @@ class ConversationPlanExecutionCoordinator {
     if (notes.isNotEmpty) {
       buffer.writeln('- notes: $notes');
     }
-    buffer.write(
-      _buildPreservedTasksBlock(conversation, focusedTask: task),
-    );
+    buffer.write(_buildPreservedTasksBlock(conversation, focusedTask: task));
     buffer.writeln(
       '- expectation: keep unaffected tasks unchanged by Task ID unless the focused task truly requires a narrow follow-up adjustment.',
     );
@@ -153,9 +183,7 @@ class ConversationPlanExecutionCoordinator {
     if (blockedReason != null) {
       buffer.writeln('- blockedReason: $blockedReason');
     }
-    buffer.write(
-      _buildPreservedTasksBlock(conversation, focusedTask: task),
-    );
+    buffer.write(_buildPreservedTasksBlock(conversation, focusedTask: task));
     buffer.writeln(
       '- expectation: keep unrelated tasks unchanged and update only the minimum validation steps needed to move execution forward.',
     );
