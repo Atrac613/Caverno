@@ -419,7 +419,9 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     final isContinuationPrompt = prompt.startsWith(
       'Continue the task using the following tool results.',
     );
-    if (isFinalToolAnswerPrompt || isSearchAnswerPrompt || isContinuationPrompt) {
+    if (isFinalToolAnswerPrompt ||
+        isSearchAnswerPrompt ||
+        isContinuationPrompt) {
       if (_continuationStreamIndex >= scenario.continuationStreams.length) {
         appLog('[ScenarioLLM] continuation stream exhausted');
         return;
@@ -1099,7 +1101,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python script to diagnose the health of a specific host using ping.',
       projectName: 'tmp',
-      tags: const <String>['fake', 'smoke', 'artifact'],
+      tags: const <String>['fake', 'smoke', 'artifact', 'ci'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowProposalResponseSpec(
           workflowStage: 'plan',
@@ -1279,7 +1281,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       userPrompt:
           'Create a Python host health tool and decide whether the first slice should be a CLI or a reusable module.',
       projectName: 'tmp',
-      tags: const <String>['fake', 'smoke', 'decision', 'artifact'],
+      tags: const <String>['fake', 'smoke', 'decision', 'artifact', 'ci'],
       workflowResponses: <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowDecisionResponseSpec(
           decisions: <WorkflowPlanningDecision>[
