@@ -20,6 +20,7 @@ import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
+import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../providers/chat_notifier.dart';
@@ -1478,11 +1479,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
     await chatNotifier.sendMessage(
       initialTask == null
           ? 'chat.plan_proposal_execute_prompt'.tr()
-          : _buildWorkflowTaskPrompt(
-              initialTask,
-              isReview:
-                  initialTask.status ==
-                  ConversationWorkflowTaskStatus.completed,
+          : ConversationPlanExecutionCoordinator.buildTaskPrompt(
+              task: initialTask,
+              intro: 'chat.workflow_task_use_prompt_intro'.tr(
+                namedArgs: {'title': initialTask.title},
+              ),
+              targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
+              validationLabel: 'chat.workflow_task_validation'.tr(),
+              notesLabel: 'chat.workflow_task_notes'.tr(),
+              outro: initialTask.status ==
+                      ConversationWorkflowTaskStatus.completed
+                  ? 'chat.workflow_task_review_prompt_outro'.tr()
+                  : 'chat.workflow_task_use_prompt_outro'.tr(),
             ),
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
@@ -1790,10 +1798,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final canUseProjection =
         !currentConversation.shouldPreferPlanDocument ||
         currentConversation.isWorkflowProjectionFresh;
-    final blockedTask = _blockedWorkflowTask(currentConversation);
-    final nextTask = _nextWorkflowTask(currentConversation);
-    final activeTask = _activeWorkflowTask(currentConversation);
-    final validationTask = _validationWorkflowTask(currentConversation);
+    final blockedTask = ConversationPlanExecutionCoordinator.blockedTask(
+      currentConversation,
+    );
+    final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+      currentConversation,
+    );
+    final activeTask = ConversationPlanExecutionCoordinator.activeTask(
+      currentConversation,
+    );
+    final validationTask = ConversationPlanExecutionCoordinator.validationTask(
+      currentConversation,
+    );
 
     return Wrap(
       spacing: 8,
@@ -3820,8 +3836,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.workflow_task_replan_from_blocker_started'.tr(),
       eventSummary:
           'Started a blocker-focused replan from the approved plan flow.',
-      planningContext: _buildBlockedTaskReplanContext(
-        currentConversation: latestConversation,
+      planningContext: ConversationPlanExecutionCoordinator
+          .buildBlockedTaskReplanContext(
+        conversation: latestConversation,
         task: task,
         blockedReason: blockedReason,
       ),
@@ -3844,8 +3861,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.plan_document_replan_current_task_started'.tr(),
       eventSummary:
           'Started a current-task-focused replan from the approved plan flow.',
-      planningContext: _buildScopedTaskReplanContext(
-        currentConversation: currentConversation,
+      planningContext: ConversationPlanExecutionCoordinator
+          .buildScopedTaskReplanContext(
+        conversation: currentConversation,
         task: task,
       ),
     );
@@ -3867,8 +3885,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       snackBarMessage: 'chat.plan_document_replan_validation_started'.tr(),
       eventSummary:
           'Started a validation-path-focused replan from the approved plan flow.',
-      planningContext: _buildValidationScopedReplanContext(
-        currentConversation: currentConversation,
+      planningContext: ConversationPlanExecutionCoordinator
+          .buildValidationScopedReplanContext(
+        conversation: currentConversation,
         task: task,
       ),
     );
@@ -3911,131 +3930,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ).showSnackBar(SnackBar(content: Text(snackBarMessage)));
   }
 
-  String _buildBlockedTaskReplanContext({
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-    required String blockedReason,
-  }) {
-    final progress = currentConversation.executionProgressForTask(task.id);
-    final buffer = StringBuffer()
-      ..writeln('Focus the next draft on resolving the active blocker.')
-      ..writeln('- blockedTask: ${task.title.trim()}')
-      ..writeln('- blockedReason: ${blockedReason.trim()}');
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
-    if (targetFiles.isNotEmpty) {
-      buffer.writeln('- targetFiles: $targetFiles');
-    }
-    final validationCommand = task.validationCommand.trim();
-    if (validationCommand.isNotEmpty) {
-      buffer.writeln('- validationCommand: $validationCommand');
-    }
-    final notes = task.notes.trim();
-    if (notes.isNotEmpty) {
-      buffer.writeln('- notes: $notes');
-    }
-    final recentEvents = progress?.recentEvents.reversed
-        .take(3)
-        .map((event) {
-          final detail =
-              event.normalizedSummary ??
-              event.normalizedValidationSummary ??
-              event.normalizedBlockedReason ??
-              event.status.name;
-          return '${event.type.name}: $detail';
-        })
-        .join(' || ');
-    if (recentEvents != null && recentEvents.isNotEmpty) {
-      buffer.writeln('- recentEvents: $recentEvents');
-    }
-    buffer.write(
-      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
-    );
-    buffer.writeln(
-      '- expectation: either remove the blocker from the plan or add the minimum follow-up work needed to unblock implementation.',
-    );
-    return buffer.toString().trimRight();
-  }
-
-  String _buildScopedTaskReplanContext({
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) {
-    final progress = currentConversation.executionProgressForTask(task.id);
-    final buffer = StringBuffer()
-      ..writeln('Focus the next draft on the current implementation task only.')
-      ..writeln('- currentTaskId: ${task.id}')
-      ..writeln('- currentTask: ${task.title.trim()}');
-    final summary = progress?.normalizedSummary;
-    if (summary != null) {
-      buffer.writeln('- executionSummary: $summary');
-    }
-    final blockedReason = progress?.normalizedBlockedReason;
-    if (blockedReason != null) {
-      buffer.writeln('- blockedReason: $blockedReason');
-    }
-    final notes = task.notes.trim();
-    if (notes.isNotEmpty) {
-      buffer.writeln('- notes: $notes');
-    }
-    buffer.write(
-      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
-    );
-    buffer.writeln(
-      '- expectation: keep unaffected tasks unchanged by Task ID unless the focused task truly requires a narrow follow-up adjustment.',
-    );
-    return buffer.toString().trimRight();
-  }
-
-  String _buildValidationScopedReplanContext({
-    required Conversation currentConversation,
-    required ConversationWorkflowTask task,
-  }) {
-    final progress = currentConversation.executionProgressForTask(task.id);
-    final buffer = StringBuffer()
-      ..writeln(
-        'Focus the next draft on the saved validation path for the current task.',
-      )
-      ..writeln('- validationTaskId: ${task.id}')
-      ..writeln('- validationTask: ${task.title.trim()}')
-      ..writeln('- validationCommand: ${task.validationCommand.trim()}');
-    final validationSummary = progress?.normalizedValidationSummary;
-    if (validationSummary != null) {
-      buffer.writeln('- validationSummary: $validationSummary');
-    }
-    final blockedReason = progress?.normalizedBlockedReason;
-    if (blockedReason != null) {
-      buffer.writeln('- blockedReason: $blockedReason');
-    }
-    buffer.write(
-      _buildPreservedTasksBlock(currentConversation, focusedTask: task),
-    );
-    buffer.writeln(
-      '- expectation: keep unrelated tasks unchanged and update only the minimum validation steps needed to move execution forward.',
-    );
-    return buffer.toString().trimRight();
-  }
-
-  String _buildPreservedTasksBlock(
-    Conversation currentConversation, {
-    required ConversationWorkflowTask focusedTask,
-  }) {
-    final preservedTasks = currentConversation.projectedExecutionTasks
-        .where((task) => task.id != focusedTask.id)
-        .toList(growable: false);
-    if (preservedTasks.isEmpty) {
-      return '';
-    }
-
-    final buffer = StringBuffer()..writeln('- preserveTaskIds:');
-    for (final task in preservedTasks) {
-      buffer.writeln('  - ${task.id}: ${task.title.trim()}');
-    }
-    return buffer.toString();
-  }
-
   Future<void> _runWorkflowTask(
     BuildContext context, {
     required Conversation currentConversation,
@@ -4068,9 +3962,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     await chatNotifier.sendMessage(
-      _buildWorkflowTaskPrompt(
-        task,
-        isReview: task.status == ConversationWorkflowTaskStatus.completed,
+      ConversationPlanExecutionCoordinator.buildTaskPrompt(
+        task: task,
+        intro: 'chat.workflow_task_use_prompt_intro'.tr(
+          namedArgs: {'title': task.title},
+        ),
+        targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
+        validationLabel: 'chat.workflow_task_validation'.tr(),
+        notesLabel: 'chat.workflow_task_notes'.tr(),
+        outro: task.status == ConversationWorkflowTaskStatus.completed
+            ? 'chat.workflow_task_review_prompt_outro'.tr()
+            : 'chat.workflow_task_use_prompt_outro'.tr(),
       ),
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
@@ -4116,7 +4018,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     await chatNotifier.sendMessage(
-      _buildWorkflowValidationPrompt(task),
+      ConversationPlanExecutionCoordinator.buildValidationPrompt(
+        task: task,
+        intro: 'chat.workflow_task_validation_prompt_intro'.tr(
+          namedArgs: {'title': task.title},
+        ),
+        targetFilesLabel: 'chat.workflow_task_target_files'.tr(),
+        validationLabel: 'chat.workflow_task_validation'.tr(),
+        outro: 'chat.workflow_task_validation_prompt_outro'.tr(),
+      ),
       languageCode: context.locale.languageCode,
       bypassPlanMode: true,
     );
@@ -4169,123 +4079,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
           assistantResponse: latestAssistantMessage.content,
           isValidationRun: isValidationRun,
         );
-  }
-
-  String _buildWorkflowTaskPrompt(
-    ConversationWorkflowTask task, {
-    required bool isReview,
-  }) {
-    final promptLines = <String>[
-      'chat.workflow_task_use_prompt_intro'.tr(
-        namedArgs: {'title': task.title},
-      ),
-    ];
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
-    if (targetFiles.isNotEmpty) {
-      promptLines.add(
-        '${'chat.workflow_task_target_files'.tr()}: $targetFiles',
-      );
-    }
-    final validationCommand = task.validationCommand.trim();
-    if (validationCommand.isNotEmpty) {
-      promptLines.add(
-        '${'chat.workflow_task_validation'.tr()}: $validationCommand',
-      );
-    }
-    final notes = task.notes.trim();
-    if (notes.isNotEmpty) {
-      promptLines.add('${'chat.workflow_task_notes'.tr()}: $notes');
-    }
-    promptLines.add(
-      isReview
-          ? 'chat.workflow_task_review_prompt_outro'.tr()
-          : 'chat.workflow_task_use_prompt_outro'.tr(),
-    );
-    return promptLines.join('\n');
-  }
-
-  String _buildWorkflowValidationPrompt(ConversationWorkflowTask task) {
-    final promptLines = <String>[
-      'chat.workflow_task_validation_prompt_intro'.tr(
-        namedArgs: {'title': task.title},
-      ),
-    ];
-    final validationCommand = task.validationCommand.trim();
-    if (validationCommand.isNotEmpty) {
-      promptLines.add(
-        '${'chat.workflow_task_validation'.tr()}: $validationCommand',
-      );
-    }
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
-    if (targetFiles.isNotEmpty) {
-      promptLines.add(
-        '${'chat.workflow_task_target_files'.tr()}: $targetFiles',
-      );
-    }
-    promptLines.add('chat.workflow_task_validation_prompt_outro'.tr());
-    return promptLines.join('\n');
-  }
-
-  ConversationWorkflowTask? _activeWorkflowTask(
-    Conversation currentConversation,
-  ) {
-    for (final task in currentConversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.inProgress) {
-        return task;
-      }
-    }
-    return null;
-  }
-
-  ConversationWorkflowTask? _nextWorkflowTask(
-    Conversation currentConversation,
-  ) {
-    final activeTask = _activeWorkflowTask(currentConversation);
-    if (activeTask != null) {
-      return activeTask;
-    }
-    for (final task in currentConversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.pending) {
-        return task;
-      }
-    }
-    return null;
-  }
-
-  ConversationWorkflowTask? _blockedWorkflowTask(
-    Conversation currentConversation,
-  ) {
-    for (final task in currentConversation.projectedExecutionTasks) {
-      if (task.status == ConversationWorkflowTaskStatus.blocked) {
-        return task;
-      }
-    }
-    return null;
-  }
-
-  ConversationWorkflowTask? _validationWorkflowTask(
-    Conversation currentConversation,
-  ) {
-    final candidates = [
-      _activeWorkflowTask(currentConversation),
-      _nextWorkflowTask(currentConversation),
-      ...currentConversation.projectedExecutionTasks,
-    ];
-    for (final task in candidates) {
-      if (task == null) {
-        continue;
-      }
-      if (task.validationCommand.trim().isNotEmpty) {
-        return task;
-      }
-    }
-    return null;
   }
 
   Message? _latestAssistantMessage(Conversation conversation) {
