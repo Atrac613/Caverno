@@ -52,6 +52,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
   bool _wasShowingPlanDraft = false;
+  String _composerPrefillText = '';
+  int _composerPrefillVersion = 0;
 
   @override
   void initState() {
@@ -373,14 +375,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
       _workspaceTabController.index = workspaceIndex;
     }
     final canCompose = !isCodingWorkspace || activeProject != null;
-    final shouldShowWorkflowSurface =
+    final shouldShowPlanTimelineCard =
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null &&
-        (isPlanMode ||
-            currentConversation.hasWorkflowContext ||
+        (currentConversation.hasPlanArtifact ||
+            isPlanMode ||
             chatState.workflowProposalDraft != null ||
             chatState.taskProposalDraft != null ||
+            chatState.isGeneratingWorkflowProposal ||
+            chatState.isGeneratingTaskProposal ||
             chatState.workflowProposalError != null ||
             chatState.taskProposalError != null);
 
@@ -523,20 +527,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 ],
               ),
             ),
-          if (shouldShowWorkflowSurface)
-            _buildWorkflowPanel(
-              context,
-              currentConversation,
-              chatState,
-              isPlanMode: isPlanMode,
-            ),
           if (currentConversation?.hasCompactionArtifact ?? false)
             _buildConversationCompactionBanner(context, currentConversation!),
           // Message list
           Expanded(
             child: !canCompose
                 ? _buildCodingProjectEmptyState(context)
-                : chatState.messages.isEmpty
+                : chatState.messages.isEmpty && !shouldShowPlanTimelineCard
                 ? _buildEmptyState(
                     context,
                     isCodingWorkspace: isCodingWorkspace,
@@ -544,8 +541,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: chatState.messages.length,
+                    itemCount: chatState.messages.length +
+                        (shouldShowPlanTimelineCard ? 1 : 0),
                     itemBuilder: (context, index) {
+                      if (shouldShowPlanTimelineCard &&
+                          index == chatState.messages.length) {
+                        return Padding(
+                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
+                          child: _buildTimelinePlanCard(
+                            context,
+                            currentConversation: currentConversation,
+                            chatState: chatState,
+                            isPlanMode: isPlanMode,
+                          ),
+                        );
+                      }
                       return MessageBubble(
                         message: chatState.messages[index],
                         onReselectProject: isCodingWorkspace
@@ -561,13 +571,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
           // Input area
           if (canCompose)
             MessageInput(
-              onSend: (message, imageBase64, imageMimeType) =>
-                  chatNotifier.sendMessage(
-                    message,
-                    imageBase64: imageBase64,
-                    imageMimeType: imageMimeType,
-                    languageCode: context.locale.languageCode,
-                  ),
+              onSend: (message, imageBase64, imageMimeType) {
+                setState(() {
+                  _composerPrefillText = '';
+                  _composerPrefillVersion++;
+                });
+                chatNotifier.sendMessage(
+                  message,
+                  imageBase64: imageBase64,
+                  imageMimeType: imageMimeType,
+                  languageCode: context.locale.languageCode,
+                );
+              },
               onCancel: () => chatNotifier.cancelStreaming(),
               isLoading: chatState.isLoading,
               assistantMode: effectiveAssistantMode,
@@ -595,6 +610,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ? 'message.input_hint_plan'
                         : 'message.input_hint_coding')
                   : 'message.input_hint',
+              composerPrefillText: _composerPrefillText,
+              composerPrefillVersion: _composerPrefillVersion,
             ),
         ],
       ),
@@ -753,6 +770,390 @@ class _ChatPageState extends ConsumerState<ChatPage>
     return 'git $normalized';
   }
 
+  Widget _buildTimelinePlanCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+  }) {
+    final theme = Theme.of(context);
+    final planArtifact = currentConversation.effectivePlanArtifact;
+    final isGenerating =
+        chatState.isGeneratingWorkflowProposal ||
+        chatState.isGeneratingTaskProposal;
+    final isDraftState =
+        isPlanMode ||
+        planArtifact.hasPendingEdits ||
+        !planArtifact.hasApproved ||
+        chatState.workflowProposalDraft != null ||
+        chatState.taskProposalDraft != null ||
+        chatState.workflowProposalError != null ||
+        chatState.taskProposalError != null ||
+        isGenerating;
+    final markdown = planArtifact.displayMarkdown(isPlanning: isDraftState);
+    final planValidation = markdown == null
+        ? null
+        : ConversationPlanProjectionService.validateDocument(
+            markdown: markdown,
+            requireTasks: true,
+          );
+    final canApprove = isDraftState && (planValidation?.isValid ?? false);
+    final canCancel =
+        isDraftState ||
+        chatState.workflowProposalError != null ||
+        chatState.taskProposalError != null;
+    final showEdit = markdown != null || isDraftState;
+    final titleKey = isDraftState
+        ? 'chat.plan_proposal_title'
+        : 'chat.plan_document_title';
+    final statusKey = isDraftState
+        ? (planArtifact.hasApproved && planArtifact.hasPendingEdits
+              ? 'chat.plan_document_status_pending'
+              : 'chat.plan_document_status_draft')
+        : 'chat.plan_document_status_approved';
+    final subtitleKey = isDraftState
+        ? 'chat.plan_proposal_subtitle'
+        : 'chat.plan_document_approved_subtitle';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.route_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  titleKey.tr(),
+                  style: theme.textTheme.titleSmall?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              Chip(
+                label: Text(statusKey.tr()),
+                visualDensity: VisualDensity.compact,
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            subtitleKey.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          if (isGenerating) ...[
+            const SizedBox(height: 10),
+            Row(
+              children: [
+                const SizedBox(
+                  width: 16,
+                  height: 16,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'chat.plan_proposal_generating'.tr(),
+                    style: theme.textTheme.bodySmall,
+                  ),
+                ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 10),
+          Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(10),
+            decoration: BoxDecoration(
+              color: theme.colorScheme.surfaceContainerHigh,
+              borderRadius: BorderRadius.circular(10),
+            ),
+            child: Text(
+              markdown ?? 'chat.plan_mode_empty'.tr(),
+              maxLines: 18,
+              overflow: TextOverflow.ellipsis,
+              style: theme.textTheme.bodySmall?.copyWith(
+                height: 1.35,
+                fontFamily: 'monospace',
+              ),
+            ),
+          ),
+          if (chatState.workflowProposalError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              chatState.workflowProposalError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          if (chatState.taskProposalError != null) ...[
+            const SizedBox(height: 10),
+            Text(
+              chatState.taskProposalError!,
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              if (canApprove)
+                FilledButton.tonalIcon(
+                  onPressed: chatState.isLoading
+                      ? null
+                      : () => _approveCurrentPlanAndStart(
+                            context,
+                            currentConversation: currentConversation,
+                          ),
+                  icon: const Icon(Icons.play_circle_outline, size: 18),
+                  label: Text('chat.plan_proposal_approve_start'.tr()),
+                ),
+              if (showEdit)
+                OutlinedButton.icon(
+                  onPressed: chatState.isLoading
+                      ? null
+                      : () => _editPlanInChat(
+                            context,
+                            currentConversation: currentConversation,
+                          ),
+                  icon: const Icon(Icons.edit_outlined, size: 18),
+                  label: Text(
+                    (planArtifact.hasApproved
+                            ? 'chat.plan_document_edit_approved'
+                            : 'chat.plan_document_edit_draft')
+                        .tr(),
+                  ),
+                ),
+              if (canCancel)
+                TextButton(
+                  onPressed: chatState.isLoading
+                      ? null
+                      : () => _cancelPlanReview(
+                            context,
+                            currentConversation: currentConversation,
+                          ),
+                  child: Text('common.cancel'.tr()),
+                ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _editPlanInChat(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    if (!currentConversation.isPlanningSession) {
+      await conversationsNotifier.enterPlanningSession();
+    }
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _composerPrefillText = _buildPlanEditSeed(currentConversation);
+      _composerPrefillVersion++;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _scrollToBottom();
+    });
+  }
+
+  String _buildPlanEditSeed(Conversation currentConversation) {
+    final planArtifact = currentConversation.effectivePlanArtifact;
+    if (planArtifact.hasApproved) {
+      return 'Please revise the saved plan for this thread based on the following adjustment:\n- ';
+    }
+    return 'Please adjust the current draft plan for this thread as follows:\n- ';
+  }
+
+  Future<void> _cancelPlanReview(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final planArtifact = latestConversation.effectivePlanArtifact;
+
+    if (planArtifact.hasApproved && planArtifact.hasPendingEdits) {
+      final approvedMarkdown = planArtifact.normalizedApprovedMarkdown ?? '';
+      final updatedAt = DateTime.now();
+      final nextArtifact = planArtifact
+          .copyWith(draftMarkdown: approvedMarkdown, updatedAt: updatedAt)
+          .recordRevision(
+            markdown: approvedMarkdown,
+            kind: ConversationPlanRevisionKind.restored,
+            label: 'Cancelled draft changes and restored approved plan',
+            createdAt: updatedAt,
+          );
+      await conversationsNotifier.updateCurrentPlanArtifact(
+        planArtifact: nextArtifact,
+      );
+    } else if (!planArtifact.hasApproved) {
+      await conversationsNotifier.updateCurrentPlanArtifact(
+        clearPlanArtifact: true,
+      );
+    }
+
+    await conversationsNotifier.exitPlanningSession();
+    ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      _composerPrefillText = '';
+      _composerPrefillVersion++;
+    });
+  }
+
+  Future<void> _approveCurrentPlanAndStart(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final languageCode = context.locale.languageCode;
+    final messenger = ScaffoldMessenger.of(context);
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final latestConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        currentConversation;
+    final currentArtifact = latestConversation.effectivePlanArtifact;
+    final draftMarkdown =
+        currentArtifact.normalizedDraftMarkdown ??
+        currentArtifact.normalizedApprovedMarkdown;
+    if (draftMarkdown == null) {
+      return;
+    }
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: draftMarkdown,
+      requireTasks: true,
+    );
+    if (!validation.isValid || validation.projection == null) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'chat.plan_document_approval_blocked'.tr(
+              namedArgs: {
+                'error':
+                    validation.errorMessage ??
+                    'plan document could not be parsed',
+              },
+            ),
+          ),
+        ),
+      );
+      return;
+    }
+
+    final approvedWorkflowStage = switch (validation.workflowStage) {
+      ConversationWorkflowStage.tasks ||
+      ConversationWorkflowStage.implement ||
+      ConversationWorkflowStage.review => validation.workflowStage!,
+      _ =>
+        validation.previewTasks.isEmpty
+            ? ConversationWorkflowStage.tasks
+            : ConversationWorkflowStage.implement,
+    };
+    final approvedMarkdown =
+        ConversationPlanProjectionService.replaceWorkflowStage(
+          markdown: draftMarkdown,
+          workflowStage: approvedWorkflowStage,
+        );
+    final updatedAt = DateTime.now();
+    final nextArtifact = currentArtifact
+        .copyWith(
+          draftMarkdown: approvedMarkdown,
+          approvedMarkdown: approvedMarkdown,
+          updatedAt: updatedAt,
+        )
+        .recordRevision(
+          markdown: approvedMarkdown,
+          kind: ConversationPlanRevisionKind.approved,
+          label: 'Approved plan from timeline review',
+          createdAt: updatedAt,
+        );
+
+    await conversationsNotifier.updateCurrentPlanArtifact(
+      planArtifact: nextArtifact,
+      clearPlanArtifact: !nextArtifact.hasContent,
+    );
+    final refreshed = await conversationsNotifier
+        .refreshCurrentWorkflowProjectionFromApprovedPlan();
+    if (!mounted) {
+      return;
+    }
+    if (!refreshed && validation.workflowSpec != null) {
+      await conversationsNotifier.updateCurrentWorkflow(
+        workflowStage: approvedWorkflowStage,
+        workflowSpec: validation.workflowSpec!,
+      );
+    }
+
+    await conversationsNotifier.exitPlanningSession();
+    chatNotifier.dismissPlanProposal();
+
+    if (!mounted) {
+      return;
+    }
+
+    setState(() {
+      _composerPrefillText = '';
+      _composerPrefillVersion++;
+    });
+
+    messenger.showSnackBar(
+      SnackBar(content: Text('chat.plan_proposal_started'.tr())),
+    );
+
+    await chatNotifier.sendMessage(
+      'chat.plan_proposal_execute_prompt'.tr(),
+      languageCode: languageCode,
+      bypassPlanMode: true,
+    );
+  }
+
+  // ignore: unused_element
   Widget _buildWorkflowPanel(
     BuildContext context,
     Conversation currentConversation,

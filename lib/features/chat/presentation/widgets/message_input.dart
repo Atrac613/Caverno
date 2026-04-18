@@ -25,6 +25,8 @@ class MessageInput extends ConsumerStatefulWidget {
     this.onAssistantModeSelected,
     this.inputHintKey = 'message.input_hint',
     this.isCodingWorkspace = false,
+    this.composerPrefillText,
+    this.composerPrefillVersion = 0,
   });
 
   final void Function(
@@ -39,6 +41,8 @@ class MessageInput extends ConsumerStatefulWidget {
   final ValueChanged<AssistantMode>? onAssistantModeSelected;
   final String inputHintKey;
   final bool isCodingWorkspace;
+  final String? composerPrefillText;
+  final int composerPrefillVersion;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -88,6 +92,29 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     _controller.dispose();
     _focusNode.dispose();
     super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(covariant MessageInput oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.composerPrefillVersion == oldWidget.composerPrefillVersion) {
+      return;
+    }
+
+    final nextText = widget.composerPrefillText?.trimRight() ?? '';
+    _controller.value = TextEditingValue(
+      text: nextText,
+      selection: TextSelection.collapsed(offset: nextText.length),
+    );
+    if (nextText.isEmpty) {
+      return;
+    }
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _focusNode.requestFocus();
+    });
   }
 
   /// Track whether the input has any non-whitespace text so the
