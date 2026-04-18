@@ -7,12 +7,14 @@ class ConversationPlanProjection {
     required this.workflowSpec,
     required this.sourceHash,
     required this.derivedAt,
+    this.anchoredTaskIndexes = const <int>{},
   });
 
   final ConversationWorkflowStage workflowStage;
   final ConversationWorkflowSpec workflowSpec;
   final String sourceHash;
   final DateTime derivedAt;
+  final Set<int> anchoredTaskIndexes;
 }
 
 class ConversationPlanValidationResult {
@@ -101,6 +103,7 @@ class ConversationPlanProjectionService {
       workflowSpec: workflowSpec,
       sourceHash: computeSourceHash(normalizedMarkdown),
       derivedAt: derivedAt ?? DateTime.now(),
+      anchoredTaskIndexes: taskParseResult.anchoredTaskIndexes,
     );
   }
 
@@ -126,6 +129,7 @@ class ConversationPlanProjectionService {
   static ConversationWorkflowSpec stabilizeTaskIds({
     required List<ConversationWorkflowTask> previousTasks,
     required ConversationWorkflowSpec workflowSpec,
+    Set<int> anchoredTaskIndexes = const <int>{},
   }) {
     if (previousTasks.isEmpty || workflowSpec.tasks.isEmpty) {
       return workflowSpec;
@@ -139,6 +143,10 @@ class ConversationPlanProjectionService {
     for (final entry in workflowSpec.tasks.indexed) {
       final nextIndex = entry.$1;
       final nextTask = entry.$2;
+      if (anchoredTaskIndexes.contains(nextIndex)) {
+        stabilizedTasks.add(nextTask);
+        continue;
+      }
       final bestMatch = _pickBestTaskCandidate(
         nextTask: nextTask,
         nextIndex: nextIndex,
@@ -281,6 +289,7 @@ class ConversationPlanProjectionService {
     }
 
     final tasks = <ConversationWorkflowTask>[];
+    final anchoredTaskIndexes = <int>{};
     _TaskDraft? currentTask;
     var sawContent = false;
 
@@ -295,10 +304,17 @@ class ConversationPlanProjectionService {
       final headingMatch = RegExp(r'^(\d+)\.\s+(.+)$').firstMatch(trimmed);
       if (headingMatch != null) {
         if (currentTask != null) {
-          tasks.add(currentTask.build());
+          final builtTask = currentTask.build();
+          if (currentTask.hasExplicitId) {
+            anchoredTaskIndexes.add(tasks.length);
+          }
+          tasks.add(builtTask);
         }
         currentTask = _TaskDraft(
-          id: _deriveTaskId(headingMatch.group(2)!.trim(), tasks.length + 1),
+          derivedId: _deriveTaskId(
+            headingMatch.group(2)!.trim(),
+            tasks.length + 1,
+          ),
           title: headingMatch.group(2)!.trim(),
         );
         continue;
@@ -323,6 +339,10 @@ class ConversationPlanProjectionService {
         currentTask.status = _parseTaskStatus(detail.substring(7).trim());
         continue;
       }
+      if (detail.startsWith('Task ID:')) {
+        currentTask.explicitId = detail.substring(8).trim();
+        continue;
+      }
       if (detail.startsWith('Target files:')) {
         currentTask.targetFiles = detail
             .substring(13)
@@ -341,12 +361,16 @@ class ConversationPlanProjectionService {
         continue;
       }
       return _TaskParseResult.error(
-        'unsupported task detail "$detail"; use Status, Target files, Validation, or Notes',
+        'unsupported task detail "$detail"; use Task ID, Status, Target files, Validation, or Notes',
       );
     }
 
     if (currentTask != null) {
-      tasks.add(currentTask.build());
+      final builtTask = currentTask.build();
+      if (currentTask.hasExplicitId) {
+        anchoredTaskIndexes.add(tasks.length);
+      }
+      tasks.add(builtTask);
     }
 
     if (requireTasks && tasks.isEmpty) {
@@ -360,7 +384,10 @@ class ConversationPlanProjectionService {
       );
     }
 
-    return _TaskParseResult(tasks: tasks);
+    return _TaskParseResult(
+      tasks: tasks,
+      anchoredTaskIndexes: anchoredTaskIndexes,
+    );
   }
 
   static ConversationWorkflowTaskStatus _parseTaskStatus(String rawStatus) {
@@ -493,19 +520,22 @@ const _ignoredTitleTokens = <String>{
 };
 
 class _TaskDraft {
-  _TaskDraft({required this.id, required this.title});
+  _TaskDraft({required this.derivedId, required this.title});
 
-  final String id;
+  final String derivedId;
   final String title;
+  String? explicitId;
   ConversationWorkflowTaskStatus status =
       ConversationWorkflowTaskStatus.pending;
   List<String> targetFiles = const [];
   String validationCommand = '';
   String notes = '';
 
+  bool get hasExplicitId => explicitId?.trim().isNotEmpty ?? false;
+
   ConversationWorkflowTask build() {
     return ConversationWorkflowTask(
-      id: id,
+      id: hasExplicitId ? explicitId!.trim() : derivedId,
       title: title,
       status: status,
       targetFiles: targetFiles,
@@ -523,11 +553,16 @@ class _TaskCandidate {
 }
 
 class _TaskParseResult {
-  const _TaskParseResult({required this.tasks, this.errorMessage});
+  const _TaskParseResult({
+    required this.tasks,
+    this.anchoredTaskIndexes = const <int>{},
+    this.errorMessage,
+  });
 
   const _TaskParseResult.error(String message)
     : this(tasks: const <ConversationWorkflowTask>[], errorMessage: message);
 
   final List<ConversationWorkflowTask> tasks;
+  final Set<int> anchoredTaskIndexes;
   final String? errorMessage;
 }

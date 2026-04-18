@@ -180,6 +180,7 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isVoiceMode = false;
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   AssistantMode? _assistantModeOverride;
+  List<ToolResultInfo> _latestCompletedToolResults = const [];
   static const Set<String> _planningResearchStopWords = {
     'about',
     'after',
@@ -3441,6 +3442,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
     _contentToolContinuationCount = 0;
+    _latestCompletedToolResults = const [];
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -3657,6 +3659,12 @@ class ChatNotifier extends Notifier<ChatState> {
 
   Future<void> generatePlanProposal({String languageCode = 'en'}) async {
     await generatePlanProposalWithContext(languageCode: languageCode);
+  }
+
+  List<ToolResultInfo> takeLatestToolResults() {
+    final snapshot = _latestCompletedToolResults;
+    _latestCompletedToolResults = const [];
+    return snapshot;
   }
 
   Future<void> generatePlanProposalWithContext({
@@ -4108,6 +4116,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final toolFailureCounts = <String, int>{};
     // Collect tool results for the final user-role resend.
     final toolResults = <String>[];
+    final executedToolResults = <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
@@ -4151,6 +4160,7 @@ class ChatNotifier extends Notifier<ChatState> {
               result: toolResult,
             ),
           );
+          executedToolResults.add(batchToolResults.last);
 
           if (result.isSuccess) {
             executedToolCallKeys.add(toolCallKey);
@@ -4196,6 +4206,9 @@ class ChatNotifier extends Notifier<ChatState> {
       // Use a non-streaming request with tool definitions included.
       final mcpToolService = _mcpToolService;
       if (mcpToolService == null) {
+        _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+          executedToolResults,
+        );
         await _sendWithoutTools();
         return;
       }
@@ -4290,6 +4303,9 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
 
+    _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+      executedToolResults,
+    );
     _finishStreaming();
   }
 

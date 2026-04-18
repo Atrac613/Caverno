@@ -66,10 +66,14 @@ class ConversationPlanDocumentBuilder {
       for (final entry in normalizedTasks.indexed) {
         final index = entry.$1 + 1;
         final task = entry.$2;
+        final taskId = task.id.trim();
         buffer
           ..writeln()
-          ..writeln('$index. ${task.title.trim()}')
-          ..writeln('   - Status: ${task.status.name}');
+          ..writeln('$index. ${task.title.trim()}');
+        if (taskId.isNotEmpty) {
+          buffer.writeln('   - Task ID: $taskId');
+        }
+        buffer.writeln('   - Status: ${task.status.name}');
         final targetFiles = task.targetFiles
             .map((item) => item.trim())
             .where((item) => item.isNotEmpty)
