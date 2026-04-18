@@ -1802,6 +1802,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ).tr(),
           ),
         ),
+        if (planArtifact.historyEntries.isNotEmpty)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
+                : () => _showPlanRevisionHistory(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+            icon: const Icon(Icons.history_outlined, size: 18),
+            label: Text('chat.plan_document_history'.tr()),
+          ),
         if (planArtifact.hasPendingEdits)
           FilledButton.tonalIcon(
             onPressed: isBusy
@@ -2424,10 +2435,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final normalizedDraft = result.markdown.trim().isEmpty
         ? (planArtifact.normalizedApprovedMarkdown ?? '')
         : result.markdown.trimRight();
-    final nextArtifact = planArtifact.copyWith(
-      draftMarkdown: normalizedDraft,
-      updatedAt: DateTime.now(),
-    );
+    final updatedAt = DateTime.now();
+    final nextArtifact = planArtifact
+        .copyWith(draftMarkdown: normalizedDraft, updatedAt: updatedAt)
+        .recordRevision(
+          markdown: normalizedDraft,
+          kind: ConversationPlanRevisionKind.draft,
+          label: 'Saved draft plan document',
+          createdAt: updatedAt,
+        );
 
     await ref
         .read(conversationsNotifierProvider.notifier)
@@ -2516,11 +2532,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
           markdown: draftMarkdown,
           workflowStage: _preferredApprovedWorkflowStage(latestConversation),
         );
-    final nextArtifact = currentArtifact.copyWith(
-      draftMarkdown: approvedMarkdown,
-      approvedMarkdown: approvedMarkdown,
-      updatedAt: DateTime.now(),
-    );
+    final updatedAt = DateTime.now();
+    final nextArtifact = currentArtifact
+        .copyWith(
+          draftMarkdown: approvedMarkdown,
+          approvedMarkdown: approvedMarkdown,
+          updatedAt: updatedAt,
+        )
+        .recordRevision(
+          markdown: approvedMarkdown,
+          kind: ConversationPlanRevisionKind.approved,
+          label: 'Approved draft plan document',
+          createdAt: updatedAt,
+        );
 
     await conversationsNotifier.updateCurrentPlanArtifact(
       planArtifact: nextArtifact.hasContent ? nextArtifact : null,
@@ -2559,10 +2583,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final approvedMarkdown = currentArtifact.normalizedApprovedMarkdown ?? '';
-    final nextArtifact = currentArtifact.copyWith(
-      draftMarkdown: approvedMarkdown,
-      updatedAt: DateTime.now(),
-    );
+    final updatedAt = DateTime.now();
+    final nextArtifact = currentArtifact
+        .copyWith(draftMarkdown: approvedMarkdown, updatedAt: updatedAt)
+        .recordRevision(
+          markdown: approvedMarkdown,
+          kind: ConversationPlanRevisionKind.restored,
+          label: 'Restored draft from approved plan document',
+          createdAt: updatedAt,
+        );
     await conversationsNotifier.updateCurrentPlanArtifact(
       planArtifact: nextArtifact.hasContent ? nextArtifact : null,
       clearPlanArtifact: !nextArtifact.hasContent,
@@ -2641,11 +2670,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
             workflowSpec: workflowDraft.workflowSpec,
             tasks: taskDraft.tasks,
           );
-    final nextArtifact = currentArtifact.copyWith(
-      draftMarkdown: approvedMarkdown,
-      approvedMarkdown: approvedMarkdown,
-      updatedAt: DateTime.now(),
-    );
+    final updatedAt = DateTime.now();
+    final nextArtifact = currentArtifact
+        .copyWith(
+          draftMarkdown: approvedMarkdown,
+          approvedMarkdown: approvedMarkdown,
+          updatedAt: updatedAt,
+        )
+        .recordRevision(
+          markdown: approvedMarkdown,
+          kind: ConversationPlanRevisionKind.approved,
+          label: 'Captured approved plan document snapshot',
+          createdAt: updatedAt,
+        );
 
     await ref
         .read(conversationsNotifierProvider.notifier)
@@ -2667,6 +2704,53 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ? ConversationWorkflowStage.tasks
             : ConversationWorkflowStage.implement,
     };
+  }
+
+  Future<void> _showPlanRevisionHistory(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final artifact = currentConversation.effectivePlanArtifact;
+    if (artifact.historyEntries.isEmpty) {
+      return;
+    }
+    final selectedRevision =
+        await showModalBottomSheet<ConversationPlanRevision>(
+          context: context,
+          isScrollControlled: true,
+          showDragHandle: true,
+          builder: (sheetContext) =>
+              _PlanRevisionHistorySheet(planArtifact: artifact),
+        );
+    if (selectedRevision == null) {
+      return;
+    }
+
+    final updatedAt = DateTime.now();
+    final nextArtifact = artifact
+        .copyWith(
+          draftMarkdown: selectedRevision.normalizedMarkdown ?? '',
+          updatedAt: updatedAt,
+        )
+        .recordRevision(
+          markdown: selectedRevision.normalizedMarkdown ?? '',
+          kind: ConversationPlanRevisionKind.restored,
+          label: 'Restored draft from revision history',
+          createdAt: updatedAt,
+        );
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .updateCurrentPlanArtifact(
+          planArtifact: nextArtifact.hasContent ? nextArtifact : null,
+          clearPlanArtifact: !nextArtifact.hasContent,
+        );
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.plan_document_history_restored'.tr())),
+    );
   }
 
   Widget _buildWorkflowProposalCard(
@@ -6641,6 +6725,156 @@ class _PlanDocumentApprovalSheet extends StatelessWidget {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+}
+
+class _PlanRevisionHistorySheet extends StatelessWidget {
+  const _PlanRevisionHistorySheet({required this.planArtifact});
+
+  final ConversationPlanArtifact planArtifact;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final revisions = planArtifact.historyEntries;
+
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          20 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              'chat.plan_document_history_title'.tr(),
+              style: theme.textTheme.titleMedium?.copyWith(
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'chat.plan_document_history_subtitle'.tr(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 16),
+            Flexible(
+              child: revisions.isEmpty
+                  ? Center(
+                      child: Text(
+                        'chat.plan_document_history_empty'.tr(),
+                        style: theme.textTheme.bodySmall?.copyWith(
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                      ),
+                    )
+                  : ListView.separated(
+                      shrinkWrap: true,
+                      itemCount: revisions.length,
+                      separatorBuilder: (_, _) => const SizedBox(height: 10),
+                      itemBuilder: (context, index) {
+                        final revision = revisions[index];
+                        final markdownPreview =
+                            revision.normalizedMarkdown?.split('\n').skip(1).take(3).join(' ').trim() ??
+                            '';
+                        return Container(
+                          padding: const EdgeInsets.all(12),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHigh,
+                            borderRadius: BorderRadius.circular(12),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Expanded(
+                                    child: Column(
+                                      crossAxisAlignment:
+                                          CrossAxisAlignment.start,
+                                      children: [
+                                        Text(
+                                          revision.normalizedLabel ??
+                                              switch (revision.kind) {
+                                                ConversationPlanRevisionKind.draft =>
+                                                  'chat.plan_document_revision_kind_draft'
+                                                      .tr(),
+                                                ConversationPlanRevisionKind.approved =>
+                                                  'chat.plan_document_revision_kind_approved'
+                                                      .tr(),
+                                                ConversationPlanRevisionKind.restored =>
+                                                  'chat.plan_document_revision_kind_restored'
+                                                      .tr(),
+                                              },
+                                          style: theme.textTheme.labelLarge
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        const SizedBox(height: 4),
+                                        Text(
+                                          '${switch (revision.kind) {
+                                            ConversationPlanRevisionKind.draft => 'chat.plan_document_revision_kind_draft'.tr(),
+                                            ConversationPlanRevisionKind.approved => 'chat.plan_document_revision_kind_approved'.tr(),
+                                            ConversationPlanRevisionKind.restored => 'chat.plan_document_revision_kind_restored'.tr(),
+                                          }} • ${DateFormat('MM/dd HH:mm').format(revision.createdAt.toLocal())}',
+                                          style: theme.textTheme.bodySmall
+                                              ?.copyWith(
+                                                color: theme
+                                                    .colorScheme
+                                                    .onSurfaceVariant,
+                                              ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  OutlinedButton(
+                                    onPressed: () =>
+                                        Navigator.of(context).pop(revision),
+                                    child: Text(
+                                      'chat.plan_document_history_restore_draft'
+                                          .tr(),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (markdownPreview.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  markdownPreview,
+                                  maxLines: 3,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        );
+                      },
+                    ),
+            ),
+            const SizedBox(height: 16),
+            Align(
+              alignment: Alignment.centerRight,
+              child: OutlinedButton(
+                onPressed: () => Navigator.of(context).pop(),
+                child: Text('common.close'.tr()),
+              ),
+            ),
+          ],
         ),
       ),
     );

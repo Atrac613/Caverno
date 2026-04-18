@@ -3599,10 +3599,15 @@ class ChatNotifier extends Notifier<ChatState> {
       workflowSpec: workflowSpec,
       tasks: tasks,
     );
-    final nextArtifact = existingArtifact.copyWith(
-      draftMarkdown: markdown,
-      updatedAt: DateTime.now(),
-    );
+    final updatedAt = DateTime.now();
+    final nextArtifact = existingArtifact
+        .copyWith(draftMarkdown: markdown, updatedAt: updatedAt)
+        .recordRevision(
+          markdown: markdown,
+          kind: ConversationPlanRevisionKind.draft,
+          label: 'Generated draft plan document',
+          createdAt: updatedAt,
+        );
 
     await ref
         .read(conversationsNotifierProvider.notifier)
