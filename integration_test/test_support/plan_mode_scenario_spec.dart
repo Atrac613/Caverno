@@ -255,6 +255,7 @@ class PlanModeScenarioSpec {
     this.toolCallBatchSizes = const <int>[],
     this.waitForExecutionCompletion = false,
     this.executionCompletionTimeout = const Duration(seconds: 20),
+    this.executionStallTimeout = const Duration(seconds: 45),
   });
 
   final String name;
@@ -276,6 +277,7 @@ class PlanModeScenarioSpec {
   final List<int> toolCallBatchSizes;
   final bool waitForExecutionCompletion;
   final Duration executionCompletionTimeout;
+  final Duration executionStallTimeout;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -1550,6 +1552,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
       waitForExecutionCompletion: true,
       executionCompletionTimeout: const Duration(minutes: 3),
+      executionStallTimeout: const Duration(seconds: 45),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
       ),

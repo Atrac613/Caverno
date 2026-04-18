@@ -31,6 +31,8 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 import 'test_support/plan_mode_scenario_spec.dart';
+import 'test_support/plan_mode_execution_watchdog.dart';
+import 'test_support/plan_mode_live_diagnostics.dart';
 import 'test_support/screenshot_capture.dart';
 
 class _NoOpNotificationService extends NotificationService {
@@ -454,9 +456,13 @@ Future<void> _waitForWorkflowExecutionCompletion(
   WidgetTester tester,
   ProviderContainer container, {
   required Duration timeout,
+  required Duration stallTimeout,
+  required List<String> logs,
 }) async {
   final deadline = DateTime.now().add(timeout);
+  final watchdog = PlanModeExecutionWatchdog(stallTimeout: stallTimeout);
   while (DateTime.now().isBefore(deadline)) {
+    final now = DateTime.now();
     final chatState = container.read(chatNotifierProvider);
     final conversation = container
         .read(conversationsNotifierProvider)
@@ -493,6 +499,30 @@ Future<void> _waitForWorkflowExecutionCompletion(
       return;
     }
 
+    final snapshot =
+        'loading=${chatState.isLoading};'
+        'approvals=$hasPendingApprovals;'
+        'messages=${conversation?.messages.length ?? 0};'
+        'logs=${logs.length};'
+        'tasks=${_summarizeWorkflowTasks(tasks)}';
+    final stalledFor = watchdog.recordSnapshot(snapshot, now);
+    if (stalledFor != null && tasks.isNotEmpty && hasPendingWork) {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: logs,
+        errorText:
+            'Workflow execution stalled. tasks=${_summarizeWorkflowTasks(tasks)}',
+        lastWorkflowSnapshot: _summarizeWorkflowTasks(tasks),
+        stallDurationMs: stalledFor.inMilliseconds,
+      );
+      throw StateError(
+        'Workflow execution stalled after '
+        '${stalledFor.inSeconds}s. '
+        'tasks=${_summarizeWorkflowTasks(tasks)} '
+        'lastTool=${diagnostics.lastToolName ?? 'none'} '
+        'lastAssistant=${diagnostics.lastAssistantSummary ?? 'none'}',
+      );
+    }
+
     await tester.pump(const Duration(milliseconds: 200));
   }
 
@@ -513,9 +543,7 @@ String _summarizeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
   if (tasks.isEmpty) {
     return 'none';
   }
-  return tasks
-      .map((task) => '${task.title}:${task.status.name}')
-      .join(', ');
+  return tasks.map((task) => '${task.title}:${task.status.name}').join(', ');
 }
 
 Future<void> _pumpUntilIdle(
@@ -736,10 +764,15 @@ Future<void> _writeFailureScenarioArtifacts({
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
   await logFile.writeAsString('${logs.join('\n')}\n');
+  final diagnostics = buildPlanModeFailureDiagnostics(
+    logs: logs,
+    errorText: error.toString(),
+  );
 
   final report = <String, Object?>{
     'scenario': scenario.name,
     'status': 'failed',
+    'failureClass': diagnostics.failureClass.name,
     'projectRoot': scenarioDir.path,
     'error': error.toString(),
     'stackTrace': stackTrace.toString(),
@@ -747,6 +780,7 @@ Future<void> _writeFailureScenarioArtifacts({
     'warnings': warnings,
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
+    'diagnostics': diagnostics.toJson(),
     'capturedLogs': filteredLogs,
   };
   final reportFile = File('${scenarioDir.path}/scenario_report.json');
@@ -854,6 +888,7 @@ String _buildSuiteJUnitReport({
         (result['allowedWarnings'] as List<Object?>?) ?? const [];
     final reportPath = result['scenarioReport'] as String?;
     final logPath = result['scenarioLog'] as String?;
+    final failureClass = (result['failureClass'] as String?) ?? 'passed';
     buffer.writeln(
       '    <testcase classname="${_xmlEscape(config.suiteName)}" '
       'name="${_xmlEscape(scenarioName)}" '
@@ -871,6 +906,7 @@ String _buildSuiteJUnitReport({
     final systemOut = <String>[
       if (reportPath != null) 'report=$reportPath',
       if (logPath != null) 'log=$logPath',
+      'failureClass=$failureClass',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
@@ -897,6 +933,15 @@ String _buildSuiteMarkdownReport({
   final passedCount = suiteResults
       .where((result) => result['status'] == 'passed')
       .length;
+  final failureClassCounts = <String, int>{};
+  for (final result in suiteResults) {
+    final failureClass = (result['failureClass'] as String?) ?? 'passed';
+    failureClassCounts.update(
+      failureClass,
+      (count) => count + 1,
+      ifAbsent: () => 1,
+    );
+  }
   final buffer = StringBuffer()
     ..writeln('# Plan Mode Scenario Suite')
     ..writeln()
@@ -923,10 +968,10 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
     ..writeln()
     ..writeln(
-      '| Scenario | Tags | Status | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
+      '| Scenario | Tags | Status | Failure Class | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
     )
     ..writeln(
-      '| --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
+      '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
     );
 
   for (final result in suiteResults) {
@@ -935,13 +980,24 @@ String _buildSuiteMarkdownReport({
     final allowedWarnings =
         (result['allowedWarnings'] as List<Object?>?) ?? const [];
     final tags = (result['tags'] as List<Object?>?) ?? const [];
+    final failureClass = (result['failureClass'] as String?) ?? 'passed';
     final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
     buffer.writeln(
       '| ${result['scenario']} | ${tags.isEmpty ? '-' : tags.join(', ')} | ${result['status']} | '
-      '${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
+      '$failureClass | ${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
       '${screenshots.length} | ${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
       '${error.isEmpty ? '-' : error} |',
     );
+  }
+
+  if (failureClassCounts.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Failure Classes')
+      ..writeln();
+    for (final entry in failureClassCounts.entries) {
+      buffer.writeln('- ${entry.key}: ${entry.value}');
+    }
   }
 
   final scenariosWithWarnings = suiteResults
@@ -1116,6 +1172,8 @@ Future<_ScenarioRunResult> _runScenario({
       tester,
       container,
       timeout: scenario.executionCompletionTimeout,
+      stallTimeout: scenario.executionStallTimeout,
+      logs: logs,
     );
   }
 
@@ -1197,6 +1255,7 @@ Future<_ScenarioRunResult> _runScenario({
     'scenario': scenario.name,
     'tags': scenario.tags,
     'status': 'passed',
+    'failureClass': PlanModeFailureClass.passed.name,
     'executionMode': config.mode.name,
     'projectRoot': scenarioDir.path,
     'workflowStage': conversation.workflowStage.name,
@@ -1243,6 +1302,12 @@ Future<_ScenarioRunResult> _runScenario({
         )
         .toList(growable: false),
   };
+  report['diagnostics'] = buildPlanModeFailureDiagnostics(
+    logs: logs,
+    lastWorkflowSnapshot: _summarizeWorkflowTasks(
+      conversation.projectedExecutionTasks,
+    ),
+  ).toJson();
   final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
   report['screenshots'] = screenshotPaths;
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
@@ -1468,6 +1533,12 @@ void main() {
                 ? archivedLogPath.path
                 : null,
             'screenshots': archivedScreenshotPaths,
+            'failureClass': archivedReportPath.existsSync()
+                ? (jsonDecode(archivedReportPath.readAsStringSync())
+                              as Map<String, dynamic>)['failureClass']
+                          as String? ??
+                      (failure == null ? 'passed' : 'unclassified')
+                : (failure == null ? 'passed' : 'unclassified'),
             'warnings': archivedWarnings,
             'allowedWarnings': archivedAllowedWarnings,
             'error': failure?.toString(),
