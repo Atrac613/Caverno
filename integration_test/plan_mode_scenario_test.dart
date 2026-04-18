@@ -374,7 +374,7 @@ Future<void> _waitForReadyPlanProposal(
   while (DateTime.now().isBefore(deadline)) {
     final chatState = container.read(chatNotifierProvider);
     if (isProposalReady(chatState)) {
-      await tester.pumpAndSettle();
+      await _pumpUntilIdle(tester);
       return;
     }
     if (!recoveredTaskProposal &&
@@ -384,7 +384,9 @@ Future<void> _waitForReadyPlanProposal(
         !chatState.isGeneratingWorkflowProposal &&
         !chatState.isGeneratingTaskProposal) {
       recoveredTaskProposal = true;
-      await container.read(chatNotifierProvider.notifier).generateTaskProposal();
+      await container
+          .read(chatNotifierProvider.notifier)
+          .generateTaskProposal();
       await tester.pump();
       continue;
     }
@@ -394,7 +396,7 @@ Future<void> _waitForReadyPlanProposal(
 
   final chatState = container.read(chatNotifierProvider);
   if (isProposalReady(chatState)) {
-    await tester.pumpAndSettle();
+    await _pumpUntilIdle(tester);
     return;
   }
 
@@ -407,6 +409,19 @@ Future<void> _waitForReadyPlanProposal(
     'workflowError=${chatState.workflowProposalError}, '
     'taskError=${chatState.taskProposalError}',
   );
+}
+
+Future<void> _pumpUntilIdle(
+  WidgetTester tester, {
+  Duration step = const Duration(milliseconds: 100),
+  int maxPumps = 50,
+}) async {
+  for (var index = 0; index < maxPumps; index++) {
+    await tester.pump(step);
+    if (!tester.binding.hasScheduledFrame) {
+      return;
+    }
+  }
 }
 
 String? _extractVisibleDecisionQuestion(WidgetTester tester) {
@@ -924,7 +939,7 @@ Future<_ScenarioRunResult> _runScenario({
       screenshotBoundaryKey: screenshotBoundaryKey,
     ),
   );
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   final container = ProviderScope.containerOf(
     tester.element(find.byType(ChatPage)),
@@ -940,15 +955,15 @@ Future<_ScenarioRunResult> _runScenario({
         projectId: project.id,
         createIfMissing: true,
       );
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   expect(find.text('Coding'), findsAtLeastNWidgets(1));
 
   await tester.enterText(find.byType(TextField), scenario.userPrompt);
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
   await tester.tap(find.byIcon(Icons.send));
   await tester.pump();
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   await _resolvePlanningDecisions(
     tester,
@@ -986,7 +1001,7 @@ Future<_ScenarioRunResult> _runScenario({
   await tester.ensureVisible(approveFinder);
   await tester.tap(approveFinder, warnIfMissed: false);
   await tester.pump();
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   await _waitForArtifactExpectations(
     tester,
@@ -996,7 +1011,7 @@ Future<_ScenarioRunResult> _runScenario({
         ? const Duration(seconds: 30)
         : const Duration(seconds: 5),
   );
-  await tester.pumpAndSettle();
+  await _pumpUntilIdle(tester);
 
   _assertArtifactExpectations(
     scenarioDir,
