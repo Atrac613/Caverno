@@ -53,6 +53,10 @@ class TimelinePlanCard extends StatelessWidget {
           );
     final showApproveAction = isDraftState;
     final canApprove = isDraftState && (planValidation?.isValid ?? false);
+    final showApproveProgress =
+        showApproveAction &&
+        !canApprove &&
+        (isGenerating || chatState.isLoading);
     final canCancel =
         isDraftState ||
         chatState.workflowProposalError != null ||
@@ -168,26 +172,53 @@ class TimelinePlanCard extends StatelessWidget {
             spacing: 8,
             runSpacing: 8,
             children: [
-              if (showApproveAction)
+              if (showApproveProgress)
+                Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 14,
+                    vertical: 10,
+                  ),
+                  decoration: BoxDecoration(
+                    color: theme.colorScheme.secondaryContainer.withValues(
+                      alpha: 0.9,
+                    ),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: theme.colorScheme.onSecondaryContainer,
+                        ),
+                      ),
+                      const SizedBox(width: 10),
+                      Text(
+                        'chat.plan_proposal_generating'.tr(),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          color: theme.colorScheme.onSecondaryContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              if (showApproveAction && canApprove)
                 FilledButton.tonalIcon(
-                  onPressed: chatState.isLoading || isGenerating || !canApprove
+                  onPressed: chatState.isLoading || isGenerating
                       ? null
                       : onApprove,
-                  icon: isGenerating
-                      ? SizedBox(
-                          width: 18,
-                          height: 18,
-                          child: CircularProgressIndicator(
-                            strokeWidth: 2,
-                            color: theme.colorScheme.onSecondaryContainer,
-                          ),
-                        )
-                      : const Icon(Icons.play_circle_outline, size: 18),
+                  icon: const Icon(Icons.play_circle_outline, size: 18),
                   label: Text('chat.plan_proposal_approve_start'.tr()),
                 ),
               if (showEdit)
                 OutlinedButton.icon(
-                  onPressed: chatState.isLoading || isGenerating ? null : onEdit,
+                  onPressed: chatState.isLoading || isGenerating
+                      ? null
+                      : onEdit,
                   icon: const Icon(Icons.edit_outlined, size: 18),
                   label: Text(
                     (planArtifact.hasApproved
@@ -198,7 +229,9 @@ class TimelinePlanCard extends StatelessWidget {
                 ),
               if (canCancel)
                 TextButton(
-                  onPressed: chatState.isLoading || isGenerating ? null : onCancel,
+                  onPressed: chatState.isLoading || isGenerating
+                      ? null
+                      : onCancel,
                   child: Text('common.cancel'.tr()),
                 ),
             ],
@@ -271,10 +304,7 @@ class _ApprovedTimelinePlanSection extends StatelessWidget {
             firstChild: const SizedBox.shrink(),
             secondChild: Padding(
               padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
-              child: PlanMarkdownPreview(
-                markdown: markdown,
-                maxHeight: 320,
-              ),
+              child: PlanMarkdownPreview(markdown: markdown, maxHeight: 320),
             ),
             crossFadeState: isExpanded
                 ? CrossFadeState.showSecond

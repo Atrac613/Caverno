@@ -30,6 +30,8 @@ Future<void> _pumpTimelinePlanCard(
   WidgetTester tester, {
   required Conversation conversation,
   required bool isApprovedExpanded,
+  ChatState? chatState,
+  bool isPlanMode = false,
 }) async {
   await tester.pumpWidget(
     EasyLocalization(
@@ -49,8 +51,8 @@ Future<void> _pumpTimelinePlanCard(
             home: Scaffold(
               body: TimelinePlanCard(
                 currentConversation: conversation,
-                chatState: ChatState.initial(),
-                isPlanMode: false,
+                chatState: chatState ?? ChatState.initial(),
+                isPlanMode: isPlanMode,
                 isApprovedExpanded: isApprovedExpanded,
                 onToggleApprovedExpanded: () {},
                 onApprove: () {},
@@ -103,4 +105,40 @@ void main() {
     expect(find.text('Approved plan'), findsOneWidget);
     expect(find.text('Ship the refactor'), findsOneWidget);
   });
+
+  testWidgets(
+    'shows progress state instead of a disabled approve button while plan generation is still running',
+    (tester) async {
+      final conversation = Conversation(
+        id: 'conversation-2',
+        title: 'Draft plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 4, 18, 12),
+        updatedAt: DateTime(2026, 4, 18, 12),
+        workspaceMode: WorkspaceMode.coding,
+        planArtifact: const ConversationPlanArtifact(
+          draftMarkdown: '# Draft plan\n\n## Goal\n\nCreate the CLI utility',
+        ),
+      );
+
+      await _pumpTimelinePlanCard(
+        tester,
+        conversation: conversation,
+        isApprovedExpanded: false,
+        isPlanMode: true,
+        chatState: const ChatState(
+          messages: [],
+          isLoading: true,
+          isGeneratingTaskProposal: true,
+        ),
+      );
+
+      expect(
+        find.text('Generating a workflow and task breakdown...'),
+        findsAtLeastNWidgets(1),
+      );
+      expect(find.text('Approve & Start'), findsNothing);
+      expect(find.byType(FilledButton), findsNothing);
+    },
+  );
 }
