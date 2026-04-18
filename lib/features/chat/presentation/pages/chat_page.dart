@@ -52,6 +52,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
   late final TabController _workspaceTabController;
+  String? _timelinePlanConversationId;
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
   bool _wasShowingPlanDraft = false;
@@ -894,6 +895,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ChatState chatState,
     required bool isPlanMode,
   }) {
+    if (_timelinePlanConversationId != currentConversation.id) {
+      _timelinePlanConversationId = currentConversation.id;
+      _isApprovedPlanExpanded = false;
+    }
+
     final theme = Theme.of(context);
     final planArtifact = currentConversation.effectivePlanArtifact;
     final isGenerating =
@@ -998,11 +1004,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ],
           const SizedBox(height: 10),
-          _buildPlanMarkdownPreview(
-            context,
-            markdown: markdown ?? 'chat.plan_mode_empty'.tr(),
-            maxHeight: 320,
-          ),
+          if (isDraftState)
+            _buildPlanMarkdownPreview(
+              context,
+              markdown: markdown ?? 'chat.plan_mode_empty'.tr(),
+              maxHeight: 320,
+            )
+          else
+            _buildApprovedTimelinePlanSection(
+              context,
+              markdown: markdown ?? 'chat.plan_mode_empty'.tr(),
+            ),
           if (chatState.workflowProposalError != null) ...[
             const SizedBox(height: 10),
             Text(
@@ -1073,6 +1085,82 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   child: Text('common.cancel'.tr()),
                 ),
             ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildApprovedTimelinePlanSection(
+    BuildContext context, {
+    required String markdown,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(10),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Material(
+            color: Colors.transparent,
+            child: InkWell(
+              borderRadius: BorderRadius.circular(10),
+              onTap: () {
+                setState(() {
+                  _isApprovedPlanExpanded = !_isApprovedPlanExpanded;
+                });
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 12,
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      _isApprovedPlanExpanded
+                          ? Icons.expand_less
+                          : Icons.expand_more,
+                      size: 18,
+                      color: theme.colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        _isApprovedPlanExpanded
+                            ? 'chat.workflow_collapse'.tr()
+                            : 'chat.workflow_expand'.tr(),
+                        style: theme.textTheme.labelLarge?.copyWith(
+                          fontWeight: FontWeight.w600,
+                          color: theme.colorScheme.onSurface,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          AnimatedCrossFade(
+            firstChild: const SizedBox.shrink(),
+            secondChild: Padding(
+              padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
+              child: _buildPlanMarkdownPreview(
+                context,
+                markdown: markdown,
+                maxHeight: 320,
+              ),
+            ),
+            crossFadeState: _isApprovedPlanExpanded
+                ? CrossFadeState.showSecond
+                : CrossFadeState.showFirst,
+            duration: const Duration(milliseconds: 180),
+            sizeCurve: Curves.easeOut,
           ),
         ],
       ),
@@ -1254,6 +1342,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     setState(() {
+      _isApprovedPlanExpanded = false;
       _composerPrefillText = '';
       _composerPrefillVersion++;
     });
