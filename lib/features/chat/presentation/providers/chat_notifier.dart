@@ -3889,6 +3889,13 @@ class ChatNotifier extends Notifier<ChatState> {
       final scheduledResults = await ToolExecutionScheduler.executeBatch(
         toolCalls: pendingBatchCalls,
         execute: _dispatchToolCall,
+        onBatch: (telemetry) {
+          appLog(
+            '[Tool] Scheduler ${telemetry.mode.name} batch '
+            '(size=${telemetry.batchSize}, tools=${telemetry.toolNames.join(', ')})'
+            '${telemetry.note == null ? '' : ' • ${telemetry.note}'}',
+          );
+        },
       );
 
       for (final scheduledResult in scheduledResults) {
