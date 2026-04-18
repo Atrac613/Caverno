@@ -20,7 +20,6 @@ import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_plan_diff_service.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
-import '../../domain/services/conversation_plan_hash.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -52,11 +51,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
   final _workflowPanelScrollController = ScrollController();
   final Set<String> _activeApprovalDialogIds = <String>{};
   final _uuid = const Uuid();
-  final Map<String, String> _acknowledgedPlanReviewSignatures = {};
   late final TabController _workspaceTabController;
   String? _workflowPanelConversationId;
   bool _isApprovedPlanExpanded = false;
   bool _isPresentingPlanReviewSheet = false;
+  String? _trackedPlanGenerationConversationId;
+  bool _wasGeneratingPlanForTrackedConversation = false;
   bool _wasShowingPlanDraft = false;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
@@ -385,11 +385,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null &&
-        _shouldShowCompactPlanFooter(
-          currentConversation: currentConversation,
-          chatState: chatState,
-          isPlanMode: isPlanMode,
-        );
+        currentConversation.hasPlanArtifact &&
+        !(chatState.isGeneratingWorkflowProposal ||
+            chatState.isGeneratingTaskProposal);
     final shouldShowPlanProgressMessage =
         isCodingWorkspace &&
         activeProject != null &&
@@ -726,57 +724,43 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
-  String? _currentPlanReviewSignature(
+  bool _shouldAutoPresentPlanReviewSheet(
     Conversation? currentConversation,
     ChatState chatState, {
     required bool isPlanMode,
   }) {
     if (currentConversation == null) {
-      return null;
-    }
-    if (chatState.isGeneratingWorkflowProposal ||
-        chatState.isGeneratingTaskProposal ||
-        chatState.workflowProposalError != null ||
-        chatState.taskProposalError != null) {
-      return null;
-    }
-
-    final artifact = currentConversation.effectivePlanArtifact;
-    final draftMarkdown = artifact.normalizedDraftMarkdown;
-    if (draftMarkdown == null) {
-      return null;
-    }
-
-    final requiresReview =
-        isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
-    if (!requiresReview) {
-      return null;
-    }
-
-    final updatedAt = artifact.updatedAt?.millisecondsSinceEpoch ?? 0;
-    return '${currentConversation.id}:$updatedAt:${computeConversationPlanHash(draftMarkdown)}';
-  }
-
-  bool _shouldShowCompactPlanFooter({
-    required Conversation currentConversation,
-    required ChatState chatState,
-    required bool isPlanMode,
-  }) {
-    if (!currentConversation.hasPlanArtifact) {
+      _trackedPlanGenerationConversationId = null;
+      _wasGeneratingPlanForTrackedConversation = false;
       return false;
     }
 
-    final reviewSignature = _currentPlanReviewSignature(
-      currentConversation,
-      chatState,
-      isPlanMode: isPlanMode,
-    );
-    if (reviewSignature == null) {
-      return true;
+    final conversationId = currentConversation.id;
+    final isGenerating =
+        chatState.isGeneratingWorkflowProposal ||
+        chatState.isGeneratingTaskProposal;
+    if (_trackedPlanGenerationConversationId != conversationId) {
+      _trackedPlanGenerationConversationId = conversationId;
+      _wasGeneratingPlanForTrackedConversation = isGenerating;
+      return false;
     }
 
-    return _acknowledgedPlanReviewSignatures[currentConversation.id] ==
-        reviewSignature;
+    if (isGenerating) {
+      _wasGeneratingPlanForTrackedConversation = true;
+      return false;
+    }
+
+    final artifact = currentConversation.effectivePlanArtifact;
+    final requiresReview =
+        isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
+    final shouldPresent =
+        _wasGeneratingPlanForTrackedConversation &&
+        requiresReview &&
+        artifact.normalizedDraftMarkdown != null &&
+        chatState.workflowProposalError == null &&
+        chatState.taskProposalError == null;
+    _wasGeneratingPlanForTrackedConversation = false;
+    return shouldPresent;
   }
 
   void _maybePresentPlanReviewSheet(
@@ -789,16 +773,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
 
-    final reviewSignature = _currentPlanReviewSignature(
+    final shouldPresent = _shouldAutoPresentPlanReviewSheet(
       currentConversation,
       chatState,
       isPlanMode: isPlanMode,
     );
-    if (reviewSignature == null) {
-      return;
-    }
-    if (_acknowledgedPlanReviewSignatures[currentConversation.id] ==
-        reviewSignature) {
+    if (!shouldPresent) {
       return;
     }
 
@@ -813,7 +793,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
         currentConversation: currentConversation,
         chatState: chatState,
         isPlanMode: isPlanMode,
-        reviewSignatureOverride: reviewSignature,
       );
       _isPresentingPlanReviewSheet = false;
     });
@@ -824,18 +803,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required Conversation currentConversation,
     required ChatState chatState,
     required bool isPlanMode,
-    String? reviewSignatureOverride,
   }) async {
     final latestConversation =
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
-    final reviewSignature =
-        reviewSignatureOverride ??
-        _currentPlanReviewSignature(
-          latestConversation,
-          chatState,
-          isPlanMode: isPlanMode,
-        );
     final artifact = latestConversation.effectivePlanArtifact;
     if (!artifact.hasContent) {
       return;
@@ -858,11 +829,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ),
       ),
     );
-
-    if (reviewSignature != null) {
-      _acknowledgedPlanReviewSignatures[currentConversation.id] =
-          reviewSignature;
-    }
     if (!mounted || !context.mounted) {
       return;
     }
