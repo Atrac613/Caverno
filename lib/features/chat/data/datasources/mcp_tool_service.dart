@@ -12,6 +12,7 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
 import 'ble_tools.dart';
@@ -20,6 +21,7 @@ import 'git_tools.dart';
 import 'lan_scan_tools.dart';
 import 'local_shell_tools.dart';
 import 'mcp_client.dart';
+import 'mcp_stdio_client.dart';
 import 'network_tools.dart';
 import 'searxng_client.dart';
 import 'wifi_tools.dart';
@@ -123,10 +125,13 @@ class McpToolService {
   /// Uses [overrideUrls] or [overrideUrl] for connection tests instead of
   /// the saved URLs.
   Future<void> connect({
+    List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
     String? overrideUrl,
   }) async {
-    final clients = overrideUrls != null || overrideUrl != null
+    final clients = overrideServers != null
+        ? _resolveClientsFromServers(overrideServers)
+        : overrideUrls != null || overrideUrl != null
         ? _resolveClients(
             targetUrls: overrideUrls ?? [overrideUrl!],
             useOverrides: true,
@@ -330,6 +335,29 @@ class McpToolService {
     return targetUrls
         .map((url) => clientsById[url] ?? McpClient(baseUrl: url))
         .toList(growable: false);
+  }
+
+  List<McpClientBase> _resolveClientsFromServers(
+    List<McpServerConfig> servers,
+  ) {
+    final isDesktop = FilesystemTools.isDesktopPlatform;
+    final clients = <McpClientBase>[];
+    for (final server in servers) {
+      if (!server.enabled || !server.isValid || server.isBlocked) {
+        continue;
+      }
+      switch (server.type) {
+        case McpServerType.http:
+          clients.add(McpClient(baseUrl: server.normalizedUrl));
+        case McpServerType.stdio:
+          if (isDesktop) {
+            clients.add(
+              McpStdioClient(command: server.command.trim(), args: server.args),
+            );
+          }
+      }
+    }
+    return clients;
   }
 
   String _buildNamespacedToolName({

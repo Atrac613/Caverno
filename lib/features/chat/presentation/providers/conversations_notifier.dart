@@ -7,6 +7,7 @@ import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
@@ -340,9 +341,14 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       title = _deriveDefaultTitle(messages) ?? title;
     }
 
+    final compactionArtifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+      now: DateTime.now(),
+    );
     final updatedConversation = conversation.copyWith(
       title: title,
       messages: messages,
+      compactionArtifact: compactionArtifact,
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);

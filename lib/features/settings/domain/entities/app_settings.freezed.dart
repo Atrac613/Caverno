@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$McpServerConfig {
 
- String get url; bool get enabled;@JsonKey(unknownEnumValue: McpServerType.http) McpServerType get type; String get command; List<String> get args;
+ String get url; bool get enabled;@JsonKey(unknownEnumValue: McpServerType.http) McpServerType get type;@JsonKey(unknownEnumValue: McpServerTrustState.trusted) McpServerTrustState get trustState; String get command; List<String> get args; DateTime? get trustedAt;
 /// Create a copy of McpServerConfig
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $McpServerConfigCopyWith<McpServerConfig> get copyWith => _$McpServerConfigCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpServerConfig&&(identical(other.url, url) || other.url == url)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.type, type) || other.type == type)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other.args, args));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is McpServerConfig&&(identical(other.url, url) || other.url == url)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.type, type) || other.type == type)&&(identical(other.trustState, trustState) || other.trustState == trustState)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other.args, args)&&(identical(other.trustedAt, trustedAt) || other.trustedAt == trustedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,url,enabled,type,command,const DeepCollectionEquality().hash(args));
+int get hashCode => Object.hash(runtimeType,url,enabled,type,trustState,command,const DeepCollectionEquality().hash(args),trustedAt);
 
 @override
 String toString() {
-  return 'McpServerConfig(url: $url, enabled: $enabled, type: $type, command: $command, args: $args)';
+  return 'McpServerConfig(url: $url, enabled: $enabled, type: $type, trustState: $trustState, command: $command, args: $args, trustedAt: $trustedAt)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $McpServerConfigCopyWith<$Res>  {
   factory $McpServerConfigCopyWith(McpServerConfig value, $Res Function(McpServerConfig) _then) = _$McpServerConfigCopyWithImpl;
 @useResult
 $Res call({
- String url, bool enabled,@JsonKey(unknownEnumValue: McpServerType.http) McpServerType type, String command, List<String> args
+ String url, bool enabled,@JsonKey(unknownEnumValue: McpServerType.http) McpServerType type,@JsonKey(unknownEnumValue: McpServerTrustState.trusted) McpServerTrustState trustState, String command, List<String> args, DateTime? trustedAt
 });
 
 
@@ -65,14 +65,16 @@ class _$McpServerConfigCopyWithImpl<$Res>
 
 /// Create a copy of McpServerConfig
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? url = null,Object? enabled = null,Object? type = null,Object? command = null,Object? args = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? url = null,Object? enabled = null,Object? type = null,Object? trustState = null,Object? command = null,Object? args = null,Object? trustedAt = freezed,}) {
   return _then(_self.copyWith(
 url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
 as bool,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
-as McpServerType,command: null == command ? _self.command : command // ignore: cast_nullable_to_non_nullable
+as McpServerType,trustState: null == trustState ? _self.trustState : trustState // ignore: cast_nullable_to_non_nullable
+as McpServerTrustState,command: null == command ? _self.command : command // ignore: cast_nullable_to_non_nullable
 as String,args: null == args ? _self.args : args // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,trustedAt: freezed == trustedAt ? _self.trustedAt : trustedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 
@@ -157,10 +159,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type,  String command,  List<String> args)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type, @JsonKey(unknownEnumValue: McpServerTrustState.trusted)  McpServerTrustState trustState,  String command,  List<String> args,  DateTime? trustedAt)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _McpServerConfig() when $default != null:
-return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);case _:
+return $default(_that.url,_that.enabled,_that.type,_that.trustState,_that.command,_that.args,_that.trustedAt);case _:
   return orElse();
 
 }
@@ -178,10 +180,10 @@ return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type,  String command,  List<String> args)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type, @JsonKey(unknownEnumValue: McpServerTrustState.trusted)  McpServerTrustState trustState,  String command,  List<String> args,  DateTime? trustedAt)  $default,) {final _that = this;
 switch (_that) {
 case _McpServerConfig():
-return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);case _:
+return $default(_that.url,_that.enabled,_that.type,_that.trustState,_that.command,_that.args,_that.trustedAt);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -198,10 +200,10 @@ return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);cas
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type,  String command,  List<String> args)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String url,  bool enabled, @JsonKey(unknownEnumValue: McpServerType.http)  McpServerType type, @JsonKey(unknownEnumValue: McpServerTrustState.trusted)  McpServerTrustState trustState,  String command,  List<String> args,  DateTime? trustedAt)?  $default,) {final _that = this;
 switch (_that) {
 case _McpServerConfig() when $default != null:
-return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);case _:
+return $default(_that.url,_that.enabled,_that.type,_that.trustState,_that.command,_that.args,_that.trustedAt);case _:
   return null;
 
 }
@@ -213,12 +215,13 @@ return $default(_that.url,_that.enabled,_that.type,_that.command,_that.args);cas
 @JsonSerializable()
 
 class _McpServerConfig extends McpServerConfig {
-  const _McpServerConfig({this.url = '', this.enabled = true, @JsonKey(unknownEnumValue: McpServerType.http) this.type = McpServerType.http, this.command = '', final  List<String> args = const <String>[]}): _args = args,super._();
+  const _McpServerConfig({this.url = '', this.enabled = true, @JsonKey(unknownEnumValue: McpServerType.http) this.type = McpServerType.http, @JsonKey(unknownEnumValue: McpServerTrustState.trusted) this.trustState = McpServerTrustState.trusted, this.command = '', final  List<String> args = const <String>[], this.trustedAt}): _args = args,super._();
   factory _McpServerConfig.fromJson(Map<String, dynamic> json) => _$McpServerConfigFromJson(json);
 
 @override@JsonKey() final  String url;
 @override@JsonKey() final  bool enabled;
 @override@JsonKey(unknownEnumValue: McpServerType.http) final  McpServerType type;
+@override@JsonKey(unknownEnumValue: McpServerTrustState.trusted) final  McpServerTrustState trustState;
 @override@JsonKey() final  String command;
  final  List<String> _args;
 @override@JsonKey() List<String> get args {
@@ -227,6 +230,7 @@ class _McpServerConfig extends McpServerConfig {
   return EqualUnmodifiableListView(_args);
 }
 
+@override final  DateTime? trustedAt;
 
 /// Create a copy of McpServerConfig
 /// with the given fields replaced by the non-null parameter values.
@@ -241,16 +245,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpServerConfig&&(identical(other.url, url) || other.url == url)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.type, type) || other.type == type)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other._args, _args));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _McpServerConfig&&(identical(other.url, url) || other.url == url)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.type, type) || other.type == type)&&(identical(other.trustState, trustState) || other.trustState == trustState)&&(identical(other.command, command) || other.command == command)&&const DeepCollectionEquality().equals(other._args, _args)&&(identical(other.trustedAt, trustedAt) || other.trustedAt == trustedAt));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,url,enabled,type,command,const DeepCollectionEquality().hash(_args));
+int get hashCode => Object.hash(runtimeType,url,enabled,type,trustState,command,const DeepCollectionEquality().hash(_args),trustedAt);
 
 @override
 String toString() {
-  return 'McpServerConfig(url: $url, enabled: $enabled, type: $type, command: $command, args: $args)';
+  return 'McpServerConfig(url: $url, enabled: $enabled, type: $type, trustState: $trustState, command: $command, args: $args, trustedAt: $trustedAt)';
 }
 
 
@@ -261,7 +265,7 @@ abstract mixin class _$McpServerConfigCopyWith<$Res> implements $McpServerConfig
   factory _$McpServerConfigCopyWith(_McpServerConfig value, $Res Function(_McpServerConfig) _then) = __$McpServerConfigCopyWithImpl;
 @override @useResult
 $Res call({
- String url, bool enabled,@JsonKey(unknownEnumValue: McpServerType.http) McpServerType type, String command, List<String> args
+ String url, bool enabled,@JsonKey(unknownEnumValue: McpServerType.http) McpServerType type,@JsonKey(unknownEnumValue: McpServerTrustState.trusted) McpServerTrustState trustState, String command, List<String> args, DateTime? trustedAt
 });
 
 
@@ -278,14 +282,16 @@ class __$McpServerConfigCopyWithImpl<$Res>
 
 /// Create a copy of McpServerConfig
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? url = null,Object? enabled = null,Object? type = null,Object? command = null,Object? args = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? url = null,Object? enabled = null,Object? type = null,Object? trustState = null,Object? command = null,Object? args = null,Object? trustedAt = freezed,}) {
   return _then(_McpServerConfig(
 url: null == url ? _self.url : url // ignore: cast_nullable_to_non_nullable
 as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
 as bool,type: null == type ? _self.type : type // ignore: cast_nullable_to_non_nullable
-as McpServerType,command: null == command ? _self.command : command // ignore: cast_nullable_to_non_nullable
+as McpServerType,trustState: null == trustState ? _self.trustState : trustState // ignore: cast_nullable_to_non_nullable
+as McpServerTrustState,command: null == command ? _self.command : command // ignore: cast_nullable_to_non_nullable
 as String,args: null == args ? _self._args : args // ignore: cast_nullable_to_non_nullable
-as List<String>,
+as List<String>,trustedAt: freezed == trustedAt ? _self.trustedAt : trustedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
   ));
 }
 

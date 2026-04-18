@@ -361,6 +361,7 @@ class _FakeMcpToolService extends McpToolService {
 
   @override
   Future<void> connect({
+    List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
     String? overrideUrl,
   }) async {}
@@ -402,6 +403,7 @@ class _PlanningResearchMcpToolService extends McpToolService {
 
   @override
   Future<void> connect({
+    List<McpServerConfig>? overrideServers,
     List<String>? overrideUrls,
     String? overrideUrl,
   }) async {}

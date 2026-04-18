@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$Conversation {
 
- String get id; String get title; List<Message> get messages; DateTime get createdAt; DateTime get updatedAt;@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode get workspaceMode; String get projectId;@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode get executionMode;@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage get workflowStage;@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? get workflowSpec; String get workflowSourceHash; DateTime? get workflowDerivedAt;@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> get executionProgress;@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> get openQuestionProgress;@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? get planArtifact;
+ String get id; String get title; List<Message> get messages; DateTime get createdAt; DateTime get updatedAt;@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode get workspaceMode; String get projectId;@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode get executionMode;@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage get workflowStage;@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? get workflowSpec; String get workflowSourceHash; DateTime? get workflowDerivedAt;@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> get executionProgress;@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> get openQuestionProgress;@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? get planArtifact;@JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson) ConversationCompactionArtifact? get compactionArtifact;
 /// Create a copy of Conversation
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $ConversationCopyWith<Conversation> get copyWith => _$ConversationCopyWithImpl<C
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Conversation&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.executionMode, executionMode) || other.executionMode == executionMode)&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec)&&(identical(other.workflowSourceHash, workflowSourceHash) || other.workflowSourceHash == workflowSourceHash)&&(identical(other.workflowDerivedAt, workflowDerivedAt) || other.workflowDerivedAt == workflowDerivedAt)&&const DeepCollectionEquality().equals(other.executionProgress, executionProgress)&&const DeepCollectionEquality().equals(other.openQuestionProgress, openQuestionProgress)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Conversation&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other.messages, messages)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.executionMode, executionMode) || other.executionMode == executionMode)&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec)&&(identical(other.workflowSourceHash, workflowSourceHash) || other.workflowSourceHash == workflowSourceHash)&&(identical(other.workflowDerivedAt, workflowDerivedAt) || other.workflowDerivedAt == workflowDerivedAt)&&const DeepCollectionEquality().equals(other.executionProgress, executionProgress)&&const DeepCollectionEquality().equals(other.openQuestionProgress, openQuestionProgress)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact)&&(identical(other.compactionArtifact, compactionArtifact) || other.compactionArtifact == compactionArtifact));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(messages),createdAt,updatedAt,workspaceMode,projectId,executionMode,workflowStage,workflowSpec,workflowSourceHash,workflowDerivedAt,const DeepCollectionEquality().hash(executionProgress),const DeepCollectionEquality().hash(openQuestionProgress),planArtifact);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(messages),createdAt,updatedAt,workspaceMode,projectId,executionMode,workflowStage,workflowSpec,workflowSourceHash,workflowDerivedAt,const DeepCollectionEquality().hash(executionProgress),const DeepCollectionEquality().hash(openQuestionProgress),planArtifact,compactionArtifact);
 
 @override
 String toString() {
-  return 'Conversation(id: $id, title: $title, messages: $messages, createdAt: $createdAt, updatedAt: $updatedAt, workspaceMode: $workspaceMode, projectId: $projectId, executionMode: $executionMode, workflowStage: $workflowStage, workflowSpec: $workflowSpec, workflowSourceHash: $workflowSourceHash, workflowDerivedAt: $workflowDerivedAt, executionProgress: $executionProgress, openQuestionProgress: $openQuestionProgress, planArtifact: $planArtifact)';
+  return 'Conversation(id: $id, title: $title, messages: $messages, createdAt: $createdAt, updatedAt: $updatedAt, workspaceMode: $workspaceMode, projectId: $projectId, executionMode: $executionMode, workflowStage: $workflowStage, workflowSpec: $workflowSpec, workflowSourceHash: $workflowSourceHash, workflowDerivedAt: $workflowDerivedAt, executionProgress: $executionProgress, openQuestionProgress: $openQuestionProgress, planArtifact: $planArtifact, compactionArtifact: $compactionArtifact)';
 }
 
 
@@ -48,11 +48,11 @@ abstract mixin class $ConversationCopyWith<$Res>  {
   factory $ConversationCopyWith(Conversation value, $Res Function(Conversation) _then) = _$ConversationCopyWithImpl;
 @useResult
 $Res call({
- String id, String title, List<Message> messages, DateTime createdAt, DateTime updatedAt,@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode workspaceMode, String projectId,@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode executionMode,@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage workflowStage,@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? workflowSpec, String workflowSourceHash, DateTime? workflowDerivedAt,@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> executionProgress,@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> openQuestionProgress,@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? planArtifact
+ String id, String title, List<Message> messages, DateTime createdAt, DateTime updatedAt,@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode workspaceMode, String projectId,@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode executionMode,@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage workflowStage,@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? workflowSpec, String workflowSourceHash, DateTime? workflowDerivedAt,@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> executionProgress,@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> openQuestionProgress,@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? planArtifact,@JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson) ConversationCompactionArtifact? compactionArtifact
 });
 
 
-$ConversationWorkflowSpecCopyWith<$Res>? get workflowSpec;$ConversationPlanArtifactCopyWith<$Res>? get planArtifact;
+$ConversationWorkflowSpecCopyWith<$Res>? get workflowSpec;$ConversationPlanArtifactCopyWith<$Res>? get planArtifact;$ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact;
 
 }
 /// @nodoc
@@ -65,7 +65,7 @@ class _$ConversationCopyWithImpl<$Res>
 
 /// Create a copy of Conversation
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? messages = null,Object? createdAt = null,Object? updatedAt = null,Object? workspaceMode = null,Object? projectId = null,Object? executionMode = null,Object? workflowStage = null,Object? workflowSpec = freezed,Object? workflowSourceHash = null,Object? workflowDerivedAt = freezed,Object? executionProgress = null,Object? openQuestionProgress = null,Object? planArtifact = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? title = null,Object? messages = null,Object? createdAt = null,Object? updatedAt = null,Object? workspaceMode = null,Object? projectId = null,Object? executionMode = null,Object? workflowStage = null,Object? workflowSpec = freezed,Object? workflowSourceHash = null,Object? workflowDerivedAt = freezed,Object? executionProgress = null,Object? openQuestionProgress = null,Object? planArtifact = freezed,Object? compactionArtifact = freezed,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -82,7 +82,8 @@ as String,workflowDerivedAt: freezed == workflowDerivedAt ? _self.workflowDerive
 as DateTime?,executionProgress: null == executionProgress ? _self.executionProgress : executionProgress // ignore: cast_nullable_to_non_nullable
 as List<ConversationExecutionTaskProgress>,openQuestionProgress: null == openQuestionProgress ? _self.openQuestionProgress : openQuestionProgress // ignore: cast_nullable_to_non_nullable
 as List<ConversationOpenQuestionProgress>,planArtifact: freezed == planArtifact ? _self.planArtifact : planArtifact // ignore: cast_nullable_to_non_nullable
-as ConversationPlanArtifact?,
+as ConversationPlanArtifact?,compactionArtifact: freezed == compactionArtifact ? _self.compactionArtifact : compactionArtifact // ignore: cast_nullable_to_non_nullable
+as ConversationCompactionArtifact?,
   ));
 }
 /// Create a copy of Conversation
@@ -108,6 +109,18 @@ $ConversationPlanArtifactCopyWith<$Res>? get planArtifact {
 
   return $ConversationPlanArtifactCopyWith<$Res>(_self.planArtifact!, (value) {
     return _then(_self.copyWith(planArtifact: value));
+  });
+}/// Create a copy of Conversation
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact {
+    if (_self.compactionArtifact == null) {
+    return null;
+  }
+
+  return $ConversationCompactionArtifactCopyWith<$Res>(_self.compactionArtifact!, (value) {
+    return _then(_self.copyWith(compactionArtifact: value));
   });
 }
 }
@@ -191,10 +204,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact, @JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson)  ConversationCompactionArtifact? compactionArtifact)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Conversation() when $default != null:
-return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact);case _:
+return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact,_that.compactionArtifact);case _:
   return orElse();
 
 }
@@ -212,10 +225,10 @@ return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.update
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact, @JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson)  ConversationCompactionArtifact? compactionArtifact)  $default,) {final _that = this;
 switch (_that) {
 case _Conversation():
-return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact);case _:
+return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact,_that.compactionArtifact);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -232,10 +245,10 @@ return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.update
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String title,  List<Message> messages,  DateTime createdAt,  DateTime updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat)  WorkspaceMode workspaceMode,  String projectId, @JsonKey(unknownEnumValue: ConversationExecutionMode.normal)  ConversationExecutionMode executionMode, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle)  ConversationWorkflowStage workflowStage, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson)  ConversationWorkflowSpec? workflowSpec,  String workflowSourceHash,  DateTime? workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson)  List<ConversationExecutionTaskProgress> executionProgress, @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson)  List<ConversationOpenQuestionProgress> openQuestionProgress, @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)  ConversationPlanArtifact? planArtifact, @JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson)  ConversationCompactionArtifact? compactionArtifact)?  $default,) {final _that = this;
 switch (_that) {
 case _Conversation() when $default != null:
-return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact);case _:
+return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.updatedAt,_that.workspaceMode,_that.projectId,_that.executionMode,_that.workflowStage,_that.workflowSpec,_that.workflowSourceHash,_that.workflowDerivedAt,_that.executionProgress,_that.openQuestionProgress,_that.planArtifact,_that.compactionArtifact);case _:
   return null;
 
 }
@@ -247,7 +260,7 @@ return $default(_that.id,_that.title,_that.messages,_that.createdAt,_that.update
 @JsonSerializable()
 
 class _Conversation extends Conversation {
-  const _Conversation({required this.id, required this.title, required final  List<Message> messages, required this.createdAt, required this.updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat) this.workspaceMode = WorkspaceMode.chat, this.projectId = '', @JsonKey(unknownEnumValue: ConversationExecutionMode.normal) this.executionMode = ConversationExecutionMode.normal, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) this.workflowStage = ConversationWorkflowStage.idle, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) this.workflowSpec, this.workflowSourceHash = '', this.workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) final  List<ConversationExecutionTaskProgress> executionProgress = const <ConversationExecutionTaskProgress>[], @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) final  List<ConversationOpenQuestionProgress> openQuestionProgress = const <ConversationOpenQuestionProgress>[], @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) this.planArtifact}): _messages = messages,_executionProgress = executionProgress,_openQuestionProgress = openQuestionProgress,super._();
+  const _Conversation({required this.id, required this.title, required final  List<Message> messages, required this.createdAt, required this.updatedAt, @JsonKey(unknownEnumValue: WorkspaceMode.chat) this.workspaceMode = WorkspaceMode.chat, this.projectId = '', @JsonKey(unknownEnumValue: ConversationExecutionMode.normal) this.executionMode = ConversationExecutionMode.normal, @JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) this.workflowStage = ConversationWorkflowStage.idle, @JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) this.workflowSpec, this.workflowSourceHash = '', this.workflowDerivedAt, @JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) final  List<ConversationExecutionTaskProgress> executionProgress = const <ConversationExecutionTaskProgress>[], @JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) final  List<ConversationOpenQuestionProgress> openQuestionProgress = const <ConversationOpenQuestionProgress>[], @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) this.planArtifact, @JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson) this.compactionArtifact}): _messages = messages,_executionProgress = executionProgress,_openQuestionProgress = openQuestionProgress,super._();
   factory _Conversation.fromJson(Map<String, dynamic> json) => _$ConversationFromJson(json);
 
 @override final  String id;
@@ -283,6 +296,7 @@ class _Conversation extends Conversation {
 }
 
 @override@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) final  ConversationPlanArtifact? planArtifact;
+@override@JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson) final  ConversationCompactionArtifact? compactionArtifact;
 
 /// Create a copy of Conversation
 /// with the given fields replaced by the non-null parameter values.
@@ -297,16 +311,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Conversation&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.executionMode, executionMode) || other.executionMode == executionMode)&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec)&&(identical(other.workflowSourceHash, workflowSourceHash) || other.workflowSourceHash == workflowSourceHash)&&(identical(other.workflowDerivedAt, workflowDerivedAt) || other.workflowDerivedAt == workflowDerivedAt)&&const DeepCollectionEquality().equals(other._executionProgress, _executionProgress)&&const DeepCollectionEquality().equals(other._openQuestionProgress, _openQuestionProgress)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Conversation&&(identical(other.id, id) || other.id == id)&&(identical(other.title, title) || other.title == title)&&const DeepCollectionEquality().equals(other._messages, _messages)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.workspaceMode, workspaceMode) || other.workspaceMode == workspaceMode)&&(identical(other.projectId, projectId) || other.projectId == projectId)&&(identical(other.executionMode, executionMode) || other.executionMode == executionMode)&&(identical(other.workflowStage, workflowStage) || other.workflowStage == workflowStage)&&(identical(other.workflowSpec, workflowSpec) || other.workflowSpec == workflowSpec)&&(identical(other.workflowSourceHash, workflowSourceHash) || other.workflowSourceHash == workflowSourceHash)&&(identical(other.workflowDerivedAt, workflowDerivedAt) || other.workflowDerivedAt == workflowDerivedAt)&&const DeepCollectionEquality().equals(other._executionProgress, _executionProgress)&&const DeepCollectionEquality().equals(other._openQuestionProgress, _openQuestionProgress)&&(identical(other.planArtifact, planArtifact) || other.planArtifact == planArtifact)&&(identical(other.compactionArtifact, compactionArtifact) || other.compactionArtifact == compactionArtifact));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_messages),createdAt,updatedAt,workspaceMode,projectId,executionMode,workflowStage,workflowSpec,workflowSourceHash,workflowDerivedAt,const DeepCollectionEquality().hash(_executionProgress),const DeepCollectionEquality().hash(_openQuestionProgress),planArtifact);
+int get hashCode => Object.hash(runtimeType,id,title,const DeepCollectionEquality().hash(_messages),createdAt,updatedAt,workspaceMode,projectId,executionMode,workflowStage,workflowSpec,workflowSourceHash,workflowDerivedAt,const DeepCollectionEquality().hash(_executionProgress),const DeepCollectionEquality().hash(_openQuestionProgress),planArtifact,compactionArtifact);
 
 @override
 String toString() {
-  return 'Conversation(id: $id, title: $title, messages: $messages, createdAt: $createdAt, updatedAt: $updatedAt, workspaceMode: $workspaceMode, projectId: $projectId, executionMode: $executionMode, workflowStage: $workflowStage, workflowSpec: $workflowSpec, workflowSourceHash: $workflowSourceHash, workflowDerivedAt: $workflowDerivedAt, executionProgress: $executionProgress, openQuestionProgress: $openQuestionProgress, planArtifact: $planArtifact)';
+  return 'Conversation(id: $id, title: $title, messages: $messages, createdAt: $createdAt, updatedAt: $updatedAt, workspaceMode: $workspaceMode, projectId: $projectId, executionMode: $executionMode, workflowStage: $workflowStage, workflowSpec: $workflowSpec, workflowSourceHash: $workflowSourceHash, workflowDerivedAt: $workflowDerivedAt, executionProgress: $executionProgress, openQuestionProgress: $openQuestionProgress, planArtifact: $planArtifact, compactionArtifact: $compactionArtifact)';
 }
 
 
@@ -317,11 +331,11 @@ abstract mixin class _$ConversationCopyWith<$Res> implements $ConversationCopyWi
   factory _$ConversationCopyWith(_Conversation value, $Res Function(_Conversation) _then) = __$ConversationCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String title, List<Message> messages, DateTime createdAt, DateTime updatedAt,@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode workspaceMode, String projectId,@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode executionMode,@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage workflowStage,@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? workflowSpec, String workflowSourceHash, DateTime? workflowDerivedAt,@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> executionProgress,@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> openQuestionProgress,@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? planArtifact
+ String id, String title, List<Message> messages, DateTime createdAt, DateTime updatedAt,@JsonKey(unknownEnumValue: WorkspaceMode.chat) WorkspaceMode workspaceMode, String projectId,@JsonKey(unknownEnumValue: ConversationExecutionMode.normal) ConversationExecutionMode executionMode,@JsonKey(unknownEnumValue: ConversationWorkflowStage.idle) ConversationWorkflowStage workflowStage,@JsonKey(fromJson: _workflowSpecFromJson, toJson: _workflowSpecToJson) ConversationWorkflowSpec? workflowSpec, String workflowSourceHash, DateTime? workflowDerivedAt,@JsonKey(fromJson: _executionProgressFromJson, toJson: _executionProgressToJson) List<ConversationExecutionTaskProgress> executionProgress,@JsonKey(fromJson: _openQuestionProgressFromJson, toJson: _openQuestionProgressToJson) List<ConversationOpenQuestionProgress> openQuestionProgress,@JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson) ConversationPlanArtifact? planArtifact,@JsonKey(fromJson: _compactionArtifactFromJson, toJson: _compactionArtifactToJson) ConversationCompactionArtifact? compactionArtifact
 });
 
 
-@override $ConversationWorkflowSpecCopyWith<$Res>? get workflowSpec;@override $ConversationPlanArtifactCopyWith<$Res>? get planArtifact;
+@override $ConversationWorkflowSpecCopyWith<$Res>? get workflowSpec;@override $ConversationPlanArtifactCopyWith<$Res>? get planArtifact;@override $ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact;
 
 }
 /// @nodoc
@@ -334,7 +348,7 @@ class __$ConversationCopyWithImpl<$Res>
 
 /// Create a copy of Conversation
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? messages = null,Object? createdAt = null,Object? updatedAt = null,Object? workspaceMode = null,Object? projectId = null,Object? executionMode = null,Object? workflowStage = null,Object? workflowSpec = freezed,Object? workflowSourceHash = null,Object? workflowDerivedAt = freezed,Object? executionProgress = null,Object? openQuestionProgress = null,Object? planArtifact = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? title = null,Object? messages = null,Object? createdAt = null,Object? updatedAt = null,Object? workspaceMode = null,Object? projectId = null,Object? executionMode = null,Object? workflowStage = null,Object? workflowSpec = freezed,Object? workflowSourceHash = null,Object? workflowDerivedAt = freezed,Object? executionProgress = null,Object? openQuestionProgress = null,Object? planArtifact = freezed,Object? compactionArtifact = freezed,}) {
   return _then(_Conversation(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,title: null == title ? _self.title : title // ignore: cast_nullable_to_non_nullable
@@ -351,7 +365,8 @@ as String,workflowDerivedAt: freezed == workflowDerivedAt ? _self.workflowDerive
 as DateTime?,executionProgress: null == executionProgress ? _self._executionProgress : executionProgress // ignore: cast_nullable_to_non_nullable
 as List<ConversationExecutionTaskProgress>,openQuestionProgress: null == openQuestionProgress ? _self._openQuestionProgress : openQuestionProgress // ignore: cast_nullable_to_non_nullable
 as List<ConversationOpenQuestionProgress>,planArtifact: freezed == planArtifact ? _self.planArtifact : planArtifact // ignore: cast_nullable_to_non_nullable
-as ConversationPlanArtifact?,
+as ConversationPlanArtifact?,compactionArtifact: freezed == compactionArtifact ? _self.compactionArtifact : compactionArtifact // ignore: cast_nullable_to_non_nullable
+as ConversationCompactionArtifact?,
   ));
 }
 
@@ -378,6 +393,18 @@ $ConversationPlanArtifactCopyWith<$Res>? get planArtifact {
 
   return $ConversationPlanArtifactCopyWith<$Res>(_self.planArtifact!, (value) {
     return _then(_self.copyWith(planArtifact: value));
+  });
+}/// Create a copy of Conversation
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$ConversationCompactionArtifactCopyWith<$Res>? get compactionArtifact {
+    if (_self.compactionArtifact == null) {
+    return null;
+  }
+
+  return $ConversationCompactionArtifactCopyWith<$Res>(_self.compactionArtifact!, (value) {
+    return _then(_self.copyWith(compactionArtifact: value));
   });
 }
 }

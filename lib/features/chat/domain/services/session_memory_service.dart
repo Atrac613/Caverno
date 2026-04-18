@@ -157,6 +157,7 @@ class SessionMemoryService {
     await _repository.upsertSessionSummary(summary);
     var addedMemoryCount = 0;
     var updatedMemoryCount = 0;
+    var reviewQueuedCount = 0;
     var profileUpdated = false;
     var generationMethod = MemoryGenerationMethod.ruleBased;
 
@@ -171,17 +172,45 @@ class SessionMemoryService {
             userMessages: userMessages,
             now: timestamp,
           );
-    if (extracted.isNotEmpty) {
+    final suppressionRules = _repository.loadSuppressionRules();
+    final filteredExtracted = extracted.where((entry) {
+      final normalizedEntry = _normalizeMemoryText(entry.text);
+      return suppressionRules.every((rule) {
+        final pattern = rule.normalizedPattern;
+        if (pattern.isEmpty) {
+          return true;
+        }
+        return !normalizedEntry.contains(pattern) &&
+            !pattern.contains(normalizedEntry);
+      });
+    }).toList(growable: false);
+
+    if (filteredExtracted.isNotEmpty) {
       if (draft != null) {
         generationMethod = MemoryGenerationMethod.llm;
       }
-      final upsertResult = await _repository.addOrUpdateMemories(extracted);
-      addedMemoryCount = upsertResult.addedCount;
-      updatedMemoryCount = upsertResult.updatedCount;
+      final reviewItems = filteredExtracted
+          .where(_shouldQueueForReview)
+          .map(MemoryReviewItem.fromMemoryEntry)
+          .toList(growable: false);
+      final immediateEntries = filteredExtracted
+          .where((entry) => !_shouldQueueForReview(entry))
+          .toList(growable: false);
+      if (immediateEntries.isNotEmpty) {
+        final upsertResult = await _repository.addOrUpdateMemories(
+          immediateEntries,
+        );
+        addedMemoryCount = upsertResult.addedCount;
+        updatedMemoryCount = upsertResult.updatedCount;
+      }
+      if (reviewItems.isNotEmpty) {
+        await _repository.upsertReviewQueue(reviewItems);
+        reviewQueuedCount = reviewItems.length;
+      }
       if (draft != null && draft.hasProfileUpdate) {
         profileUpdated = await _mergeProfileFromDraft(draft, timestamp);
       } else {
-        profileUpdated = await _mergeProfile(extracted, timestamp);
+        profileUpdated = await _mergeProfile(immediateEntries, timestamp);
       }
     } else if (draft != null && draft.hasProfileUpdate) {
       generationMethod = MemoryGenerationMethod.llm;
@@ -192,6 +221,7 @@ class SessionMemoryService {
       summaryUpdated: true,
       addedMemoryCount: addedMemoryCount,
       updatedMemoryCount: updatedMemoryCount,
+      queuedReviewCount: reviewQueuedCount,
       profileUpdated: profileUpdated,
       generationMethod: generationMethod,
     );
@@ -220,10 +250,71 @@ class SessionMemoryService {
     return _repository.loadProfile();
   }
 
+  List<MemoryEntry> loadMemories() {
+    return _repository.loadMemories();
+  }
+
+  List<MemorySessionSummary> loadSessionSummaries() {
+    return _repository.loadSessionSummaries();
+  }
+
+  List<MemoryReviewItem> loadReviewQueue() {
+    return _repository.loadReviewQueue();
+  }
+
+  List<MemorySuppressionRule> loadSuppressionRules() {
+    return _repository.loadSuppressionRules();
+  }
+
+  Future<void> deleteMemory(String id) {
+    return _repository.deleteMemoryEntry(id);
+  }
+
+  Future<void> suppressMemory(MemoryEntry entry) async {
+    await _repository.addSuppressionRule(
+      MemorySuppressionRule(
+        id: _uuid.v4(),
+        textPattern: entry.text,
+        createdAt: DateTime.now(),
+      ),
+    );
+    await _repository.deleteMemoryEntry(entry.id);
+  }
+
+  Future<void> keepReviewItem(String id) async {
+    final reviewItem = _repository.loadReviewQueue().firstWhere(
+      (item) => item.id == id,
+    );
+    await _repository.addOrUpdateMemories([
+      reviewItem.toMemoryEntry(updatedAt: DateTime.now()),
+    ]);
+    await _repository.removeReviewQueueItem(id);
+  }
+
+  Future<void> deleteReviewItem(String id) {
+    return _repository.removeReviewQueueItem(id);
+  }
+
+  Future<void> suppressReviewItem(String id) async {
+    final reviewItem = _repository.loadReviewQueue().firstWhere(
+      (item) => item.id == id,
+    );
+    await _repository.addSuppressionRule(
+      MemorySuppressionRule(
+        id: _uuid.v4(),
+        textPattern: reviewItem.text,
+        createdAt: DateTime.now(),
+      ),
+    );
+    await _repository.removeReviewQueueItem(id);
+  }
+
   MemorySnapshot loadSnapshot() {
     final profile = _repository.loadProfile();
     final summaries = _repository.loadSessionSummaries();
     final memories = _repository.loadMemories();
+    final reviewQueue = _repository.loadReviewQueue();
+    final suppressionRules = _repository.loadSuppressionRules();
     DateTime? lastUpdatedAt = profile.isEmpty ? null : profile.updatedAt;
 
     for (final summary in summaries) {
@@ -241,8 +332,21 @@ class SessionMemoryService {
       profile: profile,
       summaryCount: summaries.length,
       memoryCount: memories.length,
+      reviewCount: reviewQueue.length,
+      suppressionCount: suppressionRules.length,
       lastUpdatedAt: lastUpdatedAt,
     );
+  }
+
+  bool _shouldQueueForReview(MemoryEntry entry) {
+    if (entry.importance >= 0.85 || entry.confidence >= 0.85) {
+      return false;
+    }
+    return entry.confidence < 0.72;
+  }
+
+  String _normalizeMemoryText(String value) {
+    return value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   List<_ScoredMemory> _scoreMemories({
@@ -622,6 +726,7 @@ class MemoryUpdateResult {
     required this.summaryUpdated,
     required this.addedMemoryCount,
     required this.updatedMemoryCount,
+    required this.queuedReviewCount,
     required this.profileUpdated,
     required this.generationMethod,
   });
@@ -630,18 +735,23 @@ class MemoryUpdateResult {
     : summaryUpdated = false,
       addedMemoryCount = 0,
       updatedMemoryCount = 0,
+      queuedReviewCount = 0,
       profileUpdated = false,
       generationMethod = MemoryGenerationMethod.ruleBased;
 
   final bool summaryUpdated;
   final int addedMemoryCount;
   final int updatedMemoryCount;
+  final int queuedReviewCount;
   final bool profileUpdated;
   final MemoryGenerationMethod generationMethod;
 
   int get changedMemoryCount => addedMemoryCount + updatedMemoryCount;
   bool get hasAnyUpdate =>
-      summaryUpdated || profileUpdated || changedMemoryCount > 0;
+      summaryUpdated ||
+      profileUpdated ||
+      changedMemoryCount > 0 ||
+      queuedReviewCount > 0;
 }
 
 class MemorySnapshot {
@@ -649,11 +759,15 @@ class MemorySnapshot {
     required this.profile,
     required this.summaryCount,
     required this.memoryCount,
+    required this.reviewCount,
+    required this.suppressionCount,
     required this.lastUpdatedAt,
   });
 
   final UserMemoryProfile profile;
   final int summaryCount;
   final int memoryCount;
+  final int reviewCount;
+  final int suppressionCount;
   final DateTime? lastUpdatedAt;
 }

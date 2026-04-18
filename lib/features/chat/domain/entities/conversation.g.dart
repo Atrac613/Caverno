@@ -55,6 +55,9 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
       planArtifact: _planArtifactFromJson(
         json['planArtifact'] as Map<String, dynamic>?,
       ),
+      compactionArtifact: _compactionArtifactFromJson(
+        json['compactionArtifact'] as Map<String, dynamic>?,
+      ),
     );
 
 Map<String, dynamic> _$ConversationToJson(
@@ -77,6 +80,7 @@ Map<String, dynamic> _$ConversationToJson(
     instance.openQuestionProgress,
   ),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
+  'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
 };
 
 const _$WorkspaceModeEnumMap = {

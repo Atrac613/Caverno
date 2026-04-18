@@ -78,28 +78,39 @@ class SettingsNotifier extends Notifier<AppSettings> {
   Future<void> addMcpServer() async {
     await updateMcpServers([
       ...state.configuredMcpServers,
-      const McpServerConfig(),
+      const McpServerConfig(trustState: McpServerTrustState.pending),
     ]);
   }
 
   Future<void> addMcpStdioServer() async {
     await updateMcpServers([
       ...state.configuredMcpServers,
-      const McpServerConfig(type: McpServerType.stdio),
+      const McpServerConfig(
+        type: McpServerType.stdio,
+        trustState: McpServerTrustState.pending,
+      ),
     ]);
   }
 
   Future<void> updateMcpServerUrl(int index, String url) async {
     final servers = List<McpServerConfig>.from(state.configuredMcpServers);
     if (index < 0 || index >= servers.length) return;
-    servers[index] = servers[index].copyWith(url: url);
+    servers[index] = servers[index].copyWith(
+      url: url,
+      trustState: McpServerTrustState.pending,
+      trustedAt: null,
+    );
     await updateMcpServers(servers);
   }
 
   Future<void> updateMcpServerCommand(int index, String command) async {
     final servers = List<McpServerConfig>.from(state.configuredMcpServers);
     if (index < 0 || index >= servers.length) return;
-    servers[index] = servers[index].copyWith(command: command);
+    servers[index] = servers[index].copyWith(
+      command: command,
+      trustState: McpServerTrustState.pending,
+      trustedAt: null,
+    );
     await updateMcpServers(servers);
   }
 
@@ -109,7 +120,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final args = argsString.trim().isEmpty
         ? <String>[]
         : argsString.split(RegExp(r'\s+')).toList();
-    servers[index] = servers[index].copyWith(args: args);
+    servers[index] = servers[index].copyWith(
+      args: args,
+      trustState: McpServerTrustState.pending,
+      trustedAt: null,
+    );
     await updateMcpServers(servers);
   }
 
@@ -117,6 +132,21 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final servers = List<McpServerConfig>.from(state.configuredMcpServers);
     if (index < 0 || index >= servers.length) return;
     servers[index] = servers[index].copyWith(enabled: enabled);
+    await updateMcpServers(servers);
+  }
+
+  Future<void> updateMcpServerTrustState(
+    int index,
+    McpServerTrustState trustState,
+  ) async {
+    final servers = List<McpServerConfig>.from(state.configuredMcpServers);
+    if (index < 0 || index >= servers.length) return;
+    servers[index] = servers[index].copyWith(
+      trustState: trustState,
+      trustedAt: trustState == McpServerTrustState.trusted
+          ? DateTime.now()
+          : null,
+    );
     await updateMcpServers(servers);
   }
 

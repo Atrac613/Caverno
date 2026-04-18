@@ -30,12 +30,15 @@ import '../../data/datasources/local_shell_tools.dart';
 import '../../data/datasources/mcp_tool_service.dart';
 import '../../domain/entities/coding_project.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/session_memory.dart';
+import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
+import '../../domain/services/tool_execution_scheduler.dart';
 import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
@@ -3084,6 +3087,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
   /// Prepares the message list sent to the LLM, including system messages.
   List<Message> _prepareMessagesForLLM() {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
     final messages = state.messages.where((m) => !m.isStreaming).toList();
     final promptMessages = <Message>[_createSystemMessage()];
     if (_temporalReferenceContext != null) {
@@ -3096,11 +3102,50 @@ class ChatNotifier extends Notifier<ChatState> {
         ),
       );
     }
-    final result = [...promptMessages, ...messages];
+    final compactionArtifact = _resolvePromptCompactionArtifact(
+      currentConversation: currentConversation,
+      messages: messages,
+    );
+    if (compactionArtifact?.hasContent ?? false) {
+      promptMessages.add(
+        Message(
+          id: 'system_compaction',
+          content:
+              'Earlier conversation summary for omitted turns:\n'
+              '${compactionArtifact!.normalizedSummary!}\n\n'
+              'Treat this summary as context for the trimmed transcript that follows.',
+          role: MessageRole.system,
+          timestamp: DateTime.now(),
+        ),
+      );
+    }
+    final retainedMessages = ConversationCompactionService.retainMessages(
+      messages: messages,
+      artifact: compactionArtifact,
+    );
+    final result = [...promptMessages, ...retainedMessages];
     if (_hiddenPrompt != null) {
       result.add(_hiddenPrompt!);
     }
     return result;
+  }
+
+  ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
+    required Conversation? currentConversation,
+    required List<Message> messages,
+  }) {
+    final freshArtifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+      now: currentConversation?.effectiveCompactionArtifact.updatedAt,
+    );
+    if (freshArtifact != null) {
+      return freshArtifact;
+    }
+    final persistedArtifact = currentConversation?.compactionArtifact;
+    if (persistedArtifact?.hasContent ?? false) {
+      return persistedArtifact;
+    }
+    return null;
   }
 
   final _uuid = const Uuid();
@@ -3820,6 +3865,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
       appLog('[Tool] Tool loop [$iteration/$maxIterations]');
       final batchToolResults = <ToolResultInfo>[];
+      final pendingBatchCalls = <ToolCallInfo>[];
 
       for (final toolCall in currentToolCalls) {
         final toolCallKey = _toolExecutionKey(toolCall);
@@ -3834,52 +3880,59 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[Tool] Arguments: ${toolCall.arguments}');
 
         _appendToolUseToLastMessage(toolCall);
+        pendingBatchCalls.add(toolCall);
+      }
 
-        try {
-          // Execute the tool. SSH tools that require a UI dialog are
-          // intercepted here so ChatNotifier can surface a Completer-based
-          // confirmation via ChatState; everything else dispatches straight
-          // to McpToolService.
-          final McpToolResult result = await _dispatchToolCall(toolCall);
-          final toolResult = result.isSuccess
-              ? result.result
-              : (result.result.trim().isNotEmpty
-                    ? result.result
-                    : 'Error: ${result.errorMessage}');
+      final scheduledResults = await ToolExecutionScheduler.executeBatch(
+        toolCalls: pendingBatchCalls,
+        execute: _dispatchToolCall,
+      );
 
-          toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
-          batchToolResults.add(
-            ToolResultInfo(
-              id: toolCall.id,
-              name: toolCall.name,
-              arguments: toolCall.arguments,
-              result: toolResult,
-            ),
-          );
-          executedToolResults.add(batchToolResults.last);
-
-          if (result.isSuccess) {
-            executedToolCallKeys.add(toolCallKey);
-            toolFailureCounts.remove(toolCallKey);
-          } else {
-            final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
-            toolFailureCounts[toolCallKey] = failureCount;
-            if (failureCount >= 2) {
-              appLog(
-                '[Tool] Same tool (${toolCall.name}) failed $failureCount times consecutively, ending loop',
-              );
-              _appendToLastMessage(
-                '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
-              );
-              hasTextResponse = true;
-              break;
-            }
-          }
-        } catch (e) {
-          appLog('[Tool] Error: $e');
-          _appendToLastMessage('[Search error: $e]\n');
+      for (final scheduledResult in scheduledResults) {
+        final toolCall = scheduledResult.toolCall;
+        final toolCallKey = _toolExecutionKey(toolCall);
+        if (scheduledResult.error != null) {
+          final error = scheduledResult.error!;
+          appLog('[Tool] Error: $error');
+          _appendToLastMessage('[Search error: $error]\n');
           hasTextResponse = true;
           break;
+        }
+
+        final result = scheduledResult.result!;
+        final toolResult = result.isSuccess
+            ? result.result
+            : (result.result.trim().isNotEmpty
+                  ? result.result
+                  : 'Error: ${result.errorMessage}');
+
+        toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
+        batchToolResults.add(
+          ToolResultInfo(
+            id: toolCall.id,
+            name: toolCall.name,
+            arguments: toolCall.arguments,
+            result: toolResult,
+          ),
+        );
+        executedToolResults.add(batchToolResults.last);
+
+        if (result.isSuccess) {
+          executedToolCallKeys.add(toolCallKey);
+          toolFailureCounts.remove(toolCallKey);
+        } else {
+          final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
+          toolFailureCounts[toolCallKey] = failureCount;
+          if (failureCount >= 2) {
+            appLog(
+              '[Tool] Same tool (${toolCall.name}) failed $failureCount times consecutively, ending loop',
+            );
+            _appendToLastMessage(
+              '\nFailed to execute tool (${toolCall.name}). Please check your server configuration.\nError: ${result.errorMessage}\n',
+            );
+            hasTextResponse = true;
+            break;
+          }
         }
       }
 

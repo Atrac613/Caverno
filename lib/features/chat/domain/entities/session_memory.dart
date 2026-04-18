@@ -187,6 +187,114 @@ class UserMemoryProfile {
   }
 }
 
+class MemoryReviewItem {
+  MemoryReviewItem({
+    required this.id,
+    required this.text,
+    required this.type,
+    required this.confidence,
+    required this.importance,
+    required this.createdAt,
+    this.sourceConversationId,
+  });
+
+  final String id;
+  final String text;
+  final MemoryEntryType type;
+  final double confidence;
+  final double importance;
+  final DateTime createdAt;
+  final String? sourceConversationId;
+
+  factory MemoryReviewItem.fromMemoryEntry(MemoryEntry entry) {
+    return MemoryReviewItem(
+      id: entry.id,
+      text: entry.text,
+      type: entry.type,
+      confidence: entry.confidence,
+      importance: entry.importance,
+      createdAt: entry.updatedAt,
+      sourceConversationId: entry.sourceConversationId,
+    );
+  }
+
+  MemoryEntry toMemoryEntry({DateTime? updatedAt}) {
+    return MemoryEntry(
+      id: id,
+      text: text,
+      type: type,
+      confidence: confidence,
+      importance: importance,
+      updatedAt: updatedAt ?? createdAt,
+      sourceConversationId: sourceConversationId,
+    );
+  }
+
+  factory MemoryReviewItem.fromJson(Map<String, dynamic> json) {
+    final typeName = json['type'] as String? ?? '';
+    final type = MemoryEntryType.values.firstWhere(
+      (value) => value.name == typeName,
+      orElse: () => MemoryEntryType.topic,
+    );
+    return MemoryReviewItem(
+      id: json['id'] as String? ?? '',
+      text: json['text'] as String? ?? '',
+      type: type,
+      confidence: (json['confidence'] as num?)?.toDouble() ?? 0.5,
+      importance: (json['importance'] as num?)?.toDouble() ?? 0.5,
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+      sourceConversationId: json['sourceConversationId'] as String?,
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'text': text,
+      'type': type.name,
+      'confidence': confidence,
+      'importance': importance,
+      'createdAt': createdAt.toIso8601String(),
+      'sourceConversationId': sourceConversationId,
+    };
+  }
+}
+
+class MemorySuppressionRule {
+  MemorySuppressionRule({
+    required this.id,
+    required this.textPattern,
+    required this.createdAt,
+  });
+
+  final String id;
+  final String textPattern;
+  final DateTime createdAt;
+
+  String get normalizedPattern =>
+      textPattern.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  factory MemorySuppressionRule.fromJson(Map<String, dynamic> json) {
+    return MemorySuppressionRule(
+      id: json['id'] as String? ?? '',
+      textPattern: json['textPattern'] as String? ?? '',
+      createdAt:
+          DateTime.tryParse(json['createdAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return <String, dynamic>{
+      'id': id,
+      'textPattern': textPattern,
+      'createdAt': createdAt.toIso8601String(),
+    };
+  }
+}
+
 List<String> _stringList(Object? raw) {
   if (raw is List) {
     return raw.whereType<String>().map((v) => v.trim()).where((v) {

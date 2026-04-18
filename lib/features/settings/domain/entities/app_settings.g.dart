@@ -17,10 +17,20 @@ _McpServerConfig _$McpServerConfigFromJson(Map<String, dynamic> json) =>
             unknownValue: McpServerType.http,
           ) ??
           McpServerType.http,
+      trustState:
+          $enumDecodeNullable(
+            _$McpServerTrustStateEnumMap,
+            json['trustState'],
+            unknownValue: McpServerTrustState.trusted,
+          ) ??
+          McpServerTrustState.trusted,
       command: json['command'] as String? ?? '',
       args:
           (json['args'] as List<dynamic>?)?.map((e) => e as String).toList() ??
           const <String>[],
+      trustedAt: json['trustedAt'] == null
+          ? null
+          : DateTime.parse(json['trustedAt'] as String),
     );
 
 Map<String, dynamic> _$McpServerConfigToJson(_McpServerConfig instance) =>
@@ -28,13 +38,21 @@ Map<String, dynamic> _$McpServerConfigToJson(_McpServerConfig instance) =>
       'url': instance.url,
       'enabled': instance.enabled,
       'type': _$McpServerTypeEnumMap[instance.type]!,
+      'trustState': _$McpServerTrustStateEnumMap[instance.trustState]!,
       'command': instance.command,
       'args': instance.args,
+      'trustedAt': instance.trustedAt?.toIso8601String(),
     };
 
 const _$McpServerTypeEnumMap = {
   McpServerType.http: 'http',
   McpServerType.stdio: 'stdio',
+};
+
+const _$McpServerTrustStateEnumMap = {
+  McpServerTrustState.pending: 'pending',
+  McpServerTrustState.trusted: 'trusted',
+  McpServerTrustState.blocked: 'blocked',
 };
 
 _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(

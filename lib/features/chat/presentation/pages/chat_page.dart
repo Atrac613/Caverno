@@ -530,6 +530,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
               chatState,
               isPlanMode: isPlanMode,
             ),
+          if (currentConversation?.hasCompactionArtifact ?? false)
+            _buildConversationCompactionBanner(context, currentConversation!),
           // Message list
           Expanded(
             child: !canCompose
@@ -627,6 +629,88 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
             style: theme.textTheme.labelSmall?.copyWith(
               color: theme.colorScheme.outline,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildConversationCompactionBanner(
+    BuildContext context,
+    Conversation currentConversation,
+  ) {
+    final theme = Theme.of(context);
+    final artifact = currentConversation.effectiveCompactionArtifact;
+    final summary = artifact.normalizedSummary;
+    if (summary == null) {
+      return const SizedBox.shrink();
+    }
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.secondaryContainer.withValues(alpha: 0.28),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.secondary.withValues(alpha: 0.18),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.compress_outlined,
+                size: 18,
+                color: theme.colorScheme.secondary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'Conversation compaction is active',
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+              TextButton(
+                onPressed: () {
+                  showDialog<void>(
+                    context: context,
+                    builder: (dialogContext) => AlertDialog(
+                      title: const Text('Compacted summary'),
+                      content: SingleChildScrollView(child: Text(summary)),
+                      actions: [
+                        TextButton(
+                          onPressed: () => Navigator.of(dialogContext).pop(),
+                          child: const Text('Close'),
+                        ),
+                      ],
+                    ),
+                  );
+                },
+                child: const Text('View summary'),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Older turns are summarized before they are sent to the model. '
+            'Recent turns still remain verbatim.',
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Compacted turns: ${artifact.compactedMessageCount} • '
+            'Estimated prompt tokens: ${artifact.estimatedPromptTokens}',
+            style: theme.textTheme.labelSmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
             ),
           ),
         ],

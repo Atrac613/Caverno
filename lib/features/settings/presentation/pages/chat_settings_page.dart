@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../../../chat/data/repositories/chat_memory_repository.dart';
+import '../../../chat/domain/entities/session_memory.dart';
 import '../../../chat/domain/services/session_memory_service.dart';
 import '../providers/settings_notifier.dart';
 
@@ -18,6 +19,9 @@ class ChatSettingsPage extends ConsumerStatefulWidget {
 class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
   late SessionMemoryService _sessionMemoryService;
   late MemorySnapshot _memorySnapshot;
+  late List<MemoryEntry> _storedMemories;
+  late List<MemoryReviewItem> _reviewQueue;
+  late List<MemorySessionSummary> _sessionSummaries;
   late TextEditingController _profilePersonaController;
   late TextEditingController _profilePreferencesController;
   late TextEditingController _profileDoNotController;
@@ -31,6 +35,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
       ref.read(chatMemoryRepositoryProvider),
     );
     _memorySnapshot = _sessionMemoryService.loadSnapshot();
+    _storedMemories = _sessionMemoryService.loadMemories();
+    _reviewQueue = _sessionMemoryService.loadReviewQueue();
+    _sessionSummaries = _sessionMemoryService.loadSessionSummaries();
     final profile = _memorySnapshot.profile;
 
     _profilePersonaController = TextEditingController(
@@ -103,7 +110,45 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     if (!mounted) return;
     setState(() {
       _memorySnapshot = _sessionMemoryService.loadSnapshot();
+      _storedMemories = _sessionMemoryService.loadMemories();
+      _reviewQueue = _sessionMemoryService.loadReviewQueue();
+      _sessionSummaries = _sessionMemoryService.loadSessionSummaries();
     });
+  }
+
+  Future<void> _keepMemoryReview(String id) async {
+    await _sessionMemoryService.keepReviewItem(id);
+    _reloadMemorySnapshot();
+  }
+
+  Future<void> _deleteMemoryReview(String id) async {
+    await _sessionMemoryService.deleteReviewItem(id);
+    _reloadMemorySnapshot();
+  }
+
+  Future<void> _suppressMemoryReview(String id) async {
+    await _sessionMemoryService.suppressReviewItem(id);
+    _reloadMemorySnapshot();
+  }
+
+  Future<void> _deleteStoredMemory(String id) async {
+    await _sessionMemoryService.deleteMemory(id);
+    _reloadMemorySnapshot();
+  }
+
+  Future<void> _suppressStoredMemory(MemoryEntry entry) async {
+    await _sessionMemoryService.suppressMemory(entry);
+    _reloadMemorySnapshot();
+  }
+
+  String _memoryTypeLabel(MemoryEntryType type) {
+    return switch (type) {
+      MemoryEntryType.preference => 'Preference',
+      MemoryEntryType.persona => 'Persona',
+      MemoryEntryType.topic => 'Topic',
+      MemoryEntryType.constraint => 'Constraint',
+      MemoryEntryType.fact => 'Fact',
+    };
   }
 
   Widget _buildSectionHeader(String title) {
@@ -213,6 +258,8 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
                       namedArgs: {'count': '${_memorySnapshot.memoryCount}'},
                     ),
                   ),
+                  Text('Review queue: ${_memorySnapshot.reviewCount}'),
+                  Text('Suppression rules: ${_memorySnapshot.suppressionCount}'),
                   Text(
                     'settings.last_updated'.tr(
                       namedArgs: {
@@ -267,6 +314,109 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
               label: Text('settings.clear_memory'.tr()),
             ),
           ),
+          if (_reviewQueue.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSectionHeader('Pending memory review'),
+            const SizedBox(height: 8),
+            ..._reviewQueue.map(
+              (item) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        item.text,
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • importance ${item.importance.toStringAsFixed(2)}',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 8),
+                      Wrap(
+                        spacing: 8,
+                        runSpacing: 8,
+                        children: [
+                          FilledButton(
+                            onPressed: () => _keepMemoryReview(item.id),
+                            child: const Text('Keep'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _deleteMemoryReview(item.id),
+                            child: const Text('Delete'),
+                          ),
+                          OutlinedButton(
+                            onPressed: () => _suppressMemoryReview(item.id),
+                            child: const Text('Suppress similar'),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (_storedMemories.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSectionHeader('Stored memories'),
+            const SizedBox(height: 8),
+            ..._storedMemories.take(12).map(
+              (item) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(item.text),
+                  subtitle: Text(
+                    '${_memoryTypeLabel(item.type)} • confidence ${item.confidence.toStringAsFixed(2)} • updated ${_formatDateTime(item.updatedAt)}',
+                  ),
+                  trailing: PopupMenuButton<String>(
+                    onSelected: (value) {
+                      switch (value) {
+                        case 'delete':
+                          _deleteStoredMemory(item.id);
+                          return;
+                        case 'suppress':
+                          _suppressStoredMemory(item);
+                          return;
+                      }
+                    },
+                    itemBuilder: (context) => const [
+                      PopupMenuItem(value: 'delete', child: Text('Delete')),
+                      PopupMenuItem(
+                        value: 'suppress',
+                        child: Text('Suppress similar'),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+          if (_sessionSummaries.isNotEmpty) ...[
+            const SizedBox(height: 16),
+            _buildSectionHeader('Recent session notes'),
+            const SizedBox(height: 8),
+            ..._sessionSummaries.take(6).map(
+              (summary) => Card(
+                margin: const EdgeInsets.only(bottom: 8),
+                child: ListTile(
+                  title: Text(summary.summary),
+                  subtitle: Text(
+                    [
+                      if (summary.openLoops.isNotEmpty)
+                        'Open loops: ${summary.openLoops.join(', ')}',
+                      'Updated ${_formatDateTime(summary.updatedAt)}',
+                    ].join('\n'),
+                  ),
+                ),
+              ),
+            ),
+          ],
           const SizedBox(height: 16),
         ],
       ),

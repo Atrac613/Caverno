@@ -2,6 +2,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../services/conversation_plan_hash.dart';
+import 'conversation_compaction_artifact.dart';
 import 'message.dart';
 import 'conversation_plan_artifact.dart';
 import 'conversation_workflow.dart';
@@ -28,6 +29,21 @@ ConversationPlanArtifact? _planArtifactFromJson(Map<String, dynamic>? json) {
 }
 
 Map<String, dynamic>? _planArtifactToJson(ConversationPlanArtifact? artifact) {
+  return artifact?.toJson();
+}
+
+ConversationCompactionArtifact? _compactionArtifactFromJson(
+  Map<String, dynamic>? json,
+) {
+  if (json == null) {
+    return null;
+  }
+  return ConversationCompactionArtifact.fromJson(json);
+}
+
+Map<String, dynamic>? _compactionArtifactToJson(
+  ConversationCompactionArtifact? artifact,
+) {
   return artifact?.toJson();
 }
 
@@ -111,6 +127,11 @@ abstract class Conversation with _$Conversation {
     List<ConversationOpenQuestionProgress> openQuestionProgress,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
     ConversationPlanArtifact? planArtifact,
+    @JsonKey(
+      fromJson: _compactionArtifactFromJson,
+      toJson: _compactionArtifactToJson,
+    )
+    ConversationCompactionArtifact? compactionArtifact,
   }) = _Conversation;
 
   factory Conversation.fromJson(Map<String, dynamic> json) =>
@@ -129,6 +150,9 @@ abstract class Conversation with _$Conversation {
 
   ConversationPlanArtifact get effectivePlanArtifact =>
       planArtifact ?? const ConversationPlanArtifact();
+
+  ConversationCompactionArtifact get effectiveCompactionArtifact =>
+      compactionArtifact ?? const ConversationCompactionArtifact();
 
   List<ConversationExecutionTaskProgress> get effectiveExecutionProgress =>
       executionProgress
@@ -154,6 +178,8 @@ abstract class Conversation with _$Conversation {
       effectiveWorkflowSpec.hasContent;
 
   bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
+
+  bool get hasCompactionArtifact => effectiveCompactionArtifact.hasContent;
 
   bool get shouldPreferPlanDocument => hasPlanArtifact;
 

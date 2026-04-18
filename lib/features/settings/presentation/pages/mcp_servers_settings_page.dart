@@ -10,6 +10,7 @@ import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../domain/entities/app_settings.dart';
 import '../providers/settings_notifier.dart';
+import '../widgets/mcp_server_approval_sheet.dart';
 
 class McpServersSettingsPage extends ConsumerStatefulWidget {
   const McpServersSettingsPage({super.key});
@@ -150,6 +151,46 @@ class _McpServersSettingsPageState
     );
   }
 
+  Future<void> _reviewServerTrust({
+    required int index,
+    required McpServerConfig server,
+    required SettingsNotifier notifier,
+    required McpToolService? mcpToolService,
+  }) async {
+    if (mcpToolService == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('settings.mcp_service_null'.tr())),
+      );
+      return;
+    }
+
+    await mcpToolService.connect(overrideServers: [server]);
+    if (!mounted) return;
+
+    final status = mcpToolService.status;
+    final toolNames = mcpToolService.tools
+        .map((tool) => tool.originalName ?? tool.name)
+        .toList(growable: false);
+    final trustState = await showModalBottomSheet<McpServerTrustState>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) => McpServerApprovalSheet(
+        server: server,
+        toolNames: toolNames,
+        connectionError: status == McpConnectionStatus.error
+            ? mcpToolService.lastError
+            : null,
+      ),
+    );
+
+    if (trustState != null && trustState != server.trustState) {
+      await notifier.updateMcpServerTrustState(index, trustState);
+    }
+    await mcpToolService.connect();
+    if (!mounted) return;
+    setState(() {});
+  }
+
   Map<String, McpServerConnectionInfo> _serverStatesById(
     McpToolService? mcpToolService,
   ) {
@@ -264,6 +305,28 @@ class _McpServersSettingsPageState
             const SizedBox(height: 10),
             Row(
               children: [
+                Chip(
+                  label: Text(_trustStateLabel(server.trustState)),
+                  visualDensity: VisualDensity.compact,
+                ),
+                const SizedBox(width: 8),
+                if (server.isValid)
+                  TextButton(
+                    onPressed: () => _reviewServerTrust(
+                      index: index,
+                      server: server,
+                      notifier: notifier,
+                      mcpToolService: ref.read(mcpToolServiceProvider),
+                    ),
+                    child: Text(
+                      server.isTrusted ? 'Review trust' : 'Review & trust',
+                    ),
+                  ),
+              ],
+            ),
+            const SizedBox(height: 10),
+            Row(
+              children: [
                 Icon(statusIcon, color: statusColor, size: 18),
                 const SizedBox(width: 8),
                 Expanded(
@@ -304,6 +367,18 @@ class _McpServersSettingsPageState
       );
     }
 
+    if (server.isBlocked) {
+      return ('Server trust is blocked', Icons.block_outlined, colorScheme.error);
+    }
+
+    if (server.needsTrustReview) {
+      return (
+        'Pending trust review',
+        Icons.verified_user_outlined,
+        colorScheme.primary,
+      );
+    }
+
     if (!server.isValid) {
       final hint = server.type == McpServerType.stdio
           ? 'settings.mcp_server_empty_command'.tr()
@@ -340,6 +415,14 @@ class _McpServersSettingsPageState
         Icons.link_off,
         Colors.grey,
       ),
+    };
+  }
+
+  String _trustStateLabel(McpServerTrustState trustState) {
+    return switch (trustState) {
+      McpServerTrustState.pending => 'Pending',
+      McpServerTrustState.trusted => 'Trusted',
+      McpServerTrustState.blocked => 'Blocked',
     };
   }
 

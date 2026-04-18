@@ -11,6 +11,8 @@ part 'app_settings.g.dart';
 /// Transport type for an MCP server.
 enum McpServerType { http, stdio }
 
+enum McpServerTrustState { pending, trusted, blocked }
+
 @freezed
 abstract class McpServerConfig with _$McpServerConfig {
   const McpServerConfig._();
@@ -21,8 +23,12 @@ abstract class McpServerConfig with _$McpServerConfig {
     @JsonKey(unknownEnumValue: McpServerType.http)
     @Default(McpServerType.http)
     McpServerType type,
+    @JsonKey(unknownEnumValue: McpServerTrustState.trusted)
+    @Default(McpServerTrustState.trusted)
+    McpServerTrustState trustState,
     @Default('') String command,
     @Default(<String>[]) List<String> args,
+    DateTime? trustedAt,
   }) = _McpServerConfig;
 
   factory McpServerConfig.fromJson(Map<String, dynamic> json) =>
@@ -42,6 +48,12 @@ abstract class McpServerConfig with _$McpServerConfig {
     McpServerType.stdio =>
       args.isEmpty ? command.trim() : '${command.trim()} ${args.join(' ')}',
   };
+
+  bool get isTrusted => trustState == McpServerTrustState.trusted;
+
+  bool get isBlocked => trustState == McpServerTrustState.blocked;
+
+  bool get needsTrustReview => trustState == McpServerTrustState.pending;
 }
 
 @freezed
@@ -116,7 +128,7 @@ abstract class AppSettings with _$AppSettings {
     final seenIds = <String>{};
 
     for (final server in effectiveMcpServers) {
-      if (!server.enabled || !server.isValid) continue;
+      if (!server.enabled || !server.isValid || !server.isTrusted) continue;
       final id = server.displayLabel;
       if (!seenIds.add(id)) continue;
 
@@ -128,6 +140,24 @@ abstract class AppSettings with _$AppSettings {
     }
 
     return enabledServers;
+  }
+
+  List<McpServerConfig> get connectableMcpServers {
+    final connectableServers = <McpServerConfig>[];
+    final seenIds = <String>{};
+
+    for (final server in effectiveMcpServers) {
+      if (!server.enabled || !server.isValid || server.isBlocked) continue;
+      final id = server.displayLabel;
+      if (!seenIds.add(id)) continue;
+      connectableServers.add(
+        server.type == McpServerType.http
+            ? server.copyWith(url: server.normalizedUrl)
+            : server,
+      );
+    }
+
+    return connectableServers;
   }
 
   List<String> get effectiveMcpUrls {
@@ -160,6 +190,9 @@ abstract class AppSettings with _$AppSettings {
     for (final value in values) {
       final trimmed = value.normalizedUrl;
       if (!value.enabled || trimmed.isEmpty || !seen.add(trimmed)) {
+        continue;
+      }
+      if (!value.isTrusted) {
         continue;
       }
       normalized.add(trimmed);

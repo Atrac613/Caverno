@@ -35,6 +35,8 @@ class ChatMemoryRepository {
   static const _profileKey = 'profile';
   static const _sessionSummariesKey = 'session_summaries';
   static const _memoriesKey = 'memories';
+  static const _memoryReviewQueueKey = 'memory_review_queue';
+  static const _memorySuppressionRulesKey = 'memory_suppression_rules';
 
   UserMemoryProfile loadProfile() {
     if (!_box.isOpen) return UserMemoryProfile.empty();
@@ -184,10 +186,133 @@ class ChatMemoryRepository {
     );
   }
 
+  Future<void> deleteMemoryEntry(String id) async {
+    if (!_box.isOpen) return;
+    final memories = loadMemories()
+        .where((memory) => memory.id != id)
+        .toList(growable: false);
+    await _writeSafely(() {
+      return _box.put(
+        _memoriesKey,
+        jsonEncode(memories.map((memory) => memory.toJson()).toList()),
+      );
+    });
+  }
+
+  List<MemoryReviewItem> loadReviewQueue() {
+    if (!_box.isOpen) return const [];
+    final raw = _readOrNull<String>(() => _box.get(_memoryReviewQueueKey));
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final data = jsonDecode(raw) as List<dynamic>;
+      final items = data.whereType<Map>().map((entry) {
+        return MemoryReviewItem.fromJson(Map<String, dynamic>.from(entry));
+      }).toList();
+      items.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return items;
+    } catch (e) {
+      appLog('[ChatMemoryRepository] Failed to parse review queue: $e');
+      return const [];
+    }
+  }
+
+  Future<void> upsertReviewQueue(
+    List<MemoryReviewItem> items, {
+    int maxItems = 100,
+  }) async {
+    if (!_box.isOpen || items.isEmpty) return;
+    final queue = loadReviewQueue();
+
+    for (final item in items) {
+      final normalized = _normalize(item.text);
+      if (normalized.isEmpty) continue;
+      final index = queue.indexWhere((entry) {
+        return _normalize(entry.text) == normalized;
+      });
+      if (index >= 0) {
+        queue[index] = item;
+      } else {
+        queue.add(item);
+      }
+    }
+
+    queue.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (queue.length > maxItems) {
+      queue.removeRange(maxItems, queue.length);
+    }
+
+    await _writeSafely(() {
+      return _box.put(
+        _memoryReviewQueueKey,
+        jsonEncode(queue.map((item) => item.toJson()).toList()),
+      );
+    });
+  }
+
+  Future<void> removeReviewQueueItem(String id) async {
+    if (!_box.isOpen) return;
+    final queue = loadReviewQueue()
+        .where((item) => item.id != id)
+        .toList(growable: false);
+    await _writeSafely(() {
+      return _box.put(
+        _memoryReviewQueueKey,
+        jsonEncode(queue.map((item) => item.toJson()).toList()),
+      );
+    });
+  }
+
+  List<MemorySuppressionRule> loadSuppressionRules() {
+    if (!_box.isOpen) return const [];
+    final raw = _readOrNull<String>(() => _box.get(_memorySuppressionRulesKey));
+    if (raw == null || raw.isEmpty) return const [];
+    try {
+      final data = jsonDecode(raw) as List<dynamic>;
+      final rules = data.whereType<Map>().map((entry) {
+        return MemorySuppressionRule.fromJson(
+          Map<String, dynamic>.from(entry),
+        );
+      }).toList();
+      rules.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+      return rules;
+    } catch (e) {
+      appLog('[ChatMemoryRepository] Failed to parse suppression rules: $e');
+      return const [];
+    }
+  }
+
+  Future<void> addSuppressionRule(
+    MemorySuppressionRule rule, {
+    int maxItems = 200,
+  }) async {
+    if (!_box.isOpen || rule.normalizedPattern.isEmpty) return;
+    final rules = loadSuppressionRules();
+    final existingIndex = rules.indexWhere((item) {
+      return item.normalizedPattern == rule.normalizedPattern;
+    });
+    if (existingIndex >= 0) {
+      rules[existingIndex] = rule;
+    } else {
+      rules.add(rule);
+    }
+    rules.sort((a, b) => b.createdAt.compareTo(a.createdAt));
+    if (rules.length > maxItems) {
+      rules.removeRange(maxItems, rules.length);
+    }
+    await _writeSafely(() {
+      return _box.put(
+        _memorySuppressionRulesKey,
+        jsonEncode(rules.map((item) => item.toJson()).toList()),
+      );
+    });
+  }
+
   Future<void> clearAll() async {
     await _writeSafely(() => _box.delete(_profileKey));
     await _writeSafely(() => _box.delete(_sessionSummariesKey));
     await _writeSafely(() => _box.delete(_memoriesKey));
+    await _writeSafely(() => _box.delete(_memoryReviewQueueKey));
+    await _writeSafely(() => _box.delete(_memorySuppressionRulesKey));
   }
 
   String _normalize(String text) {

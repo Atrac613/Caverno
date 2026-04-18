@@ -350,8 +350,21 @@ class ConversationPlanningPromptService {
         final blockedReason = progress?.normalizedBlockedReason;
         final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
         final blockedSince = summary.blockedSince?.toIso8601String() ?? '';
+        final recentEvents = progress?.recentEvents.reversed
+                .take(2)
+                .toList(growable: false)
+                .reversed
+                .map((event) {
+                  final eventSummary = event.normalizedSummary ?? '';
+                  if (eventSummary.isEmpty) {
+                    return event.type.name;
+                  }
+                  return '${event.type.name}: $eventSummary';
+                })
+                .join(' || ') ??
+            '';
         buffer.writeln(
-          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary.lastOutcome ?? ''} | validation: ${summary.lastValidation ?? ''} | blockedReason: ${blockedReason ?? ''} | blockedSince: $blockedSince | updatedAt: $updatedAt',
+          '  - [${task.status.name}] ${task.title} | files: ${task.targetFiles.join(', ')} | validate: ${task.validationCommand} | summary: ${summary.lastOutcome ?? ''} | validation: ${summary.lastValidation ?? ''} | recentEvents: $recentEvents | blockedReason: ${blockedReason ?? ''} | blockedSince: $blockedSince | updatedAt: $updatedAt',
         );
       }
     }
