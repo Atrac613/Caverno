@@ -645,6 +645,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           ConversationPlanProjectionService.stabilizeTaskIds(
             previousTasks: conversation.projectedExecutionTasks,
             workflowSpec: projection.workflowSpec,
+            anchoredTaskIndexes: projection.anchoredTaskIndexes,
           );
       await updateCurrentWorkflow(
         workflowStage: projection.workflowStage,
