@@ -15,6 +15,7 @@ import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/domain/entities/coding_project.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -47,6 +48,19 @@ class _TestConversationsNotifier extends ConversationsNotifier {
 class _TestCodingProjectsNotifier extends CodingProjectsNotifier {
   @override
   CodingProjectsState build() => CodingProjectsState.initial();
+}
+
+class _FixedCodingProjectsNotifier extends CodingProjectsNotifier {
+  _FixedCodingProjectsNotifier(this.project);
+
+  final CodingProject project;
+
+  @override
+  CodingProjectsState build() =>
+      CodingProjectsState(projects: [project], selectedProjectId: project.id);
+
+  @override
+  Future<bool> ensureProjectAccess(String? projectId) async => true;
 }
 
 class _MockConversationBox extends Mock implements Box<String> {}
@@ -378,6 +392,88 @@ class _FakeMcpToolService extends McpToolService {
   }
 }
 
+class _PlanningResearchMcpToolService extends McpToolService {
+  final List<String> executedToolNames = [];
+  final List<({String name, Map<String, dynamic> arguments})> executedCalls =
+      [];
+
+  @override
+  Future<void> connect({
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedCalls.add((
+      name: name,
+      arguments: Map<String, dynamic>.from(arguments),
+    ));
+
+    return switch (name) {
+      'list_directory' => McpToolResult(
+        toolName: name,
+        result:
+            '{"path":"/tmp/planning-project","entry_count":2,"entries":["[dir] lib","[file] pubspec.yaml (1 KB)"]}',
+        isSuccess: true,
+      ),
+      'find_files' => _findFilesResult(name, arguments),
+      'search_files' => McpToolResult(
+        toolName: name,
+        result:
+            '{"path":"/tmp/planning-project","query":"planning state","matches":["lib/features/chat/presentation/providers/chat_notifier.dart:42: class ChatNotifier extends Notifier<ChatState>"],"match_count":1,"scanned_files":3}',
+        isSuccess: true,
+      ),
+      'read_file' => _readFileResult(name, arguments),
+      _ => McpToolResult(toolName: name, result: '{}', isSuccess: true),
+    };
+  }
+
+  McpToolResult _findFilesResult(String name, Map<String, dynamic> arguments) {
+    final pattern = arguments['pattern'] as String? ?? '';
+    final matches = switch (pattern) {
+      'pubspec.yaml' => ['pubspec.yaml'],
+      _ when pattern.contains('planning') => [
+        'lib/features/chat/presentation/providers/chat_notifier.dart',
+      ],
+      _ => const <String>[],
+    };
+    return McpToolResult(
+      toolName: name,
+      result:
+          '{"path":"/tmp/planning-project","pattern":"$pattern","matches":${_jsonEncodeStringList(matches)},"match_count":${matches.length}}',
+      isSuccess: true,
+    );
+  }
+
+  McpToolResult _readFileResult(String name, Map<String, dynamic> arguments) {
+    final path = arguments['path'] as String? ?? '';
+    if (path.endsWith('pubspec.yaml')) {
+      return McpToolResult(
+        toolName: name,
+        result:
+            '{"path":"$path","content":"name: caverno\\ndescription: Chat client\\ndependencies:\\n  flutter:\\n    sdk: flutter\\n  flutter_riverpod: ^2.0.0\\n","size_bytes":96}',
+        isSuccess: true,
+      );
+    }
+
+    return McpToolResult(
+      toolName: name,
+      result:
+          '{"path":"$path","content":"class ChatNotifier extends Notifier<ChatState> {\\n  Future<void> generatePlanProposal({String languageCode = \\"en\\"}) async {}\\n}\\n","size_bytes":132}',
+      isSuccess: true,
+    );
+  }
+
+  String _jsonEncodeStringList(List<String> values) {
+    return '[${values.map((value) => '"$value"').join(',')}]';
+  }
+}
+
 class _QueuedProposalDataSource implements ChatDataSource {
   _QueuedProposalDataSource(List<ChatCompletionResult> responses)
     : _responses = Queue<ChatCompletionResult>.from(responses);
@@ -667,6 +763,82 @@ void main() {
         expect(planNotifier.state.taskProposalError, isNull);
         expect(planNotifier.state.isLoading, isFalse);
         expect(proposalDataSource.requests, hasLength(2));
+      } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'planning proposals include hidden research context from read-only tools',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Add explicit planning state","constraints":["Keep behavior backward compatible"],"acceptanceCriteria":["Planning is stored per thread"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final toolService = _PlanningResearchMcpToolService();
+      final project = CodingProject(
+        id: 'project-1',
+        name: 'caverno',
+        rootPath: '/tmp/planning-project',
+        createdAt: DateTime.now(),
+        updatedAt: DateTime.now(),
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            () => _FixedCodingProjectsNotifier(project),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        planContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: project.id,
+              createIfMissing: true,
+            );
+        final planNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await planNotifier.sendMessage('Plan the next coding slice');
+
+        final workflowPrompt = proposalDataSource.requests.first.last.content;
+        expect(workflowPrompt, contains('Research context:'));
+        expect(workflowPrompt, contains('pubspec.yaml'));
+        expect(
+          workflowPrompt,
+          contains('class ChatNotifier extends Notifier<ChatState>'),
+        );
+        expect(toolService.executedToolNames, contains('list_directory'));
+        expect(toolService.executedToolNames, contains('find_files'));
+        expect(toolService.executedToolNames, contains('search_files'));
+        expect(toolService.executedToolNames, contains('read_file'));
       } finally {
         planContainer.dispose();
       }
