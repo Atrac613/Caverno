@@ -2350,6 +2350,41 @@ class _ChatPageState extends ConsumerState<ChatPage>
               value: progress!.normalizedSummary!,
             ),
           ],
+          if (progress?.normalizedBlockedReason != null) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_blocked_reason'.tr(),
+              value: progress!.normalizedBlockedReason!,
+            ),
+          ],
+          if (progress?.validationStatus != null &&
+              progress!.validationStatus !=
+                  ConversationExecutionValidationStatus.unknown) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_validation_status'.tr(),
+              value: _workflowValidationStatusLabel(progress.validationStatus),
+            ),
+          ],
+          if (progress?.normalizedValidationCommand != null) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_last_validation_command'.tr(),
+              value: progress!.normalizedValidationCommand!,
+              monospace: true,
+            ),
+          ],
+          if (progress?.normalizedValidationSummary != null) ...[
+            const SizedBox(height: 8),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_validation_summary'.tr(),
+              value: progress!.normalizedValidationSummary!,
+            ),
+          ],
           const SizedBox(height: 12),
           Row(
             children: [
@@ -2560,9 +2595,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       }
       if (context.mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('chat.workflow_edit_blocked_by_plan'.tr()),
-          ),
+          SnackBar(content: Text('chat.workflow_edit_blocked_by_plan'.tr())),
         );
       }
       return;
@@ -2721,6 +2754,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           task: task,
           status: ConversationWorkflowTaskStatus.blocked,
           summary: 'Marked blocked from the task menu.',
+          blockedReason: 'This task is blocked and needs follow-up.',
         );
       case _WorkflowTaskMenuAction.edit:
         if (currentConversation.shouldPreferPlanDocument) {
@@ -2848,6 +2882,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTaskStatus status,
     String summary = '',
     DateTime? lastRunAt,
+    DateTime? lastValidationAt,
+    ConversationExecutionValidationStatus? validationStatus,
+    String? blockedReason,
+    String? lastValidationCommand,
+    String? lastValidationSummary,
   }) async {
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
@@ -2858,7 +2897,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
         taskId: task.id,
         status: status,
         lastRunAt: lastRunAt,
+        lastValidationAt: lastValidationAt,
+        validationStatus: validationStatus,
         summary: summary,
+        blockedReason: status == ConversationWorkflowTaskStatus.blocked
+            ? blockedReason
+            : '',
+        lastValidationCommand: lastValidationCommand,
+        lastValidationSummary: lastValidationSummary,
       );
       if (status == ConversationWorkflowTaskStatus.completed) {
         await conversationsNotifier.updateCurrentWorkflow(
@@ -2929,6 +2975,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    final validationCommand = task.validationCommand.trim();
+    final validationStartedAt = DateTime.now();
     await _setWorkflowTaskStatus(
       currentConversation: currentConversation,
       task: task,
@@ -2936,7 +2984,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ? ConversationWorkflowTaskStatus.completed
           : ConversationWorkflowTaskStatus.inProgress,
       summary: 'Ran the saved validation step from the approved plan.',
-      lastRunAt: DateTime.now(),
+      lastValidationAt: validationStartedAt,
+      validationStatus: ConversationExecutionValidationStatus.unknown,
+      lastValidationCommand: validationCommand,
+      lastValidationSummary: validationCommand.isEmpty
+          ? 'Started validation using the saved task context.'
+          : 'Started validation with the saved command.',
     );
     if (!context.mounted) {
       return;
@@ -3102,6 +3155,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
         'chat.workflow_task_status_completed'.tr(),
       ConversationWorkflowTaskStatus.blocked =>
         'chat.workflow_task_status_blocked'.tr(),
+    };
+  }
+
+  String _workflowValidationStatusLabel(
+    ConversationExecutionValidationStatus status,
+  ) {
+    return switch (status) {
+      ConversationExecutionValidationStatus.unknown =>
+        'chat.workflow_task_validation_status_unknown'.tr(),
+      ConversationExecutionValidationStatus.passed =>
+        'chat.workflow_task_validation_status_passed'.tr(),
+      ConversationExecutionValidationStatus.failed =>
+        'chat.workflow_task_validation_status_failed'.tr(),
     };
   }
 
