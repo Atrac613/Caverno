@@ -233,4 +233,39 @@ void main() {
       ],
     );
   });
+
+  test('preserves result order when a parallel tool fails', () async {
+    final results = await ToolExecutionScheduler.executeBatch(
+      toolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_file',
+          arguments: const {'path': 'alpha.dart'},
+        ),
+        ToolCallInfo(
+          id: 'tool-2',
+          name: 'search_files',
+          arguments: const {'query': 'missing'},
+        ),
+      ],
+      execute: (toolCall) async {
+        if (toolCall.name == 'search_files') {
+          throw StateError('search failed');
+        }
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: '${toolCall.name} complete',
+          isSuccess: true,
+        );
+      },
+    );
+
+    expect(results.map((item) => item.toolCall.name).toList(), [
+      'read_file',
+      'search_files',
+    ]);
+    expect(results.first.isSuccess, isTrue);
+    expect(results.last.isSuccess, isFalse);
+    expect(results.last.error, isA<StateError>());
+  });
 }
