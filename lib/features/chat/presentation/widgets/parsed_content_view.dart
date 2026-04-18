@@ -37,11 +37,18 @@ class _ParsedContentViewState extends State<ParsedContentView> {
   @override
   void didUpdateWidget(covariant ParsedContentView oldWidget) {
     super.didUpdateWidget(oldWidget);
-    // Auto-collapse all thinking blocks when streaming ends
-    if (oldWidget.isStreaming && !widget.isStreaming) {
-      final result = ContentParser.parse(widget.content);
-      for (var i = 0; i < result.segments.length; i++) {
-        if (result.segments[i].type == ContentType.thinking) {
+    final oldResult = ContentParser.parse(oldWidget.content);
+    final newResult = ContentParser.parse(widget.content);
+    final completedThinkingJustFinished =
+        oldResult.hasIncompleteTag &&
+        oldResult.incompleteTagType == 'thinking' &&
+        (!newResult.hasIncompleteTag || newResult.incompleteTagType != 'thinking');
+
+    // Auto-collapse completed thinking blocks when a thought finishes,
+    // even if the assistant is still streaming the rest of the response.
+    if ((oldWidget.isStreaming && !widget.isStreaming) || completedThinkingJustFinished) {
+      for (var i = 0; i < newResult.segments.length; i++) {
+        if (newResult.segments[i].type == ContentType.thinking) {
           _collapsedThinkingBlocks.add(i);
         }
       }
