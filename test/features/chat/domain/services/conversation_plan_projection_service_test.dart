@@ -108,4 +108,93 @@ void main() {
 
     expect(stabilized.tasks.single.id, 'derived-task-1-stable');
   });
+
+  test('validateDocument reports a missing Stage section', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Goal\n'
+        'Ship the next task\n';
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+    );
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.errorMessage,
+      'plan document must include a Stage section',
+    );
+  });
+
+  test('validateDocument requires tasks when requested', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Stage\n'
+        'implement\n'
+        '\n'
+        '## Goal\n'
+        'Ship the next task\n';
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: true,
+    );
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.errorMessage,
+      'plan document must include a Tasks section',
+    );
+  });
+
+  test('validateDocument surfaces malformed task details', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Stage\n'
+        'implement\n'
+        '\n'
+        '## Tasks\n'
+        '\n'
+        '- Status: pending\n';
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: true,
+    );
+
+    expect(validation.isValid, isFalse);
+    expect(
+      validation.errorMessage,
+      'task details must follow a numbered task heading',
+    );
+  });
+
+  test('validateDocument exposes preview tasks for valid markdown', () {
+    const markdown =
+        '# Plan\n'
+        '\n'
+        '## Stage\n'
+        'implement\n'
+        '\n'
+        '## Tasks\n'
+        '\n'
+        '1. Refresh the saved plan projection\n'
+        '   - Status: pending\n';
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: true,
+    );
+
+    expect(validation.isValid, isTrue);
+    expect(validation.workflowStage, ConversationWorkflowStage.implement);
+    expect(validation.previewTasks, hasLength(1));
+    expect(
+      validation.previewTasks.single.title,
+      'Refresh the saved plan projection',
+    );
+  });
 }

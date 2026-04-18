@@ -15,6 +15,31 @@ class ConversationPlanProjection {
   final DateTime derivedAt;
 }
 
+class ConversationPlanValidationResult {
+  const ConversationPlanValidationResult._({
+    this.projection,
+    this.errorMessage,
+  });
+
+  const ConversationPlanValidationResult.valid(ConversationPlanProjection value)
+    : this._(projection: value);
+
+  const ConversationPlanValidationResult.invalid(String message)
+    : this._(errorMessage: message);
+
+  final ConversationPlanProjection? projection;
+  final String? errorMessage;
+
+  bool get isValid => projection != null;
+
+  ConversationWorkflowStage? get workflowStage => projection?.workflowStage;
+
+  ConversationWorkflowSpec? get workflowSpec => projection?.workflowSpec;
+
+  List<ConversationWorkflowTask> get previewTasks =>
+      workflowSpec?.tasks ?? const <ConversationWorkflowTask>[];
+}
+
 class ConversationPlanProjectionService {
   ConversationPlanProjectionService._();
 
@@ -23,13 +48,20 @@ class ConversationPlanProjectionService {
   static ConversationPlanProjection deriveExecutionProjection({
     required String approvedMarkdown,
     DateTime? derivedAt,
+    bool requireTasks = false,
   }) {
     final normalizedMarkdown = approvedMarkdown.trim();
     if (normalizedMarkdown.isEmpty) {
       throw const FormatException('approved plan document is empty');
     }
+    if (!normalizedMarkdown.startsWith('# Plan')) {
+      throw const FormatException('plan document must start with "# Plan"');
+    }
 
     final sections = _parseSections(normalizedMarkdown);
+    if (!sections.containsKey('Stage')) {
+      throw const FormatException('plan document must include a Stage section');
+    }
     final stage = _parseWorkflowStage(sections['Stage']);
     final goal = _joinFreeformSection(sections['Goal']);
     final constraints = _parseBulletSection(sections['Constraints']);
@@ -37,7 +69,14 @@ class ConversationPlanProjectionService {
       sections['Acceptance Criteria'],
     );
     final openQuestions = _parseBulletSection(sections['Open Questions']);
-    final tasks = _parseTasks(sections['Tasks']);
+    final taskParseResult = _parseTasks(
+      sections['Tasks'],
+      requireTasks: requireTasks,
+    );
+    if (taskParseResult.errorMessage != null) {
+      throw FormatException(taskParseResult.errorMessage!);
+    }
+    final tasks = taskParseResult.tasks;
 
     final workflowSpec = ConversationWorkflowSpec(
       goal: goal,
@@ -63,6 +102,25 @@ class ConversationPlanProjectionService {
       sourceHash: computeSourceHash(normalizedMarkdown),
       derivedAt: derivedAt ?? DateTime.now(),
     );
+  }
+
+  static ConversationPlanValidationResult validateDocument({
+    required String markdown,
+    bool requireTasks = false,
+  }) {
+    try {
+      return ConversationPlanValidationResult.valid(
+        deriveExecutionProjection(
+          approvedMarkdown: markdown,
+          requireTasks: requireTasks,
+        ),
+      );
+    } on FormatException catch (error) {
+      final message = error.message.toString().trim();
+      return ConversationPlanValidationResult.invalid(
+        message.isEmpty ? 'plan document could not be parsed' : message,
+      );
+    }
   }
 
   static ConversationWorkflowSpec stabilizeTaskIds({
@@ -166,19 +224,23 @@ class ConversationPlanProjectionService {
     final value =
         lines
             ?.map((line) => line.trim())
-            .firstWhere(
-              (line) => line.isNotEmpty,
-              orElse: () => ConversationWorkflowStage.idle.name,
-            ) ??
-        ConversationWorkflowStage.idle.name;
+            .firstWhere((line) => line.isNotEmpty, orElse: () => '') ??
+        '';
+
+    if (value.isEmpty) {
+      throw const FormatException('plan document must define a workflow stage');
+    }
 
     return switch (value.toLowerCase()) {
+      'idle' => ConversationWorkflowStage.idle,
       'clarify' => ConversationWorkflowStage.clarify,
       'plan' => ConversationWorkflowStage.plan,
       'tasks' => ConversationWorkflowStage.tasks,
       'implement' => ConversationWorkflowStage.implement,
       'review' => ConversationWorkflowStage.review,
-      _ => ConversationWorkflowStage.idle,
+      _ => throw FormatException(
+        'plan document contains an unknown stage "$value"',
+      ),
     };
   }
 
@@ -206,13 +268,21 @@ class ConversationPlanProjectionService {
         .toList(growable: false);
   }
 
-  static List<ConversationWorkflowTask> _parseTasks(List<String>? lines) {
+  static _TaskParseResult _parseTasks(
+    List<String>? lines, {
+    required bool requireTasks,
+  }) {
     if (lines == null) {
-      return const [];
+      return requireTasks
+          ? const _TaskParseResult.error(
+              'plan document must include a Tasks section',
+            )
+          : const _TaskParseResult(tasks: <ConversationWorkflowTask>[]);
     }
 
     final tasks = <ConversationWorkflowTask>[];
     _TaskDraft? currentTask;
+    var sawContent = false;
 
     for (final rawLine in lines) {
       final line = rawLine.trimRight();
@@ -220,6 +290,7 @@ class ConversationPlanProjectionService {
       if (trimmed.isEmpty) {
         continue;
       }
+      sawContent = true;
 
       final headingMatch = RegExp(r'^(\d+)\.\s+(.+)$').firstMatch(trimmed);
       if (headingMatch != null) {
@@ -234,14 +305,18 @@ class ConversationPlanProjectionService {
       }
 
       if (currentTask == null) {
-        continue;
+        return const _TaskParseResult.error(
+          'task details must follow a numbered task heading',
+        );
       }
 
       final detail = trimmed.startsWith('- ')
           ? trimmed.substring(2).trim()
           : null;
       if (detail == null || detail.isEmpty) {
-        continue;
+        return const _TaskParseResult.error(
+          'task details must start with "- "',
+        );
       }
 
       if (detail.startsWith('Status:')) {
@@ -263,14 +338,29 @@ class ConversationPlanProjectionService {
       }
       if (detail.startsWith('Notes:')) {
         currentTask.notes = detail.substring(6).trim();
+        continue;
       }
+      return _TaskParseResult.error(
+        'unsupported task detail "$detail"; use Status, Target files, Validation, or Notes',
+      );
     }
 
     if (currentTask != null) {
       tasks.add(currentTask.build());
     }
 
-    return tasks;
+    if (requireTasks && tasks.isEmpty) {
+      return const _TaskParseResult.error(
+        'plan document must include at least one numbered task',
+      );
+    }
+    if (sawContent && tasks.isEmpty) {
+      return const _TaskParseResult.error(
+        'plan document Tasks section could not be parsed into tasks',
+      );
+    }
+
+    return _TaskParseResult(tasks: tasks);
   }
 
   static ConversationWorkflowTaskStatus _parseTaskStatus(String rawStatus) {
@@ -430,4 +520,14 @@ class _TaskCandidate {
 
   final int index;
   final ConversationWorkflowTask task;
+}
+
+class _TaskParseResult {
+  const _TaskParseResult({required this.tasks, this.errorMessage});
+
+  const _TaskParseResult.error(String message)
+    : this(tasks: const <ConversationWorkflowTask>[], errorMessage: message);
+
+  final List<ConversationWorkflowTask> tasks;
+  final String? errorMessage;
 }

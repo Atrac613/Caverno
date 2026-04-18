@@ -1718,7 +1718,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
     final planArtifact = latestConversation.effectivePlanArtifact;
-    final result = await showModalBottomSheet<String>(
+    final result = await showModalBottomSheet<_PlanDocumentEditorSubmission>(
       context: context,
       isScrollControlled: true,
       showDragHandle: true,
@@ -1731,9 +1731,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
 
-    final normalizedDraft = result.trim().isEmpty
+    final normalizedDraft = result.markdown.trim().isEmpty
         ? (planArtifact.normalizedApprovedMarkdown ?? '')
-        : result.trimRight();
+        : result.markdown.trimRight();
     final nextArtifact = planArtifact.copyWith(
       draftMarkdown: normalizedDraft,
       updatedAt: DateTime.now(),
@@ -1749,9 +1749,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!context.mounted) {
       return;
     }
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text('chat.plan_document_saved'.tr())));
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text(
+          result.validation.isValid
+              ? 'chat.plan_document_saved'.tr()
+              : 'chat.plan_document_saved_with_issues'.tr(
+                  namedArgs: {
+                    'error':
+                        result.validation.errorMessage ??
+                        'plan document could not be parsed',
+                  },
+                ),
+        ),
+      ),
+    );
   }
 
   Future<void> _approveDraftPlanDocument(
@@ -1767,6 +1779,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final currentArtifact = latestConversation.effectivePlanArtifact;
     final draftMarkdown = currentArtifact.normalizedDraftMarkdown;
     if (draftMarkdown == null) {
+      return;
+    }
+
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: draftMarkdown,
+      requireTasks: true,
+    );
+    if (!validation.isValid) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'chat.plan_document_approval_blocked'.tr(
+              namedArgs: {
+                'error':
+                    validation.errorMessage ??
+                    'plan document could not be parsed',
+              },
+            ),
+          ),
+        ),
+      );
       return;
     }
 
@@ -4776,6 +4812,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
   }
 }
 
+class _PlanDocumentEditorSubmission {
+  const _PlanDocumentEditorSubmission({
+    required this.markdown,
+    required this.validation,
+  });
+
+  final String markdown;
+  final ConversationPlanValidationResult validation;
+}
+
 class _PlanDocumentEditorSheet extends StatefulWidget {
   const _PlanDocumentEditorSheet({
     required this.planArtifact,
@@ -4792,6 +4838,7 @@ class _PlanDocumentEditorSheet extends StatefulWidget {
 
 class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
   late final TextEditingController _markdownController;
+  late ConversationPlanValidationResult _validation;
 
   @override
   void initState() {
@@ -4801,17 +4848,60 @@ class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
           widget.planArtifact.displayMarkdown(isPlanning: widget.preferDraft) ??
           '',
     );
+    _validation = _validate(_markdownController.text);
+    _markdownController.addListener(_handleMarkdownChanged);
   }
 
   @override
   void dispose() {
+    _markdownController.removeListener(_handleMarkdownChanged);
     _markdownController.dispose();
     super.dispose();
+  }
+
+  void _handleMarkdownChanged() {
+    final nextValidation = _validate(_markdownController.text);
+    if (nextValidation.isValid == _validation.isValid &&
+        nextValidation.errorMessage == _validation.errorMessage &&
+        nextValidation.workflowStage == _validation.workflowStage &&
+        _sameTaskPreview(
+          nextValidation.previewTasks,
+          _validation.previewTasks,
+        )) {
+      return;
+    }
+    setState(() {
+      _validation = nextValidation;
+    });
+  }
+
+  ConversationPlanValidationResult _validate(String markdown) {
+    return ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: false,
+    );
+  }
+
+  bool _sameTaskPreview(
+    List<ConversationWorkflowTask> left,
+    List<ConversationWorkflowTask> right,
+  ) {
+    if (left.length != right.length) {
+      return false;
+    }
+    for (var index = 0; index < left.length; index++) {
+      if (left[index].title != right[index].title ||
+          left[index].status != right[index].status) {
+        return false;
+      }
+    }
+    return true;
   }
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final previewTasks = _validation.previewTasks;
     return SafeArea(
       child: Padding(
         padding: EdgeInsets.fromLTRB(
@@ -4850,6 +4940,84 @@ class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
                   alignLabelWithHint: true,
                 ),
               ),
+              const SizedBox(height: 12),
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  color: _validation.isValid
+                      ? theme.colorScheme.primaryContainer.withValues(
+                          alpha: 0.35,
+                        )
+                      : theme.colorScheme.errorContainer.withValues(alpha: 0.4),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      _validation.isValid
+                          ? 'chat.plan_document_validation_valid'.tr()
+                          : 'chat.plan_document_validation_invalid'.tr(),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: _validation.isValid
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      _validation.isValid
+                          ? 'chat.plan_document_validation_preview'.tr()
+                          : _validation.errorMessage ??
+                                'chat.plan_document_validation_fallback'.tr(),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: _validation.isValid
+                            ? theme.colorScheme.onPrimaryContainer
+                            : theme.colorScheme.onErrorContainer,
+                      ),
+                    ),
+                    if (_validation.isValid) ...[
+                      const SizedBox(height: 10),
+                      Text(
+                        '${'chat.plan_document_preview_stage'.tr()}: ${_validation.workflowStage?.name ?? 'idle'}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        '${'chat.plan_document_preview_tasks'.tr()}: ${previewTasks.length}',
+                        style: theme.textTheme.bodySmall,
+                      ),
+                      if (previewTasks.isNotEmpty) ...[
+                        const SizedBox(height: 6),
+                        for (final entry in previewTasks.take(4).indexed)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 2),
+                            child: Text(
+                              '${entry.$1 + 1}. ${entry.$2.title}',
+                              style: theme.textTheme.bodySmall,
+                            ),
+                          ),
+                        if (previewTasks.length > 4)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 4),
+                            child: Text(
+                              'chat.plan_document_preview_more_tasks'.tr(
+                                namedArgs: {
+                                  'count': (previewTasks.length - 4).toString(),
+                                },
+                              ),
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                      ],
+                    ],
+                  ],
+                ),
+              ),
               const SizedBox(height: 20),
               Row(
                 children: [
@@ -4870,8 +5038,12 @@ class _PlanDocumentEditorSheetState extends State<_PlanDocumentEditorSheet> {
                   ),
                   const SizedBox(width: 12),
                   FilledButton(
-                    onPressed: () =>
-                        Navigator.of(context).pop(_markdownController.text),
+                    onPressed: () => Navigator.of(context).pop(
+                      _PlanDocumentEditorSubmission(
+                        markdown: _markdownController.text,
+                        validation: _validation,
+                      ),
+                    ),
                     child: Text('common.save'.tr()),
                   ),
                 ],
