@@ -3,6 +3,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/types/workspace_mode.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
@@ -341,7 +342,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       title = _deriveDefaultTitle(messages) ?? title;
     }
 
-    final compactionArtifact = ConversationCompactionService.buildArtifact(
+    final compactionArtifact = _buildCompactionArtifact(
+      conversation,
       messages: messages,
       now: DateTime.now(),
     );
@@ -414,6 +416,11 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final updatedConversation = conversation.copyWith(
       planArtifact: nextPlanArtifact,
+      compactionArtifact: _buildCompactionArtifact(
+        conversation,
+        planArtifact: nextPlanArtifact,
+        now: DateTime.now(),
+      ),
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
@@ -753,6 +760,11 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     );
     final updatedConversation = conversation.copyWith(
       planArtifact: planArtifact,
+      compactionArtifact: _buildCompactionArtifact(
+        conversation,
+        planArtifact: planArtifact,
+        now: DateTime.now(),
+      ),
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
@@ -815,6 +827,27 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
 
     final updatedConversation = conversation.copyWith(
       executionMode: executionMode,
+      compactionArtifact: _buildCompactionArtifact(
+        conversation,
+        executionMode: executionMode,
+        now: DateTime.now(),
+      ),
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> rebuildCurrentConversationCompaction() async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final updatedConversation = conversation.copyWith(
+      compactionArtifact: _buildCompactionArtifact(
+        conversation,
+        now: DateTime.now(),
+      ),
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
@@ -859,5 +892,29 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       return nextEvents;
     }
     return nextEvents.sublist(nextEvents.length - maxEventsPerTask);
+  }
+
+  ConversationCompactionArtifact? _buildCompactionArtifact(
+    Conversation conversation, {
+    List<Message>? messages,
+    ConversationPlanArtifact? planArtifact,
+    ConversationExecutionMode? executionMode,
+    DateTime? now,
+  }) {
+    final resolvedMessages = messages ?? conversation.messages;
+    final resolvedPlanArtifact = planArtifact ?? conversation.planArtifact;
+    final resolvedExecutionMode = executionMode ?? conversation.executionMode;
+    final planDocument =
+        (resolvedPlanArtifact ?? const ConversationPlanArtifact())
+            .displayMarkdown(
+              isPlanning:
+                  resolvedExecutionMode == ConversationExecutionMode.planning,
+            );
+
+    return ConversationCompactionService.buildArtifact(
+      messages: resolvedMessages,
+      planDocument: planDocument,
+      now: now,
+    );
   }
 }

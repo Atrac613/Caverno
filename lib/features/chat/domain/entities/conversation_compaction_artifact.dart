@@ -9,7 +9,9 @@ abstract class ConversationCompactionArtifact
   const ConversationCompactionArtifact._();
 
   const factory ConversationCompactionArtifact({
+    @Default(1) int version,
     @Default('') String summary,
+    @Default(0) int sourceMessageCount,
     @Default(0) int compactedMessageCount,
     @Default(0) int retainedMessageCount,
     @Default(0) int estimatedPromptTokens,

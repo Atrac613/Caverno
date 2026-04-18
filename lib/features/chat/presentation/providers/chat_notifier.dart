@@ -3136,6 +3136,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }) {
     final freshArtifact = ConversationCompactionService.buildArtifact(
       messages: messages,
+      planDocument: currentConversation?.displayPlanDocument(
+        isPlanning: currentConversation.isPlanningSession,
+      ),
       now: currentConversation?.effectiveCompactionArtifact.updatedAt,
     );
     if (freshArtifact != null) {
