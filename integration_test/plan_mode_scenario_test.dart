@@ -20,6 +20,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -447,6 +448,74 @@ Future<void> _waitForReadyPlanProposal(
     'workflowError=${chatState.workflowProposalError}, '
     'taskError=${chatState.taskProposalError}',
   );
+}
+
+Future<void> _waitForWorkflowExecutionCompletion(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required Duration timeout,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    final chatState = container.read(chatNotifierProvider);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final tasks = conversation?.projectedExecutionTasks ?? const [];
+    final hasPendingWork = tasks.any(
+      (task) =>
+          task.status == ConversationWorkflowTaskStatus.pending ||
+          task.status == ConversationWorkflowTaskStatus.inProgress,
+    );
+    final hasBlockedTasks = tasks.any(
+      (task) => task.status == ConversationWorkflowTaskStatus.blocked,
+    );
+    final hasPendingApprovals =
+        chatState.pendingSshConnect != null ||
+        chatState.pendingSshCommand != null ||
+        chatState.pendingGitCommand != null ||
+        chatState.pendingLocalCommand != null ||
+        chatState.pendingFileOperation != null ||
+        chatState.pendingBleConnect != null ||
+        chatState.pendingWorkflowDecision != null;
+
+    if (tasks.isNotEmpty &&
+        !chatState.isLoading &&
+        !hasPendingApprovals &&
+        !hasPendingWork) {
+      if (hasBlockedTasks) {
+        throw StateError(
+          'Workflow execution finished in a blocked state: '
+          '${_summarizeWorkflowTasks(tasks)}',
+        );
+      }
+      await _pumpUntilIdle(tester);
+      return;
+    }
+
+    await tester.pump(const Duration(milliseconds: 200));
+  }
+
+  final chatState = container.read(chatNotifierProvider);
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  final tasks = conversation?.projectedExecutionTasks ?? const [];
+  throw StateError(
+    'Workflow execution did not finish before the timeout. '
+    'isLoading=${chatState.isLoading}, '
+    'pendingApprovals=${chatState.pendingSshConnect != null || chatState.pendingSshCommand != null || chatState.pendingGitCommand != null || chatState.pendingLocalCommand != null || chatState.pendingFileOperation != null || chatState.pendingBleConnect != null || chatState.pendingWorkflowDecision != null}, '
+    'tasks=${_summarizeWorkflowTasks(tasks)}',
+  );
+}
+
+String _summarizeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
+  if (tasks.isEmpty) {
+    return 'none';
+  }
+  return tasks
+      .map((task) => '${task.title}:${task.status.name}')
+      .join(', ');
 }
 
 Future<void> _pumpUntilIdle(
@@ -1025,7 +1094,7 @@ Future<_ScenarioRunResult> _runScenario({
     scenario.uiExpectations,
     PlanModeUiPhase.proposal,
   );
-  expect(find.text('Approve and start'), findsOneWidget);
+  expect(find.text('Approve and start'), findsAtLeastNWidgets(1));
 
   await captureIntegrationScreenshot(
     binding: binding,
@@ -1036,10 +1105,19 @@ Future<_ScenarioRunResult> _runScenario({
   );
 
   final approveFinder = find.text('Approve and start');
-  await tester.ensureVisible(approveFinder);
-  await tester.tap(approveFinder, warnIfMissed: false);
+  final approveAction = approveFinder.last;
+  await tester.ensureVisible(approveAction);
+  await tester.tap(approveAction, warnIfMissed: false);
   await tester.pump();
   await _pumpUntilIdle(tester);
+
+  if (scenario.waitForExecutionCompletion) {
+    await _waitForWorkflowExecutionCompletion(
+      tester,
+      container,
+      timeout: scenario.executionCompletionTimeout,
+    );
+  }
 
   await _waitForArtifactExpectations(
     tester,

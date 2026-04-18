@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/core/utils/logger.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -252,6 +253,8 @@ class PlanModeScenarioSpec {
     this.tags = const <String>[],
     this.allowedWarningPatterns = const <String>[],
     this.toolCallBatchSizes = const <int>[],
+    this.waitForExecutionCompletion = false,
+    this.executionCompletionTimeout = const Duration(seconds: 20),
   });
 
   final String name;
@@ -271,6 +274,8 @@ class PlanModeScenarioSpec {
   final List<String> tags;
   final List<String> allowedWarningPatterns;
   final List<int> toolCallBatchSizes;
+  final bool waitForExecutionCompletion;
+  final Duration executionCompletionTimeout;
 
   String get initialTaskTitle => taskProposal.first.title;
 
@@ -1521,6 +1526,49 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
     ),
     PlanModeScenarioSpec(
+      name: 'live_ping_cli_completion',
+      userPrompt: _livePromptFromEnvironment(
+        'CAVERNO_PLAN_MODE_USER_PROMPT',
+        fallback:
+            'Create a Python CLI script that pings a specific host. '
+            'Generate a reviewable plan first, then keep implementing until '
+            'the approved plan finishes unless you are genuinely blocked.',
+      ),
+      projectName: 'tmp-live-ping-cli',
+      tags: const <String>['live', 'automation', 'completion'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      waitForExecutionCompletion: true,
+      executionCompletionTimeout: const Duration(minutes: 3),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 2,
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[Workflow] Planning research pass started',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] === Response (streamWithTools) ===',
+          minCount: 1,
+        ),
+      ],
+    ),
+    PlanModeScenarioSpec(
       name: 'live_clarify_recovery',
       userPrompt:
           'Create a reviewable plan for a Python host health checker. You may '
@@ -1574,4 +1622,12 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
     ),
   ];
+}
+
+String _livePromptFromEnvironment(String name, {required String fallback}) {
+  final value = Platform.environment[name]?.trim();
+  if (value == null || value.isEmpty) {
+    return fallback;
+  }
+  return value;
 }
