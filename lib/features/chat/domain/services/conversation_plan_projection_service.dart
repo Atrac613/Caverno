@@ -21,16 +21,23 @@ class ConversationPlanValidationResult {
   const ConversationPlanValidationResult._({
     this.projection,
     this.errorMessage,
+    this.issues = const <String>[],
   });
 
   const ConversationPlanValidationResult.valid(ConversationPlanProjection value)
     : this._(projection: value);
 
-  const ConversationPlanValidationResult.invalid(String message)
-    : this._(errorMessage: message);
+  const ConversationPlanValidationResult.invalid(
+    String message, {
+    List<String> issues = const <String>[],
+  }) : this._(
+         errorMessage: message,
+         issues: issues.length == 0 ? const <String>[] : issues,
+       );
 
   final ConversationPlanProjection? projection;
   final String? errorMessage;
+  final List<String> issues;
 
   bool get isValid => projection != null;
 
@@ -40,6 +47,9 @@ class ConversationPlanValidationResult {
 
   List<ConversationWorkflowTask> get previewTasks =>
       workflowSpec?.tasks ?? const <ConversationWorkflowTask>[];
+
+  List<String> get previewOpenQuestions =>
+      workflowSpec?.openQuestions ?? const <String>[];
 }
 
 class ConversationPlanProjectionService {
@@ -79,6 +89,7 @@ class ConversationPlanProjectionService {
       throw FormatException(taskParseResult.errorMessage!);
     }
     final tasks = taskParseResult.tasks;
+    _validateDuplicateTaskIds(tasks);
 
     final workflowSpec = ConversationWorkflowSpec(
       goal: goal,
@@ -122,8 +133,36 @@ class ConversationPlanProjectionService {
       final message = error.message.toString().trim();
       return ConversationPlanValidationResult.invalid(
         message.isEmpty ? 'plan document could not be parsed' : message,
+        issues: [
+          message.isEmpty ? 'plan document could not be parsed' : message,
+        ],
       );
     }
+  }
+
+  static void _validateDuplicateTaskIds(List<ConversationWorkflowTask> tasks) {
+    final seenTaskIds = <String>{};
+    final duplicateTaskIds = <String>{};
+    for (final task in tasks) {
+      final taskId = task.id.trim();
+      if (taskId.isEmpty) {
+        continue;
+      }
+      if (!seenTaskIds.add(taskId)) {
+        duplicateTaskIds.add(taskId);
+      }
+    }
+
+    if (duplicateTaskIds.isEmpty) {
+      return;
+    }
+
+    final duplicates = duplicateTaskIds.toList(growable: false)..sort();
+    throw FormatException(
+      duplicates.length == 1
+          ? 'plan document contains a duplicate Task ID "${duplicates.single}"'
+          : 'plan document contains duplicate Task IDs: ${duplicates.join(', ')}',
+    );
   }
 
   static ConversationWorkflowSpec stabilizeTaskIds({
