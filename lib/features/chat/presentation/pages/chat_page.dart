@@ -779,6 +779,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
                             ? 'chat.workflow_edit'.tr()
                             : 'chat.workflow_add'.tr(),
                       ),
+                    if (shouldPreferPlanDocument)
+                      IconButton(
+                        onPressed: isBusy
+                            ? null
+                            : () => _showPlanDocumentEditor(
+                                context,
+                                currentConversation,
+                                preferDraft: isPlanMode,
+                              ),
+                        icon: const Icon(Icons.description_outlined),
+                        tooltip: _planDocumentHeaderEditTooltipKey(
+                          currentConversation,
+                          isPlanMode: isPlanMode,
+                        ).tr(),
+                      ),
                     if (isPlanMode && hasContext && !hasPlanDraft)
                       IconButton(
                         onPressed: () {
@@ -1380,7 +1395,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   preferDraft: true,
                 ),
                 icon: const Icon(Icons.description_outlined, size: 18),
-                label: Text('chat.plan_document_edit'.tr()),
+                label: Text('chat.plan_document_edit_draft'.tr()),
               ),
               TextButton(
                 onPressed: () => ref
@@ -1776,7 +1791,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   preferDraft: isPlanMode,
                 ),
           icon: const Icon(Icons.edit_note_outlined, size: 18),
-          label: Text('chat.plan_document_edit'.tr()),
+          label: Text(
+            _planDocumentEditLabelKey(
+              currentConversation,
+              isPlanMode: isPlanMode,
+            ).tr(),
+          ),
         ),
         if (planArtifact.hasPendingEdits)
           FilledButton.tonalIcon(
@@ -1787,7 +1807,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     currentConversation: currentConversation,
                   ),
             icon: const Icon(Icons.verified_outlined, size: 18),
-            label: Text('chat.plan_document_approve'.tr()),
+            label: Text('chat.plan_document_review_draft'.tr()),
           ),
         if (planArtifact.hasApproved && planArtifact.hasPendingEdits)
           OutlinedButton.icon(
@@ -2629,15 +2649,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 label: Text('chat.workflow_regenerate'.tr()),
               ),
               OutlinedButton.icon(
-                onPressed: () => _showWorkflowEditor(
-                  context,
-                  currentConversation,
-                  initialWorkflowStage: proposal.workflowStage,
-                  initialWorkflowSpec: proposal.workflowSpec,
-                  dismissWorkflowProposalOnSave: true,
-                ),
+                onPressed: () => currentConversation.shouldPreferPlanDocument
+                    ? _showPlanDocumentEditor(
+                        context,
+                        currentConversation,
+                        preferDraft: true,
+                      )
+                    : _showWorkflowEditor(
+                        context,
+                        currentConversation,
+                        initialWorkflowStage: proposal.workflowStage,
+                        initialWorkflowSpec: proposal.workflowSpec,
+                        dismissWorkflowProposalOnSave: true,
+                      ),
                 icon: const Icon(Icons.edit_outlined, size: 18),
-                label: Text('chat.workflow_edit'.tr()),
+                label: Text(
+                  currentConversation.shouldPreferPlanDocument
+                      ? 'chat.plan_document_edit_draft'.tr()
+                      : 'chat.workflow_edit'.tr(),
+                ),
               ),
               TextButton(
                 onPressed: () => ref
@@ -4292,6 +4322,34 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return 'chat.plan_document_projection_stale';
     }
     return 'chat.plan_document_projection_unavailable';
+  }
+
+  String _planDocumentEditLabelKey(
+    Conversation currentConversation, {
+    required bool isPlanMode,
+  }) {
+    final artifact = currentConversation.effectivePlanArtifact;
+    if (isPlanMode || artifact.hasPendingEdits) {
+      return 'chat.plan_document_edit_draft';
+    }
+    if (artifact.hasApproved) {
+      return 'chat.plan_document_edit_approved';
+    }
+    return 'chat.plan_document_edit';
+  }
+
+  String _planDocumentHeaderEditTooltipKey(
+    Conversation currentConversation, {
+    required bool isPlanMode,
+  }) {
+    final artifact = currentConversation.effectivePlanArtifact;
+    if (isPlanMode || artifact.hasPendingEdits) {
+      return 'chat.plan_document_edit_draft';
+    }
+    if (artifact.hasApproved) {
+      return 'chat.plan_document_edit_approved';
+    }
+    return 'chat.plan_document_edit';
   }
 
   Color _workflowProjectionStatusColor(
