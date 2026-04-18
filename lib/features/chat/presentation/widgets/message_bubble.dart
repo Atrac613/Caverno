@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
+import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
 import 'parsed_content_view.dart';
 
@@ -170,6 +171,13 @@ class MessageBubble extends ConsumerWidget {
                       textColor: theme.colorScheme.onSurface,
                       isStreaming: message.isStreaming,
                       showMemoryUpdates: settings.showMemoryUpdates,
+                      onReviewMemory: () {
+                        Navigator.of(context).push(
+                          MaterialPageRoute(
+                            builder: (_) => const ChatSettingsPage(),
+                          ),
+                        );
+                      },
                     ),
             // Streaming indicator
             if (message.isStreaming)

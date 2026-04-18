@@ -5827,6 +5827,8 @@ class ChatNotifier extends Notifier<ChatState> {
         'summaryUpdated': result.summaryUpdated,
         'added': result.addedMemoryCount,
         'updated': result.updatedMemoryCount,
+        'queuedReview': result.queuedReviewCount,
+        'suppressed': result.suppressedCandidateCount,
         'profileUpdated': result.profileUpdated,
         'method': result.generationMethod.name,
       },

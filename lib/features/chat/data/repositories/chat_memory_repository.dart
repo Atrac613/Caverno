@@ -37,6 +37,7 @@ class ChatMemoryRepository {
   static const _memoriesKey = 'memories';
   static const _memoryReviewQueueKey = 'memory_review_queue';
   static const _memorySuppressionRulesKey = 'memory_suppression_rules';
+  static const _memorySuppressionHitCountKey = 'memory_suppression_hit_count';
 
   UserMemoryProfile loadProfile() {
     if (!_box.isOpen) return UserMemoryProfile.empty();
@@ -307,12 +308,30 @@ class ChatMemoryRepository {
     });
   }
 
+  int loadSuppressionHitCount() {
+    if (!_box.isOpen) return 0;
+    final raw = _readOrNull<String>(() => _box.get(_memorySuppressionHitCountKey));
+    return int.tryParse(raw ?? '') ?? 0;
+  }
+
+  Future<void> incrementSuppressionHitCount(int count) async {
+    if (!_box.isOpen || count <= 0) return;
+    final current = loadSuppressionHitCount();
+    await _writeSafely(() {
+      return _box.put(
+        _memorySuppressionHitCountKey,
+        (current + count).toString(),
+      );
+    });
+  }
+
   Future<void> clearAll() async {
     await _writeSafely(() => _box.delete(_profileKey));
     await _writeSafely(() => _box.delete(_sessionSummariesKey));
     await _writeSafely(() => _box.delete(_memoriesKey));
     await _writeSafely(() => _box.delete(_memoryReviewQueueKey));
     await _writeSafely(() => _box.delete(_memorySuppressionRulesKey));
+    await _writeSafely(() => _box.delete(_memorySuppressionHitCountKey));
   }
 
   String _normalize(String text) {

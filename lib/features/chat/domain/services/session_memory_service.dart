@@ -184,6 +184,10 @@ class SessionMemoryService {
             !pattern.contains(normalizedEntry);
       });
     }).toList(growable: false);
+    final suppressedCandidateCount = extracted.length - filteredExtracted.length;
+    if (suppressedCandidateCount > 0) {
+      await _repository.incrementSuppressionHitCount(suppressedCandidateCount);
+    }
 
     if (filteredExtracted.isNotEmpty) {
       if (draft != null) {
@@ -222,6 +226,7 @@ class SessionMemoryService {
       addedMemoryCount: addedMemoryCount,
       updatedMemoryCount: updatedMemoryCount,
       queuedReviewCount: reviewQueuedCount,
+      suppressedCandidateCount: suppressedCandidateCount,
       profileUpdated: profileUpdated,
       generationMethod: generationMethod,
     );
@@ -315,6 +320,7 @@ class SessionMemoryService {
     final memories = _repository.loadMemories();
     final reviewQueue = _repository.loadReviewQueue();
     final suppressionRules = _repository.loadSuppressionRules();
+    final suppressionHitCount = _repository.loadSuppressionHitCount();
     DateTime? lastUpdatedAt = profile.isEmpty ? null : profile.updatedAt;
 
     for (final summary in summaries) {
@@ -334,6 +340,7 @@ class SessionMemoryService {
       memoryCount: memories.length,
       reviewCount: reviewQueue.length,
       suppressionCount: suppressionRules.length,
+      suppressionHitCount: suppressionHitCount,
       lastUpdatedAt: lastUpdatedAt,
     );
   }
@@ -727,6 +734,7 @@ class MemoryUpdateResult {
     required this.addedMemoryCount,
     required this.updatedMemoryCount,
     required this.queuedReviewCount,
+    required this.suppressedCandidateCount,
     required this.profileUpdated,
     required this.generationMethod,
   });
@@ -736,6 +744,7 @@ class MemoryUpdateResult {
       addedMemoryCount = 0,
       updatedMemoryCount = 0,
       queuedReviewCount = 0,
+      suppressedCandidateCount = 0,
       profileUpdated = false,
       generationMethod = MemoryGenerationMethod.ruleBased;
 
@@ -743,6 +752,7 @@ class MemoryUpdateResult {
   final int addedMemoryCount;
   final int updatedMemoryCount;
   final int queuedReviewCount;
+  final int suppressedCandidateCount;
   final bool profileUpdated;
   final MemoryGenerationMethod generationMethod;
 
@@ -751,7 +761,8 @@ class MemoryUpdateResult {
       summaryUpdated ||
       profileUpdated ||
       changedMemoryCount > 0 ||
-      queuedReviewCount > 0;
+      queuedReviewCount > 0 ||
+      suppressedCandidateCount > 0;
 }
 
 class MemorySnapshot {
@@ -761,6 +772,7 @@ class MemorySnapshot {
     required this.memoryCount,
     required this.reviewCount,
     required this.suppressionCount,
+    required this.suppressionHitCount,
     required this.lastUpdatedAt,
   });
 
@@ -769,5 +781,6 @@ class MemorySnapshot {
   final int memoryCount;
   final int reviewCount;
   final int suppressionCount;
+  final int suppressionHitCount;
   final DateTime? lastUpdatedAt;
 }
