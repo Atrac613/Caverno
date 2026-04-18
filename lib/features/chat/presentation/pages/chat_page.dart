@@ -379,7 +379,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       _workspaceTabController.index = workspaceIndex;
     }
     final canCompose = !isCodingWorkspace || activeProject != null;
-    final shouldShowPlanTimelineCard =
+    final shouldShowPlanFooterCard =
         isCodingWorkspace &&
         activeProject != null &&
         currentConversation != null &&
@@ -536,7 +536,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           Expanded(
             child: !canCompose
                 ? _buildCodingProjectEmptyState(context)
-                : chatState.messages.isEmpty && !shouldShowPlanTimelineCard
+                : chatState.messages.isEmpty
                 ? _buildEmptyState(
                     context,
                     isCodingWorkspace: isCodingWorkspace,
@@ -544,21 +544,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 : ListView.builder(
                     controller: _scrollController,
                     padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount: chatState.messages.length +
-                        (shouldShowPlanTimelineCard ? 1 : 0),
+                    itemCount: chatState.messages.length,
                     itemBuilder: (context, index) {
-                      if (shouldShowPlanTimelineCard &&
-                          index == chatState.messages.length) {
-                        return Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-                          child: _buildTimelinePlanCard(
-                            context,
-                            currentConversation: currentConversation,
-                            chatState: chatState,
-                            isPlanMode: isPlanMode,
-                          ),
-                        );
-                      }
                       return MessageBubble(
                         message: chatState.messages[index],
                         onReselectProject: isCodingWorkspace
@@ -568,6 +555,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     },
                   ),
           ),
+          if (canCompose && shouldShowPlanFooterCard)
+            _buildFooterPlanCard(
+              context,
+              currentConversation: currentConversation,
+              chatState: chatState,
+              isPlanMode: isPlanMode,
+            ),
           // Token usage indicator
           if (canCompose && chatState.totalTokens > 0)
             _buildTokenUsageBar(context, chatState),
@@ -652,6 +646,31 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ),
         ],
+      ),
+    );
+  }
+
+  Widget _buildFooterPlanCard(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ChatState chatState,
+    required bool isPlanMode,
+  }) {
+    final theme = Theme.of(context);
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+      decoration: BoxDecoration(
+        border: Border(
+          top: BorderSide(color: theme.colorScheme.outlineVariant),
+        ),
+      ),
+      child: _buildTimelinePlanCard(
+        context,
+        currentConversation: currentConversation,
+        chatState: chatState,
+        isPlanMode: isPlanMode,
       ),
     );
   }
