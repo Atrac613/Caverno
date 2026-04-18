@@ -1536,6 +1536,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
           OutlinedButton.icon(
             onPressed: isBusy
                 ? null
+                : () => _regenerateDraftPlan(
+                    context,
+                    currentConversation: currentConversation,
+                  ),
+            icon: const Icon(Icons.auto_awesome_outlined, size: 18),
+            label: Text('chat.plan_document_regenerate_draft'.tr()),
+          ),
+        if (!isPlanMode && planArtifact.hasExecutionDocument)
+          OutlinedButton.icon(
+            onPressed: isBusy
+                ? null
                 : () => _refreshExecutionTasksFromPlan(context),
             icon: const Icon(Icons.sync_outlined, size: 18),
             label: Text('chat.plan_document_refresh_tasks'.tr()),
@@ -1699,6 +1710,28 @@ class _ChatPageState extends ConsumerState<ChatPage>
               : 'chat.plan_document_tasks_refresh_failed'.tr(),
         ),
       ),
+    );
+  }
+
+  Future<void> _regenerateDraftPlan(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) async {
+    final languageCode = context.locale.languageCode;
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    if (!currentConversation.isPlanningSession) {
+      await conversationsNotifier.enterPlanningSession();
+    }
+    await chatNotifier.generatePlanProposal(languageCode: languageCode);
+
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('chat.plan_document_regeneration_started'.tr())),
     );
   }
 
