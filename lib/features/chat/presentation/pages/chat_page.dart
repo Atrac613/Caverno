@@ -1573,6 +1573,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ),
             ),
           ),
+          if (!isPlanMode &&
+              currentConversation.shouldPreferPlanDocument &&
+              currentConversation.projectedExecutionTasks.isNotEmpty) ...[
+            const SizedBox(height: 10),
+            _buildHydratedPlanView(
+              context,
+              currentConversation: currentConversation,
+            ),
+          ],
           const SizedBox(height: 8),
           if (showActionBar)
             _buildPlanDocumentActions(
@@ -1744,6 +1753,174 @@ class _ChatPageState extends ConsumerState<ChatPage>
             label: Text('chat.plan_proposal_regenerate'.tr()),
           ),
       ],
+    );
+  }
+
+  Widget _buildHydratedPlanView(
+    BuildContext context, {
+    required Conversation currentConversation,
+  }) {
+    final theme = Theme.of(context);
+    final tasks = currentConversation.projectedExecutionTasks;
+    final projectionIsCurrent = currentConversation.isWorkflowProjectionFresh;
+    final subtitleKey = projectionIsCurrent
+        ? 'chat.plan_document_hydrated_subtitle'
+        : 'chat.plan_document_hydrated_stale_subtitle';
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.primaryContainer.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(
+          color: theme.colorScheme.primary.withValues(alpha: 0.16),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'chat.plan_document_hydrated_title'.tr(),
+            style: theme.textTheme.labelLarge?.copyWith(
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitleKey.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 10),
+          for (final task in tasks) ...[
+            _buildHydratedPlanTaskRow(
+              context,
+              currentConversation: currentConversation,
+              task: task,
+            ),
+            if (task != tasks.last) const SizedBox(height: 8),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildHydratedPlanTaskRow(
+    BuildContext context, {
+    required Conversation currentConversation,
+    required ConversationWorkflowTask task,
+  }) {
+    final theme = Theme.of(context);
+    final progress = currentConversation.executionProgressForTask(task.id);
+    final validationStatus =
+        progress?.validationStatus ??
+        ConversationExecutionValidationStatus.unknown;
+    final blockedReason = progress?.normalizedBlockedReason;
+    final validationSummary = progress?.normalizedValidationSummary;
+    final summary = progress?.normalizedSummary;
+
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(10),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: theme.colorScheme.surface.withValues(alpha: 0.7),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Text(
+                  task.title.trim(),
+                  style: theme.textTheme.bodyMedium?.copyWith(
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Chip(
+                label: Text(_workflowTaskStatusLabel(task.status)),
+                visualDensity: VisualDensity.compact,
+                side: BorderSide.none,
+                backgroundColor: _workflowTaskStatusColor(
+                  context,
+                  task.status,
+                ).withValues(alpha: 0.16),
+                labelStyle: theme.textTheme.labelSmall?.copyWith(
+                  color: _workflowTaskStatusColor(context, task.status),
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ],
+          ),
+          if (summary != null) ...[
+            const SizedBox(height: 6),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.plan_document_hydrated_execution_note'.tr(),
+              value: summary,
+            ),
+          ],
+          if (blockedReason != null) ...[
+            const SizedBox(height: 6),
+            _buildWorkflowTaskDetail(
+              context,
+              label: 'chat.workflow_task_blocked_reason'.tr(),
+              value: blockedReason,
+            ),
+          ],
+          if (validationStatus !=
+                  ConversationExecutionValidationStatus.unknown ||
+              validationSummary != null) ...[
+            const SizedBox(height: 6),
+            Wrap(
+              spacing: 8,
+              runSpacing: 6,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: [
+                if (validationStatus !=
+                    ConversationExecutionValidationStatus.unknown)
+                  Chip(
+                    label: Text(
+                      _workflowValidationStatusLabel(validationStatus),
+                    ),
+                    visualDensity: VisualDensity.compact,
+                    side: BorderSide.none,
+                    backgroundColor: _workflowValidationStatusColor(
+                      context,
+                      validationStatus,
+                    ).withValues(alpha: 0.16),
+                    labelStyle: theme.textTheme.labelSmall?.copyWith(
+                      color: _workflowValidationStatusColor(
+                        context,
+                        validationStatus,
+                      ),
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                if (validationSummary != null)
+                  ConstrainedBox(
+                    constraints: const BoxConstraints(
+                      minWidth: 0,
+                      maxWidth: 420,
+                    ),
+                    child: Text(
+                      validationSummary,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ],
+      ),
     );
   }
 
@@ -3592,6 +3769,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
         'chat.workflow_task_validation_status_passed'.tr(),
       ConversationExecutionValidationStatus.failed =>
         'chat.workflow_task_validation_status_failed'.tr(),
+    };
+  }
+
+  Color _workflowValidationStatusColor(
+    BuildContext context,
+    ConversationExecutionValidationStatus status,
+  ) {
+    final scheme = Theme.of(context).colorScheme;
+    return switch (status) {
+      ConversationExecutionValidationStatus.unknown => scheme.onSurfaceVariant,
+      ConversationExecutionValidationStatus.passed => Colors.green.shade700,
+      ConversationExecutionValidationStatus.failed => scheme.error,
     };
   }
 
