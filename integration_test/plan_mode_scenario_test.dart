@@ -402,6 +402,11 @@ Future<void> _waitForReadyPlanProposal(
   WidgetTester tester,
   ProviderContainer container, {
   required Duration timeout,
+  required IntegrationTestWidgetsFlutterBinding binding,
+  required _PlanModeScenarioTestConfig config,
+  required PlanModeScenarioSpec scenario,
+  required GlobalKey screenshotBoundaryKey,
+  required Directory outputDirectory,
 }) async {
   var recoveredTaskProposal = false;
 
@@ -418,6 +423,18 @@ Future<void> _waitForReadyPlanProposal(
     if (isProposalReady(chatState)) {
       await _pumpUntilIdle(tester);
       return;
+    }
+    if (chatState.pendingWorkflowDecision != null) {
+      await _resolvePlanningDecisions(
+        tester,
+        binding,
+        config,
+        scenario,
+        screenshotBoundaryKey,
+        outputDirectory,
+      );
+      await tester.pump();
+      continue;
     }
     if (!recoveredTaskProposal &&
         chatState.workflowProposalDraft != null &&
@@ -448,6 +465,7 @@ Future<void> _waitForReadyPlanProposal(
     'taskDraft=${chatState.taskProposalDraft != null}, '
     'isGeneratingWorkflow=${chatState.isGeneratingWorkflowProposal}, '
     'isGeneratingTask=${chatState.isGeneratingTaskProposal}, '
+    'pendingDecision=${chatState.pendingWorkflowDecision != null}, '
     'workflowError=${chatState.workflowProposalError}, '
     'taskError=${chatState.taskProposalError}',
   );
@@ -1144,6 +1162,11 @@ Future<_ScenarioRunResult> _runScenario({
     timeout: config.usesLiveLlm
         ? const Duration(seconds: 30)
         : const Duration(seconds: 5),
+    binding: binding,
+    config: config,
+    scenario: scenario,
+    screenshotBoundaryKey: screenshotBoundaryKey,
+    outputDirectory: scenarioDir,
   );
 
   _assertUiExpectations(
