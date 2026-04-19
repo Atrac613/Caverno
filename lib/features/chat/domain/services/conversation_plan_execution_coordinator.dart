@@ -89,6 +89,12 @@ class ConversationPlanExecutionCoordinator {
 
     promptLines.addAll(_executionGuardrailLines(nextTask));
     promptLines.add(
+      'Persisted saved task statuses from the app are the source of truth.',
+    );
+    promptLines.add(
+      'Do not mark any other saved task complete, blocked, skipped, or in progress unless this turn produces concrete evidence for the current task.',
+    );
+    promptLines.add(
       'Do not continue the completed task again. Follow only the next task ID listed above.',
     );
     promptLines.add(
@@ -145,6 +151,42 @@ class ConversationPlanExecutionCoordinator {
     }
     promptLines.add(
       'Do not restate the plan, do not ask for confirmation, and do not describe future tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
+  static String buildScaffoldRemainingTargetRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> existingTargetFiles,
+    required List<String> missingTargetFiles,
+  }) {
+    final promptLines = <String>[
+      'The scaffold task already created some target files but is still incomplete.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Already created target files: ${existingTargetFiles.join(', ')}',
+      'Remaining target files: ${missingTargetFiles.join(', ')}',
+    ];
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Create exactly one remaining target file now instead of restating the scaffold plan.',
+    );
+    promptLines.add(
+      'Do not rewrite already-created scaffold files unless the saved validation step later proves they are wrong.',
+    );
+    promptLines.add(
+      'After every remaining target file exists, run the saved validation command immediately.',
     );
     return promptLines.join('\n');
   }

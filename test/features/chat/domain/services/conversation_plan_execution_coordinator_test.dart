@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
@@ -6,6 +9,11 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_execution_coordinator.dart';
 
 void main() {
+  Map<String, dynamic> loadFixture(String fixtureName) {
+    return jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
+        as Map<String, dynamic>;
+  }
+
   test('buildTaskPrompt keeps task metadata in execution prompt order', () {
     final prompt = ConversationPlanExecutionCoordinator.buildTaskPrompt(
       task: const ConversationWorkflowTask(
@@ -155,6 +163,16 @@ void main() {
         'Do not continue the completed task again. Follow only the next task ID listed above.',
       ),
     );
+    expect(
+      prompt,
+      contains('Persisted saved task statuses from the app are the source of truth.'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not mark any other saved task complete, blocked, skipped, or in progress unless this turn produces concrete evidence for the current task.',
+      ),
+    );
   });
 
   test('buildToolLessExecutionRecoveryPrompt forces a concrete next action', () {
@@ -224,6 +242,56 @@ void main() {
         prompt,
         contains(
           'Your next reply must either run the saved validation command now or modify one missing target file.',
+        ),
+      );
+    },
+  );
+
+  test(
+    'buildScaffoldRemainingTargetRecoveryPrompt prioritizes one missing target file',
+    () {
+      final fixture = loadFixture(
+        'plan_mode_ping_cli_scaffold_partial_coverage_replay.json',
+      );
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final existingTargetFiles = (fixture['existingTargetFiles'] as List<dynamic>)
+          .cast<String>();
+      final missingTargetFiles = (fixture['missingTargetFiles'] as List<dynamic>)
+          .cast<String>();
+
+      final prompt = ConversationPlanExecutionCoordinator
+          .buildScaffoldRemainingTargetRecoveryPrompt(
+            task: task,
+            existingTargetFiles: existingTargetFiles,
+            missingTargetFiles: missingTargetFiles,
+          );
+
+      expect(
+        prompt,
+        contains('Already created target files: pyproject.toml, README.md'),
+      );
+      expect(
+        prompt,
+        contains('Remaining target files: src/__init__.py, src/main.py'),
+      );
+      expect(
+        prompt,
+        contains(
+          'Create exactly one remaining target file now instead of restating the scaffold plan.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not rewrite already-created scaffold files unless the saved validation step later proves they are wrong.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'After every remaining target file exists, run the saved validation command immediately.',
         ),
       );
     },

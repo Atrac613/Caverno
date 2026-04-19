@@ -1,0 +1,23 @@
+{
+  "task": {
+    "id": "task-scaffold",
+    "title": "Initialize project structure and dependencies",
+    "status": "inProgress",
+    "targetFiles": [
+      "pyproject.toml",
+      "README.md",
+      "src/__init__.py",
+      "src/main.py"
+    ],
+    "validationCommand": "ls src",
+    "notes": "Create the minimal Python project layout first."
+  },
+  "existingTargetFiles": [
+    "pyproject.toml",
+    "README.md"
+  ],
+  "missingTargetFiles": [
+    "src/__init__.py",
+    "src/main.py"
+  ]
+}

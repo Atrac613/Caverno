@@ -5282,6 +5282,42 @@ class _ChatPageState extends ConsumerState<ChatPage>
         );
     final isScaffoldTask =
         ConversationPlanExecutionGuardrails.looksLikeScaffoldTask(latestTask);
+    if (isScaffoldTask &&
+        existingTargetFiles.isNotEmpty &&
+        missingTargetFiles.isNotEmpty) {
+      final previousAssistantMessageId = _latestAssistantMessageId(
+        currentConversation,
+      );
+      final chatNotifier = ref.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendHiddenPrompt(
+        ConversationPlanExecutionCoordinator
+            .buildScaffoldRemainingTargetRecoveryPrompt(
+              task: latestTask,
+              existingTargetFiles: existingTargetFiles,
+              missingTargetFiles: missingTargetFiles,
+            ),
+        languageCode: languageCode,
+      );
+
+      final recoveryToolResults = chatNotifier.takeLatestToolResults();
+      final toolResultApplied =
+          await _captureExecutionProgressFromLatestToolResults(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            toolResults: recoveryToolResults,
+          );
+      if (toolResultApplied) {
+        return true;
+      }
+
+      return _captureExecutionProgressFromLatestAssistantEvidence(
+        task: latestTask,
+        previousAssistantMessageId: previousAssistantMessageId,
+        isValidationRun: false,
+        fallbackAssistantResponse: chatNotifier
+            .takeLatestHiddenAssistantResponse(),
+      );
+    }
     if (!isScaffoldTask && missingTargetFiles.isNotEmpty) {
       final previousAssistantMessageId = _latestAssistantMessageId(
         currentConversation,

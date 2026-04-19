@@ -54,6 +54,15 @@ class ConversationExecutionProgressInference {
     'validated successfully',
   ];
 
+  static const _transitionNarrationSignals = <String>[
+    'the previous saved task is complete',
+    'previous saved task is complete',
+    'continue immediately with the next pending saved task',
+    'the next task is',
+    'next task:',
+    'ignore the previous saved task context',
+  ];
+
   static ConversationExecutionProgressInferenceResult infer({
     required String assistantResponse,
     required ConversationWorkflowTask task,
@@ -82,6 +91,10 @@ class ConversationExecutionProgressInference {
     final hasValidationPassedSignal = _containsAny(
       lowercaseResponse,
       _validationPassedSignals,
+    );
+    final looksLikeTaskTransitionNarration = _containsAny(
+      lowercaseResponse,
+      _transitionNarrationSignals,
     );
 
     if (isValidationRun) {
@@ -113,6 +126,15 @@ class ConversationExecutionProgressInference {
             ? ConversationExecutionValidationStatus.passed
             : ConversationExecutionValidationStatus.unknown,
         validationSummary: summary,
+      );
+    }
+
+    if (looksLikeTaskTransitionNarration && !hasValidationPassedSignal) {
+      return ConversationExecutionProgressInferenceResult(
+        status: task.status == ConversationWorkflowTaskStatus.completed
+            ? ConversationWorkflowTaskStatus.completed
+            : ConversationWorkflowTaskStatus.inProgress,
+        summary: summary,
       );
     }
 

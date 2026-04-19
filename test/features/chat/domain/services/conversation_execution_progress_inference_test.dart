@@ -1,9 +1,28 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/conversation_execution_progress_inference.dart';
 
 void main() {
+  ConversationWorkflowTask loadFixtureTask(String fixtureName) {
+    final fixture =
+        jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
+            as Map<String, dynamic>;
+    return ConversationWorkflowTask.fromJson(
+      fixture['task'] as Map<String, dynamic>,
+    );
+  }
+
+  String loadFixtureAssistantResponse(String fixtureName) {
+    final fixture =
+        jsonDecode(File('test/fixtures/$fixtureName').readAsStringSync())
+            as Map<String, dynamic>;
+    return fixture['assistantResponse'] as String;
+  }
+
   const task = ConversationWorkflowTask(
     id: 'task-1',
     title: 'Ship the execution handoff',
@@ -83,6 +102,32 @@ void main() {
       expect(
         result.validationSummary,
         'Checked the current validation context and outlined the next step.',
+      );
+    },
+  );
+
+  test(
+    'keeps auto-continue transition narration in progress for the next task',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_auto_continue_transition_replay.json',
+      );
+      final assistantResponse = loadFixtureAssistantResponse(
+        'plan_mode_ping_cli_auto_continue_transition_replay.json',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse: assistantResponse,
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(
+        result.summary,
+        startsWith(
+          'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+        ),
       );
     },
   );
