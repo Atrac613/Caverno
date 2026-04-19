@@ -12,6 +12,7 @@ PLANNING_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS:-180}"
 EXECUTION_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS:-180}"
 EXECUTION_STALL_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS:-45}"
 RUN_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS:-$((PLANNING_TIMEOUT_SECONDS + EXECUTION_TIMEOUT_SECONDS + 60))}"
+STARTUP_HEARTBEAT_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_STARTUP_HEARTBEAT_TIMEOUT_SECONDS:-45}"
 
 if [[ -z "${PROMPT}" ]]; then
   echo "Pass the target user prompt as the first argument or set CAVERNO_PLAN_MODE_USER_PROMPT."
@@ -25,10 +26,27 @@ cleanup_live_plan_mode_processes() {
   pkill -f "flutter test integration_test/plan_mode_scenario_test.dart" >/dev/null 2>&1 || true
 }
 
-write_timeout_suite_report() {
+append_canary_marker() {
+  local run_log_path="$1"
+  local stage="$2"
+  local detail="${3:-}"
+  local timestamp
+  timestamp="$(date -u +"%Y-%m-%dT%H:%M:%SZ")"
+  if [[ -n "${detail}" ]]; then
+    echo "[CanaryRunner] stage=${stage} at=${timestamp} detail=${detail}" >> "${run_log_path}"
+  else
+    echo "[CanaryRunner] stage=${stage} at=${timestamp}" >> "${run_log_path}"
+  fi
+}
+
+write_failure_suite_report() {
   local output_path="$1"
   local heartbeat_path="$2"
   local run_log_path="$3"
+  local failure_class="$4"
+  local budget_phase="$5"
+  local duration_ms="$6"
+  local error_message="$7"
   local heartbeat_json='{}'
 
   if [[ -f "${heartbeat_path}" ]]; then
@@ -47,10 +65,10 @@ write_timeout_suite_report() {
     {
       "scenario": "live_ping_cli_completion",
       "status": "failed",
-      "failureClass": "overallTimeout",
-      "budgetPhase": "overall",
-      "durationMs": $((RUN_TIMEOUT_SECONDS * 1000)),
-      "error": "Overall live run timed out after ${RUN_TIMEOUT_SECONDS}s.",
+      "failureClass": "${failure_class}",
+      "budgetPhase": "${budget_phase}",
+      "durationMs": ${duration_ms},
+      "error": "${error_message}",
       "scenarioLog": "${run_log_path}",
       "phaseTimings": {},
       "budgets": {
@@ -60,8 +78,8 @@ write_timeout_suite_report() {
         "overallTimeoutMs": $((RUN_TIMEOUT_SECONDS * 1000))
       },
       "diagnostics": {
-        "failureClass": "overallTimeout",
-        "budgetPhase": "overall",
+        "failureClass": "${failure_class}",
+        "budgetPhase": "${budget_phase}",
         "lastHeartbeat": ${heartbeat_json},
         "budgets": {
           "planningTimeoutMs": $((PLANNING_TIMEOUT_SECONDS * 1000)),
@@ -83,21 +101,64 @@ run_live_canary_iteration() {
   local run_log_path="$3"
   local run_pid
   local elapsed=0
+  local build_started=0
+  local build_finished=0
+  local test_started=0
+  local foreground_failed=0
+  local first_heartbeat_seen=0
+  local build_finished_elapsed=-1
 
   rm -f "${heartbeat_path}"
   rm -f "${run_log_path}"
+  append_canary_marker "${run_log_path}" "runStarted"
   CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS="${PLANNING_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS="${EXECUTION_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS="${EXECUTION_STALL_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_HEARTBEAT_PATH="${heartbeat_path}" \
   "${ROOT_DIR}/tool/run_plan_mode_ping_cli_live_test.sh" "${prompt}" \
-    > "${run_log_path}" 2>&1 &
+    >> "${run_log_path}" 2>&1 &
   run_pid=$!
 
   while kill -0 "${run_pid}" >/dev/null 2>&1; do
+    if [[ "${build_started}" -eq 0 ]] && grep -q "Building macOS application" "${run_log_path}" 2>/dev/null; then
+      build_started=1
+      append_canary_marker "${run_log_path}" "buildStarted"
+    fi
+    if [[ "${build_finished}" -eq 0 ]] && grep -q "✓ Built " "${run_log_path}" 2>/dev/null; then
+      build_finished=1
+      build_finished_elapsed="${elapsed}"
+      append_canary_marker "${run_log_path}" "buildFinished"
+    fi
+    if [[ "${test_started}" -eq 0 ]] && grep -q "\[ScenarioSuite\] Running" "${run_log_path}" 2>/dev/null; then
+      test_started=1
+      append_canary_marker "${run_log_path}" "testStarted"
+    fi
+    if [[ "${first_heartbeat_seen}" -eq 0 ]] && [[ -f "${heartbeat_path}" ]]; then
+      first_heartbeat_seen=1
+      append_canary_marker "${run_log_path}" "firstHeartbeatSeen"
+    fi
+    if [[ "${foreground_failed}" -eq 0 ]] && grep -q "Failed to foreground app; open returned 1" "${run_log_path}" 2>/dev/null; then
+      foreground_failed=1
+      append_canary_marker "${run_log_path}" "foregroundFailed" "open returned 1"
+      kill "${run_pid}" >/dev/null 2>&1 || true
+      cleanup_live_plan_mode_processes
+      wait "${run_pid}" >/dev/null 2>&1 || true
+      return 125
+    fi
+    if [[ "${build_finished}" -eq 1 ]] &&
+      [[ "${first_heartbeat_seen}" -eq 0 ]] &&
+      [[ "${build_finished_elapsed}" -ge 0 ]] &&
+      [[ $((elapsed - build_finished_elapsed)) -ge "${STARTUP_HEARTBEAT_TIMEOUT_SECONDS}" ]]; then
+      append_canary_marker "${run_log_path}" "firstHeartbeatTimeout"
+      kill "${run_pid}" >/dev/null 2>&1 || true
+      cleanup_live_plan_mode_processes
+      wait "${run_pid}" >/dev/null 2>&1 || true
+      return 126
+    fi
     if [[ "${elapsed}" -ge "${RUN_TIMEOUT_SECONDS}" ]]; then
       echo "Run timed out after ${RUN_TIMEOUT_SECONDS}s; terminating leftover processes."
+      append_canary_marker "${run_log_path}" "overallTimeout"
       kill "${run_pid}" >/dev/null 2>&1 || true
       cleanup_live_plan_mode_processes
       wait "${run_pid}" >/dev/null 2>&1 || true
@@ -132,7 +193,32 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
 
   report_path="${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
   if [[ ${run_exit} -eq 124 ]]; then
-    write_timeout_suite_report "${CANARY_DIR}/${run_label}_suite_report.json" "${heartbeat_path}" "${run_log_path}"
+    write_failure_suite_report \
+      "${CANARY_DIR}/${run_label}_suite_report.json" \
+      "${heartbeat_path}" \
+      "${run_log_path}" \
+      "overallTimeout" \
+      "overall" \
+      "$((RUN_TIMEOUT_SECONDS * 1000))" \
+      "Overall live run timed out after ${RUN_TIMEOUT_SECONDS}s."
+  elif [[ ${run_exit} -eq 125 ]]; then
+    write_failure_suite_report \
+      "${CANARY_DIR}/${run_label}_suite_report.json" \
+      "${heartbeat_path}" \
+      "${run_log_path}" \
+      "appForegroundFailure" \
+      "startup" \
+      "$((STARTUP_HEARTBEAT_TIMEOUT_SECONDS * 1000))" \
+      "App failed to foreground before the first live heartbeat."
+  elif [[ ${run_exit} -eq 126 ]]; then
+    write_failure_suite_report \
+      "${CANARY_DIR}/${run_label}_suite_report.json" \
+      "${heartbeat_path}" \
+      "${run_log_path}" \
+      "appLaunchTimeout" \
+      "startup" \
+      "$((STARTUP_HEARTBEAT_TIMEOUT_SECONDS * 1000))" \
+      "App launch timed out before the first live heartbeat."
   elif [[ -f "${report_path}" ]]; then
     cp "${report_path}" "${CANARY_DIR}/${run_label}_suite_report.json"
   fi
