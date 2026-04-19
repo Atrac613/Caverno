@@ -1260,6 +1260,18 @@ void main() {
       final continuationPrompt = streamingDataSource.requests.last.last.content;
       expect(continuationPrompt, contains('[Result of google]'));
       expect(continuationPrompt, contains('"code":"tool_not_available"'));
+      expect(
+        continuationPrompt,
+        contains(
+          'If a tool result reports code=tool_not_available, do not retry that tool name or alias variants',
+        ),
+      );
+      expect(
+        continuationPrompt,
+        contains(
+          'If a tool result reports code=edit_mismatch or says old_text was not found in the target file',
+        ),
+      );
       expect(continuationPrompt, contains('[Result of write_file]'));
       expect(
         toolNotifier.state.messages.last.content,

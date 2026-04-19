@@ -192,6 +192,45 @@ void main() {
     );
   });
 
+  test('buildToolFailureRecoveryPrompt bounds unknown tools and edit mismatch', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-2',
+      title: 'Implement the YAML config loader',
+      targetFiles: ['src/config_loader.py', 'tests/test_config_loader.py'],
+      validationCommand: 'pytest tests/test_config_loader.py',
+      notes: 'Parse the YAML host list only.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
+          task: task,
+          unavailableToolNames: const ['google', 'print'],
+          editMismatchPaths: const ['src/config_loader.py'],
+        );
+
+    expect(prompt, contains('The saved task hit a recoverable tool failure.'));
+    expect(
+      prompt,
+      contains('Do not call these unavailable tools again: google, print'),
+    );
+    expect(
+      prompt,
+      contains('These files failed with edit mismatch: src/config_loader.py'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not switch to unrelated files, do not retry unavailable tools, and do not move to future saved tasks.',
+      ),
+    );
+  });
+
   test('buildTaskDriftRecoveryPrompt re-anchors the saved task', () {
     const task = ConversationWorkflowTask(
       id: 'task-2',

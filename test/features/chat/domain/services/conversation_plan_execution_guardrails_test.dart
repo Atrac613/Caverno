@@ -302,4 +302,41 @@ void main() {
       );
     },
   );
+
+  test(
+    'assessTaskDrift ignores scaffold support files for scaffold-like tasks',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-scaffold',
+        title: 'Scaffold the initial project files',
+        targetFiles: ['ping_monitor.py'],
+        notes: 'Create the first project skeleton and dependency files.',
+        validationCommand: 'ls ping_monitor.py',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'requirements.txt'},
+          result:
+              '{"path":"/tmp/project/requirements.txt","bytes_written":6,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'write_file',
+          arguments: {'path': 'main.py'},
+          result:
+              '{"path":"/tmp/project/main.py","bytes_written":120,"created":true}',
+        ),
+      ];
+
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+        task: task,
+        toolResults: toolResults,
+      );
+
+      expect(assessment.hasDrift, isFalse);
+      expect(assessment.unrelatedTouchedPaths, isEmpty);
+    },
+  );
 }

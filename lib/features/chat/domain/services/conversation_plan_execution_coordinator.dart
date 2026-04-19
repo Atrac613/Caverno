@@ -135,6 +135,63 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildToolFailureRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    List<String> unavailableToolNames = const [],
+    List<String> editMismatchPaths = const [],
+  }) {
+    final promptLines = <String>[
+      'The saved task hit a recoverable tool failure.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+    ];
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    if (unavailableToolNames.isNotEmpty) {
+      promptLines.add(
+        'Do not call these unavailable tools again: ${unavailableToolNames.join(', ')}',
+      );
+      promptLines.add(
+        'Use only tools that are currently available in the tool list.',
+      );
+    }
+
+    if (editMismatchPaths.isNotEmpty) {
+      promptLines.add(
+        'These files failed with edit mismatch: ${editMismatchPaths.join(', ')}',
+      );
+      promptLines.add(
+        'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+      );
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Your next action must directly modify a saved target file, read a mismatched saved target file, or run the saved validation command.',
+    );
+    promptLines.add(
+      'Do not switch to unrelated files, do not retry unavailable tools, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildTaskDriftRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> unrelatedTouchedPaths,

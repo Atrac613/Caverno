@@ -90,6 +90,7 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) {
+    final isScaffoldTask = _isScaffoldLikeTask(task);
     final normalizedTargets = task.targetFiles
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
@@ -114,6 +115,8 @@ class ConversationPlanExecutionGuardrails {
             (count) => count + 1,
             ifAbsent: () => 1,
           );
+        } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
+          continue;
         } else {
           unrelatedTouchedPaths.add(path);
         }
@@ -171,6 +174,7 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) {
+    final isScaffoldTask = _isScaffoldLikeTask(task);
     final normalizedTargets = task.targetFiles
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
@@ -198,6 +202,8 @@ class ConversationPlanExecutionGuardrails {
         }
         if (_matchesTarget(path, normalizedTargets)) {
           touchedTargetFiles.add(path);
+        } else if (isScaffoldTask && _isScaffoldSupportPath(path)) {
+          continue;
         } else {
           unrelatedTouchedPaths.add(path);
         }
@@ -291,6 +297,45 @@ class ConversationPlanExecutionGuardrails {
         task.validationCommand,
       ),
     );
+  }
+
+  static List<String> unavailableToolNames(List<ToolResultInfo> toolResults) {
+    final names = <String>{};
+    for (final toolResult in toolResults) {
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code == 'tool_not_available' ||
+          normalizedResult.contains('no matching tool available')) {
+        names.add(
+          _normalizeText(decoded?['toolName']) ?? toolResult.name.trim(),
+        );
+      }
+    }
+    return names.where((name) => name.isNotEmpty).toList(growable: false);
+  }
+
+  static List<String> editMismatchPaths(List<ToolResultInfo> toolResults) {
+    final paths = <String>{};
+    for (final toolResult in toolResults) {
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code != 'edit_mismatch' &&
+          !normalizedResult.contains(
+            'old_text was not found in the target file',
+          )) {
+        continue;
+      }
+      final path = _normalizePath(
+        _normalizeText(decoded?['path']) ??
+            _normalizeText(toolResult.arguments['path']),
+      );
+      if (path.isNotEmpty) {
+        paths.add(path);
+      }
+    }
+    return paths.toList(growable: false);
   }
 
   static bool _matchesTarget(String path, Set<String> normalizedTargets) {
@@ -436,6 +481,49 @@ class ConversationPlanExecutionGuardrails {
         normalized.contains('"status":"error"') ||
         normalized.contains('traceback') ||
         normalized.contains('exception');
+  }
+
+  static bool _isScaffoldLikeTask(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const keywords = <String>[
+      'scaffold',
+      'initial',
+      'initialize',
+      'bootstrap',
+      'project structure',
+      'requirements',
+      'dependency',
+      'dependencies',
+      'pyproject',
+      'package layout',
+      'file creation',
+    ];
+    return keywords.any(normalized.contains);
+  }
+
+  static bool _isScaffoldSupportPath(String path) {
+    final normalized = path.toLowerCase();
+    final basename = normalized.split('/').last;
+    const rootSupportFiles = <String>{
+      'requirements.txt',
+      'requirements-dev.txt',
+      'requirements-test.txt',
+      'pyproject.toml',
+      'poetry.lock',
+      'setup.py',
+      'setup.cfg',
+      'readme.md',
+      'readme.txt',
+      '.gitignore',
+      'main.py',
+    };
+    if (rootSupportFiles.contains(basename)) {
+      return true;
+    }
+    return normalized.endsWith('/__init__.py') ||
+        normalized == '__init__.py' ||
+        normalized == 'src/main.py';
   }
 
   static Map<String, dynamic>? _tryDecodeMap(String rawResult) {

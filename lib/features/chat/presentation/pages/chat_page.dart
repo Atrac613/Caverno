@@ -4521,14 +4521,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: toolResults,
         );
+    final recoveredFromFailure =
+        !toolResultApplied &&
+        await _maybeRecoverFromToolFailureSignals(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromDrift =
         !toolResultApplied &&
+        !recoveredFromFailure &&
         await _maybeRecoverFromTaskDrift(
           task: task,
           languageCode: languageCode,
           toolResults: toolResults,
         );
-    final assistantEvidenceApplied = !toolResultApplied && !recoveredFromDrift
+    final assistantEvidenceApplied =
+        !toolResultApplied && !recoveredFromFailure && !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
             task: task,
             previousAssistantMessageId: previousAssistantMessageId,
@@ -4537,7 +4546,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 .takeLatestHiddenAssistantResponse(),
           )
         : false;
-    if (!toolResultApplied && !recoveredFromDrift) {
+    if (!toolResultApplied && !recoveredFromFailure && !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
         task: task,
         languageCode: languageCode,
@@ -4694,14 +4703,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: toolResults,
         );
+    final recoveredFromFailure =
+        !toolResultApplied &&
+        await _maybeRecoverFromToolFailureSignals(
+          task: nextTask,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromDrift =
         !toolResultApplied &&
+        !recoveredFromFailure &&
         await _maybeRecoverFromTaskDrift(
           task: nextTask,
           languageCode: languageCode,
           toolResults: toolResults,
         );
-    final assistantEvidenceApplied = !toolResultApplied && !recoveredFromDrift
+    final assistantEvidenceApplied =
+        !toolResultApplied && !recoveredFromFailure && !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
             task: nextTask,
             previousAssistantMessageId: previousAssistantMessageId,
@@ -4710,7 +4728,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
                 .takeLatestHiddenAssistantResponse(),
           )
         : false;
-    if (!toolResultApplied && !recoveredFromDrift) {
+    if (!toolResultApplied && !recoveredFromFailure && !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
         task: nextTask,
         languageCode: languageCode,
@@ -4782,6 +4800,91 @@ class _ChatPageState extends ConsumerState<ChatPage>
       previousAssistantMessageId: previousAssistantMessageId,
       toolResults: chatNotifier.takeLatestToolResults(),
     );
+  }
+
+  Future<bool> _maybeRecoverFromToolFailureSignals({
+    required ConversationWorkflowTask task,
+    required String languageCode,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+      return false;
+    }
+
+    final unavailableToolNames =
+        ConversationPlanExecutionGuardrails.unavailableToolNames(toolResults);
+    final editMismatchPaths =
+        ConversationPlanExecutionGuardrails.editMismatchPaths(toolResults);
+    if (unavailableToolNames.isEmpty && editMismatchPaths.isEmpty) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed ||
+        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+      return false;
+    }
+
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      currentConversation,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendHiddenPrompt(
+      ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
+        task: latestTask,
+        unavailableToolNames: unavailableToolNames,
+        editMismatchPaths: editMismatchPaths,
+      ),
+      languageCode: languageCode,
+    );
+
+    final recoveryToolResults = chatNotifier.takeLatestToolResults();
+    final toolResultApplied =
+        await _captureExecutionProgressFromLatestToolResults(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          toolResults: recoveryToolResults,
+        );
+    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+      return true;
+    }
+
+    final assistantResult =
+        await _captureExecutionProgressFromLatestAssistantEvidence(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          isValidationRun: false,
+          fallbackAssistantResponse: chatNotifier
+              .takeLatestHiddenAssistantResponse(),
+        );
+    if (!assistantResult) {
+      return false;
+    }
+
+    final refreshedConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (refreshedConversation == null) {
+      return false;
+    }
+    final refreshedTask = refreshedConversation.projectedExecutionTasks
+        .where((item) => item.id == latestTask.id)
+        .firstOrNull;
+    if (refreshedTask == null) {
+      return false;
+    }
+    return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
+        refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
   }
 
   Future<bool> _maybeRecoverFromToolLessExecution({

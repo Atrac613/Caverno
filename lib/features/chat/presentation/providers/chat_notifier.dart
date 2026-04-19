@@ -4660,6 +4660,9 @@ class ChatNotifier extends Notifier<ChatState> {
     if (normalized.contains('no matching tool available')) {
       return 'tool_not_available';
     }
+    if (normalized.contains('old_text was not found in the target file')) {
+      return 'edit_mismatch';
+    }
     if (normalized.contains('permission_denied')) {
       return 'permission_denied';
     }
@@ -5964,7 +5967,13 @@ class ChatNotifier extends Notifier<ChatState> {
             'successful result. Reuse the tool result that is already '
             'provided and continue from it. '
             'If a tool result reports code=tool_not_available, do not retry '
-            'that tool name and continue with the tools that actually exist. '
+            'that tool name or alias variants and continue with the tools '
+            'that actually exist. Your next step must use an available tool '
+            'or finish with a text answer. '
+            'If a tool result reports code=edit_mismatch or says old_text was '
+            'not found in the target file, read that file next and retry '
+            'edit_file using the exact current file content as old_text. '
+            'Do not guess old_text and do not switch to unrelated files. '
             'Do not repeat a tool call with the same arguments after a '
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '
