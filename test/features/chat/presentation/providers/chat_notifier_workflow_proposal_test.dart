@@ -1,5 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'dart:convert';
+import 'dart:io';
 
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
@@ -390,6 +392,49 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
       isNot(contains('Subsequent tasks should involve:')),
     );
   });
+
+  test(
+    'finalizeTaskProposalForTest filters low-quality tasks and fixes README typos',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_task_quality_gate_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final rawTasks = (fixture['tasks'] as List<dynamic>)
+          .map((entry) => entry as Map<String, dynamic>)
+          .map(ConversationWorkflowTask.fromJson)
+          .toList(growable: false);
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        WorkflowTaskProposalDraft(tasks: rawTasks),
+        projectLooksEmpty: true,
+      );
+
+      expect(finalized.tasks, hasLength(2));
+      expect(finalized.tasks.first.title, 'Initialize project structure');
+      expect(finalized.tasks.first.targetFiles, [
+        'README.md',
+        'requirements.txt',
+        '.gitignore',
+        'main.py',
+      ]);
+      expect(
+        finalized.tasks.map((task) => task.title),
+        isNot(
+          contains(
+            "Argparse, click, or typer? (I'll assume argparse for simplicity)",
+          ),
+        ),
+      );
+      expect(
+        finalized.tasks.map((task) => task.title),
+        isNot(contains('Host input: CLI arguments:')),
+      );
+    },
+  );
 
   test('parses task proposal plain text sections', () {
     final proposal = notifier.parseTaskProposalForTest('''

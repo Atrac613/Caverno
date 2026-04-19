@@ -1893,6 +1893,16 @@ Retry hint:
           proposal,
           researchContext: researchContext,
         );
+        if (_taskProposalNeedsRetry(proposal, finalizedProposal)) {
+          final preview = finalizedProposal.tasks
+              .map((task) => task.title)
+              .join(' | ');
+          appLog(
+            '[Workflow] Task proposal quality gate requested retry (attempt ${index + 1}/${attempts.length}): $preview',
+          );
+          lastError = 'task proposal quality gate rejected the generated tasks';
+          continue;
+        }
         if (index > 0) {
           appLog('[Workflow] Task proposal recovered on retry');
         }
@@ -3203,14 +3213,23 @@ Retry hint:
     for (final task in tasks) {
       final normalizedTitle = _normalizeTaskProposalTitle(task.title);
       if (normalizedTitle.isEmpty ||
-          _isTaskProposalObservationTitle(normalizedTitle)) {
+          _isTaskProposalObservationTitle(normalizedTitle) ||
+          _isTaskProposalLowQualityTitle(normalizedTitle)) {
         continue;
       }
+      final normalizedTargetFiles = _normalizeTaskProposalTargetFiles(
+        task.targetFiles,
+      );
       final dedupeKey = normalizedTitle.toLowerCase();
       if (!emittedTitles.add(dedupeKey)) {
         continue;
       }
-      sanitizedTasks.add(task.copyWith(title: normalizedTitle));
+      sanitizedTasks.add(
+        task.copyWith(
+          title: normalizedTitle,
+          targetFiles: normalizedTargetFiles,
+        ),
+      );
       if (sanitizedTasks.length == 6) {
         break;
       }
@@ -3305,6 +3324,97 @@ Retry hint:
       'seems empty',
     ];
     return blockedFragments.any(normalized.contains);
+  }
+
+  bool _isTaskProposalLowQualityTitle(String title) {
+    final normalized = title.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+
+    if (title.contains('?') || title.contains('？')) {
+      return true;
+    }
+    if (title.endsWith(':') || title.endsWith('：')) {
+      return true;
+    }
+
+    const blockedPrefixes = <String>[
+      'should ',
+      'which ',
+      'what ',
+      'how ',
+      'why ',
+      'when ',
+      'where ',
+      'who ',
+    ];
+    if (blockedPrefixes.any(normalized.startsWith)) {
+      return true;
+    }
+
+    const blockedFragments = <String>[
+      "i'll assume",
+      'if i were implementing',
+      'for simplicity',
+      'or just pick one',
+      'what would you like to do next',
+      'i will assume',
+    ];
+    return blockedFragments.any(normalized.contains);
+  }
+
+  List<String> _normalizeTaskProposalTargetFiles(Iterable<String> paths) {
+    final normalizedPaths = <String>[];
+    final emitted = <String>{};
+
+    for (final rawPath in paths) {
+      final normalizedPath = _normalizeTaskProposalTargetFile(rawPath);
+      if (normalizedPath.isEmpty) {
+        continue;
+      }
+      final dedupeKey = normalizedPath.toLowerCase();
+      if (!emitted.add(dedupeKey)) {
+        continue;
+      }
+      normalizedPaths.add(normalizedPath);
+    }
+
+    return normalizedPaths.toList(growable: false);
+  }
+
+  String _normalizeTaskProposalTargetFile(String value) {
+    var candidate = value.trim().replaceAll('\\', '/');
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    candidate = candidate.replaceFirst(RegExp(r'^\./'), '');
+    final lowerCandidate = candidate.toLowerCase();
+    if (lowerCandidate == 'readme.py' ||
+        lowerCandidate.endsWith('/readme.py')) {
+      return candidate.replaceFirst(
+        RegExp(r'readme\.py$', caseSensitive: false),
+        'README.md',
+      );
+    }
+    return candidate;
+  }
+
+  bool _taskProposalNeedsRetry(
+    WorkflowTaskProposalDraft original,
+    WorkflowTaskProposalDraft finalized,
+  ) {
+    if (finalized.tasks.isEmpty) {
+      return true;
+    }
+
+    final removedCount = original.tasks.length - finalized.tasks.length;
+    if (removedCount >= 2 && finalized.tasks.length <= 1) {
+      return true;
+    }
+
+    return false;
   }
 
   bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {

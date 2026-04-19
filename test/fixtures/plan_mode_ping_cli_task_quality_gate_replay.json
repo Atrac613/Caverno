@@ -1,0 +1,43 @@
+{
+  "tasks": [
+    {
+      "id": "task-1",
+      "title": "Initialize project structure",
+      "targetFiles": [
+        "README.py",
+        "requirements.txt",
+        ".gitignore",
+        "main.py"
+      ],
+      "validationCommand": "ls",
+      "notes": "Create the initial files only."
+    },
+    {
+      "id": "task-2",
+      "title": "CLI accepts one or more hostnames/IPs",
+      "targetFiles": [
+        "ping_cli.py"
+      ],
+      "validationCommand": "python3 ping_cli.py --help",
+      "notes": "Use argparse."
+    },
+    {
+      "id": "task-3",
+      "title": "Argparse, click, or typer? (I'll assume argparse for simplicity)",
+      "targetFiles": [
+        "ping_cli.py"
+      ],
+      "validationCommand": "",
+      "notes": ""
+    },
+    {
+      "id": "task-4",
+      "title": "Host input: CLI arguments:",
+      "targetFiles": [
+        "README.py"
+      ],
+      "validationCommand": "",
+      "notes": ""
+    }
+  ]
+}
