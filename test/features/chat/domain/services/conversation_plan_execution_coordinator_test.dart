@@ -53,6 +53,12 @@ void main() {
         'Stop after the saved validation step and report that result before moving on.',
       ),
     );
+    expect(
+      prompt,
+      contains(
+        'Do not run the saved validation command until the current task target files exist and you have created or updated the relevant target file for this task.',
+      ),
+    );
     expect(prompt, contains('Reply with the implementation result.'));
   });
 
@@ -171,6 +177,12 @@ void main() {
       prompt,
       contains(
         'Do not mark any other saved task complete, blocked, skipped, or in progress unless this turn produces concrete evidence for the current task.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not run the saved validation command until the current task target files exist and you have created or updated the relevant target file for this task.',
       ),
     );
   });

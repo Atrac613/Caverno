@@ -5598,6 +5598,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           task: task,
           toolResults: toolResults,
         );
+    final existingWorkspaceTargets = _existingWorkspaceTargetFiles(task);
     final onlyRecoverableMalformedFailures =
         ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
           toolResults,
@@ -5635,6 +5636,30 @@ class _ChatPageState extends ConsumerState<ChatPage>
         conversationsNotifier: conversationsNotifier,
         completionAssessment: completionAssessment,
         summary: assistantInference.summary,
+      );
+      return true;
+    }
+    if (ConversationPlanExecutionGuardrails
+        .canPromoteScaffoldCompletionFromWorkspaceValidation(
+          task: task,
+          toolResults: toolResults,
+          existingTargetPaths: existingWorkspaceTargets,
+        )) {
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary:
+            'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationAt: DateTime.now(),
+        lastValidationCommand:
+            completionAssessment.successfulValidationCommands.firstOrNull ??
+            task.validationCommand,
+        lastValidationSummary:
+            'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
+        eventType: ConversationExecutionTaskEventType.completed,
+        eventSummary:
+            'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
       );
       return true;
     }

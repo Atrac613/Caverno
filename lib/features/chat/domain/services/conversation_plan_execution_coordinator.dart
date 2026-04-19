@@ -511,6 +511,9 @@ class ConversationPlanExecutionCoordinator {
       lines.add(
         'Stop after the saved validation step and report that result before moving on.',
       );
+      lines.add(
+        'Do not run the saved validation command until the current task target files exist and you have created or updated the relevant target file for this task.',
+      );
     }
     return lines;
   }

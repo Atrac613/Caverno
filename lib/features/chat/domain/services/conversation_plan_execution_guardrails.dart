@@ -418,6 +418,39 @@ class ConversationPlanExecutionGuardrails {
         _looksLikeLightValidationCommand(validationCommand);
   }
 
+  static bool canPromoteScaffoldCompletionFromWorkspaceValidation({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    if (!_isScaffoldLikeTask(task)) {
+      return false;
+    }
+
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        completionAssessment.successfulValidationCommands.isEmpty ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty) {
+      return false;
+    }
+
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    if (missingTargets.isNotEmpty) {
+      return false;
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    return validationCommand.isEmpty ||
+        _looksLikeLightValidationCommand(validationCommand);
+  }
+
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
     final importPattern = RegExp(
       "No module named ['\\\"]([^'\\\"]+)['\\\"]",

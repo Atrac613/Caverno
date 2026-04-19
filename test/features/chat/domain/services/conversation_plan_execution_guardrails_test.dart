@@ -114,6 +114,36 @@ void main() {
   );
 
   test(
+    'canPromoteScaffoldCompletionFromWorkspaceValidation accepts validation-only evidence',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_scaffold_validation_workspace_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
+          .cast<String>();
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_scaffold_validation_workspace_replay.json',
+      );
+
+      final canPromote = ConversationPlanExecutionGuardrails
+          .canPromoteScaffoldCompletionFromWorkspaceValidation(
+            task: task,
+            toolResults: toolResults,
+            existingTargetPaths: existingTargetPaths,
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'assessTaskDrift flags repeated writes when scaffold targets remain',
     () {
       final task = loadFixtureTask(
