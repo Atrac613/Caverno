@@ -27,6 +27,7 @@ import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/widgets/plan/plan_review_sheet.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
@@ -1160,8 +1161,7 @@ Future<_ScenarioRunResult> _runScenario({
     outputDirectory: scenarioDir,
   );
 
-  final approveFinder = find.text('Approve and start');
-  final approveAction = approveFinder.last;
+  final approveAction = _findPreferredPlanApproveAction();
   await tester.ensureVisible(approveAction);
   await tester.tap(approveAction, warnIfMissed: false);
   await tester.pump();
@@ -1323,6 +1323,21 @@ Future<_ScenarioRunResult> _runScenario({
     screenshotPaths: screenshotPaths,
     logPath: logFile.path,
   );
+}
+
+Finder _findPreferredPlanApproveAction() {
+  final approveLabel = find.text('Approve and start');
+  final reviewSheet = find.byType(PlanReviewSheet);
+  if (reviewSheet.evaluate().isNotEmpty) {
+    final sheetApprove = find.descendant(
+      of: reviewSheet,
+      matching: approveLabel,
+    );
+    if (sheetApprove.evaluate().isNotEmpty) {
+      return sheetApprove.last;
+    }
+  }
+  return approveLabel.last;
 }
 
 String _normalizeSavedWorkflowTaskTitle(String value) {
