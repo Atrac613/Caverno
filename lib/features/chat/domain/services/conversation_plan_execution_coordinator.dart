@@ -89,6 +89,61 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildTaskDriftRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> unrelatedTouchedPaths,
+    required List<String> scaffoldCommands,
+  }) {
+    final promptLines = <String>[
+      'Saved task drift detected.',
+      'Saved task: ${task.title.trim()}',
+    ];
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Only touch these target files next: $targetFiles');
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Saved validation command: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Saved task notes: $notes');
+    }
+
+    if (unrelatedTouchedPaths.isNotEmpty) {
+      promptLines.add(
+        'Ignore these unrelated paths: ${unrelatedTouchedPaths.join(', ')}',
+      );
+    }
+
+    if (scaffoldCommands.isNotEmpty) {
+      if (scaffoldCommands.length == 1) {
+        promptLines.add(
+          'Ignore this unrelated scaffolding command: ${scaffoldCommands.single}',
+        );
+      } else {
+        promptLines.add(
+          'Ignore these unrelated scaffolding commands: ${scaffoldCommands.join(' | ')}',
+        );
+      }
+    }
+
+    promptLines.add(
+      'Do not scaffold new packages, project roots, or dependency files unless one of the saved target files explicitly requires it.',
+    );
+    promptLines.add(
+      'Your next action must directly modify one of the target files or run the saved validation command.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildBlockedTaskReplanContext({
     required Conversation conversation,
     required ConversationWorkflowTask task,

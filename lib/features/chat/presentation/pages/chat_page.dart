@@ -23,6 +23,7 @@ import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
 import '../../domain/services/conversation_execution_recovery_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
+import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
 import '../providers/chat_notifier.dart';
@@ -4496,12 +4497,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: languageCode,
       bypassPlanMode: true,
     );
+    final toolResults = chatNotifier.takeLatestToolResults();
     final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
       task: task,
       previousAssistantMessageId: previousAssistantMessageId,
-      toolResults: chatNotifier.takeLatestToolResults(),
+      toolResults: toolResults,
     );
-    if (!toolResultApplied) {
+    final recoveredFromDrift = !toolResultApplied &&
+        await _maybeRecoverFromTaskDrift(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
+    if (!toolResultApplied && !recoveredFromDrift) {
       await _captureExecutionProgressFromLatestAssistantTurn(
         task: task,
         previousAssistantMessageId: previousAssistantMessageId,
@@ -4648,12 +4656,19 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!context.mounted) {
       return;
     }
+    final toolResults = chatNotifier.takeLatestToolResults();
     final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
       task: nextTask,
       previousAssistantMessageId: previousAssistantMessageId,
-      toolResults: chatNotifier.takeLatestToolResults(),
+      toolResults: toolResults,
     );
-    if (!toolResultApplied) {
+    final recoveredFromDrift = !toolResultApplied &&
+        await _maybeRecoverFromTaskDrift(
+          task: nextTask,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
+    if (!toolResultApplied && !recoveredFromDrift) {
       await _captureExecutionProgressFromLatestAssistantTurn(
         task: nextTask,
         previousAssistantMessageId: previousAssistantMessageId,
@@ -4667,6 +4682,59 @@ class _ChatPageState extends ConsumerState<ChatPage>
       context,
       completedTask: nextTask,
       depth: depth + 1,
+    );
+  }
+
+  Future<bool> _maybeRecoverFromTaskDrift({
+    required ConversationWorkflowTask task,
+    required String languageCode,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty || _toolResultsContainFailure(toolResults)) {
+      return false;
+    }
+
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (!assessment.hasDrift) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed ||
+        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+      return false;
+    }
+
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      currentConversation,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendHiddenPrompt(
+      ConversationPlanExecutionCoordinator.buildTaskDriftRecoveryPrompt(
+        task: latestTask,
+        unrelatedTouchedPaths: assessment.unrelatedTouchedPaths,
+        scaffoldCommands: assessment.scaffoldCommands,
+      ),
+      languageCode: languageCode,
+    );
+
+    return _captureExecutionProgressFromLatestToolResults(
+      task: latestTask,
+      previousAssistantMessageId: previousAssistantMessageId,
+      toolResults: chatNotifier.takeLatestToolResults(),
     );
   }
 

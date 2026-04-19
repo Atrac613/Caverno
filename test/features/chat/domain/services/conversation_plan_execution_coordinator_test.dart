@@ -106,6 +106,45 @@ void main() {
     );
   });
 
+  test('buildTaskDriftRecoveryPrompt re-anchors the saved task', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-2',
+      title: 'Implement the YAML config loader',
+      targetFiles: ['src/config_loader.py', 'tests/test_config_loader.py'],
+      validationCommand: 'pytest tests/test_config_loader.py',
+      notes: 'Parse the YAML host list only.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildTaskDriftRecoveryPrompt(
+          task: task,
+          unrelatedTouchedPaths: const ['pyproject.toml'],
+          scaffoldCommands: const ['mkdir -p live_ping_cli'],
+        );
+
+    expect(prompt, contains('Saved task drift detected.'));
+    expect(prompt, contains('Saved task: Implement the YAML config loader'));
+    expect(
+      prompt,
+      contains(
+        'Only touch these target files next: src/config_loader.py, tests/test_config_loader.py',
+      ),
+    );
+    expect(prompt, contains('Ignore these unrelated paths: pyproject.toml'));
+    expect(
+      prompt,
+      contains(
+        'Ignore this unrelated scaffolding command: mkdir -p live_ping_cli',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Your next action must directly modify one of the target files or run the saved validation command.',
+      ),
+    );
+  });
+
   test('validationTask prefers the active task before the pending queue', () {
     final conversation = Conversation(
       id: 'conversation-1',
