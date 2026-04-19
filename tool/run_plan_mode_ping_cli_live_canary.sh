@@ -13,6 +13,7 @@ EXECUTION_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS:-180}"
 EXECUTION_STALL_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS:-45}"
 RUN_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS:-$((PLANNING_TIMEOUT_SECONDS + EXECUTION_TIMEOUT_SECONDS + 60))}"
 STARTUP_HEARTBEAT_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_STARTUP_HEARTBEAT_TIMEOUT_SECONDS:-45}"
+FOREGROUND_RECOVERY_GRACE_SECONDS="${CAVERNO_PLAN_MODE_FOREGROUND_RECOVERY_GRACE_SECONDS:-15}"
 
 if [[ -z "${PROMPT}" ]]; then
   echo "Pass the target user prompt as the first argument or set CAVERNO_PLAN_MODE_USER_PROMPT."
@@ -107,6 +108,7 @@ run_live_canary_iteration() {
   local foreground_failed=0
   local first_heartbeat_seen=0
   local build_finished_elapsed=-1
+  local foreground_failed_elapsed=-1
 
   rm -f "${heartbeat_path}"
   rm -f "${run_log_path}"
@@ -137,10 +139,20 @@ run_live_canary_iteration() {
     if [[ "${first_heartbeat_seen}" -eq 0 ]] && [[ -f "${heartbeat_path}" ]]; then
       first_heartbeat_seen=1
       append_canary_marker "${run_log_path}" "firstHeartbeatSeen"
+      if [[ "${foreground_failed}" -eq 1 ]]; then
+        append_canary_marker "${run_log_path}" "foregroundRecovered"
+      fi
     fi
     if [[ "${foreground_failed}" -eq 0 ]] && grep -q "Failed to foreground app; open returned 1" "${run_log_path}" 2>/dev/null; then
       foreground_failed=1
+      foreground_failed_elapsed="${elapsed}"
       append_canary_marker "${run_log_path}" "foregroundFailed" "open returned 1"
+    fi
+    if [[ "${foreground_failed}" -eq 1 ]] &&
+      [[ "${first_heartbeat_seen}" -eq 0 ]] &&
+      [[ "${foreground_failed_elapsed}" -ge 0 ]] &&
+      [[ $((elapsed - foreground_failed_elapsed)) -ge "${FOREGROUND_RECOVERY_GRACE_SECONDS}" ]]; then
+      append_canary_marker "${run_log_path}" "foregroundFailureTimeout"
       kill "${run_pid}" >/dev/null 2>&1 || true
       cleanup_live_plan_mode_processes
       wait "${run_pid}" >/dev/null 2>&1 || true
