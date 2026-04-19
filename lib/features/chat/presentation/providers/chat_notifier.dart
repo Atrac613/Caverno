@@ -1859,10 +1859,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
       final proposal = _parseTaskProposalWithFallback(result.content);
       if (proposal != null) {
+        final finalizedProposal = _finalizeTaskProposalDraft(
+          proposal,
+          researchContext: researchContext,
+        );
         if (index > 0) {
           appLog('[Workflow] Task proposal recovered on retry');
         }
-        return proposal;
+        return finalizedProposal;
       }
 
       final preview = _proposalPreview(result.content);
@@ -2388,8 +2392,9 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
 
-    if (tasks.isEmpty) return null;
-    return WorkflowTaskProposalDraft(tasks: tasks);
+    final sanitizedTasks = _sanitizeTaskProposalTasks(tasks);
+    if (sanitizedTasks.isEmpty) return null;
+    return WorkflowTaskProposalDraft(tasks: sanitizedTasks);
   }
 
   WorkflowProposalDraft? _parseWorkflowProposalFromSections(String rawContent) {
@@ -2620,8 +2625,11 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     commitCurrentTask();
-    if (tasks.isEmpty) return null;
-    return WorkflowTaskProposalDraft(tasks: tasks.take(6).toList());
+    final sanitizedTasks = _sanitizeTaskProposalTasks(tasks);
+    if (sanitizedTasks.isEmpty) return null;
+    return WorkflowTaskProposalDraft(
+      tasks: sanitizedTasks.take(6).toList(growable: false),
+    );
   }
 
   Map<String, List<String>> _collectProposalSections(String rawContent) {
@@ -2980,6 +2988,185 @@ class ChatNotifier extends Notifier<ChatState> {
     return proposal.tasks.isNotEmpty;
   }
 
+  WorkflowTaskProposalDraft _finalizeTaskProposalDraft(
+    WorkflowTaskProposalDraft proposal, {
+    required _PlanningResearchContext researchContext,
+  }) {
+    final sanitizedTasks = _sanitizeTaskProposalTasks(proposal.tasks);
+    final reorderedTasks = _reorderTaskProposalTasks(
+      sanitizedTasks,
+      projectLooksEmpty: _projectLooksEmptyForTaskPlanning(researchContext),
+    );
+    return WorkflowTaskProposalDraft(tasks: reorderedTasks);
+  }
+
+  List<ConversationWorkflowTask> _sanitizeTaskProposalTasks(
+    Iterable<ConversationWorkflowTask> tasks,
+  ) {
+    final sanitizedTasks = <ConversationWorkflowTask>[];
+    final emittedTitles = <String>{};
+
+    for (final task in tasks) {
+      final normalizedTitle = _normalizeTaskProposalTitle(task.title);
+      if (normalizedTitle.isEmpty ||
+          _isTaskProposalObservationTitle(normalizedTitle)) {
+        continue;
+      }
+      final dedupeKey = normalizedTitle.toLowerCase();
+      if (!emittedTitles.add(dedupeKey)) {
+        continue;
+      }
+      sanitizedTasks.add(task.copyWith(title: normalizedTitle));
+      if (sanitizedTasks.length == 6) {
+        break;
+      }
+    }
+
+    return sanitizedTasks.toList(growable: false);
+  }
+
+  String _normalizeTaskProposalTitle(String value) {
+    var candidate = value
+        .trim()
+        .replaceAll(RegExp('^[`"\']+|[`"\']+\$'), '')
+        .replaceAll('`', '')
+        .replaceAll('"', '')
+        .replaceAll(RegExp(r'\s+'), ' ');
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    candidate = candidate.replaceFirst(
+      RegExp(r'^(?:task\s*\d+\s*[:.-]\s*)', caseSensitive: false),
+      '',
+    );
+    candidate = candidate.replaceFirst(
+      RegExp(r'^(?:next step\s*[:.-]\s*)', caseSensitive: false),
+      '',
+    );
+    candidate = candidate.replaceFirst(
+      RegExp(r'^(?:i need to|need to)\s+', caseSensitive: false),
+      '',
+    );
+    candidate = candidate.replaceFirst(
+      RegExp(r'^(?:we need to|please)\s+', caseSensitive: false),
+      '',
+    );
+    candidate = candidate.replaceFirst(RegExp(r'[.。]+$'), '').trim();
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    final firstCharacter = candidate[0];
+    if (RegExp(r'[a-z]').hasMatch(firstCharacter)) {
+      candidate = '${firstCharacter.toUpperCase()}${candidate.substring(1)}';
+    }
+    return candidate;
+  }
+
+  bool _isTaskProposalObservationTitle(String title) {
+    final normalized = title.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+
+    const blockedPrefixes = <String>[
+      'the project root seems ',
+      'the project root is ',
+      'the workspace seems ',
+      'the workspace is ',
+      'the repository seems ',
+      'the repository is ',
+      'current state:',
+      'current state ',
+      'recent context:',
+      'recent context ',
+      'research context:',
+      'research context ',
+      'there is ',
+      'there are ',
+    ];
+    if (blockedPrefixes.any(normalized.startsWith)) {
+      return true;
+    }
+
+    const blockedFragments = <String>[
+      'based on research context',
+      'current state',
+      'recent context',
+      'research context',
+      'proposal image',
+      'looks empty',
+      'seems empty',
+    ];
+    return blockedFragments.any(normalized.contains);
+  }
+
+  List<ConversationWorkflowTask> _reorderTaskProposalTasks(
+    List<ConversationWorkflowTask> tasks, {
+    required bool projectLooksEmpty,
+  }) {
+    if (!projectLooksEmpty || tasks.length < 2) {
+      return tasks.toList(growable: false);
+    }
+
+    final scaffoldIndex = tasks.indexWhere(_looksLikeScaffoldTask);
+    if (scaffoldIndex <= 0) {
+      return tasks.toList(growable: false);
+    }
+
+    final reordered = <ConversationWorkflowTask>[
+      tasks[scaffoldIndex],
+      ...tasks.take(scaffoldIndex),
+      ...tasks.skip(scaffoldIndex + 1),
+    ];
+    return reordered.take(6).toList(growable: false);
+  }
+
+  bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {
+    final normalizedTitle = task.title.trim().toLowerCase();
+    const titleSignals = <String>[
+      'scaffold',
+      'bootstrap',
+      'initialize project',
+      'initialize the project',
+      'project structure',
+      'initial file',
+      'initial files',
+      'entrypoint',
+      'create main.py',
+      'setup project',
+      'set up project',
+    ];
+    if (titleSignals.any(normalizedTitle.contains)) {
+      return true;
+    }
+
+    final normalizedPaths = task.targetFiles
+        .map((path) => path.trim().toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    return normalizedPaths.contains('pyproject.toml') ||
+        normalizedPaths.contains('requirements.txt') ||
+        normalizedPaths.contains('readme.md');
+  }
+
+  bool _projectLooksEmptyForTaskPlanning(_PlanningResearchContext context) {
+    final rootEntries = context.rootEntries
+        .map((entry) => entry.trim())
+        .where((entry) => entry.isNotEmpty)
+        .toList(growable: false);
+    if (rootEntries.isEmpty) {
+      return true;
+    }
+    return rootEntries.every(
+      (entry) =>
+          entry.contains('.png') ||
+          entry.contains('.jpg') ||
+          entry.contains('.jpeg'),
+    );
+  }
+
   String _stripMarkdownListMarker(String value) {
     return value.replaceFirst(RegExp(r'^(?:[-*•]|\d+[.)])\s*'), '').trim();
   }
@@ -3098,6 +3285,19 @@ class ChatNotifier extends Notifier<ChatState> {
   @visibleForTesting
   WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
     return _parseTaskProposalWithFallback(rawContent);
+  }
+
+  @visibleForTesting
+  WorkflowTaskProposalDraft finalizeTaskProposalForTest(
+    WorkflowTaskProposalDraft proposal, {
+    required bool projectLooksEmpty,
+  }) {
+    return WorkflowTaskProposalDraft(
+      tasks: _reorderTaskProposalTasks(
+        _sanitizeTaskProposalTasks(proposal.tasks),
+        projectLooksEmpty: projectLooksEmpty,
+      ),
+    );
   }
 
   @visibleForTesting

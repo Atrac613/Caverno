@@ -198,6 +198,18 @@ class ConversationPlanningPromptService {
             ? '- Keep titles concrete, short, and implementation-oriented.'
             : '- Keep titles concrete and implementation-oriented.',
       )
+      ..writeln(
+        '- Every task title must describe an action the agent can perform immediately.',
+      )
+      ..writeln(
+        '- Do not turn research notes, current-state observations, or repo summaries into task titles.',
+      )
+      ..writeln(
+        '- Order tasks by dependency so the first task can start immediately.',
+      )
+      ..writeln(
+        '- If the workspace is empty or nearly empty, put scaffolding or initial file creation before feature tasks.',
+      )
       ..writeln('- Use repo-relative file paths when you can infer them.')
       ..writeln(
         compact
@@ -350,7 +362,8 @@ class ConversationPlanningPromptService {
         final blockedReason = progress?.normalizedBlockedReason;
         final updatedAt = progress?.updatedAt?.toIso8601String() ?? '';
         final blockedSince = summary.blockedSince?.toIso8601String() ?? '';
-        final recentEvents = progress?.recentEvents.reversed
+        final recentEvents =
+            progress?.recentEvents.reversed
                 .take(2)
                 .toList(growable: false)
                 .reversed

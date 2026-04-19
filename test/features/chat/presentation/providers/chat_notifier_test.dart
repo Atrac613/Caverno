@@ -25,6 +25,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
+import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
@@ -940,6 +941,73 @@ void main() {
         proposal.workflowSpec.openQuestions,
         contains('設定ファイル形式は YAML でよいか'),
       );
+    },
+  );
+
+  test(
+    'parseTaskProposalForTest drops research notes and normalizes action titles',
+    () {
+      const rawContent = '''
+{
+  "tasks": [
+    {
+      "title": "The project root seems empty (based on research context).",
+      "targetFiles": []
+    },
+    {
+      "title": "I need to scaffold the project.",
+      "targetFiles": ["pyproject.toml", "README.md"],
+      "validationCommand": "",
+      "notes": "Create the initial files."
+    },
+    {
+      "title": "I need to implement the core logic (pinging).",
+      "targetFiles": ["ping_cli.py"],
+      "validationCommand": "python3 ping_cli.py google.com",
+      "notes": "Keep the first version simple."
+    }
+  ]
+}
+''';
+
+      final proposal = notifier.parseTaskProposalForTest(rawContent);
+
+      expect(proposal, isNotNull);
+      expect(proposal!.tasks, hasLength(2));
+      expect(proposal.tasks.first.title, 'Scaffold the project');
+      expect(proposal.tasks.last.title, 'Implement the core logic (pinging)');
+      expect(
+        proposal.tasks.last.validationCommand,
+        'python3 ping_cli.py google.com',
+      );
+    },
+  );
+
+  test(
+    'finalizeTaskProposalForTest moves scaffolding ahead in an empty workspace',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: const [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Argparse` for CLI',
+            targetFiles: ['main.py'],
+          ),
+          ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Initialize project structure',
+            targetFiles: ['pyproject.toml', 'README.md'],
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(finalized.tasks.first.title, 'Initialize project structure');
+      expect(finalized.tasks.last.title, 'Argparse for CLI');
     },
   );
 
