@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_canary_summary.dart';
@@ -82,5 +84,47 @@ void main() {
       summary.toMarkdown(),
       contains('Multiple host ping from file works'),
     );
+  });
+
+  test('prefers scenario log hints when timeout heartbeat is stale', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'plan_mode_canary_summary_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+    final logFile = File('${tempDir.path}/run_01_run.log');
+    await logFile.writeAsString('''
+[Workflow] Workflow proposal recovered on retry
+[ContentTool] Detected tool_call(s): 1
+''');
+
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'overallTimeout',
+            'budgetPhase': 'overall',
+            'durationMs': 240000,
+            'error': 'Overall live run timed out after 240s.',
+            'scenarioLog': logFile.path,
+            'diagnostics': <String, dynamic>{
+              'lastHeartbeat': <String, dynamic>{
+                'phase': 'planning',
+                'subphase': 'promptSubmitted',
+              },
+              'recentLogTail': <String>[],
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.runs.single.lastKnownPhase, 'execution');
+    expect(summary.runs.single.logPath, logFile.path);
   });
 }

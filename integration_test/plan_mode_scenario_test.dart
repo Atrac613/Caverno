@@ -95,6 +95,7 @@ class _PlanModeScenarioTestConfig {
 
 class _PlanModePhaseTrace {
   DateTime? proposalReadyAt;
+  DateTime? taskProposalReadyAt;
   DateTime? approvalTappedAt;
   DateTime? firstTaskStartedAt;
   DateTime? firstTaskCompletedAt;
@@ -106,6 +107,7 @@ class _PlanModePhaseTrace {
   Map<String, String?> toJson() {
     return <String, String?>{
       'proposalReadyAt': proposalReadyAt?.toIso8601String(),
+      'taskProposalReadyAt': taskProposalReadyAt?.toIso8601String(),
       'approvalTappedAt': approvalTappedAt?.toIso8601String(),
       'firstTaskStartedAt': firstTaskStartedAt?.toIso8601String(),
       'firstTaskCompletedAt': firstTaskCompletedAt?.toIso8601String(),
@@ -566,6 +568,29 @@ Finder _findDecisionSheetText(
   );
 }
 
+String _resolvePlanningSubphase(ChatState chatState) {
+  if (chatState.pendingWorkflowDecision != null) {
+    return 'decision';
+  }
+  if (chatState.workflowProposalDraft != null &&
+      chatState.taskProposalDraft != null) {
+    return 'taskDraftReady';
+  }
+  if (chatState.taskProposalDraft != null) {
+    return 'taskDraftReady';
+  }
+  if (chatState.workflowProposalDraft != null) {
+    return 'workflowDraftReady';
+  }
+  if (chatState.isGeneratingTaskProposal) {
+    return 'taskProposal';
+  }
+  if (chatState.isGeneratingWorkflowProposal) {
+    return 'workflowProposal';
+  }
+  return 'proposal';
+}
+
 Future<void> _waitForReadyPlanProposal(
   WidgetTester tester,
   ProviderContainer container, {
@@ -595,6 +620,12 @@ Future<void> _waitForReadyPlanProposal(
     final conversation = container
         .read(conversationsNotifierProvider)
         .currentConversation;
+    if (chatState.workflowProposalDraft != null) {
+      phaseTrace.proposalReadyAt ??= DateTime.now();
+    }
+    if (chatState.taskProposalDraft != null) {
+      phaseTrace.taskProposalReadyAt ??= DateTime.now();
+    }
     final workflowSnapshot = _summarizeWorkflowTasks(
       conversation?.projectedExecutionTasks ??
           const <ConversationWorkflowTask>[],
@@ -614,9 +645,7 @@ Future<void> _waitForReadyPlanProposal(
     }
     heartbeatWriter.write(
       phase: 'planning',
-      subphase: chatState.pendingWorkflowDecision != null
-          ? 'decision'
-          : 'proposal',
+      subphase: _resolvePlanningSubphase(chatState),
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: workflowSnapshot,
@@ -629,9 +658,10 @@ Future<void> _waitForReadyPlanProposal(
     );
     if (isProposalReady(chatState)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
+      phaseTrace.taskProposalReadyAt ??= DateTime.now();
       heartbeatWriter.write(
         phase: 'planning',
-        subphase: 'proposalReady',
+        subphase: 'taskDraftReady',
         phaseTrace: phaseTrace,
         budgets: budgets,
         workflowSnapshot: workflowSnapshot,
@@ -650,6 +680,16 @@ Future<void> _waitForReadyPlanProposal(
         scenario,
         screenshotBoundaryKey,
         outputDirectory,
+      );
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'decisionResolved',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        workflowSnapshot: workflowSnapshot,
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: true,
       );
       deadline = DateTime.now().add(timeout);
       await tester.pump();
@@ -676,12 +716,13 @@ Future<void> _waitForReadyPlanProposal(
   final chatState = container.read(chatNotifierProvider);
   if (isProposalReady(chatState)) {
     phaseTrace.proposalReadyAt ??= DateTime.now();
+    phaseTrace.taskProposalReadyAt ??= DateTime.now();
     final conversation = container
         .read(conversationsNotifierProvider)
         .currentConversation;
     heartbeatWriter.write(
       phase: 'planning',
-      subphase: 'proposalReady',
+      subphase: 'taskDraftReady',
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: _summarizeWorkflowTasks(

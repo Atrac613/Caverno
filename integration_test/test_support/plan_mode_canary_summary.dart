@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 class PlanModeCanaryRunSummary {
   const PlanModeCanaryRunSummary({
@@ -132,6 +133,21 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
       final lastHeartbeat =
           diagnostics['lastHeartbeat'] as Map<String, dynamic>? ??
           scenarioHeartbeat;
+      final logPath =
+          scenario['scenarioLog'] as String? ??
+          diagnostics['scenarioLog'] as String?;
+      final recentLogTail =
+          (diagnostics['recentLogTail'] as List<dynamic>? ?? const <dynamic>[])
+              .whereType<String>()
+              .toList(growable: false);
+      final logLines = _readCanaryLogLines(
+        logPath,
+        fallbackTail: recentLogTail,
+      );
+      final heartbeatPhase =
+          scenario['lastKnownPhase'] as String? ??
+          lastHeartbeat['phase'] as String?;
+      final heartbeatSubphase = lastHeartbeat['subphase'] as String?;
       final failureClass =
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
@@ -151,9 +167,11 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           budgetPhase:
               scenario['budgetPhase'] as String? ??
               diagnostics['budgetPhase'] as String?,
-          lastKnownPhase:
-              scenario['lastKnownPhase'] as String? ??
-              lastHeartbeat['phase'] as String?,
+          lastKnownPhase: _resolveLogAwarePhase(
+            heartbeatPhase: heartbeatPhase,
+            heartbeatSubphase: heartbeatSubphase,
+            logLines: logLines,
+          ),
           activeTaskTitle:
               scenario['activeTaskTitle'] as String? ??
               lastHeartbeat['activeTaskTitle'] as String? ??
@@ -173,7 +191,7 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
                 const <String, dynamic>{},
           ),
           reportPath: scenario['scenarioReport'] as String?,
-          logPath: scenario['scenarioLog'] as String?,
+          logPath: logPath,
         ),
       );
     }
@@ -187,6 +205,70 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
     failureClassCounts: Map<String, int>.unmodifiable(failureClassCounts),
     runs: List<PlanModeCanaryRunSummary>.unmodifiable(runs),
   );
+}
+
+List<String> _readCanaryLogLines(
+  String? logPath, {
+  List<String> fallbackTail = const <String>[],
+}) {
+  if (logPath == null || logPath.isEmpty) {
+    return fallbackTail;
+  }
+  final file = File(logPath);
+  if (!file.existsSync()) {
+    return fallbackTail;
+  }
+  final lines = file.readAsLinesSync();
+  if (lines.isEmpty) {
+    return fallbackTail;
+  }
+  return lines;
+}
+
+String? _resolveLogAwarePhase({
+  required String? heartbeatPhase,
+  required String? heartbeatSubphase,
+  required List<String> logLines,
+}) {
+  final logPhase = _inferPhaseFromLogLines(logLines);
+  if (heartbeatPhase == null || heartbeatPhase.isEmpty) {
+    return logPhase;
+  }
+  final heartbeatLooksStale =
+      heartbeatPhase == 'planning' &&
+      (heartbeatSubphase == null || heartbeatSubphase == 'promptSubmitted');
+  if (heartbeatLooksStale && logPhase != null) {
+    return logPhase;
+  }
+  return heartbeatPhase;
+}
+
+String? _inferPhaseFromLogLines(List<String> logLines) {
+  if (logLines.isEmpty) {
+    return null;
+  }
+  final normalizedLines = logLines.map((line) => line.toLowerCase()).toList();
+  final sawExecution = normalizedLines.any(
+    (line) =>
+        line.contains('[contenttool]') ||
+        line.contains('[tool] llm requested additional tool calls') ||
+        line.contains('[chatnotifier] waiting for pending tool executions') ||
+        line.contains('approve and start'),
+  );
+  if (sawExecution) {
+    return 'execution';
+  }
+  final sawPlanning = normalizedLines.any(
+    (line) =>
+        line.contains('[workflow]') ||
+        line.contains('pendingdecision') ||
+        line.contains('task proposal') ||
+        line.contains('workflow proposal'),
+  );
+  if (sawPlanning) {
+    return 'planning';
+  }
+  return null;
 }
 
 List<Map<String, dynamic>> decodeCanarySuiteReports(List<String> jsonContents) {
