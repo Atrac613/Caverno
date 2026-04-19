@@ -451,6 +451,30 @@ class ConversationPlanExecutionGuardrails {
         _looksLikeLightValidationCommand(validationCommand);
   }
 
+  static bool canPromoteCompletionFromWorkspaceValidation({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        !completionAssessment.hasTargetFiles ||
+        completionAssessment.successfulValidationCommands.isEmpty ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty) {
+      return false;
+    }
+
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    return missingTargets.isEmpty;
+  }
+
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
     final importPattern = RegExp(
       "No module named ['\\\"]([^'\\\"]+)['\\\"]",

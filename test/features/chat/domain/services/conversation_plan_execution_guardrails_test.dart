@@ -144,6 +144,37 @@ void main() {
   );
 
   test(
+    'canPromoteCompletionFromWorkspaceValidation accepts non-scaffold validation retries when targets already exist',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-lib',
+        title: 'Implement core ping functionality and CLI interface in ping_cli.py',
+        targetFiles: ['ping_lib.py'],
+        validationCommand: 'python3 ping_lib.py --help',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 ping_lib.py --help'},
+          result:
+              '{"command":"python3 ping_lib.py --help","exit_code":0,"stdout":"usage: ping_lib.py [-h] host","stderr":""}',
+        ),
+      ];
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails
+              .canPromoteCompletionFromWorkspaceValidation(
+                task: task,
+                toolResults: toolResults,
+                existingTargetPaths: const ['ping_lib.py'],
+              );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'assessTaskDrift flags repeated writes when scaffold targets remain',
     () {
       final task = loadFixtureTask(

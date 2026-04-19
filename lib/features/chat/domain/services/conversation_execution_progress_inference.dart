@@ -118,7 +118,7 @@ class ConversationExecutionProgressInference {
     final hasValidationPassedSignal = _containsAny(
       lowercaseResponse,
       _validationPassedSignals,
-    );
+    ) || _looksLikeValidationSuccessNarrative(lowercaseResponse);
     final looksLikeTaskTransitionNarration = _containsAny(
       lowercaseResponse,
       _transitionNarrationSignals,
@@ -231,5 +231,15 @@ class ConversationExecutionProgressInference {
       }
     }
     return false;
+  }
+
+  static bool _looksLikeValidationSuccessNarrative(String value) {
+    if (!value.contains('validation command')) {
+      return false;
+    }
+    return value.contains('was successful') ||
+        value.contains('succeeded') ||
+        value.contains('ran successfully') ||
+        value.contains('working as expected');
   }
 }

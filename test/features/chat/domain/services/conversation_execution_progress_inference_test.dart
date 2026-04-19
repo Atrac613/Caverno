@@ -151,4 +151,22 @@ void main() {
       );
     },
   );
+
+  test(
+    'treats validation command success narratives as completion evidence',
+    () {
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+      );
+    },
+  );
 }
