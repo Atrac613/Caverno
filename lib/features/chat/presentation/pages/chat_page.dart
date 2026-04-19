@@ -4748,6 +4748,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
         task: latestTask,
         unrelatedTouchedPaths: assessment.unrelatedTouchedPaths,
         scaffoldCommands: assessment.scaffoldCommands,
+        alreadyTouchedTargetFiles: assessment.touchedTargetFiles,
+        repeatedTargetFiles: assessment.repeatedTargetFiles,
+        remainingTargetFiles: assessment.remainingTargetFiles,
       ),
       languageCode: languageCode,
     );
@@ -4836,8 +4839,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
-    final summary = completionAssessment.requiresValidation
+    final summary = completionAssessment.completedFromSuccessfulValidation
         ? 'Marked complete from saved target file changes and a successful validation result.'
+        : completionAssessment.touchedAllTargetFiles &&
+              completionAssessment.hasTargetFiles
+        ? 'Marked complete after covering every saved target file.'
         : 'Marked complete from saved target file changes.';
     await conversationsNotifier.updateCurrentExecutionTaskProgress(
       taskId: task.id,

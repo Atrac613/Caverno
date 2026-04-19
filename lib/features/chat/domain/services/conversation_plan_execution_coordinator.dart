@@ -97,6 +97,9 @@ class ConversationPlanExecutionCoordinator {
     required ConversationWorkflowTask task,
     required List<String> unrelatedTouchedPaths,
     required List<String> scaffoldCommands,
+    List<String> alreadyTouchedTargetFiles = const [],
+    List<String> repeatedTargetFiles = const [],
+    List<String> remainingTargetFiles = const [],
   }) {
     final promptLines = <String>[
       'Saved task drift detected.',
@@ -109,6 +112,24 @@ class ConversationPlanExecutionCoordinator {
         .join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Only touch these target files next: $targetFiles');
+    }
+
+    if (alreadyTouchedTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'You already updated these target files: ${alreadyTouchedTargetFiles.join(', ')}',
+      );
+    }
+
+    if (repeatedTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'Do not rewrite these target files again unless validation fails: ${repeatedTargetFiles.join(', ')}',
+      );
+    }
+
+    if (remainingTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'Focus on the remaining target files next: ${remainingTargetFiles.join(', ')}',
+      );
     }
 
     final validationCommand = task.validationCommand.trim();
@@ -145,9 +166,15 @@ class ConversationPlanExecutionCoordinator {
     promptLines.add(
       'Do not implement future saved tasks while recovering this task.',
     );
-    promptLines.add(
-      'Your next action must directly modify one of the target files or run the saved validation command.',
-    );
+    if (remainingTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'Your next action must directly modify one of the remaining target files or run the saved validation command.',
+      );
+    } else {
+      promptLines.add(
+        'Your next action must directly modify one of the target files or run the saved validation command.',
+      );
+    }
     return promptLines.join('\n');
   }
 

@@ -159,6 +159,9 @@ void main() {
           task: task,
           unrelatedTouchedPaths: const ['pyproject.toml'],
           scaffoldCommands: const ['mkdir -p live_ping_cli'],
+          alreadyTouchedTargetFiles: const ['src/config_loader.py'],
+          repeatedTargetFiles: const ['src/config_loader.py'],
+          remainingTargetFiles: const ['tests/test_config_loader.py'],
         );
 
     expect(prompt, contains('Saved task drift detected.'));
@@ -172,6 +175,22 @@ void main() {
     expect(prompt, contains('Ignore these unrelated paths: pyproject.toml'));
     expect(
       prompt,
+      contains('You already updated these target files: src/config_loader.py'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not rewrite these target files again unless validation fails: src/config_loader.py',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Focus on the remaining target files next: tests/test_config_loader.py',
+      ),
+    );
+    expect(
+      prompt,
       contains(
         'Ignore this unrelated scaffolding command: mkdir -p live_ping_cli',
       ),
@@ -179,7 +198,7 @@ void main() {
     expect(
       prompt,
       contains(
-        'Your next action must directly modify one of the target files or run the saved validation command.',
+        'Your next action must directly modify one of the remaining target files or run the saved validation command.',
       ),
     );
     expect(

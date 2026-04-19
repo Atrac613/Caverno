@@ -8,15 +8,20 @@ class ConversationPlanExecutionDriftAssessment {
     required this.touchedTargetFiles,
     required this.unrelatedTouchedPaths,
     required this.scaffoldCommands,
+    required this.repeatedTargetFiles,
+    required this.remainingTargetFiles,
   });
 
   final List<String> touchedTargetFiles;
   final List<String> unrelatedTouchedPaths;
   final List<String> scaffoldCommands;
+  final List<String> repeatedTargetFiles;
+  final List<String> remainingTargetFiles;
 
   bool get hasDrift =>
-      touchedTargetFiles.isEmpty &&
-      (unrelatedTouchedPaths.isNotEmpty || scaffoldCommands.isNotEmpty);
+      (touchedTargetFiles.isEmpty &&
+          (unrelatedTouchedPaths.isNotEmpty || scaffoldCommands.isNotEmpty)) ||
+      (repeatedTargetFiles.isNotEmpty && remainingTargetFiles.isNotEmpty);
 }
 
 class ConversationPlanExecutionCompletionAssessment {
@@ -25,28 +30,44 @@ class ConversationPlanExecutionCompletionAssessment {
     required this.hasTargetFiles,
     required this.hasFailure,
     required this.touchedTargetFiles,
+    required this.untouchedTargetFiles,
+    required this.unrelatedTouchedPaths,
+    required this.scaffoldCommands,
     required this.successfulValidationCommands,
     required this.failedValidationCommands,
+    required this.allowsLightValidationCompletion,
   });
 
   final bool requiresValidation;
   final bool hasTargetFiles;
   final bool hasFailure;
   final List<String> touchedTargetFiles;
+  final List<String> untouchedTargetFiles;
+  final List<String> unrelatedTouchedPaths;
+  final List<String> scaffoldCommands;
   final List<String> successfulValidationCommands;
   final List<String> failedValidationCommands;
+  final bool allowsLightValidationCompletion;
+
+  bool get touchedAllTargetFiles =>
+      !hasTargetFiles || untouchedTargetFiles.isEmpty;
+
+  bool get completedFromSuccessfulValidation =>
+      !hasFailure &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty &&
+      successfulValidationCommands.isNotEmpty &&
+      (touchedTargetFiles.isNotEmpty || !hasTargetFiles);
+
+  bool get completedFromTargetCoverage =>
+      !hasFailure &&
+      touchedAllTargetFiles &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty &&
+      (!requiresValidation || allowsLightValidationCompletion);
 
   bool get shouldMarkCompleted {
-    if (hasFailure) {
-      return false;
-    }
-    if (requiresValidation) {
-      if (successfulValidationCommands.isEmpty) {
-        return false;
-      }
-      return touchedTargetFiles.isNotEmpty || !hasTargetFiles;
-    }
-    return touchedTargetFiles.isNotEmpty;
+    return completedFromSuccessfulValidation || completedFromTargetCoverage;
   }
 }
 
@@ -62,6 +83,7 @@ class ConversationPlanExecutionGuardrails {
         .where((path) => path.isNotEmpty)
         .toSet();
     final touchedTargetFiles = <String>{};
+    final targetTouchCounts = <String, int>{};
     final unrelatedTouchedPaths = <String>{};
     final scaffoldCommands = <String>{};
 
@@ -73,6 +95,11 @@ class ConversationPlanExecutionGuardrails {
         }
         if (_matchesTarget(path, normalizedTargets)) {
           touchedTargetFiles.add(path);
+          targetTouchCounts.update(
+            path,
+            (count) => count + 1,
+            ifAbsent: () => 1,
+          );
         } else {
           unrelatedTouchedPaths.add(path);
         }
@@ -101,10 +128,20 @@ class ConversationPlanExecutionGuardrails {
       }
     }
 
+    final repeatedTargetFiles = targetTouchCounts.entries
+        .where((entry) => entry.value > 1)
+        .map((entry) => entry.key)
+        .toList(growable: false);
+    final remainingTargetFiles = normalizedTargets
+        .where((target) => !touchedTargetFiles.contains(target))
+        .toList(growable: false);
+
     return ConversationPlanExecutionDriftAssessment(
       touchedTargetFiles: touchedTargetFiles.toList(growable: false),
       unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
       scaffoldCommands: scaffoldCommands.toList(growable: false),
+      repeatedTargetFiles: repeatedTargetFiles,
+      remainingTargetFiles: remainingTargetFiles,
     );
   }
 
@@ -117,6 +154,8 @@ class ConversationPlanExecutionGuardrails {
         .where((path) => path.isNotEmpty)
         .toSet();
     final touchedTargetFiles = <String>{};
+    final unrelatedTouchedPaths = <String>{};
+    final scaffoldCommands = <String>{};
     final successfulValidationCommands = <String>{};
     final failedValidationCommands = <String>{};
     var hasFailure = false;
@@ -130,8 +169,13 @@ class ConversationPlanExecutionGuardrails {
           toolResult.name == 'edit_file' ||
           toolResult.name == 'rollback_last_file_change') {
         final path = _normalizePath(toolResult.arguments['path']?.toString());
-        if (path.isNotEmpty && _matchesTarget(path, normalizedTargets)) {
+        if (path.isEmpty) {
+          continue;
+        }
+        if (_matchesTarget(path, normalizedTargets)) {
           touchedTargetFiles.add(path);
+        } else {
+          unrelatedTouchedPaths.add(path);
         }
         continue;
       }
@@ -140,18 +184,32 @@ class ConversationPlanExecutionGuardrails {
           toolResult.name == 'git_execute_command' ||
           toolResult.name == 'ssh_execute_command') {
         final command = _extractCommand(toolResult);
-        if (!_matchesValidationCommand(command, task.validationCommand)) {
-          continue;
-        }
-        final exitCode = _extractExitCode(toolResult.result);
-        final succeeded = exitCode == null
-            ? !_looksLikeFailureResult(toolResult.result)
-            : exitCode == 0;
-        if (succeeded) {
-          successfulValidationCommands.add(command);
-        } else {
-          failedValidationCommands.add(command);
-          hasFailure = true;
+        if (_matchesValidationCommand(command, task.validationCommand)) {
+          final exitCode = _extractExitCode(toolResult.result);
+          final succeeded = exitCode == null
+              ? !_looksLikeFailureResult(toolResult.result)
+              : exitCode == 0;
+          if (succeeded) {
+            successfulValidationCommands.add(command);
+          } else {
+            failedValidationCommands.add(command);
+            hasFailure = true;
+          }
+        } else if ((toolResult.name == 'local_execute_command' ||
+                toolResult.name == 'git_execute_command') &&
+            command.isNotEmpty) {
+          final normalizedCommand = command.toLowerCase();
+          final referencesTarget = normalizedTargets.any(
+            (target) => normalizedCommand.contains(target.toLowerCase()),
+          );
+          final referencesValidation =
+              task.validationCommand.trim().isNotEmpty &&
+              normalizedCommand.contains(task.validationCommand.toLowerCase());
+          if (!referencesTarget &&
+              !referencesValidation &&
+              _looksLikeScaffoldCommand(normalizedCommand)) {
+            scaffoldCommands.add(command);
+          }
         }
         continue;
       }
@@ -179,16 +237,26 @@ class ConversationPlanExecutionGuardrails {
       }
     }
 
+    final untouchedTargetFiles = normalizedTargets
+        .where((target) => !touchedTargetFiles.contains(target))
+        .toList(growable: false);
+
     return ConversationPlanExecutionCompletionAssessment(
       requiresValidation: task.validationCommand.trim().isNotEmpty,
       hasTargetFiles: normalizedTargets.isNotEmpty,
       hasFailure: hasFailure,
       touchedTargetFiles: touchedTargetFiles.toList(growable: false),
+      untouchedTargetFiles: untouchedTargetFiles,
+      unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
+      scaffoldCommands: scaffoldCommands.toList(growable: false),
       successfulValidationCommands: successfulValidationCommands.toList(
         growable: false,
       ),
       failedValidationCommands: failedValidationCommands.toList(
         growable: false,
+      ),
+      allowsLightValidationCompletion: _looksLikeLightValidationCommand(
+        task.validationCommand,
       ),
     );
   }
@@ -254,6 +322,19 @@ class ConversationPlanExecutionGuardrails {
       'touch ',
     ];
     return scaffoldPatterns.any(normalizedCommand.contains);
+  }
+
+  static bool _looksLikeLightValidationCommand(String validationCommand) {
+    final normalized = validationCommand.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+    return normalized.startsWith('ls ') ||
+        normalized == 'ls' ||
+        normalized.startsWith('find ') ||
+        normalized.startsWith('test -f ') ||
+        normalized.startsWith('test -d ') ||
+        normalized.startsWith('stat ');
   }
 
   static String _extractCommand(ToolResultInfo toolResult) {

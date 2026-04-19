@@ -80,6 +80,54 @@ void main() {
     );
   });
 
+  test(
+    'assessTaskDrift flags repeated writes when scaffold targets remain',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_post_approval_scaffold_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_post_approval_scaffold_replay.json',
+      ).take(2).toList(growable: false);
+
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+        task: task,
+        toolResults: toolResults,
+      );
+
+      expect(assessment.hasDrift, isTrue);
+      expect(assessment.touchedTargetFiles, contains('pyproject.toml'));
+      expect(assessment.repeatedTargetFiles, contains('pyproject.toml'));
+      expect(assessment.remainingTargetFiles, contains('README.md'));
+      expect(assessment.remainingTargetFiles, contains('src/__init__.py'));
+    },
+  );
+
+  test(
+    'assessTaskCompletion accepts scaffold target coverage with light validation',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_post_approval_scaffold_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_post_approval_scaffold_replay.json',
+      );
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
+      expect(assessment.completedFromSuccessfulValidation, isFalse);
+      expect(assessment.completedFromTargetCoverage, isTrue);
+      expect(assessment.touchedAllTargetFiles, isTrue);
+      expect(assessment.untouchedTargetFiles, isEmpty);
+    },
+  );
+
   test('assessTaskCompletion accepts run_tests as saved validation evidence', () {
     const task = ConversationWorkflowTask(
       id: 'task-config-loader',

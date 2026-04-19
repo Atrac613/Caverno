@@ -1,0 +1,43 @@
+{
+  "task": {
+    "id": "task-scaffold-init",
+    "title": "Initialize project structure and configuration",
+    "targetFiles": ["pyproject.toml", "README.md", "src/__init__.py"],
+    "validationCommand": "ls src",
+    "notes": "Create basic project scaffolding and package structure."
+  },
+  "toolResults": [
+    {
+      "id": "tool-1",
+      "name": "write_file",
+      "arguments": {
+        "path": "pyproject.toml"
+      },
+      "result": "{\"path\":\"/tmp/project/pyproject.toml\",\"bytes_written\":418,\"created\":true}"
+    },
+    {
+      "id": "tool-2",
+      "name": "write_file",
+      "arguments": {
+        "path": "pyproject.toml"
+      },
+      "result": "{\"path\":\"/tmp/project/pyproject.toml\",\"bytes_written\":423,\"created\":false}"
+    },
+    {
+      "id": "tool-3",
+      "name": "write_file",
+      "arguments": {
+        "path": "README.md"
+      },
+      "result": "{\"path\":\"/tmp/project/README.md\",\"bytes_written\":366,\"created\":true}"
+    },
+    {
+      "id": "tool-4",
+      "name": "write_file",
+      "arguments": {
+        "path": "src/__init__.py"
+      },
+      "result": "{\"path\":\"/tmp/project/src/__init__.py\",\"bytes_written\":0,\"created\":true}"
+    }
+  ]
+}
