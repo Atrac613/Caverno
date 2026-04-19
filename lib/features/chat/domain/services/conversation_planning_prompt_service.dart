@@ -205,6 +205,9 @@ class ConversationPlanningPromptService {
         '- Do not turn research notes, current-state observations, or repo summaries into task titles.',
       )
       ..writeln(
+        '- Do not emit placeholder headings as tasks, such as "Subsequent tasks should involve:" or any heading-like label that only introduces later tasks.',
+      )
+      ..writeln(
         '- Order tasks by dependency so the first task can start immediately.',
       )
       ..writeln(

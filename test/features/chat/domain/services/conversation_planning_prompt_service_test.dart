@@ -150,6 +150,12 @@ void main() {
     expect(
       prompt,
       contains(
+        'Do not emit placeholder headings as tasks, such as "Subsequent tasks should involve:" or any heading-like label that only introduces later tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'Order tasks by dependency so the first task can start immediately.',
       ),
     );

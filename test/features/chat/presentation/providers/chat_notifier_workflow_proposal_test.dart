@@ -236,16 +236,13 @@ void main() {
     },
   );
 
-  test(
-    'does not promote comma-only choice hints into planning decisions',
-    () {
-      final decisions = notifier.promoteOpenQuestionsForTest([
-        'Which operating systems (Linux, macOS, Windows) are the primary targets?',
-      ]);
+  test('does not promote comma-only choice hints into planning decisions', () {
+    final decisions = notifier.promoteOpenQuestionsForTest([
+      'Which operating systems (Linux, macOS, Windows) are the primary targets?',
+    ]);
 
-      expect(decisions, isEmpty);
-    },
-  );
+    expect(decisions, isEmpty);
+  });
 
   test(
     'parses workflow proposal json payloads with localized stage values',
@@ -339,6 +336,16 @@ Open Questions:
     ]);
   });
 
+  test('parses workflow proposals from truncated narrative retries', () {
+    final proposal = notifier.parseWorkflowProposalForTest('''
+The user wants a workflow proposal for creating a Python CLI tool that pings specific hosts. The project name is tmp-live-ping-cli. The research context shows the project is currently empty. The user's request is "pythonで特定のhostにpingするcliスクリプトを作りたい".
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+    expect(proposal.workflowSpec.goal, 'pythonで特定のhostにpingするcliスクリプトを作りたい');
+  });
+
   test('parses task proposal json payloads', () {
     final proposal = notifier.parseTaskProposalForTest('''
 {"tasks":[
@@ -360,6 +367,27 @@ Open Questions:
         (task) => task.status == ConversationWorkflowTaskStatus.pending,
       ),
       isTrue,
+    );
+  });
+
+  test('drops placeholder task titles from task proposals', () {
+    final proposal = notifier.parseTaskProposalForTest('''
+{"tasks":[
+  {"title":"Subsequent tasks should involve:","targetFiles":[],"validationCommand":"","notes":""},
+  {"title":"Implement the core ping logic","targetFiles":["src/ping_cli/main.py"],"validationCommand":"python -m src.ping_cli.main --help","notes":"Keep the first version synchronous"},
+  {"title":"Add CLI argument parsing","targetFiles":["src/ping_cli/main.py"],"validationCommand":"python -m src.ping_cli.main --help","notes":""}
+]}
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(2));
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Implement the core ping logic'),
+    );
+    expect(
+      proposal.tasks.map((task) => task.title),
+      isNot(contains('Subsequent tasks should involve:')),
     );
   });
 

@@ -1640,14 +1640,21 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
     String? additionalPlanningContext,
   }) async {
-    final attempts = <({bool compact, int maxTokens})>[
+    final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
       (
         compact: false,
         maxTokens: _settings.maxTokens > 1600 ? 1600 : _settings.maxTokens,
+        minimalRetry: false,
       ),
       (
         compact: true,
-        maxTokens: _settings.maxTokens > 2200 ? 2200 : _settings.maxTokens,
+        maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
+        minimalRetry: true,
+      ),
+      (
+        compact: true,
+        maxTokens: _settings.maxTokens > 700 ? 700 : _settings.maxTokens,
+        minimalRetry: true,
       ),
     ];
 
@@ -1660,7 +1667,10 @@ class ChatNotifier extends Notifier<ChatState> {
           languageCode: languageCode,
           researchContext: researchContext,
           decisionAnswers: decisionAnswers,
-          additionalPlanningContext: additionalPlanningContext,
+          additionalPlanningContext: _buildWorkflowProposalRetryContext(
+            additionalPlanningContext,
+            minimalRetry: attempt.minimalRetry,
+          ),
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -1686,12 +1696,31 @@ class ChatNotifier extends Notifier<ChatState> {
       lastError = truncated
           ? 'workflow proposal was truncated: $preview'
           : 'workflow proposal parse failed: $preview';
-      if (!truncated && index == 0) {
-        continue;
-      }
     }
 
     throw FormatException(lastError ?? 'workflow proposal parse failed');
+  }
+
+  String? _buildWorkflowProposalRetryContext(
+    String? additionalPlanningContext, {
+    required bool minimalRetry,
+  }) {
+    final normalizedContext = additionalPlanningContext?.trim();
+    if (!minimalRetry) {
+      return normalizedContext;
+    }
+
+    const retryHint = '''
+Retry hint:
+- Return the smallest valid JSON proposal possible.
+- Do not restate the user request, project summary, or research context.
+- Prefer a short goal plus one or two short list items over verbose explanations.
+- If you are space-constrained, return workflowStage, goal, and a minimal acceptanceCriteria list only.
+''';
+    if (normalizedContext == null || normalizedContext.isEmpty) {
+      return retryHint.trim();
+    }
+    return '$normalizedContext\n$retryHint'.trim();
   }
 
   Future<List<WorkflowPlanningDecisionAnswer>?> _collectWorkflowDecisionAnswers(
@@ -1981,6 +2010,16 @@ class ChatNotifier extends Notifier<ChatState> {
       return direct;
     }
 
+    final visibleNarrativeSource = _normalizeProposalContent(rawContent);
+    if (visibleNarrativeSource.isNotEmpty) {
+      final directNarrative = _parseWorkflowProposalFromNarrative(
+        visibleNarrativeSource,
+      );
+      if (directNarrative != null) {
+        return _WorkflowProposalDraftResponse(directNarrative);
+      }
+    }
+
     final reasoningContent = _extractProposalReasoningContent(rawContent);
     if (reasoningContent.isEmpty) {
       return null;
@@ -2006,7 +2045,15 @@ class ChatNotifier extends Notifier<ChatState> {
     if (sanitized case _WorkflowProposalDraftResponse(:final proposal)) {
       return _isReasoningWorkflowProposalPlausible(proposal) ? sanitized : null;
     }
-    return sanitized;
+    if (sanitized != null) {
+      return sanitized;
+    }
+
+    final narrative = _parseWorkflowProposalFromNarrative(reasoningContent);
+    if (narrative != null) {
+      return _WorkflowProposalDraftResponse(narrative);
+    }
+    return null;
   }
 
   WorkflowTaskProposalDraft? _parseTaskProposal(String rawContent) {
@@ -2481,6 +2528,45 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  WorkflowProposalDraft? _parseWorkflowProposalFromNarrative(
+    String rawContent,
+  ) {
+    final goal = _extractNarrativeWorkflowGoal(rawContent);
+    if (goal == null) {
+      return null;
+    }
+
+    final acceptanceCriteria = _extractNarrativeWorkflowList(
+      rawContent,
+      keys: const ['acceptance criteria', 'completion criteria'],
+    );
+    final constraints = _extractNarrativeWorkflowList(
+      rawContent,
+      keys: const ['constraints', 'guardrails'],
+    );
+    final openQuestions = _extractNarrativeWorkflowList(
+      rawContent,
+      keys: const ['open questions', 'unresolved questions'],
+    );
+
+    final proposal = WorkflowProposalDraft(
+      workflowStage: openQuestions.isNotEmpty
+          ? ConversationWorkflowStage.clarify
+          : ConversationWorkflowStage.plan,
+      workflowSpec: ConversationWorkflowSpec(
+        goal: goal,
+        constraints: constraints,
+        acceptanceCriteria: acceptanceCriteria,
+        openQuestions: openQuestions,
+      ),
+    );
+    if (!proposal.workflowSpec.hasContent ||
+        !_isReasoningWorkflowProposalPlausible(proposal)) {
+      return null;
+    }
+    return proposal;
+  }
+
   String? _extractLooseJsonScalar(
     String rawContent, {
     required List<String> keys,
@@ -2539,6 +2625,113 @@ class ChatNotifier extends Notifier<ChatState> {
       if (items.isNotEmpty) {
         return items;
       }
+    }
+    return const [];
+  }
+
+  String? _extractNarrativeWorkflowGoal(String rawContent) {
+    final normalizedContent = rawContent.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalizedContent.isEmpty) {
+      return null;
+    }
+
+    final quotedRequestMatch = RegExp(
+      r'''The user(?:'s)? request is ["'](.+?)["']''',
+      caseSensitive: false,
+    ).firstMatch(normalizedContent);
+    if (quotedRequestMatch != null) {
+      final candidate = _sanitizeNarrativeWorkflowGoal(
+        quotedRequestMatch.group(1) ?? '',
+      );
+      if (candidate != null) {
+        return candidate;
+      }
+    }
+
+    final userWantsMatch = RegExp(
+      r'''The user wants (?:a workflow proposal for |to )(.+?)(?:\.|$)''',
+      caseSensitive: false,
+    ).firstMatch(normalizedContent);
+    if (userWantsMatch != null) {
+      final candidate = _sanitizeNarrativeWorkflowGoal(
+        userWantsMatch.group(1) ?? '',
+      );
+      if (candidate != null) {
+        return candidate;
+      }
+    }
+
+    final goalMatch = RegExp(
+      r'''Goal\s*:\s*(.+?)(?:\.|$)''',
+      caseSensitive: false,
+    ).firstMatch(normalizedContent);
+    if (goalMatch != null) {
+      final candidate = _sanitizeNarrativeWorkflowGoal(
+        goalMatch.group(1) ?? '',
+      );
+      if (candidate != null) {
+        return candidate;
+      }
+    }
+
+    return null;
+  }
+
+  String? _sanitizeNarrativeWorkflowGoal(String rawValue) {
+    final candidate = _sanitizeReasoningProposalValue(
+      rawValue,
+      preferSingleSentence: true,
+    );
+    if (candidate.isEmpty) {
+      return null;
+    }
+
+    final normalized = candidate.toLowerCase();
+    const blockedFragments = <String>[
+      'workflow proposal',
+      'current coding thread',
+      'single valid json object',
+      'return only',
+      'research context',
+      'project name is',
+      'the project is currently empty',
+      'the prompt asks',
+    ];
+    if (blockedFragments.any(normalized.contains)) {
+      return null;
+    }
+
+    if (!RegExp(
+      r'\b(create|build|implement|add|ship|make|refine|improve|develop|diagnose|ping)\b',
+      caseSensitive: false,
+    ).hasMatch(candidate)) {
+      return null;
+    }
+    return candidate;
+  }
+
+  List<String> _extractNarrativeWorkflowList(
+    String rawContent, {
+    required List<String> keys,
+  }) {
+    final normalizedContent = rawContent.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalizedContent.isEmpty) {
+      return const [];
+    }
+
+    for (final key in keys) {
+      final match = RegExp(
+        '${RegExp.escape(key)}\\s*[:\\-]\\s*(.+?)(?:\\.|\\\$)',
+        caseSensitive: false,
+      ).firstMatch(normalizedContent);
+      if (match == null) {
+        continue;
+      }
+      final value = _sanitizeReasoningProposalValue(match.group(1) ?? '');
+      if (value.isEmpty) {
+        continue;
+      }
+      return [value];
     }
     return const [];
   }
@@ -3053,6 +3246,13 @@ class ChatNotifier extends Notifier<ChatState> {
       RegExp(r'^(?:we need to|please)\s+', caseSensitive: false),
       '',
     );
+    candidate = candidate.replaceFirst(
+      RegExp(
+        r'^(?:subsequent|following|next)\s+tasks?\s+(?:should|must|will)\s+(?:involve|include|cover)\s*:?\s*',
+        caseSensitive: false,
+      ),
+      '',
+    );
     candidate = candidate.replaceFirst(RegExp(r'[.。]+$'), '').trim();
     if (candidate.isEmpty) {
       return '';
@@ -3068,6 +3268,10 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isTaskProposalObservationTitle(String title) {
     final normalized = title.trim().toLowerCase();
     if (normalized.isEmpty) {
+      return true;
+    }
+
+    if (_isTaskProposalPlaceholderTitle(normalized)) {
       return true;
     }
 
@@ -3101,6 +3305,27 @@ class ChatNotifier extends Notifier<ChatState> {
       'seems empty',
     ];
     return blockedFragments.any(normalized.contains);
+  }
+
+  bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {
+    const placeholderTitles = <String>[
+      'subsequent tasks should involve',
+      'subsequent tasks should include',
+      'following tasks should involve',
+      'following tasks should include',
+      'next tasks should involve',
+      'next tasks should include',
+      'subsequent task should involve',
+      'subsequent task should include',
+    ];
+    final compact = normalizedTitle.replaceAll(':', '').trim();
+    if (placeholderTitles.contains(compact)) {
+      return true;
+    }
+    return RegExp(
+      r'^(?:subsequent|following|next)\s+tasks?\s+(?:should|must|will)\s+(?:involve|include|cover)(?::)?$',
+      caseSensitive: false,
+    ).hasMatch(normalizedTitle);
   }
 
   List<ConversationWorkflowTask> _reorderTaskProposalTasks(
