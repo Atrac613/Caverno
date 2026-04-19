@@ -73,6 +73,24 @@ void main() {
       expect(diagnostics.budgetPhase, 'planning');
     });
 
+    test('classifies planning decision waits separately from generic timeouts', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[ScenarioLive] Auto-accepted the default planning option.',
+        ],
+        errorText:
+            'Planning phase timed out after 60s while waiting for the plan proposal. '
+            'workflowDraft=false, taskDraft=false, isGeneratingWorkflow=false, '
+            'isGeneratingTask=false, pendingDecision=true, workflowError=null, taskError=null',
+      );
+
+      expect(
+        diagnostics.failureClass,
+        PlanModeFailureClass.planningDecisionWait,
+      );
+      expect(diagnostics.budgetPhase, 'planning');
+    });
+
     test('classifies short task proposals as planning quality failures', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[],

@@ -580,6 +580,8 @@ Future<void> _waitForReadyPlanProposal(
   required Directory outputDirectory,
 }) async {
   var recoveredTaskProposal = false;
+  var deadline = DateTime.now().add(timeout);
+  String? lastPlanningProgressKey;
 
   bool isProposalReady(ChatState chatState) {
     return chatState.workflowProposalDraft != null &&
@@ -588,7 +590,6 @@ Future<void> _waitForReadyPlanProposal(
         !chatState.isGeneratingTaskProposal;
   }
 
-  final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     final chatState = container.read(chatNotifierProvider);
     final conversation = container
@@ -598,6 +599,19 @@ Future<void> _waitForReadyPlanProposal(
       conversation?.projectedExecutionTasks ??
           const <ConversationWorkflowTask>[],
     );
+    final planningProgressKey =
+        '${conversation?.messages.length ?? 0}|'
+        '${chatState.workflowProposalDraft != null}|'
+        '${chatState.taskProposalDraft != null}|'
+        '${chatState.isGeneratingWorkflowProposal}|'
+        '${chatState.isGeneratingTaskProposal}|'
+        '${chatState.pendingWorkflowDecision != null}|'
+        '${chatState.workflowProposalError}|'
+        '${chatState.taskProposalError}';
+    if (planningProgressKey != lastPlanningProgressKey) {
+      lastPlanningProgressKey = planningProgressKey;
+      deadline = DateTime.now().add(timeout);
+    }
     heartbeatWriter.write(
       phase: 'planning',
       subphase: chatState.pendingWorkflowDecision != null
@@ -637,6 +651,7 @@ Future<void> _waitForReadyPlanProposal(
         screenshotBoundaryKey,
         outputDirectory,
       );
+      deadline = DateTime.now().add(timeout);
       await tester.pump();
       continue;
     }
@@ -650,6 +665,7 @@ Future<void> _waitForReadyPlanProposal(
       await container
           .read(chatNotifierProvider.notifier)
           .generateTaskProposal();
+      deadline = DateTime.now().add(timeout);
       await tester.pump();
       continue;
     }

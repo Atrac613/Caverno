@@ -1,5 +1,6 @@
 enum PlanModeFailureClass {
   passed,
+  planningDecisionWait,
   planningTimeout,
   taskProposalQuality,
   executionTimeout,
@@ -109,6 +110,7 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
 
 String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
   switch (failureClass) {
+    case PlanModeFailureClass.planningDecisionWait:
     case PlanModeFailureClass.planningTimeout:
     case PlanModeFailureClass.taskProposalQuality:
       return 'planning';
@@ -150,6 +152,10 @@ PlanModeFailureClass _classifyFailure({
     return normalizedLogs.any((line) => line.contains(normalizedPattern));
   }
 
+  if (normalizedError.contains('planning phase timed out') &&
+      normalizedError.contains('pendingdecision=true')) {
+    return PlanModeFailureClass.planningDecisionWait;
+  }
   if (normalizedError.contains('planning phase timed out')) {
     return PlanModeFailureClass.planningTimeout;
   }
