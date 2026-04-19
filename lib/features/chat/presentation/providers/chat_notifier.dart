@@ -1688,8 +1688,22 @@ class ChatNotifier extends Notifier<ChatState> {
         return response;
       }
 
-      final preview = _proposalPreview(result.content);
       final truncated = _isCompletionTruncated(result.finishReason);
+      if (truncated) {
+        final fallbackProposal = _buildWorkflowProposalTruncationFallback(
+          currentConversation: currentConversation,
+          rawContent: result.content,
+          decisionAnswers: decisionAnswers,
+        );
+        if (fallbackProposal != null) {
+          appLog(
+            '[Workflow] Workflow proposal recovered from truncated reasoning fallback',
+          );
+          return _WorkflowProposalDraftResponse(fallbackProposal);
+        }
+      }
+
+      final preview = _proposalPreview(result.content);
       appLog(
         '[Workflow] Workflow proposal parse failed (attempt ${index + 1}/${attempts.length}, truncated: $truncated): $preview',
       );
@@ -1848,6 +1862,90 @@ Retry hint:
         openQuestions: unresolvedQuestions.take(6).toList(growable: false),
       ),
     );
+  }
+
+  WorkflowProposalDraft? _buildWorkflowProposalTruncationFallback({
+    required Conversation currentConversation,
+    required String rawContent,
+    required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
+  }) {
+    final reasoningContent = _extractProposalReasoningContent(rawContent);
+    final visibleContent = _normalizeProposalContent(rawContent);
+    final goal =
+        _extractNarrativeWorkflowGoal(reasoningContent) ??
+        _extractNarrativeWorkflowGoal(visibleContent) ??
+        _deriveWorkflowFallbackGoalFromConversation(currentConversation);
+    if (goal == null || goal.trim().isEmpty) {
+      return null;
+    }
+
+    final constraints = <String>[
+      ..._extractNarrativeWorkflowList(
+        reasoningContent,
+        keys: const ['constraints', 'guardrails'],
+      ),
+      ...decisionAnswers
+          .map((answer) {
+            final question = answer.question.trim();
+            final optionLabel = answer.optionLabel.trim();
+            if (question.isEmpty || optionLabel.isEmpty) {
+              return '';
+            }
+            return 'Resolved decision: $question -> $optionLabel';
+          })
+          .where((line) => line.isNotEmpty),
+    ].take(3).toList(growable: false);
+
+    final acceptanceCriteria = <String>[
+      ..._extractNarrativeWorkflowList(
+        reasoningContent,
+        keys: const ['acceptance criteria', 'completion criteria'],
+      ),
+    ];
+    if (acceptanceCriteria.isEmpty) {
+      acceptanceCriteria.add(
+        'Produce a concrete saved task plan that implements and validates the requested feature.',
+      );
+      if (decisionAnswers.isNotEmpty) {
+        acceptanceCriteria.add(
+          'Reflect the resolved planning decisions in the saved tasks.',
+        );
+      }
+    }
+
+    final proposal = WorkflowProposalDraft(
+      workflowStage: ConversationWorkflowStage.plan,
+      workflowSpec: ConversationWorkflowSpec(
+        goal: goal,
+        constraints: constraints,
+        acceptanceCriteria: acceptanceCriteria.take(3).toList(growable: false),
+      ),
+    );
+    return proposal.workflowSpec.hasContent ? proposal : null;
+  }
+
+  String? _deriveWorkflowFallbackGoalFromConversation(
+    Conversation currentConversation,
+  ) {
+    String rawGoal = '';
+    for (final message in currentConversation.messages.reversed) {
+      if (message.role != MessageRole.user) {
+        continue;
+      }
+      rawGoal = message.content.trim();
+      if (rawGoal.isNotEmpty) {
+        break;
+      }
+    }
+    if (rawGoal.isEmpty) {
+      return null;
+    }
+
+    final sanitized = _sanitizeNarrativeWorkflowGoal(rawGoal);
+    if (sanitized != null && sanitized.isNotEmpty) {
+      return sanitized;
+    }
+    return rawGoal.length > 180 ? rawGoal.substring(0, 180).trim() : rawGoal;
   }
 
   Future<WorkflowTaskProposalDraft> _requestTaskProposal({
@@ -4066,6 +4164,19 @@ Retry hint:
     return _buildWorkflowProposalFallback(
       latestProposal: latestProposal,
       outstandingDecisions: unresolvedDecisions,
+    );
+  }
+
+  @visibleForTesting
+  WorkflowProposalDraft? buildWorkflowProposalTruncationFallbackForTest({
+    required Conversation currentConversation,
+    required String rawContent,
+    List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
+  }) {
+    return _buildWorkflowProposalTruncationFallback(
+      currentConversation: currentConversation,
+      rawContent: rawContent,
+      decisionAnswers: decisionAnswers,
     );
   }
 

@@ -3,7 +3,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
@@ -346,6 +348,55 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     expect(proposal, isNotNull);
     expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
     expect(proposal.workflowSpec.goal, 'pythonで特定のhostにpingするcliスクリプトを作りたい');
+  });
+
+  test('builds workflow fallback from truncated retries after decisions', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Ping CLI',
+      messages: [
+        Message(
+          id: 'user-1',
+          content: 'Create a Python CLI tool that pings specific hosts.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 19, 22, 30),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 19, 22, 30),
+      updatedAt: DateTime(2026, 4, 19, 22, 30),
+    );
+
+    final proposal = notifier.buildWorkflowProposalTruncationFallbackForTest(
+      currentConversation: conversation,
+      rawContent: '''
+<think>
+The user wants a workflow proposal for creating a Python CLI tool that pings specific hosts.
+The project root appears empty, so the plan should keep the first slice lightweight.
+</think>
+''',
+      decisionAnswers: const [
+        WorkflowPlanningDecisionAnswer(
+          decisionId: 'scope',
+          question: 'What is the primary scope of the CLI tool?',
+          optionId: 'single-host',
+          optionLabel: 'Single-host reachability checks',
+        ),
+      ],
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+    expect(
+      proposal.workflowSpec.goal,
+      'Create a Python CLI tool that pings specific hosts.',
+    );
+    expect(
+      proposal.workflowSpec.constraints,
+      contains(
+        'Resolved decision: What is the primary scope of the CLI tool? -> Single-host reachability checks',
+      ),
+    );
+    expect(proposal.workflowSpec.acceptanceCriteria, isNotEmpty);
   });
 
   test('parses task proposal json payloads', () {
