@@ -1160,7 +1160,7 @@ Future<_ScenarioRunResult> _runScenario({
     tester,
     container,
     timeout: config.usesLiveLlm
-        ? const Duration(seconds: 30)
+        ? const Duration(minutes: 3)
         : const Duration(seconds: 5),
     binding: binding,
     config: config,
