@@ -1,0 +1,26 @@
+{
+  "tasks": [
+    {
+      "id": "task-setup",
+      "title": "Initialize project structure and dependencies",
+      "targetFiles": [
+        "requirements.txt",
+        "README.md",
+        ".gitignore"
+      ],
+      "validationCommand": "ls -R",
+      "notes": "Create the initial scaffold files.",
+      "status": "pending"
+    },
+    {
+      "id": "task-core",
+      "title": "Implement core ping logic in src/ping_engine.py",
+      "targetFiles": [
+        "src/ping_engine.py"
+      ],
+      "validationCommand": "python3 -c \"import sys; sys.path.append('src'); print('Module importable')\"",
+      "notes": "Implement the logic to execute system ping commands and parse results.",
+      "status": "pending"
+    }
+  ]
+}

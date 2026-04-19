@@ -1960,6 +1960,12 @@ Retry hint:
       ..writeln(
         '- Every task must describe an action the agent can perform immediately.',
       )
+      ..writeln(
+        '- For implementation tasks, use a validationCommand that directly references, executes, or tests the target file or module.',
+      )
+      ..writeln(
+        '- Do not use generic validation such as "module importable" or commands that only append src to sys.path.',
+      )
       ..writeln('- Do not stop at a single generic setup or scaffold task.')
       ..writeln(
         '- Do not restate the user request, repo summary, or research context.',
@@ -3552,6 +3558,11 @@ Retry hint:
       return true;
     }
 
+    if (projectLooksEmpty &&
+        _taskProposalHasWeakImplementationValidation(finalized.tasks)) {
+      return true;
+    }
+
     if (finalized.tasks.length == 1 &&
         _looksLikeGenericScaffoldOnlyTask(finalized.tasks.first)) {
       return true;
@@ -3564,6 +3575,29 @@ Retry hint:
     List<ConversationWorkflowTask> tasks,
   ) {
     return tasks.any((task) => !_looksLikeGenericScaffoldOnlyTask(task));
+  }
+
+  bool _taskProposalHasWeakImplementationValidation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (final task in tasks) {
+      if (_looksLikeScaffoldTask(task)) {
+        continue;
+      }
+      final implementationTargets = task.targetFiles
+          .where(_looksLikeImplementationTargetFile)
+          .toList(growable: false);
+      if (implementationTargets.isEmpty) {
+        continue;
+      }
+      if (_hasWeakImplementationValidationCommand(
+        task.validationCommand,
+        implementationTargets,
+      )) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _looksLikeGenericScaffoldOnlyTask(ConversationWorkflowTask task) {
@@ -3618,6 +3652,63 @@ Retry hint:
         normalizedPath.endsWith('.go') ||
         normalizedPath.endsWith('.java') ||
         normalizedPath.endsWith('.kt');
+  }
+
+  bool _hasWeakImplementationValidationCommand(
+    String validationCommand,
+    List<String> implementationTargets,
+  ) {
+    final normalized = validationCommand.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return true;
+    }
+    if (normalized.contains('module importable') ||
+        normalized.contains('sys.path.append(') ||
+        normalized.contains('sys.path.insert(')) {
+      return true;
+    }
+    if (normalized.startsWith('ls ') ||
+        normalized == 'ls' ||
+        normalized.startsWith('find ') ||
+        normalized.startsWith('cat ') ||
+        normalized.startsWith('test -f ') ||
+        normalized.startsWith('test -d ')) {
+      return true;
+    }
+
+    final targetSignals = implementationTargets
+        .map((path) => path.trim().toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .expand(
+          (path) => <String>{
+            path,
+            path.split('/').last,
+            path.split('/').last.replaceFirst(RegExp(r'\.[^.]+$'), ''),
+          },
+        )
+        .where((signal) => signal.isNotEmpty)
+        .toSet();
+    if (targetSignals.any(normalized.contains)) {
+      return false;
+    }
+
+    const acceptablePrefixes = <String>[
+      'pytest',
+      'python -m pytest',
+      'python3 -m pytest',
+      'dart test',
+      'flutter test',
+      'cargo test',
+      'go test',
+      'npm test',
+      'pnpm test',
+      'yarn test',
+    ];
+    if (acceptablePrefixes.any(normalized.startsWith)) {
+      return false;
+    }
+
+    return true;
   }
 
   bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {

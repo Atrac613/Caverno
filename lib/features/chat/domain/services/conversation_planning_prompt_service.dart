@@ -221,6 +221,9 @@ class ConversationPlanningPromptService {
       )
       ..writeln('- Use repo-relative file paths when you can infer them.')
       ..writeln(
+        '- For implementation tasks, validationCommand must verify the target file or module directly. Avoid generic checks such as "module importable" or validation that only appends src to sys.path.',
+      )
+      ..writeln(
         compact
             ? '- Keep notes brief and keep the whole response under 260 tokens.'
             : '- validationCommand and notes may be empty strings.',

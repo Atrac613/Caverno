@@ -475,7 +475,77 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     expect(context, contains('Return at least two concrete tasks.'));
     expect(context, contains('Do not stop at a single generic setup'));
     expect(context, contains('The first task may scaffold the workspace'));
+    expect(
+      context,
+      contains(
+        'Do not use generic validation such as "module importable"',
+      ),
+    );
   });
+
+  test('marks weak implementation validation task proposals for retry', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_weak_validation_task_proposal_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final rawTasks = (fixture['tasks'] as List<dynamic>)
+        .map((entry) => entry as Map<String, dynamic>)
+        .map(ConversationWorkflowTask.fromJson)
+        .toList(growable: false);
+    final proposal = WorkflowTaskProposalDraft(tasks: rawTasks);
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
+  test(
+    'allows scaffold tasks with placeholder code files when follow-up validation is concrete',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-setup',
+            title: 'Initialize project structure and pyproject.toml',
+            targetFiles: [
+              'pyproject.toml',
+              'README.md',
+              'src/ping_cli/__init__.py',
+              'src/ping_cli/main.py',
+            ],
+            validationCommand: 'ls -R src',
+            notes: 'Create the basic scaffold files.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-core',
+            title: 'Implement core ping functionality using subprocess',
+            targetFiles: ['src/ping_cli/main.py'],
+            validationCommand: 'python3 -m src.ping_cli.main --help',
+            notes: 'Use argparse and subprocess.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isFalse,
+      );
+    },
+  );
 
   test('parses task proposal plain text sections', () {
     final proposal = notifier.parseTaskProposalForTest('''
