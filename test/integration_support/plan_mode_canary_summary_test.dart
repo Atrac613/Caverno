@@ -39,4 +39,48 @@ void main() {
     expect(summary.toMarkdown(), contains('Budget Phase'));
     expect(summary.runs.last.budgetPhase, 'execution');
   });
+
+  test('reads last heartbeat details from timeout reports', () {
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'overallTimeout',
+            'budgetPhase': 'overall',
+            'durationMs': 420000,
+            'error': 'Overall live run timed out after 420s.',
+            'diagnostics': <String, dynamic>{
+              'lastHeartbeat': <String, dynamic>{
+                'phase': 'execution',
+                'subphase': 'nextTask',
+                'updatedAt': '2026-04-19T03:00:00.000Z',
+                'activeTaskTitle': 'Multiple host ping from file works',
+                'phaseTimings': <String, dynamic>{
+                  'lastTaskProgressAt': '2026-04-19T02:59:50.000Z',
+                },
+                'budgets': <String, dynamic>{'overallTimeoutMs': 420000},
+              },
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.runs.single.lastKnownPhase, 'execution');
+    expect(
+      summary.runs.single.activeTaskTitle,
+      'Multiple host ping from file works',
+    );
+    expect(summary.runs.single.lastUpdatedAt, '2026-04-19T03:00:00.000Z');
+    expect(
+      summary.runs.single.phaseTimings['lastTaskProgressAt'],
+      '2026-04-19T02:59:50.000Z',
+    );
+    expect(
+      summary.toMarkdown(),
+      contains('Multiple host ping from file works'),
+    );
+  });
 }

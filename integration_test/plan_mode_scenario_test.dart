@@ -98,7 +98,10 @@ class _PlanModePhaseTrace {
   DateTime? approvalTappedAt;
   DateTime? firstTaskStartedAt;
   DateTime? firstTaskCompletedAt;
+  DateTime? nextTaskStartedAt;
+  DateTime? validationStartedAt;
   DateTime? lastTaskProgressAt;
+  String? firstTaskTitle;
 
   Map<String, String?> toJson() {
     return <String, String?>{
@@ -106,6 +109,8 @@ class _PlanModePhaseTrace {
       'approvalTappedAt': approvalTappedAt?.toIso8601String(),
       'firstTaskStartedAt': firstTaskStartedAt?.toIso8601String(),
       'firstTaskCompletedAt': firstTaskCompletedAt?.toIso8601String(),
+      'nextTaskStartedAt': nextTaskStartedAt?.toIso8601String(),
+      'validationStartedAt': validationStartedAt?.toIso8601String(),
       'lastTaskProgressAt': lastTaskProgressAt?.toIso8601String(),
     };
   }
@@ -193,6 +198,91 @@ Duration _resolveExecutionStallTimeout(PlanModeScenarioSpec scenario) {
 
 Duration? _resolveOverallRunTimeout() {
   return _envDurationFromSeconds('CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS');
+}
+
+String? _resolveLiveHeartbeatPath() {
+  final value = Platform.environment['CAVERNO_PLAN_MODE_HEARTBEAT_PATH']
+      ?.trim();
+  if (value == null || value.isEmpty) {
+    return null;
+  }
+  return value;
+}
+
+class _PlanModeLiveHeartbeatWriter {
+  _PlanModeLiveHeartbeatWriter({
+    required this.scenarioName,
+    required this.path,
+  });
+
+  final String scenarioName;
+  final String? path;
+
+  String? _lastPayload;
+
+  void write({
+    required String phase,
+    required String subphase,
+    required _PlanModePhaseTrace phaseTrace,
+    required _PlanModeTimeoutBudgets budgets,
+    String? activeTaskTitle,
+    String? workflowSnapshot,
+    int? toolResultCount,
+    int? fileWriteCount,
+    int? messageCount,
+    bool? hasPendingApprovals,
+    bool? isLoading,
+  }) {
+    final resolvedPath = path;
+    if (resolvedPath == null || resolvedPath.isEmpty) {
+      return;
+    }
+
+    final payload = <String, Object?>{
+      'scenario': scenarioName,
+      'updatedAt': DateTime.now().toIso8601String(),
+      'phase': phase,
+      'subphase': subphase,
+      'phaseTimings': phaseTrace.toJson(),
+      'budgets': budgets.toJson(),
+      'activeTaskTitle': activeTaskTitle,
+      'workflowSnapshot': workflowSnapshot,
+      'toolResultCount': toolResultCount,
+      'fileWriteCount': fileWriteCount,
+      'messageCount': messageCount,
+      'hasPendingApprovals': hasPendingApprovals,
+      'isLoading': isLoading,
+    };
+    final encoded = const JsonEncoder.withIndent('  ').convert(payload);
+    if (_lastPayload == encoded) {
+      return;
+    }
+    _lastPayload = encoded;
+
+    final file = File(resolvedPath);
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync('$encoded\n');
+  }
+}
+
+Map<String, Object?> _readLiveHeartbeatSnapshot() {
+  final path = _resolveLiveHeartbeatPath();
+  if (path == null || path.isEmpty) {
+    return const <String, Object?>{};
+  }
+  final file = File(path);
+  if (!file.existsSync()) {
+    return const <String, Object?>{};
+  }
+  final content = file.readAsStringSync().trim();
+  if (content.isEmpty) {
+    return const <String, Object?>{};
+  }
+  final decoded = jsonDecode(content);
+  if (decoded is Map<String, dynamic>) {
+    return Map<String, Object?>.from(decoded);
+  }
+  return const <String, Object?>{};
 }
 
 String _defaultPlanModeDeviceName() {
@@ -481,6 +571,8 @@ Future<void> _waitForReadyPlanProposal(
   ProviderContainer container, {
   required Duration timeout,
   required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required _PlanModeTimeoutBudgets budgets,
   required IntegrationTestWidgetsFlutterBinding binding,
   required _PlanModeScenarioTestConfig config,
   required PlanModeScenarioSpec scenario,
@@ -499,8 +591,40 @@ Future<void> _waitForReadyPlanProposal(
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
     final chatState = container.read(chatNotifierProvider);
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final workflowSnapshot = _summarizeWorkflowTasks(
+      conversation?.projectedExecutionTasks ??
+          const <ConversationWorkflowTask>[],
+    );
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: chatState.pendingWorkflowDecision != null
+          ? 'decision'
+          : 'proposal',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      workflowSnapshot: workflowSnapshot,
+      messageCount: conversation?.messages.length ?? 0,
+      hasPendingApprovals: chatState.pendingWorkflowDecision != null,
+      isLoading:
+          chatState.isLoading ||
+          chatState.isGeneratingWorkflowProposal ||
+          chatState.isGeneratingTaskProposal,
+    );
     if (isProposalReady(chatState)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalReady',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        workflowSnapshot: workflowSnapshot,
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: false,
+      );
       await _pumpUntilIdle(tester);
       return;
     }
@@ -536,6 +660,22 @@ Future<void> _waitForReadyPlanProposal(
   final chatState = container.read(chatNotifierProvider);
   if (isProposalReady(chatState)) {
     phaseTrace.proposalReadyAt ??= DateTime.now();
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalReady',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      workflowSnapshot: _summarizeWorkflowTasks(
+        conversation?.projectedExecutionTasks ??
+            const <ConversationWorkflowTask>[],
+      ),
+      messageCount: conversation?.messages.length ?? 0,
+      hasPendingApprovals: false,
+      isLoading: false,
+    );
     await _pumpUntilIdle(tester);
     return;
   }
@@ -560,6 +700,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
   required List<String> logs,
   required _PlanModePhaseTrace phaseTrace,
   required _PlanModeTimeoutBudgets budgets,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
 }) async {
   final deadline = DateTime.now().add(timeout);
   final watchdog = PlanModeExecutionWatchdog(stallTimeout: stallTimeout);
@@ -592,11 +733,21 @@ Future<void> _waitForWorkflowExecutionCompletion(
       (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
     )) {
       phaseTrace.firstTaskStartedAt ??= now;
+      phaseTrace.firstTaskTitle ??= _activeWorkflowTaskTitle(tasks);
     }
     if (tasks.any(
       (task) => task.status == ConversationWorkflowTaskStatus.completed,
     )) {
       phaseTrace.firstTaskCompletedAt ??= now;
+    }
+    final activeTaskTitle = _activeWorkflowTaskTitle(tasks);
+    if (phaseTrace.firstTaskTitle != null &&
+        activeTaskTitle != null &&
+        activeTaskTitle != phaseTrace.firstTaskTitle) {
+      phaseTrace.nextTaskStartedAt ??= now;
+    }
+    if (_countValidationLikeExecutions(logs) > 0) {
+      phaseTrace.validationStartedAt ??= now;
     }
 
     if (tasks.isNotEmpty &&
@@ -615,7 +766,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
 
     final workflowSnapshot = _summarizeWorkflowTasks(tasks);
     final heartbeat = PlanModeExecutionHeartbeat(
-      activeTaskTitle: _activeWorkflowTaskTitle(tasks),
+      activeTaskTitle: activeTaskTitle,
       workflowSnapshot: workflowSnapshot,
       toolResultCount: _countContentToolResults(logs),
       fileWriteCount: _countFileWriteExecutions(logs),
@@ -626,6 +777,19 @@ Future<void> _waitForWorkflowExecutionCompletion(
       lastHeartbeatKey = heartbeat.progressKey;
       phaseTrace.lastTaskProgressAt = now;
     }
+    heartbeatWriter.write(
+      phase: 'execution',
+      subphase: _resolveExecutionSubphase(phaseTrace, activeTaskTitle),
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      activeTaskTitle: heartbeat.activeTaskTitle,
+      workflowSnapshot: heartbeat.workflowSnapshot,
+      toolResultCount: heartbeat.toolResultCount,
+      fileWriteCount: heartbeat.fileWriteCount,
+      messageCount: conversation?.messages.length ?? 0,
+      hasPendingApprovals: heartbeat.hasPendingApprovals,
+      isLoading: heartbeat.isLoading,
+    );
     final stalledSample = watchdog.recordHeartbeat(heartbeat, now);
     if (stalledSample != null && tasks.isNotEmpty && hasPendingWork) {
       final diagnostics = buildPlanModeFailureDiagnostics(
@@ -708,6 +872,34 @@ int _countFileWriteExecutions(List<String> logs) {
         (line) => writeToolPatterns.any((pattern) => line.contains(pattern)),
       )
       .length;
+}
+
+int _countValidationLikeExecutions(List<String> logs) {
+  const validationPatterns = <String>[
+    '[McpToolService] Executing tool: run_tests',
+    '[McpToolService] Executing tool: local_execute_command',
+  ];
+  return logs
+      .where(
+        (line) => validationPatterns.any((pattern) => line.contains(pattern)),
+      )
+      .length;
+}
+
+String _resolveExecutionSubphase(
+  _PlanModePhaseTrace phaseTrace,
+  String? activeTaskTitle,
+) {
+  if (phaseTrace.validationStartedAt != null) {
+    return 'validation';
+  }
+  if (phaseTrace.nextTaskStartedAt != null) {
+    return 'nextTask';
+  }
+  if (phaseTrace.firstTaskStartedAt != null) {
+    return activeTaskTitle == null ? 'execution' : 'savedTask';
+  }
+  return 'execution';
 }
 
 String _summarizeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
@@ -937,11 +1129,15 @@ Future<void> _writeFailureScenarioArtifacts({
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
   await logFile.writeAsString('${logs.join('\n')}\n');
+  final lastHeartbeat = _readLiveHeartbeatSnapshot();
   final diagnostics = buildPlanModeFailureDiagnostics(
     logs: logs,
     errorText: error.toString(),
     phaseTimings: phaseTrace.toJson(),
     budgets: budgets.toJson(),
+    activeTaskTitle: lastHeartbeat['activeTaskTitle'] as String?,
+    toolResultCount: lastHeartbeat['toolResultCount'] as int?,
+    fileWriteCount: lastHeartbeat['fileWriteCount'] as int?,
   );
 
   final report = <String, Object?>{
@@ -957,6 +1153,7 @@ Future<void> _writeFailureScenarioArtifacts({
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
     'phaseTimings': phaseTrace.toJson(),
     'budgets': budgets.toJson(),
+    'lastHeartbeat': lastHeartbeat,
     'diagnostics': diagnostics.toJson(),
     'capturedLogs': filteredLogs,
   };
@@ -1241,6 +1438,10 @@ Future<_ScenarioRunResult> _runScenario({
   required _PlanModePhaseTrace phaseTrace,
   required _PlanModeTimeoutBudgets budgets,
 }) async {
+  final heartbeatWriter = _PlanModeLiveHeartbeatWriter(
+    scenarioName: scenario.name,
+    path: _resolveLiveHeartbeatPath(),
+  );
   final project = CodingProject(
     id: 'project-${scenario.name}',
     name: scenario.projectName,
@@ -1309,6 +1510,12 @@ Future<_ScenarioRunResult> _runScenario({
   await tester.tap(find.byIcon(Icons.send));
   await tester.pump();
   await _pumpUntilIdle(tester);
+  heartbeatWriter.write(
+    phase: 'planning',
+    subphase: 'promptSubmitted',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+  );
 
   await _resolvePlanningDecisions(
     tester,
@@ -1324,6 +1531,8 @@ Future<_ScenarioRunResult> _runScenario({
     container,
     timeout: budgets.planningTimeout,
     phaseTrace: phaseTrace,
+    heartbeatWriter: heartbeatWriter,
+    budgets: budgets,
     binding: binding,
     config: config,
     scenario: scenario,
@@ -1350,6 +1559,12 @@ Future<_ScenarioRunResult> _runScenario({
   await tester.ensureVisible(approveAction);
   await tester.tap(approveAction, warnIfMissed: false);
   phaseTrace.approvalTappedAt = DateTime.now();
+  heartbeatWriter.write(
+    phase: 'execution',
+    subphase: 'approved',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+  );
   await tester.pump();
   await _pumpUntilIdle(tester);
 
@@ -1362,6 +1577,7 @@ Future<_ScenarioRunResult> _runScenario({
       logs: logs,
       phaseTrace: phaseTrace,
       budgets: budgets,
+      heartbeatWriter: heartbeatWriter,
     );
   }
 
@@ -1492,6 +1708,7 @@ Future<_ScenarioRunResult> _runScenario({
         )
         .toList(growable: false),
   };
+  report['lastHeartbeat'] = _readLiveHeartbeatSnapshot();
   report['diagnostics'] = buildPlanModeFailureDiagnostics(
     logs: logs,
     lastWorkflowSnapshot: _summarizeWorkflowTasks(
@@ -1515,6 +1732,23 @@ Future<_ScenarioRunResult> _runScenario({
     const JsonEncoder.withIndent('  ').convert(report),
   );
   appLog('[Scenario] Report written to ${reportFile.path}');
+  heartbeatWriter.write(
+    phase: 'completed',
+    subphase: 'workflowCompleted',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    activeTaskTitle: _activeWorkflowTaskTitle(
+      conversation.projectedExecutionTasks,
+    ),
+    workflowSnapshot: _summarizeWorkflowTasks(
+      conversation.projectedExecutionTasks,
+    ),
+    toolResultCount: _countContentToolResults(logs),
+    fileWriteCount: _countFileWriteExecutions(logs),
+    messageCount: conversation.messages.length,
+    hasPendingApprovals: false,
+    isLoading: false,
+  );
   return _ScenarioRunResult(
     outputDirectoryPath: scenarioDir.path,
     reportPath: reportFile.path,
@@ -1729,12 +1963,16 @@ void main() {
           List<dynamic> archivedAllowedWarnings = const <dynamic>[];
           Map<String, dynamic> archivedReport = const <String, dynamic>{};
           Map<String, dynamic> archivedDiagnostics = const <String, dynamic>{};
+          Map<String, dynamic> archivedHeartbeat = const <String, dynamic>{};
           if (archivedReportPath.existsSync()) {
             archivedReport =
                 jsonDecode(archivedReportPath.readAsStringSync())
                     as Map<String, dynamic>;
             archivedDiagnostics =
                 archivedReport['diagnostics'] as Map<String, dynamic>? ??
+                const <String, dynamic>{};
+            archivedHeartbeat =
+                archivedReport['lastHeartbeat'] as Map<String, dynamic>? ??
                 const <String, dynamic>{};
             archivedWarnings =
                 archivedReport['unexpectedWarnings'] as List<dynamic>? ??
@@ -1769,6 +2007,10 @@ void main() {
             'budgetPhase': archivedReportPath.existsSync()
                 ? archivedDiagnostics['budgetPhase'] as String?
                 : null,
+            'lastKnownPhase': archivedHeartbeat['phase'] as String?,
+            'activeTaskTitle': archivedHeartbeat['activeTaskTitle'] as String?,
+            'lastUpdatedAt': archivedHeartbeat['updatedAt'] as String?,
+            'lastHeartbeat': archivedHeartbeat,
             'phaseTimings': archivedReport['phaseTimings'],
             'budgets': archivedReport['budgets'],
             'warnings': archivedWarnings,

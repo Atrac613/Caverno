@@ -8,6 +8,9 @@ class PlanModeCanaryRunSummary {
     required this.durationMs,
     this.error,
     this.budgetPhase,
+    this.lastKnownPhase,
+    this.activeTaskTitle,
+    this.lastUpdatedAt,
     this.phaseTimings = const <String, Object?>{},
     this.budgets = const <String, Object?>{},
     this.reportPath,
@@ -20,6 +23,9 @@ class PlanModeCanaryRunSummary {
   final int durationMs;
   final String? error;
   final String? budgetPhase;
+  final String? lastKnownPhase;
+  final String? activeTaskTitle;
+  final String? lastUpdatedAt;
   final Map<String, Object?> phaseTimings;
   final Map<String, Object?> budgets;
   final String? reportPath;
@@ -33,6 +39,9 @@ class PlanModeCanaryRunSummary {
       'durationMs': durationMs,
       'error': error,
       'budgetPhase': budgetPhase,
+      'lastKnownPhase': lastKnownPhase,
+      'activeTaskTitle': activeTaskTitle,
+      'lastUpdatedAt': lastUpdatedAt,
       'phaseTimings': phaseTimings,
       'budgets': budgets,
       'reportPath': reportPath,
@@ -79,13 +88,13 @@ class PlanModeCanarySummary {
       ..writeln('- Pass rate: ${(passRate * 100).toStringAsFixed(1)}%')
       ..writeln()
       ..writeln(
-        '| Run | Status | Failure Class | Budget Phase | Duration (ms) | Error |',
+        '| Run | Status | Failure Class | Budget Phase | Last Known Phase | Active Task | Duration (ms) | Error |',
       )
-      ..writeln('| --- | --- | --- | --- | ---: | --- |');
+      ..writeln('| --- | --- | --- | --- | --- | --- | ---: | --- |');
 
     for (final run in runs) {
       buffer.writeln(
-        '| ${run.name} | ${run.status} | ${run.failureClass} | ${run.budgetPhase ?? '-'} | ${run.durationMs} | ${run.error ?? '-'} |',
+        '| ${run.name} | ${run.status} | ${run.failureClass} | ${run.budgetPhase ?? '-'} | ${run.lastKnownPhase ?? '-'} | ${run.activeTaskTitle ?? '-'} | ${run.durationMs} | ${run.error ?? '-'} |',
       );
     }
 
@@ -117,6 +126,12 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
       final diagnostics =
           scenario['diagnostics'] as Map<String, dynamic>? ??
           const <String, dynamic>{};
+      final scenarioHeartbeat =
+          scenario['lastHeartbeat'] as Map<String, dynamic>? ??
+          const <String, dynamic>{};
+      final lastHeartbeat =
+          diagnostics['lastHeartbeat'] as Map<String, dynamic>? ??
+          scenarioHeartbeat;
       final failureClass =
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
@@ -136,12 +151,24 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           budgetPhase:
               scenario['budgetPhase'] as String? ??
               diagnostics['budgetPhase'] as String?,
+          lastKnownPhase:
+              scenario['lastKnownPhase'] as String? ??
+              lastHeartbeat['phase'] as String?,
+          activeTaskTitle:
+              scenario['activeTaskTitle'] as String? ??
+              lastHeartbeat['activeTaskTitle'] as String? ??
+              diagnostics['activeTaskTitle'] as String?,
+          lastUpdatedAt:
+              scenario['lastUpdatedAt'] as String? ??
+              lastHeartbeat['updatedAt'] as String?,
           phaseTimings: Map<String, Object?>.from(
             scenario['phaseTimings'] as Map<String, dynamic>? ??
+                lastHeartbeat['phaseTimings'] as Map<String, dynamic>? ??
                 const <String, dynamic>{},
           ),
           budgets: Map<String, Object?>.from(
             scenario['budgets'] as Map<String, dynamic>? ??
+                lastHeartbeat['budgets'] as Map<String, dynamic>? ??
                 diagnostics['budgets'] as Map<String, dynamic>? ??
                 const <String, dynamic>{},
           ),

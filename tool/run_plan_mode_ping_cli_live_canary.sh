@@ -27,6 +27,13 @@ cleanup_live_plan_mode_processes() {
 
 write_timeout_suite_report() {
   local output_path="$1"
+  local heartbeat_path="$2"
+  local heartbeat_json='{}'
+
+  if [[ -f "${heartbeat_path}" ]]; then
+    heartbeat_json="$(cat "${heartbeat_path}")"
+  fi
+
   cat > "${output_path}" <<EOF
 {
   "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
@@ -53,6 +60,7 @@ write_timeout_suite_report() {
       "diagnostics": {
         "failureClass": "overallTimeout",
         "budgetPhase": "overall",
+        "lastHeartbeat": ${heartbeat_json},
         "budgets": {
           "planningTimeoutMs": $((PLANNING_TIMEOUT_SECONDS * 1000)),
           "executionTimeoutMs": $((EXECUTION_TIMEOUT_SECONDS * 1000)),
@@ -69,13 +77,16 @@ EOF
 
 run_live_canary_iteration() {
   local prompt="$1"
+  local heartbeat_path="$2"
   local run_pid
   local elapsed=0
 
+  rm -f "${heartbeat_path}"
   CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS="${PLANNING_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS="${EXECUTION_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS="${EXECUTION_STALL_TIMEOUT_SECONDS}" \
   CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS}" \
+  CAVERNO_PLAN_MODE_HEARTBEAT_PATH="${heartbeat_path}" \
   "${ROOT_DIR}/tool/run_plan_mode_ping_cli_live_test.sh" "${prompt}" &
   run_pid=$!
 
@@ -99,12 +110,13 @@ trap cleanup_live_plan_mode_processes EXIT
 overall_exit=0
 for run_index in $(seq 1 "${RUN_COUNT}"); do
   run_label="$(printf 'run_%02d' "${run_index}")"
+  heartbeat_path="${CANARY_DIR}/${run_label}_heartbeat.json"
   echo "Running ${run_label}/${RUN_COUNT}"
   cleanup_live_plan_mode_processes
   rm -f "${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
 
   set +e
-  run_live_canary_iteration "${PROMPT}"
+  run_live_canary_iteration "${PROMPT}" "${heartbeat_path}"
   run_exit=$?
   set -e
 
@@ -114,7 +126,7 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
 
   report_path="${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
   if [[ ${run_exit} -eq 124 ]]; then
-    write_timeout_suite_report "${CANARY_DIR}/${run_label}_suite_report.json"
+    write_timeout_suite_report "${CANARY_DIR}/${run_label}_suite_report.json" "${heartbeat_path}"
   elif [[ -f "${report_path}" ]]; then
     cp "${report_path}" "${CANARY_DIR}/${run_label}_suite_report.json"
   fi
