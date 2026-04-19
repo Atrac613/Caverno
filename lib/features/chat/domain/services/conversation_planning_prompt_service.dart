@@ -213,6 +213,12 @@ class ConversationPlanningPromptService {
       ..writeln(
         '- If the workspace is empty or nearly empty, put scaffolding or initial file creation before feature tasks.',
       )
+      ..writeln(
+        '- If the workspace is empty or nearly empty, include at least one concrete implementation or validation follow-up task after scaffolding.',
+      )
+      ..writeln(
+        '- Do not stop at a single generic setup task such as "Initialize project structure" when the user asked for a feature to be built.',
+      )
       ..writeln('- Use repo-relative file paths when you can infer them.')
       ..writeln(
         compact

@@ -1858,14 +1858,24 @@ Retry hint:
     ConversationWorkflowSpec? workflowSpecOverride,
     String? additionalPlanningContext,
   }) async {
-    final attempts = <({bool compact, int maxTokens})>[
+    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(
+      researchContext,
+    );
+    final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
       (
         compact: false,
         maxTokens: _settings.maxTokens > 1800 ? 1800 : _settings.maxTokens,
+        minimalRetry: false,
       ),
       (
         compact: true,
-        maxTokens: _settings.maxTokens > 2400 ? 2400 : _settings.maxTokens,
+        maxTokens: _settings.maxTokens > 1200 ? 1200 : _settings.maxTokens,
+        minimalRetry: true,
+      ),
+      (
+        compact: true,
+        maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
+        minimalRetry: true,
       ),
     ];
 
@@ -1879,7 +1889,11 @@ Retry hint:
           researchContext: researchContext,
           workflowStageOverride: workflowStageOverride,
           workflowSpecOverride: workflowSpecOverride,
-          additionalPlanningContext: additionalPlanningContext,
+          additionalPlanningContext: _buildTaskProposalRetryContext(
+            additionalPlanningContext,
+            minimalRetry: attempt.minimalRetry,
+            projectLooksEmpty: projectLooksEmpty,
+          ),
           compact: attempt.compact,
         ),
         model: _settings.model,
@@ -1893,7 +1907,11 @@ Retry hint:
           proposal,
           researchContext: researchContext,
         );
-        if (_taskProposalNeedsRetry(proposal, finalizedProposal)) {
+        if (_taskProposalNeedsRetry(
+          proposal,
+          finalizedProposal,
+          projectLooksEmpty,
+        )) {
           final preview = finalizedProposal.tasks
               .map((task) => task.title)
               .join(' | ');
@@ -1923,6 +1941,42 @@ Retry hint:
     }
 
     throw FormatException(lastError ?? 'task proposal parse failed');
+  }
+
+  String? _buildTaskProposalRetryContext(
+    String? additionalPlanningContext, {
+    required bool minimalRetry,
+    required bool projectLooksEmpty,
+  }) {
+    final normalizedContext = additionalPlanningContext?.trim();
+    if (!minimalRetry) {
+      return normalizedContext;
+    }
+
+    final retryHint = StringBuffer()
+      ..writeln('Retry hint:')
+      ..writeln('- Return the smallest valid JSON task list possible.')
+      ..writeln('- Return at least two concrete tasks.')
+      ..writeln(
+        '- Every task must describe an action the agent can perform immediately.',
+      )
+      ..writeln('- Do not stop at a single generic setup or scaffold task.')
+      ..writeln(
+        '- Do not restate the user request, repo summary, or research context.',
+      );
+    if (projectLooksEmpty) {
+      retryHint
+        ..writeln(
+          '- The first task may scaffold the workspace, but a later task must implement or validate the requested feature.',
+        )
+        ..writeln('- Include a concrete code task after any scaffold task.');
+    }
+
+    final retryContext = retryHint.toString().trim();
+    if (normalizedContext == null || normalizedContext.isEmpty) {
+      return retryContext;
+    }
+    return '$normalizedContext\n$retryContext'.trim();
   }
 
   String _buildWorkflowProposalRequest({
@@ -2078,8 +2132,16 @@ Retry hint:
 
   WorkflowTaskProposalDraft? _parseTaskProposalWithFallback(String rawContent) {
     final direct = _parseTaskProposal(rawContent);
+    final looseJson = _parseTaskProposalFromLooseJson(rawContent);
     if (direct != null) {
+      if (looseJson != null && looseJson.tasks.length > direct.tasks.length) {
+        return looseJson;
+      }
       return direct;
+    }
+
+    if (looseJson != null) {
+      return looseJson;
     }
 
     final reasoningContent = _extractProposalReasoningContent(rawContent);
@@ -2452,6 +2514,72 @@ Retry hint:
 
     final sanitizedTasks = _sanitizeTaskProposalTasks(tasks);
     if (sanitizedTasks.isEmpty) return null;
+    return WorkflowTaskProposalDraft(tasks: sanitizedTasks);
+  }
+
+  WorkflowTaskProposalDraft? _parseTaskProposalFromLooseJson(
+    String rawContent,
+  ) {
+    final titlePattern = RegExp(
+      r'''["']?(?:title|task|taskTitle|タスク名)["']?\s*:\s*(?:"([^"]+)"|'([^']+)')''',
+      caseSensitive: false,
+      dotAll: true,
+    );
+    final titleMatches = titlePattern
+        .allMatches(rawContent)
+        .toList(growable: false);
+    if (titleMatches.isEmpty) {
+      return null;
+    }
+
+    final tasks = <ConversationWorkflowTask>[];
+    for (
+      var index = 0;
+      index < titleMatches.length && tasks.length < 6;
+      index++
+    ) {
+      final match = titleMatches[index];
+      final rawTitle = (match.group(1) ?? match.group(2) ?? '').trim();
+      if (rawTitle.isEmpty) {
+        continue;
+      }
+
+      final fragmentStart = rawContent.lastIndexOf('{', match.start);
+      final safeStart = fragmentStart >= 0 ? fragmentStart : match.start;
+      final safeEnd = index + 1 < titleMatches.length
+          ? titleMatches[index + 1].start
+          : rawContent.length;
+      final fragment = rawContent.substring(safeStart, safeEnd).trim();
+
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: rawTitle,
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: _extractLooseJsonStringList(
+            fragment,
+            keys: const ['targetFiles', 'files', '対象ファイル'],
+          ),
+          validationCommand:
+              _extractLooseJsonScalar(
+                fragment,
+                keys: const ['validationCommand', 'validation', '確認コマンド'],
+              ) ??
+              '',
+          notes:
+              _extractLooseJsonScalar(
+                fragment,
+                keys: const ['notes', 'memo', 'メモ'],
+              ) ??
+              '',
+        ),
+      );
+    }
+
+    final sanitizedTasks = _sanitizeTaskProposalTasks(tasks);
+    if (sanitizedTasks.isEmpty) {
+      return null;
+    }
     return WorkflowTaskProposalDraft(tasks: sanitizedTasks);
   }
 
@@ -3404,6 +3532,7 @@ Retry hint:
   bool _taskProposalNeedsRetry(
     WorkflowTaskProposalDraft original,
     WorkflowTaskProposalDraft finalized,
+    bool projectLooksEmpty,
   ) {
     if (finalized.tasks.isEmpty) {
       return true;
@@ -3414,7 +3543,81 @@ Retry hint:
       return true;
     }
 
+    if (projectLooksEmpty && finalized.tasks.length < 2) {
+      return true;
+    }
+
+    if (projectLooksEmpty &&
+        !_taskProposalHasImplementationFollowUp(finalized.tasks)) {
+      return true;
+    }
+
+    if (finalized.tasks.length == 1 &&
+        _looksLikeGenericScaffoldOnlyTask(finalized.tasks.first)) {
+      return true;
+    }
+
     return false;
+  }
+
+  bool _taskProposalHasImplementationFollowUp(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    return tasks.any((task) => !_looksLikeGenericScaffoldOnlyTask(task));
+  }
+
+  bool _looksLikeGenericScaffoldOnlyTask(ConversationWorkflowTask task) {
+    if (!_looksLikeScaffoldTask(task)) {
+      return false;
+    }
+
+    final normalizedTitle = task.title.trim().toLowerCase();
+    const genericSignals = <String>[
+      'initialize project structure',
+      'initialize project scaffolding',
+      'initialize the project structure',
+      'initialize the project scaffolding',
+      'set up project structure',
+      'setup project structure',
+      'create initial project structure',
+      'create project scaffolding',
+      'project structure',
+      'project scaffolding',
+    ];
+    if (genericSignals.contains(normalizedTitle)) {
+      return true;
+    }
+
+    return !task.targetFiles.any(_looksLikeImplementationTargetFile);
+  }
+
+  bool _looksLikeImplementationTargetFile(String path) {
+    final normalizedPath = path.trim().toLowerCase();
+    if (normalizedPath.isEmpty) {
+      return false;
+    }
+
+    if (normalizedPath == 'readme.md' ||
+        normalizedPath == '.gitignore' ||
+        normalizedPath == 'requirements.txt' ||
+        normalizedPath == 'pyproject.toml') {
+      return false;
+    }
+
+    if (normalizedPath.endsWith('/__init__.py')) {
+      return false;
+    }
+
+    return normalizedPath.endsWith('.py') ||
+        normalizedPath.endsWith('.dart') ||
+        normalizedPath.endsWith('.ts') ||
+        normalizedPath.endsWith('.tsx') ||
+        normalizedPath.endsWith('.js') ||
+        normalizedPath.endsWith('.jsx') ||
+        normalizedPath.endsWith('.rs') ||
+        normalizedPath.endsWith('.go') ||
+        normalizedPath.endsWith('.java') ||
+        normalizedPath.endsWith('.kt');
   }
 
   bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {
@@ -3633,6 +3836,28 @@ Retry hint:
         _sanitizeTaskProposalTasks(proposal.tasks),
         projectLooksEmpty: projectLooksEmpty,
       ),
+    );
+  }
+
+  @visibleForTesting
+  bool taskProposalNeedsRetryForTest(
+    WorkflowTaskProposalDraft original,
+    WorkflowTaskProposalDraft finalized,
+    bool projectLooksEmpty,
+  ) {
+    return _taskProposalNeedsRetry(original, finalized, projectLooksEmpty);
+  }
+
+  @visibleForTesting
+  String? buildTaskProposalRetryContextForTest(
+    String? additionalPlanningContext, {
+    required bool minimalRetry,
+    required bool projectLooksEmpty,
+  }) {
+    return _buildTaskProposalRetryContext(
+      additionalPlanningContext,
+      minimalRetry: minimalRetry,
+      projectLooksEmpty: projectLooksEmpty,
     );
   }
 
