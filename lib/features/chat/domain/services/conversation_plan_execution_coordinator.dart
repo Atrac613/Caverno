@@ -206,6 +206,58 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildValidationFirstRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    List<String> touchedTargetFiles = const [],
+    List<String> remainingTargetFiles = const [],
+    required bool preferValidationNow,
+  }) {
+    final promptLines = <String>[
+      'The saved task already made concrete file progress.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+    ];
+
+    if (touchedTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'Already updated target files: ${touchedTargetFiles.join(', ')}',
+      );
+    }
+    if (remainingTargetFiles.isNotEmpty) {
+      promptLines.add(
+        'Remaining target files: ${remainingTargetFiles.join(', ')}',
+      );
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Saved validation command: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Saved task notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    if (preferValidationNow) {
+      promptLines.add(
+        'Run the saved validation command now instead of restating the implementation plan.',
+      );
+      promptLines.add(
+        'Only return to file edits if the saved validation command fails and the failure points to a target file.',
+      );
+    } else {
+      promptLines.add(
+        'Finish one remaining target file now, or run the saved validation command immediately if the remaining files are already satisfied.',
+      );
+    }
+    promptLines.add(
+      'Do not describe future tasks, and do not repeat the task plan without a tool call or validation result.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildTaskDriftRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> unrelatedTouchedPaths,

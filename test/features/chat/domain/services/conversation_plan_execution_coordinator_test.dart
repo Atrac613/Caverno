@@ -229,6 +229,44 @@ void main() {
     },
   );
 
+  test('buildValidationFirstRecoveryPrompt prioritizes saved validation', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-validation-first',
+      title: 'Implement the multi-host CLI flow',
+      targetFiles: ['ping_cli.py', 'hosts.txt'],
+      validationCommand: 'python3 ping_cli.py google.com hosts.txt',
+      notes: 'Prefer the saved command over extra planning text.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildValidationFirstRecoveryPrompt(
+          task: task,
+          touchedTargetFiles: const ['ping_cli.py'],
+          remainingTargetFiles: const ['hosts.txt'],
+          preferValidationNow: true,
+        );
+
+    expect(
+      prompt,
+      contains('The saved task already made concrete file progress.'),
+    );
+    expect(prompt, contains('Saved task ID: task-validation-first'));
+    expect(prompt, contains('Already updated target files: ping_cli.py'));
+    expect(prompt, contains('Remaining target files: hosts.txt'));
+    expect(
+      prompt,
+      contains(
+        'Run the saved validation command now instead of restating the implementation plan.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Only return to file edits if the saved validation command fails and the failure points to a target file.',
+      ),
+    );
+  });
+
   test('buildToolFailureRecoveryPrompt bounds unknown tools and edit mismatch', () {
     const task = ConversationWorkflowTask(
       id: 'task-2',
