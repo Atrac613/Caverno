@@ -704,7 +704,11 @@ Future<void> _waitForWorkflowExecutionCompletion(
 }) async {
   final deadline = DateTime.now().add(timeout);
   final watchdog = PlanModeExecutionWatchdog(stallTimeout: stallTimeout);
+  final blockedTimeout = stallTimeout < const Duration(seconds: 15)
+      ? stallTimeout
+      : const Duration(seconds: 15);
   String? lastHeartbeatKey;
+  DateTime? blockedSince;
   while (DateTime.now().isBefore(deadline)) {
     final now = DateTime.now();
     final chatState = container.read(chatNotifierProvider);
@@ -728,10 +732,11 @@ Future<void> _waitForWorkflowExecutionCompletion(
         chatState.pendingFileOperation != null ||
         chatState.pendingBleConnect != null ||
         chatState.pendingWorkflowDecision != null;
-
-    if (tasks.any(
+    final hasInProgressTask = tasks.any(
       (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
-    )) {
+    );
+
+    if (hasInProgressTask) {
       phaseTrace.firstTaskStartedAt ??= now;
       phaseTrace.firstTaskTitle ??= _activeWorkflowTaskTitle(tasks);
     }
@@ -748,6 +753,41 @@ Future<void> _waitForWorkflowExecutionCompletion(
     }
     if (_countValidationLikeExecutions(logs) > 0) {
       phaseTrace.validationStartedAt ??= now;
+    }
+
+    if (hasBlockedTasks &&
+        !hasInProgressTask &&
+        !chatState.isLoading &&
+        !hasPendingApprovals) {
+      blockedSince ??= now;
+      final blockedFor = now.difference(blockedSince);
+      if (blockedFor >= blockedTimeout) {
+        final workflowSnapshot = _summarizeWorkflowTasks(tasks);
+        final diagnostics = buildPlanModeFailureDiagnostics(
+          logs: logs,
+          errorText:
+              'Workflow execution remained blocked. tasks=$workflowSnapshot',
+          lastWorkflowSnapshot: workflowSnapshot,
+          budgetPhase: 'execution',
+          activeTaskTitle: _activeWorkflowTaskTitle(tasks),
+          toolResultCount: _countContentToolResults(logs),
+          fileWriteCount: _countFileWriteExecutions(logs),
+          phaseTimings: phaseTrace.toJson(),
+          budgets: budgets.toJson(),
+        );
+        throw StateError(
+          'Workflow execution remained blocked after '
+          '${blockedFor.inSeconds}s. '
+          'activeTask=${diagnostics.activeTaskTitle ?? 'none'} '
+          'toolResults=${diagnostics.toolResultCount ?? 0} '
+          'fileWrites=${diagnostics.fileWriteCount ?? 0} '
+          'tasks=$workflowSnapshot '
+          'lastTool=${diagnostics.lastToolName ?? 'none'} '
+          'lastAssistant=${diagnostics.lastAssistantSummary ?? 'none'}',
+        );
+      }
+    } else {
+      blockedSince = null;
     }
 
     if (tasks.isNotEmpty &&

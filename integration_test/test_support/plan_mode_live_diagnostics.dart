@@ -152,6 +152,9 @@ PlanModeFailureClass _classifyFailure({
   if (normalizedError.contains('workflow execution stalled')) {
     return PlanModeFailureClass.executionStall;
   }
+  if (normalizedError.contains('workflow execution remained blocked')) {
+    return PlanModeFailureClass.workflowBlocked;
+  }
   if (normalizedError.contains('connection closed before full header')) {
     return PlanModeFailureClass.streamDisconnect;
   }

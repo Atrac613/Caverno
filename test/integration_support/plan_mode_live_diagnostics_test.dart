@@ -70,6 +70,19 @@ void main() {
       expect(diagnostics.budgetPhase, 'planning');
     });
 
+    test('classifies blocked executions from explicit errors', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[LLM] <think>The current saved task is blocked until the file list is corrected.</think>',
+        ],
+        errorText:
+            'Workflow execution remained blocked after 15s. tasks=Scaffold task:blocked',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.workflowBlocked);
+      expect(diagnostics.lastWorkflowSnapshot, 'Scaffold task:blocked');
+    });
+
     test('returns passed when no error is present', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>['[LLM] <think>All tasks are complete.</think>'],
