@@ -2,16 +2,19 @@ import 'dart:convert';
 
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/voice_providers.dart';
+import '../../../../core/services/tts_service.dart';
 import '../../../../core/utils/content_parser.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../../settings/presentation/pages/chat_settings_page.dart';
 import '../../domain/entities/message.dart';
 import 'parsed_content_view.dart';
 
-class MessageBubble extends ConsumerWidget {
+class MessageBubble extends ConsumerStatefulWidget {
   const MessageBubble({
     super.key,
     required this.message,
@@ -20,6 +23,15 @@ class MessageBubble extends ConsumerWidget {
 
   final Message message;
   final VoidCallback? onReselectProject;
+
+  @override
+  ConsumerState<MessageBubble> createState() => _MessageBubbleState();
+}
+
+class _MessageBubbleState extends ConsumerState<MessageBubble> {
+  bool _isHovering = false;
+  bool _copied = false;
+  int _copyFeedbackToken = 0;
 
   /// Extracts text for TTS playback by removing tags such as `<think>`.
   String _extractReadableText(String content) {
@@ -62,8 +74,34 @@ class MessageBubble extends ConsumerWidget {
     return null;
   }
 
+  String _formatTimestamp(BuildContext context) {
+    final locale = context.locale.toLanguageTag();
+    return DateFormat.jm(locale).format(widget.message.timestamp.toLocal());
+  }
+
+  Future<void> _copyMessageContent() async {
+    final content = widget.message.content.trim();
+    if (content.isEmpty) {
+      return;
+    }
+
+    await Clipboard.setData(ClipboardData(text: widget.message.content));
+    if (!mounted) {
+      return;
+    }
+
+    final token = ++_copyFeedbackToken;
+    setState(() => _copied = true);
+    await Future<void>.delayed(const Duration(milliseconds: 1200));
+    if (!mounted || token != _copyFeedbackToken) {
+      return;
+    }
+    setState(() => _copied = false);
+  }
+
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
+    final message = widget.message;
     final isUser = message.role == MessageRole.user;
     final theme = Theme.of(context);
     final settings = ref.watch(settingsNotifierProvider);
@@ -71,193 +109,245 @@ class MessageBubble extends ConsumerWidget {
     final projectAccessIssue = !isUser
         ? _extractProjectAccessIssue(message.content)
         : null;
-
-    return Align(
-      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        constraints: BoxConstraints(
-          maxWidth: MediaQuery.of(context).size.width * 0.8,
+    final bubble = Container(
+      constraints: BoxConstraints(
+        maxWidth: MediaQuery.of(context).size.width * 0.8,
+      ),
+      margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
+      padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+      decoration: BoxDecoration(
+        color: isUser
+            ? theme.colorScheme.primary
+            : theme.colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(16).copyWith(
+          bottomRight: isUser ? const Radius.circular(4) : null,
+          bottomLeft: !isUser ? const Radius.circular(4) : null,
         ),
-        margin: const EdgeInsets.symmetric(vertical: 4, horizontal: 8),
-        padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
-        decoration: BoxDecoration(
-          color: isUser
-              ? theme.colorScheme.primary
-              : theme.colorScheme.surfaceContainerHighest,
-          borderRadius: BorderRadius.circular(16).copyWith(
-            bottomRight: isUser ? const Radius.circular(4) : null,
-            bottomLeft: !isUser ? const Radius.circular(4) : null,
-          ),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            if (message.error != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 4),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          size: 16,
-                          color: theme.colorScheme.error,
-                        ),
-                        const SizedBox(width: 4),
-                        Text(
-                          'message.error'.tr(),
-                          style: TextStyle(
-                            color: theme.colorScheme.error,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 2),
-                    SelectableText(
-                      message.error!,
-                      style: TextStyle(
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          if (message.error != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 4),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Icon(
+                        Icons.error_outline,
+                        size: 16,
                         color: theme.colorScheme.error,
-                        fontSize: 12,
-                        height: 1.3,
                       ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'message.error'.tr(),
+                        style: TextStyle(
+                          color: theme.colorScheme.error,
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 2),
+                  SelectableText(
+                    message.error!,
+                    style: TextStyle(
+                      color: theme.colorScheme.error,
+                      fontSize: 12,
+                      height: 1.3,
                     ),
-                  ],
+                  ),
+                ],
+              ),
+            ),
+          if (message.imageBase64 != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: 8),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Image.memory(
+                  base64Decode(message.imageBase64!),
+                  fit: BoxFit.cover,
+                  width: 200,
+                  errorBuilder: (context, error, stackTrace) {
+                    return Container(
+                      width: 200,
+                      height: 100,
+                      color: theme.colorScheme.errorContainer,
+                      child: Center(
+                        child: Icon(
+                          Icons.broken_image,
+                          color: theme.colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
-            // Image preview
-            if (message.imageBase64 != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(8),
-                  child: Image.memory(
-                    base64Decode(message.imageBase64!),
-                    fit: BoxFit.cover,
-                    width: 200,
-                    errorBuilder: (context, error, stackTrace) {
-                      return Container(
-                        width: 200,
-                        height: 100,
-                        color: theme.colorScheme.errorContainer,
-                        child: Center(
-                          child: Icon(
-                            Icons.broken_image,
-                            color: theme.colorScheme.onErrorContainer,
-                          ),
+            ),
+          if (message.content.isNotEmpty || message.isStreaming)
+            isUser
+                ? _UserMessageContent(
+                    content: message.content.isEmpty && message.isStreaming
+                        ? '...'
+                        : message.content,
+                    textColor: theme.colorScheme.onPrimary,
+                  )
+                : ParsedContentView(
+                    content: message.content.isEmpty && message.isStreaming
+                        ? '...'
+                        : message.content,
+                    textColor: theme.colorScheme.onSurface,
+                    isStreaming: message.isStreaming,
+                    showMemoryUpdates: settings.showMemoryUpdates,
+                    onReviewMemory: () {
+                      Navigator.of(context).push(
+                        MaterialPageRoute(
+                          builder: (_) => const ChatSettingsPage(),
                         ),
                       );
                     },
                   ),
+          if (message.isStreaming)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: SizedBox(
+                width: 12,
+                height: 12,
+                child: CircularProgressIndicator(
+                  strokeWidth: 2,
+                  color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
                 ),
               ),
-            // Render text when available.
-            if (message.content.isNotEmpty || message.isStreaming)
-              isUser
-                  ? _UserMessageContent(
-                      content: message.content.isEmpty && message.isStreaming
-                          ? '...'
-                          : message.content,
-                      textColor: theme.colorScheme.onPrimary,
-                    )
-                  : ParsedContentView(
-                      content: message.content.isEmpty && message.isStreaming
-                          ? '...'
-                          : message.content,
-                      textColor: theme.colorScheme.onSurface,
-                      isStreaming: message.isStreaming,
-                      showMemoryUpdates: settings.showMemoryUpdates,
-                      onReviewMemory: () {
-                        Navigator.of(context).push(
-                          MaterialPageRoute(
-                            builder: (_) => const ChatSettingsPage(),
-                          ),
-                        );
-                      },
+            ),
+          if (!isUser &&
+              settings.ttsEnabled &&
+              !message.isStreaming &&
+              message.content.isNotEmpty)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  InkWell(
+                    onTap: () => _toggleTts(
+                      tts: tts,
+                      message: message,
+                      settings: settings,
                     ),
-            // Streaming indicator
-            if (message.isStreaming)
-              Padding(
-                padding: const EdgeInsets.only(top: 4),
-                child: SizedBox(
-                  width: 12,
-                  height: 12,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.5),
-                  ),
-                ),
-              ),
-            // TTS button for completed assistant messages when TTS is enabled.
-            if (!isUser &&
-                settings.ttsEnabled &&
-                !message.isStreaming &&
-                message.content.isNotEmpty)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    InkWell(
-                      onTap: () {
-                        if (tts.isSpeaking) {
-                          tts.stop();
-                        } else {
-                          final readableText = _extractReadableText(
-                            message.content,
-                          );
-                          if (readableText.isNotEmpty) {
-                            tts.setSpeechRate(settings.speechRate);
-                            tts.speak(readableText);
-                          }
-                        }
-                      },
-                      borderRadius: BorderRadius.circular(16),
-                      child: Padding(
-                        padding: const EdgeInsets.all(4),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(
-                              tts.isSpeaking ? Icons.stop : Icons.volume_up,
-                              size: 16,
+                    borderRadius: BorderRadius.circular(16),
+                    child: Padding(
+                      padding: const EdgeInsets.all(4),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            tts.isSpeaking ? Icons.stop : Icons.volume_up,
+                            size: 16,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 4),
+                          Text(
+                            tts.isSpeaking
+                                ? 'message.tts_stop'.tr()
+                                : 'message.tts_play'.tr(),
+                            style: TextStyle(
+                              fontSize: 12,
                               color: theme.colorScheme.primary,
                             ),
-                            const SizedBox(width: 4),
-                            Text(
-                              tts.isSpeaking
-                                  ? 'message.tts_stop'.tr()
-                                  : 'message.tts_play'.tr(),
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: theme.colorScheme.primary,
-                              ),
-                            ),
-                          ],
-                        ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
-                ),
+                  ),
+                ],
               ),
-            if (!isUser &&
-                projectAccessIssue != null &&
-                onReselectProject != null)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: _ProjectAccessErrorCard(
-                  issue: projectAccessIssue,
-                  onReselectProject: onReselectProject!,
-                ),
+            ),
+          if (!isUser &&
+              projectAccessIssue != null &&
+              widget.onReselectProject != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: _ProjectAccessErrorCard(
+                issue: projectAccessIssue,
+                onReselectProject: widget.onReselectProject!,
               ),
-          ],
-        ),
+            ),
+        ],
       ),
     );
+
+    return Align(
+      alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+      child: isUser
+          ? MouseRegion(
+              onEnter: (_) => setState(() => _isHovering = true),
+              onExit: (_) => setState(() => _isHovering = false),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  bubble,
+                  AnimatedSize(
+                    duration: const Duration(milliseconds: 160),
+                    curve: Curves.easeOut,
+                    child: _isHovering
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 2, right: 12),
+                            child: Row(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Text(
+                                  _formatTimestamp(context),
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                IconButton(
+                                  onPressed: _copyMessageContent,
+                                  tooltip: 'content.code_copy'.tr(),
+                                  visualDensity: VisualDensity.compact,
+                                  splashRadius: 18,
+                                  iconSize: 18,
+                                  icon: Icon(
+                                    _copied
+                                        ? Icons.check_rounded
+                                        : Icons.content_copy_outlined,
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
+                ],
+              ),
+            )
+          : bubble,
+    );
+  }
+
+  Future<void> _toggleTts({
+    required TtsService tts,
+    required Message message,
+    required AppSettings settings,
+  }) async {
+    if (tts.isSpeaking) {
+      await tts.stop();
+      return;
+    }
+
+    final readableText = _extractReadableText(message.content);
+    if (readableText.isEmpty) {
+      return;
+    }
+    await tts.setSpeechRate(settings.speechRate);
+    await tts.speak(readableText);
   }
 }
 
