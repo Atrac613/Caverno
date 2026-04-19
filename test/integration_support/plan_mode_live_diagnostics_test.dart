@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_live_diagnostics.dart';
@@ -76,11 +79,62 @@ void main() {
           '[LLM] <think>The current saved task is blocked until the file list is corrected.</think>',
         ],
         errorText:
-            'Workflow execution remained blocked after 15s. tasks=Scaffold task:blocked',
+            'Execution phase timed out after 120s. isLoading=true, pendingApprovals=false, activeTask=Scaffold task, toolResults=3, fileWrites=2, tasks=Scaffold task:blocked',
       );
 
-      expect(diagnostics.failureClass, PlanModeFailureClass.workflowBlocked);
+      expect(diagnostics.failureClass, PlanModeFailureClass.blockedExecution);
       expect(diagnostics.lastWorkflowSnapshot, 'Scaffold task:blocked');
+    });
+
+    test('classifies execution hangs from in-flight timeouts', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[LLM] <think>Continuing with the saved task.</think>',
+        ],
+        errorText:
+            'Execution phase timed out after 120s. isLoading=true, pendingApprovals=false, activeTask=Implement CLI parsing, toolResults=0, fileWrites=0, tasks=Implement CLI parsing:inProgress',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.executionHang);
+      expect(diagnostics.budgetPhase, 'execution');
+    });
+
+    test('classifies execution drift from low-signal write timeouts', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[LLM] <think>The previous write_file for README.py succeeded.</think>',
+        ],
+        errorText:
+            'Execution phase timed out after 120s. isLoading=false, pendingApprovals=false, activeTask=Implement monitor loop, toolResults=1, fileWrites=5, tasks=Implement monitor loop:inProgress',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.executionDrift);
+      expect(diagnostics.activeTaskTitle, 'Implement monitor loop');
+    });
+
+    test('classifies replay cases from the latest ping CLI canary samples', () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_execution_timeout_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final cases = (fixture['cases'] as List<dynamic>)
+          .cast<Map<String, dynamic>>();
+
+      for (final entry in cases) {
+        final diagnostics = buildPlanModeFailureDiagnostics(
+          logs: (entry['logs'] as List<dynamic>).cast<String>(),
+          errorText: entry['errorText'] as String,
+        );
+
+        expect(
+          diagnostics.failureClass.name,
+          entry['expectedFailureClass'],
+          reason: 'Replay case "${entry['name']}" classified unexpectedly.',
+        );
+      }
     });
 
     test('returns passed when no error is present', () {

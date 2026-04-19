@@ -1,0 +1,29 @@
+{
+  "cases": [
+    {
+      "name": "run01_execution_stall",
+      "logs": [
+        "[ContentTool]   - write_file: {path: README.py}",
+        "[LLM] <think>The previous write_file for README.py was successful.</think>"
+      ],
+      "errorText": "Workflow execution stalled after 45s. activeTask=Initialize project structure toolResults=1 fileWrites=5 tasks=Initialize project structure:inProgress, Implement core ping logic using subprocess:pending",
+      "expectedFailureClass": "executionStall"
+    },
+    {
+      "name": "run02_blocked_execution",
+      "logs": [
+        "[LLM] <think>The current saved task is blocked until the task list is corrected.</think>"
+      ],
+      "errorText": "Execution phase timed out after 120s. isLoading=true, pendingApprovals=false, activeTask=Supports a continuous mode flag, toolResults=7, fileWrites=5, tasks=CLI accepts one or more hostnames/IPs:completed, Supports a continuous mode flag:blocked, Displays ping results in real-time:pending, Handles termination (Ctrl+C) cleanly:pending, Argparse, click, or typer? (I'll assume argparse or click for simplicity, or just pick one if I were implementing, but for tasks, I'll focus on the implementation steps):pending, Host input: CLI arguments:pending",
+      "expectedFailureClass": "blockedExecution"
+    },
+    {
+      "name": "run03_execution_drift",
+      "logs": [
+        "[LLM] <think>Updated the scaffold files and paused before validation.</think>"
+      ],
+      "errorText": "Execution phase timed out after 120s. isLoading=false, pendingApprovals=false, activeTask=Implement concurrent monitoring engine in monitor.py, toolResults=1, fileWrites=8, tasks=Create project scaffolding and requirements.txt:completed, Implement core ping logic in ping_engine.py:completed, Implement concurrent monitoring engine in monitor.py:inProgress, Implement Rich-based UI in ui.py:pending, Integrate components in main.py with argparse:pending, Add unit tests for ping logic:pending",
+      "expectedFailureClass": "executionDrift"
+    }
+  ]
+}

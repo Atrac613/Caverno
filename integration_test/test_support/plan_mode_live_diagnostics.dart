@@ -2,6 +2,9 @@ enum PlanModeFailureClass {
   passed,
   planningTimeout,
   executionTimeout,
+  executionHang,
+  blockedExecution,
+  executionDrift,
   overallTimeout,
   executionStall,
   streamDisconnect,
@@ -107,6 +110,9 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
     case PlanModeFailureClass.planningTimeout:
       return 'planning';
     case PlanModeFailureClass.executionTimeout:
+    case PlanModeFailureClass.executionHang:
+    case PlanModeFailureClass.blockedExecution:
+    case PlanModeFailureClass.executionDrift:
     case PlanModeFailureClass.executionStall:
       return 'execution';
     case PlanModeFailureClass.overallTimeout:
@@ -144,6 +150,24 @@ PlanModeFailureClass _classifyFailure({
     return PlanModeFailureClass.planningTimeout;
   }
   if (normalizedError.contains('execution phase timed out')) {
+    final workflowSnapshot = _extractLastWorkflowSnapshot(errorText) ?? '';
+    final isLoading = _extractNamedBoolField(errorText, 'isLoading');
+    final fileWrites = _extractNamedIntField(errorText, 'fileWrites') ?? 0;
+    final toolResults = _extractNamedIntField(errorText, 'toolResults') ?? 0;
+    if (workflowSnapshot.contains(':blocked')) {
+      return PlanModeFailureClass.blockedExecution;
+    }
+    if (isLoading == true) {
+      return PlanModeFailureClass.executionHang;
+    }
+    if (_looksLikeExecutionDrift(
+      errorText,
+      logs,
+      fileWrites: fileWrites,
+      toolResults: toolResults,
+    )) {
+      return PlanModeFailureClass.executionDrift;
+    }
     return PlanModeFailureClass.executionTimeout;
   }
   if (normalizedError.contains('overall live run timed out')) {
@@ -287,6 +311,49 @@ int? _extractNamedIntField(String errorText, String fieldName) {
   final pattern = RegExp('$fieldName=(\\d+)', caseSensitive: false);
   final match = pattern.firstMatch(errorText);
   return int.tryParse(match?.group(1) ?? '');
+}
+
+bool? _extractNamedBoolField(String errorText, String fieldName) {
+  if (errorText.isEmpty) {
+    return null;
+  }
+  final pattern = RegExp('$fieldName=(true|false)', caseSensitive: false);
+  final match = pattern.firstMatch(errorText);
+  if (match == null) {
+    return null;
+  }
+  return match.group(1)?.toLowerCase() == 'true';
+}
+
+bool _looksLikeExecutionDrift(
+  String errorText,
+  List<String> logs, {
+  required int fileWrites,
+  required int toolResults,
+}) {
+  final normalizedError = errorText.toLowerCase();
+  const driftFragments = <String>[
+    'readme.py',
+    'subsequent tasks should involve',
+    'argparse, click, or typer',
+    'host input: cli arguments',
+    'saved task drift',
+    'task drift',
+  ];
+  if (driftFragments.any(normalizedError.contains)) {
+    return true;
+  }
+
+  final normalizedLogs = logs.map((line) => line.toLowerCase()).toList();
+  if (normalizedLogs.any(
+    (line) =>
+        driftFragments.any(line.contains) ||
+        line.contains('[workflow] task proposal quality gate requested retry'),
+  )) {
+    return true;
+  }
+
+  return fileWrites > 0 && toolResults <= 1;
 }
 
 List<String> _extractRecentLogTail(List<String> logs, {int limit = 12}) {
