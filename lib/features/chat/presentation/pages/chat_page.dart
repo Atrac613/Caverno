@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:easy_localization/easy_localization.dart';
@@ -4965,7 +4966,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ConversationPlanExecutionGuardrails.unavailableToolNames(toolResults);
     final editMismatchPaths =
         ConversationPlanExecutionGuardrails.editMismatchPaths(toolResults);
-    if (unavailableToolNames.isEmpty && editMismatchPaths.isEmpty) {
+    final malformedFileMutationPaths =
+        ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
+          toolResults,
+        );
+    final hasMalformedFileMutationFailure =
+        ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
+          toolResults,
+        );
+    if (unavailableToolNames.isEmpty &&
+        editMismatchPaths.isEmpty &&
+        !hasMalformedFileMutationFailure) {
       return false;
     }
 
@@ -4994,6 +5005,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
         task: latestTask,
         unavailableToolNames: unavailableToolNames,
         editMismatchPaths: editMismatchPaths,
+        malformedFileMutationPaths: malformedFileMutationPaths,
+        hasMalformedFileMutationFailure: hasMalformedFileMutationFailure,
       ),
       languageCode: languageCode,
     );
@@ -5533,23 +5546,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final latestAssistantMessage = _latestAssistantMessage(currentConversation);
-    String? assistantResponse;
-    if (latestAssistantMessage != null &&
-        latestAssistantMessage.id != previousAssistantMessageId) {
-      assistantResponse = latestAssistantMessage.content;
-    } else {
-      final fallback = fallbackAssistantResponse?.trim();
-      if (fallback == null || fallback.isEmpty) {
-        return false;
-      }
-      assistantResponse = fallback;
+    final latestAssistantResponse =
+        latestAssistantMessage != null &&
+            latestAssistantMessage.id != previousAssistantMessageId
+        ? latestAssistantMessage.content
+        : '';
+    final fallback = fallbackAssistantResponse?.trim() ?? '';
+    if (latestAssistantResponse.trim().isEmpty && fallback.isEmpty) {
+      return false;
     }
 
     await conversationsNotifier
         .updateCurrentExecutionTaskProgressFromAssistantTurn(
           task: task,
-          assistantResponse: assistantResponse,
+          assistantResponse: latestAssistantResponse,
           isValidationRun: isValidationRun,
+          fallbackAssistantResponse: fallback,
         );
     return true;
   }
@@ -5688,9 +5700,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
       if (normalized.isEmpty) {
         continue;
       }
+      Object? decoded;
+      if (normalized.startsWith('{')) {
+        try {
+          decoded = jsonDecode(toolResult.result);
+        } catch (_) {
+          decoded = null;
+        }
+      }
+      if (decoded is Map<String, dynamic>) {
+        final exitCode = decoded['exit_code'];
+        if (exitCode is num && exitCode != 0) {
+          return true;
+        }
+        if (decoded['success'] == false || decoded['isSuccess'] == false) {
+          return true;
+        }
+        final errorText = decoded['error']?.toString().trim() ?? '';
+        final errorMessage = decoded['errorMessage']?.toString().trim() ?? '';
+        if (errorText.isNotEmpty || errorMessage.isNotEmpty) {
+          return true;
+        }
+      }
       if (normalized.startsWith('error:') ||
           normalized.contains('failed to') ||
           normalized.contains('no matching tool available') ||
+          normalized.contains('"error":') ||
           normalized.contains('"issuccess":false') ||
           normalized.contains('"success":false') ||
           normalized.contains('"errormessage"')) {

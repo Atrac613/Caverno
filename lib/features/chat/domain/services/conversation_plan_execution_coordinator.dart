@@ -195,6 +195,8 @@ class ConversationPlanExecutionCoordinator {
     required ConversationWorkflowTask task,
     List<String> unavailableToolNames = const [],
     List<String> editMismatchPaths = const [],
+    List<String> malformedFileMutationPaths = const [],
+    bool hasMalformedFileMutationFailure = false,
   }) {
     final promptLines = <String>[
       'The saved task hit a recoverable tool failure.',
@@ -235,6 +237,27 @@ class ConversationPlanExecutionCoordinator {
       );
       promptLines.add(
         'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+      );
+    }
+
+    if (hasMalformedFileMutationFailure) {
+      if (malformedFileMutationPaths.isNotEmpty) {
+        promptLines.add(
+          'These file mutations failed because required arguments were malformed: ${malformedFileMutationPaths.join(', ')}',
+        );
+      } else {
+        promptLines.add(
+          'At least one write_file or edit_file call failed because required top-level arguments were malformed.',
+        );
+      }
+      promptLines.add(
+        'Retry the same file mutation with top-level path and content keys for write_file, or path plus old_text and new_text for edit_file.',
+      );
+      promptLines.add(
+        'If an edit_file call failed because old_text was missing or empty, read the current file first and reuse its exact contents as old_text.',
+      );
+      promptLines.add(
+        'Do not wrap file arguments in malformed aliases or move path outside the arguments object.',
       );
     }
 

@@ -930,6 +930,69 @@ void main() {
   );
 
   test(
+    'updateCurrentExecutionTaskProgressFromAssistantTurn prefers fallback completion evidence',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Complete a saved task from tool evidence\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Implement single-host ping\n'
+              '   - Status: inProgress\n'
+              '   - Validation: python3 main.py 8.8.8.8\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse:
+            'I reviewed the tool results and outlined the next step.',
+        fallbackAssistantResponse:
+            'The saved task is complete because the validation passed.',
+        isValidationRun: false,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress =
+          refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        progress.summary,
+        'The saved task is complete because the validation passed.',
+      );
+      expect(
+        refreshedConversation?.workflowStage,
+        ConversationWorkflowStage.review,
+      );
+    },
+  );
+
+  test(
     'appendCurrentExecutionTaskEvent stores replanned timeline entries',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

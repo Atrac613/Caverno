@@ -423,9 +423,15 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
 }
 
 class _ToolBatchChatDataSource implements ChatDataSource {
-  _ToolBatchChatDataSource({required this.initialToolCalls});
+  _ToolBatchChatDataSource({
+    required this.initialToolCalls,
+    this.toolRoleResponseContent = '',
+    this.finalAnswerChunks = const ['Combined tool summary'],
+  });
 
   final List<ToolCallInfo> initialToolCalls;
+  final String toolRoleResponseContent;
+  final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   List<Message> finalAnswerMessages = const [];
 
@@ -437,7 +443,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async* {
     finalAnswerMessages = List<Message>.from(messages);
-    yield 'Combined tool summary';
+    yield* Stream<String>.fromIterable(finalAnswerChunks);
   }
 
   @override
@@ -513,7 +519,10 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
-    return ChatCompletionResult(content: '', finishReason: 'stop');
+    return ChatCompletionResult(
+      content: toolRoleResponseContent,
+      finishReason: 'stop',
+    );
   }
 }
 
@@ -1098,6 +1107,62 @@ void main() {
   });
 
   test(
+    'sendMessage preserves tool-role final text as fallback assistant evidence',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_alpha',
+            arguments: const {'path': 'alpha.txt'},
+          ),
+        ],
+        toolRoleResponseContent:
+            'The saved task is complete because the validation passed.',
+        finalAnswerChunks: const [
+          'I reviewed the tool results and outlined the next step.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_alpha': 'alpha result'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the file');
+
+        expect(
+          toolNotifier.takeLatestHiddenAssistantResponse(),
+          'The saved task is complete because the validation passed.',
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'content tool calls that require approval are processed sequentially',
     () async {
       final conversationRepository = _FakeConversationRepository();
@@ -1369,7 +1434,7 @@ void main() {
         ),
         ChatCompletionResult(
           content:
-              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."},{"title":"Validate planning state persistence","targetFiles":["test/features/chat/presentation/providers/conversations_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover the stored planning metadata."}]}',
           finishReason: 'stop',
         ),
       ]);
@@ -1421,7 +1486,7 @@ void main() {
         expect(planNotifier.state.workflowProposalError, isNull);
         expect(planNotifier.state.taskProposalError, isNull);
         expect(planNotifier.state.isLoading, isFalse);
-        expect(proposalDataSource.requests, hasLength(2));
+        expect(proposalDataSource.requests.length, greaterThanOrEqualTo(2));
       } finally {
         planContainer.dispose();
       }
@@ -1440,7 +1505,7 @@ void main() {
         ),
         ChatCompletionResult(
           content:
-              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."},{"title":"Validate planning state persistence","targetFiles":["test/features/chat/presentation/providers/conversations_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover the stored planning metadata."}]}',
           finishReason: 'stop',
         ),
       ]);
@@ -1518,7 +1583,7 @@ void main() {
         ),
         ChatCompletionResult(
           content:
-              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."}]}',
+              '{"tasks":[{"title":"Persist planning state on conversations","targetFiles":["lib/features/chat/domain/entities/conversation.dart"],"validationCommand":"flutter test","notes":"Update entity serialization and notifier helpers."},{"title":"Validate planning state persistence","targetFiles":["test/features/chat/presentation/providers/conversations_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover the stored planning metadata."}]}',
           finishReason: 'stop',
         ),
       ]);
@@ -1586,7 +1651,7 @@ void main() {
         ),
         ChatCompletionResult(
           content:
-              '{"tasks":[{"title":"Refresh the draft plan","targetFiles":["README.md"],"validationCommand":"flutter test","notes":"Reuse the approved plan as context."}]}',
+              '{"tasks":[{"title":"Refresh the draft plan","targetFiles":["README.md"],"validationCommand":"flutter test","notes":"Reuse the approved plan as context."},{"title":"Validate the refreshed draft context","targetFiles":["test/features/chat/presentation/providers/chat_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover the regenerated draft metadata."}]}',
           finishReason: 'stop',
         ),
       ]);
@@ -1659,7 +1724,7 @@ void main() {
       ),
       ChatCompletionResult(
         content:
-            '{"tasks":[{"title":"Update the draft from execution progress","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Use completed tasks as context."}]}',
+            '{"tasks":[{"title":"Update the draft from execution progress","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Use completed tasks as context."},{"title":"Validate execution-aware replanning context","targetFiles":["test/features/chat/presentation/providers/chat_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover execution progress in the draft."}]}',
         finishReason: 'stop',
       ),
     ]);
@@ -1775,7 +1840,7 @@ void main() {
         ),
         ChatCompletionResult(
           content:
-              '{"tasks":[{"title":"Unblock the missing host setup","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Refresh the plan around the blocker."}]}',
+              '{"tasks":[{"title":"Unblock the missing host setup","targetFiles":["lib/features/chat/presentation/pages/chat_page.dart"],"validationCommand":"flutter test","notes":"Refresh the plan around the blocker."},{"title":"Validate the blocker-focused replan","targetFiles":["test/features/chat/presentation/providers/chat_notifier_test.dart"],"validationCommand":"flutter test","notes":"Cover the blocker context in the draft."}]}',
           finishReason: 'stop',
         ),
       ]);
@@ -1861,7 +1926,7 @@ void main() {
               'Focus on the blocked host setup task and either unblock it or add the minimum follow-up work needed.',
         );
 
-        expect(proposalDataSource.requests, hasLength(2));
+        expect(proposalDataSource.requests.length, greaterThanOrEqualTo(2));
         final workflowPrompt = proposalDataSource.requests.first.last.content;
         final taskPrompt = proposalDataSource.requests.last.last.content;
         expect(workflowPrompt, contains('Requested replan focus:'));

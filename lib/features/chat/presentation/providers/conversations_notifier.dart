@@ -532,6 +532,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required ConversationWorkflowTask task,
     required String assistantResponse,
     required bool isValidationRun,
+    String? fallbackAssistantResponse,
   }) async {
     final conversation = state.currentConversation;
     if (conversation == null) {
@@ -542,6 +543,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       assistantResponse: assistantResponse,
       task: task,
       isValidationRun: isValidationRun,
+      fallbackAssistantResponse: fallbackAssistantResponse,
     );
 
     await updateCurrentExecutionTaskProgress(

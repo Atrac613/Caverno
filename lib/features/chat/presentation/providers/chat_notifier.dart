@@ -4915,6 +4915,10 @@ Retry hint:
         // End the loop on a text response, but delay rendering it.
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
+        final fallbackResponse = nextResult.content.trim();
+        if (fallbackResponse.isNotEmpty) {
+          _latestHiddenAssistantResponse = fallbackResponse;
+        }
         // Responses through the tool role often claim real-time data is
         // unavailable, so resend the results later as a user message.
       }

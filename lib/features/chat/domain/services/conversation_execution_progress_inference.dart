@@ -67,6 +67,33 @@ class ConversationExecutionProgressInference {
     required String assistantResponse,
     required ConversationWorkflowTask task,
     required bool isValidationRun,
+    String? fallbackAssistantResponse,
+  }) {
+    final primary = _inferSingle(
+      assistantResponse: assistantResponse,
+      task: task,
+      isValidationRun: isValidationRun,
+    );
+    final fallback = fallbackAssistantResponse?.trim();
+    if (fallback == null || fallback.isEmpty) {
+      return primary;
+    }
+
+    final fallbackResult = _inferSingle(
+      assistantResponse: fallback,
+      task: task,
+      isValidationRun: isValidationRun,
+    );
+    if (_shouldPreferFallback(primary: primary, fallback: fallbackResult)) {
+      return fallbackResult;
+    }
+    return primary;
+  }
+
+  static ConversationExecutionProgressInferenceResult _inferSingle({
+    required String assistantResponse,
+    required ConversationWorkflowTask task,
+    required bool isValidationRun,
   }) {
     final normalizedResponse = assistantResponse.trim();
     if (normalizedResponse.isEmpty) {
@@ -155,6 +182,24 @@ class ConversationExecutionProgressInference {
       status: ConversationWorkflowTaskStatus.inProgress,
       summary: summary,
     );
+  }
+
+  static bool _shouldPreferFallback({
+    required ConversationExecutionProgressInferenceResult primary,
+    required ConversationExecutionProgressInferenceResult fallback,
+  }) {
+    if (fallback.status == primary.status) {
+      return false;
+    }
+    if (primary.status == ConversationWorkflowTaskStatus.inProgress &&
+        fallback.status != ConversationWorkflowTaskStatus.inProgress) {
+      return true;
+    }
+    if (primary.status == ConversationWorkflowTaskStatus.blocked &&
+        fallback.status == ConversationWorkflowTaskStatus.completed) {
+      return true;
+    }
+    return false;
   }
 
   static String _extractSummary(String response) {

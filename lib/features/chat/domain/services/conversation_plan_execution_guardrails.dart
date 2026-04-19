@@ -338,6 +338,30 @@ class ConversationPlanExecutionGuardrails {
     return paths.toList(growable: false);
   }
 
+  static bool hasMalformedFileMutationFailure(List<ToolResultInfo> toolResults) {
+    return toolResults.any(_isRecoverableMalformedFailure);
+  }
+
+  static List<String> malformedFileMutationPaths(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final paths = <String>{};
+    for (final toolResult in toolResults) {
+      if (!_isRecoverableMalformedFailure(toolResult)) {
+        continue;
+      }
+      final decoded = _tryDecodeMap(toolResult.result);
+      final path = _normalizePath(
+        _normalizeText(decoded?['path']) ??
+            _normalizeText(toolResult.arguments['path']),
+      );
+      if (path.isNotEmpty) {
+        paths.add(path);
+      }
+    }
+    return paths.toList(growable: false);
+  }
+
   static bool hasOnlyRecoverableMalformedFailures(
     List<ToolResultInfo> toolResults,
   ) {
@@ -671,7 +695,10 @@ class ConversationPlanExecutionGuardrails {
     return normalizedResult.contains('path is required') ||
         normalizedResult.contains('content is required') ||
         normalizedResult.contains('old_text is required') ||
+        normalizedResult.contains('old_text must not be empty') ||
         normalizedResult.contains('new_text is required') ||
+        normalizedResult.contains('new_text must not be empty') ||
+        normalizedResult.contains('content must not be empty') ||
         normalizedResult.contains('invalid arguments');
   }
 

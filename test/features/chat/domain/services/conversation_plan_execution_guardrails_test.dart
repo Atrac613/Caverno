@@ -517,4 +517,37 @@ void main() {
       expect(assessment.unrelatedTouchedPaths, isEmpty);
     },
   );
+
+  test('extracts malformed file mutation failures when a target path exists', () {
+    final toolResults = [
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: {'path': 'src/config_loader.py'},
+        result: 'Error: invalid arguments',
+      ),
+      ToolResultInfo(
+        id: 'tool-2',
+        name: 'edit_file',
+        arguments: {'path': 'tests/test_config_loader.py'},
+        result: '{"error":"old_text must not be empty"}',
+      ),
+    ];
+
+    expect(
+      ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
+        toolResults,
+      ),
+      isTrue,
+    );
+    expect(
+      ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
+        toolResults,
+      ),
+      containsAll(<String>[
+        'src/config_loader.py',
+        'tests/test_config_loader.py',
+      ]),
+    );
+  });
 }

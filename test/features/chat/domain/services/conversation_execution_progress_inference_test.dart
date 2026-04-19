@@ -131,4 +131,24 @@ void main() {
       );
     },
   );
+
+  test(
+    'prefers fallback completion evidence over a generic follow-up summary',
+    () {
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'I reviewed the tool results and outlined the next step.',
+        fallbackAssistantResponse:
+            'The saved task is complete because the validation passed.',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        'The saved task is complete because the validation passed.',
+      );
+    },
+  );
 }

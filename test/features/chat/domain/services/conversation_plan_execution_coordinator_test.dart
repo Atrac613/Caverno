@@ -414,7 +414,9 @@ void main() {
     },
   );
 
-  test('buildToolFailureRecoveryPrompt bounds unknown tools and edit mismatch', () {
+  test(
+    'buildToolFailureRecoveryPrompt bounds unknown tools, malformed writes, and edit mismatch',
+    () {
     const task = ConversationWorkflowTask(
       id: 'task-2',
       title: 'Implement the YAML config loader',
@@ -428,6 +430,8 @@ void main() {
           task: task,
           unavailableToolNames: const ['google', 'print'],
           editMismatchPaths: const ['src/config_loader.py'],
+          malformedFileMutationPaths: const ['tests/test_config_loader.py'],
+          hasMalformedFileMutationFailure: true,
         );
 
     expect(prompt, contains('The saved task hit a recoverable tool failure.'));
@@ -443,6 +447,30 @@ void main() {
       prompt,
       contains(
         'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'These file mutations failed because required arguments were malformed: tests/test_config_loader.py',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Retry the same file mutation with top-level path and content keys for write_file, or path plus old_text and new_text for edit_file.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If an edit_file call failed because old_text was missing or empty, read the current file first and reuse its exact contents as old_text.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not wrap file arguments in malformed aliases or move path outside the arguments object.',
       ),
     );
     expect(
