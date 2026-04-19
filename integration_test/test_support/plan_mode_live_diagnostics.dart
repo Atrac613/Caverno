@@ -9,6 +9,7 @@ enum PlanModeFailureClass {
   executionStall,
   streamDisconnect,
   unknownTool,
+  validationImportBlocked,
   workflowBlocked,
   workflowProposalParse,
   planningLoop,
@@ -114,6 +115,7 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
     case PlanModeFailureClass.blockedExecution:
     case PlanModeFailureClass.executionDrift:
     case PlanModeFailureClass.executionStall:
+    case PlanModeFailureClass.validationImportBlocked:
       return 'execution';
     case PlanModeFailureClass.overallTimeout:
       return 'overall';
@@ -173,6 +175,14 @@ PlanModeFailureClass _classifyFailure({
   if (normalizedError.contains('overall live run timed out')) {
     return PlanModeFailureClass.overallTimeout;
   }
+  if ((normalizedError.contains('workflow execution remained blocked') ||
+          normalizedError.contains(
+            'workflow execution finished in a blocked state',
+          )) &&
+      (normalizedError.contains('modulenotfounderror') ||
+          normalizedError.contains('no module named'))) {
+    return PlanModeFailureClass.validationImportBlocked;
+  }
   if (normalizedError.contains('workflow execution stalled')) {
     return PlanModeFailureClass.executionStall;
   }
@@ -207,6 +217,11 @@ PlanModeFailureClass _classifyFailure({
       logsContain('[llm] streamchatcompletion error:') ||
       logsContain('[llm] createchatcompletion error:')) {
     return PlanModeFailureClass.streamDisconnect;
+  }
+  if ((logsContain('modulenotfounderror') ||
+          logsContain('no module named')) &&
+      normalizedError.contains('blocked')) {
+    return PlanModeFailureClass.validationImportBlocked;
   }
   if (logsContain('no matching tool available')) {
     return PlanModeFailureClass.unknownTool;
@@ -300,7 +315,9 @@ String? _extractActiveTaskTitle(String errorText) {
   if (errorText.isEmpty) {
     return null;
   }
-  final match = RegExp(r'activeTask=([^,\n]+)').firstMatch(errorText);
+  final match = RegExp(
+    r'activeTask=(.+?)(?=\s+(?:toolResults|fileWrites|tasks|lastAssistant|isLoading|pendingApprovals)=|,|\n|$)',
+  ).firstMatch(errorText);
   return match?.group(1)?.trim();
 }
 

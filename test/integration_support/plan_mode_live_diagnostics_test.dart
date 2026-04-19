@@ -86,6 +86,25 @@ void main() {
       expect(diagnostics.lastWorkflowSnapshot, 'Scaffold task:blocked');
     });
 
+    test('classifies blocked Python import failures separately', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[LLM] <think>The validation failed with ModuleNotFoundError: No module named \'ping_cli\'.</think>',
+        ],
+        errorText:
+            'Bad state: Workflow execution remained blocked after 15s. activeTask=Implement core ping logic using subprocess toolResults=0 fileWrites=5 tasks=Implement core ping logic using subprocess:blocked lastAssistant=ModuleNotFoundError: No module named \'ping_cli\'',
+      );
+
+      expect(
+        diagnostics.failureClass,
+        PlanModeFailureClass.validationImportBlocked,
+      );
+      expect(
+        diagnostics.activeTaskTitle,
+        'Implement core ping logic using subprocess',
+      );
+    });
+
     test('classifies execution hangs from in-flight timeouts', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[
