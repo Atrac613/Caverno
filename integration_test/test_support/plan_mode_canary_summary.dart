@@ -219,11 +219,17 @@ String _resolveLogAwareFailureClass(
     return failureClass;
   }
   final normalizedLines = logLines.map((line) => line.toLowerCase()).toList();
-  if (normalizedLines.any(
+  final foregroundRecovered = normalizedLines.any(
     (line) =>
-        line.contains('failed to foreground app; open returned 1') ||
-        line.contains('[canaryrunner] stage=foregroundfailed'),
-  )) {
+        line.contains('[canaryrunner] stage=foregroundrecovered') ||
+        line.contains('[canaryrunner] stage=firstheartbeatseen'),
+  );
+  if (normalizedLines.any(
+        (line) =>
+            line.contains('failed to foreground app; open returned 1') ||
+            line.contains('[canaryrunner] stage=foregroundfailed'),
+      ) &&
+      !foregroundRecovered) {
     return 'appForegroundFailure';
   }
   if (normalizedLines.any(
@@ -275,19 +281,6 @@ String? _inferPhaseFromLogLines(List<String> logLines) {
     return null;
   }
   final normalizedLines = logLines.map((line) => line.toLowerCase()).toList();
-  final sawStartup = normalizedLines.any(
-    (line) =>
-        line.contains('building macos application') ||
-        line.contains('✓ built ') ||
-        line.contains('failed to foreground app; open returned 1') ||
-        line.contains('[canaryrunner] stage=buildstarted') ||
-        line.contains('[canaryrunner] stage=buildfinished') ||
-        line.contains('[canaryrunner] stage=foregroundfailed') ||
-        line.contains('[canaryrunner] stage=firstheartbeattimeout'),
-  );
-  if (sawStartup) {
-    return 'startup';
-  }
   final sawExecution = normalizedLines.any(
     (line) =>
         line.contains('[contenttool]') ||
@@ -305,8 +298,21 @@ String? _inferPhaseFromLogLines(List<String> logLines) {
         line.contains('task proposal') ||
         line.contains('workflow proposal'),
   );
+  final sawStartup = normalizedLines.any(
+    (line) =>
+        line.contains('building macos application') ||
+        line.contains('✓ built ') ||
+        line.contains('failed to foreground app; open returned 1') ||
+        line.contains('[canaryrunner] stage=buildstarted') ||
+        line.contains('[canaryrunner] stage=buildfinished') ||
+        line.contains('[canaryrunner] stage=foregroundfailed') ||
+        line.contains('[canaryrunner] stage=firstheartbeattimeout'),
+  );
   if (sawPlanning) {
     return 'planning';
+  }
+  if (sawStartup) {
+    return 'startup';
   }
   return null;
 }

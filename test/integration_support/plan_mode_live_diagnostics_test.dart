@@ -89,6 +89,23 @@ void main() {
       expect(diagnostics.budgetPhase, 'startup');
     });
 
+    test(
+      'does not classify recovered foreground failures as startup failures',
+      () {
+        final diagnostics = buildPlanModeFailureDiagnostics(
+          logs: const <String>[
+            'Failed to foreground app; open returned 1',
+            '[CanaryRunner] stage=foregroundFailed at=2026-04-19T12:00:00Z detail=open returned 1',
+            '[CanaryRunner] stage=firstHeartbeatSeen at=2026-04-19T12:00:08Z',
+            '[CanaryRunner] stage=foregroundRecovered at=2026-04-19T12:00:08Z',
+          ],
+          errorText: '',
+        );
+
+        expect(diagnostics.failureClass, PlanModeFailureClass.passed);
+      },
+    );
+
     test('classifies first-heartbeat startup timeouts separately', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[

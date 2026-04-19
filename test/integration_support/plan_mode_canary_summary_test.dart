@@ -169,6 +169,45 @@ Failed to foreground app; open returned 1
     expect(summary.runs.single.budgetPhase, 'startup');
   });
 
+  test('prefers planning over startup when both appear in the log', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'plan_mode_canary_summary_phase_priority_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+    final logFile = File('${tempDir.path}/run_01_run.log');
+    await logFile.writeAsString('''
+[CanaryRunner] stage=buildStarted at=2026-04-19T12:00:00Z
+Failed to foreground app; open returned 1
+[CanaryRunner] stage=firstHeartbeatSeen at=2026-04-19T12:00:08Z
+[Workflow] Planning research pass started
+''');
+
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'overallTimeout',
+            'budgetPhase': 'overall',
+            'durationMs': 240000,
+            'error': 'Overall live run timed out after 240s.',
+            'scenarioLog': logFile.path,
+            'diagnostics': <String, dynamic>{
+              'lastHeartbeat': <String, dynamic>{},
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.runs.single.lastKnownPhase, 'planning');
+  });
+
   test(
     'upgrades overall timeout into startup foreground failure from logs',
     () async {
@@ -204,6 +243,45 @@ Failed to foreground app; open returned 1
 
       expect(summary.runs.single.failureClass, 'appForegroundFailure');
       expect(summary.failureClassCounts['appForegroundFailure'], 1);
+    },
+  );
+
+  test(
+    'does not upgrade overall timeout into startup failure after heartbeat recovery',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plan_mode_canary_summary_foreground_recovery_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final logFile = File('${tempDir.path}/run_01_run.log');
+      await logFile.writeAsString('''
+Building macOS application...
+Failed to foreground app; open returned 1
+[CanaryRunner] stage=firstHeartbeatSeen at=2026-04-19T12:00:08Z
+[CanaryRunner] stage=foregroundRecovered at=2026-04-19T12:00:08Z
+''');
+
+      final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+        <String, dynamic>{
+          'scenarios': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'scenario': 'live_ping_cli_completion',
+              'status': 'failed',
+              'failureClass': 'overallTimeout',
+              'budgetPhase': 'overall',
+              'durationMs': 240000,
+              'error': 'Overall live run timed out after 240s.',
+              'scenarioLog': logFile.path,
+            },
+          ],
+        },
+      ]);
+
+      expect(summary.runs.single.failureClass, 'overallTimeout');
     },
   );
 }

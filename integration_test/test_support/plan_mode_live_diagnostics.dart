@@ -273,6 +273,14 @@ PlanModeFailureClass _classifyFailure({
 }
 
 bool _logsContainStartupForegroundFailure(List<String> normalizedLogs) {
+  final foregroundRecovered = normalizedLogs.any(
+    (line) =>
+        line.contains('[canaryrunner] stage=foregroundrecovered') ||
+        line.contains('[canaryrunner] stage=firstheartbeatseen'),
+  );
+  if (foregroundRecovered) {
+    return false;
+  }
   return normalizedLogs.any(
     (line) =>
         line.contains('failed to foreground app; open returned 1') ||
