@@ -258,6 +258,48 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildPythonSrcLayoutValidationRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String retryCommand,
+    String? blockedModuleName,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command failed because the Python src-layout module import was not discoverable.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Retry validation command: ${retryCommand.trim()}',
+    ];
+
+    final moduleName = blockedModuleName?.trim();
+    if (moduleName != null && moduleName.isNotEmpty) {
+      promptLines.add('Blocked module: $moduleName');
+    }
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Run the retry validation command now before making any more file edits.',
+    );
+    promptLines.add(
+      'Do not switch tasks, do not restate the plan, and do not rewrite already-covered files unless the retry validation command fails with a target-file-specific error.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildTaskDriftRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> unrelatedTouchedPaths,

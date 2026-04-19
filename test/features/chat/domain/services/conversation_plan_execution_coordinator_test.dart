@@ -267,6 +267,45 @@ void main() {
     );
   });
 
+  test(
+    'buildPythonSrcLayoutValidationRecoveryPrompt retries with PYTHONPATH',
+    () {
+      const failedCommand =
+          'python3 -c "from ping_cli.pinger import ping_host; print(ping_host(\'8.8.8.8\'))"';
+      const retryCommand = 'PYTHONPATH=src $failedCommand';
+      const task = ConversationWorkflowTask(
+        id: 'task-src-layout',
+        title: 'Implement core ping logic using subprocess',
+        targetFiles: ['src/ping_cli/pinger.py'],
+        validationCommand: failedCommand,
+        notes: 'Keep the validation bounded to the saved command.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildPythonSrcLayoutValidationRecoveryPrompt(
+            task: task,
+            failedCommand: failedCommand,
+            retryCommand: retryCommand,
+            blockedModuleName: 'ping_cli',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved validation command failed because the Python src-layout module import was not discoverable.',
+        ),
+      );
+      expect(prompt, contains('Blocked module: ping_cli'));
+      expect(prompt, contains('Retry validation command: $retryCommand'));
+      expect(
+        prompt,
+        contains(
+          'Run the retry validation command now before making any more file edits.',
+        ),
+      );
+    },
+  );
+
   test('buildToolFailureRecoveryPrompt bounds unknown tools and edit mismatch', () {
     const task = ConversationWorkflowTask(
       id: 'task-2',

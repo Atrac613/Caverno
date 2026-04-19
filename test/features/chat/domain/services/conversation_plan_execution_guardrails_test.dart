@@ -367,6 +367,71 @@ void main() {
   );
 
   test(
+    'assessTaskCompletion preserves scaffold completion after malformed write failures',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_malformed_scaffold_completion_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_malformed_scaffold_completion_replay.json',
+      );
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isTrue);
+      expect(assessment.shouldMarkCompleted, isFalse);
+      expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('ls -a'),
+      );
+      expect(
+        ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
+          toolResults,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'extracts Python src-layout import blocks and suggested retry commands',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+
+      final failedCommand =
+          ConversationPlanExecutionGuardrails.failedPythonValidationCommand(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(
+        ConversationPlanExecutionGuardrails.blockedPythonImportModule(
+          toolResults,
+        ),
+        'ping_cli',
+      );
+      expect(failedCommand, isNotNull);
+      expect(
+        ConversationPlanExecutionGuardrails.suggestPythonSrcLayoutRetryCommand(
+          task: task,
+          failedCommand: failedCommand!,
+        ),
+        'PYTHONPATH=src $failedCommand',
+      );
+    },
+  );
+
+  test(
     'assessTaskDrift ignores scaffold support files for scaffold-like tasks',
     () {
       const task = ConversationWorkflowTask(

@@ -338,6 +338,91 @@ class ConversationPlanExecutionGuardrails {
     return paths.toList(growable: false);
   }
 
+  static bool hasOnlyRecoverableMalformedFailures(
+    List<ToolResultInfo> toolResults,
+  ) {
+    var sawFailure = false;
+    for (final toolResult in toolResults) {
+      if (!_looksLikeFailureResult(toolResult.result)) {
+        continue;
+      }
+      sawFailure = true;
+      if (!_isRecoverableMalformedFailure(toolResult)) {
+        return false;
+      }
+    }
+    return sawFailure;
+  }
+
+  static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
+    final importPattern = RegExp(
+      "No module named ['\\\"]([^'\\\"]+)['\\\"]",
+      caseSensitive: false,
+    );
+    for (final toolResult in toolResults) {
+      final match = importPattern.firstMatch(toolResult.result);
+      if (match != null) {
+        return match.group(1)?.trim();
+      }
+    }
+    return null;
+  }
+
+  static String? failedPythonValidationCommand({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      if (normalizedResult.contains('modulenotfounderror') ||
+          normalizedResult.contains('no module named')) {
+        return command;
+      }
+    }
+    return null;
+  }
+
+  static String? suggestPythonSrcLayoutRetryCommand({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+  }) {
+    final command = failedCommand.trim();
+    if (command.isEmpty) {
+      return null;
+    }
+    final normalizedTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.startsWith('src/'))
+        .toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return null;
+    }
+    final normalizedCommand = command.toLowerCase();
+    final isPythonCommand =
+        normalizedCommand.startsWith('python ') ||
+        normalizedCommand.startsWith('python3 ') ||
+        normalizedCommand.startsWith('python -') ||
+        normalizedCommand.startsWith('python3 -');
+    if (!isPythonCommand) {
+      return null;
+    }
+    if (normalizedCommand.contains('pythonpath=') ||
+        normalizedCommand.startsWith('cd src &&') ||
+        normalizedCommand.startsWith('(cd src')) {
+      return null;
+    }
+    return 'PYTHONPATH=src $command';
+  }
+
   static bool _matchesTarget(String path, Set<String> normalizedTargets) {
     if (normalizedTargets.contains(path)) {
       return true;
@@ -481,6 +566,26 @@ class ConversationPlanExecutionGuardrails {
         normalized.contains('"status":"error"') ||
         normalized.contains('traceback') ||
         normalized.contains('exception');
+  }
+
+  static bool _isRecoverableMalformedFailure(ToolResultInfo toolResult) {
+    final normalizedResult = toolResult.result.trim().toLowerCase();
+    if (normalizedResult.isEmpty) {
+      return false;
+    }
+    if (toolResult.name != 'write_file' && toolResult.name != 'edit_file') {
+      return false;
+    }
+    final decoded = _tryDecodeMap(toolResult.result);
+    final failureCode = _normalizeText(decoded?['code'])?.toLowerCase();
+    if (failureCode == 'invalid_arguments') {
+      return true;
+    }
+    return normalizedResult.contains('path is required') ||
+        normalizedResult.contains('content is required') ||
+        normalizedResult.contains('old_text is required') ||
+        normalizedResult.contains('new_text is required') ||
+        normalizedResult.contains('invalid arguments');
   }
 
   static bool _isScaffoldLikeTask(ConversationWorkflowTask task) {

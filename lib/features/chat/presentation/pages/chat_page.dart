@@ -4537,10 +4537,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: toolResults,
         );
+    final recoveredFromPythonImport =
+        !toolResultApplied &&
+        !recoveredFromValidation &&
+        !recoveredFromFailure &&
+        await _maybeRecoverFromPythonSrcLayoutValidationFailure(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromDrift =
         !toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
+        !recoveredFromPythonImport &&
         await _maybeRecoverFromTaskDrift(
           task: task,
           languageCode: languageCode,
@@ -4550,6 +4560,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         !toolResultApplied &&
             !recoveredFromValidation &&
             !recoveredFromFailure &&
+            !recoveredFromPythonImport &&
             !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
             task: task,
@@ -4562,6 +4573,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
+        !recoveredFromPythonImport &&
         !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
         task: task,
@@ -4734,10 +4746,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: toolResults,
         );
+    final recoveredFromPythonImport =
+        !toolResultApplied &&
+        !recoveredFromValidation &&
+        !recoveredFromFailure &&
+        await _maybeRecoverFromPythonSrcLayoutValidationFailure(
+          task: nextTask,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromDrift =
         !toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
+        !recoveredFromPythonImport &&
         await _maybeRecoverFromTaskDrift(
           task: nextTask,
           languageCode: languageCode,
@@ -4747,6 +4769,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         !toolResultApplied &&
             !recoveredFromValidation &&
             !recoveredFromFailure &&
+            !recoveredFromPythonImport &&
             !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
             task: nextTask,
@@ -4759,6 +4782,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
+        !recoveredFromPythonImport &&
         !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
         task: nextTask,
@@ -5115,6 +5139,105 @@ class _ChatPageState extends ConsumerState<ChatPage>
         refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
   }
 
+  Future<bool> _maybeRecoverFromPythonSrcLayoutValidationFailure({
+    required ConversationWorkflowTask task,
+    required String languageCode,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed ||
+        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+      return false;
+    }
+
+    final failedCommand =
+        ConversationPlanExecutionGuardrails.failedPythonValidationCommand(
+          task: latestTask,
+          toolResults: toolResults,
+        );
+    if (failedCommand == null) {
+      return false;
+    }
+
+    final retryCommand =
+        ConversationPlanExecutionGuardrails.suggestPythonSrcLayoutRetryCommand(
+          task: latestTask,
+          failedCommand: failedCommand,
+        );
+    if (retryCommand == null) {
+      return false;
+    }
+
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      currentConversation,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendHiddenPrompt(
+      ConversationPlanExecutionCoordinator.buildPythonSrcLayoutValidationRecoveryPrompt(
+        task: latestTask,
+        failedCommand: failedCommand,
+        retryCommand: retryCommand,
+        blockedModuleName:
+            ConversationPlanExecutionGuardrails.blockedPythonImportModule(
+              toolResults,
+            ),
+      ),
+      languageCode: languageCode,
+    );
+
+    final recoveryToolResults = chatNotifier.takeLatestToolResults();
+    final toolResultApplied =
+        await _captureExecutionProgressFromLatestToolResults(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          toolResults: recoveryToolResults,
+        );
+    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+      return true;
+    }
+
+    final assistantResult =
+        await _captureExecutionProgressFromLatestAssistantEvidence(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          isValidationRun: false,
+          fallbackAssistantResponse: chatNotifier
+              .takeLatestHiddenAssistantResponse(),
+        );
+    if (!assistantResult) {
+      return false;
+    }
+
+    final refreshedConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (refreshedConversation == null) {
+      return false;
+    }
+    final refreshedTask = refreshedConversation.projectedExecutionTasks
+        .where((item) => item.id == latestTask.id)
+        .firstOrNull;
+    if (refreshedTask == null) {
+      return false;
+    }
+    return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
+        refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
+  }
+
   Future<bool> _captureExecutionProgressFromLatestAssistantEvidence({
     required ConversationWorkflowTask task,
     required String? previousAssistantMessageId,
@@ -5185,9 +5308,27 @@ class _ChatPageState extends ConsumerState<ChatPage>
           task: task,
           toolResults: toolResults,
         );
+    final onlyRecoverableMalformedFailures =
+        ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
+          toolResults,
+        );
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
+    if (completionAssessment.hasCompletionEvidenceIgnoringFailures &&
+        onlyRecoverableMalformedFailures) {
+      final summary = assistantInference.status ==
+              ConversationWorkflowTaskStatus.completed
+          ? assistantInference.summary
+          : 'Ignored recoverable malformed tool failures after the saved task had already met its completion evidence.';
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary,
+      );
+      return true;
+    }
     if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
       await conversationsNotifier
           .updateCurrentExecutionTaskProgressFromAssistantTurn(

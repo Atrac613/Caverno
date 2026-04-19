@@ -1,0 +1,55 @@
+{
+  "task": {
+    "id": "task-malformed-scaffold",
+    "title": "Initialize project structure with pyproject.toml and README.md",
+    "targetFiles": [
+      "pyproject.toml",
+      "README.md",
+      ".gitignore"
+    ],
+    "validationCommand": "ls",
+    "notes": "Set up the project foundation."
+  },
+  "toolResults": [
+    {
+      "id": "tool-1",
+      "name": "write_file",
+      "arguments": {
+        "content": "[project]\nname = \"tmp-live-ping-cli\"\n"
+      },
+      "result": "Error: path is required"
+    },
+    {
+      "id": "tool-2",
+      "name": "write_file",
+      "arguments": {
+        "path": "README.md"
+      },
+      "result": "{\"path\":\"/tmp/project/README.md\",\"bytes_written\":207,\"created\":true}"
+    },
+    {
+      "id": "tool-3",
+      "name": "write_file",
+      "arguments": {
+        "path": "pyproject.toml"
+      },
+      "result": "{\"path\":\"/tmp/project/pyproject.toml\",\"bytes_written\":311,\"created\":true}"
+    },
+    {
+      "id": "tool-4",
+      "name": "write_file",
+      "arguments": {
+        "path": ".gitignore"
+      },
+      "result": "{\"path\":\"/tmp/project/.gitignore\",\"bytes_written\":45,\"created\":true}"
+    },
+    {
+      "id": "tool-5",
+      "name": "local_execute_command",
+      "arguments": {
+        "command": "ls -a"
+      },
+      "result": "{\"command\":\"ls -a\",\"exit_code\":0,\"stdout\":\".\\n..\\n.gitignore\\nREADME.md\\npyproject.toml\",\"stderr\":\"\"}"
+    }
+  ]
+}
