@@ -9,17 +9,44 @@ void main() {
     );
     final startedAt = DateTime(2026, 4, 18, 23, 0);
 
-    expect(watchdog.recordSnapshot('tasks=pending', startedAt), isNull);
     expect(
-      watchdog.recordSnapshot(
-        'tasks=inProgress',
+      watchdog.recordHeartbeat(
+        const PlanModeExecutionHeartbeat(
+          activeTaskTitle: 'Config loader',
+          workflowSnapshot: 'Config loader:pending',
+          toolResultCount: 0,
+          fileWriteCount: 0,
+          hasPendingApprovals: false,
+          isLoading: true,
+        ),
+        startedAt,
+      ),
+      isNull,
+    );
+    expect(
+      watchdog.recordHeartbeat(
+        const PlanModeExecutionHeartbeat(
+          activeTaskTitle: 'Config loader',
+          workflowSnapshot: 'Config loader:inProgress',
+          toolResultCount: 1,
+          fileWriteCount: 0,
+          hasPendingApprovals: false,
+          isLoading: true,
+        ),
         startedAt.add(const Duration(seconds: 9)),
       ),
       isNull,
     );
     expect(
-      watchdog.recordSnapshot(
-        'tasks=inProgress',
+      watchdog.recordHeartbeat(
+        const PlanModeExecutionHeartbeat(
+          activeTaskTitle: 'Config loader',
+          workflowSnapshot: 'Config loader:inProgress',
+          toolResultCount: 2,
+          fileWriteCount: 0,
+          hasPendingApprovals: false,
+          isLoading: true,
+        ),
         startedAt.add(const Duration(seconds: 18)),
       ),
       isNull,
@@ -32,13 +59,32 @@ void main() {
     );
     final startedAt = DateTime(2026, 4, 18, 23, 0);
 
-    watchdog.recordSnapshot('tasks=inProgress', startedAt);
-    final stalledFor = watchdog.recordSnapshot(
-      'tasks=inProgress',
+    watchdog.recordHeartbeat(
+      const PlanModeExecutionHeartbeat(
+        activeTaskTitle: 'Config loader',
+        workflowSnapshot: 'Config loader:inProgress',
+        toolResultCount: 1,
+        fileWriteCount: 1,
+        hasPendingApprovals: false,
+        isLoading: true,
+      ),
+      startedAt,
+    );
+    final stalledSample = watchdog.recordHeartbeat(
+      const PlanModeExecutionHeartbeat(
+        activeTaskTitle: 'Config loader',
+        workflowSnapshot: 'Config loader:inProgress',
+        toolResultCount: 1,
+        fileWriteCount: 1,
+        hasPendingApprovals: false,
+        isLoading: true,
+      ),
       startedAt.add(const Duration(seconds: 11)),
     );
 
-    expect(stalledFor, isNotNull);
-    expect(stalledFor, const Duration(seconds: 11));
+    expect(stalledSample, isNotNull);
+    expect(stalledSample!.stalledFor, const Duration(seconds: 11));
+    expect(stalledSample.heartbeat.activeTaskTitle, 'Config loader');
+    expect(stalledSample.heartbeat.toolResultCount, 1);
   });
 }

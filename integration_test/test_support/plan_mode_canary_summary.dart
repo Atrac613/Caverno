@@ -7,6 +7,9 @@ class PlanModeCanaryRunSummary {
     required this.failureClass,
     required this.durationMs,
     this.error,
+    this.budgetPhase,
+    this.phaseTimings = const <String, Object?>{},
+    this.budgets = const <String, Object?>{},
     this.reportPath,
     this.logPath,
   });
@@ -16,6 +19,9 @@ class PlanModeCanaryRunSummary {
   final String failureClass;
   final int durationMs;
   final String? error;
+  final String? budgetPhase;
+  final Map<String, Object?> phaseTimings;
+  final Map<String, Object?> budgets;
   final String? reportPath;
   final String? logPath;
 
@@ -26,6 +32,9 @@ class PlanModeCanaryRunSummary {
       'failureClass': failureClass,
       'durationMs': durationMs,
       'error': error,
+      'budgetPhase': budgetPhase,
+      'phaseTimings': phaseTimings,
+      'budgets': budgets,
       'reportPath': reportPath,
       'logPath': logPath,
     };
@@ -69,12 +78,14 @@ class PlanModeCanarySummary {
       ..writeln('- Failed: $failedCount')
       ..writeln('- Pass rate: ${(passRate * 100).toStringAsFixed(1)}%')
       ..writeln()
-      ..writeln('| Run | Status | Failure Class | Duration (ms) | Error |')
-      ..writeln('| --- | --- | --- | ---: | --- |');
+      ..writeln(
+        '| Run | Status | Failure Class | Budget Phase | Duration (ms) | Error |',
+      )
+      ..writeln('| --- | --- | --- | --- | ---: | --- |');
 
     for (final run in runs) {
       buffer.writeln(
-        '| ${run.name} | ${run.status} | ${run.failureClass} | ${run.durationMs} | ${run.error ?? '-'} |',
+        '| ${run.name} | ${run.status} | ${run.failureClass} | ${run.budgetPhase ?? '-'} | ${run.durationMs} | ${run.error ?? '-'} |',
       );
     }
 
@@ -103,6 +114,9 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
         (suiteReport['scenarios'] as List<dynamic>? ?? const <dynamic>[])
             .whereType<Map<String, dynamic>>();
     for (final scenario in scenarios) {
+      final diagnostics =
+          scenario['diagnostics'] as Map<String, dynamic>? ??
+          const <String, dynamic>{};
       final failureClass =
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
@@ -119,6 +133,18 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           failureClass: failureClass,
           durationMs: scenario['durationMs'] as int? ?? 0,
           error: scenario['error'] as String?,
+          budgetPhase:
+              scenario['budgetPhase'] as String? ??
+              diagnostics['budgetPhase'] as String?,
+          phaseTimings: Map<String, Object?>.from(
+            scenario['phaseTimings'] as Map<String, dynamic>? ??
+                const <String, dynamic>{},
+          ),
+          budgets: Map<String, Object?>.from(
+            scenario['budgets'] as Map<String, dynamic>? ??
+                diagnostics['budgets'] as Map<String, dynamic>? ??
+                const <String, dynamic>{},
+          ),
           reportPath: scenario['scenarioReport'] as String?,
           logPath: scenario['scenarioLog'] as String?,
         ),

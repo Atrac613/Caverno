@@ -11,6 +11,7 @@ void main() {
             'scenario': 'live_ping_cli_completion',
             'status': 'passed',
             'failureClass': 'passed',
+            'budgetPhase': 'completed',
             'durationMs': 1200,
           },
         ],
@@ -21,6 +22,7 @@ void main() {
             'scenario': 'live_ping_cli_completion',
             'status': 'failed',
             'failureClass': 'streamDisconnect',
+            'budgetPhase': 'execution',
             'durationMs': 900,
             'error': 'Connection closed before full header was received',
           },
@@ -34,5 +36,7 @@ void main() {
     expect(summary.failureClassCounts['passed'], 1);
     expect(summary.failureClassCounts['streamDisconnect'], 1);
     expect(summary.toMarkdown(), contains('Pass rate: 50.0%'));
+    expect(summary.toMarkdown(), contains('Budget Phase'));
+    expect(summary.runs.last.budgetPhase, 'execution');
   });
 }

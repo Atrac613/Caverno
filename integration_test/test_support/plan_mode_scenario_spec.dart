@@ -253,6 +253,7 @@ class PlanModeScenarioSpec {
     this.tags = const <String>[],
     this.allowedWarningPatterns = const <String>[],
     this.toolCallBatchSizes = const <int>[],
+    this.planningProposalTimeout = const Duration(seconds: 5),
     this.waitForExecutionCompletion = false,
     this.executionCompletionTimeout = const Duration(seconds: 20),
     this.executionStallTimeout = const Duration(seconds: 45),
@@ -275,6 +276,7 @@ class PlanModeScenarioSpec {
   final List<String> tags;
   final List<String> allowedWarningPatterns;
   final List<int> toolCallBatchSizes;
+  final Duration planningProposalTimeout;
   final bool waitForExecutionCompletion;
   final Duration executionCompletionTimeout;
   final Duration executionStallTimeout;
@@ -1461,6 +1463,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       artifactExpectations: const <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(path: 'requirements.txt'),
       ],
+      planningProposalTimeout: const Duration(minutes: 3),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
         firstTaskTitle: 'Create requirements.txt',
@@ -1515,6 +1518,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         '[Workflow] Workflow proposal parse failed',
         '[Workflow] Workflow proposal recovered on retry',
       ],
+      planningProposalTimeout: const Duration(minutes: 3),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
@@ -1550,6 +1554,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           text: 'Approve and start',
         ),
       ],
+      planningProposalTimeout: const Duration(minutes: 3),
       waitForExecutionCompletion: true,
       executionCompletionTimeout: const Duration(minutes: 3),
       executionStallTimeout: const Duration(seconds: 45),
@@ -1617,6 +1622,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
       ],
+      planningProposalTimeout: const Duration(minutes: 3),
       allowedWarningPatterns: const <String>[
         '[Workflow] Workflow proposal parse failed',
         '[Workflow] Workflow proposal recovered on retry',

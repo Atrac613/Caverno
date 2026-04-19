@@ -93,6 +93,47 @@ class _PlanModeScenarioTestConfig {
   bool get usesLiveLlm => mode == _PlanModeScenarioExecutionMode.live;
 }
 
+class _PlanModePhaseTrace {
+  DateTime? proposalReadyAt;
+  DateTime? approvalTappedAt;
+  DateTime? firstTaskStartedAt;
+  DateTime? firstTaskCompletedAt;
+  DateTime? lastTaskProgressAt;
+
+  Map<String, String?> toJson() {
+    return <String, String?>{
+      'proposalReadyAt': proposalReadyAt?.toIso8601String(),
+      'approvalTappedAt': approvalTappedAt?.toIso8601String(),
+      'firstTaskStartedAt': firstTaskStartedAt?.toIso8601String(),
+      'firstTaskCompletedAt': firstTaskCompletedAt?.toIso8601String(),
+      'lastTaskProgressAt': lastTaskProgressAt?.toIso8601String(),
+    };
+  }
+}
+
+class _PlanModeTimeoutBudgets {
+  const _PlanModeTimeoutBudgets({
+    required this.planningTimeout,
+    required this.executionTimeout,
+    required this.executionStallTimeout,
+    required this.overallTimeout,
+  });
+
+  final Duration planningTimeout;
+  final Duration executionTimeout;
+  final Duration executionStallTimeout;
+  final Duration? overallTimeout;
+
+  Map<String, int?> toJson() {
+    return <String, int?>{
+      'planningTimeoutMs': planningTimeout.inMilliseconds,
+      'executionTimeoutMs': executionTimeout.inMilliseconds,
+      'executionStallTimeoutMs': executionStallTimeout.inMilliseconds,
+      'overallTimeoutMs': overallTimeout?.inMilliseconds,
+    };
+  }
+}
+
 bool _envFlagEnabled(String name) {
   final rawValue = Platform.environment[name]?.trim().toLowerCase();
   return rawValue == '1' ||
@@ -115,6 +156,43 @@ String _requireNonEmptyEnv(String name) {
     throw StateError('Set $name before running live Plan mode scenarios.');
   }
   return value;
+}
+
+Duration? _envDurationFromSeconds(String name) {
+  final rawValue = Platform.environment[name]?.trim();
+  if (rawValue == null || rawValue.isEmpty) {
+    return null;
+  }
+  final seconds = int.tryParse(rawValue);
+  if (seconds == null || seconds <= 0) {
+    return null;
+  }
+  return Duration(seconds: seconds);
+}
+
+Duration _resolvePlanningProposalTimeout(PlanModeScenarioSpec scenario) {
+  return _envDurationFromSeconds(
+        'CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS',
+      ) ??
+      scenario.planningProposalTimeout;
+}
+
+Duration _resolveExecutionCompletionTimeout(PlanModeScenarioSpec scenario) {
+  return _envDurationFromSeconds(
+        'CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS',
+      ) ??
+      scenario.executionCompletionTimeout;
+}
+
+Duration _resolveExecutionStallTimeout(PlanModeScenarioSpec scenario) {
+  return _envDurationFromSeconds(
+        'CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS',
+      ) ??
+      scenario.executionStallTimeout;
+}
+
+Duration? _resolveOverallRunTimeout() {
+  return _envDurationFromSeconds('CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS');
 }
 
 String _defaultPlanModeDeviceName() {
@@ -402,6 +480,7 @@ Future<void> _waitForReadyPlanProposal(
   WidgetTester tester,
   ProviderContainer container, {
   required Duration timeout,
+  required _PlanModePhaseTrace phaseTrace,
   required IntegrationTestWidgetsFlutterBinding binding,
   required _PlanModeScenarioTestConfig config,
   required PlanModeScenarioSpec scenario,
@@ -421,6 +500,7 @@ Future<void> _waitForReadyPlanProposal(
   while (DateTime.now().isBefore(deadline)) {
     final chatState = container.read(chatNotifierProvider);
     if (isProposalReady(chatState)) {
+      phaseTrace.proposalReadyAt ??= DateTime.now();
       await _pumpUntilIdle(tester);
       return;
     }
@@ -455,12 +535,13 @@ Future<void> _waitForReadyPlanProposal(
 
   final chatState = container.read(chatNotifierProvider);
   if (isProposalReady(chatState)) {
+    phaseTrace.proposalReadyAt ??= DateTime.now();
     await _pumpUntilIdle(tester);
     return;
   }
 
   throw StateError(
-    'Plan proposal did not become ready. '
+    'Planning phase timed out after ${timeout.inSeconds}s while waiting for the plan proposal. '
     'workflowDraft=${chatState.workflowProposalDraft != null}, '
     'taskDraft=${chatState.taskProposalDraft != null}, '
     'isGeneratingWorkflow=${chatState.isGeneratingWorkflowProposal}, '
@@ -477,9 +558,12 @@ Future<void> _waitForWorkflowExecutionCompletion(
   required Duration timeout,
   required Duration stallTimeout,
   required List<String> logs,
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeTimeoutBudgets budgets,
 }) async {
   final deadline = DateTime.now().add(timeout);
   final watchdog = PlanModeExecutionWatchdog(stallTimeout: stallTimeout);
+  String? lastHeartbeatKey;
   while (DateTime.now().isBefore(deadline)) {
     final now = DateTime.now();
     final chatState = container.read(chatNotifierProvider);
@@ -504,6 +588,17 @@ Future<void> _waitForWorkflowExecutionCompletion(
         chatState.pendingBleConnect != null ||
         chatState.pendingWorkflowDecision != null;
 
+    if (tasks.any(
+      (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
+    )) {
+      phaseTrace.firstTaskStartedAt ??= now;
+    }
+    if (tasks.any(
+      (task) => task.status == ConversationWorkflowTaskStatus.completed,
+    )) {
+      phaseTrace.firstTaskCompletedAt ??= now;
+    }
+
     if (tasks.isNotEmpty &&
         !chatState.isLoading &&
         !hasPendingApprovals &&
@@ -518,25 +613,40 @@ Future<void> _waitForWorkflowExecutionCompletion(
       return;
     }
 
-    final snapshot =
-        'loading=${chatState.isLoading};'
-        'approvals=$hasPendingApprovals;'
-        'messages=${conversation?.messages.length ?? 0};'
-        'logs=${logs.length};'
-        'tasks=${_summarizeWorkflowTasks(tasks)}';
-    final stalledFor = watchdog.recordSnapshot(snapshot, now);
-    if (stalledFor != null && tasks.isNotEmpty && hasPendingWork) {
+    final workflowSnapshot = _summarizeWorkflowTasks(tasks);
+    final heartbeat = PlanModeExecutionHeartbeat(
+      activeTaskTitle: _activeWorkflowTaskTitle(tasks),
+      workflowSnapshot: workflowSnapshot,
+      toolResultCount: _countContentToolResults(logs),
+      fileWriteCount: _countFileWriteExecutions(logs),
+      hasPendingApprovals: hasPendingApprovals,
+      isLoading: chatState.isLoading,
+    );
+    if (lastHeartbeatKey != heartbeat.progressKey) {
+      lastHeartbeatKey = heartbeat.progressKey;
+      phaseTrace.lastTaskProgressAt = now;
+    }
+    final stalledSample = watchdog.recordHeartbeat(heartbeat, now);
+    if (stalledSample != null && tasks.isNotEmpty && hasPendingWork) {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: logs,
-        errorText:
-            'Workflow execution stalled. tasks=${_summarizeWorkflowTasks(tasks)}',
-        lastWorkflowSnapshot: _summarizeWorkflowTasks(tasks),
-        stallDurationMs: stalledFor.inMilliseconds,
+        errorText: 'Workflow execution stalled. tasks=$workflowSnapshot',
+        lastWorkflowSnapshot: workflowSnapshot,
+        stallDurationMs: stalledSample.stalledFor.inMilliseconds,
+        budgetPhase: 'execution',
+        activeTaskTitle: stalledSample.heartbeat.activeTaskTitle,
+        toolResultCount: stalledSample.heartbeat.toolResultCount,
+        fileWriteCount: stalledSample.heartbeat.fileWriteCount,
+        phaseTimings: phaseTrace.toJson(),
+        budgets: budgets.toJson(),
       );
       throw StateError(
         'Workflow execution stalled after '
-        '${stalledFor.inSeconds}s. '
-        'tasks=${_summarizeWorkflowTasks(tasks)} '
+        '${stalledSample.stalledFor.inSeconds}s. '
+        'activeTask=${stalledSample.heartbeat.activeTaskTitle ?? 'none'} '
+        'toolResults=${stalledSample.heartbeat.toolResultCount} '
+        'fileWrites=${stalledSample.heartbeat.fileWriteCount} '
+        'tasks=$workflowSnapshot '
         'lastTool=${diagnostics.lastToolName ?? 'none'} '
         'lastAssistant=${diagnostics.lastAssistantSummary ?? 'none'}',
       );
@@ -550,12 +660,54 @@ Future<void> _waitForWorkflowExecutionCompletion(
       .read(conversationsNotifierProvider)
       .currentConversation;
   final tasks = conversation?.projectedExecutionTasks ?? const [];
+  final activeTaskTitle = _activeWorkflowTaskTitle(tasks);
   throw StateError(
-    'Workflow execution did not finish before the timeout. '
+    'Execution phase timed out after ${timeout.inSeconds}s. '
     'isLoading=${chatState.isLoading}, '
     'pendingApprovals=${chatState.pendingSshConnect != null || chatState.pendingSshCommand != null || chatState.pendingGitCommand != null || chatState.pendingLocalCommand != null || chatState.pendingFileOperation != null || chatState.pendingBleConnect != null || chatState.pendingWorkflowDecision != null}, '
+    'activeTask=${activeTaskTitle ?? 'none'}, '
+    'toolResults=${_countContentToolResults(logs)}, '
+    'fileWrites=${_countFileWriteExecutions(logs)}, '
     'tasks=${_summarizeWorkflowTasks(tasks)}',
   );
+}
+
+String? _activeWorkflowTaskTitle(List<ConversationWorkflowTask> tasks) {
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.inProgress) {
+      return task.title;
+    }
+  }
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.pending) {
+      return task.title;
+    }
+  }
+  return tasks.isEmpty ? null : tasks.last.title;
+}
+
+int _countContentToolResults(List<String> logs) {
+  return logs
+      .where(
+        (line) => line.contains('[ContentTool] Appended result to message'),
+      )
+      .length;
+}
+
+int _countFileWriteExecutions(List<String> logs) {
+  const writeToolPatterns = <String>[
+    '[McpToolService] Executing tool: write_file',
+    '[McpToolService] Executing tool: edit_file',
+    '[McpToolService] Executing tool: create_file',
+    '[McpToolService] Executing tool: update_file',
+    '[McpToolService] Executing tool: delete_file',
+    '[McpToolService] Executing tool: rollback_last_file_change',
+  ];
+  return logs
+      .where(
+        (line) => writeToolPatterns.any((pattern) => line.contains(pattern)),
+      )
+      .length;
 }
 
 String _summarizeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
@@ -762,6 +914,8 @@ Future<void> _writeFailureScenarioArtifacts({
   required List<String> logs,
   required Object error,
   required StackTrace stackTrace,
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeTimeoutBudgets budgets,
 }) async {
   final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
   final filteredLogs = logs
@@ -786,6 +940,8 @@ Future<void> _writeFailureScenarioArtifacts({
   final diagnostics = buildPlanModeFailureDiagnostics(
     logs: logs,
     errorText: error.toString(),
+    phaseTimings: phaseTrace.toJson(),
+    budgets: budgets.toJson(),
   );
 
   final report = <String, Object?>{
@@ -799,6 +955,8 @@ Future<void> _writeFailureScenarioArtifacts({
     'warnings': warnings,
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
+    'phaseTimings': phaseTrace.toJson(),
+    'budgets': budgets.toJson(),
     'diagnostics': diagnostics.toJson(),
     'capturedLogs': filteredLogs,
   };
@@ -908,6 +1066,7 @@ String _buildSuiteJUnitReport({
     final reportPath = result['scenarioReport'] as String?;
     final logPath = result['scenarioLog'] as String?;
     final failureClass = (result['failureClass'] as String?) ?? 'passed';
+    final budgetPhase = (result['budgetPhase'] as String?) ?? '-';
     buffer.writeln(
       '    <testcase classname="${_xmlEscape(config.suiteName)}" '
       'name="${_xmlEscape(scenarioName)}" '
@@ -926,6 +1085,7 @@ String _buildSuiteJUnitReport({
       if (reportPath != null) 'report=$reportPath',
       if (logPath != null) 'log=$logPath',
       'failureClass=$failureClass',
+      'budgetPhase=$budgetPhase',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
@@ -987,10 +1147,10 @@ String _buildSuiteMarkdownReport({
     ..writeln('- Failed: ${suiteResults.length - passedCount}')
     ..writeln()
     ..writeln(
-      '| Scenario | Tags | Status | Failure Class | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
+      '| Scenario | Tags | Status | Failure Class | Budget Phase | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
     )
     ..writeln(
-      '| --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
+      '| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
     );
 
   for (final result in suiteResults) {
@@ -1000,10 +1160,11 @@ String _buildSuiteMarkdownReport({
         (result['allowedWarnings'] as List<Object?>?) ?? const [];
     final tags = (result['tags'] as List<Object?>?) ?? const [];
     final failureClass = (result['failureClass'] as String?) ?? 'passed';
+    final budgetPhase = (result['budgetPhase'] as String?) ?? '-';
     final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
     buffer.writeln(
       '| ${result['scenario']} | ${tags.isEmpty ? '-' : tags.join(', ')} | ${result['status']} | '
-      '$failureClass | ${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
+      '$failureClass | $budgetPhase | ${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
       '${screenshots.length} | ${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
       '${error.isEmpty ? '-' : error} |',
     );
@@ -1077,6 +1238,8 @@ Future<_ScenarioRunResult> _runScenario({
   required _PlanModeScenarioTestConfig config,
   required PlanModeScenarioSpec scenario,
   required Directory scenarioDir,
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeTimeoutBudgets budgets,
 }) async {
   final project = CodingProject(
     id: 'project-${scenario.name}',
@@ -1159,9 +1322,8 @@ Future<_ScenarioRunResult> _runScenario({
   await _waitForReadyPlanProposal(
     tester,
     container,
-    timeout: config.usesLiveLlm
-        ? const Duration(minutes: 3)
-        : const Duration(seconds: 5),
+    timeout: budgets.planningTimeout,
+    phaseTrace: phaseTrace,
     binding: binding,
     config: config,
     scenario: scenario,
@@ -1187,6 +1349,7 @@ Future<_ScenarioRunResult> _runScenario({
   final approveAction = _findPreferredPlanApproveAction();
   await tester.ensureVisible(approveAction);
   await tester.tap(approveAction, warnIfMissed: false);
+  phaseTrace.approvalTappedAt = DateTime.now();
   await tester.pump();
   await _pumpUntilIdle(tester);
 
@@ -1194,9 +1357,11 @@ Future<_ScenarioRunResult> _runScenario({
     await _waitForWorkflowExecutionCompletion(
       tester,
       container,
-      timeout: scenario.executionCompletionTimeout,
-      stallTimeout: scenario.executionStallTimeout,
+      timeout: budgets.executionTimeout,
+      stallTimeout: budgets.executionStallTimeout,
       logs: logs,
+      phaseTrace: phaseTrace,
+      budgets: budgets,
     );
   }
 
@@ -1284,6 +1449,8 @@ Future<_ScenarioRunResult> _runScenario({
     'workflowStage': conversation.workflowStage.name,
     'workflowGoal': savedWorkflow.goal,
     'workflowOpenQuestions': savedWorkflow.openQuestions,
+    'phaseTimings': phaseTrace.toJson(),
+    'budgets': budgets.toJson(),
     'selectedDecisions': scenario.decisionSelections
         .map(
           (selection) => <String, String?>{
@@ -1330,6 +1497,14 @@ Future<_ScenarioRunResult> _runScenario({
     lastWorkflowSnapshot: _summarizeWorkflowTasks(
       conversation.projectedExecutionTasks,
     ),
+    budgetPhase: 'completed',
+    activeTaskTitle: _activeWorkflowTaskTitle(
+      conversation.projectedExecutionTasks,
+    ),
+    toolResultCount: _countContentToolResults(logs),
+    fileWriteCount: _countFileWriteExecutions(logs),
+    phaseTimings: phaseTrace.toJson(),
+    budgets: budgets.toJson(),
   ).toJson();
   final screenshotPaths = _listScenarioScreenshotPaths(scenarioDir);
   report['screenshots'] = screenshotPaths;
@@ -1494,6 +1669,13 @@ void main() {
         final scenarioDir = await Directory.systemTemp.createTemp(
           'caverno_plan_mode_${scenario.name}_',
         );
+        final phaseTrace = _PlanModePhaseTrace();
+        final budgets = _PlanModeTimeoutBudgets(
+          planningTimeout: _resolvePlanningProposalTimeout(scenario),
+          executionTimeout: _resolveExecutionCompletionTimeout(scenario),
+          executionStallTimeout: _resolveExecutionStallTimeout(scenario),
+          overallTimeout: _resolveOverallRunTimeout(),
+        );
         _ScenarioRunResult? runResult;
         Object? failure;
         StackTrace? failureStackTrace;
@@ -1507,6 +1689,8 @@ void main() {
             config: config,
             scenario: scenario,
             scenarioDir: scenarioDir,
+            phaseTrace: phaseTrace,
+            budgets: budgets,
           );
         } catch (error, stackTrace) {
           failure = error;
@@ -1521,6 +1705,8 @@ void main() {
               logs: logs,
               error: failure,
               stackTrace: failureStackTrace,
+              phaseTrace: phaseTrace,
+              budgets: budgets,
             );
           }
           final archivedScenarioDir = Directory(
@@ -1541,10 +1727,15 @@ void main() {
           );
           List<dynamic> archivedWarnings = const <dynamic>[];
           List<dynamic> archivedAllowedWarnings = const <dynamic>[];
+          Map<String, dynamic> archivedReport = const <String, dynamic>{};
+          Map<String, dynamic> archivedDiagnostics = const <String, dynamic>{};
           if (archivedReportPath.existsSync()) {
-            final archivedReport =
+            archivedReport =
                 jsonDecode(archivedReportPath.readAsStringSync())
                     as Map<String, dynamic>;
+            archivedDiagnostics =
+                archivedReport['diagnostics'] as Map<String, dynamic>? ??
+                const <String, dynamic>{};
             archivedWarnings =
                 archivedReport['unexpectedWarnings'] as List<dynamic>? ??
                 archivedReport['warnings'] as List<dynamic>? ??
@@ -1572,11 +1763,14 @@ void main() {
                 : null,
             'screenshots': archivedScreenshotPaths,
             'failureClass': archivedReportPath.existsSync()
-                ? (jsonDecode(archivedReportPath.readAsStringSync())
-                              as Map<String, dynamic>)['failureClass']
-                          as String? ??
+                ? archivedReport['failureClass'] as String? ??
                       (failure == null ? 'passed' : 'unclassified')
                 : (failure == null ? 'passed' : 'unclassified'),
+            'budgetPhase': archivedReportPath.existsSync()
+                ? archivedDiagnostics['budgetPhase'] as String?
+                : null,
+            'phaseTimings': archivedReport['phaseTimings'],
+            'budgets': archivedReport['budgets'],
             'warnings': archivedWarnings,
             'allowedWarnings': archivedAllowedWarnings,
             'error': failure?.toString(),

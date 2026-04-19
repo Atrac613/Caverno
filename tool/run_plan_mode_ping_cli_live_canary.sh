@@ -8,7 +8,10 @@ RUN_COUNT="${CAVERNO_PLAN_MODE_REPEAT_COUNT:-5}"
 DEVICE="${CAVERNO_PLAN_MODE_DEVICE:-macos}"
 REPORT_PREFIX="plan_mode_live_suite_${DEVICE}"
 CANARY_DIR="${ROOT_DIR}/build/integration_test_reports/plan_mode_ping_cli_canary_$(date +%s)"
-RUN_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS:-360}"
+PLANNING_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS:-180}"
+EXECUTION_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS:-180}"
+EXECUTION_STALL_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS:-45}"
+RUN_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS:-$((PLANNING_TIMEOUT_SECONDS + EXECUTION_TIMEOUT_SECONDS + 60))}"
 
 if [[ -z "${PROMPT}" ]]; then
   echo "Pass the target user prompt as the first argument or set CAVERNO_PLAN_MODE_USER_PROMPT."
@@ -22,11 +25,57 @@ cleanup_live_plan_mode_processes() {
   pkill -f "flutter test integration_test/plan_mode_scenario_test.dart" >/dev/null 2>&1 || true
 }
 
+write_timeout_suite_report() {
+  local output_path="$1"
+  cat > "${output_path}" <<EOF
+{
+  "generatedAt": "$(date -u +"%Y-%m-%dT%H:%M:%SZ")",
+  "suite": "${REPORT_PREFIX}",
+  "mode": "live",
+  "scenarioCount": 1,
+  "passedCount": 0,
+  "failedCount": 1,
+  "scenarios": [
+    {
+      "scenario": "live_ping_cli_completion",
+      "status": "failed",
+      "failureClass": "overallTimeout",
+      "budgetPhase": "overall",
+      "durationMs": $((RUN_TIMEOUT_SECONDS * 1000)),
+      "error": "Overall live run timed out after ${RUN_TIMEOUT_SECONDS}s.",
+      "phaseTimings": {},
+      "budgets": {
+        "planningTimeoutMs": $((PLANNING_TIMEOUT_SECONDS * 1000)),
+        "executionTimeoutMs": $((EXECUTION_TIMEOUT_SECONDS * 1000)),
+        "executionStallTimeoutMs": $((EXECUTION_STALL_TIMEOUT_SECONDS * 1000)),
+        "overallTimeoutMs": $((RUN_TIMEOUT_SECONDS * 1000))
+      },
+      "diagnostics": {
+        "failureClass": "overallTimeout",
+        "budgetPhase": "overall",
+        "budgets": {
+          "planningTimeoutMs": $((PLANNING_TIMEOUT_SECONDS * 1000)),
+          "executionTimeoutMs": $((EXECUTION_TIMEOUT_SECONDS * 1000)),
+          "executionStallTimeoutMs": $((EXECUTION_STALL_TIMEOUT_SECONDS * 1000)),
+          "overallTimeoutMs": $((RUN_TIMEOUT_SECONDS * 1000))
+        },
+        "recentLogTail": []
+      }
+    }
+  ]
+}
+EOF
+}
+
 run_live_canary_iteration() {
   local prompt="$1"
   local run_pid
   local elapsed=0
 
+  CAVERNO_PLAN_MODE_PLANNING_TIMEOUT_SECONDS="${PLANNING_TIMEOUT_SECONDS}" \
+  CAVERNO_PLAN_MODE_EXECUTION_TIMEOUT_SECONDS="${EXECUTION_TIMEOUT_SECONDS}" \
+  CAVERNO_PLAN_MODE_EXECUTION_STALL_TIMEOUT_SECONDS="${EXECUTION_STALL_TIMEOUT_SECONDS}" \
+  CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS="${RUN_TIMEOUT_SECONDS}" \
   "${ROOT_DIR}/tool/run_plan_mode_ping_cli_live_test.sh" "${prompt}" &
   run_pid=$!
 
@@ -52,6 +101,7 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
   run_label="$(printf 'run_%02d' "${run_index}")"
   echo "Running ${run_label}/${RUN_COUNT}"
   cleanup_live_plan_mode_processes
+  rm -f "${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
 
   set +e
   run_live_canary_iteration "${PROMPT}"
@@ -63,7 +113,9 @@ for run_index in $(seq 1 "${RUN_COUNT}"); do
   fi
 
   report_path="${ROOT_DIR}/build/integration_test_reports/${REPORT_PREFIX}_report.json"
-  if [[ -f "${report_path}" ]]; then
+  if [[ ${run_exit} -eq 124 ]]; then
+    write_timeout_suite_report "${CANARY_DIR}/${run_label}_suite_report.json"
+  elif [[ -f "${report_path}" ]]; then
     cp "${report_path}" "${CANARY_DIR}/${run_label}_suite_report.json"
   fi
   cleanup_live_plan_mode_processes

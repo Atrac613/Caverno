@@ -1,5 +1,8 @@
 enum PlanModeFailureClass {
   passed,
+  planningTimeout,
+  executionTimeout,
+  overallTimeout,
   executionStall,
   streamDisconnect,
   unknownTool,
@@ -19,6 +22,12 @@ class PlanModeFailureDiagnostics {
     required this.lastAssistantSummary,
     required this.lastWorkflowSnapshot,
     required this.stallDurationMs,
+    required this.budgetPhase,
+    required this.activeTaskTitle,
+    required this.toolResultCount,
+    required this.fileWriteCount,
+    required this.phaseTimings,
+    required this.budgets,
     required this.recentLogTail,
   });
 
@@ -28,6 +37,12 @@ class PlanModeFailureDiagnostics {
   final String? lastAssistantSummary;
   final String? lastWorkflowSnapshot;
   final int? stallDurationMs;
+  final String? budgetPhase;
+  final String? activeTaskTitle;
+  final int? toolResultCount;
+  final int? fileWriteCount;
+  final Map<String, String?> phaseTimings;
+  final Map<String, int?> budgets;
   final List<String> recentLogTail;
 
   Map<String, Object?> toJson() {
@@ -38,6 +53,12 @@ class PlanModeFailureDiagnostics {
       'lastAssistantSummary': lastAssistantSummary,
       'lastWorkflowSnapshot': lastWorkflowSnapshot,
       'stallDurationMs': stallDurationMs,
+      'budgetPhase': budgetPhase,
+      'activeTaskTitle': activeTaskTitle,
+      'toolResultCount': toolResultCount,
+      'fileWriteCount': fileWriteCount,
+      'phaseTimings': phaseTimings,
+      'budgets': budgets,
       'recentLogTail': recentLogTail,
     };
   }
@@ -48,18 +69,59 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
   String? errorText,
   String? lastWorkflowSnapshot,
   int? stallDurationMs,
+  String? budgetPhase,
+  String? activeTaskTitle,
+  int? toolResultCount,
+  int? fileWriteCount,
+  Map<String, String?> phaseTimings = const <String, String?>{},
+  Map<String, int?> budgets = const <String, int?>{},
 }) {
   final normalizedError = (errorText ?? '').trim();
+  final failureClass = _classifyFailure(logs: logs, errorText: normalizedError);
   return PlanModeFailureDiagnostics(
-    failureClass: _classifyFailure(logs: logs, errorText: normalizedError),
+    failureClass: failureClass,
     lastToolName: _extractLastToolName(logs),
     lastToolFailure: _extractLastToolFailure(logs),
     lastAssistantSummary: _extractLastAssistantSummary(logs),
     lastWorkflowSnapshot:
         lastWorkflowSnapshot ?? _extractLastWorkflowSnapshot(normalizedError),
     stallDurationMs: stallDurationMs,
+    budgetPhase: budgetPhase ?? _defaultBudgetPhaseForFailure(failureClass),
+    activeTaskTitle:
+        activeTaskTitle ?? _extractActiveTaskTitle(normalizedError),
+    toolResultCount:
+        toolResultCount ??
+        _extractNamedIntField(normalizedError, 'toolresults'),
+    fileWriteCount:
+        fileWriteCount ?? _extractNamedIntField(normalizedError, 'filewrites'),
+    phaseTimings: Map<String, String?>.unmodifiable(
+      Map<String, String?>.from(phaseTimings),
+    ),
+    budgets: Map<String, int?>.unmodifiable(Map<String, int?>.from(budgets)),
     recentLogTail: _extractRecentLogTail(logs),
   );
+}
+
+String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
+  switch (failureClass) {
+    case PlanModeFailureClass.planningTimeout:
+      return 'planning';
+    case PlanModeFailureClass.executionTimeout:
+    case PlanModeFailureClass.executionStall:
+      return 'execution';
+    case PlanModeFailureClass.overallTimeout:
+      return 'overall';
+    case PlanModeFailureClass.passed:
+    case PlanModeFailureClass.streamDisconnect:
+    case PlanModeFailureClass.unknownTool:
+    case PlanModeFailureClass.workflowBlocked:
+    case PlanModeFailureClass.workflowProposalParse:
+    case PlanModeFailureClass.planningLoop:
+    case PlanModeFailureClass.warningFailure:
+    case PlanModeFailureClass.toolExecutionFailure:
+    case PlanModeFailureClass.unclassified:
+      return null;
+  }
 }
 
 PlanModeFailureClass _classifyFailure({
@@ -78,6 +140,15 @@ PlanModeFailureClass _classifyFailure({
     return normalizedLogs.any((line) => line.contains(normalizedPattern));
   }
 
+  if (normalizedError.contains('planning phase timed out')) {
+    return PlanModeFailureClass.planningTimeout;
+  }
+  if (normalizedError.contains('execution phase timed out')) {
+    return PlanModeFailureClass.executionTimeout;
+  }
+  if (normalizedError.contains('overall live run timed out')) {
+    return PlanModeFailureClass.overallTimeout;
+  }
   if (normalizedError.contains('workflow execution stalled')) {
     return PlanModeFailureClass.executionStall;
   }
@@ -118,6 +189,9 @@ PlanModeFailureClass _classifyFailure({
   }
   if (logsContain('[contenttool] execution failed:')) {
     return PlanModeFailureClass.toolExecutionFailure;
+  }
+  if (logsContain('run timed out after')) {
+    return PlanModeFailureClass.overallTimeout;
   }
 
   return PlanModeFailureClass.unclassified;
@@ -193,6 +267,23 @@ String? _extractLastWorkflowSnapshot(String errorText) {
     return null;
   }
   return match.group(1)?.trim();
+}
+
+String? _extractActiveTaskTitle(String errorText) {
+  if (errorText.isEmpty) {
+    return null;
+  }
+  final match = RegExp(r'activeTask=([^,\n]+)').firstMatch(errorText);
+  return match?.group(1)?.trim();
+}
+
+int? _extractNamedIntField(String errorText, String fieldName) {
+  if (errorText.isEmpty) {
+    return null;
+  }
+  final pattern = RegExp('$fieldName=(\\d+)', caseSensitive: false);
+  final match = pattern.firstMatch(errorText);
+  return int.tryParse(match?.group(1) ?? '');
 }
 
 List<String> _extractRecentLogTail(List<String> logs, {int limit = 12}) {
