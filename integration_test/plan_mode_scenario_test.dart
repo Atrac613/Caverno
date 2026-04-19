@@ -843,6 +843,11 @@ String? _activeWorkflowTaskTitle(List<ConversationWorkflowTask> tasks) {
     }
   }
   for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.blocked) {
+      return task.title;
+    }
+  }
+  for (final task in tasks) {
     if (task.status == ConversationWorkflowTaskStatus.pending) {
       return task.title;
     }
