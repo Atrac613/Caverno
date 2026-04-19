@@ -70,6 +70,14 @@ class ConversationPlanExecutionCompletionAssessment {
       scaffoldCommands.isEmpty &&
       (!requiresValidation || allowsLightValidationCompletion);
 
+  bool get hasCompletionEvidenceIgnoringFailures =>
+      ((successfulValidationCommands.isNotEmpty &&
+              (touchedTargetFiles.isNotEmpty || !hasTargetFiles)) ||
+          (touchedAllTargetFiles &&
+              (!requiresValidation || allowsLightValidationCompletion))) &&
+      unrelatedTouchedPaths.isEmpty &&
+      scaffoldCommands.isEmpty;
+
   bool get shouldMarkCompleted {
     return completedFromSuccessfulValidation || completedFromTargetCoverage;
   }

@@ -143,6 +143,53 @@ void main() {
         'Continue immediately with the next pending saved task without asking for confirmation.',
       ),
     );
+    expect(
+      prompt,
+      contains(
+        'Ignore the previous saved task context in the transcript and focus only on the next task below.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not continue the completed task again. Follow only the next task ID listed above.',
+      ),
+    );
+  });
+
+  test('buildToolLessExecutionRecoveryPrompt forces a concrete next action', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-2',
+      title: 'Implement the YAML config loader',
+      targetFiles: ['src/config_loader.py', 'tests/test_config_loader.py'],
+      validationCommand: 'pytest tests/test_config_loader.py',
+      notes: 'Parse the YAML host list only.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
+          task: task,
+        );
+
+    expect(
+      prompt,
+      contains(
+        'The saved task stalled without any concrete tool call, file change, or validation result.',
+      ),
+    );
+    expect(prompt, contains('Saved task ID: task-2'));
+    expect(
+      prompt,
+      contains(
+        'Your next reply must either modify one of the saved target files or run the saved validation command now.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not restate the plan, do not ask for confirmation, and do not describe future tasks.',
+      ),
+    );
   });
 
   test('buildTaskDriftRecoveryPrompt re-anchors the saved task', () {
@@ -251,5 +298,40 @@ void main() {
     );
 
     expect(validationTask?.id, 'task-1');
+  });
+
+  test('executionFocusTask prefers blocked tasks over pending tasks', () {
+    final conversation = Conversation(
+      id: 'conversation-1',
+      title: 'Plan thread',
+      messages: const <Message>[],
+      createdAt: DateTime(2026, 4, 19, 9),
+      updatedAt: DateTime(2026, 4, 19, 9, 5),
+      workflowSpec: const ConversationWorkflowSpec(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Recover the blocked implementation',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Implement the later follow-up',
+          ),
+        ],
+      ),
+      executionProgress: const [
+        ConversationExecutionTaskProgress(
+          taskId: 'task-1',
+          status: ConversationWorkflowTaskStatus.blocked,
+          blockedReason: 'Waiting for a fix.',
+        ),
+      ],
+    );
+
+    final focusTask = ConversationPlanExecutionCoordinator.executionFocusTask(
+      conversation,
+    );
+
+    expect(focusTask?.id, 'task-1');
   });
 }

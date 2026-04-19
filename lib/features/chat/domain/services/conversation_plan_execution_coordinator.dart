@@ -62,6 +62,7 @@ class ConversationPlanExecutionCoordinator {
   }) {
     final promptLines = <String>[
       'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+      'Ignore the previous saved task context in the transcript and focus only on the next task below.',
       'Completed task ID: ${completedTask.id}',
       'Completed task: ${completedTask.title.trim()}',
       'Next task ID: ${nextTask.id}',
@@ -88,7 +89,48 @@ class ConversationPlanExecutionCoordinator {
 
     promptLines.addAll(_executionGuardrailLines(nextTask));
     promptLines.add(
+      'Do not continue the completed task again. Follow only the next task ID listed above.',
+    );
+    promptLines.add(
       'Implement the next task now. Only pause if you are blocked, the requirements changed, or completing it would require changing the approved workflow.',
+    );
+    return promptLines.join('\n');
+  }
+
+  static String buildToolLessExecutionRecoveryPrompt({
+    required ConversationWorkflowTask task,
+  }) {
+    final promptLines = <String>[
+      'The saved task stalled without any concrete tool call, file change, or validation result.',
+      'Recover by taking one concrete action now.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+    ];
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Your next reply must either modify one of the saved target files or run the saved validation command now.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not ask for confirmation, and do not describe future tasks.',
     );
     return promptLines.join('\n');
   }
@@ -334,9 +376,23 @@ class ConversationPlanExecutionCoordinator {
     return null;
   }
 
+  static ConversationWorkflowTask? executionFocusTask(
+    Conversation conversation,
+  ) {
+    final active = activeTask(conversation);
+    if (active != null) {
+      return active;
+    }
+    final blocked = blockedTask(conversation);
+    if (blocked != null) {
+      return blocked;
+    }
+    return nextTask(conversation);
+  }
+
   static ConversationWorkflowTask? validationTask(Conversation conversation) {
     final candidates = [
-      activeTask(conversation),
+      executionFocusTask(conversation),
       nextTask(conversation),
       ...conversation.projectedExecutionTasks,
     ];

@@ -247,4 +247,59 @@ void main() {
       contains('run_tests tests/test_config_loader.py'),
     );
   });
+
+  test(
+    'assessTaskCompletion preserves completion evidence despite a later malformed failure',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement the ping CLI',
+        targetFiles: ['ping_cli.py', 'hosts.txt'],
+        validationCommand: 'python3 ping_cli.py google.com hosts.txt',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'ping_cli.py'},
+          result:
+              '{"path":"/tmp/project/ping_cli.py","bytes_written":420,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'write_file',
+          arguments: {'path': 'hosts.txt'},
+          result:
+              '{"path":"/tmp/project/hosts.txt","bytes_written":32,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-3',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 ping_cli.py google.com hosts.txt'},
+          result:
+              '{"command":"python3 ping_cli.py google.com hosts.txt","exit_code":0,"stdout":"google.com ok","stderr":""}',
+        ),
+        ToolResultInfo(
+          id: 'tool-4',
+          name: 'google',
+          arguments: const {},
+          result: 'Error: No matching tool available: google',
+        ),
+      ];
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isTrue);
+      expect(assessment.shouldMarkCompleted, isFalse);
+      expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 ping_cli.py google.com hosts.txt'),
+      );
+    },
+  );
 }
