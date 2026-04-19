@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../entities/conversation_workflow.dart';
 
@@ -17,6 +19,37 @@ class ConversationPlanExecutionDriftAssessment {
       (unrelatedTouchedPaths.isNotEmpty || scaffoldCommands.isNotEmpty);
 }
 
+class ConversationPlanExecutionCompletionAssessment {
+  const ConversationPlanExecutionCompletionAssessment({
+    required this.requiresValidation,
+    required this.hasTargetFiles,
+    required this.hasFailure,
+    required this.touchedTargetFiles,
+    required this.successfulValidationCommands,
+    required this.failedValidationCommands,
+  });
+
+  final bool requiresValidation;
+  final bool hasTargetFiles;
+  final bool hasFailure;
+  final List<String> touchedTargetFiles;
+  final List<String> successfulValidationCommands;
+  final List<String> failedValidationCommands;
+
+  bool get shouldMarkCompleted {
+    if (hasFailure) {
+      return false;
+    }
+    if (requiresValidation) {
+      if (successfulValidationCommands.isEmpty) {
+        return false;
+      }
+      return touchedTargetFiles.isNotEmpty || !hasTargetFiles;
+    }
+    return touchedTargetFiles.isNotEmpty;
+  }
+}
+
 class ConversationPlanExecutionGuardrails {
   ConversationPlanExecutionGuardrails._();
 
@@ -33,37 +66,38 @@ class ConversationPlanExecutionGuardrails {
     final scaffoldCommands = <String>{};
 
     for (final toolResult in toolResults) {
-      switch (toolResult.name) {
-        case 'write_file':
-        case 'edit_file':
-          final path = _normalizePath(toolResult.arguments['path']?.toString());
-          if (path.isEmpty) {
-            continue;
-          }
-          if (_matchesTarget(path, normalizedTargets)) {
-            touchedTargetFiles.add(path);
-          } else {
-            unrelatedTouchedPaths.add(path);
-          }
-        case 'local_execute_command':
-        case 'git_execute_command':
-          final command =
-              toolResult.arguments['command']?.toString().trim() ?? '';
-          if (command.isEmpty) {
-            continue;
-          }
-          final normalizedCommand = command.toLowerCase();
-          final referencesTarget = normalizedTargets.any(
-            (target) => normalizedCommand.contains(target.toLowerCase()),
-          );
-          final referencesValidation =
-              task.validationCommand.trim().isNotEmpty &&
-              normalizedCommand.contains(task.validationCommand.toLowerCase());
-          if (!referencesTarget &&
-              !referencesValidation &&
-              _looksLikeScaffoldCommand(normalizedCommand)) {
-            scaffoldCommands.add(command);
-          }
+      if (toolResult.name == 'write_file' || toolResult.name == 'edit_file') {
+        final path = _normalizePath(toolResult.arguments['path']?.toString());
+        if (path.isEmpty) {
+          continue;
+        }
+        if (_matchesTarget(path, normalizedTargets)) {
+          touchedTargetFiles.add(path);
+        } else {
+          unrelatedTouchedPaths.add(path);
+        }
+        continue;
+      }
+
+      if (toolResult.name == 'local_execute_command' ||
+          toolResult.name == 'git_execute_command') {
+        final command =
+            toolResult.arguments['command']?.toString().trim() ?? '';
+        if (command.isEmpty) {
+          continue;
+        }
+        final normalizedCommand = command.toLowerCase();
+        final referencesTarget = normalizedTargets.any(
+          (target) => normalizedCommand.contains(target.toLowerCase()),
+        );
+        final referencesValidation =
+            task.validationCommand.trim().isNotEmpty &&
+            normalizedCommand.contains(task.validationCommand.toLowerCase());
+        if (!referencesTarget &&
+            !referencesValidation &&
+            _looksLikeScaffoldCommand(normalizedCommand)) {
+          scaffoldCommands.add(command);
+        }
       }
     }
 
@@ -74,6 +108,91 @@ class ConversationPlanExecutionGuardrails {
     );
   }
 
+  static ConversationPlanExecutionCompletionAssessment assessTaskCompletion({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final normalizedTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    final touchedTargetFiles = <String>{};
+    final successfulValidationCommands = <String>{};
+    final failedValidationCommands = <String>{};
+    var hasFailure = false;
+
+    for (final toolResult in toolResults) {
+      if (_looksLikeFailureResult(toolResult.result)) {
+        hasFailure = true;
+      }
+
+      if (toolResult.name == 'write_file' ||
+          toolResult.name == 'edit_file' ||
+          toolResult.name == 'rollback_last_file_change') {
+        final path = _normalizePath(toolResult.arguments['path']?.toString());
+        if (path.isNotEmpty && _matchesTarget(path, normalizedTargets)) {
+          touchedTargetFiles.add(path);
+        }
+        continue;
+      }
+
+      if (toolResult.name == 'local_execute_command' ||
+          toolResult.name == 'git_execute_command' ||
+          toolResult.name == 'ssh_execute_command') {
+        final command = _extractCommand(toolResult);
+        if (!_matchesValidationCommand(command, task.validationCommand)) {
+          continue;
+        }
+        final exitCode = _extractExitCode(toolResult.result);
+        final succeeded = exitCode == null
+            ? !_looksLikeFailureResult(toolResult.result)
+            : exitCode == 0;
+        if (succeeded) {
+          successfulValidationCommands.add(command);
+        } else {
+          failedValidationCommands.add(command);
+          hasFailure = true;
+        }
+        continue;
+      }
+
+      if (toolResult.name == 'run_tests') {
+        final testPath = _normalizeText(
+          toolResult.arguments['test_path'] ?? toolResult.arguments['path'],
+        );
+        if (!_matchesRunTestsValidation(task.validationCommand, testPath)) {
+          continue;
+        }
+        final resultSummary = testPath == null
+            ? 'run_tests'
+            : 'run_tests $testPath';
+        final exitCode = _extractExitCode(toolResult.result);
+        final succeeded = exitCode == null
+            ? !_looksLikeFailureResult(toolResult.result)
+            : exitCode == 0;
+        if (succeeded) {
+          successfulValidationCommands.add(resultSummary);
+        } else {
+          failedValidationCommands.add(resultSummary);
+          hasFailure = true;
+        }
+      }
+    }
+
+    return ConversationPlanExecutionCompletionAssessment(
+      requiresValidation: task.validationCommand.trim().isNotEmpty,
+      hasTargetFiles: normalizedTargets.isNotEmpty,
+      hasFailure: hasFailure,
+      touchedTargetFiles: touchedTargetFiles.toList(growable: false),
+      successfulValidationCommands: successfulValidationCommands.toList(
+        growable: false,
+      ),
+      failedValidationCommands: failedValidationCommands.toList(
+        growable: false,
+      ),
+    );
+  }
+
   static bool _matchesTarget(String path, Set<String> normalizedTargets) {
     if (normalizedTargets.contains(path)) {
       return true;
@@ -81,6 +200,33 @@ class ConversationPlanExecutionGuardrails {
     return normalizedTargets.any(
       (target) => path.endsWith('/$target') || path.endsWith(target),
     );
+  }
+
+  static bool _matchesValidationCommand(
+    String command,
+    String validationCommand,
+  ) {
+    final normalizedCommand = command.trim().toLowerCase();
+    final normalizedValidation = validationCommand.trim().toLowerCase();
+    if (normalizedCommand.isEmpty || normalizedValidation.isEmpty) {
+      return false;
+    }
+    return normalizedCommand == normalizedValidation ||
+        normalizedCommand.contains(normalizedValidation) ||
+        normalizedValidation.contains(normalizedCommand);
+  }
+
+  static bool _matchesRunTestsValidation(
+    String validationCommand,
+    String? testPath,
+  ) {
+    final normalizedValidation = validationCommand.trim().toLowerCase();
+    final normalizedTestPath = testPath?.trim().toLowerCase() ?? '';
+    if (normalizedValidation.isEmpty || normalizedTestPath.isEmpty) {
+      return false;
+    }
+    return normalizedValidation.contains(normalizedTestPath) ||
+        normalizedValidation.contains('run_tests');
   }
 
   static String _normalizePath(String? value) {
@@ -108,5 +254,76 @@ class ConversationPlanExecutionGuardrails {
       'touch ',
     ];
     return scaffoldPatterns.any(normalizedCommand.contains);
+  }
+
+  static String _extractCommand(ToolResultInfo toolResult) {
+    final directCommand = _normalizeText(toolResult.arguments['command']);
+    if (directCommand != null) {
+      return directCommand;
+    }
+    final decoded = _tryDecodeMap(toolResult.result);
+    return _normalizeText(decoded?['command']) ?? '';
+  }
+
+  static int? _extractExitCode(String rawResult) {
+    final decoded = _tryDecodeMap(rawResult);
+    final exitCode = decoded == null ? null : decoded['exit_code'];
+    if (exitCode is int) {
+      return exitCode;
+    }
+    if (exitCode is num) {
+      return exitCode.toInt();
+    }
+    if (exitCode is String) {
+      return int.tryParse(exitCode.trim());
+    }
+    return null;
+  }
+
+  static bool _looksLikeFailureResult(String rawResult) {
+    final normalized = rawResult.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    final exitCode = _extractExitCode(rawResult);
+    if (exitCode != null && exitCode != 0) {
+      return true;
+    }
+    final decoded = _tryDecodeMap(rawResult);
+    final successValue = decoded == null ? null : decoded['success'];
+    if (successValue == false) {
+      return true;
+    }
+    final isSuccessValue = decoded == null ? null : decoded['isSuccess'];
+    if (isSuccessValue == false) {
+      return true;
+    }
+    return normalized.startsWith('error:') ||
+        normalized.contains('failed to') ||
+        normalized.contains('no matching tool available') ||
+        normalized.contains('"issuccess":false') ||
+        normalized.contains('"success":false') ||
+        normalized.contains('"errormessage"') ||
+        normalized.contains('"status":"failed"') ||
+        normalized.contains('"status":"error"') ||
+        normalized.contains('traceback') ||
+        normalized.contains('exception');
+  }
+
+  static Map<String, dynamic>? _tryDecodeMap(String rawResult) {
+    try {
+      final decoded = jsonDecode(rawResult);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
+  }
+
+  static String? _normalizeText(Object? value) {
+    final trimmed = value?.toString().trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
   }
 }

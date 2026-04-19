@@ -1,0 +1,35 @@
+{
+  "task": {
+    "id": "task-multi-host-ping",
+    "title": "Multiple host ping from file works",
+    "targetFiles": ["ping_cli.py", "hosts.txt"],
+    "validationCommand": "python3 ping_cli.py google.com hosts.txt",
+    "notes": "Keep the task focused on the saved CLI entrypoint and the saved host list."
+  },
+  "toolResults": [
+    {
+      "id": "tool-1",
+      "name": "write_file",
+      "arguments": {
+        "path": "ping_cli.py"
+      },
+      "result": "{\"path\":\"/tmp/project/ping_cli.py\",\"bytes_written\":632,\"created\":false}"
+    },
+    {
+      "id": "tool-2",
+      "name": "write_file",
+      "arguments": {
+        "path": "hosts.txt"
+      },
+      "result": "{\"path\":\"/tmp/project/hosts.txt\",\"bytes_written\":28,\"created\":true}"
+    },
+    {
+      "id": "tool-3",
+      "name": "local_execute_command",
+      "arguments": {
+        "command": "python3 ping_cli.py google.com hosts.txt"
+      },
+      "result": "{\"command\":\"python3 ping_cli.py google.com hosts.txt\",\"exit_code\":0,\"stdout\":\"google.com: reachable\\ncloudflare.com: reachable\\n\",\"stderr\":\"\"}"
+    }
+  ]
+}

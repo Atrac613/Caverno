@@ -4515,12 +4515,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
       bypassPlanMode: true,
     );
     final toolResults = chatNotifier.takeLatestToolResults();
-    final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
-      task: task,
-      previousAssistantMessageId: previousAssistantMessageId,
-      toolResults: toolResults,
-    );
-    final recoveredFromDrift = !toolResultApplied &&
+    final toolResultApplied =
+        await _captureExecutionProgressFromLatestToolResults(
+          task: task,
+          previousAssistantMessageId: previousAssistantMessageId,
+          toolResults: toolResults,
+        );
+    final recoveredFromDrift =
+        !toolResultApplied &&
         await _maybeRecoverFromTaskDrift(
           task: task,
           languageCode: languageCode,
@@ -4674,12 +4676,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
     final toolResults = chatNotifier.takeLatestToolResults();
-    final toolResultApplied = await _captureExecutionProgressFromLatestToolResults(
-      task: nextTask,
-      previousAssistantMessageId: previousAssistantMessageId,
-      toolResults: toolResults,
-    );
-    final recoveredFromDrift = !toolResultApplied &&
+    final toolResultApplied =
+        await _captureExecutionProgressFromLatestToolResults(
+          task: nextTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          toolResults: toolResults,
+        );
+    final recoveredFromDrift =
+        !toolResultApplied &&
         await _maybeRecoverFromTaskDrift(
           task: nextTask,
           languageCode: languageCode,
@@ -4820,28 +4824,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
-    final hasExecutionMutation = toolResults.any(
-      (toolResult) => switch (toolResult.name) {
-        'write_file' ||
-        'edit_file' ||
-        'rollback_last_file_change' ||
-        'local_execute_command' ||
-        'git_execute_command' => true,
-        _ => false,
-      },
-    );
-    if (!hasExecutionMutation) {
+    final completionAssessment =
+        ConversationPlanExecutionGuardrails.assessTaskCompletion(
+          task: task,
+          toolResults: toolResults,
+        );
+    if (!completionAssessment.shouldMarkCompleted) {
       return false;
     }
 
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
-    final summary =
-        latestAssistantResponse.trim().isNotEmpty &&
-            latestAssistantResponse.toLowerCase().contains('next task')
-        ? 'Marked complete from successful tool results after the assistant advanced to the next task.'
-        : 'Marked complete from successful task tool results.';
+    final summary = completionAssessment.requiresValidation
+        ? 'Marked complete from saved target file changes and a successful validation result.'
+        : 'Marked complete from saved target file changes.';
     await conversationsNotifier.updateCurrentExecutionTaskProgress(
       taskId: task.id,
       status: ConversationWorkflowTaskStatus.completed,
