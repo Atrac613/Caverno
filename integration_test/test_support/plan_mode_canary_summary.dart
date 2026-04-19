@@ -148,10 +148,14 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           scenario['lastKnownPhase'] as String? ??
           lastHeartbeat['phase'] as String?;
       final heartbeatSubphase = lastHeartbeat['subphase'] as String?;
-      final failureClass =
+      final rawFailureClass =
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
           : (scenario['status'] == 'passed' ? 'passed' : 'unclassified');
+      final failureClass = _resolveLogAwareFailureClass(
+        rawFailureClass,
+        logLines,
+      );
       failureClassCounts.update(
         failureClass,
         (count) => count + 1,
@@ -207,6 +211,29 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
   );
 }
 
+String _resolveLogAwareFailureClass(
+  String failureClass,
+  List<String> logLines,
+) {
+  if (failureClass != 'overallTimeout') {
+    return failureClass;
+  }
+  final normalizedLines = logLines.map((line) => line.toLowerCase()).toList();
+  if (normalizedLines.any(
+    (line) =>
+        line.contains('failed to foreground app; open returned 1') ||
+        line.contains('[canaryrunner] stage=foregroundfailed'),
+  )) {
+    return 'appForegroundFailure';
+  }
+  if (normalizedLines.any(
+    (line) => line.contains('[canaryrunner] stage=firstheartbeattimeout'),
+  )) {
+    return 'appLaunchTimeout';
+  }
+  return failureClass;
+}
+
 List<String> _readCanaryLogLines(
   String? logPath, {
   List<String> fallbackTail = const <String>[],
@@ -248,6 +275,19 @@ String? _inferPhaseFromLogLines(List<String> logLines) {
     return null;
   }
   final normalizedLines = logLines.map((line) => line.toLowerCase()).toList();
+  final sawStartup = normalizedLines.any(
+    (line) =>
+        line.contains('building macos application') ||
+        line.contains('✓ built ') ||
+        line.contains('failed to foreground app; open returned 1') ||
+        line.contains('[canaryrunner] stage=buildstarted') ||
+        line.contains('[canaryrunner] stage=buildfinished') ||
+        line.contains('[canaryrunner] stage=foregroundfailed') ||
+        line.contains('[canaryrunner] stage=firstheartbeattimeout'),
+  );
+  if (sawStartup) {
+    return 'startup';
+  }
   final sawExecution = normalizedLines.any(
     (line) =>
         line.contains('[contenttool]') ||

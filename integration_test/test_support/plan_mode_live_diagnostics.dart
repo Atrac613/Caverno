@@ -1,5 +1,7 @@
 enum PlanModeFailureClass {
   passed,
+  appForegroundFailure,
+  appLaunchTimeout,
   planningDecisionWait,
   planningTimeout,
   taskProposalQuality,
@@ -110,6 +112,9 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
 
 String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
   switch (failureClass) {
+    case PlanModeFailureClass.appForegroundFailure:
+    case PlanModeFailureClass.appLaunchTimeout:
+      return 'startup';
     case PlanModeFailureClass.planningDecisionWait:
     case PlanModeFailureClass.planningTimeout:
     case PlanModeFailureClass.taskProposalQuality:
@@ -140,16 +145,33 @@ PlanModeFailureClass _classifyFailure({
   required List<String> logs,
   required String errorText,
 }) {
-  if (errorText.isEmpty) {
-    return PlanModeFailureClass.passed;
-  }
-
-  final normalizedError = errorText.toLowerCase();
   final normalizedLogs = logs.map((line) => line.toLowerCase()).toList();
 
   bool logsContain(String pattern) {
     final normalizedPattern = pattern.toLowerCase();
     return normalizedLogs.any((line) => line.contains(normalizedPattern));
+  }
+
+  if (_logsContainStartupForegroundFailure(normalizedLogs)) {
+    return PlanModeFailureClass.appForegroundFailure;
+  }
+  if (_logsContainStartupLaunchTimeout(normalizedLogs)) {
+    return PlanModeFailureClass.appLaunchTimeout;
+  }
+
+  if (errorText.isEmpty) {
+    return PlanModeFailureClass.passed;
+  }
+
+  final normalizedError = errorText.toLowerCase();
+  if (normalizedError.contains('failed to foreground app')) {
+    return PlanModeFailureClass.appForegroundFailure;
+  }
+  if (normalizedError.contains('startup heartbeat was not observed') ||
+      normalizedError.contains(
+        'app launch timed out before the first heartbeat',
+      )) {
+    return PlanModeFailureClass.appLaunchTimeout;
   }
 
   if (normalizedError.contains('planning phase timed out') &&
@@ -230,8 +252,7 @@ PlanModeFailureClass _classifyFailure({
       logsContain('[llm] createchatcompletion error:')) {
     return PlanModeFailureClass.streamDisconnect;
   }
-  if ((logsContain('modulenotfounderror') ||
-          logsContain('no module named')) &&
+  if ((logsContain('modulenotfounderror') || logsContain('no module named')) &&
       normalizedError.contains('blocked')) {
     return PlanModeFailureClass.validationImportBlocked;
   }
@@ -249,6 +270,22 @@ PlanModeFailureClass _classifyFailure({
   }
 
   return PlanModeFailureClass.unclassified;
+}
+
+bool _logsContainStartupForegroundFailure(List<String> normalizedLogs) {
+  return normalizedLogs.any(
+    (line) =>
+        line.contains('failed to foreground app; open returned 1') ||
+        line.contains('[canaryrunner] stage=foregroundfailed'),
+  );
+}
+
+bool _logsContainStartupLaunchTimeout(List<String> normalizedLogs) {
+  return normalizedLogs.any(
+    (line) =>
+        line.contains('[canaryrunner] stage=firstheartbeattimeout') ||
+        line.contains('startup heartbeat was not observed'),
+  );
 }
 
 String? _extractLastToolName(List<String> logs) {

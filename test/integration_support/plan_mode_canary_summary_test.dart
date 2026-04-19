@@ -127,4 +127,83 @@ void main() {
     expect(summary.runs.single.lastKnownPhase, 'execution');
     expect(summary.runs.single.logPath, logFile.path);
   });
+
+  test('infers startup phase from build and foreground failure logs', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'plan_mode_canary_summary_startup_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+    final logFile = File('${tempDir.path}/run_01_run.log');
+    await logFile.writeAsString('''
+[CanaryRunner] stage=buildStarted at=2026-04-19T12:00:00Z
+Building macOS application...
+Failed to foreground app; open returned 1
+''');
+
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'appForegroundFailure',
+            'budgetPhase': 'startup',
+            'durationMs': 45000,
+            'error':
+                'App failed to foreground before the first live heartbeat.',
+            'scenarioLog': logFile.path,
+            'diagnostics': <String, dynamic>{
+              'lastHeartbeat': <String, dynamic>{},
+              'recentLogTail': <String>[],
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.runs.single.lastKnownPhase, 'startup');
+    expect(summary.runs.single.budgetPhase, 'startup');
+  });
+
+  test(
+    'upgrades overall timeout into startup foreground failure from logs',
+    () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plan_mode_canary_summary_failure_class_test_',
+      );
+      addTearDown(() async {
+        if (tempDir.existsSync()) {
+          await tempDir.delete(recursive: true);
+        }
+      });
+      final logFile = File('${tempDir.path}/run_01_run.log');
+      await logFile.writeAsString('''
+Building macOS application...
+Failed to foreground app; open returned 1
+''');
+
+      final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+        <String, dynamic>{
+          'scenarios': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'scenario': 'live_ping_cli_completion',
+              'status': 'failed',
+              'failureClass': 'overallTimeout',
+              'budgetPhase': 'overall',
+              'durationMs': 240000,
+              'error': 'Overall live run timed out after 240s.',
+              'scenarioLog': logFile.path,
+            },
+          ],
+        },
+      ]);
+
+      expect(summary.runs.single.failureClass, 'appForegroundFailure');
+      expect(summary.failureClassCounts['appForegroundFailure'], 1);
+    },
+  );
 }

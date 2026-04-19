@@ -73,6 +73,35 @@ void main() {
       expect(diagnostics.budgetPhase, 'planning');
     });
 
+    test('classifies app foreground failures from startup logs', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          'Failed to foreground app; open returned 1',
+          '[CanaryRunner] stage=foregroundFailed at=2026-04-19T12:00:00Z detail=open returned 1',
+        ],
+        errorText: 'Overall live run timed out after 240s.',
+      );
+
+      expect(
+        diagnostics.failureClass,
+        PlanModeFailureClass.appForegroundFailure,
+      );
+      expect(diagnostics.budgetPhase, 'startup');
+    });
+
+    test('classifies first-heartbeat startup timeouts separately', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[
+          '[CanaryRunner] stage=buildFinished at=2026-04-19T12:00:00Z',
+          '[CanaryRunner] stage=firstHeartbeatTimeout at=2026-04-19T12:00:45Z',
+        ],
+        errorText: 'App launch timed out before the first live heartbeat.',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.appLaunchTimeout);
+      expect(diagnostics.budgetPhase, 'startup');
+    });
+
     test('classifies planning decision waits separately from generic timeouts', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[
@@ -98,7 +127,10 @@ void main() {
             'Saved workflow task proposal was too short. expectedMinTaskCount=2 actualTaskCount=1 tasks=Implement basic ping functionality in main.py',
       );
 
-      expect(diagnostics.failureClass, PlanModeFailureClass.taskProposalQuality);
+      expect(
+        diagnostics.failureClass,
+        PlanModeFailureClass.taskProposalQuality,
+      );
       expect(diagnostics.budgetPhase, 'planning');
     });
 
