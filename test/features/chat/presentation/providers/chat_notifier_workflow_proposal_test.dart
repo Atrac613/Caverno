@@ -372,6 +372,25 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     );
   });
 
+  test('parses inline numbered task plans from truncated reasoning text', () {
+    final proposal = notifier.parseTaskProposalForTest('''
+Plan: 1. Initialize the Python project structure and requirements.txt.
+2. Implement the core ping logic in src/ping_engine.py.
+3. Add a CLI entrypoint in src/main.py and validate it.
+''');
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks.length, greaterThanOrEqualTo(2));
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Implement the core ping logic in src/ping_engine.py'),
+    );
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Add a CLI entrypoint in src/main.py and validate it'),
+    );
+  });
+
   test('drops placeholder task titles from task proposals', () {
     final proposal = notifier.parseTaskProposalForTest('''
 {"tasks":[
@@ -477,9 +496,7 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     expect(context, contains('The first task may scaffold the workspace'));
     expect(
       context,
-      contains(
-        'Do not use generic validation such as "module importable"',
-      ),
+      contains('Do not use generic validation such as "module importable"'),
     );
   });
 

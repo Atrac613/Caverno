@@ -2164,14 +2164,29 @@ Retry hint:
     final structuredReasoning = _extractStructuredTaskProposalReasoning(
       reasoningContent,
     );
-    if (structuredReasoning.isEmpty) {
-      return null;
+    if (structuredReasoning.isNotEmpty) {
+      final sanitized = _parseTaskProposal(structuredReasoning);
+      if (sanitized != null && _isReasoningTaskProposalPlausible(sanitized)) {
+        return sanitized;
+      }
     }
-    final sanitized = _parseTaskProposal(structuredReasoning);
-    if (sanitized == null || !_isReasoningTaskProposalPlausible(sanitized)) {
-      return null;
+
+    final inlineReasoning = _parseTaskProposalFromInlineReasoningPlan(
+      reasoningContent,
+    );
+    if (inlineReasoning != null &&
+        _isReasoningTaskProposalPlausible(inlineReasoning)) {
+      return inlineReasoning;
     }
-    return sanitized;
+
+    final inlineVisible = _parseTaskProposalFromInlineReasoningPlan(
+      _normalizeProposalContent(rawContent),
+    );
+    if (inlineVisible != null &&
+        _isReasoningTaskProposalPlausible(inlineVisible)) {
+      return inlineVisible;
+    }
+    return null;
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -2970,6 +2985,55 @@ Retry hint:
     );
   }
 
+  WorkflowTaskProposalDraft? _parseTaskProposalFromInlineReasoningPlan(
+    String rawContent,
+  ) {
+    final normalizedContent = rawContent.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalizedContent.isEmpty) {
+      return null;
+    }
+
+    final candidate = _extractInlineTaskPlanCandidate(normalizedContent);
+    final taskMatches = RegExp(
+      r'(?:^|(?<=\s))\d+[.)]\s+',
+    ).allMatches(candidate).toList(growable: false);
+    if (taskMatches.length < 2) {
+      return null;
+    }
+
+    final tasks = <ConversationWorkflowTask>[];
+    for (var index = 0; index < taskMatches.length; index++) {
+      final start = taskMatches[index].end;
+      final end = index + 1 < taskMatches.length
+          ? taskMatches[index + 1].start
+          : candidate.length;
+      final rawTitle = candidate.substring(start, end).trim();
+      final title = _sanitizeInlineReasoningTaskTitle(rawTitle);
+      if (title.isEmpty) {
+        continue;
+      }
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: title,
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const <String>[],
+          validationCommand: '',
+          notes: '',
+        ),
+      );
+      if (tasks.length == 6) {
+        break;
+      }
+    }
+
+    final sanitizedTasks = _sanitizeTaskProposalTasks(tasks);
+    if (sanitizedTasks.length < 2) {
+      return null;
+    }
+    return WorkflowTaskProposalDraft(tasks: sanitizedTasks);
+  }
+
   Map<String, List<String>> _collectProposalSections(String rawContent) {
     final sections = <String, List<String>>{
       'workflowStage': <String>[],
@@ -3274,6 +3338,38 @@ Retry hint:
     }
 
     return candidate.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
+  String _extractInlineTaskPlanCandidate(String rawContent) {
+    final planMatch = RegExp(
+      r'(?:^|[\s(])(?:plan|tasks?)\s*[:：-]\s*(.+)$',
+      caseSensitive: false,
+    ).firstMatch(rawContent);
+    return (planMatch?.group(1) ?? rawContent).trim();
+  }
+
+  String _sanitizeInlineReasoningTaskTitle(String rawValue) {
+    var candidate = _sanitizeReasoningProposalValue(
+      rawValue,
+      preferSingleSentence: true,
+    );
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    final fieldMatch = RegExp(
+      r'\b(?:target files?|validation command|validation|notes?)\s*[:：-]',
+      caseSensitive: false,
+    ).firstMatch(candidate);
+    if (fieldMatch != null && fieldMatch.start > 0) {
+      candidate = candidate.substring(0, fieldMatch.start).trim();
+    }
+
+    candidate = candidate.replaceFirst(
+      RegExp(r'^(?:task|title)\s*[:：-]\s*', caseSensitive: false),
+      '',
+    );
+    return candidate.trim();
   }
 
   bool _isReasoningWorkflowProposalPlausible(WorkflowProposalDraft proposal) {
