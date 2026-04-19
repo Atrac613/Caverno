@@ -129,6 +129,39 @@ void main() {
   );
 
   test(
+    'assessTaskCompletion keeps scaffold completion after post-validation rewrites',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_post_validation_loop_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_post_validation_loop_replay.json',
+      );
+
+      final completionAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+      final driftAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskDrift(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(completionAssessment.shouldMarkCompleted, isTrue);
+      expect(completionAssessment.completedFromTargetCoverage, isTrue);
+      expect(
+        completionAssessment.successfulValidationCommands,
+        contains('ls -R src'),
+      );
+      expect(driftAssessment.hasDrift, isFalse);
+      expect(driftAssessment.repeatedTargetFiles, contains('README.md'));
+      expect(driftAssessment.remainingTargetFiles, isEmpty);
+    },
+  );
+
+  test(
     'assessTaskCompletion treats target-directory scaffolding as benign support',
     () {
       const task = ConversationWorkflowTask(
@@ -299,6 +332,36 @@ void main() {
       expect(
         assessment.successfulValidationCommands,
         contains('python3 ping_cli.py google.com hosts.txt'),
+      );
+    },
+  );
+
+  test(
+    'assessTaskCompletion keeps completion evidence after an unavailable tool',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_unknown_tool_after_completion_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_unknown_tool_after_completion_replay.json',
+      );
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isTrue);
+      expect(assessment.shouldMarkCompleted, isFalse);
+      expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 ping_cli.py --help'),
+      );
+      expect(
+        ConversationPlanExecutionGuardrails.unavailableToolNames(toolResults),
+        contains('print'),
       );
     },
   );

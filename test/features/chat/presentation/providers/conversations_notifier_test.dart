@@ -851,6 +851,85 @@ void main() {
   );
 
   test(
+    'updateCurrentExecutionTaskProgressFromAssistantTurn does not reopen validated completed tasks',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Keep scaffold completion locked after validation\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Initialize the scaffold files\n'
+              '   - Status: inProgress\n'
+              '   - Validation: ls -R src\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: 'Validated the scaffold layout.',
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationCommand: 'ls -R src',
+        lastValidationSummary: 'src/ping_cli/__init__.py is present.',
+        lastValidationAt: DateTime(2026, 4, 19, 0, 15),
+        eventType: ConversationExecutionTaskEventType.completed,
+      );
+
+      await notifier.updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse:
+            'I will refine README.md next to polish the scaffold task.',
+        isValidationRun: false,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress =
+          refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(progress.summary, 'Validated the scaffold layout.');
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(progress.lastValidationCommand, 'ls -R src');
+      expect(
+        progress.lastValidationSummary,
+        'src/ping_cli/__init__.py is present.',
+      );
+      expect(progress.recentEvents, hasLength(1));
+      expect(
+        refreshedConversation?.workflowStage,
+        ConversationWorkflowStage.review,
+      );
+    },
+  );
+
+  test(
     'appendCurrentExecutionTaskEvent stores replanned timeline entries',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
