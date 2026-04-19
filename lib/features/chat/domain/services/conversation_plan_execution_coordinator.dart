@@ -300,6 +300,47 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildMissingTargetFileRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> missingTargetFiles,
+    required String failedCommand,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command ran before every required target file existed.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Missing target files: ${missingTargetFiles.join(', ')}',
+    ];
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Create or edit one missing target file now before running the saved validation command again.',
+    );
+    promptLines.add(
+      'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildTaskDriftRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> unrelatedTouchedPaths,

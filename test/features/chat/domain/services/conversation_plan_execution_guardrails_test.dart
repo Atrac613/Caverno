@@ -81,6 +81,39 @@ void main() {
   });
 
   test(
+    'canFinalizeScaffoldFromWorkspaceTargets accepts scaffold targets that already exist',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_scaffold_workspace_completion_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
+          .cast<String>();
+
+      final canFinalize = ConversationPlanExecutionGuardrails
+          .canFinalizeScaffoldFromWorkspaceTargets(
+            task: task,
+            existingTargetPaths: existingTargetPaths,
+          );
+
+      expect(canFinalize, isTrue);
+      expect(
+        ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
+          task: task,
+          existingTargetPaths: existingTargetPaths,
+        ),
+        isEmpty,
+      );
+    },
+  );
+
+  test(
     'assessTaskDrift flags repeated writes when scaffold targets remain',
     () {
       final task = loadFixtureTask(
@@ -160,6 +193,23 @@ void main() {
       expect(driftAssessment.remainingTargetFiles, isEmpty);
     },
   );
+
+  test('extracts missing target files from failed validation commands', () {
+    final task = loadFixtureTask(
+      'plan_mode_ping_cli_missing_main_validation_replay.json',
+    );
+    final toolResults = loadFixtureToolResults(
+      'plan_mode_ping_cli_missing_main_validation_replay.json',
+    );
+
+    final missingTarget =
+        ConversationPlanExecutionGuardrails.missingTargetFileFromValidationFailure(
+          task: task,
+          toolResults: toolResults,
+        );
+
+    expect(missingTarget, 'main.py');
+  });
 
   test(
     'assessTaskCompletion treats target-directory scaffolding as benign support',

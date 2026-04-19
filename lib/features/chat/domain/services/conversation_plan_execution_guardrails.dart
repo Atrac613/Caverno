@@ -354,6 +354,46 @@ class ConversationPlanExecutionGuardrails {
     return sawFailure;
   }
 
+  static List<String> missingWorkspaceTargetFiles({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final normalizedTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    final normalizedExisting = existingTargetPaths
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    return normalizedTargets
+        .where((target) => !normalizedExisting.contains(target))
+        .toList(growable: false);
+  }
+
+  static bool looksLikeScaffoldTask(ConversationWorkflowTask task) {
+    return _isScaffoldLikeTask(task);
+  }
+
+  static bool canFinalizeScaffoldFromWorkspaceTargets({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    if (!_isScaffoldLikeTask(task)) {
+      return false;
+    }
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    if (missingTargets.isNotEmpty) {
+      return false;
+    }
+    final validationCommand = task.validationCommand.trim();
+    return validationCommand.isEmpty ||
+        _looksLikeLightValidationCommand(validationCommand);
+  }
+
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
     final importPattern = RegExp(
       "No module named ['\\\"]([^'\\\"]+)['\\\"]",
@@ -363,6 +403,53 @@ class ConversationPlanExecutionGuardrails {
       final match = importPattern.firstMatch(toolResult.result);
       if (match != null) {
         return match.group(1)?.trim();
+      }
+    }
+    return null;
+  }
+
+  static String? missingTargetFileFromValidationFailure({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final normalizedTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return null;
+    }
+
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      final looksLikeMissingPathFailure =
+          normalizedResult.contains('no such file or directory') ||
+          normalizedResult.contains("can't open file") ||
+          normalizedResult.contains('cannot open') ||
+          normalizedResult.contains('not found');
+      if (!looksLikeMissingPathFailure) {
+        continue;
+      }
+
+      for (final target in normalizedTargets) {
+        final targetBasename = target.split('/').last.toLowerCase();
+        if (targetBasename.isNotEmpty &&
+            normalizedResult.contains(targetBasename)) {
+          return target;
+        }
+      }
+
+      if (normalizedTargets.length == 1) {
+        return normalizedTargets.first;
       }
     }
     return null;

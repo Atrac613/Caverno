@@ -268,6 +268,46 @@ void main() {
   });
 
   test(
+    'buildMissingTargetFileRecoveryPrompt requires file work before validation',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-missing-target',
+        title: 'Implement basic ping functionality in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py 8.8.8.8',
+        notes: 'Create the initial CLI entrypoint first.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
+            task: task,
+            missingTargetFiles: const ['main.py'],
+            failedCommand: 'python3 main.py 8.8.8.8',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved validation command ran before every required target file existed.',
+        ),
+      );
+      expect(prompt, contains('Missing target files: main.py'));
+      expect(
+        prompt,
+        contains(
+          'Create or edit one missing target file now before running the saved validation command again.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildPythonSrcLayoutValidationRecoveryPrompt retries with PYTHONPATH',
     () {
       const failedCommand =
