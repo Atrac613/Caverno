@@ -100,6 +100,8 @@ class ConversationPlanExecutionCoordinator {
   static String buildToolLessExecutionRecoveryPrompt({
     required ConversationWorkflowTask task,
   }) {
+    final isScaffoldTask = _looksLikeScaffoldTask(task);
+    final hasValidationCommand = task.validationCommand.trim().isNotEmpty;
     final promptLines = <String>[
       'The saved task stalled without any concrete tool call, file change, or validation result.',
       'Recover by taking one concrete action now.',
@@ -126,9 +128,21 @@ class ConversationPlanExecutionCoordinator {
     }
 
     promptLines.addAll(_executionGuardrailLines(task));
-    promptLines.add(
-      'Your next reply must either modify one of the saved target files or run the saved validation command now.',
-    );
+    if (isScaffoldTask && hasValidationCommand) {
+      promptLines.add(
+        'This is a scaffold or setup task. If the scaffold files are already in place, run the saved validation command now instead of repeating the setup plan.',
+      );
+      promptLines.add(
+        'Do not restate the scaffold steps or file list without a tool call or validation result.',
+      );
+      promptLines.add(
+        'Your next reply must either run the saved validation command now or modify one missing target file.',
+      );
+    } else {
+      promptLines.add(
+        'Your next reply must either modify one of the saved target files or run the saved validation command now.',
+      );
+    }
     promptLines.add(
       'Do not restate the plan, do not ask for confirmation, and do not describe future tasks.',
     );
@@ -299,6 +313,25 @@ class ConversationPlanExecutionCoordinator {
       );
     }
     return lines;
+  }
+
+  static bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const keywords = <String>[
+      'scaffold',
+      'initial',
+      'initialize',
+      'bootstrap',
+      'project structure',
+      'requirements',
+      'dependency',
+      'dependencies',
+      'pyproject',
+      'package layout',
+      'setup',
+    ];
+    return keywords.any(normalized.contains);
   }
 
   static String buildBlockedTaskReplanContext({

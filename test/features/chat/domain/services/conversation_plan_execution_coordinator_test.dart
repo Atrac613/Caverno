@@ -192,6 +192,43 @@ void main() {
     );
   });
 
+  test(
+    'buildToolLessExecutionRecoveryPrompt prioritizes validation for scaffold tasks',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-setup',
+        title: 'Initialize project structure',
+        targetFiles: ['pyproject.toml', 'README.md', 'src/ping_cli/main.py'],
+        validationCommand: 'ls src/ping_cli/main.py',
+        notes: 'Create the initial scaffold files.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
+            task: task,
+          );
+
+      expect(
+        prompt,
+        contains(
+          'If the scaffold files are already in place, run the saved validation command now instead of repeating the setup plan.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not restate the scaffold steps or file list without a tool call or validation result.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Your next reply must either run the saved validation command now or modify one missing target file.',
+        ),
+      );
+    },
+  );
+
   test('buildToolFailureRecoveryPrompt bounds unknown tools and edit mismatch', () {
     const task = ConversationWorkflowTask(
       id: 'task-2',
