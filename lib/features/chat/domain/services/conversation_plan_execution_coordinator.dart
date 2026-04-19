@@ -124,11 +124,15 @@ class ConversationPlanExecutionCoordinator {
       promptLines.add(
         'Do not rewrite these target files again unless validation fails: ${repeatedTargetFiles.join(', ')}',
       );
+      promptLines.add('Stop rewriting already-covered files.');
     }
 
     if (remainingTargetFiles.isNotEmpty) {
       promptLines.add(
         'Focus on the remaining target files next: ${remainingTargetFiles.join(', ')}',
+      );
+      promptLines.add(
+        'Finish the remaining target files before making any other edits.',
       );
     }
 
@@ -175,6 +179,9 @@ class ConversationPlanExecutionCoordinator {
         'Your next action must directly modify one of the target files or run the saved validation command.',
       );
     }
+    promptLines.add(
+      'If every target file is already covered, run the saved validation command now instead of rewriting files.',
+    );
     return promptLines.join('\n');
   }
 

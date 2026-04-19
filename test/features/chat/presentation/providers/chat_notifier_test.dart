@@ -866,6 +866,24 @@ void main() {
   });
 
   test(
+    'sendHiddenPrompt preserves the hidden assistant response for follow-up inference',
+    () async {
+      final sendFuture = notifier.sendHiddenPrompt('Continue the saved task.');
+      controller.add('The task is complete. Validation passed.');
+      await controller.close();
+      await sendFuture;
+
+      expect(notifier.state.isLoading, isFalse);
+      expect(notifier.state.messages, isEmpty);
+      expect(
+        notifier.takeLatestHiddenAssistantResponse(),
+        'The task is complete. Validation passed.',
+      );
+      expect(notifier.takeLatestHiddenAssistantResponse(), isNull);
+    },
+  );
+
+  test(
     'syncConversation ignores stale updates for the active conversation while loading',
     () async {
       final activeConversationId = container

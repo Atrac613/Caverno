@@ -128,6 +128,90 @@ void main() {
     },
   );
 
+  test(
+    'assessTaskCompletion treats target-directory scaffolding as benign support',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-scaffold-support',
+        title: 'Initialize package layout',
+        targetFiles: [
+          'pyproject.toml',
+          'README.md',
+          '.gitignore',
+          'src/ping_cli/__init__.py',
+        ],
+        validationCommand: 'ls -R src',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'pyproject.toml'},
+          result:
+              '{"path":"/tmp/project/pyproject.toml","bytes_written":120,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'write_file',
+          arguments: {'path': 'README.md'},
+          result:
+              '{"path":"/tmp/project/README.md","bytes_written":180,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-3',
+          name: 'write_file',
+          arguments: {'path': '.gitignore'},
+          result:
+              '{"path":"/tmp/project/.gitignore","bytes_written":24,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-4',
+          name: 'local_execute_command',
+          arguments: {'command': 'mkdir -p src/ping_cli'},
+          result:
+              '{"command":"mkdir -p src/ping_cli","exit_code":0,"stdout":"","stderr":""}',
+        ),
+        ToolResultInfo(
+          id: 'tool-5',
+          name: 'write_file',
+          arguments: {'path': 'src/ping_cli/__init__.py'},
+          result:
+              '{"path":"/tmp/project/src/ping_cli/__init__.py","bytes_written":0,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-6',
+          name: 'local_execute_command',
+          arguments: {'command': 'ls -R src'},
+          result:
+              '{"command":"ls -R src","exit_code":0,"stdout":"src\\nping_cli\\n__init__.py","stderr":""}',
+        ),
+      ];
+
+      final completionAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+      final driftAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskDrift(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(completionAssessment.shouldMarkCompleted, isTrue);
+      expect(
+        completionAssessment.benignSupportCommands,
+        contains('mkdir -p src/ping_cli'),
+      );
+      expect(completionAssessment.scaffoldCommands, isEmpty);
+      expect(driftAssessment.hasDrift, isFalse);
+      expect(
+        driftAssessment.benignSupportCommands,
+        contains('mkdir -p src/ping_cli'),
+      );
+    },
+  );
+
   test('assessTaskCompletion accepts run_tests as saved validation evidence', () {
     const task = ConversationWorkflowTask(
       id: 'task-config-loader',

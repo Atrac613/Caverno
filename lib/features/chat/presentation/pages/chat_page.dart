@@ -4529,10 +4529,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
         );
     if (!toolResultApplied && !recoveredFromDrift) {
-      await _captureExecutionProgressFromLatestAssistantTurn(
+      await _captureExecutionProgressFromLatestAssistantEvidence(
         task: task,
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: false,
+        fallbackAssistantResponse: chatNotifier
+            .takeLatestHiddenAssistantResponse(),
       );
     }
     if (!context.mounted) {
@@ -4602,10 +4604,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
               .toList(growable: false),
         );
     if (!toolResultApplied) {
-      await _captureExecutionProgressFromLatestAssistantTurn(
+      await _captureExecutionProgressFromLatestAssistantEvidence(
         task: task,
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: true,
+        fallbackAssistantResponse: chatNotifier
+            .takeLatestHiddenAssistantResponse(),
       );
     }
     if (!context.mounted) {
@@ -4690,10 +4694,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
         );
     if (!toolResultApplied && !recoveredFromDrift) {
-      await _captureExecutionProgressFromLatestAssistantTurn(
+      await _captureExecutionProgressFromLatestAssistantEvidence(
         task: nextTask,
         previousAssistantMessageId: previousAssistantMessageId,
         isValidationRun: false,
+        fallbackAssistantResponse: chatNotifier
+            .takeLatestHiddenAssistantResponse(),
       );
     }
     if (!context.mounted) {
@@ -4762,10 +4768,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
   }
 
-  Future<void> _captureExecutionProgressFromLatestAssistantTurn({
+  Future<bool> _captureExecutionProgressFromLatestAssistantEvidence({
     required ConversationWorkflowTask task,
     required String? previousAssistantMessageId,
     required bool isValidationRun,
+    String? fallbackAssistantResponse,
   }) async {
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
@@ -4774,21 +4781,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .read(conversationsNotifierProvider)
         .currentConversation;
     if (currentConversation == null) {
-      return;
+      return false;
     }
 
     final latestAssistantMessage = _latestAssistantMessage(currentConversation);
-    if (latestAssistantMessage == null ||
-        latestAssistantMessage.id == previousAssistantMessageId) {
-      return;
+    String? assistantResponse;
+    if (latestAssistantMessage != null &&
+        latestAssistantMessage.id != previousAssistantMessageId) {
+      assistantResponse = latestAssistantMessage.content;
+    } else {
+      final fallback = fallbackAssistantResponse?.trim();
+      if (fallback == null || fallback.isEmpty) {
+        return false;
+      }
+      assistantResponse = fallback;
     }
 
     await conversationsNotifier
         .updateCurrentExecutionTaskProgressFromAssistantTurn(
           task: task,
-          assistantResponse: latestAssistantMessage.content,
+          assistantResponse: assistantResponse,
           isValidationRun: isValidationRun,
         );
+    return true;
   }
 
   Future<bool> _captureExecutionProgressFromLatestToolResults({

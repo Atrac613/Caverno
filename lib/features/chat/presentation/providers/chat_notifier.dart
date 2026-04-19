@@ -185,6 +185,7 @@ class ChatNotifier extends Notifier<ChatState> {
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
+  String? _latestHiddenAssistantResponse;
   static const Set<String> _planningResearchStopWords = {
     'about',
     'after',
@@ -3530,6 +3531,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _latestCompletedToolResults = const [];
+    _latestHiddenAssistantResponse = null;
 
     _temporalReferenceContext = TemporalContextBuilder.build(
       now: DateTime.now(),
@@ -3661,6 +3663,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _temporalReferenceContext = null;
     _isVoiceMode = isVoiceMode;
     _languageCode = languageCode;
+    _latestHiddenAssistantResponse = null;
     _hiddenPrompt = Message(
       id: _uuid.v4(),
       content: instruction,
@@ -3751,6 +3754,12 @@ class ChatNotifier extends Notifier<ChatState> {
   List<ToolResultInfo> takeLatestToolResults() {
     final snapshot = _latestCompletedToolResults;
     _latestCompletedToolResults = const [];
+    return snapshot;
+  }
+
+  String? takeLatestHiddenAssistantResponse() {
+    final snapshot = _latestHiddenAssistantResponse;
+    _latestHiddenAssistantResponse = null;
     return snapshot;
   }
 
@@ -5827,6 +5836,10 @@ class ChatNotifier extends Notifier<ChatState> {
     // Hidden prompt responses are ephemeral — remove from visible history
     // so they are spoken but not persisted in the conversation.
     if (_hiddenPrompt != null) {
+      _latestHiddenAssistantResponse =
+          shouldDropLastAssistant || updatedMessages.isEmpty
+          ? null
+          : updatedMessages.last.content;
       final cleaned = shouldDropLastAssistant
           ? updatedMessages
           : updatedMessages.sublist(0, lastIndex);

@@ -183,10 +183,17 @@ void main() {
         'Do not rewrite these target files again unless validation fails: src/config_loader.py',
       ),
     );
+    expect(prompt, contains('Stop rewriting already-covered files.'));
     expect(
       prompt,
       contains(
         'Focus on the remaining target files next: tests/test_config_loader.py',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Finish the remaining target files before making any other edits.',
       ),
     );
     expect(
@@ -199,6 +206,12 @@ void main() {
       prompt,
       contains(
         'Your next action must directly modify one of the remaining target files or run the saved validation command.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If every target file is already covered, run the saved validation command now instead of rewriting files.',
       ),
     );
     expect(

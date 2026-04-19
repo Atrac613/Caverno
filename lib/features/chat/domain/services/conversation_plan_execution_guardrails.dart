@@ -8,6 +8,7 @@ class ConversationPlanExecutionDriftAssessment {
     required this.touchedTargetFiles,
     required this.unrelatedTouchedPaths,
     required this.scaffoldCommands,
+    required this.benignSupportCommands,
     required this.repeatedTargetFiles,
     required this.remainingTargetFiles,
   });
@@ -15,6 +16,7 @@ class ConversationPlanExecutionDriftAssessment {
   final List<String> touchedTargetFiles;
   final List<String> unrelatedTouchedPaths;
   final List<String> scaffoldCommands;
+  final List<String> benignSupportCommands;
   final List<String> repeatedTargetFiles;
   final List<String> remainingTargetFiles;
 
@@ -33,6 +35,7 @@ class ConversationPlanExecutionCompletionAssessment {
     required this.untouchedTargetFiles,
     required this.unrelatedTouchedPaths,
     required this.scaffoldCommands,
+    required this.benignSupportCommands,
     required this.successfulValidationCommands,
     required this.failedValidationCommands,
     required this.allowsLightValidationCompletion,
@@ -45,6 +48,7 @@ class ConversationPlanExecutionCompletionAssessment {
   final List<String> untouchedTargetFiles;
   final List<String> unrelatedTouchedPaths;
   final List<String> scaffoldCommands;
+  final List<String> benignSupportCommands;
   final List<String> successfulValidationCommands;
   final List<String> failedValidationCommands;
   final bool allowsLightValidationCompletion;
@@ -82,10 +86,12 @@ class ConversationPlanExecutionGuardrails {
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
         .toSet();
+    final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final targetTouchCounts = <String, int>{};
     final unrelatedTouchedPaths = <String>{};
     final scaffoldCommands = <String>{};
+    final benignSupportCommands = <String>{};
 
     for (final toolResult in toolResults) {
       if (toolResult.name == 'write_file' || toolResult.name == 'edit_file') {
@@ -120,10 +126,17 @@ class ConversationPlanExecutionGuardrails {
         final referencesValidation =
             task.validationCommand.trim().isNotEmpty &&
             normalizedCommand.contains(task.validationCommand.toLowerCase());
+        final referencesTargetDirectory = targetDirectories.any(
+          (directory) => normalizedCommand.contains(directory.toLowerCase()),
+        );
         if (!referencesTarget &&
             !referencesValidation &&
             _looksLikeScaffoldCommand(normalizedCommand)) {
-          scaffoldCommands.add(command);
+          if (referencesTargetDirectory) {
+            benignSupportCommands.add(command);
+          } else {
+            scaffoldCommands.add(command);
+          }
         }
       }
     }
@@ -140,6 +153,7 @@ class ConversationPlanExecutionGuardrails {
       touchedTargetFiles: touchedTargetFiles.toList(growable: false),
       unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
       scaffoldCommands: scaffoldCommands.toList(growable: false),
+      benignSupportCommands: benignSupportCommands.toList(growable: false),
       repeatedTargetFiles: repeatedTargetFiles,
       remainingTargetFiles: remainingTargetFiles,
     );
@@ -153,9 +167,11 @@ class ConversationPlanExecutionGuardrails {
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
         .toSet();
+    final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final unrelatedTouchedPaths = <String>{};
     final scaffoldCommands = <String>{};
+    final benignSupportCommands = <String>{};
     final successfulValidationCommands = <String>{};
     final failedValidationCommands = <String>{};
     var hasFailure = false;
@@ -205,10 +221,17 @@ class ConversationPlanExecutionGuardrails {
           final referencesValidation =
               task.validationCommand.trim().isNotEmpty &&
               normalizedCommand.contains(task.validationCommand.toLowerCase());
+          final referencesTargetDirectory = targetDirectories.any(
+            (directory) => normalizedCommand.contains(directory.toLowerCase()),
+          );
           if (!referencesTarget &&
               !referencesValidation &&
               _looksLikeScaffoldCommand(normalizedCommand)) {
-            scaffoldCommands.add(command);
+            if (referencesTargetDirectory) {
+              benignSupportCommands.add(command);
+            } else {
+              scaffoldCommands.add(command);
+            }
           }
         }
         continue;
@@ -249,6 +272,7 @@ class ConversationPlanExecutionGuardrails {
       untouchedTargetFiles: untouchedTargetFiles,
       unrelatedTouchedPaths: unrelatedTouchedPaths.toList(growable: false),
       scaffoldCommands: scaffoldCommands.toList(growable: false),
+      benignSupportCommands: benignSupportCommands.toList(growable: false),
       successfulValidationCommands: successfulValidationCommands.toList(
         growable: false,
       ),
@@ -335,6 +359,21 @@ class ConversationPlanExecutionGuardrails {
         normalized.startsWith('test -f ') ||
         normalized.startsWith('test -d ') ||
         normalized.startsWith('stat ');
+  }
+
+  static Set<String> _targetDirectories(Set<String> normalizedTargets) {
+    final directories = <String>{};
+    for (final target in normalizedTargets) {
+      final separatorIndex = target.lastIndexOf('/');
+      if (separatorIndex <= 0) {
+        continue;
+      }
+      final directory = target.substring(0, separatorIndex).trim();
+      if (directory.isNotEmpty) {
+        directories.add(directory);
+      }
+    }
+    return directories;
   }
 
   static String _extractCommand(ToolResultInfo toolResult) {
