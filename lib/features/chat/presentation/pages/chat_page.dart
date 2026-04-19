@@ -1169,11 +1169,28 @@ class _ChatPageState extends ConsumerState<ChatPage>
     messenger.showSnackBar(
       SnackBar(content: Text('chat.plan_proposal_started'.tr())),
     );
+    final executionConversation =
+        ref.read(conversationsNotifierProvider).currentConversation ??
+        latestConversation;
+    final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+      executionConversation,
+    );
+    if (nextTask == null) {
+      await chatNotifier.sendMessage(
+        'chat.plan_proposal_execute_prompt'.tr(),
+        languageCode: languageCode,
+        bypassPlanMode: true,
+      );
+      return;
+    }
+    if (!context.mounted) {
+      return;
+    }
 
-    await chatNotifier.sendMessage(
-      'chat.plan_proposal_execute_prompt'.tr(),
-      languageCode: languageCode,
-      bypassPlanMode: true,
+    await _runWorkflowTask(
+      context,
+      currentConversation: executionConversation,
+      task: nextTask,
     );
   }
 
