@@ -1,0 +1,3 @@
+{
+  "rawContent": "{\"tasks\":[{\"title\":\"Initialize project structure\",\"targetFiles\":[\"README.md\",\"requirements.txt\",\".gitignore\"],\"validationCommand\":\"ls -a\",\"notes\":\"Create the initial project scaffold.\"}]}"
+}

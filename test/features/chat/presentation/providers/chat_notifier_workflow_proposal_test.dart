@@ -436,6 +436,47 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     },
   );
 
+  test(
+    'marks single scaffold-only task proposals for retry in empty workspaces',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_task_proposal_too_short_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final proposal = notifier.parseTaskProposalForTest(
+        fixture['rawContent'] as String,
+      );
+
+      expect(proposal, isNotNull);
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal!,
+        projectLooksEmpty: true,
+      );
+
+      expect(finalized.tasks, hasLength(1));
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
+  test('builds minimal retry context for short empty-workspace task lists', () {
+    final context = notifier.buildTaskProposalRetryContextForTest(
+      null,
+      minimalRetry: true,
+      projectLooksEmpty: true,
+    );
+
+    expect(context, isNotNull);
+    expect(context, contains('Return at least two concrete tasks.'));
+    expect(context, contains('Do not stop at a single generic setup'));
+    expect(context, contains('The first task may scaffold the workspace'));
+  });
+
   test('parses task proposal plain text sections', () {
     final proposal = notifier.parseTaskProposalForTest('''
 1. Add workflow proposal card
@@ -470,6 +511,25 @@ Validation command: flutter test
     expect(proposal!.tasks, hasLength(2));
     expect(proposal.tasks.first.title, 'Add workflow proposal card');
     expect(proposal.tasks.last.validationCommand, 'flutter test');
+  });
+
+  test('salvages truncated task proposal json into multiple tasks', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_truncated_task_proposal_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final proposal = notifier.parseTaskProposalForTest(
+      fixture['rawContent'] as String,
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks, hasLength(2));
+    expect(proposal.tasks.first.title, 'Initialize project structure');
+    expect(proposal.tasks.last.title, 'Implement ping CLI entrypoint');
+    expect(proposal.tasks.last.targetFiles, ['main.py']);
   });
 
   test('parses task proposals from reasoning-only responses', () {

@@ -1,0 +1,3 @@
+{
+  "rawContent": "{\"tasks\":[{\"title\":\"Initialize project structure\",\"targetFiles\":[\"README.md\",\"requirements.txt\",\".gitignore\"],\"validationCommand\":\"ls -a\",\"notes\":\"Create the initial scaffold.\"},{\"title\":\"Implement ping CLI entrypoint\",\"targetFiles\":[\"main.py\"],\"validationCommand\":\"python3 main.py --help\",\"notes\":\"Use argparse for the first version\""
+}
