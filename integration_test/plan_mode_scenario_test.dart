@@ -1674,13 +1674,32 @@ Future<_ScenarioRunResult> _runScenario({
     expect(savedWorkflow.goal, workflowExpectation.goal);
   }
   if (workflowExpectation.taskCount != null) {
-    expect(savedWorkflow.tasks, hasLength(workflowExpectation.taskCount!));
+    if (savedWorkflow.tasks.length != workflowExpectation.taskCount!) {
+      final taskTitles = savedWorkflow.tasks
+          .map((task) => task.title.trim())
+          .where((title) => title.isNotEmpty)
+          .join(' | ');
+      throw StateError(
+        'Saved workflow task count mismatch. '
+        'expectedTaskCount=${workflowExpectation.taskCount} '
+        'actualTaskCount=${savedWorkflow.tasks.length} '
+        'tasks=$taskTitles',
+      );
+    }
   }
   if (workflowExpectation.minTaskCount != null) {
-    expect(
-      savedWorkflow.tasks.length,
-      greaterThanOrEqualTo(workflowExpectation.minTaskCount!),
-    );
+    if (savedWorkflow.tasks.length < workflowExpectation.minTaskCount!) {
+      final taskTitles = savedWorkflow.tasks
+          .map((task) => task.title.trim())
+          .where((title) => title.isNotEmpty)
+          .join(' | ');
+      throw StateError(
+        'Saved workflow task proposal was too short. '
+        'expectedMinTaskCount=${workflowExpectation.minTaskCount} '
+        'actualTaskCount=${savedWorkflow.tasks.length} '
+        'tasks=$taskTitles',
+      );
+    }
   }
   if (workflowExpectation.firstTaskTitle != null) {
     expect(

@@ -1,6 +1,7 @@
 enum PlanModeFailureClass {
   passed,
   planningTimeout,
+  taskProposalQuality,
   executionTimeout,
   executionHang,
   blockedExecution,
@@ -109,6 +110,7 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
 String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
   switch (failureClass) {
     case PlanModeFailureClass.planningTimeout:
+    case PlanModeFailureClass.taskProposalQuality:
       return 'planning';
     case PlanModeFailureClass.executionTimeout:
     case PlanModeFailureClass.executionHang:
@@ -150,6 +152,10 @@ PlanModeFailureClass _classifyFailure({
 
   if (normalizedError.contains('planning phase timed out')) {
     return PlanModeFailureClass.planningTimeout;
+  }
+  if (normalizedError.contains('saved workflow task proposal was too short') ||
+      normalizedError.contains('saved workflow task count mismatch')) {
+    return PlanModeFailureClass.taskProposalQuality;
   }
   if (normalizedError.contains('execution phase timed out')) {
     final workflowSnapshot = _extractLastWorkflowSnapshot(errorText) ?? '';

@@ -73,6 +73,17 @@ void main() {
       expect(diagnostics.budgetPhase, 'planning');
     });
 
+    test('classifies short task proposals as planning quality failures', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[],
+        errorText:
+            'Saved workflow task proposal was too short. expectedMinTaskCount=2 actualTaskCount=1 tasks=Implement basic ping functionality in main.py',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.taskProposalQuality);
+      expect(diagnostics.budgetPhase, 'planning');
+    });
+
     test('classifies blocked executions from explicit errors', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[
