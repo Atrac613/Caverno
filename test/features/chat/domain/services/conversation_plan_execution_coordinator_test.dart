@@ -23,9 +23,28 @@ void main() {
     );
 
     expect(prompt, contains('Implement the saved task.'));
+    expect(prompt, contains('Saved task ID: task-1'));
     expect(prompt, contains('Target files: lib/main.dart'));
     expect(prompt, contains('Validation: flutter test'));
     expect(prompt, contains('Notes: Keep the first cut narrow.'));
+    expect(
+      prompt,
+      contains(
+        'Work only on this saved task. Do not implement future saved tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not create or modify files outside the target files unless the saved validation step requires it.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Stop after the saved validation step and report that result before moving on.',
+      ),
+    );
     expect(prompt, contains('Reply with the implementation result.'));
   });
 
@@ -90,7 +109,9 @@ void main() {
           nextTask: nextTask,
         );
 
+    expect(prompt, contains('Completed task ID: task-1'));
     expect(prompt, contains('Completed task: Implement the ping utility'));
+    expect(prompt, contains('Next task ID: task-2'));
     expect(prompt, contains('Next task: Load the config file'));
     expect(
       prompt,
@@ -98,6 +119,24 @@ void main() {
     );
     expect(prompt, contains('Validation: pytest tests/test_config_loader.py'));
     expect(prompt, contains('Notes: Keep the initial loader synchronous.'));
+    expect(
+      prompt,
+      contains(
+        'Work only on this saved task. Do not implement future saved tasks.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not create or modify files outside the target files unless the saved validation step requires it.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Stop after the saved validation step and report that result before moving on.',
+      ),
+    );
     expect(
       prompt,
       contains(
@@ -141,6 +180,12 @@ void main() {
       prompt,
       contains(
         'Your next action must directly modify one of the target files or run the saved validation command.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not implement future saved tasks while recovering this task.',
       ),
     );
   });

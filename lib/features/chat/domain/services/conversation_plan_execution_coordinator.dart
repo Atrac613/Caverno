@@ -12,7 +12,7 @@ class ConversationPlanExecutionCoordinator {
     required String notesLabel,
     required String outro,
   }) {
-    final promptLines = <String>[intro];
+    final promptLines = <String>[intro, 'Saved task ID: ${task.id}'];
     final targetFiles = task.targetFiles
         .map((item) => item.trim())
         .where((item) => item.isNotEmpty)
@@ -28,6 +28,7 @@ class ConversationPlanExecutionCoordinator {
     if (notes.isNotEmpty) {
       promptLines.add('$notesLabel: $notes');
     }
+    promptLines.addAll(_executionGuardrailLines(task));
     promptLines.add(outro);
     return promptLines.join('\n');
   }
@@ -61,7 +62,9 @@ class ConversationPlanExecutionCoordinator {
   }) {
     final promptLines = <String>[
       'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+      'Completed task ID: ${completedTask.id}',
       'Completed task: ${completedTask.title.trim()}',
+      'Next task ID: ${nextTask.id}',
       'Next task: ${nextTask.title.trim()}',
     ];
 
@@ -83,6 +86,7 @@ class ConversationPlanExecutionCoordinator {
       promptLines.add('Notes: $notes');
     }
 
+    promptLines.addAll(_executionGuardrailLines(nextTask));
     promptLines.add(
       'Implement the next task now. Only pause if you are blocked, the requirements changed, or completing it would require changing the approved workflow.',
     );
@@ -139,9 +143,29 @@ class ConversationPlanExecutionCoordinator {
       'Do not scaffold new packages, project roots, or dependency files unless one of the saved target files explicitly requires it.',
     );
     promptLines.add(
+      'Do not implement future saved tasks while recovering this task.',
+    );
+    promptLines.add(
       'Your next action must directly modify one of the target files or run the saved validation command.',
     );
     return promptLines.join('\n');
+  }
+
+  static List<String> _executionGuardrailLines(ConversationWorkflowTask task) {
+    final lines = <String>[
+      'Work only on this saved task. Do not implement future saved tasks.',
+    ];
+    if (task.targetFiles.any((item) => item.trim().isNotEmpty)) {
+      lines.add(
+        'Do not create or modify files outside the target files unless the saved validation step requires it.',
+      );
+    }
+    if (task.validationCommand.trim().isNotEmpty) {
+      lines.add(
+        'Stop after the saved validation step and report that result before moving on.',
+      );
+    }
+    return lines;
   }
 
   static String buildBlockedTaskReplanContext({

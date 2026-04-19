@@ -34,6 +34,7 @@ class ConversationExecutionProgressInference {
   ];
 
   static const _completionSignals = <String>[
+    'complete',
     'completed',
     'done',
     'finished',

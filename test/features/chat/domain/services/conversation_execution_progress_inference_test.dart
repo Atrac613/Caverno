@@ -27,6 +27,21 @@ void main() {
     expect(result.blockedReason, isNull);
   });
 
+  test('treats plain complete phrasing as a completed task', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'Task 1 is complete because the saved validation command passed.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.summary,
+      'Task 1 is complete because the saved validation command passed.',
+    );
+  });
+
   test('infers blocked validation output from the assistant response', () {
     final result = ConversationExecutionProgressInference.infer(
       assistantResponse:
