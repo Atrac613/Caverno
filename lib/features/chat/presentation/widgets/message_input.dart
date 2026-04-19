@@ -13,6 +13,7 @@ import 'package:super_clipboard/super_clipboard.dart';
 
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'voice_mode_overlay.dart';
 
 class MessageInput extends ConsumerStatefulWidget {
@@ -61,13 +62,35 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   bool _isRecording = false;
   bool _hasText = false;
 
+  // Shell-like input history. `_historyIndex == -1` means not browsing;
+  // otherwise it points into `_inputHistory`. `_savedDraft` preserves the
+  // user's in-progress text when they start browsing, so Down can restore it.
+  // The history is persisted via SharedPreferences under `_historyPrefsKey`.
+  static const int _maxHistoryEntries = 100;
+  static const String _historyPrefsKey = 'message_input.history';
+  final List<String> _inputHistory = [];
+  int _historyIndex = -1;
+  String? _savedDraft;
+
   @override
   void initState() {
     super.initState();
+    _loadHistory();
     _focusNode = FocusNode(
       onKeyEvent: (node, event) {
         // Only handle key-down to avoid double-firing.
         if (event is! KeyDownEvent) return KeyEventResult.ignored;
+
+        if (event.logicalKey == LogicalKeyboardKey.arrowUp) {
+          return _tryRecallHistory(older: true)
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+        }
+        if (event.logicalKey == LogicalKeyboardKey.arrowDown) {
+          return _tryRecallHistory(older: false)
+              ? KeyEventResult.handled
+              : KeyEventResult.ignored;
+        }
         if (event.logicalKey != LogicalKeyboardKey.enter) {
           return KeyEventResult.ignored;
         }
@@ -123,6 +146,88 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     final hasText = _controller.text.trim().isNotEmpty;
     if (hasText != _hasText) {
       setState(() => _hasText = hasText);
+    }
+  }
+
+  /// Navigate the input history with Up/Down arrows.
+  ///
+  /// Up starts browsing only when the composer is empty, to avoid hijacking
+  /// caret movement inside multi-line drafts. Once browsing, both arrows stay
+  /// active until the user returns to the saved draft or types something new.
+  bool _tryRecallHistory({required bool older}) {
+    if (_inputHistory.isEmpty) return false;
+
+    if (older) {
+      if (_historyIndex == -1) {
+        if (_controller.text.isNotEmpty) return false;
+        _savedDraft = _controller.text;
+        _historyIndex = _inputHistory.length - 1;
+      } else if (_historyIndex > 0) {
+        _historyIndex -= 1;
+      } else {
+        // Already at oldest entry; consume the key so the caret doesn't jump.
+        return true;
+      }
+      _setComposerText(_inputHistory[_historyIndex]);
+      return true;
+    }
+
+    if (_historyIndex == -1) return false;
+    if (_historyIndex < _inputHistory.length - 1) {
+      _historyIndex += 1;
+      _setComposerText(_inputHistory[_historyIndex]);
+      return true;
+    }
+    // Past the newest entry — restore the draft the user was writing.
+    _historyIndex = -1;
+    final draft = _savedDraft ?? '';
+    _savedDraft = null;
+    _setComposerText(draft);
+    return true;
+  }
+
+  void _setComposerText(String text) {
+    _controller.value = TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
+    );
+  }
+
+  void _pushToHistory(String text) {
+    if (text.isEmpty) return;
+    if (_inputHistory.isNotEmpty && _inputHistory.last == text) {
+      // Collapse immediate duplicates (same as bash `ignoredups`).
+    } else {
+      _inputHistory.add(text);
+      if (_inputHistory.length > _maxHistoryEntries) {
+        _inputHistory.removeAt(0);
+      }
+      _persistHistory();
+    }
+    _historyIndex = -1;
+    _savedDraft = null;
+  }
+
+  void _loadHistory() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      final stored = prefs.getStringList(_historyPrefsKey);
+      if (stored != null && stored.isNotEmpty) {
+        _inputHistory
+          ..clear()
+          ..addAll(stored.take(_maxHistoryEntries));
+      }
+    } catch (e) {
+      debugPrint('Failed to load input history: $e');
+    }
+  }
+
+  void _persistHistory() {
+    try {
+      final prefs = ref.read(sharedPreferencesProvider);
+      unawaited(prefs.setStringList(_historyPrefsKey, _inputHistory));
+    } catch (e) {
+      debugPrint('Failed to persist input history: $e');
     }
   }
 
@@ -427,6 +532,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     widget.onSend(finalText, imageBase64, _selectedImageMimeType);
+    _pushToHistory(text);
     _controller.clear();
     _clearImage();
     _clearFile();
