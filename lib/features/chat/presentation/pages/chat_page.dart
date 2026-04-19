@@ -4198,6 +4198,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       await conversationsNotifier.updateCurrentExecutionTaskProgress(
         taskId: task.id,
         status: status,
+        allowStatusRegression: true,
         lastRunAt: lastRunAt,
         lastValidationAt: lastValidationAt,
         validationStatus: validationStatus,
@@ -5198,12 +5199,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
     if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
         completionAssessment.hasCompletionEvidenceIgnoringFailures) {
-      await conversationsNotifier
-          .updateCurrentExecutionTaskProgressFromAssistantTurn(
-            task: task,
-            assistantResponse: latestAssistantResponse,
-            isValidationRun: false,
-          );
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: assistantInference.summary,
+      );
       return true;
     }
 
@@ -5221,14 +5222,45 @@ class _ChatPageState extends ConsumerState<ChatPage>
               completionAssessment.hasTargetFiles
         ? 'Marked complete after covering every saved target file.'
         : 'Marked complete from saved target file changes.';
+    await _markTaskCompletedFromToolEvidence(
+      task: task,
+      conversationsNotifier: conversationsNotifier,
+      completionAssessment: completionAssessment,
+      summary: summary,
+    );
+    return true;
+  }
+
+  Future<void> _markTaskCompletedFromToolEvidence({
+    required ConversationWorkflowTask task,
+    required ConversationsNotifier conversationsNotifier,
+    required ConversationPlanExecutionCompletionAssessment completionAssessment,
+    required String summary,
+  }) async {
+    final normalizedSummary = summary.trim().isEmpty
+        ? 'Marked complete from saved task evidence.'
+        : summary.trim();
+    final successfulValidationCommand = completionAssessment
+        .successfulValidationCommands
+        .firstOrNull;
     await conversationsNotifier.updateCurrentExecutionTaskProgress(
       taskId: task.id,
       status: ConversationWorkflowTaskStatus.completed,
-      summary: summary,
+      summary: normalizedSummary,
+      validationStatus: successfulValidationCommand == null
+          ? null
+          : ConversationExecutionValidationStatus.passed,
+      lastValidationAt: successfulValidationCommand == null
+          ? null
+          : DateTime.now(),
+      lastValidationCommand:
+          successfulValidationCommand ?? task.validationCommand,
+      lastValidationSummary: successfulValidationCommand == null
+          ? null
+          : normalizedSummary,
       eventType: ConversationExecutionTaskEventType.completed,
-      eventSummary: summary,
+      eventSummary: normalizedSummary,
     );
-    return true;
   }
 
   bool _toolResultsContainFailure(List<ToolResultInfo> toolResults) {

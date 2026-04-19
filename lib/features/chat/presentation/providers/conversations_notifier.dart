@@ -429,6 +429,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   Future<void> updateCurrentExecutionTaskProgress({
     required String taskId,
     required ConversationWorkflowTaskStatus status,
+    bool allowStatusRegression = false,
     DateTime? lastRunAt,
     DateTime? lastValidationAt,
     ConversationExecutionValidationStatus? validationStatus,
@@ -456,20 +457,37 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       (entry) => entry.taskId == normalizedTaskId,
     );
     final previous = index >= 0 ? progress[index] : null;
+    final preservesLockedCompletion =
+        !allowStatusRegression &&
+        previous?.status == ConversationWorkflowTaskStatus.completed &&
+        previous?.validationStatus ==
+            ConversationExecutionValidationStatus.passed &&
+        status != ConversationWorkflowTaskStatus.completed;
+    final lockedPrevious = preservesLockedCompletion ? previous : null;
+    final nextStatus = lockedPrevious?.status ?? status;
     final nextValidationStatus =
+        lockedPrevious?.validationStatus ??
         validationStatus ??
         previous?.validationStatus ??
         ConversationExecutionValidationStatus.unknown;
-    final nextSummary = summary?.trim() ?? previous?.summary ?? '';
-    final nextBlockedReason =
-        blockedReason?.trim() ?? previous?.blockedReason ?? '';
+    final nextSummary =
+        lockedPrevious?.summary ?? summary?.trim() ?? previous?.summary ?? '';
+    final nextBlockedReason = preservesLockedCompletion
+        ? ''
+        : blockedReason?.trim() ?? previous?.blockedReason ?? '';
     final nextValidationCommand =
-        lastValidationCommand?.trim() ?? previous?.lastValidationCommand ?? '';
+        lockedPrevious?.lastValidationCommand ??
+        lastValidationCommand?.trim() ??
+        previous?.lastValidationCommand ??
+        '';
     final nextValidationSummary =
-        lastValidationSummary?.trim() ?? previous?.lastValidationSummary ?? '';
+        lockedPrevious?.lastValidationSummary ??
+        lastValidationSummary?.trim() ??
+        previous?.lastValidationSummary ??
+        '';
     final nextEntry = ConversationExecutionTaskProgress(
       taskId: normalizedTaskId,
-      status: status,
+      status: nextStatus,
       validationStatus: nextValidationStatus,
       updatedAt: now,
       lastRunAt: lastRunAt ?? previous?.lastRunAt,
@@ -480,11 +498,13 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       lastValidationSummary: nextValidationSummary,
       events: _appendExecutionEvent(
         previous?.events ?? const [],
-        eventType: eventType,
+        eventType: preservesLockedCompletion ? null : eventType,
         eventTimestamp: eventTimestamp ?? now,
-        status: status,
+        status: nextStatus,
         validationStatus: nextValidationStatus,
-        summary: eventSummary?.trim() ?? nextSummary,
+        summary: preservesLockedCompletion
+            ? nextSummary
+            : eventSummary?.trim() ?? nextSummary,
         blockedReason: nextBlockedReason,
         validationCommand: nextValidationCommand,
         validationSummary: nextValidationSummary,
@@ -549,11 +569,16 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       eventSummary: inference.summary,
     );
 
+    final refreshedConversation = state.currentConversation;
+    final storedStatus =
+        refreshedConversation?.executionProgressForTask(task.id)?.status ??
+        inference.status;
+
     if (!conversation.shouldPreferPlanDocument) {
       return;
     }
 
-    if (inference.status == ConversationWorkflowTaskStatus.completed) {
+    if (storedStatus == ConversationWorkflowTaskStatus.completed) {
       await updateCurrentWorkflow(
         workflowStage: ConversationWorkflowStage.review,
         preserveWorkflowProjection: true,
@@ -561,8 +586,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       return;
     }
 
-    if (inference.status == ConversationWorkflowTaskStatus.inProgress ||
-        inference.status == ConversationWorkflowTaskStatus.blocked) {
+    if (storedStatus == ConversationWorkflowTaskStatus.inProgress ||
+        storedStatus == ConversationWorkflowTaskStatus.blocked) {
       await updateCurrentWorkflow(
         workflowStage: ConversationWorkflowStage.implement,
         preserveWorkflowProjection: true,
@@ -590,6 +615,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     await updateCurrentExecutionTaskProgress(
       taskId: task.id,
       status: inference.status,
+      allowStatusRegression: true,
       summary: inference.summary,
       blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
           ? inference.blockedReason ?? ''
