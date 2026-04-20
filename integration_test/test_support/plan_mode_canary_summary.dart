@@ -148,6 +148,15 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           scenario['lastKnownPhase'] as String? ??
           lastHeartbeat['phase'] as String?;
       final heartbeatSubphase = lastHeartbeat['subphase'] as String?;
+      final resolvedLastKnownPhase = _resolveLogAwarePhase(
+        heartbeatPhase: heartbeatPhase,
+        heartbeatSubphase: heartbeatSubphase,
+        logLines: logLines,
+      );
+      final resolvedActiveTaskTitle =
+          scenario['activeTaskTitle'] as String? ??
+          lastHeartbeat['activeTaskTitle'] as String? ??
+          diagnostics['activeTaskTitle'] as String?;
       final rawFailureClass =
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
@@ -155,6 +164,8 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
       final failureClass = _resolveLogAwareFailureClass(
         rawFailureClass,
         logLines,
+        lastKnownPhase: resolvedLastKnownPhase,
+        activeTaskTitle: resolvedActiveTaskTitle,
       );
       failureClassCounts.update(
         failureClass,
@@ -171,15 +182,8 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           budgetPhase:
               scenario['budgetPhase'] as String? ??
               diagnostics['budgetPhase'] as String?,
-          lastKnownPhase: _resolveLogAwarePhase(
-            heartbeatPhase: heartbeatPhase,
-            heartbeatSubphase: heartbeatSubphase,
-            logLines: logLines,
-          ),
-          activeTaskTitle:
-              scenario['activeTaskTitle'] as String? ??
-              lastHeartbeat['activeTaskTitle'] as String? ??
-              diagnostics['activeTaskTitle'] as String?,
+          lastKnownPhase: resolvedLastKnownPhase,
+          activeTaskTitle: resolvedActiveTaskTitle,
           lastUpdatedAt:
               scenario['lastUpdatedAt'] as String? ??
               lastHeartbeat['updatedAt'] as String?,
@@ -214,6 +218,7 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
 String _resolveLogAwareFailureClass(
   String failureClass,
   List<String> logLines,
+  {required String? lastKnownPhase, required String? activeTaskTitle}
 ) {
   if (failureClass != 'overallTimeout') {
     return failureClass;
@@ -236,6 +241,14 @@ String _resolveLogAwareFailureClass(
     (line) => line.contains('[canaryrunner] stage=firstheartbeattimeout'),
   )) {
     return 'appLaunchTimeout';
+  }
+  final normalizedPhase = lastKnownPhase?.trim().toLowerCase();
+  final normalizedActiveTaskTitle = activeTaskTitle?.trim().toLowerCase();
+  if (normalizedPhase == 'execution' &&
+      normalizedActiveTaskTitle != null &&
+      normalizedActiveTaskTitle.isNotEmpty &&
+      normalizedActiveTaskTitle != 'none') {
+    return 'executionOverrun';
   }
   return failureClass;
 }

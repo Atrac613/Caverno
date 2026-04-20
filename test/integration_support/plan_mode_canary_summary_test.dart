@@ -246,6 +246,33 @@ Failed to foreground app; open returned 1
     },
   );
 
+  test('upgrades overall timeout into execution overrun from heartbeat', () {
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'overallTimeout',
+            'budgetPhase': 'overall',
+            'durationMs': 240000,
+            'error': 'Overall live run timed out after 240s.',
+            'diagnostics': <String, dynamic>{
+              'lastHeartbeat': <String, dynamic>{
+                'phase': 'execution',
+                'subphase': 'validation',
+                'activeTaskTitle': 'Implement core ping logic',
+              },
+            },
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.runs.single.failureClass, 'executionOverrun');
+    expect(summary.failureClassCounts['executionOverrun'], 1);
+  });
+
   test(
     'does not upgrade overall timeout into startup failure after heartbeat recovery',
     () async {

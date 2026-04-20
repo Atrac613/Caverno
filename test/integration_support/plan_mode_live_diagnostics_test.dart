@@ -196,6 +196,20 @@ void main() {
       expect(diagnostics.budgetPhase, 'execution');
     });
 
+    test('classifies overall timeout with active execution as overrun', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[],
+        errorText: 'Overall live run timed out after 240s.',
+        lastKnownPhase: 'execution',
+        lastWorkflowSnapshot:
+            'Implement core ping logic and CLI arguments:blocked',
+        activeTaskTitle: 'Implement core ping logic and CLI arguments',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.executionOverrun);
+      expect(diagnostics.budgetPhase, 'execution');
+    });
+
     test('classifies execution state loss when no active task remains', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[],

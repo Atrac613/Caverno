@@ -6,6 +6,7 @@ enum PlanModeFailureClass {
   planningTimeout,
   taskProposalQuality,
   executionTimeout,
+  executionOverrun,
   executionHang,
   blockedExecution,
   executionDrift,
@@ -79,6 +80,7 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
   String? lastWorkflowSnapshot,
   int? stallDurationMs,
   String? budgetPhase,
+  String? lastKnownPhase,
   String? activeTaskTitle,
   int? toolResultCount,
   int? fileWriteCount,
@@ -86,18 +88,26 @@ PlanModeFailureDiagnostics buildPlanModeFailureDiagnostics({
   Map<String, int?> budgets = const <String, int?>{},
 }) {
   final normalizedError = (errorText ?? '').trim();
-  final failureClass = _classifyFailure(logs: logs, errorText: normalizedError);
+  final resolvedWorkflowSnapshot =
+      lastWorkflowSnapshot ?? _extractLastWorkflowSnapshot(normalizedError);
+  final resolvedActiveTaskTitle =
+      activeTaskTitle ?? _extractActiveTaskTitle(normalizedError);
+  final failureClass = _classifyFailure(
+    logs: logs,
+    errorText: normalizedError,
+    lastKnownPhase: lastKnownPhase,
+    lastWorkflowSnapshot: resolvedWorkflowSnapshot,
+    activeTaskTitle: resolvedActiveTaskTitle,
+  );
   return PlanModeFailureDiagnostics(
     failureClass: failureClass,
     lastToolName: _extractLastToolName(logs),
     lastToolFailure: _extractLastToolFailure(logs),
     lastAssistantSummary: _extractLastAssistantSummary(logs),
-    lastWorkflowSnapshot:
-        lastWorkflowSnapshot ?? _extractLastWorkflowSnapshot(normalizedError),
+    lastWorkflowSnapshot: resolvedWorkflowSnapshot,
     stallDurationMs: stallDurationMs,
     budgetPhase: budgetPhase ?? _defaultBudgetPhaseForFailure(failureClass),
-    activeTaskTitle:
-        activeTaskTitle ?? _extractActiveTaskTitle(normalizedError),
+    activeTaskTitle: resolvedActiveTaskTitle,
     toolResultCount:
         toolResultCount ??
         _extractNamedIntField(normalizedError, 'toolresults'),
@@ -121,6 +131,7 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
     case PlanModeFailureClass.taskProposalQuality:
       return 'planning';
     case PlanModeFailureClass.executionTimeout:
+    case PlanModeFailureClass.executionOverrun:
     case PlanModeFailureClass.executionHang:
     case PlanModeFailureClass.blockedExecution:
     case PlanModeFailureClass.executionDrift:
@@ -146,6 +157,9 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
 PlanModeFailureClass _classifyFailure({
   required List<String> logs,
   required String errorText,
+  required String? lastKnownPhase,
+  required String? lastWorkflowSnapshot,
+  required String? activeTaskTitle,
 }) {
   final normalizedLogs = logs.map((line) => line.toLowerCase()).toList();
 
@@ -188,12 +202,13 @@ PlanModeFailureClass _classifyFailure({
     return PlanModeFailureClass.taskProposalQuality;
   }
   if (normalizedError.contains('execution phase timed out')) {
-    final workflowSnapshot = _extractLastWorkflowSnapshot(errorText) ?? '';
+    final workflowSnapshot = lastWorkflowSnapshot ?? '';
     final isLoading = _extractNamedBoolField(errorText, 'isLoading');
     final fileWrites = _extractNamedIntField(errorText, 'fileWrites') ?? 0;
     final toolResults = _extractNamedIntField(errorText, 'toolResults') ?? 0;
-    final activeTaskTitle = _extractActiveTaskTitle(errorText)?.toLowerCase();
-    if ((activeTaskTitle == null || activeTaskTitle == 'none') &&
+    final normalizedActiveTaskTitle = activeTaskTitle?.toLowerCase();
+    if ((normalizedActiveTaskTitle == null ||
+            normalizedActiveTaskTitle == 'none') &&
         (workflowSnapshot.isEmpty || workflowSnapshot == 'none')) {
       return PlanModeFailureClass.executionStateLost;
     }
@@ -214,6 +229,18 @@ PlanModeFailureClass _classifyFailure({
     return PlanModeFailureClass.executionTimeout;
   }
   if (normalizedError.contains('overall live run timed out')) {
+    final normalizedPhase = lastKnownPhase?.trim().toLowerCase();
+    final normalizedActiveTaskTitle = activeTaskTitle?.trim().toLowerCase();
+    final workflowSnapshot = (lastWorkflowSnapshot ?? '').trim().toLowerCase();
+    final hasExecutionState =
+        normalizedPhase == 'execution' &&
+        ((normalizedActiveTaskTitle != null &&
+                normalizedActiveTaskTitle.isNotEmpty &&
+                normalizedActiveTaskTitle != 'none') ||
+            (workflowSnapshot.isNotEmpty && workflowSnapshot != 'none'));
+    if (hasExecutionState) {
+      return PlanModeFailureClass.executionOverrun;
+    }
     return PlanModeFailureClass.overallTimeout;
   }
   if ((normalizedError.contains('workflow execution remained blocked') ||
