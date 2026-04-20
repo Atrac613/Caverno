@@ -668,6 +668,67 @@ void main() {
   );
 
   test(
+    'updateCurrentWorkflow preserves projected tasks during execution when a projection refresh yields no tasks',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Keep execution state stable\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Implement the current saved task\n'
+              '   - Status: inProgress\n'
+              '   - Target files: main.py\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final firstConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final firstTask = firstConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: firstTask.id,
+        status: ConversationWorkflowTaskStatus.inProgress,
+        summary: 'Still executing the saved task.',
+      );
+
+      await notifier.updateCurrentWorkflow(
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(goal: 'Keep execution state stable'),
+        preserveWorkflowProjection: true,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      expect(refreshedConversation, isNotNull);
+      expect(refreshedConversation!.projectedExecutionTasks, hasLength(1));
+      expect(refreshedConversation.projectedExecutionTasks.single.id, firstTask.id);
+      expect(
+        refreshedConversation.projectedExecutionTasks.single.status,
+        ConversationWorkflowTaskStatus.inProgress,
+      );
+    },
+  );
+
+  test(
     'updateCurrentExecutionTaskProgress stores rich execution metadata',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

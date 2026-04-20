@@ -196,6 +196,20 @@ void main() {
       expect(diagnostics.budgetPhase, 'execution');
     });
 
+    test('classifies execution state loss when no active task remains', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[],
+        errorText:
+            'Execution phase timed out after 120s. isLoading=false, pendingApprovals=false, activeTask=none, toolResults=0, fileWrites=0, tasks=none',
+      );
+
+      expect(
+        diagnostics.failureClass,
+        PlanModeFailureClass.executionStateLost,
+      );
+      expect(diagnostics.budgetPhase, 'execution');
+    });
+
     test('classifies execution drift from low-signal write timeouts', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[

@@ -9,6 +9,7 @@ enum PlanModeFailureClass {
   executionHang,
   blockedExecution,
   executionDrift,
+  executionStateLost,
   overallTimeout,
   executionStall,
   streamDisconnect,
@@ -123,6 +124,7 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
     case PlanModeFailureClass.executionHang:
     case PlanModeFailureClass.blockedExecution:
     case PlanModeFailureClass.executionDrift:
+    case PlanModeFailureClass.executionStateLost:
     case PlanModeFailureClass.executionStall:
     case PlanModeFailureClass.validationImportBlocked:
       return 'execution';
@@ -190,6 +192,11 @@ PlanModeFailureClass _classifyFailure({
     final isLoading = _extractNamedBoolField(errorText, 'isLoading');
     final fileWrites = _extractNamedIntField(errorText, 'fileWrites') ?? 0;
     final toolResults = _extractNamedIntField(errorText, 'toolResults') ?? 0;
+    final activeTaskTitle = _extractActiveTaskTitle(errorText)?.toLowerCase();
+    if ((activeTaskTitle == null || activeTaskTitle == 'none') &&
+        (workflowSnapshot.isEmpty || workflowSnapshot == 'none')) {
+      return PlanModeFailureClass.executionStateLost;
+    }
     if (workflowSnapshot.contains(':blocked')) {
       return PlanModeFailureClass.blockedExecution;
     }

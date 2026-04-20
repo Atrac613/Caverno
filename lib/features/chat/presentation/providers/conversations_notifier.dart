@@ -381,9 +381,19 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     if (conversation == null) return;
 
     final nextStage = workflowStage ?? conversation.workflowStage;
-    final nextWorkflowSpec = clearWorkflowSpec
+    final requestedWorkflowSpec = clearWorkflowSpec
         ? null
         : (workflowSpec ?? conversation.workflowSpec);
+    final shouldPreserveProjectedTasks =
+        preserveWorkflowProjection &&
+        conversation.shouldPreferPlanDocument &&
+        conversation.projectedExecutionTasks.isNotEmpty &&
+        (requestedWorkflowSpec == null ||
+            !requestedWorkflowSpec.hasContent ||
+            requestedWorkflowSpec.tasks.isEmpty);
+    final nextWorkflowSpec = shouldPreserveProjectedTasks
+        ? conversation.workflowSpec
+        : requestedWorkflowSpec;
 
     final updatedConversation = conversation.copyWith(
       workflowStage: nextStage,
