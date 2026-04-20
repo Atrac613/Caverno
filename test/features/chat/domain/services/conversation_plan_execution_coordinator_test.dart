@@ -305,6 +305,47 @@ void main() {
         contains(
           'After every remaining target file exists, run the saved validation command immediately.',
         ),
+    );
+  },
+  );
+
+  test(
+    'buildScaffoldMissingTargetRecoveryPrompt forces exact target recovery',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-bootstrap',
+        title: 'Initialize project structure',
+        targetFiles: ['pyproject.toml', 'README.md', 'src/__init__.py'],
+        validationCommand: 'ls -R',
+        notes: 'Create the basic scaffold files only.',
+      );
+
+      final prompt = ConversationPlanExecutionCoordinator
+          .buildScaffoldMissingTargetRecoveryPrompt(
+            task: task,
+            missingTargetFiles: const [
+              'pyproject.toml',
+              'README.md',
+              'src/__init__.py',
+            ],
+          );
+
+      expect(prompt, contains('Saved task ID: task-bootstrap'));
+      expect(
+        prompt,
+        contains(
+          'Create exactly one missing target file now using its saved path.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not create alternative filenames, test files, or extra scaffold files that are not listed in the saved targets.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Do not run validation until every missing target file exists.'),
       );
     },
   );

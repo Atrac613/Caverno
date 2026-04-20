@@ -1174,9 +1174,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final executionConversation =
         ref.read(conversationsNotifierProvider).currentConversation ??
         latestConversation;
-    final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+    var nextTask = ConversationPlanExecutionCoordinator.nextTask(
       executionConversation,
     );
+    if (nextTask == null && validation.workflowSpec != null) {
+      await conversationsNotifier.updateCurrentWorkflow(
+        workflowStage: approvedWorkflowStage,
+        workflowSpec: validation.workflowSpec!,
+      );
+      if (!mounted) {
+        return;
+      }
+      final refreshedExecutionConversation =
+          ref.read(conversationsNotifierProvider).currentConversation ??
+          executionConversation;
+      nextTask = ConversationPlanExecutionCoordinator.nextTask(
+        refreshedExecutionConversation,
+      );
+    }
     if (nextTask == null) {
       await chatNotifier.sendMessage(
         'chat.plan_proposal_execute_prompt'.tr(),
@@ -5278,13 +5293,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .where((item) => item.id == task.id)
         .firstOrNull;
     if (latestTask == null ||
-        latestTask.status == ConversationWorkflowTaskStatus.completed ||
-        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+        latestTask.status == ConversationWorkflowTaskStatus.completed) {
       return false;
-    }
-
-    if (await _maybeFinalizeScaffoldFromWorkspaceTargets(task: latestTask)) {
-      return true;
     }
 
     final existingTargetFiles = _existingWorkspaceTargetFiles(latestTask);
@@ -5295,20 +5305,31 @@ class _ChatPageState extends ConsumerState<ChatPage>
         );
     final isScaffoldTask =
         ConversationPlanExecutionGuardrails.looksLikeScaffoldTask(latestTask);
-    if (isScaffoldTask &&
-        existingTargetFiles.isNotEmpty &&
-        missingTargetFiles.isNotEmpty) {
+    if (await _maybeFinalizeScaffoldFromWorkspaceTargets(task: latestTask)) {
+      return true;
+    }
+    if (latestTask.status == ConversationWorkflowTaskStatus.blocked &&
+        missingTargetFiles.isEmpty) {
+      return false;
+    }
+    if (isScaffoldTask && missingTargetFiles.isNotEmpty) {
       final previousAssistantMessageId = _latestAssistantMessageId(
         currentConversation,
       );
       final chatNotifier = ref.read(chatNotifierProvider.notifier);
       await chatNotifier.sendHiddenPrompt(
-        ConversationPlanExecutionCoordinator
-            .buildScaffoldRemainingTargetRecoveryPrompt(
-              task: latestTask,
-              existingTargetFiles: existingTargetFiles,
-              missingTargetFiles: missingTargetFiles,
-            ),
+        existingTargetFiles.isEmpty
+            ? ConversationPlanExecutionCoordinator
+                  .buildScaffoldMissingTargetRecoveryPrompt(
+                    task: latestTask,
+                    missingTargetFiles: missingTargetFiles,
+                  )
+            : ConversationPlanExecutionCoordinator
+                  .buildScaffoldRemainingTargetRecoveryPrompt(
+                    task: latestTask,
+                    existingTargetFiles: existingTargetFiles,
+                    missingTargetFiles: missingTargetFiles,
+                  ),
         languageCode: languageCode,
       );
 
@@ -5372,6 +5393,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       task: latestTask,
       isValidationRun: false,
     );
+    if (latestTask.status == ConversationWorkflowTaskStatus.blocked &&
+        missingTargetFiles.isNotEmpty) {
+      return false;
+    }
     if (assistantInference.status == ConversationWorkflowTaskStatus.completed ||
         assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
       return false;
@@ -5620,23 +5645,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
-      await conversationsNotifier
-          .updateCurrentExecutionTaskProgressFromAssistantTurn(
-            task: task,
-            assistantResponse: latestAssistantResponse,
-            isValidationRun: false,
-          );
-      return true;
-    }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
-        completionAssessment.hasCompletionEvidenceIgnoringFailures) {
-      await _markTaskCompletedFromToolEvidence(
-        task: task,
-        conversationsNotifier: conversationsNotifier,
-        completionAssessment: completionAssessment,
-        summary: assistantInference.summary,
-      );
+    if (!_toolResultsContainFailure(toolResults) &&
+        await _maybeFinalizeScaffoldFromWorkspaceTargets(task: task)) {
       return true;
     }
     if (ConversationPlanExecutionGuardrails
@@ -5687,7 +5697,25 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
-
+    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
+      await conversationsNotifier
+          .updateCurrentExecutionTaskProgressFromAssistantTurn(
+            task: task,
+            assistantResponse: latestAssistantResponse,
+            isValidationRun: false,
+          );
+      return true;
+    }
+    if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        completionAssessment.hasCompletionEvidenceIgnoringFailures) {
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: assistantInference.summary,
+      );
+      return true;
+    }
     if (_toolResultsContainFailure(toolResults)) {
       return false;
     }

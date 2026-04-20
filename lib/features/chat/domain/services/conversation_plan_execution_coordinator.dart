@@ -191,6 +191,40 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildScaffoldMissingTargetRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> missingTargetFiles,
+  }) {
+    final promptLines = <String>[
+      'The scaffold task still has no saved target files in place.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Missing target files: ${missingTargetFiles.join(', ')}',
+    ];
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Create exactly one missing target file now using its saved path.',
+    );
+    promptLines.add(
+      'Do not create alternative filenames, test files, or extra scaffold files that are not listed in the saved targets.',
+    );
+    promptLines.add(
+      'Do not run validation until every missing target file exists.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildToolFailureRecoveryPrompt({
     required ConversationWorkflowTask task,
     List<String> unavailableToolNames = const [],
