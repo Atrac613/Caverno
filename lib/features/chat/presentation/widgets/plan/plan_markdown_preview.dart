@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+import '../../../../../core/utils/markdown_render_sanitizer.dart';
 import '../code_block_builder.dart';
 
 class PlanMarkdownPreview extends StatelessWidget {
@@ -30,7 +31,7 @@ class PlanMarkdownPreview extends StatelessWidget {
       child: SingleChildScrollView(
         child: SelectionArea(
           child: MarkdownBody(
-            data: markdown,
+            data: MarkdownRenderSanitizer.sanitize(markdown),
             selectable: false,
             builders: {'pre': CodeBlockBuilder(theme: theme)},
             styleSheet: MarkdownStyleSheet(
@@ -55,14 +56,8 @@ class PlanMarkdownPreview extends StatelessWidget {
                 fontSize: 16,
                 fontWeight: FontWeight.bold,
               ),
-              strong: TextStyle(
-                color: textColor,
-                fontWeight: FontWeight.bold,
-              ),
-              em: TextStyle(
-                color: textColor,
-                fontStyle: FontStyle.italic,
-              ),
+              strong: TextStyle(color: textColor, fontWeight: FontWeight.bold),
+              em: TextStyle(color: textColor, fontStyle: FontStyle.italic),
               code: TextStyle(
                 color: theme.colorScheme.primary,
                 backgroundColor: theme.colorScheme.primaryContainer.withValues(

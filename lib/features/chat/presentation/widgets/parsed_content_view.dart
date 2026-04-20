@@ -6,6 +6,7 @@ import 'package:flutter_markdown_plus/flutter_markdown_plus.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import '../../../../core/utils/content_parser.dart';
+import '../../../../core/utils/markdown_render_sanitizer.dart';
 import 'code_block_builder.dart';
 
 /// Renders parsed content segments.
@@ -42,11 +43,13 @@ class _ParsedContentViewState extends State<ParsedContentView> {
     final completedThinkingJustFinished =
         oldResult.hasIncompleteTag &&
         oldResult.incompleteTagType == 'thinking' &&
-        (!newResult.hasIncompleteTag || newResult.incompleteTagType != 'thinking');
+        (!newResult.hasIncompleteTag ||
+            newResult.incompleteTagType != 'thinking');
 
     // Auto-collapse completed thinking blocks when a thought finishes,
     // even if the assistant is still streaming the rest of the response.
-    if ((oldWidget.isStreaming && !widget.isStreaming) || completedThinkingJustFinished) {
+    if ((oldWidget.isStreaming && !widget.isStreaming) ||
+        completedThinkingJustFinished) {
       for (var i = 0; i < newResult.segments.length; i++) {
         if (newResult.segments[i].type == ContentType.thinking) {
           _collapsedThinkingBlocks.add(i);
@@ -126,7 +129,7 @@ class _ParsedContentViewState extends State<ParsedContentView> {
       case ContentType.text:
         return SelectionArea(
           child: MarkdownBody(
-            data: _escapeHtmlLikeTags(segment.content),
+            data: MarkdownRenderSanitizer.sanitize(segment.content),
             selectable: false,
             builders: {'pre': CodeBlockBuilder(theme: theme)},
             styleSheet: MarkdownStyleSheet(
@@ -507,71 +510,6 @@ class _ParsedContentViewState extends State<ParsedContentView> {
         ],
       ),
     );
-  }
-
-  /// Escapes stray HTML-like tags in text before passing to flutter_markdown.
-  ///
-  /// flutter_markdown 0.7.x trips an `_inlines.isEmpty` assertion when it
-  /// encounters inline HTML it cannot reconcile. LLM responses that echo
-  /// command output (e.g. SSH results) frequently contain angle-bracket
-  /// sequences like `<ip>`, `<user@host>`, or XML fragments that look like
-  /// HTML tags. Since the content parser has already stripped our
-  /// structural `<think>` / `<tool_call>` / `<tool_use>` tags by the time
-  /// we reach a text segment, any remaining `<…>` outside fenced/inline
-  /// code can safely be escaped.
-  static final _htmlLikeTagPattern = RegExp(r'<(/?[a-zA-Z][^>]*)>');
-  static final _fenceLinePattern = RegExp(r'^\s*```');
-
-  String _escapeHtmlLikeTags(String text) {
-    final buffer = StringBuffer();
-    var insideFence = false;
-    // Process line by line so fenced code blocks are preserved verbatim.
-    final lines = text.split('\n');
-    for (var i = 0; i < lines.length; i++) {
-      final line = lines[i];
-      if (_fenceLinePattern.hasMatch(line)) {
-        insideFence = !insideFence;
-        buffer.write(line);
-      } else if (insideFence) {
-        buffer.write(line);
-      } else {
-        buffer.write(_escapeOutsideInlineCode(line));
-      }
-      if (i != lines.length - 1) buffer.write('\n');
-    }
-    return buffer.toString();
-  }
-
-  /// Escapes HTML-like tags in a single line while leaving inline
-  /// backtick-delimited spans untouched.
-  String _escapeOutsideInlineCode(String line) {
-    final buffer = StringBuffer();
-    var inCode = false;
-    var i = 0;
-    while (i < line.length) {
-      final ch = line[i];
-      if (ch == '`') {
-        inCode = !inCode;
-        buffer.write(ch);
-        i++;
-        continue;
-      }
-      if (inCode) {
-        buffer.write(ch);
-        i++;
-        continue;
-      }
-      // Try matching an HTML-like tag starting at i.
-      final match = _htmlLikeTagPattern.matchAsPrefix(line, i);
-      if (match != null) {
-        buffer.write('&lt;${match.group(1)}&gt;');
-        i = match.end;
-        continue;
-      }
-      buffer.write(ch);
-      i++;
-    }
-    return buffer.toString();
   }
 
   String _formatToolArguments(Map<String, dynamic> arguments) {
