@@ -4664,11 +4664,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: languageCode,
       bypassPlanMode: true,
     );
+    final validationToolResults = chatNotifier.takeLatestToolResults();
     final toolResultApplied = await conversationsNotifier
         .updateCurrentValidationProgressFromToolResults(
           task: task,
-          toolResults: chatNotifier
-              .takeLatestToolResults()
+          toolResults: validationToolResults
               .map(
                 (result) => ConversationValidationToolResultInput(
                   toolName: result.name,
@@ -4677,7 +4677,33 @@ class _ChatPageState extends ConsumerState<ChatPage>
               )
               .toList(growable: false),
         );
-    if (!toolResultApplied) {
+    final completionPromoted = toolResultApplied
+        ? await _maybePromoteCompletionFromValidationToolResults(
+            task: task,
+            toolResults: validationToolResults,
+          )
+        : false;
+    final recoveredFromMissingTarget =
+        toolResultApplied &&
+        !completionPromoted &&
+        await _maybeRecoverFromMissingTargetValidationFailure(
+          task: task,
+          languageCode: languageCode,
+          toolResults: validationToolResults,
+        );
+    final recoveredFromPythonImport =
+        toolResultApplied &&
+        !completionPromoted &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromPythonSrcLayoutValidationFailure(
+          task: task,
+          languageCode: languageCode,
+          toolResults: validationToolResults,
+        );
+    if (!toolResultApplied ||
+        (!completionPromoted &&
+            !recoveredFromMissingTarget &&
+            !recoveredFromPythonImport)) {
       await _captureExecutionProgressFromLatestAssistantEvidence(
         task: task,
         previousAssistantMessageId: previousAssistantMessageId,
@@ -5033,20 +5059,44 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
-      return true;
-    }
-
-    final assistantResult =
-        await _captureExecutionProgressFromLatestAssistantEvidence(
+    final completionPromoted = toolResultApplied
+        ? await _maybePromoteCompletionFromValidationToolResults(
+            task: latestTask,
+            toolResults: recoveryToolResults,
+          )
+        : false;
+    final recoveredFromMissingTarget =
+        toolResultApplied &&
+        !completionPromoted &&
+        await _maybeRecoverFromMissingTargetValidationFailure(
           task: latestTask,
-          previousAssistantMessageId: previousAssistantMessageId,
-          isValidationRun: false,
-          fallbackAssistantResponse: chatNotifier
-              .takeLatestHiddenAssistantResponse(),
+          languageCode: languageCode,
+          toolResults: recoveryToolResults,
         );
-    if (!assistantResult) {
-      return false;
+    final recoveredFromPythonImport =
+        toolResultApplied &&
+        !completionPromoted &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromPythonSrcLayoutValidationFailure(
+          task: latestTask,
+          languageCode: languageCode,
+          toolResults: recoveryToolResults,
+        );
+    if (!toolResultApplied ||
+        (!completionPromoted &&
+            !recoveredFromMissingTarget &&
+            !recoveredFromPythonImport)) {
+      final assistantResult =
+          await _captureExecutionProgressFromLatestAssistantEvidence(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            isValidationRun: false,
+            fallbackAssistantResponse: chatNotifier
+                .takeLatestHiddenAssistantResponse(),
+          );
+      if (!assistantResult && recoveryToolResults.isEmpty) {
+        return false;
+      }
     }
 
     final refreshedConversation = ref
@@ -5453,6 +5503,66 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
     return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
         refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
+  }
+
+  Future<bool> _maybePromoteCompletionFromValidationToolResults({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed) {
+      return false;
+    }
+
+    final completionAssessment =
+        ConversationPlanExecutionGuardrails.assessTaskCompletion(
+          task: latestTask,
+          toolResults: toolResults,
+        );
+    final existingWorkspaceTargets = _existingWorkspaceTargetFiles(latestTask);
+    final canPromote =
+        ConversationPlanExecutionGuardrails
+            .canPromoteCompletionFromWorkspaceValidation(
+              task: latestTask,
+              toolResults: toolResults,
+              existingTargetPaths: existingWorkspaceTargets,
+            ) ||
+        ConversationPlanExecutionGuardrails
+            .canPromoteScaffoldCompletionFromWorkspaceValidation(
+              task: latestTask,
+              toolResults: toolResults,
+              existingTargetPaths: existingWorkspaceTargets,
+            );
+    if (!canPromote) {
+      return false;
+    }
+
+    final progress = currentConversation.executionProgressForTask(latestTask.id);
+    final summary =
+        progress?.normalizedValidationSummary ??
+        progress?.normalizedSummary ??
+        'Marked complete after the saved validation succeeded and every target file existed in the workspace.';
+    await _markTaskCompletedFromToolEvidence(
+      task: latestTask,
+      conversationsNotifier: ref.read(conversationsNotifierProvider.notifier),
+      completionAssessment: completionAssessment,
+      summary: summary,
+    );
+    return true;
   }
 
   Future<bool> _maybeRecoverFromPythonSrcLayoutValidationFailure({
