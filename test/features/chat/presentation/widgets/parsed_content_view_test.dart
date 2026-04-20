@@ -86,4 +86,17 @@ void main() {
       expect(find.byIcon(Icons.expand_more), findsOneWidget);
     },
   );
+
+  testWidgets('renders malformed leading bracket text without throwing', (
+    tester,
+  ) async {
+    await _pumpParsedContentView(
+      tester,
+      content: '[broken\\',
+      isStreaming: false,
+    );
+
+    expect(tester.takeException(), isNull);
+    expect(find.text('[broken\\'), findsOneWidget);
+  });
 }
