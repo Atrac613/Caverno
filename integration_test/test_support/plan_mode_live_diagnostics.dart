@@ -8,6 +8,7 @@ enum PlanModeFailureClass {
   executionTimeout,
   executionOverrun,
   executionHang,
+  verificationStall,
   blockedExecution,
   executionDrift,
   executionStateLost,
@@ -133,6 +134,7 @@ String? _defaultBudgetPhaseForFailure(PlanModeFailureClass failureClass) {
     case PlanModeFailureClass.executionTimeout:
     case PlanModeFailureClass.executionOverrun:
     case PlanModeFailureClass.executionHang:
+    case PlanModeFailureClass.verificationStall:
     case PlanModeFailureClass.blockedExecution:
     case PlanModeFailureClass.executionDrift:
     case PlanModeFailureClass.executionStateLost:
@@ -252,6 +254,9 @@ PlanModeFailureClass _classifyFailure({
     return PlanModeFailureClass.validationImportBlocked;
   }
   if (normalizedError.contains('workflow execution stalled')) {
+    if (_looksLikeVerificationTask(activeTaskTitle)) {
+      return PlanModeFailureClass.verificationStall;
+    }
     return PlanModeFailureClass.executionStall;
   }
   if (normalizedError.contains('workflow execution remained blocked')) {
@@ -304,6 +309,19 @@ PlanModeFailureClass _classifyFailure({
   }
 
   return PlanModeFailureClass.unclassified;
+}
+
+bool _looksLikeVerificationTask(String? activeTaskTitle) {
+  final normalized = activeTaskTitle?.trim().toLowerCase() ?? '';
+  if (normalized.isEmpty || normalized == 'none') {
+    return false;
+  }
+  return normalized.contains('verify ') ||
+      normalized.contains('verification') ||
+      normalized.contains('real host') ||
+      normalized.contains('live host') ||
+      normalized.contains('smoke test') ||
+      normalized.contains('manual test');
 }
 
 bool _logsContainStartupForegroundFailure(List<String> normalizedLogs) {

@@ -1,0 +1,8 @@
+{
+  "logs": [
+    "[LLM] <think>The user wants me to verify the ping functionality with a real host.</think>",
+    "[LLM] <think>The previous task (implementing `main.py`) is marked as complete.</think>"
+  ],
+  "errorText": "Bad state: Workflow execution stalled after 45s. activeTask=Verify ping functionality with a real host toolResults=0 fileWrites=3 tasks=Implement main.py with argparse and subprocess ping logic:completed, Verify ping functionality with a real host:inProgress, Verify ping functionality with a live host:pending lastTool=none",
+  "expectedFailureClass": "verificationStall"
+}

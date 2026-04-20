@@ -46,6 +46,30 @@ void main() {
       expect(diagnostics.budgets['executionTimeoutMs'], 180000);
     });
 
+    test('classifies verification stalls from the latest ping CLI replay', () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_verification_stall_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: (fixture['logs'] as List<dynamic>).cast<String>(),
+        errorText: fixture['errorText'] as String,
+      );
+
+      expect(
+        diagnostics.failureClass.name,
+        fixture['expectedFailureClass'],
+      );
+      expect(
+        diagnostics.activeTaskTitle,
+        'Verify ping functionality with a real host',
+      );
+    });
+
     test('classifies unknown tool failures from logs', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[
