@@ -468,6 +468,46 @@ void main() {
   );
 
   test(
+    'buildVerificationTaskRecoveryPrompt forces the saved verification command',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-verify',
+        title: 'Verify ping functionality with a real host',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py 8.8.8.8',
+        notes: 'Use a reachable host for the first end-to-end check.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildVerificationTaskRecoveryPrompt(
+            task: task,
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved verification task stalled before running its concrete check.',
+        ),
+      );
+      expect(prompt, contains('Saved task ID: task-verify'));
+      expect(prompt, contains('Target files: main.py'));
+      expect(prompt, contains('Saved validation command: python3 main.py 8.8.8.8'));
+      expect(
+        prompt,
+        contains(
+          'Run the saved validation command now instead of restating the verification steps.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'If the saved validation command fails, fix only the failing saved target file or report the blocker clearly.',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildToolFailureRecoveryPrompt bounds unknown tools, malformed writes, and edit mismatch',
     () {
     const task = ConversationWorkflowTask(

@@ -3990,6 +3990,10 @@ Retry hint:
       return true;
     }
 
+    if (_taskProposalHasDuplicateVerificationTasks(finalized.tasks)) {
+      return true;
+    }
+
     if (finalized.tasks.length == 1 &&
         _looksLikeGenericScaffoldOnlyTask(finalized.tasks.first)) {
       return true;
@@ -4002,6 +4006,25 @@ Retry hint:
     List<ConversationWorkflowTask> tasks,
   ) {
     return tasks.any((task) => !_looksLikeGenericScaffoldOnlyTask(task));
+  }
+
+  bool _taskProposalHasDuplicateVerificationTasks(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    final seenSignatures = <String>{};
+    for (final task in tasks) {
+      if (!_looksLikeVerificationTaskProposal(task)) {
+        continue;
+      }
+      final signature = _verificationTaskSignature(task);
+      if (signature.isEmpty) {
+        continue;
+      }
+      if (!seenSignatures.add(signature)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   bool _taskProposalHasWeakImplementationValidation(
@@ -4050,6 +4073,57 @@ Retry hint:
     }
 
     return !task.targetFiles.any(_looksLikeImplementationTargetFile);
+  }
+
+  bool _looksLikeVerificationTaskProposal(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const titleSignals = <String>[
+      'verify ',
+      'verification',
+      'real host',
+      'live host',
+      'smoke test',
+      'manual test',
+    ];
+    return titleSignals.any(normalized.contains);
+  }
+
+  String _verificationTaskSignature(ConversationWorkflowTask task) {
+    final normalizedTitle = task.title.trim().toLowerCase();
+    if (normalizedTitle.isEmpty) {
+      return '';
+    }
+    final canonicalTitle = normalizedTitle
+        .replaceAll(RegExp(r'\b(real|live|actual)\b'), ' ')
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .split(RegExp(r'\s+'))
+        .where(
+          (token) =>
+              token.isNotEmpty &&
+              !const <String>{
+                'verify',
+                'verification',
+                'validate',
+                'validating',
+                'with',
+                'a',
+                'an',
+                'the',
+                'for',
+                'using',
+                'functionality',
+              }.contains(token),
+        )
+        .join(' ');
+    final targetKey = task.targetFiles
+        .map((path) => path.trim().toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .join('|');
+    if (canonicalTitle.isEmpty) {
+      return targetKey;
+    }
+    return '$canonicalTitle::$targetKey';
   }
 
   bool _looksLikeImplementationTargetFile(String path) {

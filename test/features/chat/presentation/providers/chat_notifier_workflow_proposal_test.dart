@@ -631,6 +631,31 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test('marks duplicate verification tasks for retry', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_duplicate_verification_tasks_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final rawTasks = (fixture['tasks'] as List<dynamic>)
+        .map((entry) => entry as Map<String, dynamic>)
+        .map(ConversationWorkflowTask.fromJson)
+        .toList(growable: false);
+    final proposal = WorkflowTaskProposalDraft(tasks: rawTasks);
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
   test(
     'allows scaffold tasks with placeholder code files when follow-up validation is concrete',
     () {

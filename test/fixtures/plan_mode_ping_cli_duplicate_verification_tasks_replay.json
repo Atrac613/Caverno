@@ -1,0 +1,32 @@
+{
+  "tasks": [
+    {
+      "id": "task-setup",
+      "title": "Initialize project structure",
+      "targetFiles": ["requirements.txt", "README.md", "main.py"],
+      "validationCommand": "ls",
+      "notes": "Create the initial files."
+    },
+    {
+      "id": "task-core",
+      "title": "Implement main.py with argparse and subprocess ping logic",
+      "targetFiles": ["main.py"],
+      "validationCommand": "python3 main.py --help",
+      "notes": "Support a single host first."
+    },
+    {
+      "id": "task-verify-real",
+      "title": "Verify ping functionality with a real host",
+      "targetFiles": ["main.py"],
+      "validationCommand": "python3 main.py 8.8.8.8",
+      "notes": "Use a real reachable host for the first end-to-end check."
+    },
+    {
+      "id": "task-verify-live",
+      "title": "Verify ping functionality with a live host",
+      "targetFiles": ["main.py"],
+      "validationCommand": "python3 main.py 1.1.1.1",
+      "notes": "Repeat the same live verification with another reachable host."
+    }
+  ]
+}

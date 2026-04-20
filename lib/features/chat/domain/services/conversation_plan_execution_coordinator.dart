@@ -155,6 +155,46 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildVerificationTaskRecoveryPrompt({
+    required ConversationWorkflowTask task,
+  }) {
+    final promptLines = <String>[
+      'The saved verification task stalled before running its concrete check.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+    ];
+
+    final targetFiles = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Saved validation command: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Run the saved validation command now instead of restating the verification steps.',
+    );
+    promptLines.add(
+      'If the saved validation command fails, fix only the failing saved target file or report the blocker clearly.',
+    );
+    promptLines.add(
+      'Do not create duplicate verification tasks, do not ask for confirmation, and do not describe future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildScaffoldRemainingTargetRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> existingTargetFiles,
@@ -552,6 +592,10 @@ class ConversationPlanExecutionCoordinator {
     return lines;
   }
 
+  static bool looksLikeVerificationTask(ConversationWorkflowTask task) {
+    return _looksLikeVerificationTask(task);
+  }
+
   static bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {
     final normalized = '${task.title.trim()} ${task.notes.trim()}'
         .toLowerCase();
@@ -567,6 +611,22 @@ class ConversationPlanExecutionCoordinator {
       'pyproject',
       'package layout',
       'setup',
+    ];
+    return keywords.any(normalized.contains);
+  }
+
+  static bool _looksLikeVerificationTask(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const keywords = <String>[
+      'verify ',
+      'verification',
+      'smoke test',
+      'manual test',
+      'real host',
+      'live host',
+      'live ping',
+      'host verification',
     ];
     return keywords.any(normalized.contains);
   }

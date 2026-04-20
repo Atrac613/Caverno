@@ -5436,6 +5436,63 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
     }
 
+    final isVerificationTask =
+        ConversationPlanExecutionCoordinator.looksLikeVerificationTask(
+          latestTask,
+        );
+    if (isVerificationTask &&
+        latestTask.validationCommand.trim().isNotEmpty &&
+        missingTargetFiles.isEmpty) {
+      final previousAssistantMessageId = _latestAssistantMessageId(
+        currentConversation,
+      );
+      final chatNotifier = ref.read(chatNotifierProvider.notifier);
+      await chatNotifier.sendHiddenPrompt(
+        ConversationPlanExecutionCoordinator.buildVerificationTaskRecoveryPrompt(
+          task: latestTask,
+        ),
+        languageCode: languageCode,
+      );
+
+      final recoveryToolResults = chatNotifier.takeLatestToolResults();
+      final toolResultApplied =
+          await _captureExecutionProgressFromLatestToolResults(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            toolResults: recoveryToolResults,
+          );
+      if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+        return true;
+      }
+
+      final assistantResult =
+          await _captureExecutionProgressFromLatestAssistantEvidence(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            isValidationRun: false,
+            fallbackAssistantResponse: chatNotifier
+                .takeLatestHiddenAssistantResponse(),
+          );
+      if (!assistantResult) {
+        return false;
+      }
+
+      final refreshedConversation = ref
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      if (refreshedConversation == null) {
+        return false;
+      }
+      final refreshedTask = refreshedConversation.projectedExecutionTasks
+          .where((item) => item.id == latestTask.id)
+          .firstOrNull;
+      if (refreshedTask == null) {
+        return false;
+      }
+      return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
+          refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
+    }
+
     final latestAssistantResponse =
         _latestAssistantMessage(currentConversation)?.content.trim() ?? '';
     final assistantInference = ConversationExecutionProgressInference.infer(
