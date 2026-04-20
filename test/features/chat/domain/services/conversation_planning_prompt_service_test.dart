@@ -166,4 +166,56 @@ void main() {
       ),
     );
   });
+
+  test('compact task proposal prompt trims verbose planning context', () {
+    final prompt = ConversationPlanningPromptService.buildTaskProposalRequest(
+      currentConversation: Conversation(
+        id: 'conversation-3',
+        title: 'Compact plan thread',
+        messages: const [],
+        createdAt: DateTime(2026, 4, 20, 9),
+        updatedAt: DateTime(2026, 4, 20, 9, 5),
+        workflowStage: ConversationWorkflowStage.tasks,
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Build a Python ping CLI with continuous mode and JSON output',
+          constraints: [
+            'Keep dependencies minimal',
+            'Support continuous mode',
+            'Support JSON output',
+          ],
+          acceptanceCriteria: [
+            'Ping one host successfully',
+            'Support continuous mode',
+            'Return JSON output behind a flag',
+          ],
+        ),
+      ),
+      messages: [
+        Message(
+          id: 'message-4',
+          role: MessageRole.user,
+          content:
+              'Create a Python CLI that pings specific hosts and can loop forever.',
+          timestamp: DateTime(2026, 4, 20, 9, 6),
+        ),
+        Message(
+          id: 'message-5',
+          role: MessageRole.assistant,
+          content:
+              'I can propose a compact task list once the planning decisions are resolved.',
+          timestamp: DateTime(2026, 4, 20, 9, 7),
+        ),
+      ],
+      languageCode: 'en',
+      compact: true,
+    );
+
+    expect(
+      prompt,
+      contains('- Keep notes brief and keep the whole response under 180 tokens.'),
+    );
+    expect(prompt, isNot(contains('Saved plan document:')));
+    expect(prompt, isNot(contains('Execution progress:')));
+    expect(prompt, contains('- constraints: Keep dependencies minimal | Support continuous mode'));
+  });
 }

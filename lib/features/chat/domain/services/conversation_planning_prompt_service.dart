@@ -176,6 +176,15 @@ class ConversationPlanningPromptService {
     final executionDelta = _buildExecutionDeltaBlock(currentConversation);
     final openQuestionDelta = _buildOpenQuestionDeltaBlock(currentConversation);
     final transcript = buildProposalTranscript(messages);
+    final constraints = compact
+        ? savedSpec.constraints.take(2).toList(growable: false)
+        : savedSpec.constraints;
+    final acceptanceCriteria = compact
+        ? savedSpec.acceptanceCriteria.take(2).toList(growable: false)
+        : savedSpec.acceptanceCriteria;
+    final openQuestions = compact
+        ? savedSpec.openQuestions.take(2).toList(growable: false)
+        : savedSpec.openQuestions;
     final buffer = StringBuffer()
       ..writeln('Create a task proposal for the current coding thread.')
       ..writeln('Return only a single valid JSON object with no markdown.')
@@ -225,7 +234,7 @@ class ConversationPlanningPromptService {
       )
       ..writeln(
         compact
-            ? '- Keep notes brief and keep the whole response under 260 tokens.'
+            ? '- Keep notes brief and keep the whole response under 180 tokens.'
             : '- validationCommand and notes may be empty strings.',
       )
       ..writeln('- Never output explanatory prose outside JSON.');
@@ -243,13 +252,13 @@ class ConversationPlanningPromptService {
       ..writeln('Saved workflow:')
       ..writeln('- stage: ${savedStage.name}')
       ..writeln('- goal: ${savedSpec.goal}')
-      ..writeln('- constraints: ${savedSpec.constraints.join(' | ')}')
+      ..writeln('- constraints: ${constraints.join(' | ')}')
       ..writeln(
-        '- acceptanceCriteria: ${savedSpec.acceptanceCriteria.join(' | ')}',
+        '- acceptanceCriteria: ${acceptanceCriteria.join(' | ')}',
       )
-      ..writeln('- openQuestions: ${savedSpec.openQuestions.join(' | ')}');
+      ..writeln('- openQuestions: ${openQuestions.join(' | ')}');
 
-    if (savedTasks.isNotEmpty) {
+    if (savedTasks.isNotEmpty && !compact) {
       buffer.writeln('- existingTasks:');
       for (final task in savedTasks) {
         buffer.writeln(
@@ -257,19 +266,19 @@ class ConversationPlanningPromptService {
         );
       }
     }
-    if (savedPlanMarkdown != null) {
+    if (!compact && savedPlanMarkdown != null) {
       buffer
         ..writeln()
         ..writeln('Saved plan document:')
         ..writeln(_clipProposalPlanDocument(savedPlanMarkdown));
     }
-    if (executionDelta != null) {
+    if (!compact && executionDelta != null) {
       buffer
         ..writeln()
         ..writeln('Execution progress:')
         ..writeln(executionDelta);
     }
-    if (openQuestionDelta != null) {
+    if (!compact && openQuestionDelta != null) {
       buffer
         ..writeln()
         ..writeln('Open question progress:')
@@ -294,9 +303,35 @@ class ConversationPlanningPromptService {
     buffer
       ..writeln()
       ..writeln('Recent conversation:')
-      ..writeln(transcript.isEmpty ? '- (empty)' : transcript);
+      ..writeln(
+        transcript.isEmpty
+            ? '- (empty)'
+            : compact
+            ? _clipCompactProposalTranscript(transcript)
+            : transcript,
+      );
 
     return buffer.toString().trimRight();
+  }
+
+  static String _clipCompactProposalTranscript(String transcript) {
+    final lines = transcript
+        .split('\n')
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .take(4)
+        .toList(growable: false);
+    if (lines.isEmpty) {
+      return '- (empty)';
+    }
+
+    final clipped = lines
+        .map((line) => line.length > 140 ? '${line.substring(0, 140)}...' : line)
+        .join('\n');
+    if (clipped.length <= 420) {
+      return clipped;
+    }
+    return '${clipped.substring(0, 417)}...';
   }
 
   static String buildProposalTranscript(List<Message> messages) {

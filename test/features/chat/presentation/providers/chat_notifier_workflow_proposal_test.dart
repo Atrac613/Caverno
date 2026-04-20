@@ -542,12 +542,67 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
 
     expect(context, isNotNull);
-    expect(context, contains('Return at least two concrete tasks.'));
+    expect(context, contains('Return two to four concrete tasks.'));
     expect(context, contains('Do not stop at a single generic setup'));
     expect(context, contains('The first task may scaffold the workspace'));
+    expect(context, contains('Prefer a simple Python entrypoint such as main.py'));
     expect(
       context,
       contains('Do not use generic validation such as "module importable"'),
+    );
+  });
+
+  test('builds task proposal fallback from truncated planning retries', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_truncated_task_proposal_latest_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final conversation = Conversation(
+      id: 'conversation-2',
+      title: 'Ping CLI',
+      messages: [
+        Message(
+          id: 'user-2',
+          content: 'Create a Python CLI tool that pings specific hosts.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 20, 21, 30),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 20, 21, 30),
+      updatedAt: DateTime(2026, 4, 20, 21, 30),
+      workflowSpec: const ConversationWorkflowSpec(
+        goal: 'Develop a Python CLI tool for continuous pinging with JSON output support.',
+        constraints: ['Python-based implementation', 'CLI-driven interface'],
+        acceptanceCriteria: [
+          'Support continuous pinging',
+          'Output valid JSON behind a flag',
+        ],
+      ),
+    );
+
+    final proposal = notifier.buildTaskProposalTruncationFallbackForTest(
+      currentConversation: conversation,
+      rawContent: fixture['rawContent'] as String,
+      projectLooksEmpty: true,
+    );
+
+    expect(proposal, isNotNull);
+    expect(proposal!.tasks.length, greaterThanOrEqualTo(2));
+    expect(proposal.tasks.first.title, 'Initialize project structure and requirements.txt');
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Implement core ping functionality and CLI arguments in main.py'),
+    );
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Add continuous ping loop and interval options in main.py'),
+    );
+    expect(
+      proposal.tasks.map((task) => task.title),
+      contains('Add JSON output support in main.py'),
     );
   });
 

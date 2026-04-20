@@ -1,0 +1,3 @@
+{
+  "rawContent": "<think>\nThe user wants a task proposal in JSON format for the current coding thread.\nThe goal is to develop a Python CLI tool for continuous pinging with JSON output support.\nThe project is currently empty.\nPlan: 1. Scaffold the project files. 2. Implement the core ping command. 3. Add continuous mode. 4. Add JSON output.\n</think>"
+}

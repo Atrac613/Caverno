@@ -1959,6 +1959,7 @@ Retry hint:
     final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(
       researchContext,
     );
+    WorkflowTaskProposalDraft? bestRetryCandidate;
     final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
       (
         compact: false,
@@ -2016,6 +2017,10 @@ Retry hint:
           appLog(
             '[Workflow] Task proposal quality gate requested retry (attempt ${index + 1}/${attempts.length}): $preview',
           );
+          bestRetryCandidate = _preferTaskProposalRetryCandidate(
+            current: bestRetryCandidate,
+            candidate: finalizedProposal,
+          );
           lastError = 'task proposal quality gate rejected the generated tasks';
           continue;
         }
@@ -2027,6 +2032,34 @@ Retry hint:
 
       final preview = _proposalPreview(result.content);
       final truncated = _isCompletionTruncated(result.finishReason);
+      if (truncated) {
+        final fallbackProposal = _buildTaskProposalTruncationFallback(
+          currentConversation: currentConversation,
+          rawContent: result.content,
+          projectLooksEmpty: projectLooksEmpty,
+          workflowSpecOverride: workflowSpecOverride,
+        );
+        if (fallbackProposal != null) {
+          final finalizedFallback = _finalizeTaskProposalDraft(
+            fallbackProposal,
+            researchContext: researchContext,
+          );
+          if (!_taskProposalNeedsRetry(
+            fallbackProposal,
+            finalizedFallback,
+            projectLooksEmpty,
+          )) {
+            appLog(
+              '[Workflow] Task proposal recovered from truncated reasoning fallback',
+            );
+            return finalizedFallback;
+          }
+          bestRetryCandidate = _preferTaskProposalRetryCandidate(
+            current: bestRetryCandidate,
+            candidate: finalizedFallback,
+          );
+        }
+      }
       appLog(
         '[Workflow] Task proposal parse failed (attempt ${index + 1}/${attempts.length}, truncated: $truncated): $preview',
       );
@@ -2036,6 +2069,16 @@ Retry hint:
       if (!truncated && index == 0) {
         continue;
       }
+    }
+
+    if (bestRetryCandidate != null &&
+        !_taskProposalNeedsRetry(
+          bestRetryCandidate,
+          bestRetryCandidate,
+          projectLooksEmpty,
+        )) {
+      appLog('[Workflow] Task proposal recovered from the best retry candidate');
+      return bestRetryCandidate;
     }
 
     throw FormatException(lastError ?? 'task proposal parse failed');
@@ -2054,9 +2097,13 @@ Retry hint:
     final retryHint = StringBuffer()
       ..writeln('Retry hint:')
       ..writeln('- Return the smallest valid JSON task list possible.')
-      ..writeln('- Return at least two concrete tasks.')
+      ..writeln('- Return two to four concrete tasks.')
       ..writeln(
         '- Every task must describe an action the agent can perform immediately.',
+      )
+      ..writeln('- Keep each title short and imperative.')
+      ..writeln(
+        '- Use at most one primary implementation file per non-scaffold task.',
       )
       ..writeln(
         '- For implementation tasks, use a validationCommand that directly references, executes, or tests the target file or module.',
@@ -2073,7 +2120,10 @@ Retry hint:
         ..writeln(
           '- The first task may scaffold the workspace, but a later task must implement or validate the requested feature.',
         )
-        ..writeln('- Include a concrete code task after any scaffold task.');
+        ..writeln('- Include a concrete code task after any scaffold task.')
+        ..writeln(
+          '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
+        );
     }
 
     final retryContext = retryHint.toString().trim();
@@ -2285,6 +2335,41 @@ Retry hint:
       return inlineVisible;
     }
     return null;
+  }
+
+  WorkflowTaskProposalDraft? _buildTaskProposalTruncationFallback({
+    required Conversation currentConversation,
+    required String rawContent,
+    required bool projectLooksEmpty,
+    ConversationWorkflowSpec? workflowSpecOverride,
+  }) {
+    final reasoningContent = _extractProposalReasoningContent(rawContent);
+    final visibleContent = _normalizeProposalContent(rawContent);
+    final workflowSpec =
+        workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
+    final rawGoal = workflowSpec.goal.trim().isNotEmpty
+        ? workflowSpec.goal.trim()
+        : _deriveWorkflowFallbackGoalFromConversation(currentConversation);
+    if (rawGoal == null || rawGoal.isEmpty) {
+      return null;
+    }
+
+    final inferredTasks = _buildHeuristicTaskProposalFallbackTasks(
+      contextLines: <String>[
+        rawGoal,
+        ...workflowSpec.constraints,
+        ...workflowSpec.acceptanceCriteria,
+        ...workflowSpec.openQuestions,
+        reasoningContent,
+        visibleContent,
+      ],
+      projectLooksEmpty: projectLooksEmpty,
+    );
+    if (inferredTasks.isEmpty) {
+      return null;
+    }
+
+    return WorkflowTaskProposalDraft(tasks: inferredTasks);
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -3520,6 +3605,154 @@ Retry hint:
     return proposal.tasks.isNotEmpty;
   }
 
+  WorkflowTaskProposalDraft? _preferTaskProposalRetryCandidate({
+    required WorkflowTaskProposalDraft? current,
+    required WorkflowTaskProposalDraft candidate,
+  }) {
+    if (current == null) {
+      return candidate;
+    }
+
+    final currentScore = _scoreTaskProposalRetryCandidate(current);
+    final candidateScore = _scoreTaskProposalRetryCandidate(candidate);
+    if (candidateScore > currentScore) {
+      return candidate;
+    }
+    return current;
+  }
+
+  int _scoreTaskProposalRetryCandidate(WorkflowTaskProposalDraft proposal) {
+    var score = proposal.tasks.length * 20;
+    for (final task in proposal.tasks) {
+      final implementationTargets = task.targetFiles
+          .where(_looksLikeImplementationTargetFile)
+          .toList(growable: false);
+      if (!_looksLikeGenericScaffoldOnlyTask(task)) {
+        score += 12;
+      }
+      if (implementationTargets.isNotEmpty) {
+        score += 8;
+      }
+      if (!_hasWeakImplementationValidationCommand(
+        task.validationCommand,
+        implementationTargets,
+      )) {
+        score += 6;
+      }
+    }
+    return score;
+  }
+
+  List<ConversationWorkflowTask> _buildHeuristicTaskProposalFallbackTasks({
+    required List<String> contextLines,
+    required bool projectLooksEmpty,
+  }) {
+    final context = contextLines
+        .map((line) => line.trim())
+        .where((line) => line.isNotEmpty)
+        .join(' ')
+        .toLowerCase();
+    final looksLikePython =
+        context.contains('python') ||
+        context.contains('pyproject') ||
+        context.contains('requirements.txt') ||
+        context.contains('argparse') ||
+        context.contains('.py');
+    if (!looksLikePython) {
+      return const <ConversationWorkflowTask>[];
+    }
+
+    final supportsContinuous =
+        context.contains('continuous') ||
+        context.contains('loop') ||
+        context.contains('infinite');
+    final supportsJson = context.contains('json');
+    final supportsMultiHost =
+        context.contains('multiple hosts') ||
+        context.contains('multi-host') ||
+        context.contains('host list') ||
+        context.contains('file-based host');
+
+    final tasks = <ConversationWorkflowTask>[];
+    if (projectLooksEmpty) {
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: 'Initialize project structure and requirements.txt',
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const ['requirements.txt', 'README.md'],
+          validationCommand: 'ls',
+          notes: 'Create the initial project files for the CLI script.',
+        ),
+      );
+    }
+
+    tasks.add(
+      ConversationWorkflowTask(
+        id: _uuid.v4(),
+        title: 'Implement core ping functionality and CLI arguments in main.py',
+        status: ConversationWorkflowTaskStatus.pending,
+        targetFiles: const ['main.py'],
+        validationCommand: 'python3 main.py --help',
+        notes: 'Use subprocess to call the system ping command.',
+      ),
+    );
+
+    if (supportsMultiHost) {
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: 'Add multi-host input handling in main.py',
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const ['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes: 'Support host lists or repeated host arguments.',
+        ),
+      );
+    }
+
+    if (supportsContinuous) {
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: 'Add continuous ping loop and interval options in main.py',
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const ['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes: 'Add loop control flags without changing future tasks.',
+        ),
+      );
+    }
+
+    if (supportsJson) {
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: 'Add JSON output support in main.py',
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const ['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes: 'Keep machine-readable output behind a flag.',
+        ),
+      );
+    }
+
+    if (tasks.length < 2) {
+      tasks.add(
+        ConversationWorkflowTask(
+          id: _uuid.v4(),
+          title: 'Add error handling for invalid or unreachable hosts in main.py',
+          status: ConversationWorkflowTaskStatus.pending,
+          targetFiles: const ['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes: 'Handle invalid host input and ping failures gracefully.',
+        ),
+      );
+    }
+
+    return tasks.take(4).toList(growable: false);
+  }
+
   WorkflowTaskProposalDraft _finalizeTaskProposalDraft(
     WorkflowTaskProposalDraft proposal, {
     required _PlanningResearchContext researchContext,
@@ -4109,6 +4342,21 @@ Retry hint:
   @visibleForTesting
   WorkflowTaskProposalDraft? parseTaskProposalForTest(String rawContent) {
     return _parseTaskProposalWithFallback(rawContent);
+  }
+
+  @visibleForTesting
+  WorkflowTaskProposalDraft? buildTaskProposalTruncationFallbackForTest({
+    required Conversation currentConversation,
+    required String rawContent,
+    required bool projectLooksEmpty,
+    ConversationWorkflowSpec? workflowSpecOverride,
+  }) {
+    return _buildTaskProposalTruncationFallback(
+      currentConversation: currentConversation,
+      rawContent: rawContent,
+      projectLooksEmpty: projectLooksEmpty,
+      workflowSpecOverride: workflowSpecOverride,
+    );
   }
 
   @visibleForTesting
