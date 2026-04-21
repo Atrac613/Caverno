@@ -5827,8 +5827,28 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
         );
     final existingWorkspaceTargets = _existingWorkspaceTargetFiles(task);
+    final futureTaskTitles = currentConversation.projectedExecutionTasks
+        .where((item) => item.id != task.id)
+        .where(
+          (item) => item.status != ConversationWorkflowTaskStatus.completed,
+        )
+        .map((item) => item.title.trim())
+        .where((title) => title.isNotEmpty)
+        .toList(growable: false);
+    final handoffEvidence =
+        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+          task: task,
+          assistantResponse: latestAssistantResponse.isNotEmpty
+              ? latestAssistantResponse
+              : fallbackAssistantEvidence,
+          futureTaskTitles: futureTaskTitles,
+        );
     final onlyRecoverableMalformedFailures =
         ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
+          toolResults,
+        );
+    final onlyUnavailableToolFailures =
+        ConversationPlanExecutionGuardrails.hasOnlyUnavailableToolFailures(
           toolResults,
         );
     final conversationsNotifier = ref.read(
@@ -5895,6 +5915,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
         eventType: ConversationExecutionTaskEventType.completed,
         eventSummary:
             'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
+      );
+      return true;
+    }
+    if (handoffEvidence &&
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+          task: task,
+          existingTargetPaths: existingWorkspaceTargets,
+        ) &&
+        (!_toolResultsContainFailure(toolResults) ||
+            onlyUnavailableToolFailures)) {
+      final summary =
+          assistantInference.status == ConversationWorkflowTaskStatus.completed
+          ? assistantInference.summary
+          : 'Marked complete after the assistant moved on to a later saved task and every current target file already existed in the workspace.';
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary,
+        eventType: ConversationExecutionTaskEventType.completed,
+        eventSummary: summary,
       );
       return true;
     }

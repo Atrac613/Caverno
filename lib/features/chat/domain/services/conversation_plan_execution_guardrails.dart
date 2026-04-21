@@ -470,6 +470,71 @@ class ConversationPlanExecutionGuardrails {
     return missingTargets.isEmpty;
   }
 
+  static bool canPromoteCompletionFromWorkspaceTargets({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return false;
+    }
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    return missingTargets.isEmpty;
+  }
+
+  static bool assistantMentionsTaskHandoff({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    if (normalizedTaskTitle.isEmpty ||
+        !normalizedResponse.contains(normalizedTaskTitle)) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty ||
+          normalizedFutureTaskTitle == normalizedTaskTitle) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
+    var sawFailure = false;
+    for (final toolResult in toolResults) {
+      if (!_looksLikeFailureResult(toolResult.result)) {
+        continue;
+      }
+      sawFailure = true;
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code != 'tool_not_available' &&
+          !normalizedResult.contains('no matching tool available')) {
+        return false;
+      }
+    }
+    return sawFailure;
+  }
+
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
     final importPattern = RegExp(
       "No module named ['\\\"]([^'\\\"]+)['\\\"]",

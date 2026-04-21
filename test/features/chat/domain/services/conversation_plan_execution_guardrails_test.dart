@@ -514,6 +514,71 @@ void main() {
     },
   );
 
+  test('assistantMentionsTaskHandoff detects a later saved task title', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final task = ConversationWorkflowTask.fromJson(
+      fixture['task'] as Map<String, dynamic>,
+    );
+
+    final mentionsHandoff =
+        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+          task: task,
+          assistantResponse: fixture['assistantResponse'] as String,
+          futureTaskTitles: (fixture['futureTaskTitles'] as List<dynamic>)
+              .cast<String>(),
+        );
+
+    expect(mentionsHandoff, isTrue);
+  });
+
+  test(
+    'canPromoteCompletionFromWorkspaceTargets accepts complete task target coverage',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+            task: task,
+            existingTargetPaths:
+                (fixture['existingTargetPaths'] as List<dynamic>)
+                    .cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'hasOnlyUnavailableToolFailures accepts unavailable-tool-only failures',
+    () {
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+      );
+
+      expect(
+        ConversationPlanExecutionGuardrails.hasOnlyUnavailableToolFailures(
+          toolResults,
+        ),
+        isTrue,
+      );
+    },
+  );
+
   test(
     'assessTaskCompletion preserves scaffold completion after malformed write failures',
     () {
