@@ -27,6 +27,27 @@ void main() {
   });
 
   group('McpToolService', () {
+    test('includes the extended built-in network tool definitions', () {
+      final service = McpToolService();
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(
+            (tool) =>
+                (tool['function']! as Map<String, dynamic>)['name']! as String,
+          )
+          .toList();
+
+      expect(functionNames, contains('arp'));
+      expect(functionNames, contains('ping6'));
+      expect(functionNames, contains('ndp'));
+      expect(functionNames, contains('route_lookup'));
+      expect(functionNames, contains('interface_info'));
+      expect(functionNames, contains('dns_query'));
+      expect(functionNames, contains('path_mtu'));
+      expect(functionNames, contains('mdns_browse'));
+    });
+
     test(
       'namespaces remote tools that collide with built-in tools and routes calls',
       () async {

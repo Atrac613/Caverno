@@ -49,8 +49,14 @@ class McpToolService {
     'search_past_conversations',
     'recall_memory',
     'ping',
+    'ping6',
+    'arp',
+    'ndp',
+    'route_lookup',
+    'interface_info',
     'whois_lookup',
     'dns_lookup',
+    'dns_query',
     'port_check',
     'ssl_certificate',
     'http_status',
@@ -61,6 +67,8 @@ class McpToolService {
     'http_patch',
     'http_delete',
     'traceroute',
+    'path_mtu',
+    'mdns_browse',
     'list_directory',
     'read_file',
     'write_file',
@@ -427,8 +435,14 @@ class McpToolService {
 
     // Built-in network tools (always available).
     _addIfEnabled(toolDefinitions, _pingTool);
+    _addIfEnabled(toolDefinitions, _ping6Tool);
+    _addIfEnabled(toolDefinitions, _arpTool);
+    _addIfEnabled(toolDefinitions, _ndpTool);
+    _addIfEnabled(toolDefinitions, _routeLookupTool);
+    _addIfEnabled(toolDefinitions, _interfaceInfoTool);
     _addIfEnabled(toolDefinitions, _whoisLookupTool);
     _addIfEnabled(toolDefinitions, _dnsLookupTool);
+    _addIfEnabled(toolDefinitions, _dnsQueryTool);
     _addIfEnabled(toolDefinitions, _portCheckTool);
     _addIfEnabled(toolDefinitions, _sslCertificateTool);
     _addIfEnabled(toolDefinitions, _httpStatusTool);
@@ -439,6 +453,8 @@ class McpToolService {
     _addIfEnabled(toolDefinitions, _httpPatchTool);
     _addIfEnabled(toolDefinitions, _httpDeleteTool);
     _addIfEnabled(toolDefinitions, _tracerouteTool);
+    _addIfEnabled(toolDefinitions, _pathMtuTool);
+    _addIfEnabled(toolDefinitions, _mdnsBrowseTool);
 
     if (FilesystemTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _listDirectoryTool);
@@ -767,6 +783,135 @@ class McpToolService {
       }
     }
 
+    if (name == 'ping6') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final count = ((arguments['count'] as num?)?.toInt() ?? 4).clamp(1, 10);
+        final timeout = ((arguments['timeout'] as num?)?.toInt() ?? 5).clamp(
+          1,
+          30,
+        );
+        final result = await NetworkTools.ping6(
+          host: host,
+          count: count,
+          timeoutSeconds: timeout,
+        );
+        appLog('[McpToolService] Ping6 tool executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Ping6 tool error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'arp') {
+      try {
+        final host = (arguments['host'] as String?)?.trim();
+        final ipVersion = (arguments['ip_version'] as String?)?.trim() ?? 'all';
+        final result = await NetworkTools.arp(
+          host: host == null || host.isEmpty ? null : host,
+          ipVersion: ipVersion,
+        );
+        appLog('[McpToolService] ARP tool executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] ARP tool error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'ndp') {
+      try {
+        final host = (arguments['host'] as String?)?.trim();
+        final result = await NetworkTools.ndp(
+          host: host == null || host.isEmpty ? null : host,
+        );
+        appLog('[McpToolService] NDP tool executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] NDP tool error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'route_lookup') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final ipVersion =
+            (arguments['ip_version'] as String?)?.trim().toLowerCase() ??
+            'auto';
+        final result = await NetworkTools.routeLookup(
+          host: host,
+          ipVersion: ipVersion,
+        );
+        appLog('[McpToolService] Route lookup executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Route lookup error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'interface_info') {
+      try {
+        final interfaceName = (arguments['interface'] as String?)?.trim();
+        final ipVersion =
+            (arguments['ip_version'] as String?)?.trim().toLowerCase() ?? 'all';
+        final result = await NetworkTools.interfaceInfo(
+          interfaceName: interfaceName == null || interfaceName.isEmpty
+              ? null
+              : interfaceName,
+          ipVersion: ipVersion,
+        );
+        appLog('[McpToolService] Interface info executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Interface info error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
     if (name == 'whois_lookup') {
       try {
         final domain = (arguments['domain'] as String?)?.trim() ?? '';
@@ -783,6 +928,36 @@ class McpToolService {
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Whois tool error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'dns_query') {
+      try {
+        final target = (arguments['target'] as String?)?.trim() ?? '';
+        if (target.isEmpty) {
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Target is required',
+          );
+        }
+        final recordType =
+            (arguments['record_type'] as String?)?.trim().toUpperCase() ?? 'A';
+        final result = await NetworkTools.dnsQuery(
+          target: target,
+          recordType: recordType,
+        );
+        appLog('[McpToolService] DNS query executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] DNS query error: $e');
         return McpToolResult(
           toolName: name,
           result: '',
@@ -1049,6 +1224,68 @@ class McpToolService {
         return McpToolResult(toolName: name, result: result, isSuccess: true);
       } catch (e) {
         appLog('[McpToolService] Traceroute error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'path_mtu') {
+      try {
+        final host = (arguments['host'] as String?)?.trim() ?? '';
+        if (host.isEmpty) {
+          return McpToolResult(
+            toolName: name,
+            result: '',
+            isSuccess: false,
+            errorMessage: 'Host is required',
+          );
+        }
+        final ipVersion =
+            (arguments['ip_version'] as String?)?.trim().toLowerCase() ??
+            'auto';
+        final result = await NetworkTools.pathMtu(
+          host: host,
+          ipVersion: ipVersion,
+        );
+        appLog('[McpToolService] Path MTU executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] Path MTU error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'mdns_browse') {
+      try {
+        final serviceType =
+            (arguments['service_type'] as String?)?.trim().isNotEmpty == true
+            ? (arguments['service_type'] as String).trim()
+            : '_services._dns-sd._udp.local';
+        final ipVersion =
+            (arguments['ip_version'] as String?)?.trim().toLowerCase() ?? 'all';
+        final timeoutMs = ((arguments['timeout_ms'] as num?)?.toInt() ?? 2000)
+            .clamp(200, 10000);
+        final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 50)
+            .clamp(1, 100);
+        final result = await NetworkTools.mdnsBrowse(
+          serviceType: serviceType,
+          ipVersion: ipVersion,
+          timeoutMs: timeoutMs,
+          maxResults: maxResults,
+        );
+        appLog('[McpToolService] mDNS browse executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] mDNS browse error: $e');
         return McpToolResult(
           toolName: name,
           result: '',
@@ -1556,6 +1793,165 @@ class McpToolService {
   };
 
   // ---------------------------------------------------------------------------
+  // Built-in tool: ping6
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _ping6Tool => {
+    'type': 'function',
+    'function': {
+      'name': 'ping6',
+      'description':
+          'Ping a host over IPv6. Resolves the host to an IPv6 address, then '
+          'checks reachability and latency using ICMPv6.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description':
+                'IPv6 hostname or literal address to ping (e.g., ipv6.google.com, 2001:4860:4860::8888)',
+          },
+          'count': {
+            'type': 'integer',
+            'description':
+                'Number of ping packets to send (default: 4, max: 10)',
+          },
+          'timeout': {
+            'type': 'integer',
+            'description': 'Timeout per ping in seconds (default: 5)',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: arp
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _arpTool => {
+    'type': 'function',
+    'function': {
+      'name': 'arp',
+      'description':
+          'Inspect the local ARP/NDP neighbor cache to see recently observed '
+          'IP-to-MAC mappings on the current network. Supports both IPv4 '
+          '(ARP) and IPv6 neighbor discovery entries when the platform '
+          'exposes them.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description':
+                'Optional hostname or IP address to filter for a specific '
+                'neighbor entry.',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['all', 'ipv4', 'ipv6'],
+            'description':
+                'Address family to inspect (default: all). IPv4 reads the '
+                'ARP table and IPv6 reads the NDP/neighbor table.',
+          },
+        },
+        'required': <String>[],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: ndp
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _ndpTool => {
+    'type': 'function',
+    'function': {
+      'name': 'ndp',
+      'description':
+          'Inspect the local IPv6 neighbor discovery cache to see recently '
+          'observed IPv6-to-MAC mappings on the current network.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description':
+                'Optional IPv6 address or hostname filter for a specific '
+                'neighbor entry.',
+          },
+        },
+        'required': <String>[],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: route_lookup
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _routeLookupTool => {
+    'type': 'function',
+    'function': {
+      'name': 'route_lookup',
+      'description':
+          'Show which interface, gateway, and source IP the local machine '
+          'would use to reach a destination. Useful for IPv4/IPv6 route '
+          'selection diagnostics.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname or IP address to evaluate',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['auto', 'ipv4', 'ipv6'],
+            'description':
+                'Address family to inspect (default: auto). Auto returns the '
+                'first reachable IPv4 and IPv6 route when available.',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: interface_info
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _interfaceInfoTool => {
+    'type': 'function',
+    'function': {
+      'name': 'interface_info',
+      'description':
+          'Inspect local network interfaces, addresses, MTU, flags, and '
+          'default gateways.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'interface': {
+            'type': 'string',
+            'description':
+                'Optional interface name to inspect (for example en0, eth0).',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['all', 'ipv4', 'ipv6'],
+            'description':
+                'Address family filter for the returned addresses and '
+                'gateways (default: all).',
+          },
+        },
+        'required': <String>[],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
   // Built-in tool: whois_lookup
   // ---------------------------------------------------------------------------
 
@@ -1599,6 +1995,36 @@ class McpToolService {
           },
         },
         'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: dns_query
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _dnsQueryTool => {
+    'type': 'function',
+    'function': {
+      'name': 'dns_query',
+      'description':
+          'Resolve a specific DNS record type. Supports A, AAAA, PTR, and '
+          'CNAME queries for precise dual-stack troubleshooting.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'target': {
+            'type': 'string',
+            'description':
+                'Hostname or IP address to query. PTR expects a literal IP.',
+          },
+          'record_type': {
+            'type': 'string',
+            'enum': ['A', 'AAAA', 'PTR', 'CNAME'],
+            'description': 'DNS record type to query (default: A).',
+          },
+        },
+        'required': ['target'],
       },
     },
   };
@@ -1850,6 +2276,80 @@ class McpToolService {
           },
         },
         'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: path_mtu
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _pathMtuTool => {
+    'type': 'function',
+    'function': {
+      'name': 'path_mtu',
+      'description':
+          'Attempt to discover the path MTU to a destination. Uses '
+          'tracepath when available and otherwise falls back to the local '
+          'egress interface MTU as an upper bound.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'host': {
+            'type': 'string',
+            'description': 'Hostname or IP address to evaluate',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['auto', 'ipv4', 'ipv6'],
+            'description': 'Address family to inspect (default: auto).',
+          },
+        },
+        'required': ['host'],
+      },
+    },
+  };
+
+  // ---------------------------------------------------------------------------
+  // Built-in tool: mdns_browse
+  // ---------------------------------------------------------------------------
+
+  static Map<String, dynamic> get _mdnsBrowseTool => {
+    'type': 'function',
+    'function': {
+      'name': 'mdns_browse',
+      'description':
+          'Browse local multicast DNS services. By default it lists '
+          'advertised service types, or it can inspect a specific service '
+          'such as _ipp._tcp.local.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'service_type': {
+            'type': 'string',
+            'description':
+                'mDNS service type to browse (default: _services._dns-sd._udp.local).',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['all', 'ipv4', 'ipv6'],
+            'description':
+                'Transport and address family preference (default: all).',
+          },
+          'timeout_ms': {
+            'type': 'integer',
+            'description':
+                'How long to wait for responses in milliseconds '
+                '(default: 2000, max: 10000).',
+          },
+          'max_results': {
+            'type': 'integer',
+            'description':
+                'Maximum number of services or PTR answers to collect '
+                '(default: 50, max: 100).',
+          },
+        },
+        'required': <String>[],
       },
     },
   };
@@ -2588,12 +3088,14 @@ class McpToolService {
       switch (name) {
         case 'lan_scan':
           final subnet = (arguments['subnet'] as String?)?.trim();
+          final ipVersion = (arguments['ip_version'] as String?)?.trim();
           final timeout = (arguments['timeout'] as num?)?.toInt() ?? 1000;
           final ports = (arguments['ports'] as List?)
               ?.map((e) => (e as num).toInt())
               .toList();
           final result = await lanScan.startScan(
             subnet: subnet,
+            ipVersion: ipVersion,
             timeoutMs: timeout,
             ports: ports,
           );

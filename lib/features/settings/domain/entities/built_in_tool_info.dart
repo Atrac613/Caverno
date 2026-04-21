@@ -64,6 +64,31 @@ class BuiltInToolRegistry {
       category: categoryNetwork,
     ),
     BuiltInToolInfo(
+      name: 'ping6',
+      descriptionKey: 'settings.tool_ping6',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'arp',
+      descriptionKey: 'settings.tool_arp',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'ndp',
+      descriptionKey: 'settings.tool_ndp',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'route_lookup',
+      descriptionKey: 'settings.tool_route_lookup',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'interface_info',
+      descriptionKey: 'settings.tool_interface_info',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
       name: 'whois_lookup',
       descriptionKey: 'settings.tool_whois_lookup',
       category: categoryNetwork,
@@ -71,6 +96,11 @@ class BuiltInToolRegistry {
     BuiltInToolInfo(
       name: 'dns_lookup',
       descriptionKey: 'settings.tool_dns_lookup',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'dns_query',
+      descriptionKey: 'settings.tool_dns_query',
       category: categoryNetwork,
     ),
     BuiltInToolInfo(
@@ -121,6 +151,16 @@ class BuiltInToolRegistry {
     BuiltInToolInfo(
       name: 'traceroute',
       descriptionKey: 'settings.tool_traceroute',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'path_mtu',
+      descriptionKey: 'settings.tool_path_mtu',
+      category: categoryNetwork,
+    ),
+    BuiltInToolInfo(
+      name: 'mdns_browse',
+      descriptionKey: 'settings.tool_mdns_browse',
       category: categoryNetwork,
     ),
     // Coding
