@@ -350,6 +350,41 @@ The user wants a workflow proposal for creating a Python CLI tool that pings spe
     expect(proposal.workflowSpec.goal, 'pythonで特定のhostにpingするcliスクリプトを作りたい');
   });
 
+  test(
+    'builds workflow proposal fallback from reasoning-only truncation without punctuation',
+    () {
+      final conversation = Conversation(
+        id: 'conversation-2',
+        title: 'Ping CLI',
+        messages: [
+          Message(
+            id: 'user-1',
+            content: 'pythonで特定のhostにpingするcliスクリプトを作りたい',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 21, 19, 43),
+          ),
+        ],
+        createdAt: DateTime(2026, 4, 21, 19, 43),
+        updatedAt: DateTime(2026, 4, 21, 19, 43),
+      );
+      final proposal = notifier.buildWorkflowProposalTruncationFallbackForTest(
+        currentConversation: conversation,
+        rawContent: '''
+<think>
+The user wants to create a Python CLI script that pings a specific host The project name is tmp-live-ping-cli The current state is that the project root seems empty or lacks structure The user's request is "pythonで特定のhostにpingするcliスクリプトを作りたい"
+</think>
+''',
+      );
+
+      expect(proposal, isNotNull);
+      expect(proposal!.workflowStage, ConversationWorkflowStage.plan);
+      expect(
+        proposal.workflowSpec.goal,
+        'create a Python CLI script that pings a specific host',
+      );
+    },
+  );
+
   test('builds workflow fallback from truncated retries after decisions', () {
     final conversation = Conversation(
       id: 'conversation-1',

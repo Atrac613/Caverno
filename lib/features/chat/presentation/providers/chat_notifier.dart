@@ -1640,22 +1640,41 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
     String? additionalPlanningContext,
   }) async {
+    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(researchContext);
     final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
-      (
-        compact: false,
-        maxTokens: _settings.maxTokens > 1600 ? 1600 : _settings.maxTokens,
-        minimalRetry: false,
-      ),
-      (
-        compact: true,
-        maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
-        minimalRetry: true,
-      ),
-      (
-        compact: true,
-        maxTokens: _settings.maxTokens > 700 ? 700 : _settings.maxTokens,
-        minimalRetry: true,
-      ),
+      if (projectLooksEmpty) ...[
+        (
+          compact: true,
+          maxTokens: _settings.maxTokens > 1100 ? 1100 : _settings.maxTokens,
+          minimalRetry: false,
+        ),
+        (
+          compact: true,
+          maxTokens: _settings.maxTokens > 800 ? 800 : _settings.maxTokens,
+          minimalRetry: true,
+        ),
+        (
+          compact: true,
+          maxTokens: _settings.maxTokens > 650 ? 650 : _settings.maxTokens,
+          minimalRetry: true,
+        ),
+      ] else ...[
+        (
+          compact: false,
+          maxTokens: _settings.maxTokens > 1600 ? 1600 : _settings.maxTokens,
+          minimalRetry: false,
+        ),
+        (
+          compact: true,
+          maxTokens: _settings.maxTokens > 900 ? 900 : _settings.maxTokens,
+          minimalRetry: true,
+        ),
+        (
+          compact: true,
+          maxTokens: _settings.maxTokens > 700 ? 700 : _settings.maxTokens,
+          minimalRetry: true,
+        ),
+      ],
     ];
 
     String? lastError;
@@ -1670,6 +1689,7 @@ class ChatNotifier extends Notifier<ChatState> {
           additionalPlanningContext: _buildWorkflowProposalRetryContext(
             additionalPlanningContext,
             minimalRetry: attempt.minimalRetry,
+            projectLooksEmpty: projectLooksEmpty,
           ),
           compact: attempt.compact,
         ),
@@ -1718,21 +1738,30 @@ class ChatNotifier extends Notifier<ChatState> {
   String? _buildWorkflowProposalRetryContext(
     String? additionalPlanningContext, {
     required bool minimalRetry,
+    required bool projectLooksEmpty,
   }) {
     final normalizedContext = additionalPlanningContext?.trim();
-    if (!minimalRetry) {
+    if (!minimalRetry && !projectLooksEmpty) {
       return normalizedContext;
     }
 
-    const retryHint = '''
-Retry hint:
-- Return the smallest valid JSON proposal possible.
-- Do not restate the user request, project summary, or research context.
-- Prefer a short goal plus one or two short list items over verbose explanations.
-- If you are space-constrained, return workflowStage, goal, and a minimal acceptanceCriteria list only.
-''';
+    final retryLines = <String>[
+      if (projectLooksEmpty)
+        'Retry hint: The workspace is empty, so prefer the shortest viable workflow proposal.',
+      'Retry hint:',
+      '- Return the smallest valid JSON proposal possible.',
+      '- Do not restate the user request, project summary, or research context.',
+      '- Prefer a short goal plus one or two short list items over verbose explanations.',
+      '- If you are space-constrained, return workflowStage, goal, and a minimal acceptanceCriteria list only.',
+    ];
+    if (projectLooksEmpty) {
+      retryLines.add(
+        '- For an empty project, avoid setup narration and focus on the requested outcome.',
+      );
+    }
+    final retryHint = retryLines.join('\n');
     if (normalizedContext == null || normalizedContext.isEmpty) {
-      return retryHint.trim();
+      return retryHint;
     }
     return '$normalizedContext\n$retryHint'.trim();
   }
@@ -2977,6 +3006,26 @@ Retry hint:
       return null;
     }
 
+    const userGoalPrefixes = <String>[
+      'The user wants a workflow proposal for ',
+      'The user wants to ',
+    ];
+    final lowerContent = normalizedContent.toLowerCase();
+    for (final prefix in userGoalPrefixes) {
+      final start = lowerContent.indexOf(prefix.toLowerCase());
+      if (start < 0) {
+        continue;
+      }
+      final candidate = _sanitizeNarrativeWorkflowGoal(
+        _trimNarrativeWorkflowGoalCandidate(
+          normalizedContent.substring(start + prefix.length),
+        ),
+      );
+      if (candidate != null) {
+        return candidate;
+      }
+    }
+
     final quotedRequestMatch = RegExp(
       r'''The user(?:'s)? request is ["'](.+?)["']''',
       caseSensitive: false,
@@ -2991,7 +3040,7 @@ Retry hint:
     }
 
     final userWantsMatch = RegExp(
-      r'''The user wants (?:a workflow proposal for |to )(.+?)(?:\.|$)''',
+      r'''The user wants (?:a workflow proposal for |to )(.+?)(?:(?:[.!?](?:\s|$))|(?:\s+The project name is\b)|(?:\s+Project name is\b)|(?:\s+The current state is\b)|(?:\s+The project root\b)|(?:\s+The research context\b)|(?:\s+The user's\b)|$)''',
       caseSensitive: false,
     ).firstMatch(normalizedContent);
     if (userWantsMatch != null) {
@@ -3017,6 +3066,41 @@ Retry hint:
     }
 
     return null;
+  }
+
+  String _trimNarrativeWorkflowGoalCandidate(String rawValue) {
+    var candidate = rawValue.trim();
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    const contextMarkers = <String>[
+      ' The project name is ',
+      ' Project name is ',
+      ' The current state is ',
+      ' The project root ',
+      ' The research context ',
+      " The user's request is ",
+      ' Current State:',
+      ' Recent Context:',
+    ];
+
+    final lowerCandidate = candidate.toLowerCase();
+    var cutIndex = candidate.length;
+    for (final marker in contextMarkers) {
+      final index = lowerCandidate.indexOf(marker.trim().toLowerCase());
+      if (index > 0 && index < cutIndex) {
+        cutIndex = index;
+      }
+    }
+    candidate = candidate.substring(0, cutIndex).trim();
+
+    final sentenceBreak = RegExp(r'(?<=[.!?])\s+').firstMatch(candidate);
+    if (sentenceBreak != null && sentenceBreak.start > 24) {
+      candidate = candidate.substring(0, sentenceBreak.start).trim();
+    }
+
+    return candidate;
   }
 
   String? _sanitizeNarrativeWorkflowGoal(String rawValue) {
@@ -3473,6 +3557,15 @@ Retry hint:
       'Previous session',
       'Previous sessions',
       'Current State:',
+      'The current state is',
+      'The project name is',
+      'Project name is',
+      'The project root',
+      'The research context',
+      'The current workspace',
+      'The workspace is',
+      'The repository is',
+      "The user's request is",
       'Self-Correction',
       'Actually,',
       'Actually ',
