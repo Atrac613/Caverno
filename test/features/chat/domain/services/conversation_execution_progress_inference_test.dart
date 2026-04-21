@@ -152,12 +152,34 @@ void main() {
     },
   );
 
+  test('treats validation command success narratives as completion evidence', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.summary,
+      'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+    );
+  });
+
   test(
-    'treats validation command success narratives as completion evidence',
+    'prefers completion when the response recaps an earlier failure but confirms success',
     () {
+      const task = ConversationWorkflowTask(
+        id: 'task-cli',
+        title: 'Implement subprocess ping logic',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationCommand: 'python3 main.py 8.8.8.8',
+      );
+
       final result = ConversationExecutionProgressInference.infer(
         assistantResponse:
-            'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+            'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
         task: task,
         isValidationRun: false,
       );
@@ -165,7 +187,7 @@ void main() {
       expect(result.status, ConversationWorkflowTaskStatus.completed);
       expect(
         result.summary,
-        'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+        'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
       );
     },
   );

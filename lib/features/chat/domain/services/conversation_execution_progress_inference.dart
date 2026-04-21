@@ -115,14 +115,20 @@ class ConversationExecutionProgressInference {
       lowercaseResponse,
       _completionSignals,
     );
-    final hasValidationPassedSignal = _containsAny(
-      lowercaseResponse,
-      _validationPassedSignals,
-    ) || _looksLikeValidationSuccessNarrative(lowercaseResponse);
+    final hasValidationPassedSignal =
+        _containsAny(lowercaseResponse, _validationPassedSignals) ||
+        _looksLikeValidationSuccessNarrative(lowercaseResponse);
     final looksLikeTaskTransitionNarration = _containsAny(
       lowercaseResponse,
       _transitionNarrationSignals,
     );
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    final mentionsExplicitTaskCompletion =
+        normalizedTaskTitle.isNotEmpty &&
+        lowercaseResponse.contains(normalizedTaskTitle) &&
+        (lowercaseResponse.contains('has been completed') ||
+            lowercaseResponse.contains('is complete') ||
+            lowercaseResponse.contains('is completed'));
 
     if (isValidationRun) {
       if (hasBlockedSignal) {
@@ -165,6 +171,13 @@ class ConversationExecutionProgressInference {
       );
     }
 
+    if (hasBlockedSignal &&
+        (hasValidationPassedSignal || mentionsExplicitTaskCompletion)) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary,
+      );
+    }
     if (hasBlockedSignal) {
       return ConversationExecutionProgressInferenceResult(
         status: ConversationWorkflowTaskStatus.blocked,
