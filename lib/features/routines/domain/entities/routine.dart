@@ -9,6 +9,12 @@ enum RoutineRunStatus { completed, failed }
 
 enum RoutineRunTrigger { manual, scheduled }
 
+enum RoutineCompletionAction { none, googleChat }
+
+enum RoutineGoogleChatRule { onSuccess, onFailure, always }
+
+enum RoutineDeliveryStatus { notRequested, skipped, delivered, failed }
+
 @freezed
 abstract class RoutineRunRecord with _$RoutineRunRecord {
   const RoutineRunRecord._();
@@ -27,6 +33,11 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default(false) bool usedTools,
     @Default(0) int toolCallCount,
     @Default(<String>[]) List<String> toolNames,
+    @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)
+    @Default(RoutineDeliveryStatus.notRequested)
+    RoutineDeliveryStatus deliveryStatus,
+    DateTime? deliveredAt,
+    @Default('') String deliveryMessage,
     @Default('') String preview,
     @Default('') String output,
     @Default('') String error,
@@ -36,6 +47,8 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
       _$RoutineRunRecordFromJson(json);
 
   bool get isSuccessful => status == RoutineRunStatus.completed;
+
+  bool get wasDelivered => deliveryStatus == RoutineDeliveryStatus.delivered;
 
   int get effectiveDurationMs {
     final measured = finishedAt.difference(startedAt).inMilliseconds;
@@ -59,6 +72,12 @@ abstract class Routine with _$Routine {
     @Default(true) bool enabled,
     @Default(true) bool notifyOnCompletion,
     @Default(false) bool toolsEnabled,
+    @JsonKey(unknownEnumValue: RoutineCompletionAction.none)
+    @Default(RoutineCompletionAction.none)
+    RoutineCompletionAction completionAction,
+    @JsonKey(unknownEnumValue: RoutineGoogleChatRule.onFailure)
+    @Default(RoutineGoogleChatRule.onFailure)
+    RoutineGoogleChatRule googleChatRule,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)
@@ -78,4 +97,7 @@ abstract class Routine with _$Routine {
   bool get hasPrompt => trimmedPrompt.isNotEmpty;
 
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
+
+  bool get postsToGoogleChat =>
+      completionAction == RoutineCompletionAction.googleChat;
 }

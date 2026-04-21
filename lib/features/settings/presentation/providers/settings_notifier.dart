@@ -56,6 +56,11 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateGoogleChatWebhookUrl(String webhookUrl) async {
+    state = state.copyWith(googleChatWebhookUrl: webhookUrl.trim());
+    await _repository.save(state);
+  }
+
   Future<void> updateMcpUrl(String mcpUrl) async {
     await updateMcpUrls(mcpUrl.isEmpty ? const [] : [mcpUrl]);
   }

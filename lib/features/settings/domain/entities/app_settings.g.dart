@@ -61,6 +61,7 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   apiKey: json['apiKey'] as String,
   temperature: (json['temperature'] as num).toDouble(),
   maxTokens: (json['maxTokens'] as num).toInt(),
+  googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
   mcpUrls:
       (json['mcpUrls'] as List<dynamic>?)?.map((e) => e as String).toList() ??
@@ -105,6 +106,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'apiKey': instance.apiKey,
       'temperature': instance.temperature,
       'maxTokens': instance.maxTokens,
+      'googleChatWebhookUrl': instance.googleChatWebhookUrl,
       'mcpUrl': instance.mcpUrl,
       'mcpUrls': instance.mcpUrls,
       'mcpServers': instance.mcpServers,

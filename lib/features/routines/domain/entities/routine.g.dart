@@ -33,26 +33,41 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      deliveryStatus:
+          $enumDecodeNullable(
+            _$RoutineDeliveryStatusEnumMap,
+            json['deliveryStatus'],
+            unknownValue: RoutineDeliveryStatus.notRequested,
+          ) ??
+          RoutineDeliveryStatus.notRequested,
+      deliveredAt: json['deliveredAt'] == null
+          ? null
+          : DateTime.parse(json['deliveredAt'] as String),
+      deliveryMessage: json['deliveryMessage'] as String? ?? '',
       preview: json['preview'] as String? ?? '',
       output: json['output'] as String? ?? '',
       error: json['error'] as String? ?? '',
     );
 
-Map<String, dynamic> _$RoutineRunRecordToJson(_RoutineRunRecord instance) =>
-    <String, dynamic>{
-      'id': instance.id,
-      'startedAt': instance.startedAt.toIso8601String(),
-      'finishedAt': instance.finishedAt.toIso8601String(),
-      'status': _$RoutineRunStatusEnumMap[instance.status]!,
-      'trigger': _$RoutineRunTriggerEnumMap[instance.trigger]!,
-      'durationMs': instance.durationMs,
-      'usedTools': instance.usedTools,
-      'toolCallCount': instance.toolCallCount,
-      'toolNames': instance.toolNames,
-      'preview': instance.preview,
-      'output': instance.output,
-      'error': instance.error,
-    };
+Map<String, dynamic> _$RoutineRunRecordToJson(
+  _RoutineRunRecord instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'startedAt': instance.startedAt.toIso8601String(),
+  'finishedAt': instance.finishedAt.toIso8601String(),
+  'status': _$RoutineRunStatusEnumMap[instance.status]!,
+  'trigger': _$RoutineRunTriggerEnumMap[instance.trigger]!,
+  'durationMs': instance.durationMs,
+  'usedTools': instance.usedTools,
+  'toolCallCount': instance.toolCallCount,
+  'toolNames': instance.toolNames,
+  'deliveryStatus': _$RoutineDeliveryStatusEnumMap[instance.deliveryStatus]!,
+  'deliveredAt': instance.deliveredAt?.toIso8601String(),
+  'deliveryMessage': instance.deliveryMessage,
+  'preview': instance.preview,
+  'output': instance.output,
+  'error': instance.error,
+};
 
 const _$RoutineRunStatusEnumMap = {
   RoutineRunStatus.completed: 'completed',
@@ -64,6 +79,13 @@ const _$RoutineRunTriggerEnumMap = {
   RoutineRunTrigger.scheduled: 'scheduled',
 };
 
+const _$RoutineDeliveryStatusEnumMap = {
+  RoutineDeliveryStatus.notRequested: 'notRequested',
+  RoutineDeliveryStatus.skipped: 'skipped',
+  RoutineDeliveryStatus.delivered: 'delivered',
+  RoutineDeliveryStatus.failed: 'failed',
+};
+
 _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   id: json['id'] as String,
   name: json['name'] as String,
@@ -73,6 +95,20 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   enabled: json['enabled'] as bool? ?? true,
   notifyOnCompletion: json['notifyOnCompletion'] as bool? ?? true,
   toolsEnabled: json['toolsEnabled'] as bool? ?? false,
+  completionAction:
+      $enumDecodeNullable(
+        _$RoutineCompletionActionEnumMap,
+        json['completionAction'],
+        unknownValue: RoutineCompletionAction.none,
+      ) ??
+      RoutineCompletionAction.none,
+  googleChatRule:
+      $enumDecodeNullable(
+        _$RoutineGoogleChatRuleEnumMap,
+        json['googleChatRule'],
+        unknownValue: RoutineGoogleChatRule.onFailure,
+      ) ??
+      RoutineGoogleChatRule.onFailure,
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -103,11 +139,25 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'enabled': instance.enabled,
   'notifyOnCompletion': instance.notifyOnCompletion,
   'toolsEnabled': instance.toolsEnabled,
+  'completionAction':
+      _$RoutineCompletionActionEnumMap[instance.completionAction]!,
+  'googleChatRule': _$RoutineGoogleChatRuleEnumMap[instance.googleChatRule]!,
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),
   'lastRunAt': instance.lastRunAt?.toIso8601String(),
   'runs': instance.runs,
+};
+
+const _$RoutineCompletionActionEnumMap = {
+  RoutineCompletionAction.none: 'none',
+  RoutineCompletionAction.googleChat: 'googleChat',
+};
+
+const _$RoutineGoogleChatRuleEnumMap = {
+  RoutineGoogleChatRule.onSuccess: 'onSuccess',
+  RoutineGoogleChatRule.onFailure: 'onFailure',
+  RoutineGoogleChatRule.always: 'always',
 };
 
 const _$RoutineIntervalUnitEnumMap = {

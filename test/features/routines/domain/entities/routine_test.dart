@@ -15,6 +15,9 @@ void main() {
         usedTools: true,
         toolCallCount: 2,
         toolNames: const ['web_search', 'read_file'],
+        deliveryStatus: RoutineDeliveryStatus.delivered,
+        deliveredAt: DateTime(2026, 4, 21, 10, 0, 5),
+        deliveryMessage: 'Posted to Google Chat.',
         preview: 'Finished successfully',
         output: 'Full output',
       );
@@ -26,6 +29,9 @@ void main() {
       expect(decoded.usedTools, isTrue);
       expect(decoded.toolCallCount, 2);
       expect(decoded.toolNames, ['web_search', 'read_file']);
+      expect(decoded.deliveryStatus, RoutineDeliveryStatus.delivered);
+      expect(decoded.deliveredAt, DateTime(2026, 4, 21, 10, 0, 5));
+      expect(decoded.deliveryMessage, 'Posted to Google Chat.');
       expect(decoded.preview, 'Finished successfully');
       expect(decoded.output, 'Full output');
     });
@@ -53,12 +59,16 @@ void main() {
           updatedAt: DateTime(2026, 4, 21, 9),
           notifyOnCompletion: false,
           toolsEnabled: true,
+          completionAction: RoutineCompletionAction.googleChat,
+          googleChatRule: RoutineGoogleChatRule.always,
         );
 
         final decoded = Routine.fromJson(routine.toJson());
 
         expect(decoded.notifyOnCompletion, isFalse);
         expect(decoded.toolsEnabled, isTrue);
+        expect(decoded.completionAction, RoutineCompletionAction.googleChat);
+        expect(decoded.googleChatRule, RoutineGoogleChatRule.always);
       },
     );
   });

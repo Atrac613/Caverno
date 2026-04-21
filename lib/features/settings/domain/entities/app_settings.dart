@@ -79,6 +79,7 @@ abstract class AppSettings with _$AppSettings {
     required String apiKey,
     required double temperature,
     required int maxTokens,
+    @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,
     @Default(<McpServerConfig>[]) List<McpServerConfig> mcpServers,
@@ -118,6 +119,10 @@ abstract class AppSettings with _$AppSettings {
 
   factory AppSettings.fromJson(Map<String, dynamic> json) =>
       _$AppSettingsFromJson(json);
+
+  String get normalizedGoogleChatWebhookUrl => googleChatWebhookUrl.trim();
+
+  bool get hasGoogleChatWebhook => normalizedGoogleChatWebhookUrl.isNotEmpty;
 
   Set<String> get disabledBuiltInToolsSet =>
       Set<String>.from(disabledBuiltInTools);
