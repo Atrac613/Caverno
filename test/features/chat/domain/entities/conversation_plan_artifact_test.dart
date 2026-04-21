@@ -43,4 +43,42 @@ void main() {
       ConversationPlanRevisionKind.approved,
     );
   });
+
+  test(
+    'buildApprovedSnapshotMarkdown rebuilds the plan when the draft has no tasks',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Keep approved snapshots aligned with saved tasks',
+      );
+      const tasks = [
+        ConversationWorkflowTask(
+          id: 'task-1',
+          title: 'Implement the main CLI entrypoint',
+          targetFiles: ['main.py'],
+          validationCommand: 'python3 main.py --help',
+        ),
+      ];
+
+      final markdown = ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
+        currentArtifact: const ConversationPlanArtifact(
+          draftMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'plan\n'
+              '\n'
+              '## Goal\n'
+              'Keep approved snapshots aligned with saved tasks\n',
+        ),
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: workflowSpec,
+        tasks: tasks,
+      );
+
+      expect(markdown, contains('## Tasks'));
+      expect(markdown, contains('Implement the main CLI entrypoint'));
+      expect(markdown, contains('Task ID: task-1'));
+      expect(markdown, contains('## Stage\nimplement'));
+    },
+  );
 }

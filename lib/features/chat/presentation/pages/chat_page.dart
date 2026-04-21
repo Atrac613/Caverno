@@ -2936,16 +2936,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final currentArtifact = currentConversation.effectivePlanArtifact;
-    final approvedMarkdown = currentArtifact.normalizedDraftMarkdown != null
-        ? ConversationPlanProjectionService.replaceWorkflowStage(
-            markdown: currentArtifact.normalizedDraftMarkdown!,
-            workflowStage: approvedWorkflowStage,
-          )
-        : ConversationPlanDocumentBuilder.build(
-            workflowStage: approvedWorkflowStage,
-            workflowSpec: workflowDraft.workflowSpec,
-            tasks: taskDraft.tasks,
-          );
+    final approvedMarkdown =
+        ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
+          currentArtifact: currentArtifact,
+          workflowStage: approvedWorkflowStage,
+          workflowSpec: workflowDraft.workflowSpec,
+          tasks: taskDraft.tasks,
+        );
     final updatedAt = DateTime.now();
     final nextArtifact = currentArtifact
         .copyWith(
@@ -5003,6 +5000,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed) {
+      return false;
+    }
+
+    final existingTargetFiles = _existingWorkspaceTargetFiles(latestTask);
+    final missingTargetFiles =
+        ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
+          task: latestTask,
+          existingTargetPaths: existingTargetFiles,
+        );
+    final isScaffoldTask =
+        ConversationPlanExecutionGuardrails.looksLikeScaffoldTask(latestTask);
     final unavailableToolNames =
         ConversationPlanExecutionGuardrails.unavailableToolNames(toolResults);
     final editMismatchPaths =
@@ -5015,25 +5035,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
           toolResults,
         );
+    final shouldAttemptScaffoldRecovery =
+        isScaffoldTask && missingTargetFiles.isNotEmpty;
+    if (latestTask.status == ConversationWorkflowTaskStatus.blocked &&
+        !shouldAttemptScaffoldRecovery) {
+      return false;
+    }
     if (unavailableToolNames.isEmpty &&
         editMismatchPaths.isEmpty &&
-        !hasMalformedFileMutationFailure) {
-      return false;
-    }
-
-    final currentConversation = ref
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    if (currentConversation == null) {
-      return false;
-    }
-
-    final latestTask = currentConversation.projectedExecutionTasks
-        .where((item) => item.id == task.id)
-        .firstOrNull;
-    if (latestTask == null ||
-        latestTask.status == ConversationWorkflowTaskStatus.completed ||
-        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+        !hasMalformedFileMutationFailure &&
+        !shouldAttemptScaffoldRecovery) {
       return false;
     }
 
@@ -5042,13 +5053,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
     await chatNotifier.sendHiddenPrompt(
-      ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
-        task: latestTask,
-        unavailableToolNames: unavailableToolNames,
-        editMismatchPaths: editMismatchPaths,
-        malformedFileMutationPaths: malformedFileMutationPaths,
-        hasMalformedFileMutationFailure: hasMalformedFileMutationFailure,
-      ),
+      shouldAttemptScaffoldRecovery
+          ? existingTargetFiles.isEmpty
+                ? ConversationPlanExecutionCoordinator
+                      .buildScaffoldMissingTargetRecoveryPrompt(
+                        task: latestTask,
+                        missingTargetFiles: missingTargetFiles,
+                      )
+                : ConversationPlanExecutionCoordinator
+                      .buildScaffoldRemainingTargetRecoveryPrompt(
+                        task: latestTask,
+                        existingTargetFiles: existingTargetFiles,
+                        missingTargetFiles: missingTargetFiles,
+                      )
+          : ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
+              task: latestTask,
+              unavailableToolNames: unavailableToolNames,
+              editMismatchPaths: editMismatchPaths,
+              malformedFileMutationPaths: malformedFileMutationPaths,
+              hasMalformedFileMutationFailure: hasMalformedFileMutationFailure,
+            ),
       languageCode: languageCode,
     );
 

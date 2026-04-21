@@ -1,5 +1,6 @@
 import '../entities/conversation_workflow.dart';
 import '../entities/conversation_plan_artifact.dart';
+import 'conversation_plan_projection_service.dart';
 
 class ConversationPlanDocumentBuilder {
   ConversationPlanDocumentBuilder._();
@@ -23,6 +24,34 @@ class ConversationPlanDocumentBuilder {
       kind: ConversationPlanRevisionKind.approved,
       label: 'Built approved plan document',
       createdAt: updatedAt,
+    );
+  }
+
+  static String buildApprovedSnapshotMarkdown({
+    required ConversationPlanArtifact currentArtifact,
+    required ConversationWorkflowStage workflowStage,
+    required ConversationWorkflowSpec workflowSpec,
+    required List<ConversationWorkflowTask> tasks,
+  }) {
+    final normalizedDraft = currentArtifact.normalizedDraftMarkdown;
+    if (normalizedDraft != null) {
+      final stagedDraft = ConversationPlanProjectionService.replaceWorkflowStage(
+        markdown: normalizedDraft,
+        workflowStage: workflowStage,
+      );
+      final validation = ConversationPlanProjectionService.validateDocument(
+        markdown: stagedDraft,
+        requireTasks: tasks.isNotEmpty,
+      );
+      if (validation.isValid && (tasks.isEmpty || validation.previewTasks.isNotEmpty)) {
+        return stagedDraft;
+      }
+    }
+
+    return build(
+      workflowStage: workflowStage,
+      workflowSpec: workflowSpec,
+      tasks: tasks,
     );
   }
 
