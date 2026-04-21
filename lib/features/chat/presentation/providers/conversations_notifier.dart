@@ -70,12 +70,15 @@ class ConversationsState {
   }
 
   List<Conversation> get visibleConversations {
+    if (!activeWorkspaceMode.usesConversations) {
+      return const [];
+    }
     return conversations
         .where((conversation) {
           if (conversation.workspaceMode != activeWorkspaceMode) {
             return false;
           }
-          if (activeWorkspaceMode == WorkspaceMode.chat) {
+          if (!activeWorkspaceMode.usesProjects) {
             return true;
           }
           return conversation.normalizedProjectId == activeProjectId;
@@ -123,20 +126,20 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     String? preferredConversationId,
     required bool createIfMissing,
   }) {
-    final normalizedProjectId = workspaceMode == WorkspaceMode.coding
-        ? projectId
-        : null;
-    final visibleConversations = conversations
-        .where((conversation) {
-          if (conversation.workspaceMode != workspaceMode) {
-            return false;
-          }
-          if (workspaceMode == WorkspaceMode.chat) {
-            return true;
-          }
-          return conversation.normalizedProjectId == normalizedProjectId;
-        })
-        .toList(growable: false);
+    final normalizedProjectId = workspaceMode.usesProjects ? projectId : null;
+    final visibleConversations = workspaceMode.usesConversations
+        ? conversations
+              .where((conversation) {
+                if (conversation.workspaceMode != workspaceMode) {
+                  return false;
+                }
+                if (!workspaceMode.usesProjects) {
+                  return true;
+                }
+                return conversation.normalizedProjectId == normalizedProjectId;
+              })
+              .toList(growable: false)
+        : const <Conversation>[];
 
     String? currentConversationId = preferredConversationId;
     if (currentConversationId != null &&
@@ -150,7 +153,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         : visibleConversations.first.id;
 
     var nextConversations = conversations;
-    if (currentConversationId == null && createIfMissing) {
+    if (currentConversationId == null &&
+        createIfMissing &&
+        workspaceMode.usesConversations) {
       final fresh = _createConversation(
         workspaceMode: workspaceMode,
         projectId: normalizedProjectId,
@@ -211,7 +216,10 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     String? projectId,
   }) {
     final resolvedWorkspaceMode = workspaceMode ?? state.activeWorkspaceMode;
-    final resolvedProjectId = resolvedWorkspaceMode == WorkspaceMode.coding
+    if (!resolvedWorkspaceMode.usesConversations) {
+      return;
+    }
+    final resolvedProjectId = resolvedWorkspaceMode.usesProjects
         ? (projectId ?? state.activeProjectId)
         : null;
     final conversation = _createConversation(
@@ -225,8 +233,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       activeWorkspaceMode: resolvedWorkspaceMode,
       activeProjectId: resolvedProjectId,
       clearActiveProject:
-          resolvedWorkspaceMode == WorkspaceMode.chat ||
-          resolvedProjectId == null,
+          !resolvedWorkspaceMode.usesProjects || resolvedProjectId == null,
     );
 
     // Persist the new conversation.
@@ -244,7 +251,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       currentConversationId: id,
       activeWorkspaceMode: conversation.workspaceMode,
       activeProjectId: conversation.normalizedProjectId,
-      clearActiveProject: conversation.workspaceMode == WorkspaceMode.chat,
+      clearActiveProject: !conversation.workspaceMode.usesProjects,
     );
     ensureCurrentPlanArtifactBackfilled();
   }
@@ -279,8 +286,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
           ? null
           : state.currentConversationId,
       createIfMissing:
-          state.activeWorkspaceMode == WorkspaceMode.chat ||
-          state.activeProjectId != null,
+          state.activeWorkspaceMode.usesConversations &&
+          (!state.activeWorkspaceMode.usesProjects ||
+              state.activeProjectId != null),
     );
   }
 
@@ -304,8 +312,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       workspaceMode: state.activeWorkspaceMode,
       projectId: state.activeProjectId,
       createIfMissing:
-          state.activeWorkspaceMode == WorkspaceMode.chat ||
-          state.activeProjectId != null,
+          state.activeWorkspaceMode.usesConversations &&
+          (!state.activeWorkspaceMode.usesProjects ||
+              state.activeProjectId != null),
     );
   }
 

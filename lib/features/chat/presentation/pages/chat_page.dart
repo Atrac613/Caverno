@@ -11,6 +11,8 @@ import 'package:uuid/uuid.dart';
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
+import '../../../routines/presentation/pages/routines_home_page.dart';
+import '../../../routines/presentation/providers/routine_scheduler.dart';
 import '../providers/coding_projects_notifier.dart';
 import '../../../settings/presentation/pages/settings_page.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -69,7 +71,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
   @override
   void initState() {
     super.initState();
-    _workspaceTabController = TabController(length: 2, vsync: this);
+    _workspaceTabController = TabController(length: 3, vsync: this);
+    ref.read(routineSchedulerProvider);
   }
 
   @override
@@ -124,6 +127,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
         createIfMissing: true,
       );
       await settingsNotifier.updateAssistantMode(AssistantMode.general);
+      return;
+    }
+
+    if (workspaceMode == WorkspaceMode.routines) {
+      conversationsNotifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.routines,
+        createIfMissing: false,
+      );
       return;
     }
 
@@ -361,6 +372,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
 
     final settings = ref.watch(settingsNotifierProvider);
+    final isRoutinesWorkspace =
+        conversationsState.activeWorkspaceMode == WorkspaceMode.routines;
     final isCodingWorkspace =
         conversationsState.activeWorkspaceMode == WorkspaceMode.coding;
     final activeProject = codingProjectsState.findById(
@@ -381,7 +394,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ? 'chat.new_thread'.tr()
               : 'chat.new_conversation'.tr())
         : rawTitle;
-    final workspaceIndex = isCodingWorkspace ? 1 : 0;
+    final workspaceIndex = switch (conversationsState.activeWorkspaceMode) {
+      WorkspaceMode.chat => 0,
+      WorkspaceMode.coding => 1,
+      WorkspaceMode.routines => 2,
+    };
     if (_workspaceTabController.index != workspaceIndex) {
       _workspaceTabController.index = workspaceIndex;
     }
@@ -417,7 +434,13 @@ class _ChatPageState extends ConsumerState<ChatPage>
         title: Row(
           children: [
             Expanded(
-              child: isCodingWorkspace
+              child: isRoutinesWorkspace
+                  ? Text(
+                      'chat.workspace_routines'.tr(),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                    )
+                  : isCodingWorkspace
                   ? Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -468,9 +491,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
         bottom: TabBar(
           controller: _workspaceTabController,
           onTap: (index) {
-            _switchWorkspaceMode(
-              index == 0 ? WorkspaceMode.chat : WorkspaceMode.coding,
-            );
+            _switchWorkspaceMode(switch (index) {
+              0 => WorkspaceMode.chat,
+              1 => WorkspaceMode.coding,
+              _ => WorkspaceMode.routines,
+            });
           },
           tabs: [
             Tab(
@@ -481,6 +506,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
               text: 'chat.workspace_coding'.tr(),
               icon: const Icon(Icons.code),
             ),
+            Tab(
+              text: 'chat.workspace_routines'.tr(),
+              icon: const Icon(Icons.schedule_outlined),
+            ),
           ],
         ),
         actions: [
@@ -490,19 +519,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
               icon: const Icon(Icons.create_new_folder_outlined),
               tooltip: 'chat.add_project'.tr(),
             ),
-          IconButton(
-            onPressed: canCompose
-                ? () => conversationsNotifier.createNewConversation(
-                    workspaceMode: conversationsState.activeWorkspaceMode,
-                    projectId: activeProject?.id,
-                  )
-                : null,
-            icon: const Icon(Icons.add),
-            tooltip: isCodingWorkspace
-                ? 'chat.new_thread'.tr()
-                : 'chat.new_conversation'.tr(),
-          ),
-          if (currentConversation != null)
+          if (!isRoutinesWorkspace)
+            IconButton(
+              onPressed: canCompose
+                  ? () => conversationsNotifier.createNewConversation(
+                      workspaceMode: conversationsState.activeWorkspaceMode,
+                      projectId: activeProject?.id,
+                    )
+                  : null,
+              icon: const Icon(Icons.add),
+              tooltip: isCodingWorkspace
+                  ? 'chat.new_thread'.tr()
+                  : 'chat.new_conversation'.tr(),
+            ),
+          if (!isRoutinesWorkspace && currentConversation != null)
             IconButton(
               onPressed: () => _showDeleteConversationDialog(
                 context,
@@ -524,128 +554,137 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ),
         ],
       ),
-      drawer: const ConversationDrawer(),
-      body: Column(
-        children: [
-          // Error banner
-          if (chatState.error != null)
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(8),
-              color: Theme.of(context).colorScheme.errorContainer,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.error_outline,
-                    color: Theme.of(context).colorScheme.onErrorContainer,
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: Text(
-                      chatState.error!,
-                      style: TextStyle(
-                        color: Theme.of(context).colorScheme.onErrorContainer,
-                      ),
+      drawer: isRoutinesWorkspace ? null : const ConversationDrawer(),
+      body: isRoutinesWorkspace
+          ? const RoutinesHomePage()
+          : Column(
+              children: [
+                // Error banner
+                if (chatState.error != null)
+                  Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(8),
+                    color: Theme.of(context).colorScheme.errorContainer,
+                    child: Row(
+                      children: [
+                        Icon(
+                          Icons.error_outline,
+                          color: Theme.of(context).colorScheme.onErrorContainer,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            chatState.error!,
+                            style: TextStyle(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.onErrorContainer,
+                            ),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                ],
-              ),
-            ),
-          if (currentConversation?.hasCompactionArtifact ?? false)
-            _buildConversationCompactionBanner(context, currentConversation!),
-          // Message list
-          Expanded(
-            child: !canCompose
-                ? _buildCodingProjectEmptyState(context)
-                : chatState.messages.isEmpty
-                ? _buildEmptyState(
+                if (currentConversation?.hasCompactionArtifact ?? false)
+                  _buildConversationCompactionBanner(
                     context,
-                    isCodingWorkspace: isCodingWorkspace,
-                  )
-                : ListView.builder(
-                    controller: _scrollController,
-                    padding: const EdgeInsets.symmetric(vertical: 8),
-                    itemCount:
-                        chatState.messages.length +
-                        (shouldShowPlanStatusMessage ? 1 : 0),
-                    itemBuilder: (context, index) {
-                      if (index >= chatState.messages.length) {
-                        return MessageBubble(
-                          message: _buildPlanStatusMessage(
-                            context,
-                            chatState: chatState,
-                          ),
-                          onReselectProject: isCodingWorkspace
-                              ? () => _pickAndActivateProject(context)
-                              : null,
-                        );
-                      }
-                      return MessageBubble(
-                        message: chatState.messages[index],
-                        onReselectProject: isCodingWorkspace
-                            ? () => _pickAndActivateProject(context)
-                            : null,
+                    currentConversation!,
+                  ),
+                // Message list
+                Expanded(
+                  child: !canCompose
+                      ? _buildCodingProjectEmptyState(context)
+                      : chatState.messages.isEmpty
+                      ? _buildEmptyState(
+                          context,
+                          isCodingWorkspace: isCodingWorkspace,
+                        )
+                      : ListView.builder(
+                          controller: _scrollController,
+                          padding: const EdgeInsets.symmetric(vertical: 8),
+                          itemCount:
+                              chatState.messages.length +
+                              (shouldShowPlanStatusMessage ? 1 : 0),
+                          itemBuilder: (context, index) {
+                            if (index >= chatState.messages.length) {
+                              return MessageBubble(
+                                message: _buildPlanStatusMessage(
+                                  context,
+                                  chatState: chatState,
+                                ),
+                                onReselectProject: isCodingWorkspace
+                                    ? () => _pickAndActivateProject(context)
+                                    : null,
+                              );
+                            }
+                            return MessageBubble(
+                              message: chatState.messages[index],
+                              onReselectProject: isCodingWorkspace
+                                  ? () => _pickAndActivateProject(context)
+                                  : null,
+                            );
+                          },
+                        ),
+                ),
+                if (canCompose && shouldShowPlanFooterCard)
+                  _buildFooterPlanCard(
+                    context,
+                    currentConversation: currentConversation,
+                    chatState: chatState,
+                    isPlanMode: isPlanMode,
+                  ),
+                // Token usage indicator
+                if (canCompose && chatState.totalTokens > 0)
+                  _buildTokenUsageBar(context, chatState),
+                // Input area
+                if (canCompose)
+                  MessageInput(
+                    onSend: (message, imageBase64, imageMimeType) {
+                      setState(() {
+                        _composerPrefillText = '';
+                        _composerPrefillVersion++;
+                      });
+                      chatNotifier.sendMessage(
+                        message,
+                        imageBase64: imageBase64,
+                        imageMimeType: imageMimeType,
+                        languageCode: context.locale.languageCode,
                       );
                     },
-                  ),
-          ),
-          if (canCompose && shouldShowPlanFooterCard)
-            _buildFooterPlanCard(
-              context,
-              currentConversation: currentConversation,
-              chatState: chatState,
-              isPlanMode: isPlanMode,
-            ),
-          // Token usage indicator
-          if (canCompose && chatState.totalTokens > 0)
-            _buildTokenUsageBar(context, chatState),
-          // Input area
-          if (canCompose)
-            MessageInput(
-              onSend: (message, imageBase64, imageMimeType) {
-                setState(() {
-                  _composerPrefillText = '';
-                  _composerPrefillVersion++;
-                });
-                chatNotifier.sendMessage(
-                  message,
-                  imageBase64: imageBase64,
-                  imageMimeType: imageMimeType,
-                  languageCode: context.locale.languageCode,
-                );
-              },
-              onCancel: () => chatNotifier.cancelStreaming(),
-              isLoading: chatState.isLoading,
-              assistantMode: effectiveAssistantMode,
-              onAssistantModeSelected: (mode) async {
-                final settingsNotifier = ref.read(
-                  settingsNotifierProvider.notifier,
-                );
-                if (mode == AssistantMode.plan) {
-                  if (!isCodingWorkspace || currentConversation == null) {
-                    return;
-                  }
-                  await conversationsNotifier.enterPlanningSession();
-                  return;
-                }
+                    onCancel: () => chatNotifier.cancelStreaming(),
+                    isLoading: chatState.isLoading,
+                    assistantMode: effectiveAssistantMode,
+                    onAssistantModeSelected: (mode) async {
+                      final settingsNotifier = ref.read(
+                        settingsNotifierProvider.notifier,
+                      );
+                      if (mode == AssistantMode.plan) {
+                        if (!isCodingWorkspace || currentConversation == null) {
+                          return;
+                        }
+                        await conversationsNotifier.enterPlanningSession();
+                        return;
+                      }
 
-                if (currentConversation?.isPlanningSession ?? false) {
-                  await conversationsNotifier.exitPlanningSession();
-                  ref.read(chatNotifierProvider.notifier).dismissPlanProposal();
-                }
-                await settingsNotifier.updateAssistantMode(mode);
-              },
-              isCodingWorkspace: isCodingWorkspace,
-              inputHintKey: isCodingWorkspace
-                  ? (isPlanMode
-                        ? 'message.input_hint_plan'
-                        : 'message.input_hint_coding')
-                  : 'message.input_hint',
-              composerPrefillText: _composerPrefillText,
-              composerPrefillVersion: _composerPrefillVersion,
+                      if (currentConversation?.isPlanningSession ?? false) {
+                        await conversationsNotifier.exitPlanningSession();
+                        ref
+                            .read(chatNotifierProvider.notifier)
+                            .dismissPlanProposal();
+                      }
+                      await settingsNotifier.updateAssistantMode(mode);
+                    },
+                    isCodingWorkspace: isCodingWorkspace,
+                    inputHintKey: isCodingWorkspace
+                        ? (isPlanMode
+                              ? 'message.input_hint_plan'
+                              : 'message.input_hint_coding')
+                        : 'message.input_hint',
+                    composerPrefillText: _composerPrefillText,
+                    composerPrefillVersion: _composerPrefillVersion,
+                  ),
+              ],
             ),
-        ],
-      ),
     );
   }
 

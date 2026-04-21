@@ -86,6 +86,7 @@ Map<String, dynamic> _$ConversationToJson(
 const _$WorkspaceModeEnumMap = {
   WorkspaceMode.chat: 'chat',
   WorkspaceMode.coding: 'coding',
+  WorkspaceMode.routines: 'routines',
 };
 
 const _$ConversationExecutionModeEnumMap = {
