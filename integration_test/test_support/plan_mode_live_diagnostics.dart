@@ -234,6 +234,9 @@ PlanModeFailureClass _classifyFailure({
     final normalizedPhase = lastKnownPhase?.trim().toLowerCase();
     final normalizedActiveTaskTitle = activeTaskTitle?.trim().toLowerCase();
     final workflowSnapshot = (lastWorkflowSnapshot ?? '').trim().toLowerCase();
+    if (normalizedPhase == 'planning') {
+      return PlanModeFailureClass.planningTimeout;
+    }
     final hasExecutionState =
         normalizedPhase == 'execution' &&
         ((normalizedActiveTaskTitle != null &&

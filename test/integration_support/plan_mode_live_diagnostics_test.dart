@@ -234,6 +234,17 @@ void main() {
       expect(diagnostics.budgetPhase, 'execution');
     });
 
+    test('classifies overall timeout in planning as planning timeout', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[],
+        errorText: 'Overall live run timed out after 420s.',
+        lastKnownPhase: 'planning',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.planningTimeout);
+      expect(diagnostics.budgetPhase, 'planning');
+    });
+
     test('classifies execution state loss when no active task remains', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[],

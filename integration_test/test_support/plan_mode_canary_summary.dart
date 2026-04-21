@@ -244,6 +244,9 @@ String _resolveLogAwareFailureClass(
   }
   final normalizedPhase = lastKnownPhase?.trim().toLowerCase();
   final normalizedActiveTaskTitle = activeTaskTitle?.trim().toLowerCase();
+  if (normalizedPhase == 'planning') {
+    return 'planningTimeout';
+  }
   if (normalizedPhase == 'execution' &&
       normalizedActiveTaskTitle != null &&
       normalizedActiveTaskTitle.isNotEmpty &&
