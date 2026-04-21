@@ -34,6 +34,7 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 import 'test_support/plan_mode_scenario_spec.dart';
 import 'test_support/plan_mode_execution_watchdog.dart';
 import 'test_support/plan_mode_live_diagnostics.dart';
+import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/screenshot_capture.dart';
 
 class _NoOpNotificationService extends NotificationService {
@@ -1224,9 +1225,10 @@ Future<void> _writeFailureScenarioArtifacts({
       )
       .toList(growable: false);
   final warnings = _collectScenarioWarnings(logs);
-  final warningSummary = _summarizeScenarioWarnings(
-    warnings,
-    scenario.allowedWarningPatterns,
+  final warningSummary = summarizeScenarioWarnings(
+    warnings: warnings,
+    allowedPatterns: scenario.allowedWarningPatterns,
+    logs: logs,
   );
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
@@ -1286,38 +1288,6 @@ List<String> _collectScenarioWarnings(List<String> logs) {
     warnings.add(line);
   }
   return warnings;
-}
-
-class _ScenarioWarningSummary {
-  const _ScenarioWarningSummary({
-    required this.allowedWarnings,
-    required this.unexpectedWarnings,
-  });
-
-  final List<String> allowedWarnings;
-  final List<String> unexpectedWarnings;
-}
-
-_ScenarioWarningSummary _summarizeScenarioWarnings(
-  List<String> warnings,
-  List<String> allowedPatterns,
-) {
-  final allowedWarnings = <String>[];
-  final unexpectedWarnings = <String>[];
-
-  for (final warning in warnings) {
-    final isAllowed = allowedPatterns.any(warning.contains);
-    if (isAllowed) {
-      allowedWarnings.add(warning);
-    } else {
-      unexpectedWarnings.add(warning);
-    }
-  }
-
-  return _ScenarioWarningSummary(
-    allowedWarnings: allowedWarnings,
-    unexpectedWarnings: unexpectedWarnings,
-  );
 }
 
 String _xmlEscape(String value) {
@@ -1706,9 +1676,10 @@ Future<_ScenarioRunResult> _runScenario({
 
   _assertLogExpectations(logs, scenario.logExpectations);
   final warnings = _collectScenarioWarnings(logs);
-  final warningSummary = _summarizeScenarioWarnings(
-    warnings,
-    scenario.allowedWarningPatterns,
+  final warningSummary = summarizeScenarioWarnings(
+    warnings: warnings,
+    allowedPatterns: scenario.allowedWarningPatterns,
+    logs: logs,
   );
   if (config.failOnWarnings && warningSummary.unexpectedWarnings.isNotEmpty) {
     throw StateError(
