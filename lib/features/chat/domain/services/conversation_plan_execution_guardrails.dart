@@ -91,10 +91,7 @@ class ConversationPlanExecutionGuardrails {
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toSet();
+    final normalizedTargets = _effectiveTargetPaths(task);
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final targetTouchCounts = <String, int>{};
@@ -175,10 +172,7 @@ class ConversationPlanExecutionGuardrails {
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toSet();
+    final normalizedTargets = _effectiveTargetPaths(task);
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final unrelatedTouchedPaths = <String>{};
@@ -338,7 +332,9 @@ class ConversationPlanExecutionGuardrails {
     return paths.toList(growable: false);
   }
 
-  static bool hasMalformedFileMutationFailure(List<ToolResultInfo> toolResults) {
+  static bool hasMalformedFileMutationFailure(
+    List<ToolResultInfo> toolResults,
+  ) {
     return toolResults.any(_isRecoverableMalformedFailure);
   }
 
@@ -382,10 +378,9 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required Iterable<String> existingTargetPaths,
   }) {
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
     final normalizedExisting = existingTargetPaths
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
@@ -817,5 +812,69 @@ class ConversationPlanExecutionGuardrails {
   static String? _normalizeText(Object? value) {
     final trimmed = value?.toString().trim() ?? '';
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static Set<String> _effectiveTargetPaths(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+    return _inferTargetPathsFromTaskText(task);
+  }
+
+  static Set<String> _inferTargetPathsFromTaskText(
+    ConversationWorkflowTask task,
+  ) {
+    final text = '${task.title.trim()} ${task.notes.trim()}';
+    if (text.trim().isEmpty) {
+      return const <String>{};
+    }
+
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+      caseSensitive: false,
+    ).allMatches(text);
+    final inferredTargets = <String>{};
+    for (final match in matches) {
+      final candidate = _normalizePath(match.group(1));
+      if (candidate.isEmpty || !_looksLikeInferredTargetPath(candidate)) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets;
+  }
+
+  static bool _looksLikeInferredTargetPath(String path) {
+    final normalized = path.toLowerCase();
+    if (normalized == '.gitignore') {
+      return true;
+    }
+    final basename = normalized.split('/').last;
+    if (basename == '__init__.py') {
+      return true;
+    }
+    final extensionIndex = basename.lastIndexOf('.');
+    if (extensionIndex <= 0 || extensionIndex == basename.length - 1) {
+      return false;
+    }
+    final extension = basename.substring(extensionIndex + 1);
+    const knownExtensions = <String>{
+      'py',
+      'dart',
+      'md',
+      'txt',
+      'toml',
+      'yaml',
+      'yml',
+      'json',
+      'ini',
+      'cfg',
+      'sh',
+    };
+    return knownExtensions.contains(extension);
   }
 }

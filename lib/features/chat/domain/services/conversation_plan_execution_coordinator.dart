@@ -13,10 +13,7 @@ class ConversationPlanExecutionCoordinator {
     required String outro,
   }) {
     final promptLines = <String>[intro, 'Saved task ID: ${task.id}'];
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('$targetFilesLabel: $targetFiles');
     }
@@ -45,10 +42,7 @@ class ConversationPlanExecutionCoordinator {
     if (validationCommand.isNotEmpty) {
       promptLines.add('$validationLabel: $validationCommand');
     }
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('$targetFilesLabel: $targetFiles');
     }
@@ -69,10 +63,7 @@ class ConversationPlanExecutionCoordinator {
       'Next task: ${nextTask.title.trim()}',
     ];
 
-    final targetFiles = nextTask.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(nextTask).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -115,10 +106,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -164,10 +152,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -278,10 +263,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -576,7 +558,7 @@ class ConversationPlanExecutionCoordinator {
     final lines = <String>[
       'Work only on this saved task. Do not implement future saved tasks.',
     ];
-    if (task.targetFiles.any((item) => item.trim().isNotEmpty)) {
+    if (_effectiveTargetFiles(task).isNotEmpty) {
       lines.add(
         'Do not create or modify files outside the target files unless the saved validation step requires it.',
       );
@@ -594,6 +576,30 @@ class ConversationPlanExecutionCoordinator {
 
   static bool looksLikeVerificationTask(ConversationWorkflowTask task) {
     return _looksLikeVerificationTask(task);
+  }
+
+  static List<String> _effectiveTargetFiles(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+
+    final inferredTargets = <String>{};
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+      caseSensitive: false,
+    ).allMatches('${task.title.trim()} ${task.notes.trim()}');
+    for (final match in matches) {
+      final candidate = match.group(1)?.trim() ?? '';
+      if (candidate.isEmpty) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets.toList(growable: false);
   }
 
   static bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {

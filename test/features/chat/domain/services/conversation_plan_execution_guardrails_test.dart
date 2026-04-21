@@ -93,11 +93,11 @@ void main() {
       final task = ConversationWorkflowTask.fromJson(
         fixture['task'] as Map<String, dynamic>,
       );
-      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
-          .cast<String>();
+      final existingTargetPaths =
+          (fixture['existingTargetPaths'] as List<dynamic>).cast<String>();
 
-      final canFinalize = ConversationPlanExecutionGuardrails
-          .canFinalizeScaffoldFromWorkspaceTargets(
+      final canFinalize =
+          ConversationPlanExecutionGuardrails.canFinalizeScaffoldFromWorkspaceTargets(
             task: task,
             existingTargetPaths: existingTargetPaths,
           );
@@ -126,14 +126,14 @@ void main() {
       final task = ConversationWorkflowTask.fromJson(
         fixture['task'] as Map<String, dynamic>,
       );
-      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
-          .cast<String>();
+      final existingTargetPaths =
+          (fixture['existingTargetPaths'] as List<dynamic>).cast<String>();
       final toolResults = loadFixtureToolResults(
         'plan_mode_ping_cli_scaffold_validation_workspace_replay.json',
       );
 
-      final canPromote = ConversationPlanExecutionGuardrails
-          .canPromoteScaffoldCompletionFromWorkspaceValidation(
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteScaffoldCompletionFromWorkspaceValidation(
             task: task,
             toolResults: toolResults,
             existingTargetPaths: existingTargetPaths,
@@ -148,7 +148,8 @@ void main() {
     () {
       const task = ConversationWorkflowTask(
         id: 'task-ping-lib',
-        title: 'Implement core ping functionality and CLI interface in ping_cli.py',
+        title:
+            'Implement core ping functionality and CLI interface in ping_cli.py',
         targetFiles: ['ping_lib.py'],
         validationCommand: 'python3 ping_lib.py --help',
       );
@@ -163,12 +164,11 @@ void main() {
       ];
 
       final canPromote =
-          ConversationPlanExecutionGuardrails
-              .canPromoteCompletionFromWorkspaceValidation(
-                task: task,
-                toolResults: toolResults,
-                existingTargetPaths: const ['ping_lib.py'],
-              );
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceValidation(
+            task: task,
+            toolResults: toolResults,
+            existingTargetPaths: const ['ping_lib.py'],
+          );
 
       expect(canPromote, isTrue);
     },
@@ -271,6 +271,43 @@ void main() {
 
     expect(missingTarget, 'main.py');
   });
+
+  test(
+    'assessTaskDrift infers implementation targets from the task title when metadata is empty',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+      );
+
+      final driftAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskDrift(
+            task: task,
+            toolResults: toolResults,
+          );
+      final completionAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(driftAssessment.hasDrift, isFalse);
+      expect(driftAssessment.touchedTargetFiles, contains('main.py'));
+      expect(driftAssessment.unrelatedTouchedPaths, isEmpty);
+      expect(completionAssessment.hasTargetFiles, isTrue);
+      expect(completionAssessment.touchedTargetFiles, contains('main.py'));
+      expect(completionAssessment.shouldMarkCompleted, isFalse);
+      expect(
+        ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
+          task: task,
+          existingTargetPaths: const ['main.py'],
+        ),
+        isEmpty,
+      );
+    },
+  );
 
   test(
     'assessTaskCompletion treats target-directory scaffolding as benign support',
@@ -496,10 +533,7 @@ void main() {
       expect(assessment.hasFailure, isTrue);
       expect(assessment.shouldMarkCompleted, isFalse);
       expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
-      expect(
-        assessment.successfulValidationCommands,
-        contains('ls -a'),
-      );
+      expect(assessment.successfulValidationCommands, contains('ls -a'));
       expect(
         ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
           toolResults,
@@ -579,36 +613,39 @@ void main() {
     },
   );
 
-  test('extracts malformed file mutation failures when a target path exists', () {
-    final toolResults = [
-      ToolResultInfo(
-        id: 'tool-1',
-        name: 'write_file',
-        arguments: {'path': 'src/config_loader.py'},
-        result: 'Error: invalid arguments',
-      ),
-      ToolResultInfo(
-        id: 'tool-2',
-        name: 'edit_file',
-        arguments: {'path': 'tests/test_config_loader.py'},
-        result: '{"error":"old_text must not be empty"}',
-      ),
-    ];
+  test(
+    'extracts malformed file mutation failures when a target path exists',
+    () {
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'src/config_loader.py'},
+          result: 'Error: invalid arguments',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'edit_file',
+          arguments: {'path': 'tests/test_config_loader.py'},
+          result: '{"error":"old_text must not be empty"}',
+        ),
+      ];
 
-    expect(
-      ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
-        toolResults,
-      ),
-      isTrue,
-    );
-    expect(
-      ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
-        toolResults,
-      ),
-      containsAll(<String>[
-        'src/config_loader.py',
-        'tests/test_config_loader.py',
-      ]),
-    );
-  });
+      expect(
+        ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
+          toolResults,
+        ),
+        isTrue,
+      );
+      expect(
+        ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
+          toolResults,
+        ),
+        containsAll(<String>[
+          'src/config_loader.py',
+          'tests/test_config_loader.py',
+        ]),
+      );
+    },
+  );
 }
