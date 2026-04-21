@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_schedule_service.dart';
+import '../models/routine_home_snapshot.dart';
 import 'routine_detail_page.dart';
 import '../providers/routines_notifier.dart';
 import '../widgets/routine_editor_sheet.dart';
@@ -14,11 +15,10 @@ class RoutinesHomePage extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final state = ref.watch(routinesNotifierProvider);
-    final enabledCount = state.routines
-        .where((routine) => routine.enabled)
-        .length;
-    final runningCount = state.runningRoutineIds.length;
-    final dueCount = RoutineScheduleService.dueRoutines(state.routines).length;
+    final snapshot = RoutineHomeSnapshotBuilder.build(
+      routines: state.routines,
+      runningRoutineIds: state.runningRoutineIds,
+    );
 
     return ListView(
       padding: const EdgeInsets.all(16),
@@ -47,15 +47,19 @@ class RoutinesHomePage extends ConsumerWidget {
                   children: [
                     _SummaryChip(
                       label: 'routines.summary_enabled'.tr(),
-                      value: enabledCount.toString(),
+                      value: snapshot.enabledCount.toString(),
                     ),
                     _SummaryChip(
                       label: 'routines.summary_due'.tr(),
-                      value: dueCount.toString(),
+                      value: snapshot.dueCount.toString(),
+                    ),
+                    _SummaryChip(
+                      label: 'routines.summary_attention'.tr(),
+                      value: snapshot.attentionCount.toString(),
                     ),
                     _SummaryChip(
                       label: 'routines.summary_running'.tr(),
-                      value: runningCount.toString(),
+                      value: snapshot.runningCount.toString(),
                     ),
                   ],
                 ),
@@ -65,7 +69,7 @@ class RoutinesHomePage extends ConsumerWidget {
                   icon: const Icon(Icons.add),
                   label: Text('routines.create_cta'.tr()),
                 ),
-                if (dueCount > 0) ...[
+                if (snapshot.dueCount > 0) ...[
                   const SizedBox(height: 8),
                   OutlinedButton.icon(
                     onPressed: () => _runDueRoutines(context, ref),
@@ -81,24 +85,30 @@ class RoutinesHomePage extends ConsumerWidget {
         if (state.routines.isEmpty)
           _EmptyRoutineCard(onCreate: () => _openEditor(context, ref))
         else
-          ...state.routines.map(
-            (routine) => Padding(
-              padding: const EdgeInsets.only(bottom: 12),
-              child: _RoutineCard(
-                routine: routine,
-                isRunning: state.isRunning(routine.id),
-                onToggleEnabled: (enabled) async {
-                  await ref
-                      .read(routinesNotifierProvider.notifier)
-                      .toggleRoutine(routine.id, enabled);
-                },
-                onRunNow: () => _runRoutine(context, ref, routine),
-                onOpenDetails: () => _openDetails(context, routine),
-                onEdit: () => _openEditor(context, ref, routine: routine),
-                onDelete: () => _confirmDelete(context, ref, routine),
+          for (var index = 0; index < snapshot.sections.length; index++) ...[
+            _RoutineSectionHeader(section: snapshot.sections[index]),
+            const SizedBox(height: 12),
+            ...snapshot.sections[index].routines.map(
+              (routine) => Padding(
+                padding: const EdgeInsets.only(bottom: 12),
+                child: _RoutineCard(
+                  routine: routine,
+                  isRunning: state.isRunning(routine.id),
+                  onToggleEnabled: (enabled) async {
+                    await ref
+                        .read(routinesNotifierProvider.notifier)
+                        .toggleRoutine(routine.id, enabled);
+                  },
+                  onRunNow: () => _runRoutine(context, ref, routine),
+                  onOpenDetails: () => _openDetails(context, routine),
+                  onEdit: () => _openEditor(context, ref, routine: routine),
+                  onDelete: () => _confirmDelete(context, ref, routine),
+                ),
               ),
             ),
-          ),
+            if (index != snapshot.sections.length - 1)
+              const SizedBox(height: 8),
+          ],
       ],
     );
   }
@@ -284,6 +294,91 @@ class _EmptyRoutineCard extends StatelessWidget {
   }
 }
 
+class _RoutineSectionHeader extends StatelessWidget {
+  const _RoutineSectionHeader({required this.section});
+
+  final RoutineHomeSection section;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final (icon, color, title, subtitle) = switch (section.kind) {
+      RoutineHomeSectionKind.attention => (
+        Icons.warning_amber_rounded,
+        colorScheme.tertiary,
+        'routines.attention_title'.tr(),
+        'routines.attention_subtitle'.tr(),
+      ),
+      RoutineHomeSectionKind.scheduled => (
+        Icons.schedule_rounded,
+        colorScheme.primary,
+        'routines.scheduled_title'.tr(),
+        'routines.scheduled_subtitle'.tr(),
+      ),
+      RoutineHomeSectionKind.paused => (
+        Icons.pause_circle_outline_rounded,
+        colorScheme.onSurfaceVariant,
+        'routines.paused_title'.tr(),
+        'routines.paused_subtitle'.tr(),
+      ),
+    };
+
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Container(
+          width: 36,
+          height: 36,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.12),
+            borderRadius: BorderRadius.circular(12),
+          ),
+          child: Icon(icon, color: color),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(title, style: Theme.of(context).textTheme.titleMedium),
+              const SizedBox(height: 2),
+              Text(
+                subtitle,
+                style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                  color: colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
+          ),
+        ),
+        const SizedBox(width: 12),
+        _SectionCountChip(count: section.routines.length),
+      ],
+    );
+  }
+}
+
+class _SectionCountChip extends StatelessWidget {
+  const _SectionCountChip({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        count.toString(),
+        style: Theme.of(context).textTheme.labelMedium,
+      ),
+    );
+  }
+}
+
 class _RoutineCard extends StatelessWidget {
   const _RoutineCard({
     required this.routine,
@@ -307,6 +402,8 @@ class _RoutineCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final latestRun = routine.latestRun;
     final isDue = RoutineScheduleService.isDue(routine);
+    final isFailed = latestRun != null && !latestRun.isSuccessful;
+    final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
       child: Padding(
@@ -350,9 +447,12 @@ class _RoutineCard extends StatelessWidget {
                           if (isDue && !isRunning)
                             _RoutineStatusChip(
                               label: 'routines.due_badge'.tr(),
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.tertiaryContainer,
+                              color: colorScheme.tertiaryContainer,
+                            ),
+                          if (isFailed)
+                            _RoutineStatusChip(
+                              label: 'routines.failed_badge'.tr(),
+                              color: colorScheme.errorContainer,
                             ),
                         ],
                       ),
@@ -397,7 +497,9 @@ class _RoutineCard extends StatelessWidget {
                 width: double.infinity,
                 padding: const EdgeInsets.all(12),
                 decoration: BoxDecoration(
-                  color: Theme.of(context).colorScheme.surfaceContainerHighest,
+                  color: latestRun.isSuccessful
+                      ? colorScheme.surfaceContainerHighest
+                      : colorScheme.errorContainer,
                   borderRadius: BorderRadius.circular(12),
                 ),
                 child: Column(
@@ -418,7 +520,11 @@ class _RoutineCard extends StatelessWidget {
                           : (latestRun.error.isEmpty
                                 ? 'common.unknown_error'.tr()
                                 : latestRun.error),
-                      style: Theme.of(context).textTheme.bodySmall,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                        color: latestRun.isSuccessful
+                            ? null
+                            : colorScheme.onErrorContainer,
+                      ),
                     ),
                   ],
                 ),
