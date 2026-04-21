@@ -508,10 +508,7 @@ class ConversationPlanExecutionCoordinator {
       'Missing target files: ${missingTargetFiles.join(', ')}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -529,6 +526,9 @@ class ConversationPlanExecutionCoordinator {
     promptLines.addAll(_executionGuardrailLines(task));
     promptLines.add(
       'Create or edit one missing target file now before running the saved validation command again.',
+    );
+    promptLines.add(
+      'If you already tried to write the missing target file, confirm the exact saved path first by reading that file or listing its parent directory.',
     );
     promptLines.add(
       'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',

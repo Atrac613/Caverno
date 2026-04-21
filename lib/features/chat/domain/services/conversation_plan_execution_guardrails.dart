@@ -557,10 +557,9 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) {
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
     if (normalizedTargets.isEmpty) {
       return null;
     }

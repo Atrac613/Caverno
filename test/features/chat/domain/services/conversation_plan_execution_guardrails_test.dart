@@ -273,6 +273,26 @@ void main() {
   });
 
   test(
+    'extracts inferred src target files from failed validation commands when metadata is empty',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+
+      final missingTarget =
+          ConversationPlanExecutionGuardrails.missingTargetFileFromValidationFailure(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(missingTarget, 'src/ping_cli.py');
+    },
+  );
+
+  test(
     'assessTaskDrift infers implementation targets from the task title when metadata is empty',
     () {
       final task = loadFixtureTask(

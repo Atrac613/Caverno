@@ -4979,8 +4979,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .where((item) => item.id == task.id)
         .firstOrNull;
     if (latestTask == null ||
-        latestTask.status == ConversationWorkflowTaskStatus.completed ||
-        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+        latestTask.status == ConversationWorkflowTaskStatus.completed) {
       return false;
     }
 
@@ -5988,6 +5987,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ConversationPlanExecutionGuardrails.hasOnlyUnavailableToolFailures(
           toolResults,
         );
+    final recoverableMissingTargetFile =
+        ConversationPlanExecutionGuardrails.missingTargetFileFromValidationFailure(
+          task: task,
+          toolResults: toolResults,
+        );
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -6101,7 +6105,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
+    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked &&
+        recoverableMissingTargetFile == null) {
       await conversationsNotifier
           .updateCurrentExecutionTaskProgressFromAssistantTurn(
             task: task,

@@ -451,10 +451,39 @@ void main() {
     expect(
       prompt,
       contains(
+        'If you already tried to write the missing target file, confirm the exact saved path first by reading that file or listing its parent directory.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
       ),
     );
   });
+
+  test(
+    'buildMissingTargetFileRecoveryPrompt includes inferred target files from task text',
+    () {
+      final fixture = loadFixture(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
+            task: task,
+            missingTargetFiles: const ['src/ping_cli.py'],
+            failedCommand: 'python3 src/ping_cli.py 8.8.8.8 -c 1',
+          );
+
+      expect(prompt, contains('Saved task: Implement ping logic and CLI in src/ping_cli.py'));
+      expect(prompt, contains('Target files: src/ping_cli.py'));
+      expect(prompt, contains('Validation: python3 src/ping_cli.py 8.8.8.8 -c 1'));
+    },
+  );
 
   test('buildPythonSrcLayoutValidationRecoveryPrompt retries with PYTHONPATH', () {
     const failedCommand =
