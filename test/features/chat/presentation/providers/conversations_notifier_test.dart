@@ -991,6 +991,151 @@ void main() {
   );
 
   test(
+    'updateCurrentExecutionTaskProgressFromAssistantTurn does not downgrade completed tasks with completion events',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Keep terminal completions locked against stale blockers\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Verify the CLI output\n'
+              '   - Status: inProgress\n'
+              '   - Validation: python3 ping_cli.py google.com\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: 'The verification task is complete.',
+        eventType: ConversationExecutionTaskEventType.completed,
+      );
+
+      await notifier.updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse:
+            'The next step is blocked until we revisit the previous output.',
+        isValidationRun: false,
+      );
+
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress =
+          refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(progress.summary, 'The verification task is complete.');
+      expect(progress.blockedReason, isEmpty);
+      expect(progress.recentEvents, hasLength(1));
+      expect(
+        progress.recentEvents.single.type,
+        ConversationExecutionTaskEventType.completed,
+      );
+    },
+  );
+
+  test(
+    'updateCurrentValidationProgressFromToolResults preserves completed tasks on successful validation reruns',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Keep verification success terminal after reruns\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Verify ping execution and output\n'
+              '   - Status: inProgress\n'
+              '   - Validation: python3 ping_cli.py google.com\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: 'The verification task is complete.',
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationCommand: 'python3 ping_cli.py google.com',
+        lastValidationSummary: 'Ping output looked correct.',
+        lastValidationAt: DateTime(2026, 4, 21, 22, 32),
+        eventType: ConversationExecutionTaskEventType.completed,
+      );
+
+      final updated = await notifier.updateCurrentValidationProgressFromToolResults(
+        task: task,
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 ping_cli.py google.com","exit_code":0,"stdout":"Ping successful","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(updated, isTrue);
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress =
+          refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(
+        progress.lastValidationCommand,
+        'python3 ping_cli.py google.com',
+      );
+      expect(progress.blockedReason, isEmpty);
+    },
+  );
+
+  test(
     'updateCurrentExecutionTaskProgressFromAssistantTurn prefers fallback completion evidence',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);
