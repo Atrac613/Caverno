@@ -60,8 +60,7 @@ class ConversationPlanExecutionCompletionAssessment {
       !hasFailure &&
       unrelatedTouchedPaths.isEmpty &&
       scaffoldCommands.isEmpty &&
-      successfulValidationCommands.isNotEmpty &&
-      (touchedTargetFiles.isNotEmpty || !hasTargetFiles);
+      successfulValidationCommands.isNotEmpty;
 
   bool get completedFromTargetCoverage =>
       !hasFailure &&
@@ -71,8 +70,7 @@ class ConversationPlanExecutionCompletionAssessment {
       (!requiresValidation || allowsLightValidationCompletion);
 
   bool get hasCompletionEvidenceIgnoringFailures =>
-      ((successfulValidationCommands.isNotEmpty &&
-              (touchedTargetFiles.isNotEmpty || !hasTargetFiles)) ||
+      ((successfulValidationCommands.isNotEmpty) ||
           (touchedAllTargetFiles &&
               (!requiresValidation || allowsLightValidationCompletion))) &&
       unrelatedTouchedPaths.isEmpty &&

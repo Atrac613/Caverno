@@ -744,4 +744,31 @@ void main() {
       );
     },
   );
+
+  test(
+    'assessTaskCompletion treats validation-only success as completion evidence',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_main_entrypoint_validation_success_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_entrypoint_validation_success_replay.json',
+      );
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 main.py --help'),
+      );
+      expect(assessment.completedFromSuccessfulValidation, isTrue);
+      expect(assessment.shouldMarkCompleted, isTrue);
+      expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
+    },
+  );
 }
