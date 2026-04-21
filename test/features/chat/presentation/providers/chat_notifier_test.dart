@@ -562,9 +562,10 @@ class _PlanSettingsNotifier extends SettingsNotifier {
 }
 
 class _FakeMcpToolService extends McpToolService {
-  _FakeMcpToolService({required this.results});
+  _FakeMcpToolService({required this.results, this.descriptions = const {}});
 
   final Map<String, String> results;
+  final Map<String, String> descriptions;
   final List<String> executedToolNames = [];
 
   @override
@@ -582,7 +583,7 @@ class _FakeMcpToolService extends McpToolService {
             'type': 'function',
             'function': {
               'name': toolName,
-              'description': 'Fake tool $toolName',
+              'description': descriptions[toolName] ?? 'Fake tool $toolName',
               'parameters': const <String, dynamic>{'type': 'object'},
             },
           },
@@ -1090,11 +1091,11 @@ void main() {
       );
       expect(
         toolDataSource.finalAnswerMessages.last.content,
-        contains('[Result of read_alpha]'),
+        contains('[Tool: read_alpha]'),
       );
       expect(
         toolDataSource.finalAnswerMessages.last.content,
-        contains('[Result of read_beta]'),
+        contains('[Tool: read_beta]'),
       );
       expect(toolNotifier.state.isLoading, isFalse);
       expect(
@@ -1105,6 +1106,80 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage includes tool descriptions and identifier guardrails in the final tool prompt',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'get_router_health',
+            arguments: const {'minutes': 30},
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'get_router_health':
+              '{"top_affected_devices":[{"device_id":"c891fj-b","event_count":33}]}',
+        },
+        descriptions: const {
+          'get_router_health':
+              'Inspect router-side telemetry to assess whether the router or gateway path shows instability.',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Diagnose the router');
+
+        final finalPrompt = toolDataSource.finalAnswerMessages.last.content;
+        expect(
+          finalPrompt,
+          contains(
+            'Description: Inspect router-side telemetry to assess whether the router or gateway path shows instability.',
+          ),
+        );
+        expect(
+          finalPrompt,
+          contains(
+            'Scope note: This is infrastructure-side telemetry. Identifiers may refer to the router, gateway, interfaces, or other monitored infrastructure rather than a client device.',
+          ),
+        );
+        expect(
+          finalPrompt,
+          contains(
+            'If the role of an identifier is not explicit in the payload, say it is ambiguous instead of guessing.',
+          ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage preserves tool-role final text as fallback assistant evidence',

@@ -63,6 +63,14 @@ class SystemPromptConstants {
       'Adapt to the user\'s domain instead of assuming every task is '
       'about software or engineering.';
 
+  static const String toolInterpretationInstruction =
+      'When reasoning from tool output, interpret the tool name, description, '
+      'arguments, and payload together. Preserve the entity roles implied by '
+      'the tool and the data. Do not guess that an opaque identifier is an '
+      'end-user device; it may refer to infrastructure such as a router, '
+      'gateway, access point, interface, or monitored node. If the role is '
+      'unclear, say it is ambiguous instead of guessing.';
+
   static const String codingModeInstruction =
       'When the user is working on software, be a rigorous technical '
       'partner: prefer concrete steps, correct code, explicit '

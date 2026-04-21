@@ -46,6 +46,10 @@ void main() {
         'If a tool result contains permission_denied or bookmark_restore_failed',
       ),
     );
+    expect(
+      prompt,
+      contains('Do not guess that an opaque identifier is an end-user device'),
+    );
   });
 
   test('does not include project context in general mode prompts', () {

@@ -278,6 +278,7 @@ class SystemPromptBuilder {
         'Use available tools when they materially improve accuracy, '
         'grounding, or recency.',
       );
+      buffer.writeln(SystemPromptConstants.toolInterpretationInstruction);
       buffer.writeln('Available tools: ${uniqueToolNames.join(', ')}.');
       if (hasDatetimeTool) {
         buffer.writeln(

@@ -5379,6 +5379,100 @@ Retry hint:
     return deduped;
   }
 
+  String _buildToolResultAnswerPrompt(List<ToolResultInfo> toolResults) {
+    final buffer = StringBuffer()
+      ..writeln(
+        'Please answer the user\'s question based on the following tool results.',
+      )
+      ..writeln()
+      ..writeln(
+        'Interpret each tool name, description, arguments, and result together.',
+      )
+      ..writeln(
+        'Preserve the entity roles implied by the tool and the payload.',
+      )
+      ..writeln(
+        'Do not guess that an opaque identifier is an end-user device. '
+        'It may instead refer to infrastructure such as a router, gateway, '
+        'access point, interface, or monitored node.',
+      )
+      ..writeln(
+        'If the role of an identifier is not explicit in the payload, say it '
+        'is ambiguous instead of guessing.',
+      )
+      ..writeln(
+        'Prefer explicit fields such as role, type, kind, category, or '
+        'interpretation_hint over heuristics based on how an identifier looks.',
+      )
+      ..writeln()
+      ..write(_formatToolResultsForPrompt(toolResults));
+    return buffer.toString().trimRight();
+  }
+
+  String _formatToolResultsForPrompt(List<ToolResultInfo> toolResults) {
+    final descriptionsByName = _toolDescriptionsByName();
+    final sections = toolResults.map((toolResult) {
+      final buffer = StringBuffer()..writeln('[Tool: ${toolResult.name}]');
+      final description = descriptionsByName[toolResult.name];
+      if (description != null && description.isNotEmpty) {
+        buffer.writeln('Description: $description');
+      }
+      final scopeNote = _buildToolScopeNote(
+        toolName: toolResult.name,
+        description: description,
+      );
+      if (scopeNote != null) {
+        buffer.writeln('Scope note: $scopeNote');
+      }
+      if (toolResult.arguments.isNotEmpty) {
+        buffer.writeln('Arguments: ${jsonEncode(toolResult.arguments)}');
+      }
+      buffer
+        ..writeln('Result:')
+        ..write(toolResult.result);
+      return buffer.toString().trimRight();
+    });
+    return sections.join('\n\n');
+  }
+
+  Map<String, String> _toolDescriptionsByName() {
+    final definitions = _mcpToolService?.getOpenAiToolDefinitions() ?? const [];
+    final descriptionsByName = <String, String>{};
+    for (final tool in definitions) {
+      final function = tool['function'];
+      if (function is! Map) {
+        continue;
+      }
+      final name = function['name'];
+      final description = function['description'];
+      if (name is String &&
+          name.isNotEmpty &&
+          description is String &&
+          description.isNotEmpty) {
+        descriptionsByName[name] = description;
+      }
+    }
+    return descriptionsByName;
+  }
+
+  String? _buildToolScopeNote({required String toolName, String? description}) {
+    final combinedText = '$toolName ${description ?? ''}'.toLowerCase();
+    if (combinedText.contains('router') || combinedText.contains('gateway')) {
+      return 'This is infrastructure-side telemetry. Identifiers may refer '
+          'to the router, gateway, interfaces, or other monitored '
+          'infrastructure rather than a client device.';
+    }
+    if (combinedText.contains('wifi') ||
+        combinedText.contains('wi-fi') ||
+        combinedText.contains('access point') ||
+        combinedText.contains('bssid') ||
+        combinedText.contains('ssid')) {
+      return 'This is wireless-side telemetry. Identifiers may refer to '
+          'radios, access points, or BSSIDs rather than user devices.';
+    }
+    return null;
+  }
+
   /// Executes tool calls, supporting a repeated tool-call loop.
   ///
   /// Continues looping while the LLM keeps requesting tools, until it returns
@@ -5395,8 +5489,6 @@ Retry hint:
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
-    // Collect tool results for the final user-role resend.
-    final toolResults = <String>[];
     final executedToolResults = <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
@@ -5453,7 +5545,6 @@ Retry hint:
                   ? result.result
                   : 'Error: ${result.errorMessage}');
 
-        toolResults.add('[Result of ${toolCall.name}]\n$toolResult');
         batchToolResults.add(
           ToolResultInfo(
             id: toolCall.id,
@@ -5546,7 +5637,7 @@ Retry hint:
 
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
-    if (!hasTextResponse && toolResults.isNotEmpty) {
+    if (!hasTextResponse && executedToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
       if (!ref.mounted) return;
@@ -5554,12 +5645,10 @@ Retry hint:
       // Build a prompt that includes tool results as a user message.
       final messagesForLLM = _prepareMessagesForLLM();
       // Append the collected tool results as a user message.
-      final resultsText = toolResults.join('\n\n');
       messagesForLLM.add(
         Message(
           id: 'tool_result_${DateTime.now().millisecondsSinceEpoch}',
-          content:
-              'Please answer the user\'s question based on the following tool results.\n\n$resultsText',
+          content: _buildToolResultAnswerPrompt(executedToolResults),
           role: MessageRole.user,
           timestamp: DateTime.now(),
         ),
@@ -7161,7 +7250,11 @@ Retry hint:
             'Do not repeat a tool call with the same arguments after a '
             'permission_denied or equivalent access error. '
             'Explain the issue and ask the user to re-select the project '
-            'folder or grant access instead.\n\n$resultsText',
+            'folder or grant access instead.\n\n'
+            'Interpret each tool name, description, arguments, and result '
+            'together. Preserve the entity roles implied by the tool and the '
+            'payload. If the role of an opaque identifier is not explicit, '
+            'treat it as ambiguous instead of guessing.\n\n$resultsText',
         role: MessageRole.user,
         timestamp: DateTime.now(),
       ),
