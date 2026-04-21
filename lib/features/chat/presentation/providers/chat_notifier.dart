@@ -1640,7 +1640,9 @@ class ChatNotifier extends Notifier<ChatState> {
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
     String? additionalPlanningContext,
   }) async {
-    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(researchContext);
+    final projectLooksEmpty = _projectLooksEmptyForTaskPlanning(
+      researchContext,
+    );
     final attempts = <({bool compact, int maxTokens, bool minimalRetry})>[
       if (projectLooksEmpty) ...[
         (
@@ -2106,7 +2108,9 @@ class ChatNotifier extends Notifier<ChatState> {
           bestRetryCandidate,
           projectLooksEmpty,
         )) {
-      appLog('[Workflow] Task proposal recovered from the best retry candidate');
+      appLog(
+        '[Workflow] Task proposal recovered from the best retry candidate',
+      );
       return bestRetryCandidate;
     }
 
@@ -3834,7 +3838,8 @@ class ChatNotifier extends Notifier<ChatState> {
       tasks.add(
         ConversationWorkflowTask(
           id: _uuid.v4(),
-          title: 'Add error handling for invalid or unreachable hosts in main.py',
+          title:
+              'Add error handling for invalid or unreachable hosts in main.py',
           status: ConversationWorkflowTaskStatus.pending,
           targetFiles: const ['main.py'],
           validationCommand: 'python3 main.py --help',
@@ -3874,16 +3879,32 @@ class ChatNotifier extends Notifier<ChatState> {
       final normalizedTargetFiles = _normalizeTaskProposalTargetFiles(
         task.targetFiles,
       );
+      final normalizedValidationCommand = _normalizeTaskProposalTextField(
+        task.validationCommand,
+      );
+      final normalizedNotes = _normalizeTaskProposalTextField(task.notes);
+      if (_looksLikeImplementationTaskTitle(normalizedTitle) &&
+          task.targetFiles.isNotEmpty &&
+          normalizedTargetFiles.isEmpty) {
+        continue;
+      }
       final dedupeKey = normalizedTitle.toLowerCase();
       if (!emittedTitles.add(dedupeKey)) {
         continue;
       }
-      sanitizedTasks.add(
-        task.copyWith(
-          title: normalizedTitle,
-          targetFiles: normalizedTargetFiles,
-        ),
+      final normalizedTask = task.copyWith(
+        title: normalizedTitle,
+        targetFiles: normalizedTargetFiles,
+        validationCommand: normalizedValidationCommand,
+        notes: normalizedNotes,
       );
+      if (sanitizedTasks.any(
+        (existingTask) =>
+            _taskProposalTasksLookNearDuplicate(existingTask, normalizedTask),
+      )) {
+        continue;
+      }
+      sanitizedTasks.add(normalizedTask);
       if (sanitizedTasks.length == 6) {
         break;
       }
@@ -4042,6 +4063,9 @@ class ChatNotifier extends Notifier<ChatState> {
     if (candidate.isEmpty) {
       return '';
     }
+    if (_looksLikePlaceholderTaskProposalValue(candidate)) {
+      return '';
+    }
 
     candidate = candidate.replaceFirst(RegExp(r'^\./'), '');
     final lowerCandidate = candidate.toLowerCase();
@@ -4053,6 +4077,23 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     return candidate;
+  }
+
+  String _normalizeTaskProposalTextField(String value) {
+    final candidate = value.trim();
+    if (_looksLikePlaceholderTaskProposalValue(candidate)) {
+      return '';
+    }
+    return candidate;
+  }
+
+  bool _looksLikePlaceholderTaskProposalValue(String value) {
+    final normalized = value.trim().toLowerCase();
+    return normalized.isEmpty ||
+        normalized == 'string' ||
+        normalized == 'todo' ||
+        normalized == 'tbd' ||
+        normalized == 'n/a';
   }
 
   bool _taskProposalNeedsRetry(
@@ -4087,6 +4128,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (_taskProposalHasNearDuplicateTasks(finalized.tasks)) {
+      return true;
+    }
+
     if (finalized.tasks.length == 1 &&
         _looksLikeGenericScaffoldOnlyTask(finalized.tasks.first)) {
       return true;
@@ -4118,6 +4163,112 @@ class ChatNotifier extends Notifier<ChatState> {
       }
     }
     return false;
+  }
+
+  bool _taskProposalHasNearDuplicateTasks(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (var index = 0; index < tasks.length; index += 1) {
+      for (
+        var nextIndex = index + 1;
+        nextIndex < tasks.length;
+        nextIndex += 1
+      ) {
+        if (_taskProposalTasksLookNearDuplicate(
+          tasks[index],
+          tasks[nextIndex],
+        )) {
+          return true;
+        }
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalTasksLookNearDuplicate(
+    ConversationWorkflowTask left,
+    ConversationWorkflowTask right,
+  ) {
+    if (_looksLikeVerificationTaskProposal(left) ||
+        _looksLikeVerificationTaskProposal(right)) {
+      return false;
+    }
+
+    final leftTargets = _normalizeTaskProposalTargetFiles(left.targetFiles)
+        .map((path) => path.toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    final rightTargets = _normalizeTaskProposalTargetFiles(right.targetFiles)
+        .map((path) => path.toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    if (leftTargets.isEmpty || rightTargets.isEmpty) {
+      return false;
+    }
+
+    final sharedTargets = leftTargets.intersection(rightTargets);
+    if (sharedTargets.isEmpty) {
+      return false;
+    }
+
+    final leftTokens = _taskProposalSemanticTitleTokens(left.title);
+    final rightTokens = _taskProposalSemanticTitleTokens(right.title);
+    if (leftTokens.length < 2 || rightTokens.length < 2) {
+      return false;
+    }
+
+    final overlap = leftTokens.intersection(rightTokens);
+    if (overlap.length < 2) {
+      return false;
+    }
+
+    final smallerTokenCount = leftTokens.length <= rightTokens.length
+        ? leftTokens.length
+        : rightTokens.length;
+    if (smallerTokenCount < 2) {
+      return false;
+    }
+
+    return overlap.length == smallerTokenCount ||
+        overlap.length / smallerTokenCount >= 0.75;
+  }
+
+  Set<String> _taskProposalSemanticTitleTokens(String title) {
+    const ignoredTokens = <String>{
+      'a',
+      'an',
+      'and',
+      'add',
+      'build',
+      'core',
+      'create',
+      'file',
+      'files',
+      'for',
+      'functionality',
+      'implement',
+      'implementation',
+      'in',
+      'interface',
+      'main',
+      'module',
+      'on',
+      'script',
+      'task',
+      'the',
+      'to',
+      'tool',
+      'update',
+      'with',
+      'write',
+    };
+    return title
+        .toLowerCase()
+        .replaceAll(RegExp(r'[^a-z0-9]+'), ' ')
+        .split(RegExp(r'\s+'))
+        .map((token) => token.trim())
+        .where((token) => token.isNotEmpty && !ignoredTokens.contains(token))
+        .toSet();
   }
 
   bool _taskProposalHasWeakImplementationValidation(
@@ -4246,6 +4397,23 @@ class ChatNotifier extends Notifier<ChatState> {
         normalizedPath.endsWith('.go') ||
         normalizedPath.endsWith('.java') ||
         normalizedPath.endsWith('.kt');
+  }
+
+  bool _looksLikeImplementationTaskTitle(String title) {
+    final normalized = title.trim().toLowerCase();
+    if (normalized.isEmpty) {
+      return false;
+    }
+    const signals = <String>[
+      'implement ',
+      'build ',
+      'create cli',
+      'add cli',
+      'core ',
+      'functionality',
+      'entrypoint',
+    ];
+    return signals.any(normalized.contains);
   }
 
   bool _hasWeakImplementationValidationCommand(
@@ -5036,6 +5204,46 @@ class ChatNotifier extends Notifier<ChatState> {
     return snapshot;
   }
 
+  void _recordHiddenAssistantResponse(String? response) {
+    final candidate = response?.trim() ?? '';
+    if (candidate.isEmpty) {
+      return;
+    }
+
+    final existing = _latestHiddenAssistantResponse?.trim() ?? '';
+    if (existing.isEmpty) {
+      _latestHiddenAssistantResponse = candidate;
+      return;
+    }
+
+    final existingScore = _hiddenAssistantEvidenceScore(existing);
+    final candidateScore = _hiddenAssistantEvidenceScore(candidate);
+    if (candidateScore > existingScore ||
+        (candidateScore == existingScore &&
+            candidate.length >= existing.length)) {
+      _latestHiddenAssistantResponse = candidate;
+    }
+  }
+
+  int _hiddenAssistantEvidenceScore(String response) {
+    final normalized = response.toLowerCase();
+    var score = 0;
+    if (normalized.contains('complete') || normalized.contains('completed')) {
+      score += 2;
+    }
+    if (normalized.contains('validation passed') ||
+        normalized.contains('tests passed') ||
+        normalized.contains('was successful')) {
+      score += 2;
+    }
+    if (normalized.contains('next task') ||
+        normalized.contains('saved task') ||
+        normalized.contains('in the plan')) {
+      score += 1;
+    }
+    return score;
+  }
+
   Future<void> generatePlanProposalWithContext({
     String languageCode = 'en',
     String? additionalPlanningContext,
@@ -5712,6 +5920,7 @@ class ChatNotifier extends Notifier<ChatState> {
       if (nextResult.hasToolCalls) {
         appLog('[Tool] LLM requested additional tool calls');
         currentToolCalls = nextResult.toolCalls!;
+        _recordHiddenAssistantResponse(nextResult.content);
         currentAssistantContent = nextResult.content.isNotEmpty
             ? nextResult.content
             : null;
@@ -5720,9 +5929,7 @@ class ChatNotifier extends Notifier<ChatState> {
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
         final fallbackResponse = nextResult.content.trim();
-        if (fallbackResponse.isNotEmpty) {
-          _latestHiddenAssistantResponse = fallbackResponse;
-        }
+        _recordHiddenAssistantResponse(fallbackResponse);
         // Responses through the tool role often claim real-time data is
         // unavailable, so resend the results later as a user message.
       }
@@ -7205,10 +7412,9 @@ class ChatNotifier extends Notifier<ChatState> {
     // Hidden prompt responses are ephemeral — remove from visible history
     // so they are spoken but not persisted in the conversation.
     if (_hiddenPrompt != null) {
-      _latestHiddenAssistantResponse =
-          shouldDropLastAssistant || updatedMessages.isEmpty
-          ? null
-          : updatedMessages.last.content;
+      if (!shouldDropLastAssistant && updatedMessages.isNotEmpty) {
+        _recordHiddenAssistantResponse(updatedMessages.last.content);
+      }
       final cleaned = shouldDropLastAssistant
           ? updatedMessages
           : updatedMessages.sublist(0, lastIndex);

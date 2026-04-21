@@ -580,7 +580,10 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     expect(context, contains('Return two to four concrete tasks.'));
     expect(context, contains('Do not stop at a single generic setup'));
     expect(context, contains('The first task may scaffold the workspace'));
-    expect(context, contains('Prefer a simple Python entrypoint such as main.py'));
+    expect(
+      context,
+      contains('Prefer a simple Python entrypoint such as main.py'),
+    );
     expect(
       context,
       contains('Do not use generic validation such as "module importable"'),
@@ -609,7 +612,8 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       createdAt: DateTime(2026, 4, 20, 21, 30),
       updatedAt: DateTime(2026, 4, 20, 21, 30),
       workflowSpec: const ConversationWorkflowSpec(
-        goal: 'Develop a Python CLI tool for continuous pinging with JSON output support.',
+        goal:
+            'Develop a Python CLI tool for continuous pinging with JSON output support.',
         constraints: ['Python-based implementation', 'CLI-driven interface'],
         acceptanceCriteria: [
           'Support continuous pinging',
@@ -626,10 +630,15 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
 
     expect(proposal, isNotNull);
     expect(proposal!.tasks.length, greaterThanOrEqualTo(2));
-    expect(proposal.tasks.first.title, 'Initialize project structure and requirements.txt');
+    expect(
+      proposal.tasks.first.title,
+      'Initialize project structure and requirements.txt',
+    );
     expect(
       proposal.tasks.map((task) => task.title),
-      contains('Implement core ping functionality and CLI arguments in main.py'),
+      contains(
+        'Implement core ping functionality and CLI arguments in main.py',
+      ),
     );
     expect(
       proposal.tasks.map((task) => task.title),
@@ -688,6 +697,120 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     expect(
       notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
       isTrue,
+    );
+  });
+
+  test('dedupes near-duplicate README and implementation tasks', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-readme-1',
+          title: 'Create README.md with usage instructions',
+          targetFiles: ['README.md'],
+          validationCommand: 'cat README.md',
+          notes: 'Document the first slice.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-readme-2',
+          title: 'Create README.md with usage and installation instructions',
+          targetFiles: ['README.md'],
+          validationCommand: 'cat README.md',
+          notes: 'Expand setup guidance.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli-1',
+          title: 'Implement the ping CLI tool in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Keep the first version synchronous.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli-2',
+          title:
+              'Implement the core ping functionality and CLI interface in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Cover the same entrypoint in a second task.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks, hasLength(2));
+    expect(
+      finalized.tasks.map((task) => task.title),
+      contains('Create README.md with usage instructions'),
+    );
+    expect(
+      finalized.tasks.map((task) => task.title),
+      contains('Implement the ping CLI tool in ping_cli.py'),
+    );
+    expect(
+      finalized.tasks.map((task) => task.title),
+      isNot(
+        contains('Create README.md with usage and installation instructions'),
+      ),
+    );
+    expect(
+      finalized.tasks.map((task) => task.title),
+      isNot(
+        contains(
+          'Implement the core ping functionality and CLI interface in ping_cli.py',
+        ),
+      ),
+    );
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isFalse,
+    );
+  });
+
+  test('drops placeholder task fields from truncated task proposals', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-setup',
+          title: 'Initialize project structure and dependencies',
+          targetFiles: ['requirements.txt', 'pyproject.toml'],
+          validationCommand: 'string',
+          notes: 'string',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli-placeholder',
+          title: 'Implement the ping CLI tool',
+          targetFiles: ['string'],
+          validationCommand: 'string',
+          notes: 'string',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli',
+          title: 'Implement the ping CLI tool in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Use argparse and subprocess.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks, hasLength(2));
+    expect(finalized.tasks.first.validationCommand, isEmpty);
+    expect(finalized.tasks.first.notes, isEmpty);
+    expect(
+      finalized.tasks.map((task) => task.title),
+      isNot(contains('Implement the ping CLI tool')),
+    );
+    expect(
+      finalized.tasks.map((task) => task.title),
+      contains('Implement the ping CLI tool in ping_cli.py'),
     );
   });
 

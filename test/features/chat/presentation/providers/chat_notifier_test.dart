@@ -425,15 +425,20 @@ class _ContinuationFallbackChatDataSource implements ChatDataSource {
 class _ToolBatchChatDataSource implements ChatDataSource {
   _ToolBatchChatDataSource({
     required this.initialToolCalls,
+    this.followUpToolCalls = const [],
+    this.intermediateToolRoleResponseContent = '',
     this.toolRoleResponseContent = '',
     this.finalAnswerChunks = const ['Combined tool summary'],
   });
 
   final List<ToolCallInfo> initialToolCalls;
+  final List<ToolCallInfo> followUpToolCalls;
+  final String intermediateToolRoleResponseContent;
   final String toolRoleResponseContent;
   final List<String> finalAnswerChunks;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   List<Message> finalAnswerMessages = const [];
+  var _toolLoopResponseCount = 0;
 
   @override
   Stream<String> streamChatCompletion({
@@ -519,6 +524,14 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    _toolLoopResponseCount += 1;
+    if (_toolLoopResponseCount == 1 && followUpToolCalls.isNotEmpty) {
+      return ChatCompletionResult(
+        content: intermediateToolRoleResponseContent,
+        toolCalls: followUpToolCalls,
+        finishReason: 'tool_calls',
+      );
+    }
     return ChatCompletionResult(
       content: toolRoleResponseContent,
       finishReason: 'stop',
@@ -1230,6 +1243,71 @@ void main() {
         expect(
           toolNotifier.takeLatestHiddenAssistantResponse(),
           'The saved task is complete because the validation passed.',
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage preserves tool-loop handoff text before follow-up tool calls',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'write_readme',
+            arguments: const {'path': 'README.md'},
+          ),
+        ],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-2',
+            name: 'write_cli',
+            arguments: const {'path': 'ping_cli.py'},
+          ),
+        ],
+        intermediateToolRoleResponseContent:
+            'I have completed the first task: Create README.md with usage instructions. The next task is Implement the ping CLI tool in ping_cli.py.',
+        toolRoleResponseContent: '',
+        finalAnswerChunks: const ['I continued with the next saved task.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_readme': '{"path":"README.md","bytes_written":120}',
+          'write_cli': '{"path":"ping_cli.py","bytes_written":240}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Handle the first saved task');
+
+        expect(
+          toolNotifier.takeLatestHiddenAssistantResponse(),
+          'I have completed the first task: Create README.md with usage instructions. The next task is Implement the ping CLI tool in ping_cli.py.',
         );
       } finally {
         toolContainer.dispose();

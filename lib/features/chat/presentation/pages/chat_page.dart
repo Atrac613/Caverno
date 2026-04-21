@@ -4530,11 +4530,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
       bypassPlanMode: true,
     );
     final toolResults = chatNotifier.takeLatestToolResults();
+    final hiddenAssistantResponse = chatNotifier
+        .takeLatestHiddenAssistantResponse();
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: task,
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: toolResults,
+          fallbackAssistantResponse: hiddenAssistantResponse,
         );
     final recoveredFromValidation =
         !toolResultApplied &&
@@ -4591,8 +4594,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
             task: task,
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
-            fallbackAssistantResponse: chatNotifier
-                .takeLatestHiddenAssistantResponse(),
+            fallbackAssistantResponse:
+                hiddenAssistantResponse ??
+                chatNotifier.takeLatestHiddenAssistantResponse(),
           )
         : false;
     if (!toolResultApplied &&
@@ -4777,11 +4781,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return;
     }
     final toolResults = chatNotifier.takeLatestToolResults();
+    final hiddenAssistantResponse = chatNotifier
+        .takeLatestHiddenAssistantResponse();
     final toolResultApplied =
         await _captureExecutionProgressFromLatestToolResults(
           task: nextTask,
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: toolResults,
+          fallbackAssistantResponse: hiddenAssistantResponse,
         );
     final recoveredFromValidation =
         !toolResultApplied &&
@@ -4838,8 +4845,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
             task: nextTask,
             previousAssistantMessageId: previousAssistantMessageId,
             isValidationRun: false,
-            fallbackAssistantResponse: chatNotifier
-                .takeLatestHiddenAssistantResponse(),
+            fallbackAssistantResponse:
+                hiddenAssistantResponse ??
+                chatNotifier.takeLatestHiddenAssistantResponse(),
           )
         : false;
     if (!toolResultApplied &&
@@ -4895,7 +4903,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       final resolvedPath = normalizedTarget.startsWith('/')
           ? normalizedTarget
           : '$projectRoot/$normalizedTarget';
-      if (File(resolvedPath).existsSync() || Directory(resolvedPath).existsSync()) {
+      if (File(resolvedPath).existsSync() ||
+          Directory(resolvedPath).existsSync()) {
         existingTargets.add(normalizedTarget);
       }
     }
@@ -4906,8 +4915,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
   }) async {
     final existingTargetFiles = _existingWorkspaceTargetFiles(task);
-    final canFinalize = ConversationPlanExecutionGuardrails
-        .canFinalizeScaffoldFromWorkspaceTargets(
+    final canFinalize =
+        ConversationPlanExecutionGuardrails.canFinalizeScaffoldFromWorkspaceTargets(
           task: task,
           existingTargetPaths: existingTargetFiles,
         );
@@ -4915,7 +4924,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
-    final conversationsNotifier = ref.read(conversationsNotifierProvider.notifier);
+    final conversationsNotifier = ref.read(
+      conversationsNotifierProvider.notifier,
+    );
     final validationCommand = task.validationCommand.trim();
     const summary =
         'Marked complete after confirming every scaffold target file existed in the workspace.';
@@ -4927,7 +4938,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ? ConversationExecutionValidationStatus.unknown
           : ConversationExecutionValidationStatus.passed,
       lastValidationAt: validationCommand.isEmpty ? null : DateTime.now(),
-      lastValidationCommand: validationCommand.isEmpty ? null : validationCommand,
+      lastValidationCommand: validationCommand.isEmpty
+          ? null
+          : validationCommand,
       lastValidationSummary: validationCommand.isEmpty ? null : summary,
       eventType: ConversationExecutionTaskEventType.completed,
       eventSummary: summary,
@@ -5055,17 +5068,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
     await chatNotifier.sendHiddenPrompt(
       shouldAttemptScaffoldRecovery
           ? existingTargetFiles.isEmpty
-                ? ConversationPlanExecutionCoordinator
-                      .buildScaffoldMissingTargetRecoveryPrompt(
-                        task: latestTask,
-                        missingTargetFiles: missingTargetFiles,
-                      )
-                : ConversationPlanExecutionCoordinator
-                      .buildScaffoldRemainingTargetRecoveryPrompt(
-                        task: latestTask,
-                        existingTargetFiles: existingTargetFiles,
-                        missingTargetFiles: missingTargetFiles,
-                      )
+                ? ConversationPlanExecutionCoordinator.buildScaffoldMissingTargetRecoveryPrompt(
+                    task: latestTask,
+                    missingTargetFiles: missingTargetFiles,
+                  )
+                : ConversationPlanExecutionCoordinator.buildScaffoldRemainingTargetRecoveryPrompt(
+                    task: latestTask,
+                    existingTargetFiles: existingTargetFiles,
+                    missingTargetFiles: missingTargetFiles,
+                  )
           : ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
               task: latestTask,
               unavailableToolNames: unavailableToolNames,
@@ -5164,8 +5175,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
-    final missingTargetFile = ConversationPlanExecutionGuardrails
-        .missingTargetFileFromValidationFailure(
+    final missingTargetFile =
+        ConversationPlanExecutionGuardrails.missingTargetFileFromValidationFailure(
           task: latestTask,
           toolResults: toolResults,
         );
@@ -5393,17 +5404,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
       final chatNotifier = ref.read(chatNotifierProvider.notifier);
       await chatNotifier.sendHiddenPrompt(
         existingTargetFiles.isEmpty
-            ? ConversationPlanExecutionCoordinator
-                  .buildScaffoldMissingTargetRecoveryPrompt(
-                    task: latestTask,
-                    missingTargetFiles: missingTargetFiles,
-                  )
-            : ConversationPlanExecutionCoordinator
-                  .buildScaffoldRemainingTargetRecoveryPrompt(
-                    task: latestTask,
-                    existingTargetFiles: existingTargetFiles,
-                    missingTargetFiles: missingTargetFiles,
-                  ),
+            ? ConversationPlanExecutionCoordinator.buildScaffoldMissingTargetRecoveryPrompt(
+                task: latestTask,
+                missingTargetFiles: missingTargetFiles,
+              )
+            : ConversationPlanExecutionCoordinator.buildScaffoldRemainingTargetRecoveryPrompt(
+                task: latestTask,
+                existingTargetFiles: existingTargetFiles,
+                missingTargetFiles: missingTargetFiles,
+              ),
         languageCode: languageCode,
       );
 
@@ -5616,23 +5625,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
         );
     final existingWorkspaceTargets = _existingWorkspaceTargetFiles(latestTask);
     final canPromote =
-        ConversationPlanExecutionGuardrails
-            .canPromoteCompletionFromWorkspaceValidation(
-              task: latestTask,
-              toolResults: toolResults,
-              existingTargetPaths: existingWorkspaceTargets,
-            ) ||
-        ConversationPlanExecutionGuardrails
-            .canPromoteScaffoldCompletionFromWorkspaceValidation(
-              task: latestTask,
-              toolResults: toolResults,
-              existingTargetPaths: existingWorkspaceTargets,
-            );
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceValidation(
+          task: latestTask,
+          toolResults: toolResults,
+          existingTargetPaths: existingWorkspaceTargets,
+        ) ||
+        ConversationPlanExecutionGuardrails.canPromoteScaffoldCompletionFromWorkspaceValidation(
+          task: latestTask,
+          toolResults: toolResults,
+          existingTargetPaths: existingWorkspaceTargets,
+        );
     if (!canPromote) {
       return false;
     }
 
-    final progress = currentConversation.executionProgressForTask(latestTask.id);
+    final progress = currentConversation.executionProgressForTask(
+      latestTask.id,
+    );
     final summary =
         progress?.normalizedValidationSummary ??
         progress?.normalizedSummary ??
@@ -5786,6 +5795,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
     required String? previousAssistantMessageId,
     required List<ToolResultInfo> toolResults,
+    String? fallbackAssistantResponse,
   }) async {
     if (toolResults.isEmpty) {
       return false;
@@ -5804,10 +5814,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
             latestAssistantMessage.id == previousAssistantMessageId
         ? ''
         : latestAssistantMessage.content;
+    final fallbackAssistantEvidence = fallbackAssistantResponse?.trim() ?? '';
     final assistantInference = ConversationExecutionProgressInference.infer(
       assistantResponse: latestAssistantResponse,
       task: task,
       isValidationRun: false,
+      fallbackAssistantResponse: fallbackAssistantEvidence,
     );
     final completionAssessment =
         ConversationPlanExecutionGuardrails.assessTaskCompletion(
@@ -5824,8 +5836,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     );
     if (completionAssessment.hasCompletionEvidenceIgnoringFailures &&
         onlyRecoverableMalformedFailures) {
-      final summary = assistantInference.status ==
-              ConversationWorkflowTaskStatus.completed
+      final summary =
+          assistantInference.status == ConversationWorkflowTaskStatus.completed
           ? assistantInference.summary
           : 'Ignored recoverable malformed tool failures after the saved task had already met its completion evidence.';
       await _markTaskCompletedFromToolEvidence(
@@ -5840,12 +5852,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
         await _maybeFinalizeScaffoldFromWorkspaceTargets(task: task)) {
       return true;
     }
-    if (ConversationPlanExecutionGuardrails
-        .canPromoteCompletionFromWorkspaceValidation(
-          task: task,
-          toolResults: toolResults,
-          existingTargetPaths: existingWorkspaceTargets,
-        )) {
+    if (ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceValidation(
+      task: task,
+      toolResults: toolResults,
+      existingTargetPaths: existingWorkspaceTargets,
+    )) {
       await conversationsNotifier.updateCurrentExecutionTaskProgress(
         taskId: task.id,
         status: ConversationWorkflowTaskStatus.completed,
@@ -5864,12 +5875,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
-    if (ConversationPlanExecutionGuardrails
-        .canPromoteScaffoldCompletionFromWorkspaceValidation(
-          task: task,
-          toolResults: toolResults,
-          existingTargetPaths: existingWorkspaceTargets,
-        )) {
+    if (ConversationPlanExecutionGuardrails.canPromoteScaffoldCompletionFromWorkspaceValidation(
+      task: task,
+      toolResults: toolResults,
+      existingTargetPaths: existingWorkspaceTargets,
+    )) {
       await conversationsNotifier.updateCurrentExecutionTaskProgress(
         taskId: task.id,
         status: ConversationWorkflowTaskStatus.completed,
@@ -5894,11 +5904,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
             task: task,
             assistantResponse: latestAssistantResponse,
             isValidationRun: false,
+            fallbackAssistantResponse: fallbackAssistantEvidence,
           );
       return true;
     }
     if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
         completionAssessment.hasCompletionEvidenceIgnoringFailures) {
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: assistantInference.summary,
+      );
+      return true;
+    }
+    final shouldLockCompletedTaskBeforeNextToolWork =
+        assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        !_toolResultsContainFailure(toolResults) &&
+        completionAssessment.touchedTargetFiles.isNotEmpty &&
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty;
+    if (shouldLockCompletedTaskBeforeNextToolWork) {
       await _markTaskCompletedFromToolEvidence(
         task: task,
         conversationsNotifier: conversationsNotifier,
@@ -5939,9 +5964,8 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final normalizedSummary = summary.trim().isEmpty
         ? 'Marked complete from saved task evidence.'
         : summary.trim();
-    final successfulValidationCommand = completionAssessment
-        .successfulValidationCommands
-        .firstOrNull;
+    final successfulValidationCommand =
+        completionAssessment.successfulValidationCommands.firstOrNull;
     await conversationsNotifier.updateCurrentExecutionTaskProgress(
       taskId: task.id,
       status: ConversationWorkflowTaskStatus.completed,
