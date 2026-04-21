@@ -34,6 +34,7 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 import 'test_support/plan_mode_scenario_spec.dart';
 import 'test_support/plan_mode_execution_watchdog.dart';
 import 'test_support/plan_mode_live_diagnostics.dart';
+import 'test_support/plan_mode_planning_progress.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/screenshot_capture.dart';
 
@@ -569,27 +570,15 @@ Finder _findDecisionSheetText(
   );
 }
 
-String _resolvePlanningSubphase(ChatState chatState) {
-  if (chatState.pendingWorkflowDecision != null) {
-    return 'decision';
-  }
-  if (chatState.workflowProposalDraft != null &&
-      chatState.taskProposalDraft != null) {
-    return 'taskDraftReady';
-  }
-  if (chatState.taskProposalDraft != null) {
-    return 'taskDraftReady';
-  }
-  if (chatState.workflowProposalDraft != null) {
-    return 'workflowDraftReady';
-  }
-  if (chatState.isGeneratingTaskProposal) {
-    return 'taskProposal';
-  }
-  if (chatState.isGeneratingWorkflowProposal) {
-    return 'workflowProposal';
-  }
-  return 'proposal';
+String _resolvePlanningSubphase(ChatState chatState, List<String> logs) {
+  return resolvePlanningSubphase(
+    hasPendingDecision: chatState.pendingWorkflowDecision != null,
+    hasWorkflowDraft: chatState.workflowProposalDraft != null,
+    hasTaskDraft: chatState.taskProposalDraft != null,
+    isGeneratingWorkflowProposal: chatState.isGeneratingWorkflowProposal,
+    isGeneratingTaskProposal: chatState.isGeneratingTaskProposal,
+    logs: logs,
+  );
 }
 
 Future<void> _waitForReadyPlanProposal(
@@ -604,16 +593,21 @@ Future<void> _waitForReadyPlanProposal(
   required PlanModeScenarioSpec scenario,
   required GlobalKey screenshotBoundaryKey,
   required Directory outputDirectory,
+  required List<String> logs,
 }) async {
   var recoveredTaskProposal = false;
   var deadline = DateTime.now().add(timeout);
   String? lastPlanningProgressKey;
 
   bool isProposalReady(ChatState chatState) {
-    return chatState.workflowProposalDraft != null &&
-        chatState.taskProposalDraft != null &&
-        !chatState.isGeneratingWorkflowProposal &&
-        !chatState.isGeneratingTaskProposal;
+    return isPlanningProposalReady(
+      hasWorkflowDraft: chatState.workflowProposalDraft != null,
+      hasTaskDraft: chatState.taskProposalDraft != null,
+      hasPendingDecision: chatState.pendingWorkflowDecision != null,
+      workflowError: chatState.workflowProposalError,
+      taskError: chatState.taskProposalError,
+      logs: logs,
+    );
   }
 
   while (DateTime.now().isBefore(deadline)) {
@@ -621,10 +615,12 @@ Future<void> _waitForReadyPlanProposal(
     final conversation = container
         .read(conversationsNotifierProvider)
         .currentConversation;
-    if (chatState.workflowProposalDraft != null) {
+    if (chatState.workflowProposalDraft != null ||
+        planningLogsContainWorkflowDraftReady(logs)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
     }
-    if (chatState.taskProposalDraft != null) {
+    if (chatState.taskProposalDraft != null ||
+        planningLogsContainTaskDraftReady(logs)) {
       phaseTrace.taskProposalReadyAt ??= DateTime.now();
     }
     final workflowSnapshot = _summarizeWorkflowTasks(
@@ -633,20 +629,22 @@ Future<void> _waitForReadyPlanProposal(
     );
     final planningProgressKey =
         '${conversation?.messages.length ?? 0}|'
-        '${chatState.workflowProposalDraft != null}|'
-        '${chatState.taskProposalDraft != null}|'
+        '${chatState.workflowProposalDraft != null || planningLogsContainWorkflowDraftReady(logs)}|'
+        '${chatState.taskProposalDraft != null || planningLogsContainTaskDraftReady(logs)}|'
         '${chatState.isGeneratingWorkflowProposal}|'
         '${chatState.isGeneratingTaskProposal}|'
         '${chatState.pendingWorkflowDecision != null}|'
         '${chatState.workflowProposalError}|'
-        '${chatState.taskProposalError}';
+        '${chatState.taskProposalError}|'
+        '${planningLogsContainWorkflowDraftReady(logs)}|'
+        '${planningLogsContainTaskDraftReady(logs)}';
     if (planningProgressKey != lastPlanningProgressKey) {
       lastPlanningProgressKey = planningProgressKey;
       deadline = DateTime.now().add(timeout);
     }
     heartbeatWriter.write(
       phase: 'planning',
-      subphase: _resolvePlanningSubphase(chatState),
+      subphase: _resolvePlanningSubphase(chatState, logs),
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: workflowSnapshot,
@@ -1610,6 +1608,7 @@ Future<_ScenarioRunResult> _runScenario({
     scenario: scenario,
     screenshotBoundaryKey: screenshotBoundaryKey,
     outputDirectory: scenarioDir,
+    logs: logs,
   );
 
   _assertUiExpectations(
