@@ -65,6 +65,14 @@ class RoutinesHomePage extends ConsumerWidget {
                   icon: const Icon(Icons.add),
                   label: Text('routines.create_cta'.tr()),
                 ),
+                if (dueCount > 0) ...[
+                  const SizedBox(height: 8),
+                  OutlinedButton.icon(
+                    onPressed: () => _runDueRoutines(context, ref),
+                    icon: const Icon(Icons.playlist_play),
+                    label: Text('routines.run_due_now'.tr()),
+                  ),
+                ],
               ],
             ),
           ),
@@ -149,6 +157,24 @@ class RoutinesHomePage extends ConsumerWidget {
           )
         : 'routines.run_now_failed'.tr(
             namedArgs: {'name': routine.trimmedName},
+          );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _runDueRoutines(BuildContext context, WidgetRef ref) async {
+    final executedCount = await ref
+        .read(routinesNotifierProvider.notifier)
+        .runDueRoutines(trigger: RoutineRunTrigger.manual);
+    if (!context.mounted) {
+      return;
+    }
+
+    final message = executedCount == 0
+        ? 'routines.run_due_now_empty'.tr()
+        : 'routines.run_due_now_completed'.tr(
+            namedArgs: {'count': executedCount.toString()},
           );
     ScaffoldMessenger.of(
       context,

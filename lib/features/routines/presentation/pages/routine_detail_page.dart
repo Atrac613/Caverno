@@ -7,6 +7,8 @@ import '../../domain/services/routine_schedule_service.dart';
 import '../providers/routines_notifier.dart';
 import '../widgets/routine_editor_sheet.dart';
 
+enum _RoutineDetailAction { duplicate, clearHistory, delete }
+
 class RoutineDetailPage extends ConsumerWidget {
   const RoutineDetailPage({super.key, required this.routineId});
 
@@ -39,6 +41,37 @@ class RoutineDetailPage extends ConsumerWidget {
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
         ),
+        actions: [
+          PopupMenuButton<_RoutineDetailAction>(
+            onSelected: (action) {
+              switch (action) {
+                case _RoutineDetailAction.duplicate:
+                  _duplicateRoutine(context, ref, routine);
+                  break;
+                case _RoutineDetailAction.clearHistory:
+                  _confirmClearHistory(context, ref, routine);
+                  break;
+                case _RoutineDetailAction.delete:
+                  _confirmDelete(context, ref, routine);
+                  break;
+              }
+            },
+            itemBuilder: (context) => [
+              PopupMenuItem(
+                value: _RoutineDetailAction.duplicate,
+                child: Text('routines.duplicate'.tr()),
+              ),
+              PopupMenuItem(
+                value: _RoutineDetailAction.clearHistory,
+                child: Text('routines.clear_history'.tr()),
+              ),
+              PopupMenuItem(
+                value: _RoutineDetailAction.delete,
+                child: Text('common.delete'.tr()),
+              ),
+            ],
+          ),
+        ],
       ),
       body: ListView(
         padding: const EdgeInsets.all(16),
@@ -267,6 +300,111 @@ class RoutineDetailPage extends ConsumerWidget {
         );
   }
 
+  Future<void> _duplicateRoutine(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    final duplicatedRoutine = await ref
+        .read(routinesNotifierProvider.notifier)
+        .duplicateRoutine(
+          routineId: routine.id,
+          duplicatedName: 'routines.duplicate_name'.tr(
+            namedArgs: {'name': routine.trimmedName},
+          ),
+        );
+    if (!context.mounted || duplicatedRoutine == null) {
+      return;
+    }
+
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('routines.duplicate_done'.tr())));
+  }
+
+  Future<void> _confirmClearHistory(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('routines.clear_history_title'.tr()),
+        content: Text(
+          'routines.clear_history_confirm'.tr(
+            namedArgs: {'name': routine.trimmedName},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('common.cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('routines.clear_history'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    await ref
+        .read(routinesNotifierProvider.notifier)
+        .clearRunHistory(routine.id);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('routines.clear_history_done'.tr())));
+  }
+
+  Future<void> _confirmDelete(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: Text('routines.delete_title'.tr()),
+        content: Text(
+          'routines.delete_confirm'.tr(
+            namedArgs: {'name': routine.trimmedName},
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: Text('common.cancel'.tr()),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(true),
+            style: TextButton.styleFrom(foregroundColor: Colors.red),
+            child: Text('common.delete'.tr()),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true) {
+      return;
+    }
+
+    await ref.read(routinesNotifierProvider.notifier).deleteRoutine(routine.id);
+    if (!context.mounted) {
+      return;
+    }
+    Navigator.of(context).pop();
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('routines.delete_done'.tr())));
+  }
+
   Future<void> _showTextViewer(
     BuildContext context, {
     required String title,
@@ -443,7 +581,8 @@ class _RunRecordCard extends StatelessWidget {
     if (seconds < 60) {
       final remainingMs = (durationMs % 1000) ~/ 100;
       return remainingMs == 0
-          ? '$seconds''s'
+          ? '$seconds'
+                's'
           : '$seconds.${remainingMs}s';
     }
     final minutes = seconds ~/ 60;

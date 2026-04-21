@@ -123,6 +123,45 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     );
   }
 
+  Future<Routine?> duplicateRoutine({
+    required String routineId,
+    required String duplicatedName,
+  }) async {
+    final source = _findRoutine(routineId);
+    if (source == null) {
+      return null;
+    }
+
+    final now = DateTime.now();
+    final duplicate = Routine(
+      id: _uuid.v4(),
+      name: duplicatedName.trim(),
+      prompt: source.trimmedPrompt,
+      createdAt: now,
+      updatedAt: now,
+      enabled: source.enabled,
+      intervalValue: source.intervalValue,
+      intervalUnit: source.intervalUnit,
+    );
+    final prepared = _prepareRoutineForPersistence(duplicate, previous: null);
+    await _persistRoutines([...state.routines, prepared]);
+    return prepared;
+  }
+
+  Future<void> clearRunHistory(String routineId) async {
+    final existing = _findRoutine(routineId);
+    if (existing == null) {
+      return;
+    }
+
+    final updated = existing.copyWith(
+      runs: const [],
+      lastRunAt: null,
+      updatedAt: DateTime.now(),
+    );
+    await _persistRoutine(updated);
+  }
+
   Future<RoutineRunRecord?> runRoutineNow(
     String routineId, {
     RoutineRunTrigger trigger = RoutineRunTrigger.manual,
@@ -180,14 +219,22 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     return runRecord;
   }
 
-  Future<void> runDueRoutines() async {
+  Future<int> runDueRoutines({
+    RoutineRunTrigger trigger = RoutineRunTrigger.scheduled,
+  }) async {
     final due = RoutineScheduleService.dueRoutines(
       state.routines,
     ).where((routine) => !state.isRunning(routine.id)).toList(growable: false);
+    var executedCount = 0;
 
     for (final routine in due) {
-      await runRoutineNow(routine.id, trigger: RoutineRunTrigger.scheduled);
+      final runRecord = await runRoutineNow(routine.id, trigger: trigger);
+      if (runRecord != null) {
+        executedCount += 1;
+      }
     }
+
+    return executedCount;
   }
 
   Routine? findRoutine(String routineId) => _findRoutine(routineId);
