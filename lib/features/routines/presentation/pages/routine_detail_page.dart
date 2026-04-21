@@ -117,6 +117,13 @@ class RoutineDetailPage extends ConsumerWidget {
                             context,
                           ).colorScheme.secondaryContainer,
                         ),
+                      if (routine.postsToGoogleChat)
+                        _StatusChip(
+                          label: 'routines.google_chat_badge'.tr(),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.tertiaryContainer,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -158,6 +165,15 @@ class RoutineDetailPage extends ConsumerWidget {
                             ? 'routines.tools_mode_read_only'.tr()
                             : 'routines.tools_mode_off'.tr(),
                       ),
+                      _MetaLine(
+                        label: 'routines.completion_action_label'.tr(),
+                        value: _formatCompletionAction(context, routine),
+                      ),
+                      if (routine.postsToGoogleChat)
+                        _MetaLine(
+                          label: 'routines.google_chat_rule_label'.tr(),
+                          value: _formatGoogleChatRule(context, routine),
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -318,7 +334,27 @@ class RoutineDetailPage extends ConsumerWidget {
           enabled: result.enabled,
           notifyOnCompletion: result.notifyOnCompletion,
           toolsEnabled: result.toolsEnabled,
+          completionAction: result.completionAction,
+          googleChatRule: result.googleChatRule,
         );
+  }
+
+  String _formatCompletionAction(BuildContext context, Routine routine) {
+    return switch (routine.completionAction) {
+      RoutineCompletionAction.none => 'routines.completion_action_none'.tr(),
+      RoutineCompletionAction.googleChat =>
+        'routines.completion_action_google_chat'.tr(),
+    };
+  }
+
+  String _formatGoogleChatRule(BuildContext context, Routine routine) {
+    return switch (routine.googleChatRule) {
+      RoutineGoogleChatRule.onSuccess =>
+        'routines.google_chat_rule_on_success'.tr(),
+      RoutineGoogleChatRule.onFailure =>
+        'routines.google_chat_rule_on_failure'.tr(),
+      RoutineGoogleChatRule.always => 'routines.google_chat_rule_always'.tr(),
+    };
   }
 
   Future<void> _duplicateRoutine(
@@ -551,6 +587,11 @@ class _RunRecordCard extends StatelessWidget {
                     ),
                     color: theme.colorScheme.tertiaryContainer,
                   ),
+                if (run.deliveryStatus != RoutineDeliveryStatus.notRequested)
+                  _StatusChip(
+                    label: _deliveryStatusLabel(run),
+                    color: _deliveryStatusColor(theme, run.deliveryStatus),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -577,10 +618,31 @@ class _RunRecordCard extends StatelessWidget {
                         ? 'routines.tools_mode_read_only'.tr()
                         : run.toolNames.join(', '),
                   ),
+                if (run.deliveryStatus != RoutineDeliveryStatus.notRequested)
+                  _MetaLine(
+                    label: 'routines.delivery_label'.tr(),
+                    value: _deliveryStatusLabel(run),
+                  ),
+                if (run.deliveredAt != null)
+                  _MetaLine(
+                    label: 'routines.delivered_at_label'.tr(),
+                    value: DateFormat(
+                      'yyyy/MM/dd HH:mm:ss',
+                    ).format(run.deliveredAt!),
+                  ),
               ],
             ),
             const SizedBox(height: 12),
             Text(summaryText, style: theme.textTheme.bodyMedium),
+            if (run.deliveryMessage.trim().isNotEmpty) ...[
+              const SizedBox(height: 12),
+              Text(
+                run.deliveryMessage.trim(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (onViewOutput != null || onViewError != null) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -623,6 +685,27 @@ class _RunRecordCard extends StatelessWidget {
     final minutes = seconds ~/ 60;
     final remainingSeconds = seconds % 60;
     return '${minutes}m ${remainingSeconds.toString().padLeft(2, '0')}s';
+  }
+
+  String _deliveryStatusLabel(RoutineRunRecord run) {
+    return switch (run.deliveryStatus) {
+      RoutineDeliveryStatus.notRequested =>
+        'routines.delivery_not_requested'.tr(),
+      RoutineDeliveryStatus.skipped => 'routines.delivery_skipped'.tr(),
+      RoutineDeliveryStatus.delivered => 'routines.delivery_delivered'.tr(),
+      RoutineDeliveryStatus.failed => 'routines.delivery_failed'.tr(),
+    };
+  }
+
+  Color _deliveryStatusColor(ThemeData theme, RoutineDeliveryStatus status) {
+    return switch (status) {
+      RoutineDeliveryStatus.notRequested =>
+        theme.colorScheme.surfaceContainerHighest,
+      RoutineDeliveryStatus.skipped =>
+        theme.colorScheme.surfaceContainerHighest,
+      RoutineDeliveryStatus.delivered => theme.colorScheme.primaryContainer,
+      RoutineDeliveryStatus.failed => theme.colorScheme.errorContainer,
+    };
   }
 }
 

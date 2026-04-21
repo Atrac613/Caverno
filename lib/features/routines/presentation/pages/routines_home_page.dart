@@ -138,6 +138,8 @@ class RoutinesHomePage extends ConsumerWidget {
         enabled: result.enabled,
         notifyOnCompletion: result.notifyOnCompletion,
         toolsEnabled: result.toolsEnabled,
+        completionAction: result.completionAction,
+        googleChatRule: result.googleChatRule,
       );
     } else {
       await notifier.updateRoutine(
@@ -149,6 +151,8 @@ class RoutinesHomePage extends ConsumerWidget {
         enabled: result.enabled,
         notifyOnCompletion: result.notifyOnCompletion,
         toolsEnabled: result.toolsEnabled,
+        completionAction: result.completionAction,
+        googleChatRule: result.googleChatRule,
       );
     }
   }
@@ -445,6 +449,11 @@ class _RoutineCard extends StatelessWidget {
                             _RoutineStatusChip(
                               label: 'routines.tools_read_only_badge'.tr(),
                               color: colorScheme.secondaryContainer,
+                            ),
+                          if (routine.postsToGoogleChat)
+                            _RoutineStatusChip(
+                              label: 'routines.google_chat_badge'.tr(),
+                              color: colorScheme.tertiaryContainer,
                             ),
                           if (isRunning)
                             _RoutineStatusChip(

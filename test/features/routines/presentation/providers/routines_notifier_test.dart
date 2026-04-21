@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:caverno/core/services/google_chat_delivery_service.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -20,6 +21,8 @@ void main() {
     required List<Routine> initialRoutines,
     RoutineExecutionService? executionService,
     NotificationService? notificationService,
+    GoogleChatDeliveryService? googleChatDeliveryService,
+    AppSettings? settings,
   }) async {
     SharedPreferences.setMockInitialValues({
       'routines': jsonEncode(
@@ -31,10 +34,17 @@ void main() {
     return ProviderContainer(
       overrides: [
         sharedPreferencesProvider.overrideWithValue(prefs),
+        settingsNotifierProvider.overrideWith(
+          () => _FixedSettingsNotifier(settings ?? AppSettings.defaults()),
+        ),
         if (executionService != null)
           routineExecutionServiceProvider.overrideWithValue(executionService),
         if (notificationService != null)
           notificationServiceProvider.overrideWithValue(notificationService),
+        if (googleChatDeliveryService != null)
+          googleChatDeliveryServiceProvider.overrideWithValue(
+            googleChatDeliveryService,
+          ),
       ],
     );
   }
@@ -45,6 +55,8 @@ void main() {
     bool enabled = true,
     bool toolsEnabled = false,
     bool notifyOnCompletion = true,
+    RoutineCompletionAction completionAction = RoutineCompletionAction.none,
+    RoutineGoogleChatRule googleChatRule = RoutineGoogleChatRule.onFailure,
     DateTime? nextRunAt,
     DateTime? lastRunAt,
     List<RoutineRunRecord> runs = const [],
@@ -59,6 +71,8 @@ void main() {
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
+      completionAction: completionAction,
+      googleChatRule: googleChatRule,
       intervalValue: 1,
       intervalUnit: RoutineIntervalUnit.hours,
       nextRunAt: nextRunAt,
@@ -225,7 +239,97 @@ void main() {
         expect(notificationService.calls, isEmpty);
       },
     );
+
+    test(
+      'runRoutineNow posts to Google Chat when the rule matches and webhook exists',
+      () async {
+        final deliveryService = _FakeGoogleChatDeliveryService(
+          result: GoogleChatDeliveryResult(
+            isSuccessful: true,
+            message: 'Posted to Google Chat.',
+            deliveredAt: DateTime(2026, 4, 21, 10, 0, 3),
+          ),
+        );
+        final routine = buildRoutine(
+          id: 'routine-delivery',
+          name: 'Delivery routine',
+          completionAction: RoutineCompletionAction.googleChat,
+          googleChatRule: RoutineGoogleChatRule.always,
+          nextRunAt: DateTime(2026, 4, 21, 11),
+        );
+        final container = await createContainer(
+          initialRoutines: [routine],
+          executionService: _FakeRoutineExecutionService(),
+          googleChatDeliveryService: deliveryService,
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        final runRecord = await notifier.runRoutineNow(routine.id);
+        final updatedRoutine = notifier.findRoutine(routine.id);
+
+        expect(deliveryService.calls, hasLength(1));
+        expect(
+          deliveryService.calls.single.webhookUrl,
+          'https://chat.googleapis.com/v1/spaces/test',
+        );
+        expect(
+          deliveryService.calls.single.text,
+          contains('Routine "Delivery routine" completed.'),
+        );
+        expect(runRecord?.deliveryStatus, RoutineDeliveryStatus.delivered);
+        expect(runRecord?.deliveredAt, DateTime(2026, 4, 21, 10, 0, 3));
+        expect(runRecord?.deliveryMessage, 'Posted to Google Chat.');
+        expect(
+          updatedRoutine?.latestRun?.deliveryStatus,
+          RoutineDeliveryStatus.delivered,
+        );
+      },
+    );
+
+    test(
+      'runRoutineNow skips Google Chat delivery when the rule does not match',
+      () async {
+        final deliveryService = _FakeGoogleChatDeliveryService();
+        final routine = buildRoutine(
+          id: 'routine-skip',
+          name: 'Skip routine',
+          completionAction: RoutineCompletionAction.googleChat,
+          googleChatRule: RoutineGoogleChatRule.onFailure,
+          nextRunAt: DateTime(2026, 4, 21, 11),
+        );
+        final container = await createContainer(
+          initialRoutines: [routine],
+          executionService: _FakeRoutineExecutionService(),
+          googleChatDeliveryService: deliveryService,
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+        addTearDown(container.dispose);
+
+        final runRecord = await container
+            .read(routinesNotifierProvider.notifier)
+            .runRoutineNow(routine.id);
+
+        expect(deliveryService.calls, isEmpty);
+        expect(runRecord?.deliveryStatus, RoutineDeliveryStatus.skipped);
+        expect(runRecord?.deliveryMessage, contains('only failed runs'));
+      },
+    );
   });
+}
+
+class _FixedSettingsNotifier extends SettingsNotifier {
+  _FixedSettingsNotifier(this._settings);
+
+  final AppSettings _settings;
+
+  @override
+  AppSettings build() => _settings;
 }
 
 class _FakeRoutineExecutionService extends RoutineExecutionService {
@@ -354,6 +458,27 @@ class _FakeNotificationService extends NotificationService {
   }
 }
 
+class _FakeGoogleChatDeliveryService extends GoogleChatDeliveryService {
+  _FakeGoogleChatDeliveryService({
+    this.result = const GoogleChatDeliveryResult(
+      isSuccessful: true,
+      message: 'Posted to Google Chat.',
+    ),
+  }) : super();
+
+  final GoogleChatDeliveryResult result;
+  final List<_GoogleChatDeliveryCall> calls = [];
+
+  @override
+  Future<GoogleChatDeliveryResult> sendMessage({
+    required String webhookUrl,
+    required String text,
+  }) async {
+    calls.add(_GoogleChatDeliveryCall(webhookUrl: webhookUrl, text: text));
+    return result;
+  }
+}
+
 class _RoutineNotificationCall {
   const _RoutineNotificationCall({
     required this.routineId,
@@ -366,4 +491,11 @@ class _RoutineNotificationCall {
   final String routineName;
   final bool isSuccessful;
   final String body;
+}
+
+class _GoogleChatDeliveryCall {
+  const _GoogleChatDeliveryCall({required this.webhookUrl, required this.text});
+
+  final String webhookUrl;
+  final String text;
 }

@@ -1,10 +1,13 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/services/notification_providers.dart';
+import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/routine_execution_service.dart';
 import '../../data/routine_repository.dart';
 import '../../domain/entities/routine.dart';
+import '../../domain/services/routine_completion_action_service.dart';
 import '../../domain/services/routine_schedule_service.dart';
 
 class RoutinesState {
@@ -53,6 +56,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required bool enabled,
     required bool notifyOnCompletion,
     required bool toolsEnabled,
+    required RoutineCompletionAction completionAction,
+    required RoutineGoogleChatRule googleChatRule,
   }) async {
     final now = DateTime.now();
     final routine = Routine(
@@ -64,6 +69,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
+      completionAction: completionAction,
+      googleChatRule: googleChatRule,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -83,6 +90,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required bool enabled,
     required bool notifyOnCompletion,
     required bool toolsEnabled,
+    required RoutineCompletionAction completionAction,
+    required RoutineGoogleChatRule googleChatRule,
   }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
@@ -95,6 +104,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
+      completionAction: completionAction,
+      googleChatRule: googleChatRule,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -150,6 +161,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       enabled: source.enabled,
       notifyOnCompletion: source.notifyOnCompletion,
       toolsEnabled: source.toolsEnabled,
+      completionAction: source.completionAction,
+      googleChatRule: source.googleChatRule,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
     );
@@ -198,19 +211,24 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       return runRecord;
     }
 
+    final finalizedRunRecord = await _finalizeCompletionActions(
+      routine: latestRoutine,
+      runRecord: runRecord,
+    );
+
     final nextRunAt = latestRoutine.enabled
         ? RoutineScheduleService.computeNextRunAt(
             routine: latestRoutine,
-            from: runRecord.finishedAt,
+            from: finalizedRunRecord.finishedAt,
           )
         : null;
 
     final updatedRoutine = latestRoutine.copyWith(
-      updatedAt: runRecord.finishedAt,
-      lastRunAt: runRecord.finishedAt,
+      updatedAt: finalizedRunRecord.finishedAt,
+      lastRunAt: finalizedRunRecord.finishedAt,
       nextRunAt: nextRunAt,
       runs: [
-        runRecord,
+        finalizedRunRecord,
         ...latestRoutine.runs,
       ].take(_maxStoredRuns).toList(growable: false),
     );
@@ -224,10 +242,10 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
 
     if (trigger == RoutineRunTrigger.scheduled &&
         updatedRoutine.notifyOnCompletion) {
-      _maybeNotifyRoutineResult(updatedRoutine, runRecord);
+      _maybeNotifyRoutineResult(updatedRoutine, finalizedRunRecord);
     }
 
-    return runRecord;
+    return finalizedRunRecord;
   }
 
   Future<int> runDueRoutines({
@@ -263,6 +281,42 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       routineName: routine.trimmedName,
       isSuccessful: runRecord.isSuccessful,
       body: body,
+    );
+  }
+
+  Future<RoutineRunRecord> _finalizeCompletionActions({
+    required Routine routine,
+    required RoutineRunRecord runRecord,
+  }) async {
+    final settings = ref.read(settingsNotifierProvider);
+    final completionActionService = ref.read(
+      routineCompletionActionServiceProvider,
+    );
+    final decision = completionActionService.planGoogleChatDelivery(
+      routine: routine,
+      runRecord: runRecord,
+      settings: settings,
+    );
+
+    if (!decision.shouldDeliver) {
+      return runRecord.copyWith(
+        deliveryStatus: decision.status,
+        deliveryMessage: decision.message,
+      );
+    }
+
+    final deliveryService = ref.read(googleChatDeliveryServiceProvider);
+    final deliveryResult = await deliveryService.sendMessage(
+      webhookUrl: settings.normalizedGoogleChatWebhookUrl,
+      text: decision.payload!,
+    );
+
+    return runRecord.copyWith(
+      deliveryStatus: deliveryResult.isSuccessful
+          ? RoutineDeliveryStatus.delivered
+          : RoutineDeliveryStatus.failed,
+      deliveredAt: deliveryResult.deliveredAt,
+      deliveryMessage: deliveryResult.message,
     );
   }
 

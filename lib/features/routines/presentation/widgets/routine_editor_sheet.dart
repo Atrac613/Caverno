@@ -12,6 +12,8 @@ class RoutineEditorResult {
     required this.enabled,
     required this.notifyOnCompletion,
     required this.toolsEnabled,
+    required this.completionAction,
+    required this.googleChatRule,
   });
 
   final String name;
@@ -21,6 +23,8 @@ class RoutineEditorResult {
   final bool enabled;
   final bool notifyOnCompletion;
   final bool toolsEnabled;
+  final RoutineCompletionAction completionAction;
+  final RoutineGoogleChatRule googleChatRule;
 }
 
 class RoutineEditorSheet extends StatefulWidget {
@@ -41,6 +45,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late bool _enabled;
   late bool _notifyOnCompletion;
   late bool _toolsEnabled;
+  late RoutineCompletionAction _completionAction;
+  late RoutineGoogleChatRule _googleChatRule;
 
   bool get _isEditing => widget.initialRoutine != null;
 
@@ -59,6 +65,10 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _enabled = initialRoutine?.enabled ?? true;
     _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
     _toolsEnabled = initialRoutine?.toolsEnabled ?? false;
+    _completionAction =
+        initialRoutine?.completionAction ?? RoutineCompletionAction.none;
+    _googleChatRule =
+        initialRoutine?.googleChatRule ?? RoutineGoogleChatRule.onFailure;
   }
 
   @override
@@ -206,6 +216,58 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                 },
               ),
               const SizedBox(height: 8),
+              DropdownButtonFormField<RoutineCompletionAction>(
+                initialValue: _completionAction,
+                decoration: InputDecoration(
+                  labelText: 'routines.completion_action_label'.tr(),
+                  border: const OutlineInputBorder(),
+                  helperText: 'routines.completion_action_hint'.tr(),
+                ),
+                items: RoutineCompletionAction.values
+                    .map(
+                      (action) => DropdownMenuItem(
+                        value: action,
+                        child: Text(_completionActionLabel(action)),
+                      ),
+                    )
+                    .toList(growable: false),
+                onChanged: (value) {
+                  if (value == null) {
+                    return;
+                  }
+                  setState(() {
+                    _completionAction = value;
+                  });
+                },
+              ),
+              if (_completionAction == RoutineCompletionAction.googleChat) ...[
+                const SizedBox(height: 16),
+                DropdownButtonFormField<RoutineGoogleChatRule>(
+                  initialValue: _googleChatRule,
+                  decoration: InputDecoration(
+                    labelText: 'routines.google_chat_rule_label'.tr(),
+                    border: const OutlineInputBorder(),
+                    helperText: 'routines.google_chat_rule_hint'.tr(),
+                  ),
+                  items: RoutineGoogleChatRule.values
+                      .map(
+                        (rule) => DropdownMenuItem(
+                          value: rule,
+                          child: Text(_googleChatRuleLabel(rule)),
+                        ),
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _googleChatRule = value;
+                    });
+                  },
+                ),
+              ],
+              const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
                 children: [
@@ -235,6 +297,24 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     };
   }
 
+  String _completionActionLabel(RoutineCompletionAction action) {
+    return switch (action) {
+      RoutineCompletionAction.none => 'routines.completion_action_none'.tr(),
+      RoutineCompletionAction.googleChat =>
+        'routines.completion_action_google_chat'.tr(),
+    };
+  }
+
+  String _googleChatRuleLabel(RoutineGoogleChatRule rule) {
+    return switch (rule) {
+      RoutineGoogleChatRule.onSuccess =>
+        'routines.google_chat_rule_on_success'.tr(),
+      RoutineGoogleChatRule.onFailure =>
+        'routines.google_chat_rule_on_failure'.tr(),
+      RoutineGoogleChatRule.always => 'routines.google_chat_rule_always'.tr(),
+    };
+  }
+
   void _save() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
@@ -251,6 +331,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         enabled: _enabled,
         notifyOnCompletion: _notifyOnCompletion,
         toolsEnabled: _toolsEnabled,
+        completionAction: _completionAction,
+        googleChatRule: _googleChatRule,
       ),
     );
   }
