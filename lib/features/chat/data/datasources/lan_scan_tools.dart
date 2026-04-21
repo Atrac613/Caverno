@@ -2,30 +2,38 @@
 class LanScanTools {
   LanScanTools._();
 
-  static const Set<String> allToolNames = {
-    'lan_scan',
-    'lan_get_scan_results',
-  };
+  static const Set<String> allToolNames = {'lan_scan', 'lan_get_scan_results'};
 
   static Map<String, dynamic> get scanTool => {
     'type': 'function',
     'function': {
       'name': 'lan_scan',
       'description':
-          'Scan the local network (LAN) for active hosts using ping sweep '
-          'and port probing. Discovers devices on the same subnet, resolves '
-          'hostnames via reverse DNS, ARP table, and mDNS/Bonjour (in '
-          'priority order), checks common ports, and retrieves MAC addresses '
-          'from the ARP table (macOS/Linux only). '
-          'Auto-detects the subnet from the device WiFi IP when omitted.',
+          'Scan the local network (LAN) for active hosts using ping sweep, '
+          'port probing, and neighbor discovery. Discovers devices on the '
+          'same subnet, resolves hostnames via reverse DNS, ARP/NDP, and '
+          'mDNS/Bonjour (in priority order), checks common ports, and '
+          'retrieves MAC addresses from the local link-layer cache '
+          '(macOS/Linux only). IPv4 uses subnet enumeration. IPv6 uses '
+          'neighbor discovery by default and only performs direct CIDR '
+          'enumeration for small ranges.',
       'parameters': {
         'type': 'object',
         'properties': {
           'subnet': {
             'type': 'string',
             'description':
-                'Target subnet in CIDR notation (e.g. 192.168.1.0/24). '
-                'Auto-detected from the device WiFi IP if omitted.',
+                'Target subnet in CIDR notation (e.g. 192.168.1.0/24 or '
+                'fd00::/120). When omitted, the tool auto-detects the local '
+                'IPv4 subnet and/or local IPv6 neighbor context.',
+          },
+          'ip_version': {
+            'type': 'string',
+            'enum': ['auto', 'ipv4', 'ipv6'],
+            'description':
+                'Address family to scan. Use auto to combine IPv4 subnet '
+                'enumeration with IPv6 neighbor discovery when available '
+                '(default: auto).',
           },
           'timeout': {
             'type': 'integer',
