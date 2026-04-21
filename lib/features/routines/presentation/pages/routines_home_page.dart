@@ -136,6 +136,7 @@ class RoutinesHomePage extends ConsumerWidget {
         intervalValue: result.intervalValue,
         intervalUnit: result.intervalUnit,
         enabled: result.enabled,
+        notifyOnCompletion: result.notifyOnCompletion,
       );
     } else {
       await notifier.updateRoutine(
@@ -145,6 +146,7 @@ class RoutinesHomePage extends ConsumerWidget {
         intervalValue: result.intervalValue,
         intervalUnit: result.intervalUnit,
         enabled: result.enabled,
+        notifyOnCompletion: result.notifyOnCompletion,
       );
     }
   }

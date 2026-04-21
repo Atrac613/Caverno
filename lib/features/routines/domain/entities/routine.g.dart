@@ -61,6 +61,7 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   createdAt: DateTime.parse(json['createdAt'] as String),
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   enabled: json['enabled'] as bool? ?? true,
+  notifyOnCompletion: json['notifyOnCompletion'] as bool? ?? true,
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -89,6 +90,7 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'createdAt': instance.createdAt.toIso8601String(),
   'updatedAt': instance.updatedAt.toIso8601String(),
   'enabled': instance.enabled,
+  'notifyOnCompletion': instance.notifyOnCompletion,
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),

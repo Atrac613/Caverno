@@ -10,6 +10,7 @@ class RoutineEditorResult {
     required this.intervalValue,
     required this.intervalUnit,
     required this.enabled,
+    required this.notifyOnCompletion,
   });
 
   final String name;
@@ -17,6 +18,7 @@ class RoutineEditorResult {
   final int intervalValue;
   final RoutineIntervalUnit intervalUnit;
   final bool enabled;
+  final bool notifyOnCompletion;
 }
 
 class RoutineEditorSheet extends StatefulWidget {
@@ -35,6 +37,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late final TextEditingController _intervalController;
   late RoutineIntervalUnit _intervalUnit;
   late bool _enabled;
+  late bool _notifyOnCompletion;
 
   bool get _isEditing => widget.initialRoutine != null;
 
@@ -51,6 +54,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     );
     _intervalUnit = initialRoutine?.intervalUnit ?? RoutineIntervalUnit.hours;
     _enabled = initialRoutine?.enabled ?? true;
+    _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
   }
 
   @override
@@ -175,6 +179,17 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   });
                 },
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('routines.notify_on_completion_label'.tr()),
+                subtitle: Text('routines.notify_on_completion_hint'.tr()),
+                value: _notifyOnCompletion,
+                onChanged: (value) {
+                  setState(() {
+                    _notifyOnCompletion = value;
+                  });
+                },
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -219,6 +234,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         intervalValue: intervalValue,
         intervalUnit: _intervalUnit,
         enabled: _enabled,
+        notifyOnCompletion: _notifyOnCompletion,
       ),
     );
   }

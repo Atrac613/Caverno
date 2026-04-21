@@ -51,6 +51,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required int intervalValue,
     required RoutineIntervalUnit intervalUnit,
     required bool enabled,
+    required bool notifyOnCompletion,
   }) async {
     final now = DateTime.now();
     final routine = Routine(
@@ -60,6 +61,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       createdAt: now,
       updatedAt: now,
       enabled: enabled,
+      notifyOnCompletion: notifyOnCompletion,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -77,6 +79,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required int intervalValue,
     required RoutineIntervalUnit intervalUnit,
     required bool enabled,
+    required bool notifyOnCompletion,
   }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
@@ -87,6 +90,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       name: name.trim(),
       prompt: prompt.trim(),
       enabled: enabled,
+      notifyOnCompletion: notifyOnCompletion,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -140,6 +144,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       createdAt: now,
       updatedAt: now,
       enabled: source.enabled,
+      notifyOnCompletion: source.notifyOnCompletion,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
     );
@@ -212,7 +217,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       },
     );
 
-    if (trigger == RoutineRunTrigger.scheduled) {
+    if (trigger == RoutineRunTrigger.scheduled &&
+        updatedRoutine.notifyOnCompletion) {
       _maybeNotifyRoutineResult(updatedRoutine, runRecord);
     }
 
@@ -240,20 +246,19 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
   Routine? findRoutine(String routineId) => _findRoutine(routineId);
 
   void _maybeNotifyRoutineResult(Routine routine, RoutineRunRecord runRecord) {
-    final lifecycleService = ref.read(appLifecycleServiceProvider);
-    if (!lifecycleService.isInBackground) {
-      return;
-    }
-
     final notificationService = ref.read(notificationServiceProvider);
-    final title = runRecord.isSuccessful
-        ? routine.trimmedName
-        : '${routine.trimmedName} failed';
     final body = runRecord.preview.isEmpty
-        ? 'Routine run finished.'
+        ? (runRecord.isSuccessful
+              ? 'Scheduled routine finished.'
+              : 'Scheduled routine failed.')
         : runRecord.preview;
 
-    notificationService.showResponseCompleteNotification(title, body);
+    notificationService.showRoutineCompletionNotification(
+      routineId: routine.id,
+      routineName: routine.trimmedName,
+      isSuccessful: runRecord.isSuccessful,
+      body: body,
+    );
   }
 
   Routine? _findRoutine(String routineId) {

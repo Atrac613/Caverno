@@ -139,6 +139,12 @@ class RoutineDetailPage extends ConsumerWidget {
                         label: 'routines.last_run_label'.tr(),
                         value: _formatLastRun(context, routine),
                       ),
+                      _MetaLine(
+                        label: 'routines.notifications_label'.tr(),
+                        value: routine.notifyOnCompletion
+                            ? 'routines.notifications_on'.tr()
+                            : 'routines.notifications_off'.tr(),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -297,6 +303,7 @@ class RoutineDetailPage extends ConsumerWidget {
           intervalValue: result.intervalValue,
           intervalUnit: result.intervalUnit,
           enabled: result.enabled,
+          notifyOnCompletion: result.notifyOnCompletion,
         );
   }
 

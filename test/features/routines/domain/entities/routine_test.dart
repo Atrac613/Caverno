@@ -34,4 +34,21 @@ void main() {
       expect(record.effectiveDurationMs, 3250);
     });
   });
+
+  group('Routine', () {
+    test('preserves notifyOnCompletion through JSON serialization', () {
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'Morning summary',
+        prompt: 'Summarize the latest updates.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        notifyOnCompletion: false,
+      );
+
+      final decoded = Routine.fromJson(routine.toJson());
+
+      expect(decoded.notifyOnCompletion, isFalse);
+    });
+  });
 }

@@ -13,8 +13,9 @@ class NotificationService {
 
   /// Initialize the plugin without requesting permissions upfront.
   Future<void> init() async {
-    const androidSettings =
-        AndroidInitializationSettings('@mipmap/ic_launcher');
+    const androidSettings = AndroidInitializationSettings(
+      '@mipmap/ic_launcher',
+    );
 
     // Do not request permissions at init — defer to first notification.
     const darwinSettings = DarwinInitializationSettings(
@@ -39,17 +40,23 @@ class NotificationService {
     _permissionRequested = true;
 
     // iOS / macOS
-    final darwin = _plugin.resolvePlatformSpecificImplementation<
-        IOSFlutterLocalNotificationsPlugin>();
+    final darwin = _plugin
+        .resolvePlatformSpecificImplementation<
+          IOSFlutterLocalNotificationsPlugin
+        >();
     await darwin?.requestPermissions(alert: true, sound: true);
 
-    final macOS = _plugin.resolvePlatformSpecificImplementation<
-        MacOSFlutterLocalNotificationsPlugin>();
+    final macOS = _plugin
+        .resolvePlatformSpecificImplementation<
+          MacOSFlutterLocalNotificationsPlugin
+        >();
     await macOS?.requestPermissions(alert: true, sound: true);
 
     // Android 13+
-    final android = _plugin.resolvePlatformSpecificImplementation<
-        AndroidFlutterLocalNotificationsPlugin>();
+    final android = _plugin
+        .resolvePlatformSpecificImplementation<
+          AndroidFlutterLocalNotificationsPlugin
+        >();
     await android?.requestNotificationsPermission();
   }
 
@@ -61,25 +68,58 @@ class NotificationService {
     String title,
     String body,
   ) async {
+    await _showNotification(
+      id: 0,
+      title: title,
+      body: body,
+      channelId: 'llm_response',
+      channelName: 'LLM Response',
+    );
+  }
+
+  /// Show a notification for a scheduled routine completion.
+  Future<void> showRoutineCompletionNotification({
+    required String routineId,
+    required String routineName,
+    required bool isSuccessful,
+    required String body,
+  }) async {
+    final title = isSuccessful ? routineName : '$routineName failed';
+    await _showNotification(
+      id: routineId.hashCode & 0x7fffffff,
+      title: title,
+      body: body,
+      channelId: 'routine_completion',
+      channelName: 'Routine Completion',
+    );
+  }
+
+  Future<void> _showNotification({
+    required int id,
+    required String title,
+    required String body,
+    required String channelId,
+    required String channelName,
+  }) async {
     if (!_initialized) return;
     await _ensurePermission();
 
-    const androidDetails = AndroidNotificationDetails(
-      'llm_response',
-      'LLM Response',
+    final androidDetails = AndroidNotificationDetails(
+      channelId,
+      channelName,
       importance: Importance.defaultImportance,
       priority: Priority.defaultPriority,
     );
 
     const iosDetails = DarwinNotificationDetails();
 
-    const details = NotificationDetails(
+    final details = NotificationDetails(
       android: androidDetails,
       iOS: iosDetails,
     );
 
     await _plugin.show(
-      id: 0,
+      id: id,
       title: title,
       body: body,
       notificationDetails: details,

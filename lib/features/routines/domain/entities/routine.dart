@@ -54,6 +54,7 @@ abstract class Routine with _$Routine {
     required DateTime createdAt,
     required DateTime updatedAt,
     @Default(true) bool enabled,
+    @Default(true) bool notifyOnCompletion,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)

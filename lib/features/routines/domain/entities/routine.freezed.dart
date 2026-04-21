@@ -302,7 +302,7 @@ as String,
 /// @nodoc
 mixin _$Routine {
 
- String get id; String get name; String get prompt; DateTime get createdAt; DateTime get updatedAt; bool get enabled; int get intervalValue;@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit get intervalUnit; DateTime? get nextRunAt; DateTime? get lastRunAt; List<RoutineRunRecord> get runs;
+ String get id; String get name; String get prompt; DateTime get createdAt; DateTime get updatedAt; bool get enabled; bool get notifyOnCompletion; int get intervalValue;@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit get intervalUnit; DateTime? get nextRunAt; DateTime? get lastRunAt; List<RoutineRunRecord> get runs;
 /// Create a copy of Routine
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -315,16 +315,16 @@ $RoutineCopyWith<Routine> get copyWith => _$RoutineCopyWithImpl<Routine>(this as
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other.runs, runs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.notifyOnCompletion, notifyOnCompletion) || other.notifyOnCompletion == notifyOnCompletion)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other.runs, runs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,prompt,createdAt,updatedAt,enabled,intervalValue,intervalUnit,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(runs));
+int get hashCode => Object.hash(runtimeType,id,name,prompt,createdAt,updatedAt,enabled,notifyOnCompletion,intervalValue,intervalUnit,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(runs));
 
 @override
 String toString() {
-  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, intervalValue: $intervalValue, intervalUnit: $intervalUnit, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
+  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, notifyOnCompletion: $notifyOnCompletion, intervalValue: $intervalValue, intervalUnit: $intervalUnit, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
 }
 
 
@@ -335,7 +335,7 @@ abstract mixin class $RoutineCopyWith<$Res>  {
   factory $RoutineCopyWith(Routine value, $Res Function(Routine) _then) = _$RoutineCopyWithImpl;
 @useResult
 $Res call({
- String id, String name, String prompt, DateTime createdAt, DateTime updatedAt, bool enabled, int intervalValue,@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit intervalUnit, DateTime? nextRunAt, DateTime? lastRunAt, List<RoutineRunRecord> runs
+ String id, String name, String prompt, DateTime createdAt, DateTime updatedAt, bool enabled, bool notifyOnCompletion, int intervalValue,@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit intervalUnit, DateTime? nextRunAt, DateTime? lastRunAt, List<RoutineRunRecord> runs
 });
 
 
@@ -352,7 +352,7 @@ class _$RoutineCopyWithImpl<$Res>
 
 /// Create a copy of Routine
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? prompt = null,Object? createdAt = null,Object? updatedAt = null,Object? enabled = null,Object? intervalValue = null,Object? intervalUnit = null,Object? nextRunAt = freezed,Object? lastRunAt = freezed,Object? runs = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? prompt = null,Object? createdAt = null,Object? updatedAt = null,Object? enabled = null,Object? notifyOnCompletion = null,Object? intervalValue = null,Object? intervalUnit = null,Object? nextRunAt = freezed,Object? lastRunAt = freezed,Object? runs = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -360,6 +360,7 @@ as String,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullabl
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,notifyOnCompletion: null == notifyOnCompletion ? _self.notifyOnCompletion : notifyOnCompletion // ignore: cast_nullable_to_non_nullable
 as bool,intervalValue: null == intervalValue ? _self.intervalValue : intervalValue // ignore: cast_nullable_to_non_nullable
 as int,intervalUnit: null == intervalUnit ? _self.intervalUnit : intervalUnit // ignore: cast_nullable_to_non_nullable
 as RoutineIntervalUnit,nextRunAt: freezed == nextRunAt ? _self.nextRunAt : nextRunAt // ignore: cast_nullable_to_non_nullable
@@ -450,10 +451,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  bool notifyOnCompletion,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _Routine() when $default != null:
-return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
+return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.notifyOnCompletion,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
   return orElse();
 
 }
@@ -471,10 +472,10 @@ return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  bool notifyOnCompletion,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)  $default,) {final _that = this;
 switch (_that) {
 case _Routine():
-return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
+return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.notifyOnCompletion,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -491,10 +492,10 @@ return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String prompt,  DateTime createdAt,  DateTime updatedAt,  bool enabled,  bool notifyOnCompletion,  int intervalValue, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)  RoutineIntervalUnit intervalUnit,  DateTime? nextRunAt,  DateTime? lastRunAt,  List<RoutineRunRecord> runs)?  $default,) {final _that = this;
 switch (_that) {
 case _Routine() when $default != null:
-return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
+return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt,_that.enabled,_that.notifyOnCompletion,_that.intervalValue,_that.intervalUnit,_that.nextRunAt,_that.lastRunAt,_that.runs);case _:
   return null;
 
 }
@@ -506,7 +507,7 @@ return $default(_that.id,_that.name,_that.prompt,_that.createdAt,_that.updatedAt
 @JsonSerializable()
 
 class _Routine extends Routine {
-  const _Routine({required this.id, required this.name, required this.prompt, required this.createdAt, required this.updatedAt, this.enabled = true, this.intervalValue = 1, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) this.intervalUnit = RoutineIntervalUnit.hours, this.nextRunAt, this.lastRunAt, final  List<RoutineRunRecord> runs = const <RoutineRunRecord>[]}): _runs = runs,super._();
+  const _Routine({required this.id, required this.name, required this.prompt, required this.createdAt, required this.updatedAt, this.enabled = true, this.notifyOnCompletion = true, this.intervalValue = 1, @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) this.intervalUnit = RoutineIntervalUnit.hours, this.nextRunAt, this.lastRunAt, final  List<RoutineRunRecord> runs = const <RoutineRunRecord>[]}): _runs = runs,super._();
   factory _Routine.fromJson(Map<String, dynamic> json) => _$RoutineFromJson(json);
 
 @override final  String id;
@@ -515,6 +516,7 @@ class _Routine extends Routine {
 @override final  DateTime createdAt;
 @override final  DateTime updatedAt;
 @override@JsonKey() final  bool enabled;
+@override@JsonKey() final  bool notifyOnCompletion;
 @override@JsonKey() final  int intervalValue;
 @override@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) final  RoutineIntervalUnit intervalUnit;
 @override final  DateTime? nextRunAt;
@@ -540,16 +542,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other._runs, _runs));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _Routine&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.prompt, prompt) || other.prompt == prompt)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt)&&(identical(other.updatedAt, updatedAt) || other.updatedAt == updatedAt)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.notifyOnCompletion, notifyOnCompletion) || other.notifyOnCompletion == notifyOnCompletion)&&(identical(other.intervalValue, intervalValue) || other.intervalValue == intervalValue)&&(identical(other.intervalUnit, intervalUnit) || other.intervalUnit == intervalUnit)&&(identical(other.nextRunAt, nextRunAt) || other.nextRunAt == nextRunAt)&&(identical(other.lastRunAt, lastRunAt) || other.lastRunAt == lastRunAt)&&const DeepCollectionEquality().equals(other._runs, _runs));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,name,prompt,createdAt,updatedAt,enabled,intervalValue,intervalUnit,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(_runs));
+int get hashCode => Object.hash(runtimeType,id,name,prompt,createdAt,updatedAt,enabled,notifyOnCompletion,intervalValue,intervalUnit,nextRunAt,lastRunAt,const DeepCollectionEquality().hash(_runs));
 
 @override
 String toString() {
-  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, intervalValue: $intervalValue, intervalUnit: $intervalUnit, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
+  return 'Routine(id: $id, name: $name, prompt: $prompt, createdAt: $createdAt, updatedAt: $updatedAt, enabled: $enabled, notifyOnCompletion: $notifyOnCompletion, intervalValue: $intervalValue, intervalUnit: $intervalUnit, nextRunAt: $nextRunAt, lastRunAt: $lastRunAt, runs: $runs)';
 }
 
 
@@ -560,7 +562,7 @@ abstract mixin class _$RoutineCopyWith<$Res> implements $RoutineCopyWith<$Res> {
   factory _$RoutineCopyWith(_Routine value, $Res Function(_Routine) _then) = __$RoutineCopyWithImpl;
 @override @useResult
 $Res call({
- String id, String name, String prompt, DateTime createdAt, DateTime updatedAt, bool enabled, int intervalValue,@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit intervalUnit, DateTime? nextRunAt, DateTime? lastRunAt, List<RoutineRunRecord> runs
+ String id, String name, String prompt, DateTime createdAt, DateTime updatedAt, bool enabled, bool notifyOnCompletion, int intervalValue,@JsonKey(unknownEnumValue: RoutineIntervalUnit.hours) RoutineIntervalUnit intervalUnit, DateTime? nextRunAt, DateTime? lastRunAt, List<RoutineRunRecord> runs
 });
 
 
@@ -577,7 +579,7 @@ class __$RoutineCopyWithImpl<$Res>
 
 /// Create a copy of Routine
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? prompt = null,Object? createdAt = null,Object? updatedAt = null,Object? enabled = null,Object? intervalValue = null,Object? intervalUnit = null,Object? nextRunAt = freezed,Object? lastRunAt = freezed,Object? runs = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? prompt = null,Object? createdAt = null,Object? updatedAt = null,Object? enabled = null,Object? notifyOnCompletion = null,Object? intervalValue = null,Object? intervalUnit = null,Object? nextRunAt = freezed,Object? lastRunAt = freezed,Object? runs = null,}) {
   return _then(_Routine(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
@@ -585,6 +587,7 @@ as String,prompt: null == prompt ? _self.prompt : prompt // ignore: cast_nullabl
 as String,createdAt: null == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
 as DateTime,updatedAt: null == updatedAt ? _self.updatedAt : updatedAt // ignore: cast_nullable_to_non_nullable
 as DateTime,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,notifyOnCompletion: null == notifyOnCompletion ? _self.notifyOnCompletion : notifyOnCompletion // ignore: cast_nullable_to_non_nullable
 as bool,intervalValue: null == intervalValue ? _self.intervalValue : intervalValue // ignore: cast_nullable_to_non_nullable
 as int,intervalUnit: null == intervalUnit ? _self.intervalUnit : intervalUnit // ignore: cast_nullable_to_non_nullable
 as RoutineIntervalUnit,nextRunAt: freezed == nextRunAt ? _self.nextRunAt : nextRunAt // ignore: cast_nullable_to_non_nullable

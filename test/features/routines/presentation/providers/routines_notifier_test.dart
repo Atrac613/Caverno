@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'package:caverno/core/services/notification_providers.dart';
+import 'package:caverno/core/services/notification_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
@@ -17,6 +19,7 @@ void main() {
   Future<ProviderContainer> createContainer({
     required List<Routine> initialRoutines,
     RoutineExecutionService? executionService,
+    NotificationService? notificationService,
   }) async {
     SharedPreferences.setMockInitialValues({
       'routines': jsonEncode(
@@ -30,6 +33,8 @@ void main() {
         sharedPreferencesProvider.overrideWithValue(prefs),
         if (executionService != null)
           routineExecutionServiceProvider.overrideWithValue(executionService),
+        if (notificationService != null)
+          notificationServiceProvider.overrideWithValue(notificationService),
       ],
     );
   }
@@ -38,6 +43,7 @@ void main() {
     required String id,
     required String name,
     bool enabled = true,
+    bool notifyOnCompletion = true,
     DateTime? nextRunAt,
     DateTime? lastRunAt,
     List<RoutineRunRecord> runs = const [],
@@ -50,6 +56,7 @@ void main() {
       createdAt: now,
       updatedAt: now,
       enabled: enabled,
+      notifyOnCompletion: notifyOnCompletion,
       intervalValue: 1,
       intervalUnit: RoutineIntervalUnit.hours,
       nextRunAt: nextRunAt,
@@ -160,6 +167,60 @@ void main() {
         expect(untouchedFuture?.runs, isEmpty);
       },
     );
+
+    test(
+      'scheduled runs notify when routine notifications are enabled',
+      () async {
+        final notificationService = _FakeNotificationService();
+        final dueRoutine = buildRoutine(
+          id: 'routine-due',
+          name: 'Due routine',
+          nextRunAt: DateTime(2026, 4, 21, 9),
+        );
+        final container = await createContainer(
+          initialRoutines: [dueRoutine],
+          executionService: _FakeRoutineExecutionService(),
+          notificationService: notificationService,
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        await notifier.runDueRoutines();
+
+        expect(notificationService.calls, hasLength(1));
+        expect(notificationService.calls.single.routineId, dueRoutine.id);
+        expect(notificationService.calls.single.routineName, 'Due routine');
+        expect(notificationService.calls.single.isSuccessful, isTrue);
+        expect(
+          notificationService.calls.single.body,
+          'Executed by fake service',
+        );
+      },
+    );
+
+    test(
+      'scheduled runs skip notifications when disabled on the routine',
+      () async {
+        final notificationService = _FakeNotificationService();
+        final dueRoutine = buildRoutine(
+          id: 'routine-due',
+          name: 'Due routine',
+          notifyOnCompletion: false,
+          nextRunAt: DateTime(2026, 4, 21, 9),
+        );
+        final container = await createContainer(
+          initialRoutines: [dueRoutine],
+          executionService: _FakeRoutineExecutionService(),
+          notificationService: notificationService,
+        );
+        addTearDown(container.dispose);
+
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        await notifier.runDueRoutines();
+
+        expect(notificationService.calls, isEmpty);
+      },
+    );
   });
 }
 
@@ -263,4 +324,42 @@ class _StubChatDataSource implements ChatDataSource {
   }) {
     throw UnimplementedError();
   }
+}
+
+class _FakeNotificationService extends NotificationService {
+  final List<_RoutineNotificationCall> calls = [];
+
+  @override
+  Future<void> init() async {}
+
+  @override
+  Future<void> showRoutineCompletionNotification({
+    required String routineId,
+    required String routineName,
+    required bool isSuccessful,
+    required String body,
+  }) async {
+    calls.add(
+      _RoutineNotificationCall(
+        routineId: routineId,
+        routineName: routineName,
+        isSuccessful: isSuccessful,
+        body: body,
+      ),
+    );
+  }
+}
+
+class _RoutineNotificationCall {
+  const _RoutineNotificationCall({
+    required this.routineId,
+    required this.routineName,
+    required this.isSuccessful,
+    required this.body,
+  });
+
+  final String routineId;
+  final String routineName;
+  final bool isSuccessful;
+  final String body;
 }
