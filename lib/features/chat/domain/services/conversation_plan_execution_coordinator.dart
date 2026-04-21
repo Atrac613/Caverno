@@ -370,6 +370,37 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildEditMismatchRetryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> editMismatchPaths,
+  }) {
+    final promptLines = <String>[
+      'You already read the mismatched saved target file.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Mismatched files: ${editMismatchPaths.join(', ')}',
+    ];
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Retry edit_file now on one mismatched saved target file using the exact current file contents as old_text.',
+    );
+    promptLines.add(
+      'Do not stop after another read_file, do not restate the plan, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildValidationFirstRecoveryPrompt({
     required ConversationWorkflowTask task,
     List<String> touchedTargetFiles = const [],

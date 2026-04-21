@@ -5120,6 +5120,44 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: recoveryToolResults,
         );
+    final onlyReadMismatchedFiles =
+        editMismatchPaths.isNotEmpty &&
+        recoveryToolResults.isNotEmpty &&
+        recoveryToolResults.every((toolResult) {
+          if (toolResult.name != 'read_file') {
+            return false;
+          }
+          final path =
+              toolResult.arguments['path']?.toString().trim().replaceAll(
+                '\\',
+                '/',
+              ) ??
+              '';
+          return editMismatchPaths.any((candidate) => candidate == path);
+        });
+    if (!toolResultApplied &&
+        !completionPromoted &&
+        !recoveredFromMissingTarget &&
+        !recoveredFromPythonImport &&
+        onlyReadMismatchedFiles) {
+      await chatNotifier.sendHiddenPrompt(
+        ConversationPlanExecutionCoordinator.buildEditMismatchRetryPrompt(
+          task: latestTask,
+          editMismatchPaths: editMismatchPaths,
+        ),
+        languageCode: languageCode,
+      );
+
+      final retryToolResults = chatNotifier.takeLatestToolResults();
+      final retryApplied = await _captureExecutionProgressFromLatestToolResults(
+        task: latestTask,
+        previousAssistantMessageId: previousAssistantMessageId,
+        toolResults: retryToolResults,
+      );
+      if (retryApplied || retryToolResults.isNotEmpty) {
+        return true;
+      }
+    }
     if (!toolResultApplied ||
         (!completionPromoted &&
             !recoveredFromMissingTarget &&

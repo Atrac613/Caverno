@@ -651,6 +651,37 @@ void main() {
     },
   );
 
+  test('buildEditMismatchRetryPrompt requires a direct edit retry', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-edit-retry',
+      title: 'Implement core ping functionality using subprocess',
+      targetFiles: ['ping_logic.py'],
+      validationCommand: 'python3 ping_logic.py 8.8.8.8',
+      notes: 'Keep the retry bounded to the current file.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildEditMismatchRetryPrompt(
+          task: task,
+          editMismatchPaths: const ['ping_logic.py'],
+        );
+
+    expect(prompt, contains('Saved task ID: task-edit-retry'));
+    expect(prompt, contains('Mismatched files: ping_logic.py'));
+    expect(
+      prompt,
+      contains(
+        'Retry edit_file now on one mismatched saved target file using the exact current file contents as old_text.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not stop after another read_file, do not restate the plan, and do not move to future saved tasks.',
+      ),
+    );
+  });
+
   test('buildTaskDriftRecoveryPrompt re-anchors the saved task', () {
     const task = ConversationWorkflowTask(
       id: 'task-2',
