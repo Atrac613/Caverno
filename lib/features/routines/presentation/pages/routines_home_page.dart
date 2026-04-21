@@ -137,6 +137,7 @@ class RoutinesHomePage extends ConsumerWidget {
         intervalUnit: result.intervalUnit,
         enabled: result.enabled,
         notifyOnCompletion: result.notifyOnCompletion,
+        toolsEnabled: result.toolsEnabled,
       );
     } else {
       await notifier.updateRoutine(
@@ -147,6 +148,7 @@ class RoutinesHomePage extends ConsumerWidget {
         intervalUnit: result.intervalUnit,
         enabled: result.enabled,
         notifyOnCompletion: result.notifyOnCompletion,
+        toolsEnabled: result.toolsEnabled,
       );
     }
   }
@@ -439,6 +441,11 @@ class _RoutineCard extends StatelessWidget {
                                     context,
                                   ).colorScheme.surfaceContainerHighest,
                           ),
+                          if (routine.toolsEnabled)
+                            _RoutineStatusChip(
+                              label: 'routines.tools_read_only_badge'.tr(),
+                              color: colorScheme.secondaryContainer,
+                            ),
                           if (isRunning)
                             _RoutineStatusChip(
                               label: 'routines.running_badge'.tr(),
@@ -528,6 +535,23 @@ class _RoutineCard extends StatelessWidget {
                             : colorScheme.onErrorContainer,
                       ),
                     ),
+                    if (latestRun.usedTools &&
+                        latestRun.toolNames.isNotEmpty) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'routines.tools_used_summary'.tr(
+                          namedArgs: {
+                            'count': latestRun.toolCallCount.toString(),
+                            'names': latestRun.toolNames.join(', '),
+                          },
+                        ),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: latestRun.isSuccessful
+                              ? colorScheme.onSurfaceVariant
+                              : colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ],
                   ],
                 ),
               ),

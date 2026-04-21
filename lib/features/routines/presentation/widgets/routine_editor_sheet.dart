@@ -11,6 +11,7 @@ class RoutineEditorResult {
     required this.intervalUnit,
     required this.enabled,
     required this.notifyOnCompletion,
+    required this.toolsEnabled,
   });
 
   final String name;
@@ -19,6 +20,7 @@ class RoutineEditorResult {
   final RoutineIntervalUnit intervalUnit;
   final bool enabled;
   final bool notifyOnCompletion;
+  final bool toolsEnabled;
 }
 
 class RoutineEditorSheet extends StatefulWidget {
@@ -38,6 +40,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late RoutineIntervalUnit _intervalUnit;
   late bool _enabled;
   late bool _notifyOnCompletion;
+  late bool _toolsEnabled;
 
   bool get _isEditing => widget.initialRoutine != null;
 
@@ -55,6 +58,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _intervalUnit = initialRoutine?.intervalUnit ?? RoutineIntervalUnit.hours;
     _enabled = initialRoutine?.enabled ?? true;
     _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
+    _toolsEnabled = initialRoutine?.toolsEnabled ?? false;
   }
 
   @override
@@ -190,6 +194,17 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   });
                 },
               ),
+              SwitchListTile(
+                contentPadding: EdgeInsets.zero,
+                title: Text('routines.tools_enabled_label'.tr()),
+                subtitle: Text('routines.tools_enabled_hint'.tr()),
+                value: _toolsEnabled,
+                onChanged: (value) {
+                  setState(() {
+                    _toolsEnabled = value;
+                  });
+                },
+              ),
               const SizedBox(height: 8),
               Row(
                 mainAxisAlignment: MainAxisAlignment.end,
@@ -235,6 +250,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         intervalUnit: _intervalUnit,
         enabled: _enabled,
         notifyOnCompletion: _notifyOnCompletion,
+        toolsEnabled: _toolsEnabled,
       ),
     );
   }

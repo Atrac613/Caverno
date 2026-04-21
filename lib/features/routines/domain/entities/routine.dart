@@ -24,6 +24,9 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default(RoutineRunTrigger.manual)
     RoutineRunTrigger trigger,
     @Default(0) int durationMs,
+    @Default(false) bool usedTools,
+    @Default(0) int toolCallCount,
+    @Default(<String>[]) List<String> toolNames,
     @Default('') String preview,
     @Default('') String output,
     @Default('') String error,
@@ -55,6 +58,7 @@ abstract class Routine with _$Routine {
     required DateTime updatedAt,
     @Default(true) bool enabled,
     @Default(true) bool notifyOnCompletion,
+    @Default(false) bool toolsEnabled,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)

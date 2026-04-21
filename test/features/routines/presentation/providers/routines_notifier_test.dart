@@ -43,6 +43,7 @@ void main() {
     required String id,
     required String name,
     bool enabled = true,
+    bool toolsEnabled = false,
     bool notifyOnCompletion = true,
     DateTime? nextRunAt,
     DateTime? lastRunAt,
@@ -57,6 +58,7 @@ void main() {
       updatedAt: now,
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
+      toolsEnabled: toolsEnabled,
       intervalValue: 1,
       intervalUnit: RoutineIntervalUnit.hours,
       nextRunAt: nextRunAt,
@@ -70,6 +72,7 @@ void main() {
       final source = buildRoutine(
         id: 'routine-1',
         name: 'Morning summary',
+        toolsEnabled: true,
         nextRunAt: DateTime(2026, 4, 21, 11),
         lastRunAt: DateTime(2026, 4, 21, 9),
         runs: [
@@ -95,6 +98,7 @@ void main() {
       expect(state.routines, hasLength(2));
       expect(duplicate!.name, 'Copy of Morning summary');
       expect(duplicate.prompt, source.prompt);
+      expect(duplicate.toolsEnabled, isTrue);
       expect(duplicate.runs, isEmpty);
       expect(duplicate.lastRunAt, isNull);
       expect(duplicate.nextRunAt, isNotNull);

@@ -26,6 +26,13 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
           ) ??
           RoutineRunTrigger.manual,
       durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
+      usedTools: json['usedTools'] as bool? ?? false,
+      toolCallCount: (json['toolCallCount'] as num?)?.toInt() ?? 0,
+      toolNames:
+          (json['toolNames'] as List<dynamic>?)
+              ?.map((e) => e as String)
+              .toList() ??
+          const <String>[],
       preview: json['preview'] as String? ?? '',
       output: json['output'] as String? ?? '',
       error: json['error'] as String? ?? '',
@@ -39,6 +46,9 @@ Map<String, dynamic> _$RoutineRunRecordToJson(_RoutineRunRecord instance) =>
       'status': _$RoutineRunStatusEnumMap[instance.status]!,
       'trigger': _$RoutineRunTriggerEnumMap[instance.trigger]!,
       'durationMs': instance.durationMs,
+      'usedTools': instance.usedTools,
+      'toolCallCount': instance.toolCallCount,
+      'toolNames': instance.toolNames,
       'preview': instance.preview,
       'output': instance.output,
       'error': instance.error,
@@ -62,6 +72,7 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   updatedAt: DateTime.parse(json['updatedAt'] as String),
   enabled: json['enabled'] as bool? ?? true,
   notifyOnCompletion: json['notifyOnCompletion'] as bool? ?? true,
+  toolsEnabled: json['toolsEnabled'] as bool? ?? false,
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -91,6 +102,7 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'updatedAt': instance.updatedAt.toIso8601String(),
   'enabled': instance.enabled,
   'notifyOnCompletion': instance.notifyOnCompletion,
+  'toolsEnabled': instance.toolsEnabled,
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),

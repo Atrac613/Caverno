@@ -110,6 +110,13 @@ class RoutineDetailPage extends ConsumerWidget {
                             context,
                           ).colorScheme.secondaryContainer,
                         ),
+                      if (routine.toolsEnabled)
+                        _StatusChip(
+                          label: 'routines.tools_read_only_badge'.tr(),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -144,6 +151,12 @@ class RoutineDetailPage extends ConsumerWidget {
                         value: routine.notifyOnCompletion
                             ? 'routines.notifications_on'.tr()
                             : 'routines.notifications_off'.tr(),
+                      ),
+                      _MetaLine(
+                        label: 'routines.tools_label'.tr(),
+                        value: routine.toolsEnabled
+                            ? 'routines.tools_mode_read_only'.tr()
+                            : 'routines.tools_mode_off'.tr(),
                       ),
                     ],
                   ),
@@ -304,6 +317,7 @@ class RoutineDetailPage extends ConsumerWidget {
           intervalUnit: result.intervalUnit,
           enabled: result.enabled,
           notifyOnCompletion: result.notifyOnCompletion,
+          toolsEnabled: result.toolsEnabled,
         );
   }
 
@@ -530,6 +544,13 @@ class _RunRecordCard extends StatelessWidget {
                   },
                   color: theme.colorScheme.secondaryContainer,
                 ),
+                if (run.usedTools)
+                  _StatusChip(
+                    label: 'routines.tools_used_badge'.tr(
+                      namedArgs: {'count': run.toolCallCount.toString()},
+                    ),
+                    color: theme.colorScheme.tertiaryContainer,
+                  ),
               ],
             ),
             const SizedBox(height: 12),
@@ -549,6 +570,13 @@ class _RunRecordCard extends StatelessWidget {
                     'yyyy/MM/dd HH:mm:ss',
                   ).format(run.finishedAt),
                 ),
+                if (run.usedTools)
+                  _MetaLine(
+                    label: 'routines.tools_label'.tr(),
+                    value: run.toolNames.isEmpty
+                        ? 'routines.tools_mode_read_only'.tr()
+                        : run.toolNames.join(', '),
+                  ),
               ],
             ),
             const SizedBox(height: 12),

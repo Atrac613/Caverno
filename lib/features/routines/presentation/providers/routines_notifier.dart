@@ -52,6 +52,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required RoutineIntervalUnit intervalUnit,
     required bool enabled,
     required bool notifyOnCompletion,
+    required bool toolsEnabled,
   }) async {
     final now = DateTime.now();
     final routine = Routine(
@@ -62,6 +63,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       updatedAt: now,
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
+      toolsEnabled: toolsEnabled,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -80,6 +82,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required RoutineIntervalUnit intervalUnit,
     required bool enabled,
     required bool notifyOnCompletion,
+    required bool toolsEnabled,
   }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
@@ -91,6 +94,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       prompt: prompt.trim(),
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
+      toolsEnabled: toolsEnabled,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -145,6 +149,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       updatedAt: now,
       enabled: source.enabled,
       notifyOnCompletion: source.notifyOnCompletion,
+      toolsEnabled: source.toolsEnabled,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
     );
