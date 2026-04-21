@@ -180,6 +180,49 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildFailedValidationRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    String? failedValidationSummary,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command already failed for the current task.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+    ];
+
+    final normalizedSummary = failedValidationSummary?.trim() ?? '';
+    if (normalizedSummary.isNotEmpty) {
+      promptLines.add('Last validation summary: $normalizedSummary');
+    }
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Use only tools that are currently available. Do not call unsupported placeholder tools such as print.',
+    );
+    promptLines.add(
+      'If the validation failure points to a saved target file, fix only that saved target file now.',
+    );
+    promptLines.add(
+      'After the fix, rerun the same saved validation command immediately.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not switch to future saved tasks, and do not retry unavailable tools.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildScaffoldRemainingTargetRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> existingTargetFiles,

@@ -5382,6 +5382,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    final progress = currentConversation.executionProgressForTask(
+      latestTask.id,
+    );
     final existingTargetFiles = _existingWorkspaceTargetFiles(latestTask);
     final missingTargetFiles =
         ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
@@ -5533,6 +5536,43 @@ class _ChatPageState extends ConsumerState<ChatPage>
       task: latestTask,
       isValidationRun: false,
     );
+    if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+          task: latestTask,
+          existingTargetPaths: existingTargetFiles,
+        )) {
+      final summary = assistantInference.summary.isNotEmpty
+          ? assistantInference.summary
+          : progress?.normalizedValidationSummary ??
+                progress?.normalizedSummary ??
+                'Marked complete after the assistant confirmed the saved task and every current target file already existed in the workspace.';
+      await ref
+          .read(conversationsNotifierProvider.notifier)
+          .updateCurrentExecutionTaskProgress(
+            taskId: latestTask.id,
+            status: ConversationWorkflowTaskStatus.completed,
+            summary: summary,
+            validationStatus:
+                progress?.validationStatus ==
+                    ConversationExecutionValidationStatus.passed
+                ? ConversationExecutionValidationStatus.passed
+                : null,
+            lastValidationAt:
+                progress?.validationStatus ==
+                    ConversationExecutionValidationStatus.passed
+                ? DateTime.now()
+                : null,
+            lastValidationCommand: progress?.normalizedValidationCommand,
+            lastValidationSummary:
+                progress?.validationStatus ==
+                    ConversationExecutionValidationStatus.passed
+                ? (progress?.normalizedValidationSummary ?? summary)
+                : null,
+            eventType: ConversationExecutionTaskEventType.completed,
+            eventSummary: summary,
+          );
+      return true;
+    }
     if (latestTask.status == ConversationWorkflowTaskStatus.blocked &&
         missingTargetFiles.isNotEmpty) {
       return false;
@@ -5549,6 +5589,62 @@ class _ChatPageState extends ConsumerState<ChatPage>
       currentConversation,
     );
     final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    if (progress?.validationStatus ==
+            ConversationExecutionValidationStatus.failed &&
+        latestTask.validationCommand.trim().isNotEmpty &&
+        missingTargetFiles.isEmpty) {
+      await chatNotifier.sendHiddenPrompt(
+        ConversationPlanExecutionCoordinator.buildFailedValidationRecoveryPrompt(
+          task: latestTask,
+          failedCommand:
+              progress?.normalizedValidationCommand ??
+              latestTask.validationCommand.trim(),
+          failedValidationSummary:
+              progress?.normalizedValidationSummary ??
+              progress?.normalizedSummary,
+        ),
+        languageCode: languageCode,
+      );
+
+      final recoveryToolResults = chatNotifier.takeLatestToolResults();
+      final toolResultApplied =
+          await _captureExecutionProgressFromLatestToolResults(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            toolResults: recoveryToolResults,
+          );
+      if (toolResultApplied) {
+        return true;
+      }
+
+      final assistantResult =
+          await _captureExecutionProgressFromLatestAssistantEvidence(
+            task: latestTask,
+            previousAssistantMessageId: previousAssistantMessageId,
+            isValidationRun: false,
+            fallbackAssistantResponse: chatNotifier
+                .takeLatestHiddenAssistantResponse(),
+          );
+      if (!assistantResult) {
+        return false;
+      }
+
+      final refreshedConversation = ref
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      if (refreshedConversation == null) {
+        return false;
+      }
+      final refreshedTask = refreshedConversation.projectedExecutionTasks
+          .where((item) => item.id == latestTask.id)
+          .firstOrNull;
+      if (refreshedTask == null) {
+        return false;
+      }
+      return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
+          refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
+    }
+
     await chatNotifier.sendHiddenPrompt(
       ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
         task: latestTask,

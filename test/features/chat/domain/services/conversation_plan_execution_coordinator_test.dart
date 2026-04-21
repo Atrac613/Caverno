@@ -533,6 +533,54 @@ void main() {
   });
 
   test(
+    'buildFailedValidationRecoveryPrompt focuses the next turn on fixing the target file',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-failed-validation',
+        title: 'Implement ping_cli.py with subprocess and argparse',
+        targetFiles: ['ping_cli.py'],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes: 'Keep the command-line entrypoint small.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildFailedValidationRecoveryPrompt(
+            task: task,
+            failedCommand: 'python3 ping_cli.py --help',
+            failedValidationSummary:
+                'SyntaxError: invalid syntax in ping_cli.py',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved validation command already failed for the current task.',
+        ),
+      );
+      expect(prompt, contains('Saved task ID: task-failed-validation'));
+      expect(prompt, contains('Target files: ping_cli.py'));
+      expect(
+        prompt,
+        contains(
+          'Use only tools that are currently available. Do not call unsupported placeholder tools such as print.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'If the validation failure points to a saved target file, fix only that saved target file now.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'After the fix, rerun the same saved validation command immediately.',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildToolFailureRecoveryPrompt bounds unknown tools, malformed writes, and edit mismatch',
     () {
       const task = ConversationWorkflowTask(
