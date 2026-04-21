@@ -4895,7 +4895,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     final existingTargets = <String>[];
-    for (final target in task.targetFiles) {
+    for (final target
+        in ConversationPlanExecutionGuardrails.effectiveTargetPathsForTask(
+          task,
+        )) {
       final normalizedTarget = target.trim().replaceAll('\\', '/');
       if (normalizedTarget.isEmpty) {
         continue;
@@ -6034,16 +6037,6 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
-    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
-      await conversationsNotifier
-          .updateCurrentExecutionTaskProgressFromAssistantTurn(
-            task: task,
-            assistantResponse: latestAssistantResponse,
-            isValidationRun: false,
-            fallbackAssistantResponse: fallbackAssistantEvidence,
-          );
-      return true;
-    }
     if (assistantInference.status == ConversationWorkflowTaskStatus.completed &&
         completionAssessment.hasCompletionEvidenceIgnoringFailures) {
       await _markTaskCompletedFromToolEvidence(
@@ -6052,6 +6045,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
         completionAssessment: completionAssessment,
         summary: assistantInference.summary,
       );
+      return true;
+    }
+    if (!_toolResultsContainFailure(toolResults) &&
+        completionAssessment.shouldMarkCompleted) {
+      final summary = completionAssessment.completedFromSuccessfulValidation
+          ? 'Marked complete from saved target file changes and a successful validation result.'
+          : completionAssessment.touchedAllTargetFiles &&
+                completionAssessment.hasTargetFiles
+          ? 'Marked complete after covering every saved target file.'
+          : 'Marked complete from saved target file changes.';
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary,
+      );
+      return true;
+    }
+    if (assistantInference.status == ConversationWorkflowTaskStatus.blocked) {
+      await conversationsNotifier
+          .updateCurrentExecutionTaskProgressFromAssistantTurn(
+            task: task,
+            assistantResponse: latestAssistantResponse,
+            isValidationRun: false,
+            fallbackAssistantResponse: fallbackAssistantEvidence,
+          );
       return true;
     }
     final shouldLockCompletedTaskBeforeNextToolWork =
@@ -6071,24 +6090,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (_toolResultsContainFailure(toolResults)) {
       return false;
     }
-
-    if (!completionAssessment.shouldMarkCompleted) {
-      return false;
-    }
-
-    final summary = completionAssessment.completedFromSuccessfulValidation
-        ? 'Marked complete from saved target file changes and a successful validation result.'
-        : completionAssessment.touchedAllTargetFiles &&
-              completionAssessment.hasTargetFiles
-        ? 'Marked complete after covering every saved target file.'
-        : 'Marked complete from saved target file changes.';
-    await _markTaskCompletedFromToolEvidence(
-      task: task,
-      conversationsNotifier: conversationsNotifier,
-      completionAssessment: completionAssessment,
-      summary: summary,
-    );
-    return true;
+    return false;
   }
 
   Future<void> _markTaskCompletedFromToolEvidence({

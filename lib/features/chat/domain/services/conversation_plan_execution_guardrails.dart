@@ -86,6 +86,10 @@ class ConversationPlanExecutionCompletionAssessment {
 class ConversationPlanExecutionGuardrails {
   ConversationPlanExecutionGuardrails._();
 
+  static List<String> effectiveTargetPathsForTask(
+    ConversationWorkflowTask task,
+  ) => _effectiveTargetPaths(task).toList(growable: false);
+
   static ConversationPlanExecutionDriftAssessment assessTaskDrift({
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,

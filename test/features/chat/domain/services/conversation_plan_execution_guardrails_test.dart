@@ -579,6 +579,17 @@ void main() {
     },
   );
 
+  test('effectiveTargetPathsForTask infers file paths from the task title', () {
+    final task = loadFixtureTask(
+      'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+    );
+
+    expect(
+      ConversationPlanExecutionGuardrails.effectiveTargetPathsForTask(task),
+      contains('main.py'),
+    );
+  });
+
   test(
     'assessTaskCompletion preserves scaffold completion after malformed write failures',
     () {
