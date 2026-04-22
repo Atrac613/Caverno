@@ -27,6 +27,11 @@ PlanModeWarningSummary summarizeScenarioWarnings({
           warning: warning,
           logs: logs,
         );
+    final isAllowedByMemoryPhaseRecovery =
+        _isRecoverableMemoryPhaseTransportWarning(
+          warning: warning,
+          logs: logs,
+        );
     final isAllowedByContinuationRecovery =
         _isRecoverableContinuationStreamWarning(
           warning: warning,
@@ -35,6 +40,7 @@ PlanModeWarningSummary summarizeScenarioWarnings({
     if (isAllowedByPattern ||
         isAllowedByRecovery ||
         isAllowedByPostCompletionRecovery ||
+        isAllowedByMemoryPhaseRecovery ||
         isAllowedByContinuationRecovery) {
       allowedWarnings.add(warning);
     } else {
@@ -114,6 +120,48 @@ bool _isRecoverablePostCompletionWarning({
       return true;
     }
   }
+  return false;
+}
+
+bool _isRecoverableMemoryPhaseTransportWarning({
+  required String warning,
+  required List<String> logs,
+}) {
+  final isMemoryPhaseWarning =
+      (warning.contains('[LLM] createChatCompletion error:') ||
+          warning.contains('[Memory] LLM memory extraction error:')) &&
+      warning.contains('Connection closed before full header was received');
+  if (!isMemoryPhaseWarning) {
+    return false;
+  }
+
+  const recoveryMarkers = <String>[
+    '[Tool] Sending hidden prompt in tool-aware mode',
+    '[Tool] Sending hidden prompt in normal mode',
+    '[Tool] Sending in tool-aware mode (MCP)',
+    '[Tool] Sending in normal mode',
+    '[Workflow] Workflow proposal ready',
+    '[Workflow] Task proposal ready',
+    '[Workflow] Task status changed:',
+    '[LLM] ========== streamChatCompletionWithTools ==========',
+  ];
+
+  for (final warningIndex in _warningIndices(warning, logs)) {
+    final hasPairedMemoryWarning = logs.skip(warningIndex).any(
+      (line) => line.contains('[Memory] LLM memory extraction error:'),
+    );
+    if (!hasPairedMemoryWarning) {
+      continue;
+    }
+
+    final hasLaterRecovery = logs.skip(warningIndex + 1).any(
+      (line) => recoveryMarkers.any(line.contains),
+    );
+    if (hasLaterRecovery) {
+      return true;
+    }
+  }
+
   return false;
 }
 

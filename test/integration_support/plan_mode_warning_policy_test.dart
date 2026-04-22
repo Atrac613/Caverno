@@ -123,5 +123,30 @@ void main() {
         expect(summary.unexpectedWarnings, isEmpty);
       },
     );
+
+    test(
+      'allows recovered memory phase transport warnings before later task progress',
+      () {
+        const createWarning =
+            '[LLM] createChatCompletion error: ClientException: Connection closed before full header was received';
+        const memoryWarning =
+            '[Memory] LLM memory extraction error: ClientException: Connection closed before full header was received';
+        final summary = summarizeScenarioWarnings(
+          warnings: const <String>[createWarning, memoryWarning],
+          allowedPatterns: const <String>[],
+          logs: const <String>[
+            createWarning,
+            memoryWarning,
+            '[Tool] Sending hidden prompt in tool-aware mode',
+            '[LLM] ========== streamChatCompletionWithTools ==========',
+            '[Workflow] Task status changed: Implement ping_cli.py -> completed',
+          ],
+        );
+
+        expect(summary.allowedWarnings, contains(createWarning));
+        expect(summary.allowedWarnings, contains(memoryWarning));
+        expect(summary.unexpectedWarnings, isEmpty);
+      },
+    );
   });
 }
