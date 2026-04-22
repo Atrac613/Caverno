@@ -6177,6 +6177,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
+    if (ConversationPlanExecutionCoordinator.looksLikeVerificationTask(task) &&
+        completionAssessment.successfulValidationCommands.isNotEmpty) {
+      final validationProgressUpdated =
+          await conversationsNotifier.updateCurrentValidationProgressFromToolResults(
+            task: task,
+            toolResults: toolResults
+                .map(
+                  (result) => ConversationValidationToolResultInput(
+                    toolName: result.name,
+                    rawResult: result.result,
+                  ),
+                )
+                .toList(growable: false),
+          );
+      if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {
+        return true;
+      }
+    }
     if (completionAssessment.hasCompletionEvidenceIgnoringFailures &&
         onlyRecoverableMalformedFailures) {
       final summary =

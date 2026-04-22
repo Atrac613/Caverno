@@ -177,4 +177,33 @@ void main() {
     );
     expect(result.validationSummary, contains('verification passed'));
   });
+
+  test(
+    'marks unittest-based verification tasks complete even when stdout includes expected error text',
+    () {
+      final result = ConversationValidationToolResultInference.infer(
+        task: const ConversationWorkflowTask(
+          id: 'task-8',
+          title: 'Create test_ping.py to verify the CLI functionality',
+          validationCommand: 'python3 test_ping.py',
+        ),
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 test_ping.py","exit_code":0,"stdout":"...\\n----------------------------------------------------------------------\\nRan 3 tests in 0.001s\\n\\nOK\\nPinging 127.0.0.1...\\nError: ping command not found.\\n","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(result.summary, 'Validation passed while running python3 test_ping.py.');
+      expect(result.validationSummary, contains('Ran 3 tests'));
+    },
+  );
 }
