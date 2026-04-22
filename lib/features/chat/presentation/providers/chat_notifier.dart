@@ -5858,6 +5858,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
+    var skippedDuplicateOnlyBatch = false;
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
@@ -5947,6 +5948,12 @@ class ChatNotifier extends Notifier<ChatState> {
         break;
       }
       if (batchToolResults.isEmpty) {
+        if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+          appLog(
+            '[Tool] Skipped duplicate follow-up tool calls, preserving prior tool results for saved-task recovery',
+          );
+          skippedDuplicateOnlyBatch = true;
+        }
         currentToolCalls = [];
         break;
       }
@@ -6005,7 +6012,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
-    if (!hasTextResponse && executedToolResults.isNotEmpty) {
+    if (!hasTextResponse &&
+        !skippedDuplicateOnlyBatch &&
+        executedToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
       if (!ref.mounted) return;

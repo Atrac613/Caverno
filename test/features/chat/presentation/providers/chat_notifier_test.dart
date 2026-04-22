@@ -1187,6 +1187,97 @@ void main() {
   });
 
   test(
+    'sendMessage stops after duplicate follow-up scaffold writes and preserves tool results for recovery',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'create_requirements',
+            arguments: const {
+              'path': 'requirements.txt',
+              'content': '# deps\n',
+            },
+          ),
+          ToolCallInfo(
+            id: 'tool-2',
+            name: 'create_readme',
+            arguments: const {
+              'path': 'README.md',
+              'content': '# demo\n',
+            },
+          ),
+        ],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-3',
+            name: 'create_requirements',
+            arguments: const {
+              'path': 'requirements.txt',
+              'content': '# deps\n',
+            },
+          ),
+        ],
+        intermediateToolRoleResponseContent:
+            'I created README.md and will continue with the remaining scaffold files.',
+        toolRoleResponseContent: 'This follow-up text should never be streamed.',
+        finalAnswerChunks: const ['This final answer should never be requested.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'create_requirements':
+              '{"path":"/tmp/requirements.txt","created":true,"bytes_written":8}',
+          'create_readme':
+              '{"path":"/tmp/README.md","created":true,"bytes_written":8}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Initialize the scaffold files');
+
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolService.executedToolNames,
+          ['create_requirements', 'create_readme'],
+        );
+        expect(toolNotifier.state.isLoading, isFalse);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.takeLatestToolResults().map((item) => item.name).toList(),
+          ['create_requirements', 'create_readme'],
+        );
+        expect(
+          toolNotifier.takeLatestHiddenAssistantResponse(),
+          contains('remaining scaffold files'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage includes tool descriptions and identifier guardrails in the final tool prompt',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(
