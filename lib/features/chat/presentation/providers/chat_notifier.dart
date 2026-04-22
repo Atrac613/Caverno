@@ -4184,15 +4184,18 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ConversationWorkflowTask> tasks,
   ) {
     final seenSignatures = <String>{};
+    final seenValidationSignatures = <String>{};
     for (final task in tasks) {
       if (!_looksLikeVerificationTaskProposal(task)) {
         continue;
       }
       final signature = _verificationTaskSignature(task);
-      if (signature.isEmpty) {
-        continue;
+      if (signature.isNotEmpty && !seenSignatures.add(signature)) {
+        return true;
       }
-      if (!seenSignatures.add(signature)) {
+      final validationSignature = _verificationTaskValidationSignature(task);
+      if (validationSignature.isNotEmpty &&
+          !seenValidationSignatures.add(validationSignature)) {
         return true;
       }
     }
@@ -4503,18 +4506,37 @@ class ChatNotifier extends Notifier<ChatState> {
                 'the',
                 'for',
                 'using',
+                'execution',
                 'functionality',
+                'output',
+                'outputs',
+                'result',
+                'results',
               }.contains(token),
         )
         .join(' ');
-    final targetKey = task.targetFiles
-        .map((path) => path.trim().toLowerCase())
+    final targetKey = _taskProposalDuplicateTargets(task)
+        .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .join('|');
     if (canonicalTitle.isEmpty) {
       return targetKey;
     }
     return '$canonicalTitle::$targetKey';
+  }
+
+  String _verificationTaskValidationSignature(ConversationWorkflowTask task) {
+    final targetKey = _taskProposalDuplicateTargets(task)
+        .map((path) => path.toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .join('|');
+    final validationKey = _normalizeTaskProposalValidationCommand(
+      task.validationCommand,
+    ).toLowerCase();
+    if (targetKey.isEmpty || validationKey.isEmpty) {
+      return '';
+    }
+    return '$targetKey::$validationKey';
   }
 
   bool _looksLikeImplementationTargetFile(String path) {
