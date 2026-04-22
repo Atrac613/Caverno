@@ -807,6 +807,42 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test('dedupes near-duplicate implementation tasks from title-only targets', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-cli-1',
+          title: 'Implement ping_cli.py with subprocess and argparse',
+          targetFiles: [],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Use a simple Python CLI entrypoint.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli-2',
+          title: 'Implement the ping CLI tool in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Cover the same file in a second task.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks, hasLength(1));
+    expect(
+      finalized.tasks.single.title,
+      'Implement ping_cli.py with subprocess and argparse',
+    );
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
   test('normalizes portable ls validation commands in task proposals', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

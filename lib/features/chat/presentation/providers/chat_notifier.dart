@@ -4233,11 +4233,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return false;
     }
 
-    final leftTargets = _normalizeTaskProposalTargetFiles(left.targetFiles)
+    final leftTargets = _taskProposalDuplicateTargets(left)
         .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .toSet();
-    final rightTargets = _normalizeTaskProposalTargetFiles(right.targetFiles)
+    final rightTargets = _taskProposalDuplicateTargets(right)
         .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .toSet();
@@ -4270,6 +4270,33 @@ class ChatNotifier extends Notifier<ChatState> {
 
     return overlap.length == smallerTokenCount ||
         overlap.length / smallerTokenCount >= 0.75;
+  }
+
+  Iterable<String> _taskProposalDuplicateTargets(ConversationWorkflowTask task) {
+    final normalizedTargets = _normalizeTaskProposalTargetFiles(task.targetFiles);
+    if (normalizedTargets.isNotEmpty) {
+      return normalizedTargets;
+    }
+    return _extractTaskProposalTitleTargetHints(task.title);
+  }
+
+  Iterable<String> _extractTaskProposalTitleTargetHints(String title) {
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+    ).allMatches(title);
+    final paths = <String>[];
+    for (final match in matches) {
+      final value = match.group(1)?.trim();
+      if (value == null || value.isEmpty) {
+        continue;
+      }
+      final normalized = _normalizeTaskProposalTargetFiles(<String>[value]);
+      if (normalized.isEmpty) {
+        continue;
+      }
+      paths.addAll(normalized);
+    }
+    return paths;
   }
 
   Set<String> _taskProposalSemanticTitleTokens(String title) {
