@@ -1105,13 +1105,14 @@ class ConversationPlanExecutionGuardrails {
     if (explicitTargets.isNotEmpty) {
       return explicitTargets;
     }
-    return _inferTargetPathsFromTaskText(task);
+    final inferredTargets = {
+      ..._inferTargetPathsFromText('${task.title.trim()} ${task.notes.trim()}'),
+      ..._inferTargetPathsFromText(task.validationCommand),
+    };
+    return inferredTargets;
   }
 
-  static Set<String> _inferTargetPathsFromTaskText(
-    ConversationWorkflowTask task,
-  ) {
-    final text = '${task.title.trim()} ${task.notes.trim()}';
+  static Set<String> _inferTargetPathsFromText(String text) {
     if (text.trim().isEmpty) {
       return const <String>{};
     }

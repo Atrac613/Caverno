@@ -534,6 +534,38 @@ void main() {
     },
   );
 
+  test(
+    'assessTaskDrift matches src target paths inferred from validation commands',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement ping CLI script',
+        targetFiles: [],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes:
+            'Implement the core logic using argparse to accept a host argument.',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'src/ping_cli.py'},
+          result:
+              '{"path":"/tmp/project/src/ping_cli.py","bytes_written":420,"created":true}',
+        ),
+      ];
+
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+        task: task,
+        toolResults: toolResults,
+      );
+
+      expect(assessment.hasDrift, isFalse);
+      expect(assessment.touchedTargetFiles, contains('src/ping_cli.py'));
+      expect(assessment.unrelatedTouchedPaths, isEmpty);
+    },
+  );
+
   test('assistantMentionsTaskHandoff detects a later saved task title', () {
     final fixture =
         jsonDecode(

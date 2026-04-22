@@ -179,6 +179,38 @@ void main() {
   });
 
   test(
+    'marks implementation tasks complete after successful direct target execution',
+    () {
+      final result = ConversationValidationToolResultInference.infer(
+        task: const ConversationWorkflowTask(
+          id: 'task-impl',
+          title: 'Implement ping logic using subprocess',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py 127.0.0.1 -c 1',
+        ),
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 ping_cli.py 127.0.0.1 -c 1","exit_code":0,"stdout":"PING 127.0.0.1","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(
+        result.summary,
+        'Validation passed while running python3 ping_cli.py 127.0.0.1 -c 1.',
+      );
+    },
+  );
+
+  test(
     'marks unittest-based verification tasks complete even when stdout includes expected error text',
     () {
       final result = ConversationValidationToolResultInference.infer(

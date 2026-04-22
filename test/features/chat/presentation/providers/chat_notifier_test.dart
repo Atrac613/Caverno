@@ -2230,6 +2230,12 @@ void main() {
       expect(
         continuationPrompt,
         contains(
+          'If the latest tool result already completed the current saved task or confirmed the saved validation command, do not call more tools for that task and finish with a brief text answer.',
+        ),
+      );
+      expect(
+        continuationPrompt,
+        contains(
           'If a tool result reports code=tool_not_available, do not retry that tool name or alias variants',
         ),
       );

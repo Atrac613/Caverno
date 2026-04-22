@@ -836,6 +836,37 @@ void main() {
     );
   });
 
+  test(
+    'buildTaskDriftRecoveryPrompt shows inferred targets from validation commands',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement ping CLI script',
+        targetFiles: [],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes:
+            'Implement the core logic using argparse to accept a host argument.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildTaskDriftRecoveryPrompt(
+            task: task,
+            unrelatedTouchedPaths: const ['src/ping_cli.py'],
+            scaffoldCommands: const [],
+          );
+
+      expect(prompt, contains('Saved task: Implement ping CLI script'));
+      expect(
+        prompt,
+        contains('Only touch these target files next: ping_cli.py'),
+      );
+      expect(
+        prompt,
+        contains('Saved validation command: python3 ping_cli.py --help'),
+      );
+    },
+  );
+
   test('validationTask prefers the active task before the pending queue', () {
     final conversation = Conversation(
       id: 'conversation-1',

@@ -85,7 +85,8 @@ class ConversationValidationToolResultInference {
         : 'Validation passed while running $command.';
     final shouldMarkCompleted =
         task.status == ConversationWorkflowTaskStatus.completed ||
-        _looksLikeTerminalValidationTask(task);
+        _looksLikeTerminalValidationTask(task) ||
+        _looksLikeDirectTargetExecutionValidation(task, command);
     return ConversationValidationToolResultInferenceResult(
       status: shouldMarkCompleted
           ? ConversationWorkflowTaskStatus.completed
@@ -511,6 +512,65 @@ class ConversationValidationToolResultInference {
       'live host',
     ];
     return keywords.any(normalized.contains);
+  }
+
+  static bool _looksLikeDirectTargetExecutionValidation(
+    ConversationWorkflowTask task,
+    String command,
+  ) {
+    final normalizedCommand = command.trim().toLowerCase();
+    if (normalizedCommand.isEmpty) {
+      return false;
+    }
+
+    final launchesExecutableTarget =
+        normalizedCommand.startsWith('python ') ||
+        normalizedCommand.startsWith('python3 ') ||
+        normalizedCommand.startsWith('./') ||
+        normalizedCommand.startsWith('bash ') ||
+        normalizedCommand.startsWith('sh ');
+    if (!launchesExecutableTarget) {
+      return false;
+    }
+
+    final effectiveTargets = _effectiveTargetFiles(task);
+    if (effectiveTargets.isEmpty) {
+      return false;
+    }
+
+    return effectiveTargets.any(
+      (target) =>
+          normalizedCommand.contains(target) ||
+          normalizedCommand.contains('/$target'),
+    );
+  }
+
+  static Set<String> _effectiveTargetFiles(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map(_normalizeText)
+        .whereType<String>()
+        .map((target) => target.toLowerCase())
+        .toSet();
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+    return _inferTargetFilesFromText(task.validationCommand);
+  }
+
+  static Set<String> _inferTargetFilesFromText(String text) {
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+      caseSensitive: false,
+    ).allMatches(text);
+    final inferredTargets = <String>{};
+    for (final match in matches) {
+      final candidate = _normalizeText(match.group(1))?.toLowerCase();
+      if (candidate == null) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets;
   }
 
   static String? _normalizeText(dynamic value) {

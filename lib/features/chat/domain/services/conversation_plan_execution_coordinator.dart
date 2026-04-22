@@ -590,10 +590,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Only touch these target files next: $targetFiles');
     }
@@ -702,11 +699,19 @@ class ConversationPlanExecutionCoordinator {
       return explicitTargets;
     }
 
+    final inferredTargets = <String>{
+      ..._inferTargetFilesFromText('${task.title.trim()} ${task.notes.trim()}'),
+      ..._inferTargetFilesFromText(task.validationCommand),
+    };
+    return inferredTargets.toList(growable: false);
+  }
+
+  static Set<String> _inferTargetFilesFromText(String text) {
     final inferredTargets = <String>{};
     final matches = RegExp(
       r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
       caseSensitive: false,
-    ).allMatches('${task.title.trim()} ${task.notes.trim()}');
+    ).allMatches(text);
     for (final match in matches) {
       final candidate = match.group(1)?.trim() ?? '';
       if (candidate.isEmpty) {
@@ -714,7 +719,7 @@ class ConversationPlanExecutionCoordinator {
       }
       inferredTargets.add(candidate);
     }
-    return inferredTargets.toList(growable: false);
+    return inferredTargets;
   }
 
   static bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {
