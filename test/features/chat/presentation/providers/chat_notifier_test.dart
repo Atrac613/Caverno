@@ -1396,6 +1396,118 @@ void main() {
   );
 
   test(
+    'sendMessage recovers from duplicate read-only follow-up loops',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'list_directory',
+            arguments: const {'path': '.'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Inspect main.py before writing the unit tests.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-2',
+                name: 'read_file',
+                arguments: const {'path': 'main.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-3',
+                name: 'list_directory',
+                arguments: const {'path': '.'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Write tests/test_ping.py now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-4',
+                name: 'write_test_file',
+                arguments: const {'path': 'tests/test_ping.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The unit test task is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Recovered after duplicate inspection loop.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'list_directory': '{"entries":["main.py"]}',
+          'read_file': 'print("ping")',
+          'write_test_file':
+              '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create unit tests for the ping CLI');
+
+        expect(
+          toolService.executedToolNames,
+          ['list_directory', 'read_file', 'write_test_file'],
+        );
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['list_directory'],
+            ['read_file'],
+            ['read_file'],
+            ['write_test_file'],
+          ],
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered after duplicate inspection loop.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage allows rerunning the same validation command after a file rewrite',
     () async {
       final toolDataSource = _QueuedToolLoopChatDataSource(

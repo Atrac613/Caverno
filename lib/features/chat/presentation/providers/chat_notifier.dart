@@ -5860,6 +5860,8 @@ class ChatNotifier extends Notifier<ChatState> {
     final executedToolResults = <ToolResultInfo>[];
     var commandRetryGeneration = 0;
     var skippedDuplicateOnlyBatch = false;
+    var attemptedDuplicateInspectionRecovery = false;
+    var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
@@ -5959,6 +5961,66 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+          if (!attemptedDuplicateInspectionRecovery &&
+              _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
+              lastNonEmptyBatchToolResults.isNotEmpty) {
+            attemptedDuplicateInspectionRecovery = true;
+            appLog(
+              '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
+            );
+            _appendToLastMessage('<think>');
+            final mcpToolService = _mcpToolService;
+            if (mcpToolService == null) {
+              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+                executedToolResults,
+              );
+              await _sendWithoutTools();
+              return;
+            }
+            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final recoveryMessages = _prepareMessagesForLLM()
+              ..add(
+                Message(
+                  id: 'tool_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  role: MessageRole.user,
+                  content: _buildDuplicateInspectionRecoveryPrompt(
+                    currentToolCalls,
+                  ),
+                  timestamp: DateTime.now(),
+                ),
+              );
+            final recoveryResult =
+                await _dataSource.createChatCompletionWithToolResults(
+                  messages: recoveryMessages,
+                  toolResults: lastNonEmptyBatchToolResults,
+                  assistantContent: currentAssistantContent,
+                  tools: tools,
+                  model: _settings.model,
+                  temperature: _settings.temperature,
+                  maxTokens: _settings.maxTokens,
+                );
+            if (!ref.mounted) return;
+            _removeTrailingThinkTag();
+            if (recoveryResult.hasToolCalls) {
+              appLog(
+                '[Tool] Duplicate inspection recovery requested additional tool calls',
+              );
+              currentToolCalls = recoveryResult.toolCalls!;
+              _recordHiddenAssistantResponse(recoveryResult.content);
+              if (recoveryResult.content.isNotEmpty) {
+                currentAssistantContent = recoveryResult.content;
+              }
+              continue;
+            }
+            appLog(
+              '[Tool] Duplicate inspection recovery returned final text response',
+            );
+            currentToolCalls = [];
+            final fallbackResponse = recoveryResult.content.trim();
+            _recordHiddenAssistantResponse(fallbackResponse);
+            skippedDuplicateOnlyBatch = false;
+            break;
+          }
           appLog(
             '[Tool] Skipped duplicate follow-up tool calls, preserving prior tool results for saved-task recovery',
           );
@@ -5970,6 +6032,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
       appLog(
         '[Tool] Retrieved ${batchToolResults.length} tool result(s) in this loop',
+      );
+      lastNonEmptyBatchToolResults = List<ToolResultInfo>.unmodifiable(
+        batchToolResults,
       );
 
       // Show a thinking indicator while waiting for the follow-up request.
@@ -6207,6 +6272,42 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
     return toolCall.name == 'read_file';
+  }
+
+  bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) {
+    if (toolCalls.isEmpty) {
+      return false;
+    }
+    return toolCalls.every(
+      (toolCall) => _isReadOnlyInspectionTool(toolCall.name),
+    );
+  }
+
+  bool _isReadOnlyInspectionTool(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+        return true;
+    }
+    return false;
+  }
+
+  String _buildDuplicateInspectionRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+    final repeatedToolNames = toolCalls
+        .map((toolCall) => toolCall.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .join(', ');
+    return [
+      'You already inspected the same local files for the current saved task.',
+      if (repeatedToolNames.isNotEmpty)
+        'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
+      'Take the next concrete saved-task action now.',
+      'Your next reply must either modify a saved target file or run the saved validation command.',
+      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
+    ].join('\n');
   }
 
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
