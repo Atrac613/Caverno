@@ -131,7 +131,12 @@ class ConversationExecutionProgressInference {
     final mentionsExplicitTaskCompletion = taskTitleIndex >= 0 &&
         _containsAny(
           lowercaseResponse.substring(taskTitleIndex),
-          const ['has been completed', 'is complete', 'is completed'],
+          const [
+            'has been completed',
+            'is complete',
+            'is completed',
+            'was completed',
+          ],
         );
 
     if (isValidationRun) {

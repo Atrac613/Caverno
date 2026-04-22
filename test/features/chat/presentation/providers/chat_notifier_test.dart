@@ -642,6 +642,97 @@ class _QueuedToolLoopChatDataSource implements ChatDataSource {
   }
 }
 
+class _NoToolStreamingWithToolsDataSource implements ChatDataSource {
+  _NoToolStreamingWithToolsDataSource({
+    required this.streamChunks,
+    required this.completionContent,
+  });
+
+  final List<String> streamChunks;
+  final String completionContent;
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return StreamWithToolsResult(
+      stream: Stream<String>.fromIterable(streamChunks),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(content: completionContent, finishReason: 'stop'),
+      ),
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+}
+
 class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -1303,7 +1394,7 @@ void main() {
   });
 
   test(
-    'sendMessage stops after duplicate follow-up scaffold writes and preserves tool results for recovery',
+    'sendMessage recovers from duplicate follow-up scaffold writes',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(
         initialToolCalls: [
@@ -1374,20 +1465,27 @@ void main() {
 
         await toolNotifier.sendMessage('Initialize the scaffold files');
 
-        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['create_requirements', 'create_readme'],
+            ['create_requirements', 'create_readme'],
+          ],
+        );
         expect(
           toolService.executedToolNames,
           ['create_requirements', 'create_readme'],
         );
         expect(toolNotifier.state.isLoading, isFalse);
-        expect(toolDataSource.finalAnswerMessages, isEmpty);
         expect(
           toolNotifier.takeLatestToolResults().map((item) => item.name).toList(),
           ['create_requirements', 'create_readme'],
         );
         expect(
-          toolNotifier.takeLatestHiddenAssistantResponse(),
-          contains('remaining scaffold files'),
+          toolNotifier.state.messages.last.content,
+          contains('This final answer should never be requested.'),
         );
       } finally {
         toolContainer.dispose();
@@ -1500,6 +1598,119 @@ void main() {
         expect(
           toolNotifier.state.messages.last.content,
           contains('Recovered after duplicate inspection loop.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage recovers from duplicate mutating follow-up loops',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'create_tests_dir',
+            arguments: const {'path': 'tests'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Inspect ping_cli.py before writing tests/test_ping.py.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-2',
+                name: 'read_file',
+                arguments: const {'path': 'ping_cli.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Create the tests directory before writing tests/test_ping.py.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-3',
+                name: 'create_tests_dir',
+                arguments: const {'path': 'tests'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Write tests/test_ping.py now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-4',
+                name: 'write_test_file',
+                arguments: const {'path': 'tests/test_ping.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The unit test task is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Recovered after duplicate follow-up loop.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'create_tests_dir':
+              '{"path":"/tmp/tests","created":true,"entry_type":"directory"}',
+          'read_file': 'print("ping")',
+          'write_test_file':
+              '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Add unit tests for the ping CLI');
+
+        expect(
+          toolService.executedToolNames,
+          ['create_tests_dir', 'read_file', 'write_test_file'],
+        );
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['create_tests_dir'],
+            ['read_file'],
+            ['read_file'],
+            ['write_test_file'],
+          ],
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered after duplicate follow-up loop.'),
         );
       } finally {
         toolContainer.dispose();
@@ -1797,6 +2008,55 @@ void main() {
         expect(
           toolNotifier.takeLatestHiddenAssistantResponse(),
           'I have completed the first task: Create README.md with usage instructions. The next task is Implement the ping CLI tool in ping_cli.py.',
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage prefers streamed no-tool handoff text over stale completion content',
+    () async {
+      final toolDataSource = _NoToolStreamingWithToolsDataSource(
+        streamChunks: const [
+          'The tool result shows that `README.md` was successfully created. The next task is "Create integration test to verify ping functionality".',
+        ],
+        completionContent:
+            'The user wants me to implement the next pending task: "Create `README.md` with usage instructions".',
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_alpha': 'alpha result'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Continue with the next saved task');
+
+        expect(
+          toolNotifier.takeLatestHiddenAssistantResponse(),
+          'The tool result shows that `README.md` was successfully created. The next task is "Create integration test to verify ping functionality".',
         );
       } finally {
         toolContainer.dispose();

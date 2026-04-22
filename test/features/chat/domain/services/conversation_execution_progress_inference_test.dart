@@ -161,6 +161,33 @@ void main() {
   );
 
   test(
+    'treats explicit current-task was-completed narration as completed',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-init',
+        title: 'Initialize project structure',
+        status: ConversationWorkflowTaskStatus.blocked,
+        validationCommand: 'ls -a',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'Task 1 (Initialize project structure) was completed and all target files are present. The next task is "Implement ping CLI script with argparse".',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        startsWith(
+          'Task 1 (Initialize project structure) was completed and all target files are present.',
+        ),
+      );
+    },
+  );
+
+  test(
     'prefers fallback completion evidence over a generic follow-up summary',
     () {
       final result = ConversationExecutionProgressInference.infer(

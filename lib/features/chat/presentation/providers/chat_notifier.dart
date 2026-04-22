@@ -5667,6 +5667,12 @@ class ChatNotifier extends Notifier<ChatState> {
               ...codingTools,
             ])
           : allTools;
+      final streamedMessageIndex = state.messages.isEmpty
+          ? -1
+          : state.messages.length - 1;
+      final streamedContentStart = streamedMessageIndex >= 0
+          ? state.messages[streamedMessageIndex].content.length
+          : 0;
 
       // Stream the initial request to show thinking/content in real-time
       // while also detecting tool calls.
@@ -5704,6 +5710,14 @@ class ChatNotifier extends Notifier<ChatState> {
       } else {
         // No tool calls — content was already streamed in real-time.
         appLog('[Tool] No tool calls, response already streamed');
+        final streamedAssistantContent = _extractAssistantStreamDelta(
+          messageIndex: streamedMessageIndex,
+          startingLength: streamedContentStart,
+        );
+        final hiddenAssistantEvidence = streamedAssistantContent.isNotEmpty
+            ? streamedAssistantContent
+            : result.content;
+        _recordHiddenAssistantResponse(hiddenAssistantEvidence);
         _finishStreaming();
       }
     } catch (e) {
@@ -5861,6 +5875,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var commandRetryGeneration = 0;
     var skippedDuplicateOnlyBatch = false;
     var attemptedDuplicateInspectionRecovery = false;
+    var attemptedDuplicateFollowUpRecovery = false;
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
@@ -6014,6 +6029,66 @@ class ChatNotifier extends Notifier<ChatState> {
             }
             appLog(
               '[Tool] Duplicate inspection recovery returned final text response',
+            );
+            currentToolCalls = [];
+            final fallbackResponse = recoveryResult.content.trim();
+            _recordHiddenAssistantResponse(fallbackResponse);
+            skippedDuplicateOnlyBatch = false;
+            break;
+          }
+          if (!attemptedDuplicateFollowUpRecovery &&
+              lastNonEmptyBatchToolResults.isNotEmpty) {
+            attemptedDuplicateFollowUpRecovery = true;
+            appLog(
+              '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
+            );
+            _appendToLastMessage('<think>');
+            final mcpToolService = _mcpToolService;
+            if (mcpToolService == null) {
+              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+                executedToolResults,
+              );
+              await _sendWithoutTools();
+              return;
+            }
+            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final recoveryMessages = _prepareMessagesForLLM()
+              ..add(
+                Message(
+                  id:
+                      'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  role: MessageRole.user,
+                  content: _buildDuplicateFollowUpRecoveryPrompt(
+                    currentToolCalls,
+                  ),
+                  timestamp: DateTime.now(),
+                ),
+              );
+            final recoveryResult =
+                await _dataSource.createChatCompletionWithToolResults(
+                  messages: recoveryMessages,
+                  toolResults: lastNonEmptyBatchToolResults,
+                  assistantContent: currentAssistantContent,
+                  tools: tools,
+                  model: _settings.model,
+                  temperature: _settings.temperature,
+                  maxTokens: _settings.maxTokens,
+                );
+            if (!ref.mounted) return;
+            _removeTrailingThinkTag();
+            if (recoveryResult.hasToolCalls) {
+              appLog(
+                '[Tool] Duplicate follow-up recovery requested additional tool calls',
+              );
+              currentToolCalls = recoveryResult.toolCalls!;
+              _recordHiddenAssistantResponse(recoveryResult.content);
+              if (recoveryResult.content.isNotEmpty) {
+                currentAssistantContent = recoveryResult.content;
+              }
+              continue;
+            }
+            appLog(
+              '[Tool] Duplicate follow-up recovery returned final text response',
             );
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
@@ -6271,6 +6346,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
+    // Exact repeated shell/git commands without an intervening file mutation are
+    // usually loop noise. Legitimate validation retries get a fresh dedup key
+    // through commandRetryGeneration after the task edits a file.
     return toolCall.name == 'read_file';
   }
 
@@ -6308,6 +6386,37 @@ class ChatNotifier extends Notifier<ChatState> {
       'Your next reply must either modify a saved target file or run the saved validation command.',
       'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
     ].join('\n');
+  }
+
+  String _buildDuplicateFollowUpRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+    final repeatedToolNames = toolCalls
+        .map((toolCall) => toolCall.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .join(', ');
+    return [
+      'You already attempted the same follow-up tool call for the current saved task.',
+      if (repeatedToolNames.isNotEmpty)
+        'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
+      'Use the previous tool results and take the next concrete saved-task step now.',
+      'If the current saved task still needs work, create or edit the saved target file.',
+      'If validation already succeeded, reply with a brief completion statement instead of repeating the same tool call.',
+      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
+    ].join('\n');
+  }
+
+  String _extractAssistantStreamDelta({
+    required int messageIndex,
+    required int startingLength,
+  }) {
+    if (messageIndex < 0 || messageIndex >= state.messages.length) {
+      return '';
+    }
+    final content = state.messages[messageIndex].content;
+    if (startingLength >= content.length) {
+      return '';
+    }
+    return content.substring(startingLength).trim();
   }
 
   bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
