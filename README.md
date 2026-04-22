@@ -181,6 +181,9 @@ Screenshots are saved to device-specific directories and automatically resized t
 
 The repository includes deterministic Plan mode scenarios and an optional live LLM smoke suite.
 
+Additional implementation notes for the ping CLI stabilization work live in
+[`docs/plan_mode_ping_cli_stabilization_playbook.md`](docs/plan_mode_ping_cli_stabilization_playbook.md).
+
 ### Deterministic suite
 
 ```bash
