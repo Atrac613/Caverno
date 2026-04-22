@@ -33,5 +33,28 @@ void main() {
         isFalse,
       );
     });
+
+    test('detects terminal task completion before final answer streaming', () {
+      expect(
+        executionLogsContainWorkflowCompleted(const <String>[
+          'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+          'The task "Create test_ping.py to validate the CLI" has been completed successfully.',
+          '[Tool] Resending tool results as user message',
+          '[LLM] ========== streamChatCompletion ==========',
+        ]),
+        isTrue,
+      );
+    });
+
+    test('ignores mid-workflow completion followed by another handoff', () {
+      expect(
+        executionLogsContainWorkflowCompleted(const <String>[
+          'The task "Create README.md with usage instructions" is complete.',
+          '[Tool] Resending tool results as user message',
+          'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+        ]),
+        isFalse,
+      );
+    });
   });
 }

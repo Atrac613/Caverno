@@ -612,6 +612,10 @@ Future<void> _waitForReadyPlanProposal(
     );
   }
 
+  bool isApprovalUiReady() {
+    return find.text('Approve and start').evaluate().isNotEmpty;
+  }
+
   while (DateTime.now().isBefore(deadline)) {
     final chatState = container.read(chatNotifierProvider);
     final conversation = container
@@ -657,7 +661,7 @@ Future<void> _waitForReadyPlanProposal(
           chatState.isGeneratingWorkflowProposal ||
           chatState.isGeneratingTaskProposal,
     );
-    if (isProposalReady(chatState)) {
+    if (isProposalReady(chatState) || isApprovalUiReady()) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
       phaseTrace.taskProposalReadyAt ??= DateTime.now();
       heartbeatWriter.write(
@@ -715,7 +719,7 @@ Future<void> _waitForReadyPlanProposal(
   }
 
   final chatState = container.read(chatNotifierProvider);
-  if (isProposalReady(chatState)) {
+  if (isProposalReady(chatState) || isApprovalUiReady()) {
     phaseTrace.proposalReadyAt ??= DateTime.now();
     phaseTrace.taskProposalReadyAt ??= DateTime.now();
     final conversation = container
