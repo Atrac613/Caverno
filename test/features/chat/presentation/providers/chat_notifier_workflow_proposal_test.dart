@@ -738,6 +738,40 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test(
+    'marks unbounded ping verification commands for retry',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-setup',
+            title: 'Initialize project files',
+            targetFiles: ['requirements.txt', 'main.py'],
+            validationCommand: 'python3 main.py --help',
+            notes: 'Create the initial CLI entrypoint.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping execution with a local loopback address',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py 127.0.0.1',
+            notes: 'Run the ping CLI against loopback.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
   test('dedupes near-duplicate README and implementation tasks', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

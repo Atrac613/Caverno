@@ -4146,6 +4146,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (_taskProposalHasUnboundedPingVerificationValidation(finalized.tasks)) {
+      return true;
+    }
+
     if (_taskProposalHasDuplicateVerificationTasks(finalized.tasks)) {
       return true;
     }
@@ -4198,6 +4202,30 @@ class ChatNotifier extends Notifier<ChatState> {
       if (normalizedValidation.startsWith('pytest') ||
           normalizedValidation.startsWith('python -m pytest') ||
           normalizedValidation.startsWith('python3 -m pytest')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalHasUnboundedPingVerificationValidation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (final task in tasks) {
+      final normalizedContext = '${task.title.trim()} ${task.notes.trim()}'
+          .toLowerCase();
+      if (!normalizedContext.contains('ping')) {
+        continue;
+      }
+
+      final normalizedValidation = task.validationCommand.trim().toLowerCase();
+      if (normalizedValidation.isEmpty) {
+        continue;
+      }
+      if (_looksLikeBoundedPingValidationCommand(normalizedValidation)) {
+        continue;
+      }
+      if (_looksLikeUnboundedPingValidationCommand(normalizedValidation)) {
         return true;
       }
     }
@@ -4537,6 +4565,40 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return true;
+  }
+
+  bool _looksLikeBoundedPingValidationCommand(String normalizedValidation) {
+    return normalizedValidation.contains('--help') ||
+        RegExp(r'(^|\s)-c(\s|$)').hasMatch(normalizedValidation) ||
+        RegExp(r'(^|\s)--count(?:=|\s)').hasMatch(normalizedValidation) ||
+        normalizedValidation.contains('unittest') ||
+        normalizedValidation.contains('test_') ||
+        normalizedValidation.contains('verify_');
+  }
+
+  bool _looksLikeUnboundedPingValidationCommand(String normalizedValidation) {
+    final launchesPythonEntryPoint =
+        RegExp(r'^(python|python3)\s+\S+\.py(?:\s|$)').hasMatch(
+          normalizedValidation,
+        );
+    if (!launchesPythonEntryPoint) {
+      return false;
+    }
+
+    final includesHostTarget =
+        normalizedValidation.contains('127.0.0.1') ||
+        normalizedValidation.contains('localhost') ||
+        RegExp(
+          r'(^|\s)(?:\d{1,3}\.){3}\d{1,3}(\s|$)',
+        ).hasMatch(normalizedValidation) ||
+        RegExp(
+          r'(^|\s)[a-z0-9.-]+\.[a-z]{2,}(\s|$)',
+        ).hasMatch(normalizedValidation);
+    if (!includesHostTarget) {
+      return false;
+    }
+
+    return !normalizedValidation.contains('--help');
   }
 
   bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {
