@@ -83,8 +83,11 @@ class ConversationValidationToolResultInference {
     final summary = command.isEmpty
         ? 'Validation passed.'
         : 'Validation passed while running $command.';
+    final shouldMarkCompleted =
+        task.status == ConversationWorkflowTaskStatus.completed ||
+        _looksLikeTerminalValidationTask(task);
     return ConversationValidationToolResultInferenceResult(
-      status: task.status == ConversationWorkflowTaskStatus.completed
+      status: shouldMarkCompleted
           ? ConversationWorkflowTaskStatus.completed
           : ConversationWorkflowTaskStatus.inProgress,
       validationStatus: ConversationExecutionValidationStatus.passed,
@@ -492,6 +495,22 @@ class ConversationValidationToolResultInference {
       return normalizedInferred;
     }
     return fallback.trim();
+  }
+
+  static bool _looksLikeTerminalValidationTask(ConversationWorkflowTask task) {
+    final normalized = '${task.title.trim()} ${task.notes.trim()}'
+        .toLowerCase();
+    const keywords = <String>[
+      'verify ',
+      'verification',
+      'smoke test',
+      'test script',
+      'test the cli',
+      'loopback',
+      'real host',
+      'live host',
+    ];
+    return keywords.any(normalized.contains);
   }
 
   static String? _normalizeText(dynamic value) {

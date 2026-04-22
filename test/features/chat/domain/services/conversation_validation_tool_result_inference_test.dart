@@ -148,4 +148,33 @@ void main() {
     );
     expect(result.validationSummary, contains('remote validation passed'));
   });
+
+  test('marks verification-style tasks complete after successful validation', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-7',
+        title: 'Create a verification script to validate CLI functionality',
+        validationCommand: 'python3 verify_cli.py',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult:
+              '{"command":"python3 verify_cli.py","exit_code":0,"stdout":"verification passed","stderr":""}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(
+      result.summary,
+      'Validation passed while running python3 verify_cli.py.',
+    );
+    expect(result.validationSummary, contains('verification passed'));
+  });
 }
