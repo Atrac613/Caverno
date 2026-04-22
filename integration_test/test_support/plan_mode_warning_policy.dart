@@ -22,7 +22,20 @@ PlanModeWarningSummary summarizeScenarioWarnings({
       warning: warning,
       logs: logs,
     );
-    if (isAllowedByPattern || isAllowedByRecovery) {
+    final isAllowedByPostCompletionRecovery =
+        _isRecoverablePostCompletionWarning(
+          warning: warning,
+          logs: logs,
+        );
+    final isAllowedByContinuationRecovery =
+        _isRecoverableContinuationStreamWarning(
+          warning: warning,
+          logs: logs,
+        );
+    if (isAllowedByPattern ||
+        isAllowedByRecovery ||
+        isAllowedByPostCompletionRecovery ||
+        isAllowedByContinuationRecovery) {
       allowedWarnings.add(warning);
     } else {
       unexpectedWarnings.add(warning);
@@ -67,4 +80,92 @@ bool _isRecoverableCreateParseWarning({
   }
 
   return false;
+}
+
+bool _isRecoverablePostCompletionWarning({
+  required String warning,
+  required List<String> logs,
+}) {
+  final isMemoryExtractionWarning =
+      warning.contains('[Memory] LLM memory extraction error:') ||
+      warning.contains('[LLM] createChatCompletion error:');
+  if (!isMemoryExtractionWarning) {
+    return false;
+  }
+
+  final warningIndex = logs.indexOf(warning);
+  if (warningIndex == -1) {
+    return false;
+  }
+
+  final finalAnswerIndex = logs.lastIndexWhere(
+    (line) => line.contains('[LLM] ========== streamChatCompletion =========='),
+  );
+  if (finalAnswerIndex == -1 || warningIndex <= finalAnswerIndex) {
+    return false;
+  }
+
+  final hasLaterToolLoop = logs.skip(warningIndex + 1).any(
+    (line) =>
+        line.contains('[Tool] LLM requested additional tool calls') ||
+        line.contains('finishReason: FinishReason.toolCalls'),
+  );
+  if (hasLaterToolLoop) {
+    return false;
+  }
+
+  final hasPairedMemoryWarning = logs.skip(warningIndex).any(
+    (line) => line.contains('[Memory] LLM memory extraction error:'),
+  );
+  return hasPairedMemoryWarning;
+}
+
+bool _isRecoverableContinuationStreamWarning({
+  required String warning,
+  required List<String> logs,
+}) {
+  final isContinuationWarning =
+      warning.contains('[LLM] streamChatCompletion error:') ||
+      warning.contains('[ChatNotifier] _continueAfterContentToolResults onError:');
+  if (!isContinuationWarning ||
+      !warning.contains('Connection closed before full header was received')) {
+    return false;
+  }
+
+  final warningIndex = logs.indexOf(warning);
+  if (warningIndex == -1) {
+    return false;
+  }
+
+  final laterLogs = logs.skip(warningIndex + 1);
+  final hasLaterToolLoop = laterLogs.any(
+    (line) =>
+        line.contains('[Tool] LLM requested additional tool calls') ||
+        line.contains('finishReason: FinishReason.toolCalls') ||
+        line.contains('[ContentTool] Detected tool_call(s):'),
+  );
+  if (hasLaterToolLoop) {
+    return false;
+  }
+
+  final hasLaterMemoryPhase = laterLogs.any(
+    (line) =>
+        line.contains('[Memory] ') ||
+        line.contains(
+          'You extract reusable user memory from a conversation.',
+        ),
+  );
+  if (!hasLaterMemoryPhase) {
+    return false;
+  }
+
+  final earlierLogs = logs.take(warningIndex);
+  final hasValidationExecution = earlierLogs.any(
+    (line) =>
+        line.contains('[ContentTool]   - local_execute_command:') ||
+        line.contains('[ContentTool]   - ping:') ||
+        line.contains('[ContentTool]   - dns_lookup:') ||
+        line.contains('[ContentTool]   - http_status:'),
+  );
+  return hasValidationExecution;
 }

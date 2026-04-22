@@ -59,13 +59,26 @@ void main() {
         hasPendingDecision: true,
         workflowError: null,
         taskError: null,
+        logs: const <String>[],
+      );
+
+      expect(isReady, isFalse);
+    });
+
+    test('treats ready markers as ready even if pending decision stayed stale', () {
+      final isReady = isPlanningProposalReady(
+        hasWorkflowDraft: false,
+        hasTaskDraft: false,
+        hasPendingDecision: true,
+        workflowError: null,
+        taskError: null,
         logs: const <String>[
           '[Workflow] Workflow proposal ready',
           '[Workflow] Task proposal ready',
         ],
       );
 
-      expect(isReady, isFalse);
+      expect(isReady, isTrue);
     });
 
     test('treats ready markers as ready even when stale errors remain', () {

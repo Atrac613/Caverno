@@ -26,15 +26,15 @@ bool isPlanningProposalReady({
   required String? taskError,
   required List<String> logs,
 }) {
-  if (hasPendingDecision) {
-    return false;
-  }
-  final resolvedWorkflowDraft =
-      hasWorkflowDraft || planningLogsContainWorkflowDraftReady(logs);
-  final resolvedTaskDraft =
-      hasTaskDraft || planningLogsContainTaskDraftReady(logs);
-  if (resolvedWorkflowDraft && resolvedTaskDraft) {
+  final workflowReadyFromLogs = planningLogsContainWorkflowDraftReady(logs);
+  final taskReadyFromLogs = planningLogsContainTaskDraftReady(logs);
+  if (workflowReadyFromLogs && taskReadyFromLogs) {
     return true;
+  }
+  final resolvedWorkflowDraft = hasWorkflowDraft || workflowReadyFromLogs;
+  final resolvedTaskDraft = hasTaskDraft || taskReadyFromLogs;
+  if (resolvedWorkflowDraft && resolvedTaskDraft) {
+    return !hasPendingDecision;
   }
   if (workflowError != null || taskError != null) {
     return false;

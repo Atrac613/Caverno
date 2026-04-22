@@ -50,5 +50,52 @@ void main() {
       expect(summary.allowedWarnings, contains(warning));
       expect(summary.unexpectedWarnings, isEmpty);
     });
+
+    test('allows post-completion memory extraction transport warnings', () {
+      const createWarning =
+          '[LLM] createChatCompletion error: ClientException: Connection closed before full header was received';
+      const memoryWarning =
+          '[Memory] LLM memory extraction error: ClientException: Connection closed before full header was received';
+      final summary = summarizeScenarioWarnings(
+        warnings: const <String>[createWarning, memoryWarning],
+        allowedPatterns: const <String>[],
+        logs: const <String>[
+          '[LLM] ========== streamChatCompletion ==========',
+          '[LLM] Final answer content',
+          createWarning,
+          memoryWarning,
+        ],
+      );
+
+      expect(summary.allowedWarnings, contains(createWarning));
+      expect(summary.allowedWarnings, contains(memoryWarning));
+      expect(summary.unexpectedWarnings, isEmpty);
+    });
+
+    test(
+      'allows continuation stream disconnect warnings after validation reaches memory extraction',
+      () {
+        const streamWarning =
+            '[LLM] streamChatCompletion error: ClientException: Connection closed before full header was received';
+        const notifierWarning =
+            '[ChatNotifier] _continueAfterContentToolResults onError: ClientException: Connection closed before full header was received';
+        final summary = summarizeScenarioWarnings(
+          warnings: const <String>[streamWarning, notifierWarning],
+          allowedPatterns: const <String>[],
+          logs: const <String>[
+            '[ContentTool]   - local_execute_command: {command: python3 test_ping.py}',
+            streamWarning,
+            notifierWarning,
+            '[LLM] ========== createChatCompletion ==========',
+            '[LLM]   [0] system: You extract reusable user memory from a conversation.',
+            '[Memory] LLM memory extraction succeeded',
+          ],
+        );
+
+        expect(summary.allowedWarnings, contains(streamWarning));
+        expect(summary.allowedWarnings, contains(notifierWarning));
+        expect(summary.unexpectedWarnings, isEmpty);
+      },
+    );
   });
 }

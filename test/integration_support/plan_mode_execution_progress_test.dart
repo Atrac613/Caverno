@@ -46,6 +46,31 @@ void main() {
       );
     });
 
+    test(
+      'detects final task completion when the final answer request repeats the handoff prompt',
+      () {
+        expect(
+          executionLogsContainWorkflowCompleted(const <String>[
+            'The task "Verify the CLI tool by pinging 8.8.8.8" has been completed successfully.',
+            '[Tool] Resending tool results as user message',
+            '[LLM] ========== streamChatCompletion ==========',
+            'The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+          ]),
+          isTrue,
+        );
+      },
+    );
+
+    test('detects all-tasks-in-plan completion markers', () {
+      expect(
+        executionLogsContainWorkflowCompleted(const <String>[
+          'Task 16901b8a-0a8e-4304-b54d-12d9850a7968 has been completed successfully.',
+          'All tasks in the plan have been completed.',
+        ]),
+        isTrue,
+      );
+    });
+
     test('ignores mid-workflow completion followed by another handoff', () {
       expect(
         executionLogsContainWorkflowCompleted(const <String>[
