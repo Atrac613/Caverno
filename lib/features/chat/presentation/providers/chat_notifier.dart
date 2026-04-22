@@ -5858,6 +5858,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
+    var commandRetryGeneration = 0;
     var skippedDuplicateOnlyBatch = false;
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
@@ -5869,7 +5870,10 @@ class ChatNotifier extends Notifier<ChatState> {
       final pendingBatchCalls = <ToolCallInfo>[];
 
       for (final toolCall in currentToolCalls) {
-        final toolCallKey = _toolExecutionKey(toolCall);
+        final toolCallKey = _toolExecutionKey(
+          toolCall,
+          commandRetryGeneration: commandRetryGeneration,
+        );
         if (executedToolCallKeys.contains(toolCallKey) &&
             !_shouldAllowRepeatedToolExecution(toolCall)) {
           appLog(
@@ -5899,7 +5903,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
       for (final scheduledResult in scheduledResults) {
         final toolCall = scheduledResult.toolCall;
-        final toolCallKey = _toolExecutionKey(toolCall);
+        final toolCallKey = _toolExecutionKey(
+          toolCall,
+          commandRetryGeneration: commandRetryGeneration,
+        );
         if (scheduledResult.error != null) {
           final error = scheduledResult.error!;
           appLog('[Tool] Error: $error');
@@ -5928,6 +5935,9 @@ class ChatNotifier extends Notifier<ChatState> {
         if (result.isSuccess) {
           executedToolCallKeys.add(toolCallKey);
           toolFailureCounts.remove(toolCallKey);
+          if (_advancesCommandRetryGeneration(toolCall)) {
+            commandRetryGeneration += 1;
+          }
         } else {
           final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
           toolFailureCounts[toolCallKey] = failureCount;
@@ -6184,12 +6194,33 @@ class ChatNotifier extends Notifier<ChatState> {
     return _toolCallDedupKey(toolCall.name, toolCall.arguments);
   }
 
-  String _toolExecutionKey(ToolCallInfo toolCall) {
-    return _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  String _toolExecutionKey(
+    ToolCallInfo toolCall, {
+    int commandRetryGeneration = 0,
+  }) {
+    final baseKey = _toolCallDedupKey(toolCall.name, toolCall.arguments);
+    if (_isRepeatableCommandTool(toolCall)) {
+      return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
+    }
+    return baseKey;
   }
 
   bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
     return toolCall.name == 'read_file';
+  }
+
+  bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
+    return toolCall.name == 'local_execute_command' ||
+        toolCall.name == 'git_execute_command';
+  }
+
+  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) {
+    final normalizedName = toolCall.name.trim().toLowerCase();
+    return normalizedName == 'write_file' ||
+        normalizedName == 'edit_file' ||
+        normalizedName == 'rollback_last_file_change' ||
+        normalizedName.startsWith('write_') ||
+        normalizedName.startsWith('edit_');
   }
 
   String _toolCallDedupKey(String name, Object? arguments) {

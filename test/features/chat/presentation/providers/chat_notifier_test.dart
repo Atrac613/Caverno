@@ -539,6 +539,109 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   }
 }
 
+class _QueuedToolLoopChatDataSource implements ChatDataSource {
+  _QueuedToolLoopChatDataSource({
+    required this.initialToolCalls,
+    required List<ChatCompletionResult> toolLoopResponses,
+    this.finalAnswerChunks = const ['Recovered final answer'],
+  }) : _toolLoopResponses = Queue<ChatCompletionResult>.from(toolLoopResponses);
+
+  final List<ToolCallInfo> initialToolCalls;
+  final Queue<ChatCompletionResult> _toolLoopResponses;
+  final List<String> finalAnswerChunks;
+  final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<Message> finalAnswerMessages = <Message>[];
+
+  @override
+  Stream<String> streamChatCompletion({
+    required List<Message> messages,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async* {
+    finalAnswerMessages
+      ..clear()
+      ..addAll(List<Message>.from(messages));
+    yield* Stream<String>.fromIterable(finalAnswerChunks);
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletion({
+    required List<Message> messages,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  StreamWithToolsResult streamChatCompletionWithTools({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    return StreamWithToolsResult(
+      stream: const Stream.empty(),
+      completion: Future<ChatCompletionResult>.value(
+        ChatCompletionResult(
+          content: '',
+          toolCalls: initialToolCalls,
+          finishReason: 'tool_calls',
+        ),
+      ),
+    );
+  }
+
+  @override
+  Stream<String> streamWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResult({
+    required List<Message> messages,
+    required String toolCallId,
+    required String toolName,
+    required String toolArguments,
+    required String toolResult,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) {
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<ChatCompletionResult> createChatCompletionWithToolResults({
+    required List<Message> messages,
+    required List<ToolResultInfo> toolResults,
+    String? assistantContent,
+    List<Map<String, dynamic>>? tools,
+    String? model,
+    double? temperature,
+    int? maxTokens,
+  }) async {
+    toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    return _toolLoopResponses.removeFirst();
+  }
+}
+
 class _ToolEnabledSettingsNotifier extends SettingsNotifier {
   @override
   AppSettings build() {
@@ -546,6 +649,19 @@ class _ToolEnabledSettingsNotifier extends SettingsNotifier {
       assistantMode: AssistantMode.general,
       mcpEnabled: true,
       demoMode: false,
+    );
+  }
+}
+
+class _ToolEnabledNoConfirmSettingsNotifier extends SettingsNotifier {
+  @override
+  AppSettings build() {
+    return AppSettings.defaults().copyWith(
+      assistantMode: AssistantMode.general,
+      mcpEnabled: true,
+      demoMode: false,
+      confirmFileMutations: false,
+      confirmLocalCommands: false,
     );
   }
 }
@@ -1235,7 +1351,9 @@ void main() {
       when(() => appLifecycleService.isInBackground).thenReturn(false);
       final toolContainer = ProviderContainer(
         overrides: [
-          settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
           conversationsNotifierProvider.overrideWith(
             _TestConversationsNotifier.new,
           ),
@@ -1270,6 +1388,108 @@ void main() {
         expect(
           toolNotifier.takeLatestHiddenAssistantResponse(),
           contains('remaining scaffold files'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage allows rerunning the same validation command after a file rewrite',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {
+              'command': 'python3 ping_cli.py --help',
+              'working_directory': '/tmp',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'Fix ping_cli.py before retrying validation.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-2',
+                name: 'write_cli',
+                arguments: const {'path': 'ping_cli.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Retry the saved validation command now.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-3',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'python3 ping_cli.py --help',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'The saved task is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Recovered after validation retry.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command': '{"exit_code":0,"stdout":"usage: ping_cli.py"}',
+          'write_cli':
+              '{"path":"/tmp/ping_cli.py","created":false,"bytes_written":12}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Implement the ping CLI');
+
+        expect(
+          toolService.executedToolNames,
+          ['local_execute_command', 'write_cli', 'local_execute_command'],
+        );
+        expect(toolDataSource.toolResultBatches, hasLength(3));
+        expect(
+          toolDataSource.toolResultBatches
+              .expand((batch) => batch.map((item) => item.name))
+              .toList(),
+          ['local_execute_command', 'write_cli', 'local_execute_command'],
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered after validation retry.'),
         );
       } finally {
         toolContainer.dispose();
