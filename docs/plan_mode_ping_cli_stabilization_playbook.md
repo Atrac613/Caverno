@@ -204,6 +204,93 @@ Useful fixture targets included:
 - If the harness log proves progress that the heartbeat missed, recover the
   progress in diagnostics rather than assuming a hard failure.
 
+## Retrospective Notes
+
+These are the higher-level observations that were worth preserving after the
+green canary was reached.
+
+### What was more important than expected
+
+- Task proposal quality mattered as much as execution recovery.
+  A large share of downstream failures started from weak saved tasks rather
+  than from a broken recovery path.
+- Harness diagnostics were product work, not just test work.
+  Better heartbeats, log-aware summaries, and warning policy changes removed a
+  lot of false debugging branches.
+- Terminal completion locking had to be treated as a first-class concern.
+  Many failures were not "the task did not work" but "the task worked and was
+  later overwritten by stale stream state."
+
+### What was less useful than expected
+
+- Broad speculative fixes before building a replay fixture.
+  They often moved the failure without proving the root cause.
+- Reading only the final error string.
+  The decisive signal usually came from the combination of:
+  `canary_summary.md`, `run_0X_suite_report.json`, `run_0X_heartbeat.json`,
+  and `run_0X_run.log`.
+- Treating all timeouts as equivalent.
+  Splitting `planningTimeout`, `executionOverrun`, `verificationStall`,
+  `executionStateLost`, and startup failures reduced wasted work.
+
+## If Repeating This Work
+
+If the same kind of stabilization effort starts again in another scenario,
+this is the order that should be used from the beginning.
+
+1. Make the failure readable before fixing it.
+2. Add or improve replay coverage for the exact failure branch.
+3. Strengthen task proposal gates before adding complex execution recovery.
+4. Lock terminal completion before tuning future-task continuation.
+5. Use `1x` live canaries to confirm the latest patch.
+6. Use `3x` only after the `1x` branch is stable.
+
+That order would likely save a meaningful amount of iteration time.
+
+## What I Would Do Earlier Next Time
+
+- Add duplicate-task rejection earlier.
+  Duplicate implementation and verification tasks created several misleading
+  late-stage failures that looked like execution bugs.
+- Normalize validator portability earlier.
+  Commands such as `ls -F` should have been rejected or normalized before the
+  first live run.
+- Encode the "prefer standard library first" Python rule earlier.
+  This would have prevented the `ping3` drift branch sooner.
+- Add approval-path markers earlier.
+  They were essential whenever the log proved planning was ready but the
+  heartbeat did not move.
+- Add explicit workflow-completion recovery earlier.
+  Late final-answer and memory-extraction phases can look like execution
+  overruns when they are actually successful completions.
+
+## What I Would Avoid Next Time
+
+- Avoid bundling unrelated recovery changes into one patch.
+  Single-cause patches made it much easier to tell whether the fix actually
+  worked.
+- Avoid using `3x` as the first feedback loop after a speculative change.
+  It is better as a stability check than as a discovery tool.
+- Avoid trusting assistant reasoning text over persisted task data.
+  The model frequently described the wrong task even when the saved workflow
+  state was still correct.
+- Avoid adding recovery prompts that are broader than the saved task boundary.
+  Broad prompts made the model drift into future tasks or dependency changes.
+
+## Codex-Specific Lessons
+
+These notes are specific to how an agent like Codex should approach similar
+stabilization work.
+
+- The best contribution was not "write more code faster"; it was preserving a
+  reliable source of truth and narrowing the search space.
+- Frequent short progress updates helped maintain a clear chain of reasoning
+  across many batches.
+- Worktrees were valuable because they allowed aggressive iteration without
+  destabilizing the main branch.
+- Commit granularity mattered. Small focused commits made it easier to map a
+  canary improvement back to the exact class of change that caused it.
+
 ## Merge Checklist
 
 Before merging this branch back:
