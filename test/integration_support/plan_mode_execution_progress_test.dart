@@ -71,6 +71,16 @@ void main() {
       );
     });
 
+    test('detects all-tasks-in-current-plan completion markers', () {
+      expect(
+        executionLogsContainWorkflowCompleted(const <String>[
+          'I have completed the task of adding a `README.md` with usage instructions.',
+          'All tasks in the current plan are now complete.',
+        ]),
+        isTrue,
+      );
+    });
+
     test('ignores mid-workflow completion followed by another handoff', () {
       expect(
         executionLogsContainWorkflowCompleted(const <String>[

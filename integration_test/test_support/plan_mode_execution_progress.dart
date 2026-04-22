@@ -4,6 +4,7 @@ bool executionLogsContainWorkflowCompleted(List<String> logs) {
     'all planned tasks have been completed',
     'all tasks in the plan are complete',
     'all tasks in the plan have been completed',
+    'all tasks in the current plan are now complete',
     'all scheduled tasks are complete',
     'all scheduled tasks have been completed',
     'all saved tasks are complete',
