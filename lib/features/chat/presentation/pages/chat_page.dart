@@ -5310,7 +5310,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
+    final recoveredFromValidation =
+        !toolResultApplied &&
+        await _maybeRecoverFromValidationFirstExecution(
+          task: latestTask,
+          languageCode: languageCode,
+          toolResults: recoveryToolResults,
+        );
+    if (toolResultApplied ||
+        recoveredFromValidation ||
+        _taskReachedTerminalStatus(latestTask.id)) {
       return true;
     }
 
@@ -5629,7 +5638,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
             previousAssistantMessageId: previousAssistantMessageId,
             toolResults: recoveryToolResults,
           );
-      if (toolResultApplied) {
+      final recoveredFromValidation =
+          !toolResultApplied &&
+          await _maybeRecoverFromValidationFirstExecution(
+            task: latestTask,
+            languageCode: languageCode,
+            toolResults: recoveryToolResults,
+          );
+      if (toolResultApplied || recoveredFromValidation) {
         return true;
       }
 
