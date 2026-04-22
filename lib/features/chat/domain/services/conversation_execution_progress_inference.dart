@@ -125,12 +125,14 @@ class ConversationExecutionProgressInference {
     final looksLikeRecoverableMissingTargetNarrative =
         _looksLikeRecoverableMissingTargetNarrative(lowercaseResponse);
     final normalizedTaskTitle = task.title.trim().toLowerCase();
-    final mentionsExplicitTaskCompletion =
-        normalizedTaskTitle.isNotEmpty &&
-        lowercaseResponse.contains(normalizedTaskTitle) &&
-        (lowercaseResponse.contains('has been completed') ||
-            lowercaseResponse.contains('is complete') ||
-            lowercaseResponse.contains('is completed'));
+    final taskTitleIndex = normalizedTaskTitle.isEmpty
+        ? -1
+        : lowercaseResponse.indexOf(normalizedTaskTitle);
+    final mentionsExplicitTaskCompletion = taskTitleIndex >= 0 &&
+        _containsAny(
+          lowercaseResponse.substring(taskTitleIndex),
+          const ['has been completed', 'is complete', 'is completed'],
+        );
 
     if (isValidationRun) {
       if (hasBlockedSignal) {
@@ -161,6 +163,15 @@ class ConversationExecutionProgressInference {
             ? ConversationExecutionValidationStatus.passed
             : ConversationExecutionValidationStatus.unknown,
         validationSummary: summary,
+      );
+    }
+
+    if (looksLikeTaskTransitionNarration &&
+        mentionsExplicitTaskCompletion &&
+        !hasBlockedSignal) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary,
       );
     }
 

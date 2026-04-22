@@ -133,6 +133,34 @@ void main() {
   );
 
   test(
+    'treats explicit current-task completion inside transition narration as completed',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement the ping logic in ping_cli.py using the subprocess module',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationCommand: 'python3 ping_cli.py 127.0.0.1',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete. '
+            'The next task is "Create a README.md file with installation and usage instructions".',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        startsWith(
+          'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete.',
+        ),
+      );
+    },
+  );
+
+  test(
     'prefers fallback completion evidence over a generic follow-up summary',
     () {
       final result = ConversationExecutionProgressInference.infer(
