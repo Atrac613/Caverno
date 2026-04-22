@@ -6131,6 +6131,15 @@ class _ChatPageState extends ConsumerState<ChatPage>
           futureTaskTitles: futureTaskTitles,
         );
     final currentProgress = currentConversation.executionProgressForTask(task.id);
+    final currentValidationHandoffEvidence =
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromCurrentValidationHandoff(
+          task: task,
+          toolResults: toolResults,
+          assistantResponse: latestAssistantResponse.isNotEmpty
+              ? latestAssistantResponse
+              : fallbackAssistantEvidence,
+          futureTaskTitles: futureTaskTitles,
+        );
     final historicalValidationHandoffEvidence =
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromHistoricalValidationHandoff(
           task: task,
@@ -6217,6 +6226,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
         eventType: ConversationExecutionTaskEventType.completed,
         eventSummary:
             'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
+      );
+      return true;
+    }
+    if (currentValidationHandoffEvidence) {
+      final validationSummary =
+          currentProgress?.normalizedValidationSummary ?? '';
+      final summary = validationSummary.isNotEmpty
+          ? validationSummary
+          : 'Marked complete after the saved validation succeeded before the assistant moved on to a later saved task.';
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary,
       );
       return true;
     }

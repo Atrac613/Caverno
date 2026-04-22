@@ -807,6 +807,27 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test('normalizes portable ls validation commands in task proposals', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-setup',
+          title: 'Initialize project structure and requirements.txt',
+          targetFiles: ['requirements.txt'],
+          validationCommand: 'ls -F',
+          notes: 'Create the initial dependency file.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks.single.validationCommand, 'ls');
+  });
+
   test('drops placeholder task fields from truncated task proposals', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

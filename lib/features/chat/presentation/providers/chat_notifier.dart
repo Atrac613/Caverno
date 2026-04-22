@@ -3882,9 +3882,8 @@ class ChatNotifier extends Notifier<ChatState> {
       final normalizedTargetFiles = _normalizeTaskProposalTargetFiles(
         task.targetFiles,
       );
-      final normalizedValidationCommand = _normalizeTaskProposalTextField(
-        task.validationCommand,
-      );
+      final normalizedValidationCommand =
+          _normalizeTaskProposalValidationCommand(task.validationCommand);
       final normalizedNotes = _normalizeTaskProposalTextField(task.notes);
       if (_looksLikeImplementationTaskTitle(normalizedTitle) &&
           task.targetFiles.isNotEmpty &&
@@ -4088,6 +4087,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return '';
     }
     return candidate;
+  }
+
+  String _normalizeTaskProposalValidationCommand(String value) {
+    final candidate = _normalizeTaskProposalTextField(value);
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    final portableLs = candidate.replaceFirst(
+      RegExp(r'^ls\s+-F(\s+|$)'),
+      'ls ',
+    );
+    return portableLs.replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   bool _looksLikePlaceholderTaskProposalValue(String value) {

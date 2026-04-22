@@ -561,6 +561,38 @@ class ConversationPlanExecutionGuardrails {
     return false;
   }
 
+  static bool canPromoteCompletionFromCurrentValidationHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.successfulValidationCommands.isEmpty) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
     var sawFailure = false;
     for (final toolResult in toolResults) {

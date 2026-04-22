@@ -591,6 +591,36 @@ void main() {
   );
 
   test(
+    'canPromoteCompletionFromCurrentValidationHandoff accepts same-turn validation success before future-task narration',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_main_task_validation_handoff_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_task_validation_handoff_replay.json',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromCurrentValidationHandoff(
+            task: task,
+            toolResults: toolResults,
+            assistantResponse: fixture['assistantResponse'] as String,
+            futureTaskTitles:
+                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'canPromoteCompletionFromWorkspaceTargets accepts complete task target coverage',
     () {
       final fixture =
