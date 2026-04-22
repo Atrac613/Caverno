@@ -2156,6 +2156,9 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln('- Include a concrete code task after any scaffold task.')
         ..writeln(
           '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
+        )
+        ..writeln(
+          '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
         );
     }
 
@@ -4124,6 +4127,13 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (projectLooksEmpty &&
+        _taskProposalHasUnsupportedPythonVerificationValidation(
+          finalized.tasks,
+        )) {
+      return true;
+    }
+
     if (_taskProposalHasDuplicateVerificationTasks(finalized.tasks)) {
       return true;
     }
@@ -4159,6 +4169,23 @@ class ChatNotifier extends Notifier<ChatState> {
         continue;
       }
       if (!seenSignatures.add(signature)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalHasUnsupportedPythonVerificationValidation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (final task in tasks) {
+      if (!_looksLikeVerificationTaskProposal(task)) {
+        continue;
+      }
+      final normalizedValidation = task.validationCommand.trim().toLowerCase();
+      if (normalizedValidation.startsWith('pytest') ||
+          normalizedValidation.startsWith('python -m pytest') ||
+          normalizedValidation.startsWith('python3 -m pytest')) {
         return true;
       }
     }

@@ -700,6 +700,44 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test('marks pytest-based verification tasks for retry in empty workspaces', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-setup',
+          title: 'Initialize project configuration',
+          targetFiles: ['requirements.txt', 'pyproject.toml'],
+          validationCommand: 'ls requirements.txt pyproject.toml',
+          notes: 'Create the initial Python project files.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-implement',
+          title: 'Implement the core ping CLI logic in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Use subprocess for the first version.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Create a test script to verify the CLI functionality',
+          targetFiles: ['tests/test_ping.py'],
+          validationCommand: 'python3 -m pytest tests/test_ping.py',
+          notes: 'Verify the script against a reachable host.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
   test('dedupes near-duplicate README and implementation tasks', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

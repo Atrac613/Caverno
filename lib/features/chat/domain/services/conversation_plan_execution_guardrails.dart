@@ -210,7 +210,11 @@ class ConversationPlanExecutionGuardrails {
           toolResult.name == 'git_execute_command' ||
           toolResult.name == 'ssh_execute_command') {
         final command = _extractCommand(toolResult);
-        if (_matchesValidationCommand(command, task.validationCommand)) {
+        if (_matchesValidationCommand(command, task.validationCommand) ||
+            _matchesPythonTestFallbackValidationCommand(
+              task: task,
+              command: command,
+            )) {
           final exitCode = _extractExitCode(toolResult.result);
           final succeeded = exitCode == null
               ? !_looksLikeFailureResult(toolResult.result)
@@ -658,6 +662,52 @@ class ConversationPlanExecutionGuardrails {
     return null;
   }
 
+  static String? missingPythonTestDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      if (normalizedResult.contains("no module named pytest") ||
+          normalizedResult.contains("no module named 'pytest'") ||
+          normalizedResult.contains('pytest: command not found') ||
+          normalizedResult.contains('/pytest: not found')) {
+        return 'pytest';
+      }
+    }
+    return null;
+  }
+
+  static String? suggestPythonTestDependencyFallbackCommand({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String missingDependency,
+  }) {
+    if (missingDependency.trim().toLowerCase() != 'pytest') {
+      return null;
+    }
+    if (!_isPytestValidationCommand(failedCommand)) {
+      return null;
+    }
+    final fallbackTarget = _firstPythonVerificationTarget(task);
+    if (fallbackTarget == null) {
+      return null;
+    }
+    final commandPrefix = _pythonCommandPrefixForValidationCommand(
+      failedCommand,
+    );
+    return '$commandPrefix $fallbackTarget';
+  }
+
   static String? suggestPythonSrcLayoutRetryCommand({
     required ConversationWorkflowTask task,
     required String failedCommand,
@@ -713,6 +763,21 @@ class ConversationPlanExecutionGuardrails {
         normalizedValidation.contains(normalizedCommand);
   }
 
+  static bool _matchesPythonTestFallbackValidationCommand({
+    required ConversationWorkflowTask task,
+    required String command,
+  }) {
+    final fallbackCommand = suggestPythonTestDependencyFallbackCommand(
+      task: task,
+      failedCommand: task.validationCommand,
+      missingDependency: 'pytest',
+    );
+    if (fallbackCommand == null) {
+      return false;
+    }
+    return _matchesValidationCommand(command, fallbackCommand);
+  }
+
   static bool _matchesRunTestsValidation(
     String validationCommand,
     String? testPath,
@@ -732,6 +797,43 @@ class ConversationPlanExecutionGuardrails {
       return '';
     }
     return raw.replaceAll('\\', '/');
+  }
+
+  static bool _isPytestValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    return normalized.startsWith('pytest ') ||
+        normalized == 'pytest' ||
+        normalized.startsWith('python -m pytest') ||
+        normalized.startsWith('python3 -m pytest');
+  }
+
+  static String? _firstPythonVerificationTarget(ConversationWorkflowTask task) {
+    final normalizedTargets = _effectiveTargetPaths(task).toList(growable: false);
+    for (final target in normalizedTargets) {
+      final normalizedTarget = target.trim().toLowerCase();
+      if (!normalizedTarget.endsWith('.py')) {
+        continue;
+      }
+      if (normalizedTarget.contains('/test') ||
+          normalizedTarget.startsWith('test') ||
+          normalizedTarget.contains('verify')) {
+        return target;
+      }
+    }
+    for (final target in normalizedTargets) {
+      if (target.endsWith('.py')) {
+        return target;
+      }
+    }
+    return null;
+  }
+
+  static String _pythonCommandPrefixForValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    if (normalized.startsWith('python ')) {
+      return 'python';
+    }
+    return 'python3';
   }
 
   static bool _looksLikeScaffoldCommand(String normalizedCommand) {

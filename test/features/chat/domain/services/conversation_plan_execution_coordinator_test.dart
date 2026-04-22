@@ -562,6 +562,54 @@ void main() {
   });
 
   test(
+    'buildPythonTestDependencyRecoveryPrompt rewrites verification toward a stdlib fallback',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-verify-cli',
+        title: 'Create a test script to verify the CLI functionality',
+        targetFiles: ['tests/test_ping.py'],
+        validationCommand: 'python3 -m pytest tests/test_ping.py',
+        notes:
+            'Verify that the script can successfully ping a known host like 8.8.8.8.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildPythonTestDependencyRecoveryPrompt(
+            task: task,
+            failedCommand: 'python3 -m pytest tests/test_ping.py',
+            fallbackCommand: 'python3 tests/test_ping.py',
+            missingDependency: 'pytest',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved verification command failed because a Python test dependency is unavailable in the current environment.',
+        ),
+      );
+      expect(prompt, contains('Saved task ID: task-verify-cli'));
+      expect(prompt, contains('Missing dependency: pytest'));
+      expect(prompt, contains('Fallback verification command: python3 tests/test_ping.py'));
+      expect(
+        prompt,
+        contains(
+          'Rewrite the saved verification target so it runs with the Python standard library only and exits non-zero on failure.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not add new external dependencies or switch tasks just to recover this verification step.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Run the fallback verification command now after updating the saved target file.'),
+      );
+    },
+  );
+
+  test(
     'buildFailedValidationRecoveryPrompt focuses the next turn on fixing the target file',
     () {
       const task = ConversationWorkflowTask(

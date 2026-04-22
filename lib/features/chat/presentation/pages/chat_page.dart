@@ -4563,11 +4563,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: toolResults,
         );
+    final recoveredFromPythonTestDependency =
+        !toolResultApplied &&
+        !recoveredFromValidation &&
+        !recoveredFromFailure &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromMissingPythonTestDependency(
+          task: task,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromPythonImport =
         !toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         await _maybeRecoverFromPythonSrcLayoutValidationFailure(
           task: task,
           languageCode: languageCode,
@@ -4588,6 +4599,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             !recoveredFromValidation &&
             !recoveredFromFailure &&
             !recoveredFromMissingTarget &&
+            !recoveredFromPythonTestDependency &&
             !recoveredFromPythonImport &&
             !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
@@ -4603,6 +4615,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         !recoveredFromValidation &&
         !recoveredFromFailure &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         !recoveredFromPythonImport &&
         !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
@@ -4692,10 +4705,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: validationToolResults,
         );
+    final recoveredFromPythonTestDependency =
+        toolResultApplied &&
+        !completionPromoted &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromMissingPythonTestDependency(
+          task: task,
+          languageCode: languageCode,
+          toolResults: validationToolResults,
+        );
     final recoveredFromPythonImport =
         toolResultApplied &&
         !completionPromoted &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         await _maybeRecoverFromPythonSrcLayoutValidationFailure(
           task: task,
           languageCode: languageCode,
@@ -4704,6 +4727,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!toolResultApplied ||
         (!completionPromoted &&
             !recoveredFromMissingTarget &&
+            !recoveredFromPythonTestDependency &&
             !recoveredFromPythonImport)) {
       await _captureExecutionProgressFromLatestAssistantEvidence(
         task: task,
@@ -4814,11 +4838,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: toolResults,
         );
+    final recoveredFromPythonTestDependency =
+        !toolResultApplied &&
+        !recoveredFromValidation &&
+        !recoveredFromFailure &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromMissingPythonTestDependency(
+          task: nextTask,
+          languageCode: languageCode,
+          toolResults: toolResults,
+        );
     final recoveredFromPythonImport =
         !toolResultApplied &&
         !recoveredFromValidation &&
         !recoveredFromFailure &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         await _maybeRecoverFromPythonSrcLayoutValidationFailure(
           task: nextTask,
           languageCode: languageCode,
@@ -4839,6 +4874,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             !recoveredFromValidation &&
             !recoveredFromFailure &&
             !recoveredFromMissingTarget &&
+            !recoveredFromPythonTestDependency &&
             !recoveredFromPythonImport &&
             !recoveredFromDrift
         ? await _captureExecutionProgressFromLatestAssistantEvidence(
@@ -4854,6 +4890,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         !recoveredFromValidation &&
         !recoveredFromFailure &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         !recoveredFromPythonImport &&
         !recoveredFromDrift) {
       await _maybeRecoverFromToolLessExecution(
@@ -5110,10 +5147,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
           languageCode: languageCode,
           toolResults: recoveryToolResults,
         );
+    final recoveredFromPythonTestDependency =
+        toolResultApplied &&
+        !completionPromoted &&
+        !recoveredFromMissingTarget &&
+        await _maybeRecoverFromMissingPythonTestDependency(
+          task: latestTask,
+          languageCode: languageCode,
+          toolResults: recoveryToolResults,
+        );
     final recoveredFromPythonImport =
         toolResultApplied &&
         !completionPromoted &&
         !recoveredFromMissingTarget &&
+        !recoveredFromPythonTestDependency &&
         await _maybeRecoverFromPythonSrcLayoutValidationFailure(
           task: latestTask,
           languageCode: languageCode,
@@ -5160,6 +5207,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (!toolResultApplied ||
         (!completionPromoted &&
             !recoveredFromMissingTarget &&
+            !recoveredFromPythonTestDependency &&
             !recoveredFromPythonImport)) {
       final assistantResult =
           await _captureExecutionProgressFromLatestAssistantEvidence(
@@ -5239,6 +5287,109 @@ class _ChatPageState extends ConsumerState<ChatPage>
         task: latestTask,
         missingTargetFiles: [missingTargetFile],
         failedCommand: failedCommand,
+      ),
+      languageCode: languageCode,
+    );
+
+    final recoveryToolResults = chatNotifier.takeLatestToolResults();
+    final toolResultApplied =
+        await _captureExecutionProgressFromLatestToolResults(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          toolResults: recoveryToolResults,
+        );
+    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+      return true;
+    }
+
+    final assistantResult =
+        await _captureExecutionProgressFromLatestAssistantEvidence(
+          task: latestTask,
+          previousAssistantMessageId: previousAssistantMessageId,
+          isValidationRun: false,
+          fallbackAssistantResponse: chatNotifier
+              .takeLatestHiddenAssistantResponse(),
+        );
+    if (!assistantResult) {
+      return false;
+    }
+
+    final refreshedConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (refreshedConversation == null) {
+      return false;
+    }
+    final refreshedTask = refreshedConversation.projectedExecutionTasks
+        .where((item) => item.id == latestTask.id)
+        .firstOrNull;
+    if (refreshedTask == null) {
+      return false;
+    }
+    return refreshedTask.status == ConversationWorkflowTaskStatus.completed ||
+        refreshedTask.status == ConversationWorkflowTaskStatus.blocked;
+  }
+
+  Future<bool> _maybeRecoverFromMissingPythonTestDependency({
+    required ConversationWorkflowTask task,
+    required String languageCode,
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
+      return false;
+    }
+
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    if (currentConversation == null) {
+      return false;
+    }
+
+    final latestTask = currentConversation.projectedExecutionTasks
+        .where((item) => item.id == task.id)
+        .firstOrNull;
+    if (latestTask == null ||
+        latestTask.status == ConversationWorkflowTaskStatus.completed ||
+        latestTask.status == ConversationWorkflowTaskStatus.blocked) {
+      return false;
+    }
+
+    final missingDependency =
+        ConversationPlanExecutionGuardrails.missingPythonTestDependency(
+          task: latestTask,
+          toolResults: toolResults,
+        );
+    if (missingDependency == null) {
+      return false;
+    }
+
+    final failedCommand =
+        ConversationPlanExecutionGuardrails.failedPythonValidationCommand(
+          task: latestTask,
+          toolResults: toolResults,
+        ) ??
+        latestTask.validationCommand.trim();
+    final fallbackCommand =
+        ConversationPlanExecutionGuardrails.suggestPythonTestDependencyFallbackCommand(
+          task: latestTask,
+          failedCommand: failedCommand,
+          missingDependency: missingDependency,
+        );
+    if (fallbackCommand == null) {
+      return false;
+    }
+
+    final previousAssistantMessageId = _latestAssistantMessageId(
+      currentConversation,
+    );
+    final chatNotifier = ref.read(chatNotifierProvider.notifier);
+    await chatNotifier.sendHiddenPrompt(
+      ConversationPlanExecutionCoordinator.buildPythonTestDependencyRecoveryPrompt(
+        task: latestTask,
+        failedCommand: failedCommand,
+        fallbackCommand: fallbackCommand,
+        missingDependency: missingDependency,
       ),
       languageCode: languageCode,
     );

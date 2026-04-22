@@ -705,6 +705,82 @@ void main() {
     },
   );
 
+  test('detects pytest-missing verification failures and suggests fallback', () {
+    final task = loadFixtureTask(
+      'plan_mode_ping_cli_pytest_missing_verification_replay.json',
+    );
+    final toolResults = loadFixtureToolResults(
+      'plan_mode_ping_cli_pytest_missing_verification_replay.json',
+    );
+
+    final failedCommand =
+        ConversationPlanExecutionGuardrails.failedPythonValidationCommand(
+          task: task,
+          toolResults: toolResults,
+        );
+
+    expect(
+      ConversationPlanExecutionGuardrails.missingPythonTestDependency(
+        task: task,
+        toolResults: toolResults,
+      ),
+      'pytest',
+    );
+    expect(failedCommand, 'python3 -m pytest tests/test_ping.py');
+    expect(
+      ConversationPlanExecutionGuardrails
+          .suggestPythonTestDependencyFallbackCommand(
+            task: task,
+            failedCommand: failedCommand!,
+            missingDependency: 'pytest',
+          ),
+      'python3 tests/test_ping.py',
+    );
+  });
+
+  test(
+    'assessTaskCompletion accepts direct Python fallback validation after pytest is unavailable',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-verify-cli',
+        title: 'Create a test script to verify the CLI functionality',
+        targetFiles: ['tests/test_ping.py'],
+        validationCommand: 'python3 -m pytest tests/test_ping.py',
+        notes:
+            'Verify that the script can successfully ping a known host like 8.8.8.8.',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'tests/test_ping.py'},
+          result:
+              '{"path":"/tmp/project/tests/test_ping.py","bytes_written":412,"created":false}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 tests/test_ping.py'},
+          result:
+              '{"command":"python3 tests/test_ping.py","exit_code":0,"stdout":"ping ok","stderr":""}',
+        ),
+      ];
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 tests/test_ping.py'),
+      );
+    },
+  );
+
   test(
     'assessTaskDrift ignores scaffold support files for scaffold-like tasks',
     () {

@@ -495,6 +495,47 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildPythonTestDependencyRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String fallbackCommand,
+    required String missingDependency,
+  }) {
+    final promptLines = <String>[
+      'The saved verification command failed because a Python test dependency is unavailable in the current environment.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Missing dependency: ${missingDependency.trim()}',
+      'Fallback verification command: ${fallbackCommand.trim()}',
+    ];
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Rewrite the saved verification target so it runs with the Python standard library only and exits non-zero on failure.',
+    );
+    promptLines.add(
+      'Do not add new external dependencies or switch tasks just to recover this verification step.',
+    );
+    promptLines.add(
+      'Run the fallback verification command now after updating the saved target file.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not ask for confirmation, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildMissingTargetFileRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> missingTargetFiles,
