@@ -26,14 +26,20 @@ bool isPlanningProposalReady({
   required String? taskError,
   required List<String> logs,
 }) {
-  if (hasPendingDecision || workflowError != null || taskError != null) {
+  if (hasPendingDecision) {
     return false;
   }
   final resolvedWorkflowDraft =
       hasWorkflowDraft || planningLogsContainWorkflowDraftReady(logs);
   final resolvedTaskDraft =
       hasTaskDraft || planningLogsContainTaskDraftReady(logs);
-  return resolvedWorkflowDraft && resolvedTaskDraft;
+  if (resolvedWorkflowDraft && resolvedTaskDraft) {
+    return true;
+  }
+  if (workflowError != null || taskError != null) {
+    return false;
+  }
+  return false;
 }
 
 String resolvePlanningSubphase({

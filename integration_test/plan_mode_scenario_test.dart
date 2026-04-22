@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
@@ -459,7 +460,7 @@ Future<void> _resolvePlanningDecisions(
   const maxDecisionRounds = 8;
 
   while (resolvedDecisionCount < maxDecisionRounds) {
-    await tester.pumpAndSettle();
+    await _pumpUntilIdle(tester);
     final decisionSheetFinder = find.byType(BottomSheet);
     final confirmFinder = find.descendant(
       of: decisionSheetFinder,
@@ -508,7 +509,7 @@ Future<void> _resolvePlanningDecisions(
         decisionTextFieldFinder,
         scriptedSelection!.freeTextAnswer!,
       );
-      await tester.pumpAndSettle();
+      await _pumpUntilIdle(tester);
     } else if (scriptedSelection?.optionLabel != null) {
       final optionFinder = _findDecisionSheetText(
         tester,
@@ -523,7 +524,7 @@ Future<void> _resolvePlanningDecisions(
             '"${scriptedSelection.optionLabel}" in the planning sheet.',
       );
       await tester.tap(optionFinder.last, warnIfMissed: false);
-      await tester.pumpAndSettle();
+      await _pumpUntilIdle(tester);
     } else if (config.usesLiveLlm) {
       appLog(
         '[ScenarioLive] Auto-accepted the default planning option'
@@ -534,7 +535,7 @@ Future<void> _resolvePlanningDecisions(
     expect(confirmFinder, findsOneWidget);
     await tester.tap(confirmFinder, warnIfMissed: false);
     await tester.pump();
-    await tester.pumpAndSettle();
+    await _pumpUntilIdle(tester);
     if (scriptedSelection != null) {
       scriptedDecisionIndex += 1;
     }
@@ -600,6 +601,7 @@ Future<void> _waitForReadyPlanProposal(
   var recoveredTaskProposal = false;
   var deadline = DateTime.now().add(timeout);
   String? lastPlanningProgressKey;
+  var proposalUiLogged = false;
 
   bool isProposalReady(ChatState chatState) {
     return isPlanningProposalReady(
@@ -633,6 +635,20 @@ Future<void> _waitForReadyPlanProposal(
       conversation?.projectedExecutionTasks ??
           const <ConversationWorkflowTask>[],
     );
+    if (isApprovalUiReady() && !proposalUiLogged) {
+      proposalUiLogged = true;
+      appLog('[Workflow] Proposal approval UI became visible');
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalUiVisible',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        workflowSnapshot: workflowSnapshot,
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: false,
+      );
+    }
     final planningProgressKey =
         '${conversation?.messages.length ?? 0}|'
         '${chatState.workflowProposalDraft != null || planningLogsContainWorkflowDraftReady(logs)}|'
@@ -654,14 +670,14 @@ Future<void> _waitForReadyPlanProposal(
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: workflowSnapshot,
-      messageCount: conversation?.messages.length ?? 0,
-      hasPendingApprovals: chatState.pendingWorkflowDecision != null,
-      isLoading:
-          chatState.isLoading ||
-          chatState.isGeneratingWorkflowProposal ||
-          chatState.isGeneratingTaskProposal,
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: chatState.pendingWorkflowDecision != null,
+        isLoading:
+            chatState.isLoading ||
+            chatState.isGeneratingWorkflowProposal ||
+            chatState.isGeneratingTaskProposal,
     );
-    if (isProposalReady(chatState) || isApprovalUiReady()) {
+    if (isProposalReady(chatState)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
       phaseTrace.taskProposalReadyAt ??= DateTime.now();
       heartbeatWriter.write(
@@ -674,7 +690,7 @@ Future<void> _waitForReadyPlanProposal(
         hasPendingApprovals: false,
         isLoading: false,
       );
-      await _pumpUntilIdle(tester);
+      await tester.pump();
       return;
     }
     if (chatState.pendingWorkflowDecision != null) {
@@ -719,7 +735,7 @@ Future<void> _waitForReadyPlanProposal(
   }
 
   final chatState = container.read(chatNotifierProvider);
-  if (isProposalReady(chatState) || isApprovalUiReady()) {
+  if (isProposalReady(chatState)) {
     phaseTrace.proposalReadyAt ??= DateTime.now();
     phaseTrace.taskProposalReadyAt ??= DateTime.now();
     final conversation = container
@@ -738,7 +754,7 @@ Future<void> _waitForReadyPlanProposal(
       hasPendingApprovals: false,
       isLoading: false,
     );
-    await _pumpUntilIdle(tester);
+    await tester.pump();
     return;
   }
 
@@ -1698,24 +1714,83 @@ Future<_ScenarioRunResult> _runScenario({
     logs: logs,
   );
 
+  appLog('[Workflow] Waiting for proposal approval UI');
+  heartbeatWriter.write(
+    phase: 'planning',
+    subphase: 'proposalUiWait',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+  );
+  await _waitForFinder(
+    tester,
+    find.text('Approve and start'),
+    timeout: const Duration(seconds: 20),
+  );
   _assertUiExpectations(
     tester,
     scenario.uiExpectations,
     PlanModeUiPhase.proposal,
   );
   expect(find.text('Approve and start'), findsAtLeastNWidgets(1));
-
-  await captureIntegrationScreenshot(
-    binding: binding,
-    tester: tester,
-    repaintBoundaryKey: screenshotBoundaryKey,
-    name: 'plan_mode_${scenario.name}_proposal',
-    outputDirectory: scenarioDir,
+  appLog('[Workflow] Proposal approval UI visible');
+  heartbeatWriter.write(
+    phase: 'planning',
+    subphase: 'proposalUiReady',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
   );
 
+  appLog('[Workflow] Proposal screenshot started');
+  heartbeatWriter.write(
+    phase: 'planning',
+    subphase: 'proposalScreenshotStarted',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+  );
+  try {
+    await captureIntegrationScreenshot(
+      binding: binding,
+      tester: tester,
+      repaintBoundaryKey: screenshotBoundaryKey,
+      name: 'plan_mode_${scenario.name}_proposal',
+      outputDirectory: scenarioDir,
+    ).timeout(const Duration(seconds: 15));
+    appLog('[Workflow] Proposal screenshot finished');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalScreenshotFinished',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+  } on TimeoutException {
+    appLog('[Workflow] Proposal screenshot skipped after timeout');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalScreenshotSkipped',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+  } catch (error) {
+    appLog('[Workflow] Proposal screenshot skipped after error: $error');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalScreenshotSkipped',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+  }
+
   final approveAction = _findPreferredPlanApproveAction();
+  appLog('[Workflow] Proposal approval tap started');
+  heartbeatWriter.write(
+    phase: 'planning',
+    subphase: 'proposalTapStarted',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+  );
   await tester.ensureVisible(approveAction);
   await tester.tap(approveAction, warnIfMissed: false);
+  appLog('[Workflow] Proposal approval tap finished');
   phaseTrace.approvalTappedAt = DateTime.now();
   heartbeatWriter.write(
     phase: 'execution',

@@ -67,6 +67,22 @@ void main() {
 
       expect(isReady, isFalse);
     });
+
+    test('treats ready markers as ready even when stale errors remain', () {
+      final isReady = isPlanningProposalReady(
+        hasWorkflowDraft: false,
+        hasTaskDraft: false,
+        hasPendingDecision: false,
+        workflowError: 'truncated workflow proposal',
+        taskError: 'truncated task proposal',
+        logs: const <String>[
+          '[Workflow] Workflow proposal ready',
+          '[Workflow] Task proposal ready',
+        ],
+      );
+
+      expect(isReady, isTrue);
+    });
   });
 
   group('resolvePlanningSubphase', () {
