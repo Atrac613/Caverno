@@ -23,6 +23,7 @@ class BuiltInToolRegistry {
   static const String categoryGit = 'git';
   static const String categoryWebSearch = 'web_search';
   static const String categoryBle = 'ble';
+  static const String categorySystem = 'system';
   static const String categoryWifi = 'wifi';
   static const String categoryLanScan = 'lan_scan';
 
@@ -35,6 +36,7 @@ class BuiltInToolRegistry {
     categoryGit,
     categoryWebSearch,
     categoryBle,
+    categorySystem,
     categoryWifi,
     categoryLanScan,
   ];
@@ -162,6 +164,17 @@ class BuiltInToolRegistry {
       name: 'mdns_browse',
       descriptionKey: 'settings.tool_mdns_browse',
       category: categoryNetwork,
+    ),
+    // OS diagnostics
+    BuiltInToolInfo(
+      name: 'os_get_system_info',
+      descriptionKey: 'settings.tool_os_get_system_info',
+      category: categorySystem,
+    ),
+    BuiltInToolInfo(
+      name: 'os_log_read',
+      descriptionKey: 'settings.tool_os_log_read',
+      category: categorySystem,
     ),
     // Coding
     BuiltInToolInfo(
@@ -367,6 +380,7 @@ class BuiltInToolRegistry {
       categoryGit => Icons.merge_type,
       categoryWebSearch => Icons.search,
       categoryBle => Icons.bluetooth,
+      categorySystem => Icons.computer,
       categoryWifi => Icons.wifi,
       categoryLanScan => Icons.device_hub,
       _ => Icons.extension,

@@ -6477,6 +6477,7 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'find_files':
       case 'search_files':
       case 'get_current_datetime':
+      case 'os_get_system_info':
       case 'search_past_conversations':
       case 'recall_memory':
       case 'ping':
@@ -6492,6 +6493,7 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'wifi_scan':
       case 'wifi_get_scan_results':
       case 'wifi_get_connection_info':
+      case 'os_log_read':
       case 'lan_scan':
       case 'lan_get_scan_results':
         return null;

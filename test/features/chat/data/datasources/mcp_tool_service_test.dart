@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
@@ -46,6 +47,76 @@ void main() {
       expect(functionNames, contains('dns_query'));
       expect(functionNames, contains('path_mtu'));
       expect(functionNames, contains('mdns_browse'));
+      if (Platform.isMacOS || Platform.isLinux || Platform.isWindows) {
+        expect(functionNames, contains('os_get_system_info'));
+      }
+      if (Platform.isMacOS || Platform.isLinux) {
+        expect(functionNames, contains('os_log_read'));
+      }
+    });
+
+    test(
+      'executes os_get_system_info through the built-in tool service',
+      () async {
+        final service = McpToolService(
+          osLogProcessRunner: (executable, arguments) async {
+            if (Platform.isMacOS && executable == '/usr/bin/sw_vers') {
+              return ProcessResult(123, 0, '''
+ProductName: macOS
+ProductVersion: 14.5
+BuildVersion: 23F79
+''', '');
+            }
+            if (arguments.join(' ') == '-r') {
+              return ProcessResult(124, 0, '23.5.0\n', '');
+            }
+            if (arguments.join(' ') == '-m') {
+              return ProcessResult(125, 0, 'arm64\n', '');
+            }
+            return ProcessResult(126, 0, '', '');
+          },
+        );
+
+        final result = await service.executeTool(
+          name: 'os_get_system_info',
+          arguments: const {},
+        );
+
+        expect(result.isSuccess, isTrue);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(decoded['os_family'], isA<String>());
+        expect(decoded['os_log_read_supported'], isA<bool>());
+      },
+    );
+
+    test('executes os_log_read through the built-in tool service', () async {
+      final service = McpToolService(
+        osLogProcessRunner: (executable, arguments) async =>
+            ProcessResult(123, 0, '''
+2026-04-22 09:01:00 eapolclient error Authentication failed
+2026-04-22 09:02:00 eapolclient notice Auth retry scheduled
+''', ''),
+      );
+
+      final result = await service.executeTool(
+        name: 'os_log_read',
+        arguments: const {
+          'scope': 'authentication',
+          'keywords': ['auth'],
+          'max_entries': 1,
+        },
+      );
+
+      expect(result.isSuccess, isTrue);
+      final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+      expect(decoded['scope'], 'authentication');
+      expect(decoded['entries_returned'], 1);
+      final entries = decoded['entries'] as List<dynamic>;
+      expect(entries.single, isA<Map<String, dynamic>>());
+      expect(
+        (entries.single as Map<String, dynamic>)['line'],
+        contains('Auth retry scheduled'),
+      );
     });
 
     test(

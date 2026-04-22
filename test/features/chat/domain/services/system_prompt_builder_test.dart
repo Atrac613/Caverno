@@ -15,6 +15,8 @@ void main() {
         'list_directory',
         'read_file',
         'local_execute_command',
+        'os_get_system_info',
+        'os_log_read',
         'git_execute_command',
       ],
       projectName: 'caverno',
@@ -38,6 +40,24 @@ void main() {
       prompt,
       contains(
         'For codebase exploration, prefer list_directory, find_files, search_files, and read_file before using local shell commands.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Use os_get_system_info when the current machine operating system or version matters.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For local machine diagnostics, prefer os_log_read when you need recent WiFi, network, or authentication logs from the current computer.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Before interpreting local OS logs, call os_get_system_info first if the current OS or version is unclear.',
       ),
     );
     expect(

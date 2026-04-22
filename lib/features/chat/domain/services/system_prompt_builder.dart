@@ -48,6 +48,8 @@ class SystemPromptBuilder {
       'rollback_last_file_change',
     );
     final hasLocalShellTool = uniqueToolNames.contains('local_execute_command');
+    final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
+    final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
 
     final date = _formatDate(now);
@@ -131,6 +133,25 @@ class SystemPromptBuilder {
           'Use local_execute_command mainly for running tests, analyzers, '
           'formatters, or other toolchain commands that are awkward to '
           'express with the file tools.',
+        );
+      }
+      if (hasOsSystemInfoTool) {
+        buffer.writeln(
+          'Use os_get_system_info when the current machine operating system '
+          'or version matters.',
+        );
+      }
+      if (hasOsLogTool) {
+        buffer.writeln(
+          'For local machine diagnostics, prefer os_log_read when you need '
+          'recent WiFi, network, or authentication logs from the current '
+          'computer.',
+        );
+      }
+      if (hasOsSystemInfoTool && hasOsLogTool) {
+        buffer.writeln(
+          'Before interpreting local OS logs, call os_get_system_info first '
+          'if the current OS or version is unclear.',
         );
       }
       if (hasGitTool) {

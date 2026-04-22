@@ -23,6 +23,7 @@ import 'local_shell_tools.dart';
 import 'mcp_client.dart';
 import 'mcp_stdio_client.dart';
 import 'network_tools.dart';
+import 'os_log_tools.dart';
 import 'searxng_client.dart';
 import 'wifi_tools.dart';
 
@@ -78,6 +79,7 @@ class McpToolService {
     'search_files',
     'local_execute_command',
     'git_execute_command',
+    ...OsLogTools.allToolNames,
     'ssh_connect',
     'ssh_execute_command',
     'ssh_disconnect',
@@ -95,6 +97,7 @@ class McpToolService {
     this.bleService,
     this.wifiService,
     this.lanScanService,
+    this.osLogProcessRunner,
     this.disabledBuiltInTools = const {},
   });
 
@@ -106,6 +109,7 @@ class McpToolService {
   final BleService? bleService;
   final WifiService? wifiService;
   final LanScanService? lanScanService;
+  final OsLogProcessRunner? osLogProcessRunner;
   final Set<String> disabledBuiltInTools;
 
   List<McpToolEntity> _cachedTools = [];
@@ -470,6 +474,12 @@ class McpToolService {
       _addIfEnabled(toolDefinitions, _localExecuteCommandTool);
     }
 
+    if (OsLogTools.supportsSystemInfo || OsLogTools.supportsLogRead) {
+      for (final tool in OsLogTools.allTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
     // Git tools (desktop only — requires system git binary via Process.run).
     if (GitTools.isDesktopPlatform) {
       _addIfEnabled(toolDefinitions, _gitExecuteCommandTool);
@@ -746,6 +756,59 @@ class McpToolService {
         workingDirectory: workingDirectory,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == 'os_get_system_info') {
+      try {
+        final result = await OsLogTools.getSystemInfo(
+          processRunner: osLogProcessRunner,
+        );
+        appLog('[McpToolService] OS system info executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] OS system info error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
+    }
+
+    if (name == 'os_log_read') {
+      try {
+        final keywords = switch (arguments['keywords']) {
+          final List<dynamic> values =>
+            values.map((value) => value.toString()).toList(growable: false),
+          final String value when value.trim().isNotEmpty => [value.trim()],
+          _ => const <String>[],
+        };
+        final result = await OsLogTools.read(
+          scope: (arguments['scope'] as String?)?.trim() ?? 'wifi',
+          keywords: keywords,
+          process: (arguments['process'] as String?)?.trim(),
+          subsystem: (arguments['subsystem'] as String?)?.trim(),
+          sinceMinutes: ((arguments['since_minutes'] as num?)?.toInt() ?? 30)
+              .clamp(1, 1440),
+          maxEntries: ((arguments['max_entries'] as num?)?.toInt() ?? 50).clamp(
+            1,
+            200,
+          ),
+          includeDebug: arguments['include_debug'] as bool? ?? false,
+          processRunner: osLogProcessRunner,
+        );
+        appLog('[McpToolService] OS log read executed successfully');
+        return McpToolResult(toolName: name, result: result, isSuccess: true);
+      } catch (e) {
+        appLog('[McpToolService] OS log read error: $e');
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: e.toString(),
+        );
+      }
     }
 
     // Built-in network tools.
