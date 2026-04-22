@@ -133,6 +133,61 @@ void main() {
   );
 
   test(
+    'treats explicit current-task completion inside transition narration as completed',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement the ping logic in ping_cli.py using the subprocess module',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationCommand: 'python3 ping_cli.py 127.0.0.1',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete. '
+            'The next task is "Create a README.md file with installation and usage instructions".',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        startsWith(
+          'The previous task `task-ping-cli` ("Implement the ping logic in ping_cli.py using the subprocess module") is complete.',
+        ),
+      );
+    },
+  );
+
+  test(
+    'treats explicit current-task was-completed narration as completed',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-init',
+        title: 'Initialize project structure',
+        status: ConversationWorkflowTaskStatus.blocked,
+        validationCommand: 'ls -a',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'Task 1 (Initialize project structure) was completed and all target files are present. The next task is "Implement ping CLI script with argparse".',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.summary,
+        startsWith(
+          'Task 1 (Initialize project structure) was completed and all target files are present.',
+        ),
+      );
+    },
+  );
+
+  test(
     'prefers fallback completion evidence over a generic follow-up summary',
     () {
       final result = ConversationExecutionProgressInference.infer(
@@ -152,12 +207,34 @@ void main() {
     },
   );
 
+  test('treats validation command success narratives as completion evidence', () {
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.summary,
+      'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+    );
+  });
+
   test(
-    'treats validation command success narratives as completion evidence',
+    'prefers completion when the response recaps an earlier failure but confirms success',
     () {
+      const task = ConversationWorkflowTask(
+        id: 'task-cli',
+        title: 'Implement subprocess ping logic',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationCommand: 'python3 main.py 8.8.8.8',
+      );
+
       final result = ConversationExecutionProgressInference.infer(
         assistantResponse:
-            'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+            'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
         task: task,
         isValidationRun: false,
       );
@@ -165,8 +242,38 @@ void main() {
       expect(result.status, ConversationWorkflowTaskStatus.completed);
       expect(
         result.summary,
-        'The validation command `python3 ping_lib.py --help` was successful. The CLI interface is working as expected and correctly displays the help message.',
+        'The task "Implement subprocess ping logic" has been completed. I fixed the earlier failed validation attempt, and the validation command was successful after updating main.py.',
       );
+    },
+  );
+
+  test(
+    'treats recoverable missing-target narratives as in-progress recovery',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement core ping logic in ping_cli.py using subprocess',
+        status: ConversationWorkflowTaskStatus.blocked,
+        validationCommand: 'python3 ping_cli.py 127.0.0.1',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The validation command was attempted before the target file existed. '
+            'The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess". '
+            'Plan: 1. Create `ping_cli.py` with the core ping logic using subprocess.',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(
+        result.summary,
+        startsWith(
+          'The validation command was attempted before the target file existed. The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess".',
+        ),
+      );
+      expect(result.blockedReason, isNull);
     },
   );
 }

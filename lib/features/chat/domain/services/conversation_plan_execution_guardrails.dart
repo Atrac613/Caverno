@@ -60,8 +60,7 @@ class ConversationPlanExecutionCompletionAssessment {
       !hasFailure &&
       unrelatedTouchedPaths.isEmpty &&
       scaffoldCommands.isEmpty &&
-      successfulValidationCommands.isNotEmpty &&
-      (touchedTargetFiles.isNotEmpty || !hasTargetFiles);
+      successfulValidationCommands.isNotEmpty;
 
   bool get completedFromTargetCoverage =>
       !hasFailure &&
@@ -71,8 +70,7 @@ class ConversationPlanExecutionCompletionAssessment {
       (!requiresValidation || allowsLightValidationCompletion);
 
   bool get hasCompletionEvidenceIgnoringFailures =>
-      ((successfulValidationCommands.isNotEmpty &&
-              (touchedTargetFiles.isNotEmpty || !hasTargetFiles)) ||
+      ((successfulValidationCommands.isNotEmpty) ||
           (touchedAllTargetFiles &&
               (!requiresValidation || allowsLightValidationCompletion))) &&
       unrelatedTouchedPaths.isEmpty &&
@@ -86,15 +84,25 @@ class ConversationPlanExecutionCompletionAssessment {
 class ConversationPlanExecutionGuardrails {
   ConversationPlanExecutionGuardrails._();
 
+  static const _completionSignals = <String>[
+    ' is complete',
+    ' is now complete',
+    ' has been completed',
+    ' completed',
+    ' done',
+    ' finished',
+  ];
+
+  static List<String> effectiveTargetPathsForTask(
+    ConversationWorkflowTask task,
+  ) => _effectiveTargetPaths(task).toList(growable: false);
+
   static ConversationPlanExecutionDriftAssessment assessTaskDrift({
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toSet();
+    final normalizedTargets = _effectiveTargetPaths(task);
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final targetTouchCounts = <String, int>{};
@@ -175,10 +183,7 @@ class ConversationPlanExecutionGuardrails {
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toSet();
+    final normalizedTargets = _effectiveTargetPaths(task);
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final unrelatedTouchedPaths = <String>{};
@@ -214,7 +219,11 @@ class ConversationPlanExecutionGuardrails {
           toolResult.name == 'git_execute_command' ||
           toolResult.name == 'ssh_execute_command') {
         final command = _extractCommand(toolResult);
-        if (_matchesValidationCommand(command, task.validationCommand)) {
+        if (_matchesValidationCommand(command, task.validationCommand) ||
+            _matchesPythonTestFallbackValidationCommand(
+              task: task,
+              command: command,
+            )) {
           final exitCode = _extractExitCode(toolResult.result);
           final succeeded = exitCode == null
               ? !_looksLikeFailureResult(toolResult.result)
@@ -338,7 +347,9 @@ class ConversationPlanExecutionGuardrails {
     return paths.toList(growable: false);
   }
 
-  static bool hasMalformedFileMutationFailure(List<ToolResultInfo> toolResults) {
+  static bool hasMalformedFileMutationFailure(
+    List<ToolResultInfo> toolResults,
+  ) {
     return toolResults.any(_isRecoverableMalformedFailure);
   }
 
@@ -382,10 +393,9 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required Iterable<String> existingTargetPaths,
   }) {
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
     final normalizedExisting = existingTargetPaths
         .map(_normalizePath)
         .where((path) => path.isNotEmpty)
@@ -475,15 +485,198 @@ class ConversationPlanExecutionGuardrails {
     return missingTargets.isEmpty;
   }
 
+  static bool canPromoteCompletionFromWorkspaceTargets({
+    required ConversationWorkflowTask task,
+    required Iterable<String> existingTargetPaths,
+  }) {
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
+    if (normalizedTargets.isEmpty) {
+      return false;
+    }
+    final missingTargets = missingWorkspaceTargetFiles(
+      task: task,
+      existingTargetPaths: existingTargetPaths,
+    );
+    return missingTargets.isEmpty;
+  }
+
+  static bool assistantMentionsTaskHandoff({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    if (normalizedTaskTitle.isEmpty ||
+        !normalizedResponse.contains(normalizedTaskTitle)) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty ||
+          normalizedFutureTaskTitle == normalizedTaskTitle) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool canPromoteCompletionFromTaskHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty ||
+        completionAssessment.touchedTargetFiles.isEmpty ||
+        !completionAssessment.touchedAllTargetFiles) {
+      return false;
+    }
+
+    if (!assistantMentionsTaskHandoff(
+      task: task,
+      assistantResponse: assistantResponse,
+      futureTaskTitles: futureTaskTitles,
+    )) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    if (normalizedTaskTitle.isEmpty ||
+        !normalizedResponse.contains(normalizedTaskTitle)) {
+      return false;
+    }
+
+    return _completionSignals.any(normalizedResponse.contains);
+  }
+
+  static bool canPromoteCompletionFromHistoricalValidationHandoff({
+    required ConversationWorkflowTask task,
+    required ConversationExecutionTaskProgress? progress,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    if (progress == null ||
+        progress.validationStatus != ConversationExecutionValidationStatus.passed) {
+      return false;
+    }
+
+    final taskValidationCommand = task.validationCommand.trim().toLowerCase();
+    final historicalValidationCommand =
+        progress.lastValidationCommand.trim().toLowerCase();
+    if (taskValidationCommand.isNotEmpty &&
+        historicalValidationCommand.isNotEmpty &&
+        historicalValidationCommand != taskValidationCommand) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool canPromoteCompletionFromCurrentValidationHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.successfulValidationCommands.isEmpty) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
+    var sawFailure = false;
+    for (final toolResult in toolResults) {
+      if (!_looksLikeFailureResult(toolResult.result)) {
+        continue;
+      }
+      sawFailure = true;
+      final normalizedResult = toolResult.result.toLowerCase();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final code = _normalizeText(decoded?['code'])?.toLowerCase();
+      if (code != 'tool_not_available' &&
+          !normalizedResult.contains('no matching tool available')) {
+        return false;
+      }
+    }
+    return sawFailure;
+  }
+
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
     final importPattern = RegExp(
       "No module named ['\\\"]([^'\\\"]+)['\\\"]",
       caseSensitive: false,
     );
     for (final toolResult in toolResults) {
-      final match = importPattern.firstMatch(toolResult.result);
-      if (match != null) {
-        return match.group(1)?.trim();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final candidates = <String>[
+        toolResult.result,
+        _normalizeText(decoded?['stderr']) ?? '',
+        _normalizeText(decoded?['error']) ?? '',
+        _normalizeText(decoded?['stdout']) ?? '',
+      ];
+      for (final candidate in candidates) {
+        if (candidate.isEmpty) {
+          continue;
+        }
+        final match = importPattern.firstMatch(candidate);
+        if (match != null) {
+          return match.group(1)?.trim();
+        }
       }
     }
     return null;
@@ -493,10 +686,9 @@ class ConversationPlanExecutionGuardrails {
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) {
-    final normalizedTargets = task.targetFiles
-        .map(_normalizePath)
-        .where((path) => path.isNotEmpty)
-        .toList(growable: false);
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
     if (normalizedTargets.isEmpty) {
       return null;
     }
@@ -559,6 +751,90 @@ class ConversationPlanExecutionGuardrails {
     return null;
   }
 
+  static String? missingPythonTestDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'local_execute_command' &&
+          toolResult.name != 'git_execute_command' &&
+          toolResult.name != 'ssh_execute_command') {
+        continue;
+      }
+      final command = _extractCommand(toolResult);
+      if (!_matchesValidationCommand(command, task.validationCommand)) {
+        continue;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      if (normalizedResult.contains("no module named pytest") ||
+          normalizedResult.contains("no module named 'pytest'") ||
+          normalizedResult.contains('pytest: command not found') ||
+          normalizedResult.contains('/pytest: not found')) {
+        return 'pytest';
+      }
+    }
+    return null;
+  }
+
+  static String? missingPythonRuntimeDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final failedCommand = failedPythonValidationCommand(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (failedCommand == null) {
+      return null;
+    }
+    if (suggestPythonSrcLayoutRetryCommand(
+          task: task,
+          failedCommand: failedCommand,
+        ) !=
+        null) {
+      return null;
+    }
+
+    final missingDependency = blockedPythonImportModule(toolResults);
+    final normalizedDependency = missingDependency?.trim().toLowerCase() ?? '';
+    if (normalizedDependency.isEmpty || normalizedDependency == 'pytest') {
+      return null;
+    }
+
+    final targetModuleTokens = _effectiveTargetPaths(task)
+        .expand((path) => path.split('/'))
+        .map((segment) => segment.trim().toLowerCase())
+        .where((segment) => segment.isNotEmpty)
+        .map((segment) => segment.replaceAll('.py', ''))
+        .toSet();
+    if (targetModuleTokens.contains(normalizedDependency)) {
+      return null;
+    }
+
+    return missingDependency;
+  }
+
+  static String? suggestPythonTestDependencyFallbackCommand({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String missingDependency,
+  }) {
+    if (missingDependency.trim().toLowerCase() != 'pytest') {
+      return null;
+    }
+    if (!_isPytestValidationCommand(failedCommand)) {
+      return null;
+    }
+    final fallbackTarget = _firstPythonVerificationTarget(task);
+    if (fallbackTarget == null) {
+      return null;
+    }
+    final commandPrefix = _pythonCommandPrefixForValidationCommand(
+      failedCommand,
+    );
+    return '$commandPrefix $fallbackTarget';
+  }
+
   static String? suggestPythonSrcLayoutRetryCommand({
     required ConversationWorkflowTask task,
     required String failedCommand,
@@ -614,6 +890,21 @@ class ConversationPlanExecutionGuardrails {
         normalizedValidation.contains(normalizedCommand);
   }
 
+  static bool _matchesPythonTestFallbackValidationCommand({
+    required ConversationWorkflowTask task,
+    required String command,
+  }) {
+    final fallbackCommand = suggestPythonTestDependencyFallbackCommand(
+      task: task,
+      failedCommand: task.validationCommand,
+      missingDependency: 'pytest',
+    );
+    if (fallbackCommand == null) {
+      return false;
+    }
+    return _matchesValidationCommand(command, fallbackCommand);
+  }
+
   static bool _matchesRunTestsValidation(
     String validationCommand,
     String? testPath,
@@ -633,6 +924,43 @@ class ConversationPlanExecutionGuardrails {
       return '';
     }
     return raw.replaceAll('\\', '/');
+  }
+
+  static bool _isPytestValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    return normalized.startsWith('pytest ') ||
+        normalized == 'pytest' ||
+        normalized.startsWith('python -m pytest') ||
+        normalized.startsWith('python3 -m pytest');
+  }
+
+  static String? _firstPythonVerificationTarget(ConversationWorkflowTask task) {
+    final normalizedTargets = _effectiveTargetPaths(task).toList(growable: false);
+    for (final target in normalizedTargets) {
+      final normalizedTarget = target.trim().toLowerCase();
+      if (!normalizedTarget.endsWith('.py')) {
+        continue;
+      }
+      if (normalizedTarget.contains('/test') ||
+          normalizedTarget.startsWith('test') ||
+          normalizedTarget.contains('verify')) {
+        return target;
+      }
+    }
+    for (final target in normalizedTargets) {
+      if (target.endsWith('.py')) {
+        return target;
+      }
+    }
+    return null;
+  }
+
+  static String _pythonCommandPrefixForValidationCommand(String command) {
+    final normalized = command.trim().toLowerCase();
+    if (normalized.startsWith('python ')) {
+      return 'python';
+    }
+    return 'python3';
   }
 
   static bool _looksLikeScaffoldCommand(String normalizedCommand) {
@@ -817,5 +1145,70 @@ class ConversationPlanExecutionGuardrails {
   static String? _normalizeText(Object? value) {
     final trimmed = value?.toString().trim() ?? '';
     return trimmed.isEmpty ? null : trimmed;
+  }
+
+  static Set<String> _effectiveTargetPaths(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map(_normalizePath)
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+    final inferredTargets = {
+      ..._inferTargetPathsFromText('${task.title.trim()} ${task.notes.trim()}'),
+      ..._inferTargetPathsFromText(task.validationCommand),
+    };
+    return inferredTargets;
+  }
+
+  static Set<String> _inferTargetPathsFromText(String text) {
+    if (text.trim().isEmpty) {
+      return const <String>{};
+    }
+
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+      caseSensitive: false,
+    ).allMatches(text);
+    final inferredTargets = <String>{};
+    for (final match in matches) {
+      final candidate = _normalizePath(match.group(1));
+      if (candidate.isEmpty || !_looksLikeInferredTargetPath(candidate)) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets;
+  }
+
+  static bool _looksLikeInferredTargetPath(String path) {
+    final normalized = path.toLowerCase();
+    if (normalized == '.gitignore') {
+      return true;
+    }
+    final basename = normalized.split('/').last;
+    if (basename == '__init__.py') {
+      return true;
+    }
+    final extensionIndex = basename.lastIndexOf('.');
+    if (extensionIndex <= 0 || extensionIndex == basename.length - 1) {
+      return false;
+    }
+    final extension = basename.substring(extensionIndex + 1);
+    const knownExtensions = <String>{
+      'py',
+      'dart',
+      'md',
+      'txt',
+      'toml',
+      'yaml',
+      'yml',
+      'json',
+      'ini',
+      'cfg',
+      'sh',
+    };
+    return knownExtensions.contains(extension);
   }
 }

@@ -171,7 +171,9 @@ void main() {
     );
     expect(
       prompt,
-      contains('Persisted saved task statuses from the app are the source of truth.'),
+      contains(
+        'Persisted saved task statuses from the app are the source of truth.',
+      ),
     );
     expect(
       prompt,
@@ -260,6 +262,38 @@ void main() {
   );
 
   test(
+    'buildToolLessExecutionRecoveryPrompt infers target files from task titles when metadata is empty',
+    () {
+      final fixture = loadFixture(
+        'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+      );
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
+            task: task,
+          );
+
+      expect(
+        prompt,
+        contains(
+          'Saved task: Implement core ping logic using subprocess in main.py',
+        ),
+      );
+      expect(prompt, contains('Target files: main.py'));
+      expect(prompt, contains('Validation: python3 main.py 8.8.8.8'));
+      expect(
+        prompt,
+        contains(
+          'Your next reply must either modify one of the saved target files or run the saved validation command now.',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildScaffoldRemainingTargetRecoveryPrompt prioritizes one missing target file',
     () {
       final fixture = loadFixture(
@@ -268,13 +302,13 @@ void main() {
       final task = ConversationWorkflowTask.fromJson(
         fixture['task'] as Map<String, dynamic>,
       );
-      final existingTargetFiles = (fixture['existingTargetFiles'] as List<dynamic>)
-          .cast<String>();
-      final missingTargetFiles = (fixture['missingTargetFiles'] as List<dynamic>)
-          .cast<String>();
+      final existingTargetFiles =
+          (fixture['existingTargetFiles'] as List<dynamic>).cast<String>();
+      final missingTargetFiles =
+          (fixture['missingTargetFiles'] as List<dynamic>).cast<String>();
 
-      final prompt = ConversationPlanExecutionCoordinator
-          .buildScaffoldRemainingTargetRecoveryPrompt(
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildScaffoldRemainingTargetRecoveryPrompt(
             task: task,
             existingTargetFiles: existingTargetFiles,
             missingTargetFiles: missingTargetFiles,
@@ -305,50 +339,47 @@ void main() {
         contains(
           'After every remaining target file exists, run the saved validation command immediately.',
         ),
-    );
-  },
-  );
-
-  test(
-    'buildScaffoldMissingTargetRecoveryPrompt forces exact target recovery',
-    () {
-      const task = ConversationWorkflowTask(
-        id: 'task-bootstrap',
-        title: 'Initialize project structure',
-        targetFiles: ['pyproject.toml', 'README.md', 'src/__init__.py'],
-        validationCommand: 'ls -R',
-        notes: 'Create the basic scaffold files only.',
-      );
-
-      final prompt = ConversationPlanExecutionCoordinator
-          .buildScaffoldMissingTargetRecoveryPrompt(
-            task: task,
-            missingTargetFiles: const [
-              'pyproject.toml',
-              'README.md',
-              'src/__init__.py',
-            ],
-          );
-
-      expect(prompt, contains('Saved task ID: task-bootstrap'));
-      expect(
-        prompt,
-        contains(
-          'Create exactly one missing target file now using its saved path.',
-        ),
-      );
-      expect(
-        prompt,
-        contains(
-          'Do not create alternative filenames, test files, or extra scaffold files that are not listed in the saved targets.',
-        ),
-      );
-      expect(
-        prompt,
-        contains('Do not run validation until every missing target file exists.'),
       );
     },
   );
+
+  test('buildScaffoldMissingTargetRecoveryPrompt forces exact target recovery', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-bootstrap',
+      title: 'Initialize project structure',
+      targetFiles: ['pyproject.toml', 'README.md', 'src/__init__.py'],
+      validationCommand: 'ls -R',
+      notes: 'Create the basic scaffold files only.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildScaffoldMissingTargetRecoveryPrompt(
+          task: task,
+          missingTargetFiles: const [
+            'pyproject.toml',
+            'README.md',
+            'src/__init__.py',
+          ],
+        );
+
+    expect(prompt, contains('Saved task ID: task-bootstrap'));
+    expect(
+      prompt,
+      contains(
+        'Create exactly one missing target file now using its saved path.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not create alternative filenames, test files, or extra scaffold files that are not listed in the saved targets.',
+      ),
+    );
+    expect(
+      prompt,
+      contains('Do not run validation until every missing target file exists.'),
+    );
+  });
 
   test('buildValidationFirstRecoveryPrompt prioritizes saved validation', () {
     const task = ConversationWorkflowTask(
@@ -388,120 +419,290 @@ void main() {
     );
   });
 
+  test('buildMissingTargetFileRecoveryPrompt requires file work before validation', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-missing-target',
+      title: 'Implement basic ping functionality in main.py',
+      targetFiles: ['main.py'],
+      validationCommand: 'python3 main.py 8.8.8.8',
+      notes: 'Create the initial CLI entrypoint first.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
+          task: task,
+          missingTargetFiles: const ['main.py'],
+          failedCommand: 'python3 main.py 8.8.8.8',
+        );
+
+    expect(
+      prompt,
+      contains(
+        'The saved validation command ran before every required target file existed.',
+      ),
+    );
+    expect(prompt, contains('Missing target files: main.py'));
+    expect(
+      prompt,
+      contains(
+        'Create or edit one missing target file now before running the saved validation command again.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If you already tried to write the missing target file, confirm the exact saved path first by reading that file or listing its parent directory.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
+      ),
+    );
+  });
+
   test(
-    'buildMissingTargetFileRecoveryPrompt requires file work before validation',
+    'buildMissingTargetFileRecoveryPrompt includes inferred target files from task text',
     () {
-      const task = ConversationWorkflowTask(
-        id: 'task-missing-target',
-        title: 'Implement basic ping functionality in main.py',
-        targetFiles: ['main.py'],
-        validationCommand: 'python3 main.py 8.8.8.8',
-        notes: 'Create the initial CLI entrypoint first.',
+      final fixture = loadFixture(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
       );
 
       final prompt =
           ConversationPlanExecutionCoordinator.buildMissingTargetFileRecoveryPrompt(
             task: task,
-            missingTargetFiles: const ['main.py'],
-            failedCommand: 'python3 main.py 8.8.8.8',
+            missingTargetFiles: const ['src/ping_cli.py'],
+            failedCommand: 'python3 src/ping_cli.py 8.8.8.8 -c 1',
           );
 
-      expect(
-        prompt,
-        contains(
-          'The saved validation command ran before every required target file existed.',
-        ),
-      );
-      expect(prompt, contains('Missing target files: main.py'));
-      expect(
-        prompt,
-        contains(
-          'Create or edit one missing target file now before running the saved validation command again.',
-        ),
-      );
-      expect(
-        prompt,
-        contains(
-          'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
-        ),
-      );
+      expect(prompt, contains('Saved task: Implement ping logic and CLI in src/ping_cli.py'));
+      expect(prompt, contains('Target files: src/ping_cli.py'));
+      expect(prompt, contains('Validation: python3 src/ping_cli.py 8.8.8.8 -c 1'));
     },
   );
 
+  test('buildPythonSrcLayoutValidationRecoveryPrompt retries with PYTHONPATH', () {
+    const failedCommand =
+        'python3 -c "from ping_cli.pinger import ping_host; print(ping_host(\'8.8.8.8\'))"';
+    const retryCommand = 'PYTHONPATH=src $failedCommand';
+    const task = ConversationWorkflowTask(
+      id: 'task-src-layout',
+      title: 'Implement core ping logic using subprocess',
+      targetFiles: ['src/ping_cli/pinger.py'],
+      validationCommand: failedCommand,
+      notes: 'Keep the validation bounded to the saved command.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildPythonSrcLayoutValidationRecoveryPrompt(
+          task: task,
+          failedCommand: failedCommand,
+          retryCommand: retryCommand,
+          blockedModuleName: 'ping_cli',
+        );
+
+    expect(
+      prompt,
+      contains(
+        'The saved validation command failed because the Python src-layout module import was not discoverable.',
+      ),
+    );
+    expect(prompt, contains('Blocked module: ping_cli'));
+    expect(prompt, contains('Retry validation command: $retryCommand'));
+    expect(
+      prompt,
+      contains(
+        'Run the retry validation command now before making any more file edits.',
+      ),
+    );
+  });
+
+  test('buildVerificationTaskRecoveryPrompt forces the saved verification command', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-verify',
+      title: 'Verify ping functionality with a real host',
+      targetFiles: ['main.py'],
+      validationCommand: 'python3 main.py 8.8.8.8',
+      notes: 'Use a reachable host for the first end-to-end check.',
+    );
+
+    final prompt =
+        ConversationPlanExecutionCoordinator.buildVerificationTaskRecoveryPrompt(
+          task: task,
+        );
+
+    expect(
+      prompt,
+      contains(
+        'The saved verification task stalled before running its concrete check.',
+      ),
+    );
+    expect(prompt, contains('Saved task ID: task-verify'));
+    expect(prompt, contains('Target files: main.py'));
+    expect(
+      prompt,
+      contains('Saved validation command: python3 main.py 8.8.8.8'),
+    );
+    expect(
+      prompt,
+      contains(
+        'Run the saved validation command now instead of restating the verification steps.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'If the saved validation command fails, fix only the failing saved target file or report the blocker clearly.',
+      ),
+    );
+  });
+
   test(
-    'buildPythonSrcLayoutValidationRecoveryPrompt retries with PYTHONPATH',
+    'buildPythonTestDependencyRecoveryPrompt rewrites verification toward a stdlib fallback',
     () {
-      const failedCommand =
-          'python3 -c "from ping_cli.pinger import ping_host; print(ping_host(\'8.8.8.8\'))"';
-      const retryCommand = 'PYTHONPATH=src $failedCommand';
       const task = ConversationWorkflowTask(
-        id: 'task-src-layout',
-        title: 'Implement core ping logic using subprocess',
-        targetFiles: ['src/ping_cli/pinger.py'],
-        validationCommand: failedCommand,
-        notes: 'Keep the validation bounded to the saved command.',
+        id: 'task-verify-cli',
+        title: 'Create a test script to verify the CLI functionality',
+        targetFiles: ['tests/test_ping.py'],
+        validationCommand: 'python3 -m pytest tests/test_ping.py',
+        notes:
+            'Verify that the script can successfully ping a known host like 8.8.8.8.',
       );
 
       final prompt =
-          ConversationPlanExecutionCoordinator.buildPythonSrcLayoutValidationRecoveryPrompt(
+          ConversationPlanExecutionCoordinator.buildPythonTestDependencyRecoveryPrompt(
             task: task,
-            failedCommand: failedCommand,
-            retryCommand: retryCommand,
-            blockedModuleName: 'ping_cli',
+            failedCommand: 'python3 -m pytest tests/test_ping.py',
+            fallbackCommand: 'python3 tests/test_ping.py',
+            missingDependency: 'pytest',
           );
 
       expect(
         prompt,
         contains(
-          'The saved validation command failed because the Python src-layout module import was not discoverable.',
+          'The saved verification command failed because a Python test dependency is unavailable in the current environment.',
         ),
       );
-      expect(prompt, contains('Blocked module: ping_cli'));
-      expect(prompt, contains('Retry validation command: $retryCommand'));
+      expect(prompt, contains('Saved task ID: task-verify-cli'));
+      expect(prompt, contains('Missing dependency: pytest'));
+      expect(prompt, contains('Fallback verification command: python3 tests/test_ping.py'));
       expect(
         prompt,
         contains(
-          'Run the retry validation command now before making any more file edits.',
+          'Rewrite the saved verification target so it runs with the Python standard library only and exits non-zero on failure.',
         ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not add new external dependencies or switch tasks just to recover this verification step.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Run the fallback verification command now after updating the saved target file.'),
       );
     },
   );
 
   test(
-    'buildVerificationTaskRecoveryPrompt forces the saved verification command',
+    'buildPythonRuntimeDependencyRecoveryPrompt keeps implementation recovery inside saved targets',
     () {
       const task = ConversationWorkflowTask(
-        id: 'task-verify',
-        title: 'Verify ping functionality with a real host',
+        id: 'task-main',
+        title: 'Implement ping CLI in main.py',
         targetFiles: ['main.py'],
-        validationCommand: 'python3 main.py 8.8.8.8',
-        notes: 'Use a reachable host for the first end-to-end check.',
+        validationCommand: 'python3 main.py --help',
+        notes: 'Keep the entrypoint simple.',
       );
 
       final prompt =
-          ConversationPlanExecutionCoordinator.buildVerificationTaskRecoveryPrompt(
+          ConversationPlanExecutionCoordinator.buildPythonRuntimeDependencyRecoveryPrompt(
             task: task,
+            failedCommand: 'python3 main.py --help',
+            missingDependency: 'ping3',
           );
 
       expect(
         prompt,
         contains(
-          'The saved verification task stalled before running its concrete check.',
+          'The saved validation command failed because the current Python implementation depends on a missing runtime module.',
         ),
       );
-      expect(prompt, contains('Saved task ID: task-verify'));
-      expect(prompt, contains('Target files: main.py'));
-      expect(prompt, contains('Saved validation command: python3 main.py 8.8.8.8'));
+      expect(prompt, contains('Saved task ID: task-main'));
+      expect(prompt, contains('Missing dependency: ping3'));
       expect(
         prompt,
         contains(
-          'Run the saved validation command now instead of restating the verification steps.',
+          'Recover by editing only the saved target files so the same validation command works in this environment.',
         ),
       );
       expect(
         prompt,
         contains(
-          'If the saved validation command fails, fix only the failing saved target file or report the blocker clearly.',
+          'Prefer Python standard-library or subprocess-based implementations for simple CLI tasks unless the user explicitly asked for a third-party package.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not run pip install, do not ask for package installation, and do not modify dependency manifests unless they are saved target files for this task.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('After the fix, rerun the same saved validation command immediately.'),
+      );
+    },
+  );
+
+  test(
+    'buildFailedValidationRecoveryPrompt focuses the next turn on fixing the target file',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-failed-validation',
+        title: 'Implement ping_cli.py with subprocess and argparse',
+        targetFiles: ['ping_cli.py'],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes: 'Keep the command-line entrypoint small.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildFailedValidationRecoveryPrompt(
+            task: task,
+            failedCommand: 'python3 ping_cli.py --help',
+            failedValidationSummary:
+                'SyntaxError: invalid syntax in ping_cli.py',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved validation command already failed for the current task.',
+        ),
+      );
+      expect(prompt, contains('Saved task ID: task-failed-validation'));
+      expect(prompt, contains('Target files: ping_cli.py'));
+      expect(
+        prompt,
+        contains(
+          'Use only tools that are currently available. Do not call unsupported placeholder tools such as print.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'If the validation failure points to a saved target file, fix only that saved target file now.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'After the fix, rerun the same saved validation command immediately.',
         ),
       );
     },
@@ -510,66 +711,101 @@ void main() {
   test(
     'buildToolFailureRecoveryPrompt bounds unknown tools, malformed writes, and edit mismatch',
     () {
+      const task = ConversationWorkflowTask(
+        id: 'task-2',
+        title: 'Implement the YAML config loader',
+        targetFiles: ['src/config_loader.py', 'tests/test_config_loader.py'],
+        validationCommand: 'pytest tests/test_config_loader.py',
+        notes: 'Parse the YAML host list only.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
+            task: task,
+            unavailableToolNames: const ['google', 'print'],
+            editMismatchPaths: const ['src/config_loader.py'],
+            malformedFileMutationPaths: const ['tests/test_config_loader.py'],
+            hasMalformedFileMutationFailure: true,
+          );
+
+      expect(
+        prompt,
+        contains('The saved task hit a recoverable tool failure.'),
+      );
+      expect(
+        prompt,
+        contains('Do not call these unavailable tools again: google, print'),
+      );
+      expect(
+        prompt,
+        contains('These files failed with edit mismatch: src/config_loader.py'),
+      );
+      expect(
+        prompt,
+        contains(
+          'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'These file mutations failed because required arguments were malformed: tests/test_config_loader.py',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Retry the same file mutation with top-level path and content keys for write_file, or path plus old_text and new_text for edit_file.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'If an edit_file call failed because old_text was missing or empty, read the current file first and reuse its exact contents as old_text.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not wrap file arguments in malformed aliases or move path outside the arguments object.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not switch to unrelated files, do not retry unavailable tools, and do not move to future saved tasks.',
+        ),
+      );
+    },
+  );
+
+  test('buildEditMismatchRetryPrompt requires a direct edit retry', () {
     const task = ConversationWorkflowTask(
-      id: 'task-2',
-      title: 'Implement the YAML config loader',
-      targetFiles: ['src/config_loader.py', 'tests/test_config_loader.py'],
-      validationCommand: 'pytest tests/test_config_loader.py',
-      notes: 'Parse the YAML host list only.',
+      id: 'task-edit-retry',
+      title: 'Implement core ping functionality using subprocess',
+      targetFiles: ['ping_logic.py'],
+      validationCommand: 'python3 ping_logic.py 8.8.8.8',
+      notes: 'Keep the retry bounded to the current file.',
     );
 
     final prompt =
-        ConversationPlanExecutionCoordinator.buildToolFailureRecoveryPrompt(
+        ConversationPlanExecutionCoordinator.buildEditMismatchRetryPrompt(
           task: task,
-          unavailableToolNames: const ['google', 'print'],
-          editMismatchPaths: const ['src/config_loader.py'],
-          malformedFileMutationPaths: const ['tests/test_config_loader.py'],
-          hasMalformedFileMutationFailure: true,
+          editMismatchPaths: const ['ping_logic.py'],
         );
 
-    expect(prompt, contains('The saved task hit a recoverable tool failure.'));
-    expect(
-      prompt,
-      contains('Do not call these unavailable tools again: google, print'),
-    );
-    expect(
-      prompt,
-      contains('These files failed with edit mismatch: src/config_loader.py'),
-    );
+    expect(prompt, contains('Saved task ID: task-edit-retry'));
+    expect(prompt, contains('Mismatched files: ping_logic.py'));
     expect(
       prompt,
       contains(
-        'Read each mismatched file before retrying edit_file and use the exact current file content as old_text.',
+        'Retry edit_file now on one mismatched saved target file using the exact current file contents as old_text.',
       ),
     );
     expect(
       prompt,
       contains(
-        'These file mutations failed because required arguments were malformed: tests/test_config_loader.py',
-      ),
-    );
-    expect(
-      prompt,
-      contains(
-        'Retry the same file mutation with top-level path and content keys for write_file, or path plus old_text and new_text for edit_file.',
-      ),
-    );
-    expect(
-      prompt,
-      contains(
-        'If an edit_file call failed because old_text was missing or empty, read the current file first and reuse its exact contents as old_text.',
-      ),
-    );
-    expect(
-      prompt,
-      contains(
-        'Do not wrap file arguments in malformed aliases or move path outside the arguments object.',
-      ),
-    );
-    expect(
-      prompt,
-      contains(
-        'Do not switch to unrelated files, do not retry unavailable tools, and do not move to future saved tasks.',
+        'Do not stop after another read_file, do not restate the plan, and do not move to future saved tasks.',
       ),
     );
   });
@@ -650,6 +886,37 @@ void main() {
       ),
     );
   });
+
+  test(
+    'buildTaskDriftRecoveryPrompt shows inferred targets from validation commands',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement ping CLI script',
+        targetFiles: [],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes:
+            'Implement the core logic using argparse to accept a host argument.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildTaskDriftRecoveryPrompt(
+            task: task,
+            unrelatedTouchedPaths: const ['src/ping_cli.py'],
+            scaffoldCommands: const [],
+          );
+
+      expect(prompt, contains('Saved task: Implement ping CLI script'));
+      expect(
+        prompt,
+        contains('Only touch these target files next: ping_cli.py'),
+      );
+      expect(
+        prompt,
+        contains('Saved validation command: python3 ping_cli.py --help'),
+      );
+    },
+  );
 
   test('validationTask prefers the active task before the pending queue', () {
     final conversation = Conversation(

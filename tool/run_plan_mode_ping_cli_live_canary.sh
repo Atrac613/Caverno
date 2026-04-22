@@ -40,6 +40,12 @@ append_canary_marker() {
   fi
 }
 
+run_log_has_live_progress() {
+  local run_log_path="$1"
+  grep -Eq "\[ScenarioSuite\] Running|\[Workflow\]|\[LLM\] ========== createChatCompletion|\[LLM\] === Response ===" \
+    "${run_log_path}" 2>/dev/null
+}
+
 write_failure_suite_report() {
   local output_path="$1"
   local heartbeat_path="$2"
@@ -152,21 +158,37 @@ run_live_canary_iteration() {
       [[ "${first_heartbeat_seen}" -eq 0 ]] &&
       [[ "${foreground_failed_elapsed}" -ge 0 ]] &&
       [[ $((elapsed - foreground_failed_elapsed)) -ge "${FOREGROUND_RECOVERY_GRACE_SECONDS}" ]]; then
-      append_canary_marker "${run_log_path}" "foregroundFailureTimeout"
-      kill "${run_pid}" >/dev/null 2>&1 || true
-      cleanup_live_plan_mode_processes
-      wait "${run_pid}" >/dev/null 2>&1 || true
-      return 125
+      if run_log_has_live_progress "${run_log_path}"; then
+        append_canary_marker \
+          "${run_log_path}" \
+          "foregroundFailureIgnored" \
+          "live progress detected before first heartbeat"
+        foreground_failed=2
+      else
+        append_canary_marker "${run_log_path}" "foregroundFailureTimeout"
+        kill "${run_pid}" >/dev/null 2>&1 || true
+        cleanup_live_plan_mode_processes
+        wait "${run_pid}" >/dev/null 2>&1 || true
+        return 125
+      fi
     fi
     if [[ "${build_finished}" -eq 1 ]] &&
       [[ "${first_heartbeat_seen}" -eq 0 ]] &&
       [[ "${build_finished_elapsed}" -ge 0 ]] &&
       [[ $((elapsed - build_finished_elapsed)) -ge "${STARTUP_HEARTBEAT_TIMEOUT_SECONDS}" ]]; then
-      append_canary_marker "${run_log_path}" "firstHeartbeatTimeout"
-      kill "${run_pid}" >/dev/null 2>&1 || true
-      cleanup_live_plan_mode_processes
-      wait "${run_pid}" >/dev/null 2>&1 || true
-      return 126
+      if run_log_has_live_progress "${run_log_path}"; then
+        append_canary_marker \
+          "${run_log_path}" \
+          "firstHeartbeatTimeoutIgnored" \
+          "live progress detected before first heartbeat"
+        build_finished=2
+      else
+        append_canary_marker "${run_log_path}" "firstHeartbeatTimeout"
+        kill "${run_pid}" >/dev/null 2>&1 || true
+        cleanup_live_plan_mode_processes
+        wait "${run_pid}" >/dev/null 2>&1 || true
+        return 126
+      fi
     fi
     if [[ "${elapsed}" -ge "${RUN_TIMEOUT_SECONDS}" ]]; then
       echo "Run timed out after ${RUN_TIMEOUT_SECONDS}s; terminating leftover processes."

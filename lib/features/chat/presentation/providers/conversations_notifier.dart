@@ -478,9 +478,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     final previous = index >= 0 ? progress[index] : null;
     final preservesLockedCompletion =
         !allowStatusRegression &&
-        previous?.status == ConversationWorkflowTaskStatus.completed &&
-        previous?.validationStatus ==
-            ConversationExecutionValidationStatus.passed &&
+        _hasLockedTerminalCompletion(previous) &&
         status != ConversationWorkflowTaskStatus.completed;
     final lockedPrevious = preservesLockedCompletion ? previous : null;
     final nextStatus = lockedPrevious?.status ?? status;
@@ -633,10 +631,19 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       return false;
     }
 
+    final previousProgress = conversation.executionProgressForTask(task.id);
+    final preservesCompletedValidation =
+        previousProgress?.status == ConversationWorkflowTaskStatus.completed &&
+        inference.validationStatus ==
+            ConversationExecutionValidationStatus.passed &&
+        inference.status != ConversationWorkflowTaskStatus.blocked;
+
     await updateCurrentExecutionTaskProgress(
       taskId: task.id,
-      status: inference.status,
-      allowStatusRegression: true,
+      status: preservesCompletedValidation
+          ? ConversationWorkflowTaskStatus.completed
+          : inference.status,
+      allowStatusRegression: !preservesCompletedValidation,
       summary: inference.summary,
       blockedReason: inference.status == ConversationWorkflowTaskStatus.blocked
           ? inference.blockedReason ?? ''
@@ -666,6 +673,21 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       preserveWorkflowProjection: true,
     );
     return true;
+  }
+
+  bool _hasLockedTerminalCompletion(
+    ConversationExecutionTaskProgress? progress,
+  ) {
+    if (progress == null ||
+        progress.status != ConversationWorkflowTaskStatus.completed) {
+      return false;
+    }
+    if (progress.validationStatus == ConversationExecutionValidationStatus.passed) {
+      return true;
+    }
+    return progress.recentEvents.any(
+      (event) => event.type == ConversationExecutionTaskEventType.completed,
+    );
   }
 
   Future<void> retainExecutionTaskProgress(Set<String> taskIds) async {

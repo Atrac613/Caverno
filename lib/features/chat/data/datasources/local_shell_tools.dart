@@ -396,6 +396,7 @@ class LocalShellTools {
             case 'l':
             case 'h':
             case '1':
+            case 'F':
               // Accepted for compatibility. Output remains simplified.
               break;
             default:

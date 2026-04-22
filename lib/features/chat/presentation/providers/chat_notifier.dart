@@ -2157,7 +2157,13 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln('- Include a concrete code task after any scaffold task.')
         ..writeln(
           '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
+        )
+        ..writeln(
+          '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
         );
+      retryHint.writeln(
+        '- Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
+      );
     }
 
     final retryContext = retryHint.toString().trim();
@@ -3880,9 +3886,8 @@ class ChatNotifier extends Notifier<ChatState> {
       final normalizedTargetFiles = _normalizeTaskProposalTargetFiles(
         task.targetFiles,
       );
-      final normalizedValidationCommand = _normalizeTaskProposalTextField(
-        task.validationCommand,
-      );
+      final normalizedValidationCommand =
+          _normalizeTaskProposalValidationCommand(task.validationCommand);
       final normalizedNotes = _normalizeTaskProposalTextField(task.notes);
       if (_looksLikeImplementationTaskTitle(normalizedTitle) &&
           task.targetFiles.isNotEmpty &&
@@ -4088,6 +4093,19 @@ class ChatNotifier extends Notifier<ChatState> {
     return candidate;
   }
 
+  String _normalizeTaskProposalValidationCommand(String value) {
+    final candidate = _normalizeTaskProposalTextField(value);
+    if (candidate.isEmpty) {
+      return '';
+    }
+
+    final portableLs = candidate.replaceFirst(
+      RegExp(r'^ls\s+-F(\s+|$)'),
+      'ls ',
+    );
+    return portableLs.replaceAll(RegExp(r'\s+'), ' ').trim();
+  }
+
   bool _looksLikePlaceholderTaskProposalValue(String value) {
     final normalized = value.trim().toLowerCase();
     return normalized.isEmpty ||
@@ -4125,6 +4143,22 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (projectLooksEmpty &&
+        _taskProposalHasUnsupportedPythonVerificationValidation(
+          finalized.tasks,
+        )) {
+      return true;
+    }
+
+    if (projectLooksEmpty &&
+        _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(finalized.tasks)) {
+      return true;
+    }
+
+    if (_taskProposalHasUnboundedPingVerificationValidation(finalized.tasks)) {
+      return true;
+    }
+
     if (_taskProposalHasDuplicateVerificationTasks(finalized.tasks)) {
       return true;
     }
@@ -4151,18 +4185,107 @@ class ChatNotifier extends Notifier<ChatState> {
     List<ConversationWorkflowTask> tasks,
   ) {
     final seenSignatures = <String>{};
+    final seenValidationSignatures = <String>{};
     for (final task in tasks) {
       if (!_looksLikeVerificationTaskProposal(task)) {
         continue;
       }
       final signature = _verificationTaskSignature(task);
-      if (signature.isEmpty) {
-        continue;
+      if (signature.isNotEmpty && !seenSignatures.add(signature)) {
+        return true;
       }
-      if (!seenSignatures.add(signature)) {
+      final validationSignature = _verificationTaskValidationSignature(task);
+      if (validationSignature.isNotEmpty &&
+          !seenValidationSignatures.add(validationSignature)) {
         return true;
       }
     }
+    return false;
+  }
+
+  bool _taskProposalHasUnsupportedPythonVerificationValidation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (final task in tasks) {
+      if (!_looksLikeVerificationTaskProposal(task)) {
+        continue;
+      }
+      final normalizedValidation = task.validationCommand.trim().toLowerCase();
+      if (normalizedValidation.startsWith('pytest') ||
+          normalizedValidation.startsWith('python -m pytest') ||
+          normalizedValidation.startsWith('python3 -m pytest')) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalHasUnboundedPingVerificationValidation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    for (final task in tasks) {
+      final normalizedContext = '${task.title.trim()} ${task.notes.trim()}'
+          .toLowerCase();
+      if (!normalizedContext.contains('ping')) {
+        continue;
+      }
+
+      final normalizedValidation = task.validationCommand.trim().toLowerCase();
+      if (normalizedValidation.isEmpty) {
+        continue;
+      }
+      if (_looksLikeBoundedPingValidationCommand(normalizedValidation)) {
+        continue;
+      }
+      if (_looksLikeUnboundedPingValidationCommand(normalizedValidation)) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  bool _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    const riskyFragments = <String>[
+      'ping3',
+      'icmplib',
+      'ping library',
+      'third-party',
+      'external dependency',
+      'external package',
+    ];
+
+    for (final task in tasks) {
+      if (!_looksLikeImplementationTaskTitle(task.title)) {
+        continue;
+      }
+
+      final hasPythonTarget = task.targetFiles.any(
+        (path) => path.trim().toLowerCase().endsWith('.py'),
+      );
+      if (!hasPythonTarget) {
+        continue;
+      }
+
+      final hasDependencyManifestTarget = task.targetFiles.any((path) {
+        final normalizedPath = path.trim().toLowerCase();
+        return normalizedPath.endsWith('requirements.txt') ||
+            normalizedPath.endsWith('pyproject.toml') ||
+            normalizedPath.endsWith('setup.py') ||
+            normalizedPath.endsWith('setup.cfg');
+      });
+      if (hasDependencyManifestTarget) {
+        continue;
+      }
+
+      final normalizedContext =
+          '${task.title.trim()} ${task.notes.trim()}'.toLowerCase();
+      if (riskyFragments.any(normalizedContext.contains)) {
+        return true;
+      }
+    }
+
     return false;
   }
 
@@ -4195,11 +4318,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return false;
     }
 
-    final leftTargets = _normalizeTaskProposalTargetFiles(left.targetFiles)
+    final leftTargets = _taskProposalDuplicateTargets(left)
         .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .toSet();
-    final rightTargets = _normalizeTaskProposalTargetFiles(right.targetFiles)
+    final rightTargets = _taskProposalDuplicateTargets(right)
         .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .toSet();
@@ -4232,6 +4355,33 @@ class ChatNotifier extends Notifier<ChatState> {
 
     return overlap.length == smallerTokenCount ||
         overlap.length / smallerTokenCount >= 0.75;
+  }
+
+  Iterable<String> _taskProposalDuplicateTargets(ConversationWorkflowTask task) {
+    final normalizedTargets = _normalizeTaskProposalTargetFiles(task.targetFiles);
+    if (normalizedTargets.isNotEmpty) {
+      return normalizedTargets;
+    }
+    return _extractTaskProposalTitleTargetHints(task.title);
+  }
+
+  Iterable<String> _extractTaskProposalTitleTargetHints(String title) {
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+    ).allMatches(title);
+    final paths = <String>[];
+    for (final match in matches) {
+      final value = match.group(1)?.trim();
+      if (value == null || value.isEmpty) {
+        continue;
+      }
+      final normalized = _normalizeTaskProposalTargetFiles(<String>[value]);
+      if (normalized.isEmpty) {
+        continue;
+      }
+      paths.addAll(normalized);
+    }
+    return paths;
   }
 
   Set<String> _taskProposalSemanticTitleTokens(String title) {
@@ -4357,18 +4507,37 @@ class ChatNotifier extends Notifier<ChatState> {
                 'the',
                 'for',
                 'using',
+                'execution',
                 'functionality',
+                'output',
+                'outputs',
+                'result',
+                'results',
               }.contains(token),
         )
         .join(' ');
-    final targetKey = task.targetFiles
-        .map((path) => path.trim().toLowerCase())
+    final targetKey = _taskProposalDuplicateTargets(task)
+        .map((path) => path.toLowerCase())
         .where((path) => path.isNotEmpty)
         .join('|');
     if (canonicalTitle.isEmpty) {
       return targetKey;
     }
     return '$canonicalTitle::$targetKey';
+  }
+
+  String _verificationTaskValidationSignature(ConversationWorkflowTask task) {
+    final targetKey = _taskProposalDuplicateTargets(task)
+        .map((path) => path.toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .join('|');
+    final validationKey = _normalizeTaskProposalValidationCommand(
+      task.validationCommand,
+    ).toLowerCase();
+    if (targetKey.isEmpty || validationKey.isEmpty) {
+      return '';
+    }
+    return '$targetKey::$validationKey';
   }
 
   bool _looksLikeImplementationTargetFile(String path) {
@@ -4472,6 +4641,40 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return true;
+  }
+
+  bool _looksLikeBoundedPingValidationCommand(String normalizedValidation) {
+    return normalizedValidation.contains('--help') ||
+        RegExp(r'(^|\s)-c(\s|$)').hasMatch(normalizedValidation) ||
+        RegExp(r'(^|\s)--count(?:=|\s)').hasMatch(normalizedValidation) ||
+        normalizedValidation.contains('unittest') ||
+        normalizedValidation.contains('test_') ||
+        normalizedValidation.contains('verify_');
+  }
+
+  bool _looksLikeUnboundedPingValidationCommand(String normalizedValidation) {
+    final launchesPythonEntryPoint =
+        RegExp(r'^(python|python3)\s+\S+\.py(?:\s|$)').hasMatch(
+          normalizedValidation,
+        );
+    if (!launchesPythonEntryPoint) {
+      return false;
+    }
+
+    final includesHostTarget =
+        normalizedValidation.contains('127.0.0.1') ||
+        normalizedValidation.contains('localhost') ||
+        RegExp(
+          r'(^|\s)(?:\d{1,3}\.){3}\d{1,3}(\s|$)',
+        ).hasMatch(normalizedValidation) ||
+        RegExp(
+          r'(^|\s)[a-z0-9.-]+\.[a-z]{2,}(\s|$)',
+        ).hasMatch(normalizedValidation);
+    if (!includesHostTarget) {
+      return false;
+    }
+
+    return !normalizedValidation.contains('--help');
   }
 
   bool _isTaskProposalPlaceholderTitle(String normalizedTitle) {
@@ -5602,6 +5805,12 @@ class ChatNotifier extends Notifier<ChatState> {
               ...codingTools,
             ])
           : allTools;
+      final streamedMessageIndex = state.messages.isEmpty
+          ? -1
+          : state.messages.length - 1;
+      final streamedContentStart = streamedMessageIndex >= 0
+          ? state.messages[streamedMessageIndex].content.length
+          : 0;
 
       // Stream the initial request to show thinking/content in real-time
       // while also detecting tool calls.
@@ -5639,6 +5848,14 @@ class ChatNotifier extends Notifier<ChatState> {
       } else {
         // No tool calls — content was already streamed in real-time.
         appLog('[Tool] No tool calls, response already streamed');
+        final streamedAssistantContent = _extractAssistantStreamDelta(
+          messageIndex: streamedMessageIndex,
+          startingLength: streamedContentStart,
+        );
+        final hiddenAssistantEvidence = streamedAssistantContent.isNotEmpty
+            ? streamedAssistantContent
+            : result.content;
+        _recordHiddenAssistantResponse(hiddenAssistantEvidence);
         _finishStreaming();
       }
     } catch (e) {
@@ -5696,12 +5913,18 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    const maxIterations = 5; // Prevent infinite loops.
+    // Allow multi-step saved-task handoffs while still bounding runaway loops.
+    const maxIterations = 8;
     var iteration = 0;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
     final executedToolResults = <ToolResultInfo>[];
+    var commandRetryGeneration = 0;
+    var skippedDuplicateOnlyBatch = false;
+    var attemptedDuplicateInspectionRecovery = false;
+    var attemptedDuplicateFollowUpRecovery = false;
+    var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
@@ -5712,8 +5935,12 @@ class ChatNotifier extends Notifier<ChatState> {
       final pendingBatchCalls = <ToolCallInfo>[];
 
       for (final toolCall in currentToolCalls) {
-        final toolCallKey = _toolExecutionKey(toolCall);
-        if (executedToolCallKeys.contains(toolCallKey)) {
+        final toolCallKey = _toolExecutionKey(
+          toolCall,
+          commandRetryGeneration: commandRetryGeneration,
+        );
+        if (executedToolCallKeys.contains(toolCallKey) &&
+            !_shouldAllowRepeatedToolExecution(toolCall)) {
           appLog(
             '[Tool] Duplicate tool call detected, skipping: ${toolCall.name} ${toolCall.arguments}',
           );
@@ -5741,7 +5968,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
       for (final scheduledResult in scheduledResults) {
         final toolCall = scheduledResult.toolCall;
-        final toolCallKey = _toolExecutionKey(toolCall);
+        final toolCallKey = _toolExecutionKey(
+          toolCall,
+          commandRetryGeneration: commandRetryGeneration,
+        );
         if (scheduledResult.error != null) {
           final error = scheduledResult.error!;
           appLog('[Tool] Error: $error');
@@ -5770,6 +6000,9 @@ class ChatNotifier extends Notifier<ChatState> {
         if (result.isSuccess) {
           executedToolCallKeys.add(toolCallKey);
           toolFailureCounts.remove(toolCallKey);
+          if (_advancesCommandRetryGeneration(toolCall)) {
+            commandRetryGeneration += 1;
+          }
         } else {
           final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
           toolFailureCounts[toolCallKey] = failureCount;
@@ -5790,12 +6023,141 @@ class ChatNotifier extends Notifier<ChatState> {
         break;
       }
       if (batchToolResults.isEmpty) {
+        if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+          if (!attemptedDuplicateInspectionRecovery &&
+              _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
+              lastNonEmptyBatchToolResults.isNotEmpty) {
+            attemptedDuplicateInspectionRecovery = true;
+            appLog(
+              '[Tool] Duplicate read-only follow-up tool calls detected, requesting bounded recovery',
+            );
+            _appendToLastMessage('<think>');
+            final mcpToolService = _mcpToolService;
+            if (mcpToolService == null) {
+              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+                executedToolResults,
+              );
+              await _sendWithoutTools();
+              return;
+            }
+            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final recoveryMessages = _prepareMessagesForLLM()
+              ..add(
+                Message(
+                  id: 'tool_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  role: MessageRole.user,
+                  content: _buildDuplicateInspectionRecoveryPrompt(
+                    currentToolCalls,
+                  ),
+                  timestamp: DateTime.now(),
+                ),
+              );
+            final recoveryResult =
+                await _dataSource.createChatCompletionWithToolResults(
+                  messages: recoveryMessages,
+                  toolResults: lastNonEmptyBatchToolResults,
+                  assistantContent: currentAssistantContent,
+                  tools: tools,
+                  model: _settings.model,
+                  temperature: _settings.temperature,
+                  maxTokens: _settings.maxTokens,
+                );
+            if (!ref.mounted) return;
+            _removeTrailingThinkTag();
+            if (recoveryResult.hasToolCalls) {
+              appLog(
+                '[Tool] Duplicate inspection recovery requested additional tool calls',
+              );
+              currentToolCalls = recoveryResult.toolCalls!;
+              _recordHiddenAssistantResponse(recoveryResult.content);
+              if (recoveryResult.content.isNotEmpty) {
+                currentAssistantContent = recoveryResult.content;
+              }
+              continue;
+            }
+            appLog(
+              '[Tool] Duplicate inspection recovery returned final text response',
+            );
+            currentToolCalls = [];
+            final fallbackResponse = recoveryResult.content.trim();
+            _recordHiddenAssistantResponse(fallbackResponse);
+            skippedDuplicateOnlyBatch = false;
+            break;
+          }
+          if (!attemptedDuplicateFollowUpRecovery &&
+              lastNonEmptyBatchToolResults.isNotEmpty) {
+            attemptedDuplicateFollowUpRecovery = true;
+            appLog(
+              '[Tool] Duplicate follow-up tool calls detected, requesting bounded recovery',
+            );
+            _appendToLastMessage('<think>');
+            final mcpToolService = _mcpToolService;
+            if (mcpToolService == null) {
+              _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+                executedToolResults,
+              );
+              await _sendWithoutTools();
+              return;
+            }
+            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final recoveryMessages = _prepareMessagesForLLM()
+              ..add(
+                Message(
+                  id:
+                      'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  role: MessageRole.user,
+                  content: _buildDuplicateFollowUpRecoveryPrompt(
+                    currentToolCalls,
+                  ),
+                  timestamp: DateTime.now(),
+                ),
+              );
+            final recoveryResult =
+                await _dataSource.createChatCompletionWithToolResults(
+                  messages: recoveryMessages,
+                  toolResults: lastNonEmptyBatchToolResults,
+                  assistantContent: currentAssistantContent,
+                  tools: tools,
+                  model: _settings.model,
+                  temperature: _settings.temperature,
+                  maxTokens: _settings.maxTokens,
+                );
+            if (!ref.mounted) return;
+            _removeTrailingThinkTag();
+            if (recoveryResult.hasToolCalls) {
+              appLog(
+                '[Tool] Duplicate follow-up recovery requested additional tool calls',
+              );
+              currentToolCalls = recoveryResult.toolCalls!;
+              _recordHiddenAssistantResponse(recoveryResult.content);
+              if (recoveryResult.content.isNotEmpty) {
+                currentAssistantContent = recoveryResult.content;
+              }
+              continue;
+            }
+            appLog(
+              '[Tool] Duplicate follow-up recovery returned final text response',
+            );
+            currentToolCalls = [];
+            final fallbackResponse = recoveryResult.content.trim();
+            _recordHiddenAssistantResponse(fallbackResponse);
+            skippedDuplicateOnlyBatch = false;
+            break;
+          }
+          appLog(
+            '[Tool] Skipped duplicate follow-up tool calls, preserving prior tool results for saved-task recovery',
+          );
+          skippedDuplicateOnlyBatch = true;
+        }
         currentToolCalls = [];
         break;
       }
 
       appLog(
         '[Tool] Retrieved ${batchToolResults.length} tool result(s) in this loop',
+      );
+      lastNonEmptyBatchToolResults = List<ToolResultInfo>.unmodifiable(
+        batchToolResults,
       );
 
       // Show a thinking indicator while waiting for the follow-up request.
@@ -5848,7 +6210,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // If tool results exist and no text response has been shown yet,
     // resend them as a user message and stream the final answer.
-    if (!hasTextResponse && executedToolResults.isNotEmpty) {
+    if (!hasTextResponse &&
+        !skippedDuplicateOnlyBatch &&
+        executedToolResults.isNotEmpty) {
       appLog('[Tool] Resending tool results as user message');
 
       if (!ref.mounted) return;
@@ -5987,7 +6351,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (_mcpToolService == null) return;
 
     for (final tc in freshToolCalls) {
-      if (tc.name == 'memory_update') {
+      if (tc.name == 'memory_update' || tc.name == 'print') {
         appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
         continue;
       }
@@ -6018,8 +6382,103 @@ class ChatNotifier extends Notifier<ChatState> {
     return _toolCallDedupKey(toolCall.name, toolCall.arguments);
   }
 
-  String _toolExecutionKey(ToolCallInfo toolCall) {
-    return _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  String _toolExecutionKey(
+    ToolCallInfo toolCall, {
+    int commandRetryGeneration = 0,
+  }) {
+    final baseKey = _toolCallDedupKey(toolCall.name, toolCall.arguments);
+    if (_isRepeatableCommandTool(toolCall)) {
+      return '$baseKey#commandRetryGeneration=$commandRetryGeneration';
+    }
+    return baseKey;
+  }
+
+  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
+    // Exact repeated shell/git commands without an intervening file mutation are
+    // usually loop noise. Legitimate validation retries get a fresh dedup key
+    // through commandRetryGeneration after the task edits a file.
+    return toolCall.name == 'read_file';
+  }
+
+  bool _containsOnlyReadOnlyInspectionToolCalls(List<ToolCallInfo> toolCalls) {
+    if (toolCalls.isEmpty) {
+      return false;
+    }
+    return toolCalls.every(
+      (toolCall) => _isReadOnlyInspectionTool(toolCall.name),
+    );
+  }
+
+  bool _isReadOnlyInspectionTool(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'list_directory':
+      case 'read_file':
+      case 'find_files':
+      case 'search_files':
+        return true;
+    }
+    return false;
+  }
+
+  String _buildDuplicateInspectionRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+    final repeatedToolNames = toolCalls
+        .map((toolCall) => toolCall.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .join(', ');
+    return [
+      'You already inspected the same local files for the current saved task.',
+      if (repeatedToolNames.isNotEmpty)
+        'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
+      'Take the next concrete saved-task action now.',
+      'Your next reply must either modify a saved target file or run the saved validation command.',
+      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
+    ].join('\n');
+  }
+
+  String _buildDuplicateFollowUpRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+    final repeatedToolNames = toolCalls
+        .map((toolCall) => toolCall.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .join(', ');
+    return [
+      'You already attempted the same follow-up tool call for the current saved task.',
+      if (repeatedToolNames.isNotEmpty)
+        'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
+      'Use the previous tool results and take the next concrete saved-task step now.',
+      'If the current saved task still needs work, create or edit the saved target file.',
+      'If validation already succeeded, reply with a brief completion statement instead of repeating the same tool call.',
+      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
+    ].join('\n');
+  }
+
+  String _extractAssistantStreamDelta({
+    required int messageIndex,
+    required int startingLength,
+  }) {
+    if (messageIndex < 0 || messageIndex >= state.messages.length) {
+      return '';
+    }
+    final content = state.messages[messageIndex].content;
+    if (startingLength >= content.length) {
+      return '';
+    }
+    return content.substring(startingLength).trim();
+  }
+
+  bool _isRepeatableCommandTool(ToolCallInfo toolCall) {
+    return toolCall.name == 'local_execute_command' ||
+        toolCall.name == 'git_execute_command';
+  }
+
+  bool _advancesCommandRetryGeneration(ToolCallInfo toolCall) {
+    final normalizedName = toolCall.name.trim().toLowerCase();
+    return normalizedName == 'write_file' ||
+        normalizedName == 'edit_file' ||
+        normalizedName == 'rollback_last_file_change' ||
+        normalizedName.startsWith('write_') ||
+        normalizedName.startsWith('edit_');
   }
 
   String _toolCallDedupKey(String name, Object? arguments) {
@@ -7451,6 +7910,9 @@ class ChatNotifier extends Notifier<ChatState> {
             'Do not repeat a tool call with the same arguments after a '
             'successful result. Reuse the tool result that is already '
             'provided and continue from it. '
+            'If the latest tool result already completed the current saved '
+            'task or confirmed the saved validation command, do not call '
+            'more tools for that task and finish with a brief text answer. '
             'If a tool result reports code=tool_not_available, do not retry '
             'that tool name or alias variants and continue with the tools '
             'that actually exist. Your next step must use an available tool '

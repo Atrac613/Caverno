@@ -45,4 +45,28 @@ void main() {
     expect(toolCalls.first.arguments['content'], 'hello');
     expect(toolCalls.first.id, isNotEmpty);
   });
+
+  test('annotates successful write_file updates for LLM retries', () {
+    final content = dataSource.formatToolResultContentForLlm(
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'write_file',
+        arguments: const {'path': 'tests/test_ping.py'},
+        result:
+            '{"path":"tests/test_ping.py","bytes_written":1062,"created":false}',
+      ),
+    );
+
+    expect(
+      content,
+      contains('Interpretation: write_file succeeded and updated an existing file.'),
+    );
+    expect(
+      content,
+      contains(
+        'A result with "created": false means the file already existed; it is not an error.',
+      ),
+    );
+    expect(content, contains('Raw result:'));
+  });
 }

@@ -165,6 +165,18 @@ void main() {
         'If the workspace is empty or nearly empty, put scaffolding or initial file creation before feature tasks.',
       ),
     );
+    expect(
+      prompt,
+      contains(
+        'For ping or other long-running CLI tasks, validationCommand must be bounded and exit on its own. Prefer one-shot checks such as --help, -c 1, --count 1, or a dedicated verification script instead of commands that can run forever.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
+      ),
+    );
   });
 
   test('compact task proposal prompt trims verbose planning context', () {

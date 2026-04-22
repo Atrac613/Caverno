@@ -115,14 +115,29 @@ class ConversationExecutionProgressInference {
       lowercaseResponse,
       _completionSignals,
     );
-    final hasValidationPassedSignal = _containsAny(
-      lowercaseResponse,
-      _validationPassedSignals,
-    ) || _looksLikeValidationSuccessNarrative(lowercaseResponse);
+    final hasValidationPassedSignal =
+        _containsAny(lowercaseResponse, _validationPassedSignals) ||
+        _looksLikeValidationSuccessNarrative(lowercaseResponse);
     final looksLikeTaskTransitionNarration = _containsAny(
       lowercaseResponse,
       _transitionNarrationSignals,
     );
+    final looksLikeRecoverableMissingTargetNarrative =
+        _looksLikeRecoverableMissingTargetNarrative(lowercaseResponse);
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    final taskTitleIndex = normalizedTaskTitle.isEmpty
+        ? -1
+        : lowercaseResponse.indexOf(normalizedTaskTitle);
+    final mentionsExplicitTaskCompletion = taskTitleIndex >= 0 &&
+        _containsAny(
+          lowercaseResponse.substring(taskTitleIndex),
+          const [
+            'has been completed',
+            'is complete',
+            'is completed',
+            'was completed',
+          ],
+        );
 
     if (isValidationRun) {
       if (hasBlockedSignal) {
@@ -156,6 +171,15 @@ class ConversationExecutionProgressInference {
       );
     }
 
+    if (looksLikeTaskTransitionNarration &&
+        mentionsExplicitTaskCompletion &&
+        !hasBlockedSignal) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary,
+      );
+    }
+
     if (looksLikeTaskTransitionNarration && !hasValidationPassedSignal) {
       return ConversationExecutionProgressInferenceResult(
         status: task.status == ConversationWorkflowTaskStatus.completed
@@ -165,6 +189,22 @@ class ConversationExecutionProgressInference {
       );
     }
 
+    if (hasBlockedSignal &&
+        looksLikeRecoverableMissingTargetNarrative &&
+        !hasValidationPassedSignal) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.inProgress,
+        summary: summary,
+      );
+    }
+
+    if (hasBlockedSignal &&
+        (hasValidationPassedSignal || mentionsExplicitTaskCompletion)) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary,
+      );
+    }
     if (hasBlockedSignal) {
       return ConversationExecutionProgressInferenceResult(
         status: ConversationWorkflowTaskStatus.blocked,
@@ -241,5 +281,22 @@ class ConversationExecutionProgressInference {
         value.contains('succeeded') ||
         value.contains('ran successfully') ||
         value.contains('working as expected');
+  }
+
+  static bool _looksLikeRecoverableMissingTargetNarrative(String value) {
+    if (!value.contains('validation command')) {
+      return false;
+    }
+    final mentionsMissingTarget =
+        value.contains('before the target file existed') ||
+        value.contains('before every required target file existed') ||
+        value.contains('before the required target file existed');
+    if (!mentionsMissingTarget) {
+      return false;
+    }
+    return value.contains('goal now is to implement the task') ||
+        value.contains('plan:') ||
+        value.contains('create `') ||
+        value.contains('create ping_cli.py');
   }
 }

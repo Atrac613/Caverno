@@ -1,0 +1,32 @@
+{
+  "tasks": [
+    {
+      "id": "task-implement",
+      "title": "Implement ping_cli.py with subprocess and argparse",
+      "targetFiles": ["ping_cli.py"],
+      "validationCommand": "python3 ping_cli.py --help",
+      "notes": "Create the initial CLI entrypoint."
+    },
+    {
+      "id": "task-verify-execution",
+      "title": "Verify ping execution with a single packet",
+      "targetFiles": ["ping_cli.py"],
+      "validationCommand": "python3 ping_cli.py 127.0.0.1 -c 1",
+      "notes": "Run the saved CLI against loopback."
+    },
+    {
+      "id": "task-readme",
+      "title": "Create README.md with usage instructions",
+      "targetFiles": ["README.md"],
+      "validationCommand": "test -f README.md",
+      "notes": "Document the basic usage."
+    },
+    {
+      "id": "task-verify-functionality",
+      "title": "Verify ping functionality with a single packet",
+      "targetFiles": ["ping_cli.py"],
+      "validationCommand": "python3 ping_cli.py 127.0.0.1 -c 1",
+      "notes": "Ensure the script correctly invokes subprocess and prints the result."
+    }
+  ]
+}

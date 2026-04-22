@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;
 
@@ -9,6 +10,8 @@ import 'package:integration_test/integration_test.dart';
 
 import 'package:caverno/core/utils/logger.dart';
 
+const Duration _platformScreenshotTimeout = Duration(seconds: 10);
+
 Future<Uint8List> captureIntegrationScreenshot({
   required IntegrationTestWidgetsFlutterBinding binding,
   required WidgetTester tester,
@@ -19,11 +22,39 @@ Future<Uint8List> captureIntegrationScreenshot({
   await _pumpUntilIdle(tester);
 
   try {
-    await binding.convertFlutterSurfaceToImage();
+    await binding.convertFlutterSurfaceToImage().timeout(
+      _platformScreenshotTimeout,
+    );
     await tester.pump();
-    final bytes = await binding.takeScreenshot(name);
+    final bytes = await binding.takeScreenshot(name).timeout(
+      _platformScreenshotTimeout,
+    );
     return Uint8List.fromList(bytes);
   } on MissingPluginException {
+    return _captureWithRepaintBoundary(
+      binding: binding,
+      tester: tester,
+      repaintBoundaryKey: repaintBoundaryKey,
+      name: name,
+      outputDirectory:
+          outputDirectory ?? Directory('build/integration_test_screenshots'),
+    );
+  } on TimeoutException {
+    appLog(
+      '[Screenshot] Platform screenshot timed out for "$name". Falling back to repaint boundary capture.',
+    );
+    return _captureWithRepaintBoundary(
+      binding: binding,
+      tester: tester,
+      repaintBoundaryKey: repaintBoundaryKey,
+      name: name,
+      outputDirectory:
+          outputDirectory ?? Directory('build/integration_test_screenshots'),
+    );
+  } on PlatformException catch (error) {
+    appLog(
+      '[Screenshot] Platform screenshot failed for "$name": $error. Falling back to repaint boundary capture.',
+    );
     return _captureWithRepaintBoundary(
       binding: binding,
       tester: tester,

@@ -588,6 +588,12 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       context,
       contains('Do not use generic validation such as "module importable"'),
     );
+    expect(
+      context,
+      contains(
+        'Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
+      ),
+    );
   });
 
   test('builds task proposal fallback from truncated planning retries', () {
@@ -700,6 +706,147 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test(
+    'marks duplicate verification tasks with the same validator for retry',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_duplicate_verification_validation_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final rawTasks = (fixture['tasks'] as List<dynamic>)
+          .map((entry) => entry as Map<String, dynamic>)
+          .map(ConversationWorkflowTask.fromJson)
+          .toList(growable: false);
+      final proposal = WorkflowTaskProposalDraft(tasks: rawTasks);
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
+  test('marks pytest-based verification tasks for retry in empty workspaces', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-setup',
+          title: 'Initialize project configuration',
+          targetFiles: ['requirements.txt', 'pyproject.toml'],
+          validationCommand: 'ls requirements.txt pyproject.toml',
+          notes: 'Create the initial Python project files.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-implement',
+          title: 'Implement the core ping CLI logic in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Use subprocess for the first version.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-verify',
+          title: 'Create a test script to verify the CLI functionality',
+          targetFiles: ['tests/test_ping.py'],
+          validationCommand: 'python3 -m pytest tests/test_ping.py',
+          notes: 'Verify the script against a reachable host.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
+  test(
+    'marks external Python runtime dependency implementation tasks for retry in empty workspaces',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-setup',
+            title: 'Initialize project configuration',
+            targetFiles: ['requirements.txt'],
+            validationCommand: 'ls requirements.txt',
+            notes: 'Create the initial dependency file.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-implement',
+            title: 'Implement ping CLI in main.py',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py --help',
+            notes: 'Implement the core logic using a ping library.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping functionality with a single packet',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py 127.0.0.1 -c 1',
+            notes: 'Verify the CLI against loopback.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
+  test(
+    'marks unbounded ping verification commands for retry',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-setup',
+            title: 'Initialize project files',
+            targetFiles: ['requirements.txt', 'main.py'],
+            validationCommand: 'python3 main.py --help',
+            notes: 'Create the initial CLI entrypoint.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping execution with a local loopback address',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py 127.0.0.1',
+            notes: 'Run the ping CLI against loopback.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
   test('dedupes near-duplicate README and implementation tasks', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [
@@ -767,6 +914,63 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
       isFalse,
     );
+  });
+
+  test('dedupes near-duplicate implementation tasks from title-only targets', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-cli-1',
+          title: 'Implement ping_cli.py with subprocess and argparse',
+          targetFiles: [],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Use a simple Python CLI entrypoint.',
+        ),
+        const ConversationWorkflowTask(
+          id: 'task-cli-2',
+          title: 'Implement the ping CLI tool in ping_cli.py',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py --help',
+          notes: 'Cover the same file in a second task.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks, hasLength(1));
+    expect(
+      finalized.tasks.single.title,
+      'Implement ping_cli.py with subprocess and argparse',
+    );
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+  });
+
+  test('normalizes portable ls validation commands in task proposals', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-setup',
+          title: 'Initialize project structure and requirements.txt',
+          targetFiles: ['requirements.txt'],
+          validationCommand: 'ls -F',
+          notes: 'Create the initial dependency file.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks.single.validationCommand, 'ls');
   });
 
   test('drops placeholder task fields from truncated task proposals', () {

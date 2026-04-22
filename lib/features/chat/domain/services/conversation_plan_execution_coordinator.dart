@@ -13,10 +13,7 @@ class ConversationPlanExecutionCoordinator {
     required String outro,
   }) {
     final promptLines = <String>[intro, 'Saved task ID: ${task.id}'];
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('$targetFilesLabel: $targetFiles');
     }
@@ -45,10 +42,7 @@ class ConversationPlanExecutionCoordinator {
     if (validationCommand.isNotEmpty) {
       promptLines.add('$validationLabel: $validationCommand');
     }
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('$targetFilesLabel: $targetFiles');
     }
@@ -69,10 +63,7 @@ class ConversationPlanExecutionCoordinator {
       'Next task: ${nextTask.title.trim()}',
     ];
 
-    final targetFiles = nextTask.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(nextTask).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -115,10 +106,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -164,10 +152,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -191,6 +176,49 @@ class ConversationPlanExecutionCoordinator {
     );
     promptLines.add(
       'Do not create duplicate verification tasks, do not ask for confirmation, and do not describe future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
+  static String buildFailedValidationRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    String? failedValidationSummary,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command already failed for the current task.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+    ];
+
+    final normalizedSummary = failedValidationSummary?.trim() ?? '';
+    if (normalizedSummary.isNotEmpty) {
+      promptLines.add('Last validation summary: $normalizedSummary');
+    }
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Use only tools that are currently available. Do not call unsupported placeholder tools such as print.',
+    );
+    promptLines.add(
+      'If the validation failure points to a saved target file, fix only that saved target file now.',
+    );
+    promptLines.add(
+      'After the fix, rerun the same saved validation command immediately.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not switch to future saved tasks, and do not retry unavailable tools.',
     );
     return promptLines.join('\n');
   }
@@ -278,10 +306,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -341,6 +366,37 @@ class ConversationPlanExecutionCoordinator {
     );
     promptLines.add(
       'Do not switch to unrelated files, do not retry unavailable tools, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
+  static String buildEditMismatchRetryPrompt({
+    required ConversationWorkflowTask task,
+    required List<String> editMismatchPaths,
+  }) {
+    final promptLines = <String>[
+      'You already read the mismatched saved target file.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Mismatched files: ${editMismatchPaths.join(', ')}',
+    ];
+
+    final validationCommand = task.validationCommand.trim();
+    if (validationCommand.isNotEmpty) {
+      promptLines.add('Validation: $validationCommand');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Retry edit_file now on one mismatched saved target file using the exact current file contents as old_text.',
+    );
+    promptLines.add(
+      'Do not stop after another read_file, do not restate the plan, and do not move to future saved tasks.',
     );
     return promptLines.join('\n');
   }
@@ -439,6 +495,89 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildPythonTestDependencyRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String fallbackCommand,
+    required String missingDependency,
+  }) {
+    final promptLines = <String>[
+      'The saved verification command failed because a Python test dependency is unavailable in the current environment.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Missing dependency: ${missingDependency.trim()}',
+      'Fallback verification command: ${fallbackCommand.trim()}',
+    ];
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Rewrite the saved verification target so it runs with the Python standard library only and exits non-zero on failure.',
+    );
+    promptLines.add(
+      'Do not add new external dependencies or switch tasks just to recover this verification step.',
+    );
+    promptLines.add(
+      'Run the fallback verification command now after updating the saved target file.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not ask for confirmation, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
+  static String buildPythonRuntimeDependencyRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String missingDependency,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command failed because the current Python implementation depends on a missing runtime module.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Missing dependency: ${missingDependency.trim()}',
+    ];
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Recover by editing only the saved target files so the same validation command works in this environment.',
+    );
+    promptLines.add(
+      'Prefer Python standard-library or subprocess-based implementations for simple CLI tasks unless the user explicitly asked for a third-party package.',
+    );
+    promptLines.add(
+      'Do not run pip install, do not ask for package installation, and do not modify dependency manifests unless they are saved target files for this task.',
+    );
+    promptLines.add(
+      'After the fix, rerun the same saved validation command immediately.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not switch tasks, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildMissingTargetFileRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> missingTargetFiles,
@@ -452,10 +591,7 @@ class ConversationPlanExecutionCoordinator {
       'Missing target files: ${missingTargetFiles.join(', ')}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Target files: $targetFiles');
     }
@@ -473,6 +609,9 @@ class ConversationPlanExecutionCoordinator {
     promptLines.addAll(_executionGuardrailLines(task));
     promptLines.add(
       'Create or edit one missing target file now before running the saved validation command again.',
+    );
+    promptLines.add(
+      'If you already tried to write the missing target file, confirm the exact saved path first by reading that file or listing its parent directory.',
     );
     promptLines.add(
       'Do not rerun validation until the missing target files exist, and do not restate the plan without a tool call.',
@@ -493,10 +632,7 @@ class ConversationPlanExecutionCoordinator {
       'Saved task: ${task.title.trim()}',
     ];
 
-    final targetFiles = task.targetFiles
-        .map((item) => item.trim())
-        .where((item) => item.isNotEmpty)
-        .join(', ');
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
     if (targetFiles.isNotEmpty) {
       promptLines.add('Only touch these target files next: $targetFiles');
     }
@@ -576,7 +712,7 @@ class ConversationPlanExecutionCoordinator {
     final lines = <String>[
       'Work only on this saved task. Do not implement future saved tasks.',
     ];
-    if (task.targetFiles.any((item) => item.trim().isNotEmpty)) {
+    if (_effectiveTargetFiles(task).isNotEmpty) {
       lines.add(
         'Do not create or modify files outside the target files unless the saved validation step requires it.',
       );
@@ -594,6 +730,38 @@ class ConversationPlanExecutionCoordinator {
 
   static bool looksLikeVerificationTask(ConversationWorkflowTask task) {
     return _looksLikeVerificationTask(task);
+  }
+
+  static List<String> _effectiveTargetFiles(ConversationWorkflowTask task) {
+    final explicitTargets = task.targetFiles
+        .map((item) => item.trim())
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
+    if (explicitTargets.isNotEmpty) {
+      return explicitTargets;
+    }
+
+    final inferredTargets = <String>{
+      ..._inferTargetFilesFromText('${task.title.trim()} ${task.notes.trim()}'),
+      ..._inferTargetFilesFromText(task.validationCommand),
+    };
+    return inferredTargets.toList(growable: false);
+  }
+
+  static Set<String> _inferTargetFilesFromText(String text) {
+    final inferredTargets = <String>{};
+    final matches = RegExp(
+      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+      caseSensitive: false,
+    ).allMatches(text);
+    for (final match in matches) {
+      final candidate = match.group(1)?.trim() ?? '';
+      if (candidate.isEmpty) {
+        continue;
+      }
+      inferredTargets.add(candidate);
+    }
+    return inferredTargets;
   }
 
   static bool _looksLikeScaffoldTask(ConversationWorkflowTask task) {

@@ -148,4 +148,94 @@ void main() {
     );
     expect(result.validationSummary, contains('remote validation passed'));
   });
+
+  test('marks verification-style tasks complete after successful validation', () {
+    final result = ConversationValidationToolResultInference.infer(
+      task: const ConversationWorkflowTask(
+        id: 'task-7',
+        title: 'Create a verification script to validate CLI functionality',
+        validationCommand: 'python3 verify_cli.py',
+      ),
+      toolResults: const [
+        ConversationValidationToolResultInput(
+          toolName: 'local_execute_command',
+          rawResult:
+              '{"command":"python3 verify_cli.py","exit_code":0,"stdout":"verification passed","stderr":""}',
+        ),
+      ],
+    );
+
+    expect(result, isNotNull);
+    expect(result!.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.validationStatus,
+      ConversationExecutionValidationStatus.passed,
+    );
+    expect(
+      result.summary,
+      'Validation passed while running python3 verify_cli.py.',
+    );
+    expect(result.validationSummary, contains('verification passed'));
+  });
+
+  test(
+    'marks implementation tasks complete after successful direct target execution',
+    () {
+      final result = ConversationValidationToolResultInference.infer(
+        task: const ConversationWorkflowTask(
+          id: 'task-impl',
+          title: 'Implement ping logic using subprocess',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py 127.0.0.1 -c 1',
+        ),
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 ping_cli.py 127.0.0.1 -c 1","exit_code":0,"stdout":"PING 127.0.0.1","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(
+        result.summary,
+        'Validation passed while running python3 ping_cli.py 127.0.0.1 -c 1.',
+      );
+    },
+  );
+
+  test(
+    'marks unittest-based verification tasks complete even when stdout includes expected error text',
+    () {
+      final result = ConversationValidationToolResultInference.infer(
+        task: const ConversationWorkflowTask(
+          id: 'task-8',
+          title: 'Create test_ping.py to verify the CLI functionality',
+          validationCommand: 'python3 test_ping.py',
+        ),
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 test_ping.py","exit_code":0,"stdout":"...\\n----------------------------------------------------------------------\\nRan 3 tests in 0.001s\\n\\nOK\\nPinging 127.0.0.1...\\nError: ping command not found.\\n","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(result.summary, 'Validation passed while running python3 test_ping.py.');
+      expect(result.validationSummary, contains('Ran 3 tests'));
+    },
+  );
 }

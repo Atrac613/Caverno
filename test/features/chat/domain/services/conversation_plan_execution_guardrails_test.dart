@@ -93,11 +93,11 @@ void main() {
       final task = ConversationWorkflowTask.fromJson(
         fixture['task'] as Map<String, dynamic>,
       );
-      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
-          .cast<String>();
+      final existingTargetPaths =
+          (fixture['existingTargetPaths'] as List<dynamic>).cast<String>();
 
-      final canFinalize = ConversationPlanExecutionGuardrails
-          .canFinalizeScaffoldFromWorkspaceTargets(
+      final canFinalize =
+          ConversationPlanExecutionGuardrails.canFinalizeScaffoldFromWorkspaceTargets(
             task: task,
             existingTargetPaths: existingTargetPaths,
           );
@@ -126,14 +126,14 @@ void main() {
       final task = ConversationWorkflowTask.fromJson(
         fixture['task'] as Map<String, dynamic>,
       );
-      final existingTargetPaths = (fixture['existingTargetPaths'] as List<dynamic>)
-          .cast<String>();
+      final existingTargetPaths =
+          (fixture['existingTargetPaths'] as List<dynamic>).cast<String>();
       final toolResults = loadFixtureToolResults(
         'plan_mode_ping_cli_scaffold_validation_workspace_replay.json',
       );
 
-      final canPromote = ConversationPlanExecutionGuardrails
-          .canPromoteScaffoldCompletionFromWorkspaceValidation(
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteScaffoldCompletionFromWorkspaceValidation(
             task: task,
             toolResults: toolResults,
             existingTargetPaths: existingTargetPaths,
@@ -148,7 +148,8 @@ void main() {
     () {
       const task = ConversationWorkflowTask(
         id: 'task-ping-lib',
-        title: 'Implement core ping functionality and CLI interface in ping_cli.py',
+        title:
+            'Implement core ping functionality and CLI interface in ping_cli.py',
         targetFiles: ['ping_lib.py'],
         validationCommand: 'python3 ping_lib.py --help',
       );
@@ -163,12 +164,11 @@ void main() {
       ];
 
       final canPromote =
-          ConversationPlanExecutionGuardrails
-              .canPromoteCompletionFromWorkspaceValidation(
-                task: task,
-                toolResults: toolResults,
-                existingTargetPaths: const ['ping_lib.py'],
-              );
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceValidation(
+            task: task,
+            toolResults: toolResults,
+            existingTargetPaths: const ['ping_lib.py'],
+          );
 
       expect(canPromote, isTrue);
     },
@@ -271,6 +271,63 @@ void main() {
 
     expect(missingTarget, 'main.py');
   });
+
+  test(
+    'extracts inferred src target files from failed validation commands when metadata is empty',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_src_ping_cli_missing_validation_replay.json',
+      );
+
+      final missingTarget =
+          ConversationPlanExecutionGuardrails.missingTargetFileFromValidationFailure(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(missingTarget, 'src/ping_cli.py');
+    },
+  );
+
+  test(
+    'assessTaskDrift infers implementation targets from the task title when metadata is empty',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+      );
+
+      final driftAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskDrift(
+            task: task,
+            toolResults: toolResults,
+          );
+      final completionAssessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(driftAssessment.hasDrift, isFalse);
+      expect(driftAssessment.touchedTargetFiles, contains('main.py'));
+      expect(driftAssessment.unrelatedTouchedPaths, isEmpty);
+      expect(completionAssessment.hasTargetFiles, isTrue);
+      expect(completionAssessment.touchedTargetFiles, contains('main.py'));
+      expect(completionAssessment.shouldMarkCompleted, isFalse);
+      expect(
+        ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
+          task: task,
+          existingTargetPaths: const ['main.py'],
+        ),
+        isEmpty,
+      );
+    },
+  );
 
   test(
     'assessTaskCompletion treats target-directory scaffolding as benign support',
@@ -478,6 +535,207 @@ void main() {
   );
 
   test(
+    'assessTaskDrift matches src target paths inferred from validation commands',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement ping CLI script',
+        targetFiles: [],
+        validationCommand: 'python3 ping_cli.py --help',
+        notes:
+            'Implement the core logic using argparse to accept a host argument.',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'src/ping_cli.py'},
+          result:
+              '{"path":"/tmp/project/src/ping_cli.py","bytes_written":420,"created":true}',
+        ),
+      ];
+
+      final assessment = ConversationPlanExecutionGuardrails.assessTaskDrift(
+        task: task,
+        toolResults: toolResults,
+      );
+
+      expect(assessment.hasDrift, isFalse);
+      expect(assessment.touchedTargetFiles, contains('src/ping_cli.py'));
+      expect(assessment.unrelatedTouchedPaths, isEmpty);
+    },
+  );
+
+  test('assistantMentionsTaskHandoff detects a later saved task title', () {
+    final fixture =
+        jsonDecode(
+              File(
+                'test/fixtures/plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final task = ConversationWorkflowTask.fromJson(
+      fixture['task'] as Map<String, dynamic>,
+    );
+
+    final mentionsHandoff =
+        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+          task: task,
+          assistantResponse: fixture['assistantResponse'] as String,
+          futureTaskTitles: (fixture['futureTaskTitles'] as List<dynamic>)
+              .cast<String>(),
+        );
+
+    expect(mentionsHandoff, isTrue);
+  });
+
+  test(
+    'canPromoteCompletionFromHistoricalValidationHandoff accepts passed validation before future-task narration',
+    () {
+      final task = const ConversationWorkflowTask(
+        id: 'task-implement-cli',
+        title: 'Implement the ping CLI tool',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        targetFiles: ['ping_cli.py'],
+        validationCommand: 'python3 ping_cli.py --help',
+      );
+      final progress = ConversationExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationCommand: 'python3 ping_cli.py --help',
+        lastValidationSummary:
+            'The validation command `python3 ping_cli.py --help` was successful.',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromHistoricalValidationHandoff(
+            task: task,
+            progress: progress,
+            assistantResponse:
+                'The current task being executed (according to the context) is "Verify CLI functionality with a live host". '
+                'This means the verification task was successful.',
+            futureTaskTitles: const ['Verify CLI functionality with a live host'],
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'canPromoteCompletionFromCurrentValidationHandoff accepts same-turn validation success before future-task narration',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_main_task_validation_handoff_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_task_validation_handoff_replay.json',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromCurrentValidationHandoff(
+            task: task,
+            toolResults: toolResults,
+            assistantResponse: fixture['assistantResponse'] as String,
+            futureTaskTitles:
+                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'canPromoteCompletionFromWorkspaceTargets accepts complete task target coverage',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+            task: task,
+            existingTargetPaths:
+                (fixture['existingTargetPaths'] as List<dynamic>)
+                    .cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'canPromoteCompletionFromTaskHandoff accepts same-turn completion before future work',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_task_handoff_completion_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_task_handoff_completion_replay.json',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromTaskHandoff(
+            task: task,
+            toolResults: toolResults,
+            assistantResponse: fixture['assistantResponse'] as String,
+            futureTaskTitles:
+                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'hasOnlyUnavailableToolFailures accepts unavailable-tool-only failures',
+    () {
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_cli_interface_handoff_stall_replay.json',
+      );
+
+      expect(
+        ConversationPlanExecutionGuardrails.hasOnlyUnavailableToolFailures(
+          toolResults,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test('effectiveTargetPathsForTask infers file paths from the task title', () {
+    final task = loadFixtureTask(
+      'plan_mode_ping_cli_main_py_execution_stall_replay.json',
+    );
+
+    expect(
+      ConversationPlanExecutionGuardrails.effectiveTargetPathsForTask(task),
+      contains('main.py'),
+    );
+  });
+
+  test(
     'assessTaskCompletion preserves scaffold completion after malformed write failures',
     () {
       final task = loadFixtureTask(
@@ -496,10 +754,7 @@ void main() {
       expect(assessment.hasFailure, isTrue);
       expect(assessment.shouldMarkCompleted, isFalse);
       expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
-      expect(
-        assessment.successfulValidationCommands,
-        contains('ls -a'),
-      );
+      expect(assessment.successfulValidationCommands, contains('ls -a'));
       expect(
         ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
           toolResults,
@@ -542,6 +797,131 @@ void main() {
     },
   );
 
+  test('detects pytest-missing verification failures and suggests fallback', () {
+    final task = loadFixtureTask(
+      'plan_mode_ping_cli_pytest_missing_verification_replay.json',
+    );
+    final toolResults = loadFixtureToolResults(
+      'plan_mode_ping_cli_pytest_missing_verification_replay.json',
+    );
+
+    final failedCommand =
+        ConversationPlanExecutionGuardrails.failedPythonValidationCommand(
+          task: task,
+          toolResults: toolResults,
+        );
+
+    expect(
+      ConversationPlanExecutionGuardrails.missingPythonTestDependency(
+        task: task,
+        toolResults: toolResults,
+      ),
+      'pytest',
+    );
+    expect(failedCommand, 'python3 -m pytest tests/test_ping.py');
+    expect(
+      ConversationPlanExecutionGuardrails
+          .suggestPythonTestDependencyFallbackCommand(
+            task: task,
+            failedCommand: failedCommand!,
+            missingDependency: 'pytest',
+          ),
+      'python3 tests/test_ping.py',
+    );
+  });
+
+  test(
+    'detects missing Python runtime dependencies for implementation validation failures',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-main',
+        title: 'Implement ping CLI in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py --help',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-validate',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 main.py --help'},
+          result:
+              '{"command":"python3 main.py --help","exit_code":1,"stdout":"","stderr":"Traceback (most recent call last):\\n  File \\"/tmp/main.py\\", line 3, in <module>\\n    from ping3 import ping\\nModuleNotFoundError: No module named \\"ping3\\"\\n"}',
+        ),
+      ];
+
+      expect(
+        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
+          task: task,
+          toolResults: toolResults,
+        ),
+        'ping3',
+      );
+    },
+  );
+
+  test(
+    'ignores src-layout import failures when detecting missing Python runtime dependencies',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+
+      expect(
+        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
+          task: task,
+          toolResults: toolResults,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
+    'assessTaskCompletion accepts direct Python fallback validation after pytest is unavailable',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-verify-cli',
+        title: 'Create a test script to verify the CLI functionality',
+        targetFiles: ['tests/test_ping.py'],
+        validationCommand: 'python3 -m pytest tests/test_ping.py',
+        notes:
+            'Verify that the script can successfully ping a known host like 8.8.8.8.',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'tests/test_ping.py'},
+          result:
+              '{"path":"/tmp/project/tests/test_ping.py","bytes_written":412,"created":false}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 tests/test_ping.py'},
+          result:
+              '{"command":"python3 tests/test_ping.py","exit_code":0,"stdout":"ping ok","stderr":""}',
+        ),
+      ];
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(assessment.shouldMarkCompleted, isTrue);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 tests/test_ping.py'),
+      );
+    },
+  );
+
   test(
     'assessTaskDrift ignores scaffold support files for scaffold-like tasks',
     () {
@@ -579,36 +959,66 @@ void main() {
     },
   );
 
-  test('extracts malformed file mutation failures when a target path exists', () {
-    final toolResults = [
-      ToolResultInfo(
-        id: 'tool-1',
-        name: 'write_file',
-        arguments: {'path': 'src/config_loader.py'},
-        result: 'Error: invalid arguments',
-      ),
-      ToolResultInfo(
-        id: 'tool-2',
-        name: 'edit_file',
-        arguments: {'path': 'tests/test_config_loader.py'},
-        result: '{"error":"old_text must not be empty"}',
-      ),
-    ];
+  test(
+    'extracts malformed file mutation failures when a target path exists',
+    () {
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'write_file',
+          arguments: {'path': 'src/config_loader.py'},
+          result: 'Error: invalid arguments',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'edit_file',
+          arguments: {'path': 'tests/test_config_loader.py'},
+          result: '{"error":"old_text must not be empty"}',
+        ),
+      ];
 
-    expect(
-      ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
-        toolResults,
-      ),
-      isTrue,
-    );
-    expect(
-      ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
-        toolResults,
-      ),
-      containsAll(<String>[
-        'src/config_loader.py',
-        'tests/test_config_loader.py',
-      ]),
-    );
-  });
+      expect(
+        ConversationPlanExecutionGuardrails.hasMalformedFileMutationFailure(
+          toolResults,
+        ),
+        isTrue,
+      );
+      expect(
+        ConversationPlanExecutionGuardrails.malformedFileMutationPaths(
+          toolResults,
+        ),
+        containsAll(<String>[
+          'src/config_loader.py',
+          'tests/test_config_loader.py',
+        ]),
+      );
+    },
+  );
+
+  test(
+    'assessTaskCompletion treats validation-only success as completion evidence',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_main_entrypoint_validation_success_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_main_entrypoint_validation_success_replay.json',
+      );
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasFailure, isFalse);
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 main.py --help'),
+      );
+      expect(assessment.completedFromSuccessfulValidation, isTrue);
+      expect(assessment.shouldMarkCompleted, isTrue);
+      expect(assessment.hasCompletionEvidenceIgnoringFailures, isTrue);
+    },
+  );
 }
