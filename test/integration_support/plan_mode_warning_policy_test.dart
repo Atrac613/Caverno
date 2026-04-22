@@ -73,6 +73,32 @@ void main() {
     });
 
     test(
+      'allows post-completion transport warnings when an earlier identical warning was unrecovered',
+      () {
+        const createWarning =
+            '[LLM] createChatCompletion error: ClientException: Connection closed before full header was received';
+        const memoryWarning =
+            '[Memory] LLM memory extraction error: ClientException: Connection closed before full header was received';
+        final summary = summarizeScenarioWarnings(
+          warnings: const <String>[createWarning, memoryWarning],
+          allowedPatterns: const <String>[],
+          logs: const <String>[
+            createWarning,
+            memoryWarning,
+            '[LLM] The verification task was successful. All tasks in the current workflow are now complete.',
+            '[LLM] ========== streamChatCompletion ==========',
+            createWarning,
+            memoryWarning,
+          ],
+        );
+
+        expect(summary.allowedWarnings, contains(createWarning));
+        expect(summary.allowedWarnings, contains(memoryWarning));
+        expect(summary.unexpectedWarnings, isEmpty);
+      },
+    );
+
+    test(
       'allows continuation stream disconnect warnings after validation reaches memory extraction',
       () {
         const streamWarning =

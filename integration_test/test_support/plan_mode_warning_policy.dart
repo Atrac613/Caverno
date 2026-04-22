@@ -58,11 +58,6 @@ bool _isRecoverableCreateParseWarning({
     return false;
   }
 
-  final warningIndex = logs.indexOf(warning);
-  if (warningIndex == -1) {
-    return false;
-  }
-
   const recoveryMarkers = <String>[
     '[Workflow] Workflow proposal ready',
     '[Workflow] Task proposal ready',
@@ -72,10 +67,12 @@ bool _isRecoverableCreateParseWarning({
     '[Memory] Repaired malformed memory extraction JSON',
   ];
 
-  for (var index = warningIndex + 1; index < logs.length; index += 1) {
-    final line = logs[index];
-    if (recoveryMarkers.any(line.contains)) {
-      return true;
+  for (final warningIndex in _warningIndices(warning, logs)) {
+    for (var index = warningIndex + 1; index < logs.length; index += 1) {
+      final line = logs[index];
+      if (recoveryMarkers.any(line.contains)) {
+        return true;
+      }
     }
   }
 
@@ -93,31 +90,31 @@ bool _isRecoverablePostCompletionWarning({
     return false;
   }
 
-  final warningIndex = logs.indexOf(warning);
-  if (warningIndex == -1) {
-    return false;
-  }
+  for (final warningIndex in _warningIndices(warning, logs)) {
+    final finalAnswerIndex = logs.lastIndexWhere(
+      (line) => line.contains('[LLM] ========== streamChatCompletion =========='),
+    );
+    if (finalAnswerIndex == -1 || warningIndex <= finalAnswerIndex) {
+      continue;
+    }
 
-  final finalAnswerIndex = logs.lastIndexWhere(
-    (line) => line.contains('[LLM] ========== streamChatCompletion =========='),
-  );
-  if (finalAnswerIndex == -1 || warningIndex <= finalAnswerIndex) {
-    return false;
-  }
+    final hasLaterToolLoop = logs.skip(warningIndex + 1).any(
+      (line) =>
+          line.contains('[Tool] LLM requested additional tool calls') ||
+          line.contains('finishReason: FinishReason.toolCalls'),
+    );
+    if (hasLaterToolLoop) {
+      continue;
+    }
 
-  final hasLaterToolLoop = logs.skip(warningIndex + 1).any(
-    (line) =>
-        line.contains('[Tool] LLM requested additional tool calls') ||
-        line.contains('finishReason: FinishReason.toolCalls'),
-  );
-  if (hasLaterToolLoop) {
-    return false;
+    final hasPairedMemoryWarning = logs.skip(warningIndex).any(
+      (line) => line.contains('[Memory] LLM memory extraction error:'),
+    );
+    if (hasPairedMemoryWarning) {
+      return true;
+    }
   }
-
-  final hasPairedMemoryWarning = logs.skip(warningIndex).any(
-    (line) => line.contains('[Memory] LLM memory extraction error:'),
-  );
-  return hasPairedMemoryWarning;
+  return false;
 }
 
 bool _isRecoverableContinuationStreamWarning({
@@ -132,40 +129,48 @@ bool _isRecoverableContinuationStreamWarning({
     return false;
   }
 
-  final warningIndex = logs.indexOf(warning);
-  if (warningIndex == -1) {
-    return false;
-  }
+  for (final warningIndex in _warningIndices(warning, logs)) {
+    final laterLogs = logs.skip(warningIndex + 1);
+    final hasLaterToolLoop = laterLogs.any(
+      (line) =>
+          line.contains('[Tool] LLM requested additional tool calls') ||
+          line.contains('finishReason: FinishReason.toolCalls') ||
+          line.contains('[ContentTool] Detected tool_call(s):'),
+    );
+    if (hasLaterToolLoop) {
+      continue;
+    }
 
-  final laterLogs = logs.skip(warningIndex + 1);
-  final hasLaterToolLoop = laterLogs.any(
-    (line) =>
-        line.contains('[Tool] LLM requested additional tool calls') ||
-        line.contains('finishReason: FinishReason.toolCalls') ||
-        line.contains('[ContentTool] Detected tool_call(s):'),
-  );
-  if (hasLaterToolLoop) {
-    return false;
-  }
+    final hasLaterMemoryPhase = laterLogs.any(
+      (line) =>
+          line.contains('[Memory] ') ||
+          line.contains(
+            'You extract reusable user memory from a conversation.',
+          ),
+    );
+    if (!hasLaterMemoryPhase) {
+      continue;
+    }
 
-  final hasLaterMemoryPhase = laterLogs.any(
-    (line) =>
-        line.contains('[Memory] ') ||
-        line.contains(
-          'You extract reusable user memory from a conversation.',
-        ),
-  );
-  if (!hasLaterMemoryPhase) {
-    return false;
+    final earlierLogs = logs.take(warningIndex);
+    final hasValidationExecution = earlierLogs.any(
+      (line) =>
+          line.contains('[ContentTool]   - local_execute_command:') ||
+          line.contains('[ContentTool]   - ping:') ||
+          line.contains('[ContentTool]   - dns_lookup:') ||
+          line.contains('[ContentTool]   - http_status:'),
+    );
+    if (hasValidationExecution) {
+      return true;
+    }
   }
+  return false;
+}
 
-  final earlierLogs = logs.take(warningIndex);
-  final hasValidationExecution = earlierLogs.any(
-    (line) =>
-        line.contains('[ContentTool]   - local_execute_command:') ||
-        line.contains('[ContentTool]   - ping:') ||
-        line.contains('[ContentTool]   - dns_lookup:') ||
-        line.contains('[ContentTool]   - http_status:'),
-  );
-  return hasValidationExecution;
+Iterable<int> _warningIndices(String warning, List<String> logs) sync* {
+  for (var index = 0; index < logs.length; index += 1) {
+    if (logs[index].contains(warning)) {
+      yield index;
+    }
+  }
 }
