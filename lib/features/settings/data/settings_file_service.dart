@@ -99,5 +99,11 @@ class SettingsFileService {
         !_urlPattern.hasMatch(settings.voicevoxUrl)) {
       throw const FormatException('voicevoxUrl must be a valid HTTP/HTTPS URL');
     }
+    if (settings.normalizedGoogleChatWebhookUrl.isNotEmpty &&
+        !_urlPattern.hasMatch(settings.normalizedGoogleChatWebhookUrl)) {
+      throw const FormatException(
+        'googleChatWebhookUrl must be a valid HTTP/HTTPS URL',
+      );
+    }
   }
 }

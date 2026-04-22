@@ -96,6 +96,7 @@ void main() {
         mcpUrl: '',
         whisperUrl: '',
         voicevoxUrl: '',
+        googleChatWebhookUrl: '',
       );
       expect(
         () => SettingsFileService.validateSettings(settings),
@@ -108,6 +109,7 @@ void main() {
         baseUrl: 'https://api.example.com/v1',
         mcpUrl: 'https://mcp.example.com',
         mcpUrls: ['https://mcp.example.com', 'https://mcp-2.example.com'],
+        googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
         mcpServers: const [
           McpServerConfig(url: 'https://mcp.example.com', enabled: true),
           McpServerConfig(url: 'https://mcp-2.example.com', enabled: false),
@@ -215,6 +217,23 @@ void main() {
             (e) => e.message,
             'message',
             contains('maxTokens'),
+          ),
+        ),
+      );
+    });
+
+    test('rejects invalid Google Chat webhook URLs', () {
+      final settings = validSettings.copyWith(
+        googleChatWebhookUrl: 'chat.googleapis.com/webhook',
+      );
+
+      expect(
+        () => SettingsFileService.validateSettings(settings),
+        throwsA(
+          isA<FormatException>().having(
+            (e) => e.message,
+            'message',
+            contains('googleChatWebhookUrl'),
           ),
         ),
       );

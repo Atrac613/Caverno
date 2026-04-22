@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/utils/debouncer.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
@@ -11,17 +12,21 @@ class GeneralSettingsPage extends ConsumerStatefulWidget {
   const GeneralSettingsPage({super.key});
 
   @override
-  ConsumerState<GeneralSettingsPage> createState() => _GeneralSettingsPageState();
+  ConsumerState<GeneralSettingsPage> createState() =>
+      _GeneralSettingsPageState();
 }
 
 class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   late TextEditingController _baseUrlController;
   late TextEditingController _apiKeyController;
   late TextEditingController _maxTokensController;
+  late TextEditingController _googleChatWebhookController;
 
   final _baseUrlDebouncer = Debouncer();
   final _apiKeyDebouncer = Debouncer();
   final _maxTokensDebouncer = Debouncer();
+  final _googleChatWebhookDebouncer = Debouncer();
+  bool _isSendingGoogleChatTest = false;
 
   @override
   void initState() {
@@ -29,7 +34,12 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final settings = ref.read(settingsNotifierProvider);
     _baseUrlController = TextEditingController(text: settings.baseUrl);
     _apiKeyController = TextEditingController(text: settings.apiKey);
-    _maxTokensController = TextEditingController(text: settings.maxTokens.toString());
+    _maxTokensController = TextEditingController(
+      text: settings.maxTokens.toString(),
+    );
+    _googleChatWebhookController = TextEditingController(
+      text: settings.googleChatWebhookUrl,
+    );
   }
 
   @override
@@ -37,9 +47,11 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     _baseUrlDebouncer.dispose();
     _apiKeyDebouncer.dispose();
     _maxTokensDebouncer.dispose();
+    _googleChatWebhookDebouncer.dispose();
     _baseUrlController.dispose();
     _apiKeyController.dispose();
     _maxTokensController.dispose();
+    _googleChatWebhookController.dispose();
     super.dispose();
   }
 
@@ -89,7 +101,9 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
               .toList(),
           onChanged: (value) {
             if (value == null) return;
-            ref.read(settingsNotifierProvider.notifier).updateModel(value.trim());
+            ref
+                .read(settingsNotifierProvider.notifier)
+                .updateModel(value.trim());
           },
         );
       },
@@ -129,13 +143,18 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
             ],
             onChanged: (value) {
               if (value == null) return;
-              ref.read(settingsNotifierProvider.notifier).updateModel(value.trim());
+              ref
+                  .read(settingsNotifierProvider.notifier)
+                  .updateModel(value.trim());
             },
           ),
           const SizedBox(height: 8),
           Text(
             'settings.model_error_message'.tr(),
-            style: TextStyle(color: Theme.of(context).colorScheme.error, fontSize: 12),
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.error,
+              fontSize: 12,
+            ),
           ),
         ],
       ),
@@ -148,9 +167,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     final notifier = ref.read(settingsNotifierProvider.notifier);
 
     return Scaffold(
-      appBar: AppBar(
-        title: Text('settings.menu_general'.tr()),
-      ),
+      appBar: AppBar(title: Text('settings.menu_general'.tr())),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
@@ -245,7 +262,10 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                           },
                         ),
                       ),
-                      SizedBox(width: 40, child: Text(settings.temperature.toStringAsFixed(1))),
+                      SizedBox(
+                        width: 40,
+                        child: Text(settings.temperature.toStringAsFixed(1)),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 8),
@@ -260,10 +280,48 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     keyboardType: TextInputType.number,
                     onChanged: (_) {
                       _maxTokensDebouncer.run(() {
-                        final value = int.tryParse(_maxTokensController.text) ?? 4096;
+                        final value =
+                            int.tryParse(_maxTokensController.text) ?? 4096;
                         notifier.updateMaxTokens(value);
                       });
                     },
+                  ),
+                  const SizedBox(height: 24),
+                  _buildSectionHeader('settings.google_chat_section'.tr()),
+                  const SizedBox(height: 8),
+                  TextField(
+                    controller: _googleChatWebhookController,
+                    decoration: InputDecoration(
+                      labelText: 'settings.google_chat_webhook_label'.tr(),
+                      hintText: 'https://chat.googleapis.com/v1/spaces/...',
+                      border: const OutlineInputBorder(),
+                      helperText: 'settings.google_chat_webhook_helper'.tr(),
+                    ),
+                    keyboardType: TextInputType.url,
+                    onChanged: (_) {
+                      _googleChatWebhookDebouncer.run(() {
+                        notifier.updateGoogleChatWebhookUrl(
+                          _googleChatWebhookController.text,
+                        );
+                      });
+                    },
+                  ),
+                  const SizedBox(height: 12),
+                  Align(
+                    alignment: Alignment.centerLeft,
+                    child: FilledButton.tonalIcon(
+                      onPressed: _isSendingGoogleChatTest
+                          ? null
+                          : () => _sendGoogleChatTest(context),
+                      icon: _isSendingGoogleChatTest
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(strokeWidth: 2),
+                            )
+                          : const Icon(Icons.send_outlined),
+                      label: Text('settings.google_chat_test_button'.tr()),
+                    ),
                   ),
                   const SizedBox(height: 24),
                 ],
@@ -304,5 +362,45 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
         ],
       ),
     );
+  }
+
+  Future<void> _sendGoogleChatTest(BuildContext context) async {
+    final notifier = ref.read(settingsNotifierProvider.notifier);
+    final deliveryService = ref.read(googleChatDeliveryServiceProvider);
+    final webhookUrl = _googleChatWebhookController.text.trim();
+
+    if (webhookUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('settings.google_chat_test_missing'.tr())),
+      );
+      return;
+    }
+
+    setState(() {
+      _isSendingGoogleChatTest = true;
+    });
+
+    await notifier.updateGoogleChatWebhookUrl(webhookUrl);
+    final result = await deliveryService.sendMessage(
+      webhookUrl: webhookUrl,
+      text: 'settings.google_chat_test_message'.tr(),
+    );
+
+    if (!context.mounted) {
+      return;
+    }
+
+    setState(() {
+      _isSendingGoogleChatTest = false;
+    });
+
+    final message = result.isSuccessful
+        ? 'settings.google_chat_test_success'.tr()
+        : 'settings.google_chat_test_failed'.tr(
+            namedArgs: {'reason': result.message},
+          );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 }

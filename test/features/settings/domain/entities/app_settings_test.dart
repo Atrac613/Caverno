@@ -43,4 +43,21 @@ void main() {
       isNot(contains('http://blocked.example')),
     );
   });
+
+  test('normalizes the Google Chat webhook URL for delivery checks', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'test-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      googleChatWebhookUrl: ' https://chat.googleapis.com/v1/spaces/test ',
+    );
+
+    expect(
+      settings.normalizedGoogleChatWebhookUrl,
+      'https://chat.googleapis.com/v1/spaces/test',
+    );
+    expect(settings.hasGoogleChatWebhook, isTrue);
+  });
 }
