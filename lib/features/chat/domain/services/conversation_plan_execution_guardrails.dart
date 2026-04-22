@@ -84,6 +84,15 @@ class ConversationPlanExecutionCompletionAssessment {
 class ConversationPlanExecutionGuardrails {
   ConversationPlanExecutionGuardrails._();
 
+  static const _completionSignals = <String>[
+    ' is complete',
+    ' is now complete',
+    ' has been completed',
+    ' completed',
+    ' done',
+    ' finished',
+  ];
+
   static List<String> effectiveTargetPathsForTask(
     ConversationWorkflowTask task,
   ) => _effectiveTargetPaths(task).toList(growable: false);
@@ -521,6 +530,42 @@ class ConversationPlanExecutionGuardrails {
     }
 
     return false;
+  }
+
+  static bool canPromoteCompletionFromTaskHandoff({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    final completionAssessment = assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (completionAssessment.hasFailure ||
+        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
+        completionAssessment.scaffoldCommands.isNotEmpty ||
+        completionAssessment.touchedTargetFiles.isEmpty ||
+        !completionAssessment.touchedAllTargetFiles) {
+      return false;
+    }
+
+    if (!assistantMentionsTaskHandoff(
+      task: task,
+      assistantResponse: assistantResponse,
+      futureTaskTitles: futureTaskTitles,
+    )) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    final normalizedTaskTitle = task.title.trim().toLowerCase();
+    if (normalizedTaskTitle.isEmpty ||
+        !normalizedResponse.contains(normalizedTaskTitle)) {
+      return false;
+    }
+
+    return _completionSignals.any(normalizedResponse.contains);
   }
 
   static bool canPromoteCompletionFromHistoricalValidationHandoff({

@@ -5212,7 +5212,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
         previousAssistantMessageId: previousAssistantMessageId,
         toolResults: retryToolResults,
       );
-      if (retryApplied || retryToolResults.isNotEmpty) {
+      if (retryApplied || _taskReachedTerminalStatus(latestTask.id)) {
         return true;
       }
     }
@@ -5310,7 +5310,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+    if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
       return true;
     }
 
@@ -5413,7 +5413,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+    if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
       return true;
     }
 
@@ -5528,7 +5528,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+    if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
       return true;
     }
 
@@ -5700,7 +5700,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
             previousAssistantMessageId: previousAssistantMessageId,
             toolResults: recoveryToolResults,
           );
-      if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+      if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
         return true;
       }
 
@@ -6021,7 +6021,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           previousAssistantMessageId: previousAssistantMessageId,
           toolResults: recoveryToolResults,
         );
-    if (toolResultApplied || recoveryToolResults.isNotEmpty) {
+    if (toolResultApplied || _taskReachedTerminalStatus(latestTask.id)) {
       return true;
     }
 
@@ -6293,6 +6293,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
       );
       return true;
     }
+    if (ConversationPlanExecutionGuardrails.canPromoteCompletionFromTaskHandoff(
+      task: task,
+      toolResults: toolResults,
+      assistantResponse: latestAssistantResponse.isNotEmpty
+          ? latestAssistantResponse
+          : fallbackAssistantEvidence,
+      futureTaskTitles: futureTaskTitles,
+    )) {
+      final summary =
+          assistantInference.status == ConversationWorkflowTaskStatus.completed
+          ? assistantInference.summary
+          : 'Marked complete after the assistant finished the current saved task and moved on to a later task in the same turn.';
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary,
+      );
+      return true;
+    }
     if (handoffEvidence &&
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
           task: task,
@@ -6481,6 +6501,20 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
   String? _latestAssistantMessageId(Conversation conversation) =>
       _latestAssistantMessage(conversation)?.id;
+
+  bool _taskReachedTerminalStatus(String taskId) {
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final latestTask = currentConversation?.projectedExecutionTasks
+        .where((task) => task.id == taskId)
+        .firstOrNull;
+    if (latestTask == null) {
+      return false;
+    }
+    return latestTask.status == ConversationWorkflowTaskStatus.completed ||
+        latestTask.status == ConversationWorkflowTaskStatus.blocked;
+  }
 
   String _workflowProjectionStatusLabelKey(Conversation currentConversation) {
     if (currentConversation.isWorkflowProjectionFresh) {

@@ -647,6 +647,36 @@ void main() {
   );
 
   test(
+    'canPromoteCompletionFromTaskHandoff accepts same-turn completion before future work',
+    () {
+      final fixture =
+          jsonDecode(
+                File(
+                  'test/fixtures/plan_mode_ping_cli_task_handoff_completion_replay.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final task = ConversationWorkflowTask.fromJson(
+        fixture['task'] as Map<String, dynamic>,
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_task_handoff_completion_replay.json',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromTaskHandoff(
+            task: task,
+            toolResults: toolResults,
+            assistantResponse: fixture['assistantResponse'] as String,
+            futureTaskTitles:
+                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'hasOnlyUnavailableToolFailures accepts unavailable-tool-only failures',
     () {
       final toolResults = loadFixtureToolResults(
