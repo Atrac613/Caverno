@@ -1,11 +1,21 @@
 bool planningLogsContainWorkflowDraftReady(List<String> logs) {
   return logs.any(
-    (line) => line.contains('[Workflow] Workflow proposal ready'),
+    (line) =>
+        line.contains('[Workflow] Workflow proposal ready') ||
+        line.contains('[Workflow] Workflow proposal recovered on retry') ||
+        line.contains('[Workflow] Using fallback proposal'),
   );
 }
 
 bool planningLogsContainTaskDraftReady(List<String> logs) {
-  return logs.any((line) => line.contains('[Workflow] Task proposal ready'));
+  return logs.any(
+    (line) =>
+        line.contains('[Workflow] Task proposal ready') ||
+        line.contains('[Workflow] Task proposal recovered on retry') ||
+        line.contains(
+          '[Workflow] Task proposal recovered from truncated reasoning fallback',
+        ),
+  );
 }
 
 bool isPlanningProposalReady({
