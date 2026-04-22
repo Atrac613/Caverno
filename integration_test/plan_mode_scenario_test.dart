@@ -27,11 +27,13 @@ import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/mcp_tool_provider.dart';
+import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
 import 'package:caverno/features/chat/presentation/widgets/plan/plan_review_sheet.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 import 'test_support/plan_mode_scenario_spec.dart';
+import 'test_support/plan_mode_execution_progress.dart';
 import 'test_support/plan_mode_execution_watchdog.dart';
 import 'test_support/plan_mode_live_diagnostics.dart';
 import 'test_support/plan_mode_planning_progress.dart';
@@ -802,6 +804,26 @@ Future<void> _waitForWorkflowExecutionCompletion(
       phaseTrace.firstTaskCompletedAt ??= now;
     }
     final activeTaskTitle = _activeWorkflowTaskTitle(tasks);
+    final workflowSnapshot = _summarizeWorkflowTasks(tasks);
+    if (!hasPendingApprovals && executionLogsContainWorkflowCompleted(logs)) {
+      phaseTrace.firstTaskCompletedAt ??= now;
+      phaseTrace.lastTaskProgressAt = now;
+      heartbeatWriter.write(
+        phase: 'completed',
+        subphase: 'workflowCompletedRecovered',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        activeTaskTitle: activeTaskTitle,
+        workflowSnapshot: workflowSnapshot,
+        toolResultCount: _countContentToolResults(logs),
+        fileWriteCount: _countFileWriteExecutions(logs),
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: false,
+      );
+      await _pumpUntilExecutionSettles(tester, container);
+      return;
+    }
     if (phaseTrace.firstTaskTitle != null &&
         activeTaskTitle != null &&
         activeTaskTitle != phaseTrace.firstTaskTitle) {
@@ -860,7 +882,6 @@ Future<void> _waitForWorkflowExecutionCompletion(
       return;
     }
 
-    final workflowSnapshot = _summarizeWorkflowTasks(tasks);
     final heartbeat = PlanModeExecutionHeartbeat(
       activeTaskTitle: activeTaskTitle,
       workflowSnapshot: workflowSnapshot,
@@ -1021,6 +1042,72 @@ Future<void> _pumpUntilIdle(
       return;
     }
   }
+}
+
+Future<void> _pumpUntilExecutionSettles(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Duration timeout = const Duration(seconds: 5),
+  Duration step = const Duration(milliseconds: 100),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+    final chatState = container.read(chatNotifierProvider);
+    final hasPendingApprovals =
+        chatState.pendingSshConnect != null ||
+        chatState.pendingSshCommand != null ||
+        chatState.pendingGitCommand != null ||
+        chatState.pendingLocalCommand != null ||
+        chatState.pendingFileOperation != null ||
+        chatState.pendingBleConnect != null ||
+        chatState.pendingWorkflowDecision != null;
+    if (!chatState.isLoading && !hasPendingApprovals) {
+      await _pumpUntilIdle(tester);
+      return;
+    }
+  }
+  await _pumpUntilIdle(tester);
+}
+
+Future<void> _waitForFinder(
+  WidgetTester tester,
+  Finder finder, {
+  Duration timeout = const Duration(seconds: 10),
+  Duration step = const Duration(milliseconds: 100),
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await tester.pump(step);
+    if (finder.evaluate().isNotEmpty) {
+      return;
+    }
+  }
+  expect(finder, findsAtLeastNWidgets(1));
+}
+
+Future<void> _enterPromptAndSubmit(
+  WidgetTester tester, {
+  required String prompt,
+}) async {
+  final inputFieldFinder = find.descendant(
+    of: find.byType(MessageInput),
+    matching: find.byType(TextField),
+  );
+  final sendButtonFinder = find.descendant(
+    of: find.byType(MessageInput),
+    matching: find.byIcon(Icons.send),
+  );
+
+  await _waitForFinder(tester, find.byType(MessageInput));
+  await _waitForFinder(tester, inputFieldFinder);
+  await tester.tap(inputFieldFinder.first);
+  await tester.enterText(inputFieldFinder.first, prompt);
+  await _pumpUntilIdle(tester);
+  await _waitForFinder(tester, sendButtonFinder);
+  await tester.tap(sendButtonFinder.first);
+  await tester.pump();
+  await _pumpUntilIdle(tester);
 }
 
 String? _extractVisibleDecisionQuestion(WidgetTester tester) {
@@ -1575,11 +1662,7 @@ Future<_ScenarioRunResult> _runScenario({
 
   expect(find.text('Coding'), findsAtLeastNWidgets(1));
 
-  await tester.enterText(find.byType(TextField), scenario.userPrompt);
-  await _pumpUntilIdle(tester);
-  await tester.tap(find.byIcon(Icons.send));
-  await tester.pump();
-  await _pumpUntilIdle(tester);
+  await _enterPromptAndSubmit(tester, prompt: scenario.userPrompt);
   heartbeatWriter.write(
     phase: 'planning',
     subphase: 'promptSubmitted',

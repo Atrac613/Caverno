@@ -5824,7 +5824,8 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    const maxIterations = 5; // Prevent infinite loops.
+    // Allow multi-step saved-task handoffs while still bounding runaway loops.
+    const maxIterations = 8;
     var iteration = 0;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
@@ -5841,7 +5842,8 @@ class ChatNotifier extends Notifier<ChatState> {
 
       for (final toolCall in currentToolCalls) {
         final toolCallKey = _toolExecutionKey(toolCall);
-        if (executedToolCallKeys.contains(toolCallKey)) {
+        if (executedToolCallKeys.contains(toolCallKey) &&
+            !_shouldAllowRepeatedToolExecution(toolCall)) {
           appLog(
             '[Tool] Duplicate tool call detected, skipping: ${toolCall.name} ${toolCall.arguments}',
           );
@@ -6115,7 +6117,7 @@ class ChatNotifier extends Notifier<ChatState> {
     if (_mcpToolService == null) return;
 
     for (final tc in freshToolCalls) {
-      if (tc.name == 'memory_update') {
+      if (tc.name == 'memory_update' || tc.name == 'print') {
         appLog('[ContentTool] Ignoring display-only tool: ${tc.name}');
         continue;
       }
@@ -6148,6 +6150,10 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String _toolExecutionKey(ToolCallInfo toolCall) {
     return _toolCallDedupKey(toolCall.name, toolCall.arguments);
+  }
+
+  bool _shouldAllowRepeatedToolExecution(ToolCallInfo toolCall) {
+    return toolCall.name == 'read_file';
   }
 
   String _toolCallDedupKey(String name, Object? arguments) {

@@ -1120,6 +1120,72 @@ void main() {
     }
   });
 
+  test('sendMessage allows repeated read_file retries across tool loops', () async {
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_file',
+          arguments: const {'path': 'ping_cli.py'},
+        ),
+      ],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'tool-2',
+          name: 'read_file',
+          arguments: const {'path': 'ping_cli.py'},
+        ),
+      ],
+      intermediateToolRoleResponseContent:
+          'I need to inspect the exact file contents again before retrying the edit.',
+      toolRoleResponseContent: 'Retry finished.',
+      finalAnswerChunks: const ['Recovered after repeated read_file.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {'read_file': 'file contents'},
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Retry the mismatched ping_cli edit');
+
+      expect(toolService.executedToolNames, ['read_file', 'read_file']);
+      expect(toolDataSource.toolResultBatches, hasLength(2));
+      expect(
+        toolDataSource.toolResultBatches
+            .expand((batch) => batch.map((item) => item.name))
+            .toList(),
+        ['read_file', 'read_file'],
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Recovered after repeated read_file.'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
   test(
     'sendMessage includes tool descriptions and identifier guardrails in the final tool prompt',
     () async {
@@ -1490,6 +1556,84 @@ void main() {
           'If a tool result reports code=edit_mismatch or says old_text was not found in the target file',
         ),
       );
+      expect(continuationPrompt, contains('[Result of write_file]'));
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Continue with the available configuration tooling only.'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('content tool continuations ignore display-only print tool calls', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final streamingDataSource = _QueuedStreamingChatDataSource([
+      [
+        '<tool_call>{"name":"print","arguments":{"text":"preview"}}</tool_call>'
+            '<tool_call>{"name":"write_file","arguments":{"path":"config/hosts.yaml","content":"hosts: []","create_parents":true}}</tool_call>',
+      ],
+      ['Continue with the available configuration tooling only.'],
+    ]);
+    final toolService = _SelectiveFakeMcpToolService(
+      results: const {
+        'write_file':
+            '{"path":"/tmp/content-tools/config/hosts.yaml","bytes_written":9,"created":true}',
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'tmp',
+      rootPath: '/tmp/content-tools-project',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ContentToolSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create the config files');
+      await Future<void>.delayed(Duration.zero);
+
+      final pending = toolNotifier.state.pendingFileOperation;
+      expect(pending, isNotNull);
+      toolNotifier.resolveFileOperation(id: pending!.id, approved: true);
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      expect(streamingDataSource.requests, hasLength(2));
+      final continuationPrompt = streamingDataSource.requests.last.last.content;
+      expect(continuationPrompt, isNot(contains('[Result of print]')));
+      expect(continuationPrompt, isNot(contains('"code":"tool_not_available"')));
       expect(continuationPrompt, contains('[Result of write_file]'));
       expect(
         toolNotifier.state.messages.last.content,

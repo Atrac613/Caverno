@@ -4539,6 +4539,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
           fallbackAssistantResponse: hiddenAssistantResponse,
         );
+    final completionPromoted = toolResultApplied
+        ? await _maybePromoteCompletionFromValidationToolResults(
+            task: task,
+            toolResults: toolResults,
+          )
+        : false;
     final recoveredFromValidation =
         !toolResultApplied &&
         await _maybeRecoverFromValidationFirstExecution(
@@ -4595,7 +4601,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
         );
     final assistantEvidenceApplied =
-        !toolResultApplied &&
+        !completionPromoted &&
             !recoveredFromValidation &&
             !recoveredFromFailure &&
             !recoveredFromMissingTarget &&
@@ -4814,6 +4820,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
           fallbackAssistantResponse: hiddenAssistantResponse,
         );
+    final completionPromoted = toolResultApplied
+        ? await _maybePromoteCompletionFromValidationToolResults(
+            task: nextTask,
+            toolResults: toolResults,
+          )
+        : false;
     final recoveredFromValidation =
         !toolResultApplied &&
         await _maybeRecoverFromValidationFirstExecution(
@@ -4870,7 +4882,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           toolResults: toolResults,
         );
     final assistantEvidenceApplied =
-        !toolResultApplied &&
+        !completionPromoted &&
             !recoveredFromValidation &&
             !recoveredFromFailure &&
             !recoveredFromMissingTarget &&
@@ -6226,6 +6238,44 @@ class _ChatPageState extends ConsumerState<ChatPage>
         eventType: ConversationExecutionTaskEventType.completed,
         eventSummary:
             'Marked complete after the saved validation succeeded and every scaffold target file already existed in the workspace.',
+      );
+      return true;
+    }
+    if (ConversationPlanExecutionCoordinator.looksLikeVerificationTask(task) &&
+        completionAssessment.successfulValidationCommands.isNotEmpty &&
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+          task: task,
+          existingTargetPaths: existingWorkspaceTargets,
+        )) {
+      final summary =
+          assistantInference.status == ConversationWorkflowTaskStatus.completed
+          ? assistantInference.summary
+          : currentProgress?.normalizedValidationSummary ??
+                'Marked complete after the saved verification command succeeded.';
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary,
+      );
+      return true;
+    }
+    if (completionAssessment.hasCompletionEvidenceIgnoringFailures &&
+        completionAssessment.successfulValidationCommands.isNotEmpty &&
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+          task: task,
+          existingTargetPaths: existingWorkspaceTargets,
+        )) {
+      final summary =
+          currentProgress?.normalizedValidationSummary ??
+          currentProgress?.normalizedSummary;
+      await _markTaskCompletedFromToolEvidence(
+        task: task,
+        conversationsNotifier: conversationsNotifier,
+        completionAssessment: completionAssessment,
+        summary: summary == null || summary.isEmpty
+            ? 'Marked complete after the saved validation succeeded and the current target files already existed in the workspace.'
+            : summary,
       );
       return true;
     }
