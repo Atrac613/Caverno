@@ -63,6 +63,33 @@ void main() {
     expect(result['stdout'], contains('name: sample'));
   });
 
+  test('accepts ls -F for portable directory inspection', () async {
+    final tempDir = await Directory.systemTemp.createTemp(
+      'local_shell_tools_ls_flag_test_',
+    );
+    addTearDown(() async {
+      if (tempDir.existsSync()) {
+        await tempDir.delete(recursive: true);
+      }
+    });
+
+    await File('${tempDir.path}/README.md').writeAsString('hello\n');
+    final srcDir = Directory('${tempDir.path}/src')..createSync();
+
+    final raw = await LocalShellTools.execute(
+      command: 'ls -F',
+      workingDirectory: tempDir.path,
+    );
+
+    final result = jsonDecode(raw) as Map<String, dynamic>;
+    expect(result['exit_code'], 0);
+    expect(result['executed_internally'], isTrue);
+    expect(result['stdout'], contains('README.md'));
+    expect(result['stderr'], isEmpty);
+    expect(result['stdout'], isNot(contains('unsupported option')));
+    expect(srcDir.existsSync(), isTrue);
+  });
+
   test('executes head, tail, wc, find, and rg internally', () async {
     final tempDir = await Directory.systemTemp.createTemp(
       'local_shell_tools_extended_test_',
