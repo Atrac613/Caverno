@@ -236,6 +236,9 @@ class ConversationPlanningPromptService {
         '- For ping or other long-running CLI tasks, validationCommand must be bounded and exit on its own. Prefer one-shot checks such as --help, -c 1, --count 1, or a dedicated verification script instead of commands that can run forever.',
       )
       ..writeln(
+        '- For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
+      )
+      ..writeln(
         compact
             ? '- Keep notes brief and keep the whole response under 180 tokens.'
             : '- validationCommand and notes may be empty strings.',

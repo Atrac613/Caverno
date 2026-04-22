@@ -536,6 +536,48 @@ class ConversationPlanExecutionCoordinator {
     return promptLines.join('\n');
   }
 
+  static String buildPythonRuntimeDependencyRecoveryPrompt({
+    required ConversationWorkflowTask task,
+    required String failedCommand,
+    required String missingDependency,
+  }) {
+    final promptLines = <String>[
+      'The saved validation command failed because the current Python implementation depends on a missing runtime module.',
+      'Saved task ID: ${task.id}',
+      'Saved task: ${task.title.trim()}',
+      'Failed validation command: ${failedCommand.trim()}',
+      'Missing dependency: ${missingDependency.trim()}',
+    ];
+
+    final targetFiles = _effectiveTargetFiles(task).join(', ');
+    if (targetFiles.isNotEmpty) {
+      promptLines.add('Target files: $targetFiles');
+    }
+
+    final notes = task.notes.trim();
+    if (notes.isNotEmpty) {
+      promptLines.add('Notes: $notes');
+    }
+
+    promptLines.addAll(_executionGuardrailLines(task));
+    promptLines.add(
+      'Recover by editing only the saved target files so the same validation command works in this environment.',
+    );
+    promptLines.add(
+      'Prefer Python standard-library or subprocess-based implementations for simple CLI tasks unless the user explicitly asked for a third-party package.',
+    );
+    promptLines.add(
+      'Do not run pip install, do not ask for package installation, and do not modify dependency manifests unless they are saved target files for this task.',
+    );
+    promptLines.add(
+      'After the fix, rerun the same saved validation command immediately.',
+    );
+    promptLines.add(
+      'Do not restate the plan, do not switch tasks, and do not move to future saved tasks.',
+    );
+    return promptLines.join('\n');
+  }
+
   static String buildMissingTargetFileRecoveryPrompt({
     required ConversationWorkflowTask task,
     required List<String> missingTargetFiles,

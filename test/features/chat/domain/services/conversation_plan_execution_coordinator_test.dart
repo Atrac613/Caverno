@@ -610,6 +610,57 @@ void main() {
   );
 
   test(
+    'buildPythonRuntimeDependencyRecoveryPrompt keeps implementation recovery inside saved targets',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-main',
+        title: 'Implement ping CLI in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py --help',
+        notes: 'Keep the entrypoint simple.',
+      );
+
+      final prompt =
+          ConversationPlanExecutionCoordinator.buildPythonRuntimeDependencyRecoveryPrompt(
+            task: task,
+            failedCommand: 'python3 main.py --help',
+            missingDependency: 'ping3',
+          );
+
+      expect(
+        prompt,
+        contains(
+          'The saved validation command failed because the current Python implementation depends on a missing runtime module.',
+        ),
+      );
+      expect(prompt, contains('Saved task ID: task-main'));
+      expect(prompt, contains('Missing dependency: ping3'));
+      expect(
+        prompt,
+        contains(
+          'Recover by editing only the saved target files so the same validation command works in this environment.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Prefer Python standard-library or subprocess-based implementations for simple CLI tasks unless the user explicitly asked for a third-party package.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not run pip install, do not ask for package installation, and do not modify dependency manifests unless they are saved target files for this task.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('After the fix, rerun the same saved validation command immediately.'),
+      );
+    },
+  );
+
+  test(
     'buildFailedValidationRecoveryPrompt focuses the next turn on fixing the target file',
     () {
       const task = ConversationWorkflowTask(

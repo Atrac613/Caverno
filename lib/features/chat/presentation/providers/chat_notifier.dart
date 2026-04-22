@@ -2160,6 +2160,9 @@ class ChatNotifier extends Notifier<ChatState> {
         ..writeln(
           '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
         );
+      retryHint.writeln(
+        '- Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
+      );
     }
 
     final retryContext = retryHint.toString().trim();
@@ -4146,6 +4149,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (projectLooksEmpty &&
+        _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(finalized.tasks)) {
+      return true;
+    }
+
     if (_taskProposalHasUnboundedPingVerificationValidation(finalized.tasks)) {
       return true;
     }
@@ -4229,6 +4237,51 @@ class ChatNotifier extends Notifier<ChatState> {
         return true;
       }
     }
+    return false;
+  }
+
+  bool _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    const riskyFragments = <String>[
+      'ping3',
+      'icmplib',
+      'ping library',
+      'third-party',
+      'external dependency',
+      'external package',
+    ];
+
+    for (final task in tasks) {
+      if (!_looksLikeImplementationTaskTitle(task.title)) {
+        continue;
+      }
+
+      final hasPythonTarget = task.targetFiles.any(
+        (path) => path.trim().toLowerCase().endsWith('.py'),
+      );
+      if (!hasPythonTarget) {
+        continue;
+      }
+
+      final hasDependencyManifestTarget = task.targetFiles.any((path) {
+        final normalizedPath = path.trim().toLowerCase();
+        return normalizedPath.endsWith('requirements.txt') ||
+            normalizedPath.endsWith('pyproject.toml') ||
+            normalizedPath.endsWith('setup.py') ||
+            normalizedPath.endsWith('setup.cfg');
+      });
+      if (hasDependencyManifestTarget) {
+        continue;
+      }
+
+      final normalizedContext =
+          '${task.title.trim()} ${task.notes.trim()}'.toLowerCase();
+      if (riskyFragments.any(normalizedContext.contains)) {
+        return true;
+      }
+    }
+
     return false;
   }
 

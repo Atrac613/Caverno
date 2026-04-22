@@ -831,6 +831,55 @@ void main() {
   });
 
   test(
+    'detects missing Python runtime dependencies for implementation validation failures',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-main',
+        title: 'Implement ping CLI in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py --help',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-validate',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 main.py --help'},
+          result:
+              '{"command":"python3 main.py --help","exit_code":1,"stdout":"","stderr":"Traceback (most recent call last):\\n  File \\"/tmp/main.py\\", line 3, in <module>\\n    from ping3 import ping\\nModuleNotFoundError: No module named \\"ping3\\"\\n"}',
+        ),
+      ];
+
+      expect(
+        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
+          task: task,
+          toolResults: toolResults,
+        ),
+        'ping3',
+      );
+    },
+  );
+
+  test(
+    'ignores src-layout import failures when detecting missing Python runtime dependencies',
+    () {
+      final task = loadFixtureTask(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+      final toolResults = loadFixtureToolResults(
+        'plan_mode_ping_cli_src_layout_import_block_replay.json',
+      );
+
+      expect(
+        ConversationPlanExecutionGuardrails.missingPythonRuntimeDependency(
+          task: task,
+          toolResults: toolResults,
+        ),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'assessTaskCompletion accepts direct Python fallback validation after pytest is unavailable',
     () {
       const task = ConversationWorkflowTask(

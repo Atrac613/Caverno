@@ -588,6 +588,12 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       context,
       contains('Do not use generic validation such as "module importable"'),
     );
+    expect(
+      context,
+      contains(
+        'Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
+      ),
+    );
   });
 
   test('builds task proposal fallback from truncated planning retries', () {
@@ -737,6 +743,47 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       isTrue,
     );
   });
+
+  test(
+    'marks external Python runtime dependency implementation tasks for retry in empty workspaces',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-setup',
+            title: 'Initialize project configuration',
+            targetFiles: ['requirements.txt'],
+            validationCommand: 'ls requirements.txt',
+            notes: 'Create the initial dependency file.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-implement',
+            title: 'Implement ping CLI in main.py',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py --help',
+            notes: 'Implement the core logic using a ping library.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping functionality with a single packet',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py 127.0.0.1 -c 1',
+            notes: 'Verify the CLI against loopback.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'marks unbounded ping verification commands for retry',

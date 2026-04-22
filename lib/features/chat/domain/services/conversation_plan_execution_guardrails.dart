@@ -662,9 +662,21 @@ class ConversationPlanExecutionGuardrails {
       caseSensitive: false,
     );
     for (final toolResult in toolResults) {
-      final match = importPattern.firstMatch(toolResult.result);
-      if (match != null) {
-        return match.group(1)?.trim();
+      final decoded = _tryDecodeMap(toolResult.result);
+      final candidates = <String>[
+        toolResult.result,
+        _normalizeText(decoded?['stderr']) ?? '',
+        _normalizeText(decoded?['error']) ?? '',
+        _normalizeText(decoded?['stdout']) ?? '',
+      ];
+      for (final candidate in candidates) {
+        if (candidate.isEmpty) {
+          continue;
+        }
+        final match = importPattern.firstMatch(candidate);
+        if (match != null) {
+          return match.group(1)?.trim();
+        }
       }
     }
     return null;
@@ -762,6 +774,44 @@ class ConversationPlanExecutionGuardrails {
       }
     }
     return null;
+  }
+
+  static String? missingPythonRuntimeDependency({
+    required ConversationWorkflowTask task,
+    required List<ToolResultInfo> toolResults,
+  }) {
+    final failedCommand = failedPythonValidationCommand(
+      task: task,
+      toolResults: toolResults,
+    );
+    if (failedCommand == null) {
+      return null;
+    }
+    if (suggestPythonSrcLayoutRetryCommand(
+          task: task,
+          failedCommand: failedCommand,
+        ) !=
+        null) {
+      return null;
+    }
+
+    final missingDependency = blockedPythonImportModule(toolResults);
+    final normalizedDependency = missingDependency?.trim().toLowerCase() ?? '';
+    if (normalizedDependency.isEmpty || normalizedDependency == 'pytest') {
+      return null;
+    }
+
+    final targetModuleTokens = _effectiveTargetPaths(task)
+        .expand((path) => path.split('/'))
+        .map((segment) => segment.trim().toLowerCase())
+        .where((segment) => segment.isNotEmpty)
+        .map((segment) => segment.replaceAll('.py', ''))
+        .toSet();
+    if (targetModuleTokens.contains(normalizedDependency)) {
+      return null;
+    }
+
+    return missingDependency;
   }
 
   static String? suggestPythonTestDependencyFallbackCommand({
