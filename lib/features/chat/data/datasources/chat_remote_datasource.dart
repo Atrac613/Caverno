@@ -687,6 +687,7 @@ class ChatRemoteDataSource implements ChatDataSource {
     _logTools(tools);
     appLog('[LLM] assistantContent: ${assistantContent ?? "(none)"}');
     for (final toolResult in toolResults) {
+      final llmToolResultContent = _formatToolResultContentForLlm(toolResult);
       appLog('[LLM] === Tool Call Info ===');
       appLog('[LLM] toolCallId: ${toolResult.id}');
       appLog('[LLM] toolName: ${toolResult.name}');
@@ -695,7 +696,7 @@ class ChatRemoteDataSource implements ChatDataSource {
       );
       appLog('[LLM] === Tool Result ===');
       appLog(
-        '[LLM] ${toolResult.result.length > 500 ? '${toolResult.result.substring(0, 500)}...' : toolResult.result}',
+        '[LLM] ${llmToolResultContent.length > 500 ? '${llmToolResultContent.substring(0, 500)}...' : llmToolResultContent}',
       );
       appLog('[LLM] === End Tool Result ===');
     }
@@ -724,7 +725,7 @@ class ChatRemoteDataSource implements ChatDataSource {
       toolResults.map(
         (toolResult) => ChatMessage.tool(
           toolCallId: toolResult.id,
-          content: toolResult.result,
+          content: _formatToolResultContentForLlm(toolResult),
         ),
       ),
     );
@@ -878,6 +879,65 @@ class ChatRemoteDataSource implements ChatDataSource {
     final candidate = match.group(1)?.trim();
     if (candidate == null || candidate.isEmpty) return null;
     return _normalizeRecoveredAssistantText(candidate);
+  }
+
+  @visibleForTesting
+  String formatToolResultContentForLlm(ToolResultInfo toolResult) {
+    return _formatToolResultContentForLlm(toolResult);
+  }
+
+  String _formatToolResultContentForLlm(ToolResultInfo toolResult) {
+    final decoded = _tryDecodeToolResultJson(toolResult.result);
+    if (decoded == null) {
+      return toolResult.result;
+    }
+
+    final interpretationLines = <String>[];
+    switch (toolResult.name) {
+      case 'write_file':
+        if (decoded.containsKey('bytes_written')) {
+          if (decoded['created'] == true) {
+            interpretationLines.add(
+              'Interpretation: write_file succeeded and created the target file.',
+            );
+          } else {
+            interpretationLines.add(
+              'Interpretation: write_file succeeded and updated an existing file.',
+            );
+            interpretationLines.add(
+              'A result with "created": false means the file already existed; it is not an error.',
+            );
+          }
+        }
+      case 'edit_file':
+        if (decoded.containsKey('replacements')) {
+          interpretationLines.add(
+            'Interpretation: edit_file succeeded and applied the requested replacement.',
+          );
+        }
+    }
+
+    if (interpretationLines.isEmpty) {
+      return toolResult.result;
+    }
+
+    return '${interpretationLines.join('\n')}\nRaw result:\n${toolResult.result}';
+  }
+
+  Map<String, dynamic>? _tryDecodeToolResultJson(String value) {
+    final trimmed = value.trim();
+    if (!trimmed.startsWith('{')) {
+      return null;
+    }
+    try {
+      final decoded = dart_convert.jsonDecode(trimmed);
+      if (decoded is Map<String, dynamic>) {
+        return decoded;
+      }
+    } catch (_) {
+      return null;
+    }
+    return null;
   }
 
   String _normalizeRecoveredAssistantText(String text) {

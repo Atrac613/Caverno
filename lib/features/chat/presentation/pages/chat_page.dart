@@ -5979,6 +5979,16 @@ class _ChatPageState extends ConsumerState<ChatPage>
               : fallbackAssistantEvidence,
           futureTaskTitles: futureTaskTitles,
         );
+    final currentProgress = currentConversation.executionProgressForTask(task.id);
+    final historicalValidationHandoffEvidence =
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromHistoricalValidationHandoff(
+          task: task,
+          progress: currentProgress,
+          assistantResponse: latestAssistantResponse.isNotEmpty
+              ? latestAssistantResponse
+              : fallbackAssistantEvidence,
+          futureTaskTitles: futureTaskTitles,
+        );
     final onlyRecoverableMalformedFailures =
         ConversationPlanExecutionGuardrails.hasOnlyRecoverableMalformedFailures(
           toolResults,
@@ -6076,6 +6086,32 @@ class _ChatPageState extends ConsumerState<ChatPage>
         summary: summary,
         eventType: ConversationExecutionTaskEventType.completed,
         eventSummary: summary,
+      );
+      return true;
+    }
+    if (historicalValidationHandoffEvidence) {
+      final summary =
+          currentProgress?.normalizedValidationSummary ??
+          currentProgress?.normalizedSummary ??
+          assistantInference.summary;
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: summary.isEmpty
+            ? 'Marked complete after a passed saved validation and a later saved-task handoff.'
+            : summary,
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationAt: DateTime.now(),
+        lastValidationCommand:
+            currentProgress?.normalizedValidationCommand ??
+            task.validationCommand,
+        lastValidationSummary: summary.isEmpty
+            ? 'Marked complete after a passed saved validation and a later saved-task handoff.'
+            : summary,
+        eventType: ConversationExecutionTaskEventType.completed,
+        eventSummary: summary.isEmpty
+            ? 'Marked complete after a passed saved validation and a later saved-task handoff.'
+            : summary,
       );
       return true;
     }

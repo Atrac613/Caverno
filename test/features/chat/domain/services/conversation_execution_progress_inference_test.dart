@@ -191,4 +191,34 @@ void main() {
       );
     },
   );
+
+  test(
+    'treats recoverable missing-target narratives as in-progress recovery',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement core ping logic in ping_cli.py using subprocess',
+        status: ConversationWorkflowTaskStatus.blocked,
+        validationCommand: 'python3 ping_cli.py 127.0.0.1',
+      );
+
+      final result = ConversationExecutionProgressInference.infer(
+        assistantResponse:
+            'The validation command was attempted before the target file existed. '
+            'The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess". '
+            'Plan: 1. Create `ping_cli.py` with the core ping logic using subprocess.',
+        task: task,
+        isValidationRun: false,
+      );
+
+      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(
+        result.summary,
+        startsWith(
+          'The validation command was attempted before the target file existed. The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess".',
+        ),
+      );
+      expect(result.blockedReason, isNull);
+    },
+  );
 }

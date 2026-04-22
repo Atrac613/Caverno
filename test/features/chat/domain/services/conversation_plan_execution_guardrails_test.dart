@@ -558,6 +558,39 @@ void main() {
   });
 
   test(
+    'canPromoteCompletionFromHistoricalValidationHandoff accepts passed validation before future-task narration',
+    () {
+      final task = const ConversationWorkflowTask(
+        id: 'task-implement-cli',
+        title: 'Implement the ping CLI tool',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        targetFiles: ['ping_cli.py'],
+        validationCommand: 'python3 ping_cli.py --help',
+      );
+      final progress = ConversationExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationStatus: ConversationExecutionValidationStatus.passed,
+        lastValidationCommand: 'python3 ping_cli.py --help',
+        lastValidationSummary:
+            'The validation command `python3 ping_cli.py --help` was successful.',
+      );
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromHistoricalValidationHandoff(
+            task: task,
+            progress: progress,
+            assistantResponse:
+                'The current task being executed (according to the context) is "Verify CLI functionality with a live host". '
+                'This means the verification task was successful.',
+            futureTaskTitles: const ['Verify CLI functionality with a live host'],
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'canPromoteCompletionFromWorkspaceTargets accepts complete task target coverage',
     () {
       final fixture =

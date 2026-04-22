@@ -122,6 +122,8 @@ class ConversationExecutionProgressInference {
       lowercaseResponse,
       _transitionNarrationSignals,
     );
+    final looksLikeRecoverableMissingTargetNarrative =
+        _looksLikeRecoverableMissingTargetNarrative(lowercaseResponse);
     final normalizedTaskTitle = task.title.trim().toLowerCase();
     final mentionsExplicitTaskCompletion =
         normalizedTaskTitle.isNotEmpty &&
@@ -167,6 +169,15 @@ class ConversationExecutionProgressInference {
         status: task.status == ConversationWorkflowTaskStatus.completed
             ? ConversationWorkflowTaskStatus.completed
             : ConversationWorkflowTaskStatus.inProgress,
+        summary: summary,
+      );
+    }
+
+    if (hasBlockedSignal &&
+        looksLikeRecoverableMissingTargetNarrative &&
+        !hasValidationPassedSignal) {
+      return ConversationExecutionProgressInferenceResult(
+        status: ConversationWorkflowTaskStatus.inProgress,
         summary: summary,
       );
     }
@@ -254,5 +265,22 @@ class ConversationExecutionProgressInference {
         value.contains('succeeded') ||
         value.contains('ran successfully') ||
         value.contains('working as expected');
+  }
+
+  static bool _looksLikeRecoverableMissingTargetNarrative(String value) {
+    if (!value.contains('validation command')) {
+      return false;
+    }
+    final mentionsMissingTarget =
+        value.contains('before the target file existed') ||
+        value.contains('before every required target file existed') ||
+        value.contains('before the required target file existed');
+    if (!mentionsMissingTarget) {
+      return false;
+    }
+    return value.contains('goal now is to implement the task') ||
+        value.contains('plan:') ||
+        value.contains('create `') ||
+        value.contains('create ping_cli.py');
   }
 }

@@ -519,6 +519,44 @@ class ConversationPlanExecutionGuardrails {
     return false;
   }
 
+  static bool canPromoteCompletionFromHistoricalValidationHandoff({
+    required ConversationWorkflowTask task,
+    required ConversationExecutionTaskProgress? progress,
+    required String assistantResponse,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    if (progress == null ||
+        progress.validationStatus != ConversationExecutionValidationStatus.passed) {
+      return false;
+    }
+
+    final taskValidationCommand = task.validationCommand.trim().toLowerCase();
+    final historicalValidationCommand =
+        progress.lastValidationCommand.trim().toLowerCase();
+    if (taskValidationCommand.isNotEmpty &&
+        historicalValidationCommand.isNotEmpty &&
+        historicalValidationCommand != taskValidationCommand) {
+      return false;
+    }
+
+    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    for (final futureTaskTitle in futureTaskTitles) {
+      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      if (normalizedFutureTaskTitle.isEmpty) {
+        continue;
+      }
+      if (normalizedResponse.contains(normalizedFutureTaskTitle)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
   static bool hasOnlyUnavailableToolFailures(List<ToolResultInfo> toolResults) {
     var sawFailure = false;
     for (final toolResult in toolResults) {
