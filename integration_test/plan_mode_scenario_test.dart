@@ -39,6 +39,7 @@ import 'test_support/plan_mode_execution_watchdog.dart';
 import 'test_support/plan_mode_live_diagnostics.dart';
 import 'test_support/plan_mode_planning_progress.dart';
 import 'test_support/plan_mode_warning_policy.dart';
+import 'test_support/plan_mode_approval_progress.dart';
 import 'test_support/screenshot_capture.dart';
 
 class _NoOpNotificationService extends NotificationService {
@@ -1799,6 +1800,13 @@ Future<_ScenarioRunResult> _runScenario({
     budgets: budgets,
   );
   await tester.pump();
+  await _waitForPlanApprovalTransition(
+    tester,
+    container,
+    phaseTrace: phaseTrace,
+    heartbeatWriter: heartbeatWriter,
+    budgets: budgets,
+  );
   await _pumpUntilIdle(tester);
 
   if (scenario.waitForExecutionCompletion) {
@@ -2023,6 +2031,60 @@ Finder _findPreferredPlanApproveAction() {
     }
   }
   return approveLabel.last;
+}
+
+Future<void> _waitForPlanApprovalTransition(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required _PlanModeTimeoutBudgets budgets,
+}) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  var retriedTap = false;
+
+  while (DateTime.now().isBefore(deadline)) {
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final chatState = container.read(chatNotifierProvider);
+    if (planApprovalTransitionObserved(
+      conversation: conversation,
+      isLoading: chatState.isLoading,
+    )) {
+      return;
+    }
+
+    final approveAction = _findPreferredPlanApproveAction();
+    final approvalVisible = approveAction.evaluate().isNotEmpty;
+    if (!retriedTap &&
+        shouldRetryPlanApprovalTap(
+          conversation: conversation,
+          isLoading: chatState.isLoading,
+          approvalVisible: approvalVisible,
+        )) {
+      appLog('[Workflow] Proposal approval tap retry started');
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalTapRetryStarted',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+      await tester.ensureVisible(approveAction);
+      await tester.tap(approveAction, warnIfMissed: false);
+      await tester.pump();
+      appLog('[Workflow] Proposal approval tap retry finished');
+      heartbeatWriter.write(
+        phase: 'execution',
+        subphase: 'proposalTapRetryFinished',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+      retriedTap = true;
+    }
+
+    await tester.pump(const Duration(milliseconds: 200));
+  }
 }
 
 String _normalizeSavedWorkflowTaskTitle(String value) {
