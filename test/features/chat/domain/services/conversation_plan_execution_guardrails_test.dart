@@ -590,6 +590,84 @@ void main() {
   });
 
   test(
+    'assistantMentionsTaskHandoff accepts current-task file mentions before future work',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-main',
+        title: 'Implement ping CLI in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py --help',
+      );
+
+      final mentionsHandoff =
+          ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+            task: task,
+            assistantResponse:
+                'I have implemented the ping CLI tool in `main.py`.\n\n'
+                'Next Task: Verify ping functionality',
+            futureTaskTitles: const [
+              'Verify ping functionality',
+              'Verify ping execution',
+            ],
+          );
+
+      expect(mentionsHandoff, isTrue);
+    },
+  );
+
+  test(
+    'assistantMentionsTaskHandoff accepts future task titles wrapped in markdown formatting',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-cli',
+        title: 'Implement ping_cli.py with subprocess-based ping',
+        targetFiles: ['ping_cli.py'],
+        validationCommand: 'python3 ping_cli.py --help',
+      );
+
+      final mentionsHandoff =
+          ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+            task: task,
+            assistantResponse:
+                'The task "Implement `ping_cli.py` with subprocess-based ping" '
+                'is now complete.\n\n'
+                'Next Task: Add usage documentation in `README.md`',
+            futureTaskTitles: const [
+              'Add usage documentation in README.md',
+            ],
+          );
+
+      expect(mentionsHandoff, isTrue);
+    },
+  );
+
+  test(
+    'assistantMentionsTaskHandoffInAnyResponse accepts hidden fallback handoffs',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-readme',
+        title: 'Create README.md',
+        targetFiles: ['README.md'],
+        validationCommand: 'ls README.md',
+      );
+
+      final mentionsHandoff =
+          ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoffInAnyResponse(
+            task: task,
+            assistantResponses: const [
+              '<think>I will inspect README.md before continuing.</think>',
+              'I created `README.md`.\n\nNext Task: Verify the CLI tool with a single ping request',
+            ],
+            futureTaskTitles: const [
+              'Verify the CLI tool with a single ping request',
+            ],
+          );
+
+      expect(mentionsHandoff, isTrue);
+    },
+  );
+
+  test(
     'canPromoteCompletionFromHistoricalValidationHandoff accepts passed validation before future-task narration',
     () {
       final task = const ConversationWorkflowTask(

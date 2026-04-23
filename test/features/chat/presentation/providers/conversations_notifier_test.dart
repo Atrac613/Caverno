@@ -1136,6 +1136,83 @@ void main() {
   );
 
   test(
+    'updateCurrentValidationProgressFromToolResults completes implementation tasks after direct target execution succeeds',
+    () async {
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+      );
+
+      await notifier.updateCurrentPlanArtifact(
+        planArtifact: const ConversationPlanArtifact(
+          approvedMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'implement\n'
+              '\n'
+              '## Goal\n'
+              'Keep direct target execution validations terminal\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Implement ping_cli.py with subprocess and argparse\n'
+              '   - Status: inProgress\n'
+              '   - Target files: ping_cli.py\n'
+              '   - Validation: python3 ping_cli.py --help\n',
+        ),
+      );
+      await notifier.refreshCurrentWorkflowProjectionFromApprovedPlan();
+
+      final currentConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final task = currentConversation!.projectedExecutionTasks.single;
+
+      await notifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.blocked,
+        summary: 'A syntax error blocked the first validation attempt.',
+        blockedReason: 'A syntax error blocked the first validation attempt.',
+        eventType: ConversationExecutionTaskEventType.blocked,
+      );
+
+      final updated = await notifier.updateCurrentValidationProgressFromToolResults(
+        task: task,
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 ping_cli.py --help","exit_code":0,"stdout":"usage: ping_cli.py [-h] [-c COUNT] host","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(updated, isTrue);
+      final refreshedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      final progress =
+          refreshedConversation?.executionProgressForTask(task.id);
+      expect(progress, isNotNull);
+      expect(progress!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        progress.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(progress.blockedReason, isEmpty);
+      expect(progress.lastValidationCommand, 'python3 ping_cli.py --help');
+      expect(
+        progress.lastValidationSummary,
+        contains('usage: ping_cli.py'),
+      );
+    },
+  );
+
+  test(
     'updateCurrentExecutionTaskProgressFromAssistantTurn prefers fallback completion evidence',
     () async {
       final notifier = container.read(conversationsNotifierProvider.notifier);

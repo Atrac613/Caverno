@@ -507,19 +507,25 @@ class ConversationPlanExecutionGuardrails {
     required String assistantResponse,
     required Iterable<String> futureTaskTitles,
   }) {
-    final normalizedResponse = assistantResponse.trim().toLowerCase();
+    final normalizedResponse = _normalizeAssistantEvidenceText(
+      assistantResponse,
+    );
+    final normalizedTaskTitle = _normalizeAssistantEvidenceText(task.title);
     if (normalizedResponse.isEmpty) {
       return false;
     }
 
-    final normalizedTaskTitle = task.title.trim().toLowerCase();
-    if (normalizedTaskTitle.isEmpty ||
-        !normalizedResponse.contains(normalizedTaskTitle)) {
+    if (!_assistantMentionsCurrentTaskIdentity(
+      task: task,
+      normalizedResponse: normalizedResponse,
+    )) {
       return false;
     }
 
     for (final futureTaskTitle in futureTaskTitles) {
-      final normalizedFutureTaskTitle = futureTaskTitle.trim().toLowerCase();
+      final normalizedFutureTaskTitle = _normalizeAssistantEvidenceText(
+        futureTaskTitle,
+      );
       if (normalizedFutureTaskTitle.isEmpty ||
           normalizedFutureTaskTitle == normalizedTaskTitle) {
         continue;
@@ -530,6 +536,58 @@ class ConversationPlanExecutionGuardrails {
     }
 
     return false;
+  }
+
+  static bool assistantMentionsTaskHandoffInAnyResponse({
+    required ConversationWorkflowTask task,
+    required Iterable<String> assistantResponses,
+    required Iterable<String> futureTaskTitles,
+  }) {
+    for (final response in assistantResponses) {
+      if (assistantMentionsTaskHandoff(
+        task: task,
+        assistantResponse: response,
+        futureTaskTitles: futureTaskTitles,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _assistantMentionsCurrentTaskIdentity({
+    required ConversationWorkflowTask task,
+    required String normalizedResponse,
+  }) {
+    final normalizedTaskTitle = _normalizeAssistantEvidenceText(task.title);
+    if (normalizedTaskTitle.isNotEmpty &&
+        normalizedResponse.contains(normalizedTaskTitle)) {
+      return true;
+    }
+
+    final effectiveTargets = _effectiveTargetPaths(task);
+    for (final target in effectiveTargets) {
+      final normalizedTarget = _normalizeAssistantEvidenceText(target);
+      final basename = _normalizeAssistantEvidenceText(target.split('/').last);
+      if (basename.isNotEmpty && normalizedResponse.contains(basename)) {
+        return true;
+      }
+      if (normalizedTarget.isNotEmpty &&
+          normalizedResponse.contains(normalizedTarget)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  static String _normalizeAssistantEvidenceText(String value) {
+    return value
+        .trim()
+        .toLowerCase()
+        .replaceAll(RegExp(r'[`*_]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
   }
 
   static bool canPromoteCompletionFromTaskHandoff({

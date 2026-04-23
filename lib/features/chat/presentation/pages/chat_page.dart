@@ -6269,6 +6269,70 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    final assistantInference = ConversationExecutionProgressInference.infer(
+      assistantResponse: latestAssistantResponse,
+      task: task,
+      isValidationRun: isValidationRun,
+      fallbackAssistantResponse: fallback,
+    );
+    final futureTaskTitles = currentConversation.projectedExecutionTasks
+        .where((item) => item.id != task.id)
+        .where(
+          (item) => item.status != ConversationWorkflowTaskStatus.completed,
+        )
+        .map((item) => item.title.trim())
+        .where((title) => title.isNotEmpty)
+        .toList(growable: false);
+    final assistantResponses = [
+      latestAssistantResponse,
+      fallback,
+    ].map((item) => item.trim()).where((item) => item.isNotEmpty).toList(
+      growable: false,
+    );
+    final handoffEvidence =
+        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoffInAnyResponse(
+          task: task,
+          assistantResponses: assistantResponses,
+          futureTaskTitles: futureTaskTitles,
+        );
+    if (!isValidationRun &&
+        handoffEvidence &&
+        assistantInference.status == ConversationWorkflowTaskStatus.completed &&
+        ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceTargets(
+          task: task,
+          existingTargetPaths: _existingWorkspaceTargetFiles(task),
+        )) {
+      final currentProgress = currentConversation.executionProgressForTask(
+        task.id,
+      );
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: task.id,
+        status: ConversationWorkflowTaskStatus.completed,
+        summary: assistantInference.summary,
+        validationStatus: currentProgress?.validationStatus ==
+                ConversationExecutionValidationStatus.passed
+            ? ConversationExecutionValidationStatus.passed
+            : null,
+        lastValidationAt: currentProgress?.validationStatus ==
+                ConversationExecutionValidationStatus.passed
+            ? DateTime.now()
+            : null,
+        lastValidationCommand:
+            currentProgress?.validationStatus ==
+                ConversationExecutionValidationStatus.passed
+            ? currentProgress?.normalizedValidationCommand
+            : null,
+        lastValidationSummary:
+            currentProgress?.validationStatus ==
+                ConversationExecutionValidationStatus.passed
+            ? currentProgress?.normalizedValidationSummary
+            : null,
+        eventType: ConversationExecutionTaskEventType.completed,
+        eventSummary: assistantInference.summary,
+      );
+      return true;
+    }
+
     await conversationsNotifier
         .updateCurrentExecutionTaskProgressFromAssistantTurn(
           task: task,
@@ -6323,12 +6387,28 @@ class _ChatPageState extends ConsumerState<ChatPage>
         .map((item) => item.title.trim())
         .where((title) => title.isNotEmpty)
         .toList(growable: false);
-    final handoffEvidence =
-        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
-          task: task,
-          assistantResponse: latestAssistantResponse.isNotEmpty
+    final assistantResponses = [
+      latestAssistantResponse,
+      fallbackAssistantEvidence,
+    ].map((item) => item.trim()).where((item) => item.isNotEmpty).toList(
+      growable: false,
+    );
+    final handoffAssistantResponse =
+        assistantResponses.firstWhere(
+          (response) =>
+              ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoff(
+                task: task,
+                assistantResponse: response,
+                futureTaskTitles: futureTaskTitles,
+              ),
+          orElse: () => latestAssistantResponse.isNotEmpty
               ? latestAssistantResponse
               : fallbackAssistantEvidence,
+        );
+    final handoffEvidence =
+        ConversationPlanExecutionGuardrails.assistantMentionsTaskHandoffInAnyResponse(
+          task: task,
+          assistantResponses: assistantResponses,
           futureTaskTitles: futureTaskTitles,
         );
     final currentProgress = currentConversation.executionProgressForTask(task.id);
@@ -6336,18 +6416,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromCurrentValidationHandoff(
           task: task,
           toolResults: toolResults,
-          assistantResponse: latestAssistantResponse.isNotEmpty
-              ? latestAssistantResponse
-              : fallbackAssistantEvidence,
+          assistantResponse: handoffAssistantResponse,
           futureTaskTitles: futureTaskTitles,
         );
     final historicalValidationHandoffEvidence =
         ConversationPlanExecutionGuardrails.canPromoteCompletionFromHistoricalValidationHandoff(
           task: task,
           progress: currentProgress,
-          assistantResponse: latestAssistantResponse.isNotEmpty
-              ? latestAssistantResponse
-              : fallbackAssistantEvidence,
+          assistantResponse: handoffAssistantResponse,
           futureTaskTitles: futureTaskTitles,
         );
     final onlyRecoverableMalformedFailures =
@@ -6363,9 +6439,42 @@ class _ChatPageState extends ConsumerState<ChatPage>
           task: task,
           toolResults: toolResults,
         );
+    final validationToolInference = ConversationValidationToolResultInference
+        .infer(
+          task: task,
+          toolResults: toolResults
+              .map(
+                (result) => ConversationValidationToolResultInput(
+                  toolName: result.name,
+                  rawResult: result.result,
+                ),
+              )
+              .toList(growable: false),
+        );
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
+    if (validationToolInference != null &&
+        (validationToolInference.status ==
+                ConversationWorkflowTaskStatus.completed ||
+            validationToolInference.validationStatus ==
+                ConversationExecutionValidationStatus.passed)) {
+      final validationProgressUpdated =
+          await conversationsNotifier.updateCurrentValidationProgressFromToolResults(
+            task: task,
+            toolResults: toolResults
+                .map(
+                  (result) => ConversationValidationToolResultInput(
+                    toolName: result.name,
+                    rawResult: result.result,
+                  ),
+                )
+                .toList(growable: false),
+          );
+      if (validationProgressUpdated && _taskReachedTerminalStatus(task.id)) {
+        return true;
+      }
+    }
     if (ConversationPlanExecutionCoordinator.looksLikeVerificationTask(task) &&
         completionAssessment.successfulValidationCommands.isNotEmpty) {
       final validationProgressUpdated =
@@ -6503,9 +6612,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (ConversationPlanExecutionGuardrails.canPromoteCompletionFromTaskHandoff(
       task: task,
       toolResults: toolResults,
-      assistantResponse: latestAssistantResponse.isNotEmpty
-          ? latestAssistantResponse
-          : fallbackAssistantEvidence,
+      assistantResponse: handoffAssistantResponse,
       futureTaskTitles: futureTaskTitles,
     )) {
       final summary =
