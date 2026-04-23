@@ -814,20 +814,27 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
   );
 
   test(
-    'marks unbounded ping verification commands for retry',
+    'normalizes unbounded ping verification commands to a bounded validator',
     () {
       final proposal = WorkflowTaskProposalDraft(
         tasks: [
           const ConversationWorkflowTask(
             id: 'task-setup',
-            title: 'Initialize project files',
-            targetFiles: ['requirements.txt', 'main.py'],
+            title: 'Create project structure and README',
+            targetFiles: ['README.md'],
+            validationCommand: 'ls README.md',
+            notes: 'Initialize the repository with basic documentation.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-implement',
+            title: 'Implement ping CLI in main.py',
+            targetFiles: ['main.py'],
             validationCommand: 'python3 main.py --help',
-            notes: 'Create the initial CLI entrypoint.',
+            notes: 'Use subprocess to call the system ping command.',
           ),
           const ConversationWorkflowTask(
             id: 'task-verify',
-            title: 'Verify ping execution with a local loopback address',
+            title: 'Verify ping functionality with a local host',
             targetFiles: ['main.py'],
             validationCommand: 'python3 main.py 127.0.0.1',
             notes: 'Run the ping CLI against loopback.',
@@ -841,8 +848,12 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
       );
 
       expect(
+        finalized.tasks.last.validationCommand,
+        'python3 main.py 127.0.0.1 -c 1',
+      );
+      expect(
         notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
-        isTrue,
+        isFalse,
       );
     },
   );
@@ -854,7 +865,7 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
         tasks: [
           const ConversationWorkflowTask(
             id: 'task-implement-core',
-            title: 'Create ping_cli.py with subprocess-based ping logic',
+            title: 'Implement ping_cli.py with subprocess-based ping logic',
             targetFiles: ['ping_cli.py'],
             validationCommand: 'python3 ping_cli.py --help',
             notes: 'Use argparse to accept a host and subprocess to run ping.',
@@ -1015,6 +1026,27 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     expect(finalized.tasks.single.validationCommand, 'ls');
   });
 
+  test('normalizes python validation commands to python3 in task proposals', () {
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: [
+        const ConversationWorkflowTask(
+          id: 'task-cli',
+          title: 'Implement ping_cli.py with subprocess logic',
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python ping_cli.py --help',
+          notes: 'Use argparse and subprocess.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+
+    expect(finalized.tasks.single.validationCommand, 'python3 ping_cli.py --help');
+  });
+
   test('drops placeholder task fields from truncated task proposals', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [
@@ -1171,7 +1203,7 @@ Notes: Keep the first version minimal
     expect(proposal.tasks.first.targetFiles, ['scripts/health_check.py']);
     expect(
       proposal.tasks.first.validationCommand,
-      'python scripts/health_check.py --help',
+      'python3 scripts/health_check.py --help',
     );
     expect(proposal.tasks.first.notes, 'Keep the first version minimal');
   });

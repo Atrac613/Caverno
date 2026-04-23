@@ -4099,11 +4099,19 @@ class ChatNotifier extends Notifier<ChatState> {
       return '';
     }
 
-    final portableLs = candidate.replaceFirst(
+    final portablePython = candidate.replaceFirst(
+      RegExp(r'^python(\s+|$)'),
+      'python3 ',
+    );
+    final portableLs = portablePython.replaceFirst(
       RegExp(r'^ls\s+-F(\s+|$)'),
       'ls ',
     );
-    return portableLs.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = portableLs.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (_looksLikeUnboundedPingValidationCommand(normalized)) {
+      return '$normalized -c 1';
+    }
+    return normalized;
   }
 
   bool _looksLikePlaceholderTaskProposalValue(String value) {
@@ -5482,6 +5490,30 @@ class ChatNotifier extends Notifier<ChatState> {
     return score;
   }
 
+  bool _shouldAcceptRecoveryFinalTextResponse(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty) {
+      return false;
+    }
+    return _hiddenAssistantEvidenceScore(candidate) >= 2;
+  }
+
+  void _appendRecoveredAssistantResponse(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty || state.messages.isEmpty) {
+      return;
+    }
+
+    final existingContent = state.messages.last.content;
+    if (existingContent.contains(candidate)) {
+      return;
+    }
+    if (existingContent.isNotEmpty && !existingContent.endsWith('\n')) {
+      _appendToLastMessage('\n', scanForTools: false);
+    }
+    _appendToLastMessage(candidate, scanForTools: false);
+  }
+
   Future<void> generatePlanProposalWithContext({
     String languageCode = 'en',
     String? additionalPlanningContext,
@@ -6115,6 +6147,13 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenAssistantResponse(fallbackResponse);
+            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+              _appendRecoveredAssistantResponse(fallbackResponse);
+              currentAssistantContent = fallbackResponse;
+              hasTextResponse = true;
+              skippedDuplicateOnlyBatch = false;
+              break;
+            }
             skippedDuplicateOnlyBatch = false;
             break;
           }
@@ -6175,6 +6214,13 @@ class ChatNotifier extends Notifier<ChatState> {
             currentToolCalls = [];
             final fallbackResponse = recoveryResult.content.trim();
             _recordHiddenAssistantResponse(fallbackResponse);
+            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+              _appendRecoveredAssistantResponse(fallbackResponse);
+              currentAssistantContent = fallbackResponse;
+              hasTextResponse = true;
+              skippedDuplicateOnlyBatch = false;
+              break;
+            }
             skippedDuplicateOnlyBatch = false;
             break;
           }

@@ -2040,8 +2040,9 @@ Future<void> _waitForPlanApprovalTransition(
   required _PlanModeLiveHeartbeatWriter heartbeatWriter,
   required _PlanModeTimeoutBudgets budgets,
 }) async {
-  final deadline = DateTime.now().add(const Duration(seconds: 5));
-  var retriedTap = false;
+  final deadline = DateTime.now().add(const Duration(seconds: 12));
+  var retryCount = 0;
+  const maxApprovalTapRetries = 3;
 
   while (DateTime.now().isBefore(deadline)) {
     final conversation = container
@@ -2057,12 +2058,13 @@ Future<void> _waitForPlanApprovalTransition(
 
     final approveAction = _findPreferredPlanApproveAction();
     final approvalVisible = approveAction.evaluate().isNotEmpty;
-    if (!retriedTap &&
+    if (retryCount < maxApprovalTapRetries &&
         shouldRetryPlanApprovalTap(
           conversation: conversation,
           isLoading: chatState.isLoading,
           approvalVisible: approvalVisible,
         )) {
+      retryCount += 1;
       appLog('[Workflow] Proposal approval tap retry started');
       heartbeatWriter.write(
         phase: 'planning',
@@ -2072,7 +2074,8 @@ Future<void> _waitForPlanApprovalTransition(
       );
       await tester.ensureVisible(approveAction);
       await tester.tap(approveAction, warnIfMissed: false);
-      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 250));
+      await tester.pump(const Duration(milliseconds: 250));
       appLog('[Workflow] Proposal approval tap retry finished');
       heartbeatWriter.write(
         phase: 'execution',
@@ -2080,7 +2083,7 @@ Future<void> _waitForPlanApprovalTransition(
         phaseTrace: phaseTrace,
         budgets: budgets,
       );
-      retriedTap = true;
+      continue;
     }
 
     await tester.pump(const Duration(milliseconds: 200));
