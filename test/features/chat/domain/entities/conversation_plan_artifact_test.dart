@@ -81,4 +81,59 @@ void main() {
       expect(markdown, contains('## Stage\nimplement'));
     },
   );
+
+  test(
+    'buildApprovedSnapshotMarkdown rebuilds the plan from approved tasks when the draft has stale tasks',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Keep approved snapshots aligned with approved task proposals',
+      );
+      const tasks = [
+        ConversationWorkflowTask(
+          id: 'task-1',
+          title: 'Implement the ping CLI tool in main.py',
+          targetFiles: ['main.py'],
+          validationCommand: 'python3 main.py --help',
+        ),
+        ConversationWorkflowTask(
+          id: 'task-2',
+          title: 'Verify the CLI tool with a single ping request',
+          targetFiles: ['main.py'],
+          validationCommand: 'python3 main.py 127.0.0.1 -c 1',
+        ),
+      ];
+
+      final markdown = ConversationPlanDocumentBuilder.buildApprovedSnapshotMarkdown(
+        currentArtifact: const ConversationPlanArtifact(
+          draftMarkdown:
+              '# Plan\n'
+              '\n'
+              '## Stage\n'
+              'tasks\n'
+              '\n'
+              '## Goal\n'
+              'Keep approved snapshots aligned with approved task proposals\n'
+              '\n'
+              '## Tasks\n'
+              '\n'
+              '1. Initialize project structure\n'
+              '   - Task ID: stale-1\n'
+              '   - Status: completed\n'
+              '\n'
+              '2. Validate the CLI tool with a single ping\n'
+              '   - Task ID: stale-2\n'
+              '   - Status: inProgress\n',
+        ),
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: workflowSpec,
+        tasks: tasks,
+      );
+
+      expect(markdown, contains('Implement the ping CLI tool in main.py'));
+      expect(markdown, contains('Verify the CLI tool with a single ping request'));
+      expect(markdown, isNot(contains('Initialize project structure')));
+      expect(markdown, isNot(contains('Validate the CLI tool with a single ping')));
+      expect(markdown, contains('## Stage\nimplement'));
+    },
+  );
 }

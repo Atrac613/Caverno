@@ -33,6 +33,14 @@ class ConversationPlanDocumentBuilder {
     required ConversationWorkflowSpec workflowSpec,
     required List<ConversationWorkflowTask> tasks,
   }) {
+    if (tasks.isNotEmpty) {
+      return build(
+        workflowStage: workflowStage,
+        workflowSpec: workflowSpec,
+        tasks: tasks,
+      );
+    }
+
     final normalizedDraft = currentArtifact.normalizedDraftMarkdown;
     if (normalizedDraft != null) {
       final stagedDraft = ConversationPlanProjectionService.replaceWorkflowStage(
