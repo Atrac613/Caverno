@@ -681,6 +681,73 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     );
   });
 
+  test(
+    'buildTaskProposalQualityGateFallbackForTest recovers from exhausted task proposal retries',
+    () {
+      final conversation = Conversation(
+        id: 'conversation-quality-fallback',
+        title: 'Ping CLI',
+        messages: [
+          Message(
+            id: 'user-quality-fallback',
+            content: 'Create a Python CLI tool that pings specific hosts.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 23, 13, 40),
+          ),
+        ],
+        createdAt: DateTime(2026, 4, 23, 13, 40),
+        updatedAt: DateTime(2026, 4, 23, 13, 40),
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Create a Python CLI tool that pings a host from the terminal.',
+          constraints: ['Use subprocess', 'Keep the workspace lightweight'],
+          acceptanceCriteria: [
+            'The script exposes a CLI help screen',
+            'The tool can verify ping execution with a bounded command',
+          ],
+        ),
+      );
+      final rejectedCandidate = WorkflowTaskProposalDraft(
+        tasks: const [
+          ConversationWorkflowTask(
+            id: 'task-implement',
+            title: 'Implement ping_cli.py using subprocess',
+            targetFiles: ['ping_cli.py'],
+            validationCommand: 'python3 ping_cli.py --help',
+            notes: 'Create the Python entrypoint.',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping functionality',
+            targetFiles: ['ping_cli.py'],
+            validationCommand: 'python3 ping_cli.py 8.8.8.8',
+            notes: 'Run the CLI against a host.',
+          ),
+        ],
+      );
+
+      final fallback = notifier.buildTaskProposalQualityGateFallbackForTest(
+        currentConversation: conversation,
+        projectLooksEmpty: true,
+        bestRetryCandidate: rejectedCandidate,
+      );
+
+      expect(fallback, isNotNull);
+      expect(fallback!.tasks.length, greaterThanOrEqualTo(2));
+      expect(
+        notifier.taskProposalNeedsRetryForTest(fallback, fallback, true),
+        isFalse,
+      );
+      expect(
+        fallback.tasks.first.title,
+        'Initialize project structure and requirements.txt',
+      );
+      expect(
+        fallback.tasks.map((task) => task.title),
+        contains('Implement core ping functionality and CLI arguments in main.py'),
+      );
+    },
+  );
+
   test('marks duplicate verification tasks for retry', () {
     final fixture =
         jsonDecode(

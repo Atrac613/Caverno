@@ -273,6 +273,88 @@ class _PlanModeLiveHeartbeatWriter {
   }
 }
 
+class _PlanModePlanningReadyObserver {
+  _PlanModePlanningReadyObserver({required this.logs});
+
+  final List<String> logs;
+  _PlanModePhaseTrace? _phaseTrace;
+  _PlanModeTimeoutBudgets? _budgets;
+  _PlanModeLiveHeartbeatWriter? _heartbeatWriter;
+  String? Function()? _workflowSnapshotResolver;
+  int? Function()? _messageCountResolver;
+
+  void configure({
+    required _PlanModePhaseTrace phaseTrace,
+    required _PlanModeTimeoutBudgets budgets,
+    required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+    required String? Function() workflowSnapshotResolver,
+    required int? Function() messageCountResolver,
+  }) {
+    _phaseTrace = phaseTrace;
+    _budgets = budgets;
+    _heartbeatWriter = heartbeatWriter;
+    _workflowSnapshotResolver = workflowSnapshotResolver;
+    _messageCountResolver = messageCountResolver;
+  }
+
+  void clear() {
+    _phaseTrace = null;
+    _budgets = null;
+    _heartbeatWriter = null;
+    _workflowSnapshotResolver = null;
+    _messageCountResolver = null;
+  }
+
+  void observe(String message) {
+    final phaseTrace = _phaseTrace;
+    final budgets = _budgets;
+    final heartbeatWriter = _heartbeatWriter;
+    if (phaseTrace == null || budgets == null || heartbeatWriter == null) {
+      return;
+    }
+
+    final isWorkflowMarker =
+        message.contains('[Workflow] Workflow proposal ready') ||
+        message.contains('[Workflow] Workflow proposal recovered on retry') ||
+        message.contains('[Workflow] Workflow plan artifact draft persisted') ||
+        message.contains('[Workflow] Using fallback proposal');
+    final isTaskMarker =
+        message.contains('[Workflow] Task proposal ready') ||
+        message.contains('[Workflow] Task proposal recovered on retry') ||
+        message.contains(
+          '[Workflow] Task proposal recovered from truncated reasoning fallback',
+        ) ||
+        message.contains('[Workflow] Task plan artifact draft persisted');
+    if (!isWorkflowMarker && !isTaskMarker) {
+      return;
+    }
+
+    final now = DateTime.now();
+    if (isWorkflowMarker) {
+      phaseTrace.proposalReadyAt ??= now;
+    }
+    if (isTaskMarker) {
+      phaseTrace.taskProposalReadyAt ??= now;
+    }
+
+    final workflowSnapshot = _workflowSnapshotResolver?.call();
+    final messageCount = _messageCountResolver?.call();
+    final subphase = planningLogsContainReadyDraftState(logs)
+        ? 'taskDraftReady'
+        : 'workflowDraftReady';
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: subphase,
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      workflowSnapshot: workflowSnapshot,
+      messageCount: messageCount,
+      hasPendingApprovals: false,
+      isLoading: subphase != 'taskDraftReady',
+    );
+  }
+}
+
 Map<String, Object?> _readLiveHeartbeatSnapshot() {
   final path = _resolveLiveHeartbeatPath();
   if (path == null || path.isEmpty) {
@@ -450,6 +532,7 @@ Future<Widget> _buildScenarioApp({
 
 Future<void> _resolvePlanningDecisions(
   WidgetTester tester,
+  ProviderContainer container,
   IntegrationTestWidgetsFlutterBinding binding,
   _PlanModeScenarioTestConfig config,
   PlanModeScenarioSpec scenario,
@@ -462,12 +545,17 @@ Future<void> _resolvePlanningDecisions(
 
   while (resolvedDecisionCount < maxDecisionRounds) {
     await _pumpUntilIdle(tester);
+    final chatState = container.read(chatNotifierProvider);
     final decisionSheetFinder = find.byType(BottomSheet);
     final confirmFinder = find.descendant(
       of: decisionSheetFinder,
       matching: find.text('Continue with this choice'),
     );
-    if (confirmFinder.evaluate().isEmpty) {
+    final shouldHandleDecision = shouldHandlePlanningDecision(
+      hasPendingDecision: chatState.pendingWorkflowDecision != null,
+      confirmVisible: confirmFinder.evaluate().isNotEmpty,
+    );
+    if (!shouldHandleDecision) {
       return;
     }
 
@@ -492,13 +580,22 @@ Future<void> _resolvePlanningDecisions(
       );
     }
 
-    await captureIntegrationScreenshot(
-      binding: binding,
-      tester: tester,
-      repaintBoundaryKey: screenshotBoundaryKey,
-      name: 'plan_mode_${scenario.name}_decision_${resolvedDecisionCount + 1}',
-      outputDirectory: outputDirectory,
-    );
+    appLog('[Workflow] Decision screenshot started');
+    try {
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name:
+            'plan_mode_${scenario.name}_decision_${resolvedDecisionCount + 1}',
+        outputDirectory: outputDirectory,
+      ).timeout(const Duration(seconds: 10));
+      appLog('[Workflow] Decision screenshot finished');
+    } on TimeoutException {
+      appLog('[Workflow] Decision screenshot skipped after timeout');
+    } catch (error) {
+      appLog('[Workflow] Decision screenshot skipped after error: $error');
+    }
 
     if (scriptedSelection?.freeTextAnswer != null) {
       final decisionTextFieldFinder = find.descendant(
@@ -574,11 +671,16 @@ Finder _findDecisionSheetText(
   );
 }
 
-String _resolvePlanningSubphase(ChatState chatState, List<String> logs) {
+String _resolvePlanningSubphase(
+  ChatState chatState,
+  List<String> logs, {
+  required bool approvalUiVisible,
+}) {
   return resolvePlanningSubphase(
     hasPendingDecision: chatState.pendingWorkflowDecision != null,
     hasWorkflowDraft: chatState.workflowProposalDraft != null,
     hasTaskDraft: chatState.taskProposalDraft != null,
+    approvalUiVisible: approvalUiVisible,
     isGeneratingWorkflowProposal: chatState.isGeneratingWorkflowProposal,
     isGeneratingTaskProposal: chatState.isGeneratingTaskProposal,
     logs: logs,
@@ -604,19 +706,20 @@ Future<void> _waitForReadyPlanProposal(
   String? lastPlanningProgressKey;
   var proposalUiLogged = false;
 
+  bool isApprovalUiReady() {
+    return find.text('Approve and start').evaluate().isNotEmpty;
+  }
+
   bool isProposalReady(ChatState chatState) {
     return isPlanningProposalReady(
       hasWorkflowDraft: chatState.workflowProposalDraft != null,
       hasTaskDraft: chatState.taskProposalDraft != null,
       hasPendingDecision: chatState.pendingWorkflowDecision != null,
+      approvalUiVisible: isApprovalUiReady(),
       workflowError: chatState.workflowProposalError,
       taskError: chatState.taskProposalError,
       logs: logs,
     );
-  }
-
-  bool isApprovalUiReady() {
-    return find.text('Approve and start').evaluate().isNotEmpty;
   }
 
   while (DateTime.now().isBefore(deadline)) {
@@ -625,11 +728,13 @@ Future<void> _waitForReadyPlanProposal(
         .read(conversationsNotifierProvider)
         .currentConversation;
     if (chatState.workflowProposalDraft != null ||
-        planningLogsContainWorkflowDraftReady(logs)) {
+        planningLogsContainWorkflowDraftReady(logs) ||
+        planningLogsContainWorkflowDraftPersisted(logs)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
     }
     if (chatState.taskProposalDraft != null ||
-        planningLogsContainTaskDraftReady(logs)) {
+        planningLogsContainTaskDraftReady(logs) ||
+        planningLogsContainTaskDraftPersisted(logs)) {
       phaseTrace.taskProposalReadyAt ??= DateTime.now();
     }
     final workflowSnapshot = _summarizeWorkflowTasks(
@@ -654,29 +759,36 @@ Future<void> _waitForReadyPlanProposal(
         '${conversation?.messages.length ?? 0}|'
         '${chatState.workflowProposalDraft != null || planningLogsContainWorkflowDraftReady(logs)}|'
         '${chatState.taskProposalDraft != null || planningLogsContainTaskDraftReady(logs)}|'
+        '${planningLogsContainWorkflowDraftPersisted(logs)}|'
+        '${planningLogsContainTaskDraftPersisted(logs)}|'
         '${chatState.isGeneratingWorkflowProposal}|'
         '${chatState.isGeneratingTaskProposal}|'
         '${chatState.pendingWorkflowDecision != null}|'
         '${chatState.workflowProposalError}|'
         '${chatState.taskProposalError}|'
         '${planningLogsContainWorkflowDraftReady(logs)}|'
-        '${planningLogsContainTaskDraftReady(logs)}';
+        '${planningLogsContainTaskDraftReady(logs)}|'
+        '${isApprovalUiReady()}';
     if (planningProgressKey != lastPlanningProgressKey) {
       lastPlanningProgressKey = planningProgressKey;
       deadline = DateTime.now().add(timeout);
     }
     heartbeatWriter.write(
       phase: 'planning',
-      subphase: _resolvePlanningSubphase(chatState, logs),
+      subphase: _resolvePlanningSubphase(
+        chatState,
+        logs,
+        approvalUiVisible: isApprovalUiReady(),
+      ),
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: workflowSnapshot,
-        messageCount: conversation?.messages.length ?? 0,
-        hasPendingApprovals: chatState.pendingWorkflowDecision != null,
-        isLoading:
-            chatState.isLoading ||
-            chatState.isGeneratingWorkflowProposal ||
-            chatState.isGeneratingTaskProposal,
+      messageCount: conversation?.messages.length ?? 0,
+      hasPendingApprovals: chatState.pendingWorkflowDecision != null,
+      isLoading:
+          chatState.isLoading ||
+          chatState.isGeneratingWorkflowProposal ||
+          chatState.isGeneratingTaskProposal,
     );
     if (isProposalReady(chatState)) {
       phaseTrace.proposalReadyAt ??= DateTime.now();
@@ -697,6 +809,7 @@ Future<void> _waitForReadyPlanProposal(
     if (chatState.pendingWorkflowDecision != null) {
       await _resolvePlanningDecisions(
         tester,
+        container,
         binding,
         config,
         scenario,
@@ -788,6 +901,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
       : const Duration(seconds: 15);
   String? lastHeartbeatKey;
   DateTime? blockedSince;
+  var lastObservedLogCount = 0;
   while (DateTime.now().isBefore(deadline)) {
     final now = DateTime.now();
     final chatState = container.read(chatNotifierProvider);
@@ -811,6 +925,50 @@ Future<void> _waitForWorkflowExecutionCompletion(
         chatState.pendingFileOperation != null ||
         chatState.pendingBleConnect != null ||
         chatState.pendingWorkflowDecision != null;
+
+    if (shouldRecoverExecutionFromExecutionDocument(
+      conversation: conversation,
+      isLoading: chatState.isLoading,
+      hasPendingApprovals: hasPendingApprovals,
+      approvalTappedAt: phaseTrace.approvalTappedAt,
+    )) {
+      final refreshed = await container
+          .read(conversationsNotifierProvider.notifier)
+          .refreshCurrentWorkflowProjectionFromApprovedPlan();
+      if (refreshed) {
+        final refreshedConversation = container
+            .read(conversationsNotifierProvider)
+            .currentConversation;
+        final refreshedTasks =
+            refreshedConversation?.projectedExecutionTasks ?? const [];
+        final refreshedActiveTaskTitle = _activeWorkflowTaskTitle(
+          refreshedTasks,
+        );
+        final refreshedWorkflowSnapshot = _summarizeWorkflowTasks(
+          refreshedTasks,
+        );
+        appLog(
+          '[Workflow] Execution projection recovered from execution document',
+        );
+        heartbeatWriter.write(
+          phase: 'execution',
+          subphase: 'executionProjectionRecovered',
+          phaseTrace: phaseTrace,
+          budgets: budgets,
+          activeTaskTitle: refreshedActiveTaskTitle,
+          workflowSnapshot: refreshedWorkflowSnapshot,
+          toolResultCount: _countContentToolResults(logs),
+          fileWriteCount: _countFileWriteExecutions(logs),
+          messageCount: refreshedConversation?.messages.length ?? 0,
+          hasPendingApprovals: false,
+          isLoading: chatState.isLoading,
+        );
+        phaseTrace.lastTaskProgressAt = now;
+        await tester.pump(const Duration(milliseconds: 200));
+        continue;
+      }
+    }
+
     final hasInProgressTask = tasks.any(
       (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
     );
@@ -853,6 +1011,25 @@ Future<void> _waitForWorkflowExecutionCompletion(
     if (_countValidationLikeExecutions(logs) > 0) {
       phaseTrace.validationStartedAt ??= now;
     }
+    if (hasInProgressTask &&
+        logs.length > lastObservedLogCount &&
+        executionLogsContainLateValidationAnswerProgress(logs)) {
+      phaseTrace.lastTaskProgressAt = now;
+      heartbeatWriter.write(
+        phase: 'execution',
+        subphase: 'answering',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        activeTaskTitle: activeTaskTitle,
+        workflowSnapshot: workflowSnapshot,
+        toolResultCount: _countContentToolResults(logs),
+        fileWriteCount: _countFileWriteExecutions(logs),
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: hasPendingApprovals,
+        isLoading: chatState.isLoading,
+      );
+    }
+    lastObservedLogCount = logs.length;
 
     if (hasBlockedTasks &&
         !hasInProgressTask &&
@@ -962,11 +1139,41 @@ Future<void> _waitForWorkflowExecutionCompletion(
       .read(conversationsNotifierProvider)
       .currentConversation;
   final tasks = conversation?.projectedExecutionTasks ?? const [];
+  final hasPendingApprovals =
+      chatState.pendingSshConnect != null ||
+      chatState.pendingSshCommand != null ||
+      chatState.pendingGitCommand != null ||
+      chatState.pendingLocalCommand != null ||
+      chatState.pendingFileOperation != null ||
+      chatState.pendingBleConnect != null ||
+      chatState.pendingWorkflowDecision != null;
+  if (!chatState.isLoading &&
+      !hasPendingApprovals &&
+      executionTasksContainOnlyCompleted(tasks)) {
+    final workflowSnapshot = _summarizeWorkflowTasks(tasks);
+    phaseTrace.firstTaskCompletedAt ??= DateTime.now();
+    phaseTrace.lastTaskProgressAt ??= DateTime.now();
+    heartbeatWriter.write(
+      phase: 'completed',
+      subphase: 'workflowCompletedRecoveredAtTimeout',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      activeTaskTitle: _activeWorkflowTaskTitle(tasks),
+      workflowSnapshot: workflowSnapshot,
+      toolResultCount: _countContentToolResults(logs),
+      fileWriteCount: _countFileWriteExecutions(logs),
+      messageCount: conversation?.messages.length ?? 0,
+      hasPendingApprovals: false,
+      isLoading: false,
+    );
+    await _pumpUntilIdle(tester);
+    return;
+  }
   final activeTaskTitle = _activeWorkflowTaskTitle(tasks);
   throw StateError(
     'Execution phase timed out after ${timeout.inSeconds}s. '
     'isLoading=${chatState.isLoading}, '
-    'pendingApprovals=${chatState.pendingSshConnect != null || chatState.pendingSshCommand != null || chatState.pendingGitCommand != null || chatState.pendingLocalCommand != null || chatState.pendingFileOperation != null || chatState.pendingBleConnect != null || chatState.pendingWorkflowDecision != null}, '
+    'pendingApprovals=$hasPendingApprovals, '
     'activeTask=${activeTaskTitle ?? 'none'}, '
     'toolResults=${_countContentToolResults(logs)}, '
     'fileWrites=${_countFileWriteExecutions(logs)}, '
@@ -1615,6 +1822,7 @@ Future<_ScenarioRunResult> _runScenario({
   required Directory scenarioDir,
   required _PlanModePhaseTrace phaseTrace,
   required _PlanModeTimeoutBudgets budgets,
+  required _PlanModePlanningReadyObserver planningReadyObserver,
 }) async {
   final heartbeatWriter = _PlanModeLiveHeartbeatWriter(
     scenarioName: scenario.name,
@@ -1664,10 +1872,39 @@ Future<_ScenarioRunResult> _runScenario({
     ),
   );
   await _pumpUntilIdle(tester);
+  heartbeatWriter.write(
+    phase: 'startup',
+    subphase: 'appReady',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    messageCount: 0,
+    hasPendingApprovals: false,
+    isLoading: false,
+  );
 
   final container = ProviderScope.containerOf(
     tester.element(find.byType(ChatPage)),
     listen: false,
+  );
+  planningReadyObserver.configure(
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    heartbeatWriter: heartbeatWriter,
+    workflowSnapshotResolver: () {
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      return _summarizeWorkflowTasks(
+        conversation?.projectedExecutionTasks ??
+            const <ConversationWorkflowTask>[],
+      );
+    },
+    messageCountResolver: () {
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      return conversation?.messages.length ?? 0;
+    },
   );
   container
       .read(codingProjectsNotifierProvider.notifier)
@@ -1689,15 +1926,6 @@ Future<_ScenarioRunResult> _runScenario({
     subphase: 'promptSubmitted',
     phaseTrace: phaseTrace,
     budgets: budgets,
-  );
-
-  await _resolvePlanningDecisions(
-    tester,
-    binding,
-    config,
-    scenario,
-    screenshotBoundaryKey,
-    scenarioDir,
   );
 
   await _waitForReadyPlanProposal(
@@ -1755,7 +1983,7 @@ Future<_ScenarioRunResult> _runScenario({
       repaintBoundaryKey: screenshotBoundaryKey,
       name: 'plan_mode_${scenario.name}_proposal',
       outputDirectory: scenarioDir,
-    ).timeout(const Duration(seconds: 15));
+    );
     appLog('[Workflow] Proposal screenshot finished');
     heartbeatWriter.write(
       phase: 'planning',
@@ -2045,6 +2273,7 @@ Future<void> _waitForPlanApprovalTransition(
   const maxApprovalTapRetries = 3;
 
   while (DateTime.now().isBefore(deadline)) {
+    final now = DateTime.now();
     final conversation = container
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -2054,6 +2283,48 @@ Future<void> _waitForPlanApprovalTransition(
       isLoading: chatState.isLoading,
     )) {
       return;
+    }
+
+    if (shouldRecoverPlanApprovalFromExecutionDocument(
+      conversation: conversation,
+      isLoading: chatState.isLoading,
+    )) {
+      final refreshed = await container
+          .read(conversationsNotifierProvider.notifier)
+          .refreshCurrentWorkflowProjectionFromApprovedPlan();
+      if (refreshed) {
+        appLog(
+          '[Workflow] Proposal approval recovered from execution document',
+        );
+        heartbeatWriter.write(
+          phase: 'execution',
+          subphase: 'approvedProjectionRecovered',
+          phaseTrace: phaseTrace,
+          budgets: budgets,
+          workflowSnapshot: _summarizeWorkflowTasks(
+            container
+                    .read(conversationsNotifierProvider)
+                    .currentConversation
+                    ?.projectedExecutionTasks ??
+                const [],
+          ),
+        );
+        return;
+      }
+    }
+
+    if (shouldWaitForPlanApprovalToSettle(
+      approvalTappedAt: phaseTrace.approvalTappedAt,
+      now: now,
+    )) {
+      heartbeatWriter.write(
+        phase: 'execution',
+        subphase: 'proposalTapSettling',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+      await tester.pump(const Duration(milliseconds: 200));
+      continue;
     }
 
     final approveAction = _findPreferredPlanApproveAction();
@@ -2108,6 +2379,7 @@ void main() {
     late Box<String> conversationBox;
     late Box<String> memoryBox;
     late DebugPrintCallback originalDebugPrint;
+    late _PlanModePlanningReadyObserver planningReadyObserver;
     late List<String> logs;
     late Directory suiteRunDirectory;
     final suiteResults = <Map<String, Object?>>[];
@@ -2132,10 +2404,12 @@ void main() {
       await EasyLocalization.ensureInitialized();
 
       logs = <String>[];
+      planningReadyObserver = _PlanModePlanningReadyObserver(logs: logs);
       originalDebugPrint = debugPrint;
       debugPrint = (String? message, {int? wrapWidth}) {
         if (message != null) {
           logs.add(message);
+          planningReadyObserver.observe(message);
         }
         originalDebugPrint(message, wrapWidth: wrapWidth);
       };
@@ -2147,6 +2421,7 @@ void main() {
 
     tearDown(() async {
       debugPrint = originalDebugPrint;
+      planningReadyObserver.clear();
       await conversationBox.close();
       await memoryBox.close();
     });
@@ -2243,6 +2518,7 @@ void main() {
             scenarioDir: scenarioDir,
             phaseTrace: phaseTrace,
             budgets: budgets,
+            planningReadyObserver: planningReadyObserver,
           );
         } catch (error, stackTrace) {
           failure = error;

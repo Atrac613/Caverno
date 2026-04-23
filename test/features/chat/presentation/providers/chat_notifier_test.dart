@@ -1327,35 +1327,118 @@ void main() {
     }
   });
 
-  test('sendMessage allows repeated read_file retries across tool loops', () async {
+  test(
+    'sendMessage allows repeated read_file retries across tool loops',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_file',
+            arguments: const {'path': 'ping_cli.py'},
+          ),
+        ],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'tool-2',
+            name: 'read_file',
+            arguments: const {'path': 'ping_cli.py'},
+          ),
+        ],
+        intermediateToolRoleResponseContent:
+            'I need to inspect the exact file contents again before retrying the edit.',
+        toolRoleResponseContent: 'Retry finished.',
+        finalAnswerChunks: const ['Recovered after repeated read_file.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_file': 'file contents'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Retry the mismatched ping_cli edit');
+
+        expect(toolService.executedToolNames, ['read_file', 'read_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches
+              .expand((batch) => batch.map((item) => item.name))
+              .toList(),
+          ['read_file', 'read_file'],
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Recovered after repeated read_file.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage recovers from duplicate follow-up scaffold writes', () async {
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [
         ToolCallInfo(
           id: 'tool-1',
-          name: 'read_file',
-          arguments: const {'path': 'ping_cli.py'},
+          name: 'create_requirements',
+          arguments: const {'path': 'requirements.txt', 'content': '# deps\n'},
+        ),
+        ToolCallInfo(
+          id: 'tool-2',
+          name: 'create_readme',
+          arguments: const {'path': 'README.md', 'content': '# demo\n'},
         ),
       ],
       followUpToolCalls: [
         ToolCallInfo(
-          id: 'tool-2',
-          name: 'read_file',
-          arguments: const {'path': 'ping_cli.py'},
+          id: 'tool-3',
+          name: 'create_requirements',
+          arguments: const {'path': 'requirements.txt', 'content': '# deps\n'},
         ),
       ],
       intermediateToolRoleResponseContent:
-          'I need to inspect the exact file contents again before retrying the edit.',
-      toolRoleResponseContent: 'Retry finished.',
-      finalAnswerChunks: const ['Recovered after repeated read_file.'],
+          'I created README.md and will continue with the remaining scaffold files.',
+      toolRoleResponseContent: 'This follow-up text should never be streamed.',
+      finalAnswerChunks: const ['This final answer should never be requested.'],
     );
     final toolService = _FakeMcpToolService(
-      results: const {'read_file': 'file contents'},
+      results: const {
+        'create_requirements':
+            '{"path":"/tmp/requirements.txt","created":true,"bytes_written":8}',
+        'create_readme':
+            '{"path":"/tmp/README.md","created":true,"bytes_written":8}',
+      },
     );
     final appLifecycleService = _MockAppLifecycleService();
     when(() => appLifecycleService.isInBackground).thenReturn(false);
     final toolContainer = ProviderContainer(
       overrides: [
-        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
         conversationsNotifierProvider.overrideWith(
           _TestConversationsNotifier.new,
         ),
@@ -1374,19 +1457,29 @@ void main() {
     try {
       final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-      await toolNotifier.sendMessage('Retry the mismatched ping_cli edit');
+      await toolNotifier.sendMessage('Initialize the scaffold files');
 
-      expect(toolService.executedToolNames, ['read_file', 'read_file']);
-      expect(toolDataSource.toolResultBatches, hasLength(2));
       expect(
         toolDataSource.toolResultBatches
-            .expand((batch) => batch.map((item) => item.name))
+            .map((batch) => batch.map((item) => item.name).toList())
             .toList(),
-        ['read_file', 'read_file'],
+        [
+          ['create_requirements', 'create_readme'],
+          ['create_requirements', 'create_readme'],
+        ],
+      );
+      expect(toolService.executedToolNames, [
+        'create_requirements',
+        'create_readme',
+      ]);
+      expect(toolNotifier.state.isLoading, isFalse);
+      expect(
+        toolNotifier.takeLatestToolResults().map((item) => item.name).toList(),
+        ['create_requirements', 'create_readme'],
       );
       expect(
         toolNotifier.state.messages.last.content,
-        contains('Recovered after repeated read_file.'),
+        contains('This final answer should never be requested.'),
       );
     } finally {
       toolContainer.dispose();
@@ -1394,216 +1487,245 @@ void main() {
   });
 
   test(
-    'sendMessage recovers from duplicate follow-up scaffold writes',
-    () async {
-      final toolDataSource = _ToolBatchChatDataSource(
-        initialToolCalls: [
+    'buildDuplicateFollowUpRecoveryPromptForTest requires a file edit before rerunning validation after reading a failing file',
+    () {
+      final prompt = notifier.buildDuplicateFollowUpRecoveryPromptForTest(
+        [
           ToolCallInfo(
-            id: 'tool-1',
-            name: 'create_requirements',
-            arguments: const {
-              'path': 'requirements.txt',
-              'content': '# deps\n',
-            },
-          ),
-          ToolCallInfo(
-            id: 'tool-2',
-            name: 'create_readme',
-            arguments: const {
-              'path': 'README.md',
-              'content': '# demo\n',
-            },
+            id: 'tool-validation',
+            name: 'local_execute_command',
+            arguments: const {'command': 'python3 -m unittest test_ping.py'},
           ),
         ],
-        followUpToolCalls: [
-          ToolCallInfo(
-            id: 'tool-3',
-            name: 'create_requirements',
-            arguments: const {
-              'path': 'requirements.txt',
-              'content': '# deps\n',
-            },
-          ),
-        ],
-        intermediateToolRoleResponseContent:
-            'I created README.md and will continue with the remaining scaffold files.',
-        toolRoleResponseContent: 'This follow-up text should never be streamed.',
-        finalAnswerChunks: const ['This final answer should never be requested.'],
-      );
-      final toolService = _FakeMcpToolService(
-        results: const {
-          'create_requirements':
-              '{"path":"/tmp/requirements.txt","created":true,"bytes_written":8}',
-          'create_readme':
-              '{"path":"/tmp/README.md","created":true,"bytes_written":8}',
-        },
-      );
-      final appLifecycleService = _MockAppLifecycleService();
-      when(() => appLifecycleService.isInBackground).thenReturn(false);
-      final toolContainer = ProviderContainer(
-        overrides: [
-          settingsNotifierProvider.overrideWith(
-            _ToolEnabledNoConfirmSettingsNotifier.new,
-          ),
-          conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
-          ),
-          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
-          mcpToolServiceProvider.overrideWithValue(toolService),
-          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-          backgroundTaskServiceProvider.overrideWithValue(
-            _TestBackgroundTaskService(),
+        previousToolResults: [
+          ToolResultInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': 'test_ping.py'},
+            result: 'import unittest\n',
           ),
         ],
       );
 
-      try {
-        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-        await toolNotifier.sendMessage('Initialize the scaffold files');
-
-        expect(
-          toolDataSource.toolResultBatches
-              .map((batch) => batch.map((item) => item.name).toList())
-              .toList(),
-          [
-            ['create_requirements', 'create_readme'],
-            ['create_requirements', 'create_readme'],
-          ],
-        );
-        expect(
-          toolService.executedToolNames,
-          ['create_requirements', 'create_readme'],
-        );
-        expect(toolNotifier.state.isLoading, isFalse);
-        expect(
-          toolNotifier.takeLatestToolResults().map((item) => item.name).toList(),
-          ['create_requirements', 'create_readme'],
-        );
-        expect(
-          toolNotifier.state.messages.last.content,
-          contains('This final answer should never be requested.'),
-        );
-      } finally {
-        toolContainer.dispose();
-      }
+      expect(
+        prompt,
+        contains(
+          'your next action must modify that same file before rerunning the saved validation command',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not rerun the same validation command until a saved target file edit changes the current task.',
+        ),
+      );
     },
   );
 
   test(
-    'sendMessage recovers from duplicate read-only follow-up loops',
-    () async {
-      final toolDataSource = _QueuedToolLoopChatDataSource(
-        initialToolCalls: [
+    'buildToolLoopRecoveryToolResultsForTest includes latest read context for edit mismatch recovery',
+    () {
+      final recoveryToolResults = notifier.buildToolLoopRecoveryToolResultsForTest(
+        currentToolResults: [
+          ToolResultInfo(
+            id: 'tool-edit',
+            name: 'edit_file',
+            arguments: const {'path': 'main.py'},
+            result:
+                '{"error":"old_text was not found in the target file","path":"/tmp/main.py"}',
+          ),
+        ],
+        executedToolResults: [
+          ToolResultInfo(
+            id: 'tool-read-other',
+            name: 'read_file',
+            arguments: const {'path': 'README.md'},
+            result: '# Ping CLI\n',
+          ),
+          ToolResultInfo(
+            id: 'tool-read-main',
+            name: 'read_file',
+            arguments: const {'path': 'main.py'},
+            result: 'import argparse\n',
+          ),
+        ],
+        pendingToolCalls: [
           ToolCallInfo(
-            id: 'tool-1',
-            name: 'list_directory',
-            arguments: const {'path': '.'},
-          ),
-        ],
-        toolLoopResponses: [
-          ChatCompletionResult(
-            content: 'Inspect main.py before writing the unit tests.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-2',
-                name: 'read_file',
-                arguments: const {'path': 'main.py'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: '',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-3',
-                name: 'list_directory',
-                arguments: const {'path': '.'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: 'Write tests/test_ping.py now.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-4',
-                name: 'write_test_file',
-                arguments: const {'path': 'tests/test_ping.py'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: 'The unit test task is complete.',
-            finishReason: 'stop',
-          ),
-        ],
-        finalAnswerChunks: const ['Recovered after duplicate inspection loop.'],
-      );
-      final toolService = _FakeMcpToolService(
-        results: const {
-          'list_directory': '{"entries":["main.py"]}',
-          'read_file': 'print("ping")',
-          'write_test_file':
-              '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
-        },
-      );
-      final appLifecycleService = _MockAppLifecycleService();
-      when(() => appLifecycleService.isInBackground).thenReturn(false);
-      final toolContainer = ProviderContainer(
-        overrides: [
-          settingsNotifierProvider.overrideWith(
-            _ToolEnabledNoConfirmSettingsNotifier.new,
-          ),
-          conversationsNotifierProvider.overrideWith(
-            _TestConversationsNotifier.new,
-          ),
-          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
-          sessionMemoryServiceProvider.overrideWithValue(
-            _TestSessionMemoryService(),
-          ),
-          mcpToolServiceProvider.overrideWithValue(toolService),
-          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
-          backgroundTaskServiceProvider.overrideWithValue(
-            _TestBackgroundTaskService(),
+            id: 'tool-follow-up',
+            name: 'read_file',
+            arguments: const {'path': 'main.py'},
           ),
         ],
       );
 
-      try {
-        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
-
-        await toolNotifier.sendMessage('Create unit tests for the ping CLI');
-
-        expect(
-          toolService.executedToolNames,
-          ['list_directory', 'read_file', 'write_test_file'],
-        );
-        expect(
-          toolDataSource.toolResultBatches
-              .map((batch) => batch.map((item) => item.name).toList())
-              .toList(),
-          [
-            ['list_directory'],
-            ['read_file'],
-            ['read_file'],
-            ['write_test_file'],
-          ],
-        );
-        expect(
-          toolNotifier.state.messages.last.content,
-          contains('Recovered after duplicate inspection loop.'),
-        );
-      } finally {
-        toolContainer.dispose();
-      }
+      expect(
+        recoveryToolResults.map((toolResult) => toolResult.name).toList(),
+        ['read_file', 'edit_file'],
+      );
+      expect(
+        recoveryToolResults.first.arguments,
+        containsPair('path', 'main.py'),
+      );
+      expect(recoveryToolResults.first.result, contains('import argparse'));
     },
   );
+
+  test(
+    'buildToolLoopExhaustionRecoveryPromptForTest forbids rereading edit mismatch files when read context exists',
+    () {
+      final prompt = notifier.buildToolLoopExhaustionRecoveryPromptForTest(
+        [
+          ToolCallInfo(
+            id: 'tool-follow-up',
+            name: 'read_file',
+            arguments: const {'path': 'main.py'},
+          ),
+        ],
+        previousToolResults: [
+          ToolResultInfo(
+            id: 'tool-read-main',
+            name: 'read_file',
+            arguments: const {'path': 'main.py'},
+            result: 'import argparse\n',
+          ),
+          ToolResultInfo(
+            id: 'tool-edit',
+            name: 'edit_file',
+            arguments: const {'path': 'main.py'},
+            result:
+                '{"error":"old_text was not found in the target file","path":"/tmp/main.py"}',
+          ),
+        ],
+      );
+
+      expect(
+        prompt,
+        contains(
+          'A recent read_file result for the same path is already provided below.',
+        ),
+      );
+      expect(
+        prompt,
+        contains('Do not call read_file again for the same path in this turn.'),
+      );
+      expect(
+        prompt,
+        contains(
+          'Use that exact file content and return only one edit_file call for the same file',
+        ),
+      );
+    },
+  );
+
+  test('sendMessage recovers from duplicate read-only follow-up loops', () async {
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'list_directory',
+          arguments: const {'path': '.'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'Inspect main.py before writing the unit tests.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-2',
+              name: 'read_file',
+              arguments: const {'path': 'main.py'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: '',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-3',
+              name: 'list_directory',
+              arguments: const {'path': '.'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Write tests/test_ping.py now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-4',
+              name: 'write_test_file',
+              arguments: const {'path': 'tests/test_ping.py'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The unit test task is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['Recovered after duplicate inspection loop.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'list_directory': '{"entries":["main.py"]}',
+        'read_file': 'print("ping")',
+        'write_test_file':
+            '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Create unit tests for the ping CLI');
+
+      expect(toolService.executedToolNames, [
+        'list_directory',
+        'read_file',
+        'write_test_file',
+      ]);
+      expect(
+        toolDataSource.toolResultBatches
+            .map((batch) => batch.map((item) => item.name).toList())
+            .toList(),
+        [
+          ['list_directory'],
+          ['read_file'],
+          ['read_file'],
+          ['write_test_file'],
+        ],
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Recovered after duplicate inspection loop.'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test(
     'sendMessage accepts terminal duplicate inspection recovery text without streaming a final answer',
@@ -1645,7 +1767,9 @@ void main() {
             finishReason: 'stop',
           ),
         ],
-        finalAnswerChunks: const ['This final answer should never be requested.'],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
       );
       final toolService = _FakeMcpToolService(
         results: const {
@@ -1706,65 +1830,39 @@ void main() {
   );
 
   test(
-    'sendMessage recovers from duplicate mutating follow-up loops',
+    'sendMessage allows longer saved-task tool loops before fallback',
     () async {
-      final toolDataSource = _QueuedToolLoopChatDataSource(
-        initialToolCalls: [
-          ToolCallInfo(
-            id: 'tool-1',
-            name: 'create_tests_dir',
-            arguments: const {'path': 'tests'},
-          ),
-        ],
-        toolLoopResponses: [
+      final toolLoopResponses = <ChatCompletionResult>[
+        for (var index = 0; index < 9; index += 1)
           ChatCompletionResult(
-            content: 'Inspect ping_cli.py before writing tests/test_ping.py.',
+            content: 'Continue refining ping_cli.py before validation.',
             toolCalls: [
               ToolCallInfo(
-                id: 'tool-2',
+                id: 'tool-${index + 2}',
                 name: 'read_file',
                 arguments: const {'path': 'ping_cli.py'},
               ),
             ],
             finishReason: 'tool_calls',
           ),
-          ChatCompletionResult(
-            content: 'Create the tests directory before writing tests/test_ping.py.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-3',
-                name: 'create_tests_dir',
-                arguments: const {'path': 'tests'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: 'Write tests/test_ping.py now.',
-            toolCalls: [
-              ToolCallInfo(
-                id: 'tool-4',
-                name: 'write_test_file',
-                arguments: const {'path': 'tests/test_ping.py'},
-              ),
-            ],
-            finishReason: 'tool_calls',
-          ),
-          ChatCompletionResult(
-            content: 'The unit test task is complete.',
-            finishReason: 'stop',
+        ChatCompletionResult(
+          content: 'The ping CLI implementation is complete.',
+          finishReason: 'stop',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_file',
+            arguments: const {'path': 'ping_cli.py'},
           ),
         ],
-        finalAnswerChunks: const ['Recovered after duplicate follow-up loop.'],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const ['Recovered final answer after long loop.'],
       );
       final toolService = _FakeMcpToolService(
-        results: const {
-          'create_tests_dir':
-              '{"path":"/tmp/tests","created":true,"entry_type":"directory"}',
-          'read_file': 'print("ping")',
-          'write_test_file':
-              '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
-        },
+        results: const {'read_file': 'print("ping")'},
       );
       final appLifecycleService = _MockAppLifecycleService();
       when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -1791,32 +1889,220 @@ void main() {
       try {
         final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
 
-        await toolNotifier.sendMessage('Add unit tests for the ping CLI');
+        await toolNotifier.sendMessage('Implement the ping CLI tool');
 
-        expect(
-          toolService.executedToolNames,
-          ['create_tests_dir', 'read_file', 'write_test_file'],
-        );
-        expect(
-          toolDataSource.toolResultBatches
-              .map((batch) => batch.map((item) => item.name).toList())
-              .toList(),
-          [
-            ['create_tests_dir'],
-            ['read_file'],
-            ['read_file'],
-            ['write_test_file'],
-          ],
-        );
+        expect(toolService.executedToolNames, List.filled(10, 'read_file'));
+        expect(toolDataSource.toolResultBatches, hasLength(10));
         expect(
           toolNotifier.state.messages.last.content,
-          contains('Recovered after duplicate follow-up loop.'),
+          contains('Recovered final answer after long loop.'),
         );
       } finally {
         toolContainer.dispose();
       }
     },
   );
+
+  test(
+    'sendMessage requests bounded recovery before fallback when tool loops exhaust',
+    () async {
+      final toolLoopResponses = <ChatCompletionResult>[
+        for (var index = 0; index < 11; index += 1)
+          ChatCompletionResult(
+            content: 'Continue repairing ping_cli.py before validation.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-${index + 2}',
+                name: 'read_file',
+                arguments: const {'path': 'ping_cli.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ChatCompletionResult(
+          content: 'One final recovery step is needed for the current task.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-13',
+              name: 'read_file',
+              arguments: const {'path': 'ping_cli.py'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'The current saved task is complete. Validation already passed.',
+          finishReason: 'stop',
+        ),
+      ];
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'read_file',
+            arguments: const {'path': 'ping_cli.py'},
+          ),
+        ],
+        toolLoopResponses: toolLoopResponses,
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_file': 'print("ping")'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Finish the current ping CLI task');
+
+        expect(toolService.executedToolNames, List.filled(12, 'read_file'));
+        expect(toolDataSource.toolResultBatches, hasLength(13));
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('The current saved task is complete.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test('sendMessage recovers from duplicate mutating follow-up loops', () async {
+    final toolDataSource = _QueuedToolLoopChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'create_tests_dir',
+          arguments: const {'path': 'tests'},
+        ),
+      ],
+      toolLoopResponses: [
+        ChatCompletionResult(
+          content: 'Inspect ping_cli.py before writing tests/test_ping.py.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-2',
+              name: 'read_file',
+              arguments: const {'path': 'ping_cli.py'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content:
+              'Create the tests directory before writing tests/test_ping.py.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-3',
+              name: 'create_tests_dir',
+              arguments: const {'path': 'tests'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'Write tests/test_ping.py now.',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-4',
+              name: 'write_test_file',
+              arguments: const {'path': 'tests/test_ping.py'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        ChatCompletionResult(
+          content: 'The unit test task is complete.',
+          finishReason: 'stop',
+        ),
+      ],
+      finalAnswerChunks: const ['Recovered after duplicate follow-up loop.'],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'create_tests_dir':
+            '{"path":"/tmp/tests","created":true,"entry_type":"directory"}',
+        'read_file': 'print("ping")',
+        'write_test_file':
+            '{"path":"/tmp/tests/test_ping.py","created":true,"bytes_written":64}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(
+          _ToolEnabledNoConfirmSettingsNotifier.new,
+        ),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Add unit tests for the ping CLI');
+
+      expect(toolService.executedToolNames, [
+        'create_tests_dir',
+        'read_file',
+        'write_test_file',
+      ]);
+      expect(
+        toolDataSource.toolResultBatches
+            .map((batch) => batch.map((item) => item.name).toList())
+            .toList(),
+        [
+          ['create_tests_dir'],
+          ['read_file'],
+          ['read_file'],
+          ['write_test_file'],
+        ],
+      );
+      expect(
+        toolNotifier.state.messages.last.content,
+        contains('Recovered after duplicate follow-up loop.'),
+      );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
 
   test(
     'sendMessage allows rerunning the same validation command after a file rewrite',
@@ -1867,7 +2153,8 @@ void main() {
       );
       final toolService = _FakeMcpToolService(
         results: const {
-          'local_execute_command': '{"exit_code":0,"stdout":"usage: ping_cli.py"}',
+          'local_execute_command':
+              '{"exit_code":0,"stdout":"usage: ping_cli.py"}',
           'write_cli':
               '{"path":"/tmp/ping_cli.py","created":false,"bytes_written":12}',
         },
@@ -1899,10 +2186,11 @@ void main() {
 
         await toolNotifier.sendMessage('Implement the ping CLI');
 
-        expect(
-          toolService.executedToolNames,
-          ['local_execute_command', 'write_cli', 'local_execute_command'],
-        );
+        expect(toolService.executedToolNames, [
+          'local_execute_command',
+          'write_cli',
+          'local_execute_command',
+        ]);
         expect(toolDataSource.toolResultBatches, hasLength(3));
         expect(
           toolDataSource.toolResultBatches
@@ -2043,6 +2331,132 @@ void main() {
         expect(
           toolNotifier.takeLatestHiddenAssistantResponse(),
           'The saved task is complete because the validation passed.',
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts terminal tool-role completion without final fallback',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {'command': 'python3 ping_cli.py google.com'},
+          ),
+        ],
+        toolRoleResponseContent:
+            'The task "Verify the CLI tool with a single ping execution" is complete. Validation passed successfully.',
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"python3 ping_cli.py google.com","exit_code":0,"stdout":"SUCCESS","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Verify the CLI tool');
+
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'The task "Verify the CLI tool with a single ping execution" is complete.',
+          ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage accepts terminal tool-role completion that references a task id',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-1',
+            name: 'local_execute_command',
+            arguments: const {'command': 'python3 test_ping.py'},
+          ),
+        ],
+        toolRoleResponseContent:
+            'The task `21871b16-b3eb-4b54-8906-35eef1e742ac` is now complete. Validation passed successfully.',
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'local_execute_command':
+              '{"command":"python3 test_ping.py","exit_code":0,"stdout":"TEST PASSED","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Verify the CLI tool');
+
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains(
+            'The task `21871b16-b3eb-4b54-8906-35eef1e742ac` is now complete.',
+          ),
         );
       } finally {
         toolContainer.dispose();
@@ -2422,7 +2836,10 @@ void main() {
       expect(streamingDataSource.requests, hasLength(2));
       final continuationPrompt = streamingDataSource.requests.last.last.content;
       expect(continuationPrompt, isNot(contains('[Result of print]')));
-      expect(continuationPrompt, isNot(contains('"code":"tool_not_available"')));
+      expect(
+        continuationPrompt,
+        isNot(contains('"code":"tool_not_available"')),
+      );
       expect(continuationPrompt, contains('[Result of write_file]'));
       expect(
         toolNotifier.state.messages.last.content,

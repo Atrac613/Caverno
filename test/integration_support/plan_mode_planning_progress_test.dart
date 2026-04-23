@@ -3,6 +3,25 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../integration_test/test_support/plan_mode_planning_progress.dart';
 
 void main() {
+  group('planningLogsContainReadyDraftState', () {
+    test('returns true when ready and persisted markers complete the pair', () {
+      final isReady = planningLogsContainReadyDraftState(const <String>[
+        '[Workflow] Workflow proposal ready',
+        '[Workflow] Task plan artifact draft persisted',
+      ]);
+
+      expect(isReady, isTrue);
+    });
+
+    test('returns false when only workflow markers are present', () {
+      final isReady = planningLogsContainReadyDraftState(const <String>[
+        '[Workflow] Workflow proposal ready',
+      ]);
+
+      expect(isReady, isFalse);
+    });
+  });
+
   group('isPlanningProposalReady', () {
     test(
       'treats persisted drafts as ready even if generation flags were stale',
@@ -11,6 +30,7 @@ void main() {
           hasWorkflowDraft: true,
           hasTaskDraft: true,
           hasPendingDecision: false,
+          approvalUiVisible: false,
           workflowError: null,
           taskError: null,
           logs: const <String>[],
@@ -25,6 +45,7 @@ void main() {
         hasWorkflowDraft: false,
         hasTaskDraft: false,
         hasPendingDecision: false,
+        approvalUiVisible: false,
         workflowError: null,
         taskError: null,
         logs: const <String>[
@@ -41,6 +62,7 @@ void main() {
         hasWorkflowDraft: false,
         hasTaskDraft: false,
         hasPendingDecision: false,
+        approvalUiVisible: false,
         workflowError: null,
         taskError: null,
         logs: const <String>[
@@ -57,6 +79,7 @@ void main() {
         hasWorkflowDraft: true,
         hasTaskDraft: true,
         hasPendingDecision: true,
+        approvalUiVisible: false,
         workflowError: null,
         taskError: null,
         logs: const <String>[],
@@ -65,27 +88,32 @@ void main() {
       expect(isReady, isFalse);
     });
 
-    test('treats ready markers as ready even if pending decision stayed stale', () {
-      final isReady = isPlanningProposalReady(
-        hasWorkflowDraft: false,
-        hasTaskDraft: false,
-        hasPendingDecision: true,
-        workflowError: null,
-        taskError: null,
-        logs: const <String>[
-          '[Workflow] Workflow proposal ready',
-          '[Workflow] Task proposal ready',
-        ],
-      );
+    test(
+      'treats ready markers as ready even if pending decision stayed stale',
+      () {
+        final isReady = isPlanningProposalReady(
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          hasPendingDecision: true,
+          approvalUiVisible: false,
+          workflowError: null,
+          taskError: null,
+          logs: const <String>[
+            '[Workflow] Workflow proposal ready',
+            '[Workflow] Task proposal ready',
+          ],
+        );
 
-      expect(isReady, isTrue);
-    });
+        expect(isReady, isTrue);
+      },
+    );
 
     test('treats ready markers as ready even when stale errors remain', () {
       final isReady = isPlanningProposalReady(
         hasWorkflowDraft: false,
         hasTaskDraft: false,
         hasPendingDecision: false,
+        approvalUiVisible: false,
         workflowError: 'truncated workflow proposal',
         taskError: 'truncated task proposal',
         logs: const <String>[
@@ -96,6 +124,37 @@ void main() {
 
       expect(isReady, isTrue);
     });
+
+    test('treats persisted task draft markers as ready', () {
+      final isReady = isPlanningProposalReady(
+        hasWorkflowDraft: false,
+        hasTaskDraft: false,
+        hasPendingDecision: false,
+        approvalUiVisible: false,
+        workflowError: null,
+        taskError: null,
+        logs: const <String>[
+          '[Workflow] Workflow plan artifact draft persisted',
+          '[Workflow] Task plan artifact draft persisted',
+        ],
+      );
+
+      expect(isReady, isTrue);
+    });
+
+    test('does not treat approval UI alone as task-draft ready', () {
+      final isReady = isPlanningProposalReady(
+        hasWorkflowDraft: false,
+        hasTaskDraft: false,
+        hasPendingDecision: false,
+        approvalUiVisible: true,
+        workflowError: null,
+        taskError: null,
+        logs: const <String>[],
+      );
+
+      expect(isReady, isFalse);
+    });
   });
 
   group('resolvePlanningSubphase', () {
@@ -104,6 +163,7 @@ void main() {
         hasPendingDecision: false,
         hasWorkflowDraft: false,
         hasTaskDraft: false,
+        approvalUiVisible: false,
         isGeneratingWorkflowProposal: true,
         isGeneratingTaskProposal: true,
         logs: const <String>[
@@ -115,20 +175,61 @@ void main() {
       expect(subphase, 'taskDraftReady');
     });
 
-    test('returns taskDraftReady when task proposal was recovered on retry', () {
-      final subphase = resolvePlanningSubphase(
-        hasPendingDecision: false,
-        hasWorkflowDraft: false,
-        hasTaskDraft: false,
-        isGeneratingWorkflowProposal: true,
-        isGeneratingTaskProposal: true,
-        logs: const <String>[
-          '[Workflow] Workflow proposal ready',
-          '[Workflow] Task proposal recovered on retry',
-        ],
-      );
+    test(
+      'returns taskDraftReady when task proposal was recovered on retry',
+      () {
+        final subphase = resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          approvalUiVisible: false,
+          isGeneratingWorkflowProposal: true,
+          isGeneratingTaskProposal: true,
+          logs: const <String>[
+            '[Workflow] Workflow proposal ready',
+            '[Workflow] Task proposal recovered on retry',
+          ],
+        );
 
-      expect(subphase, 'taskDraftReady');
-    });
+        expect(subphase, 'taskDraftReady');
+      },
+    );
+
+    test(
+      'returns taskDraftReady when logs show ready plus persisted draft',
+      () {
+        final subphase = resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          approvalUiVisible: false,
+          isGeneratingWorkflowProposal: true,
+          isGeneratingTaskProposal: true,
+          logs: const <String>[
+            '[Workflow] Workflow proposal ready',
+            '[Workflow] Task plan artifact draft persisted',
+          ],
+        );
+
+        expect(subphase, 'taskDraftReady');
+      },
+    );
+
+    test(
+      'keeps workflowDraftReady when approval UI is visible before task draft',
+      () {
+        final subphase = resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: true,
+          hasTaskDraft: false,
+          approvalUiVisible: true,
+          isGeneratingWorkflowProposal: true,
+          isGeneratingTaskProposal: true,
+          logs: const <String>[],
+        );
+
+        expect(subphase, 'workflowDraftReady');
+      },
+    );
   });
 }

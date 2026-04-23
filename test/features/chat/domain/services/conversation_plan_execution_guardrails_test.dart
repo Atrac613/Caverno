@@ -175,6 +175,42 @@ void main() {
   );
 
   test(
+    'canPromoteCompletionFromWorkspaceValidation ignores earlier unrelated writes in the same turn',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-main-multi-host',
+        title: 'Add multi-host input handling in main.py',
+        targetFiles: ['main.py'],
+        validationCommand: 'python3 main.py --help',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-readme',
+          name: 'write_file',
+          arguments: {'path': 'README.md'},
+          result: '{"path":"README.md","created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-validation',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 main.py --help'},
+          result:
+              '{"command":"python3 main.py --help","exit_code":0,"stdout":"usage: main.py [-h] hosts [hosts ...]","stderr":""}',
+        ),
+      ];
+
+      final canPromote =
+          ConversationPlanExecutionGuardrails.canPromoteCompletionFromWorkspaceValidation(
+            task: task,
+            toolResults: toolResults,
+            existingTargetPaths: const ['main.py', 'README.md'],
+          );
+
+      expect(canPromote, isTrue);
+    },
+  );
+
+  test(
     'assessTaskDrift flags repeated writes when scaffold targets remain',
     () {
       final task = loadFixtureTask(
@@ -632,9 +668,7 @@ void main() {
                 'The task "Implement `ping_cli.py` with subprocess-based ping" '
                 'is now complete.\n\n'
                 'Next Task: Add usage documentation in `README.md`',
-            futureTaskTitles: const [
-              'Add usage documentation in README.md',
-            ],
+            futureTaskTitles: const ['Add usage documentation in README.md'],
           );
 
       expect(mentionsHandoff, isTrue);
@@ -693,7 +727,9 @@ void main() {
             assistantResponse:
                 'The current task being executed (according to the context) is "Verify CLI functionality with a live host". '
                 'This means the verification task was successful.',
-            futureTaskTitles: const ['Verify CLI functionality with a live host'],
+            futureTaskTitles: const [
+              'Verify CLI functionality with a live host',
+            ],
           );
 
       expect(canPromote, isTrue);
@@ -722,8 +758,8 @@ void main() {
             task: task,
             toolResults: toolResults,
             assistantResponse: fixture['assistantResponse'] as String,
-            futureTaskTitles:
-                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+            futureTaskTitles: (fixture['futureTaskTitles'] as List<dynamic>)
+                .cast<String>(),
           );
 
       expect(canPromote, isTrue);
@@ -778,11 +814,34 @@ void main() {
             task: task,
             toolResults: toolResults,
             assistantResponse: fixture['assistantResponse'] as String,
-            futureTaskTitles:
-                (fixture['futureTaskTitles'] as List<dynamic>).cast<String>(),
+            futureTaskTitles: (fixture['futureTaskTitles'] as List<dynamic>)
+                .cast<String>(),
           );
 
       expect(canPromote, isTrue);
+    },
+  );
+
+  test(
+    'assistantMentionsTaskCompletionInAnyResponse accepts hidden fallback completions',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-readme',
+        title: 'Create README.md',
+        targetFiles: ['README.md'],
+        validationCommand: 'ls README.md',
+      );
+
+      final mentionsCompletion =
+          ConversationPlanExecutionGuardrails.assistantMentionsTaskCompletionInAnyResponse(
+            task: task,
+            assistantResponses: const [
+              '<think>I will inspect README.md before continuing.</think>',
+              'I have created `README.md`.\n\nThe task "Create README.md" is now complete.',
+            ],
+          );
+
+      expect(mentionsCompletion, isTrue);
     },
   );
 
@@ -898,12 +957,11 @@ void main() {
     );
     expect(failedCommand, 'python3 -m pytest tests/test_ping.py');
     expect(
-      ConversationPlanExecutionGuardrails
-          .suggestPythonTestDependencyFallbackCommand(
-            task: task,
-            failedCommand: failedCommand!,
-            missingDependency: 'pytest',
-          ),
+      ConversationPlanExecutionGuardrails.suggestPythonTestDependencyFallbackCommand(
+        task: task,
+        failedCommand: failedCommand!,
+        missingDependency: 'pytest',
+      ),
       'python3 tests/test_ping.py',
     );
   });

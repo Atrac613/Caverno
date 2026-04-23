@@ -473,7 +473,6 @@ class ConversationPlanExecutionGuardrails {
     if (completionAssessment.hasFailure ||
         !completionAssessment.hasTargetFiles ||
         completionAssessment.successfulValidationCommands.isEmpty ||
-        completionAssessment.unrelatedTouchedPaths.isNotEmpty ||
         completionAssessment.scaffoldCommands.isNotEmpty) {
       return false;
     }
@@ -548,6 +547,42 @@ class ConversationPlanExecutionGuardrails {
         task: task,
         assistantResponse: response,
         futureTaskTitles: futureTaskTitles,
+      )) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool assistantMentionsTaskCompletion({
+    required ConversationWorkflowTask task,
+    required String assistantResponse,
+  }) {
+    final normalizedResponse = _normalizeAssistantEvidenceText(
+      assistantResponse,
+    );
+    if (normalizedResponse.isEmpty) {
+      return false;
+    }
+
+    if (!_assistantMentionsCurrentTaskIdentity(
+      task: task,
+      normalizedResponse: normalizedResponse,
+    )) {
+      return false;
+    }
+
+    return _completionSignals.any(normalizedResponse.contains);
+  }
+
+  static bool assistantMentionsTaskCompletionInAnyResponse({
+    required ConversationWorkflowTask task,
+    required Iterable<String> assistantResponses,
+  }) {
+    for (final response in assistantResponses) {
+      if (assistantMentionsTaskCompletion(
+        task: task,
+        assistantResponse: response,
       )) {
         return true;
       }
@@ -633,13 +668,15 @@ class ConversationPlanExecutionGuardrails {
     required Iterable<String> futureTaskTitles,
   }) {
     if (progress == null ||
-        progress.validationStatus != ConversationExecutionValidationStatus.passed) {
+        progress.validationStatus !=
+            ConversationExecutionValidationStatus.passed) {
       return false;
     }
 
     final taskValidationCommand = task.validationCommand.trim().toLowerCase();
-    final historicalValidationCommand =
-        progress.lastValidationCommand.trim().toLowerCase();
+    final historicalValidationCommand = progress.lastValidationCommand
+        .trim()
+        .toLowerCase();
     if (taskValidationCommand.isNotEmpty &&
         historicalValidationCommand.isNotEmpty &&
         historicalValidationCommand != taskValidationCommand) {
@@ -993,7 +1030,9 @@ class ConversationPlanExecutionGuardrails {
   }
 
   static String? _firstPythonVerificationTarget(ConversationWorkflowTask task) {
-    final normalizedTargets = _effectiveTargetPaths(task).toList(growable: false);
+    final normalizedTargets = _effectiveTargetPaths(
+      task,
+    ).toList(growable: false);
     for (final target in normalizedTargets) {
       final normalizedTarget = target.trim().toLowerCase();
       if (!normalizedTarget.endsWith('.py')) {

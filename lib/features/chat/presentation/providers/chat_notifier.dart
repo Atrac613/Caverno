@@ -2115,6 +2115,18 @@ class ChatNotifier extends Notifier<ChatState> {
       return bestRetryCandidate;
     }
 
+    final qualityGateFallback = _buildTaskProposalQualityGateFallback(
+      currentConversation: currentConversation,
+      projectLooksEmpty: projectLooksEmpty,
+      researchContext: researchContext,
+      bestRetryCandidate: bestRetryCandidate,
+      workflowSpecOverride: workflowSpecOverride,
+    );
+    if (qualityGateFallback != null) {
+      appLog('[Workflow] Task proposal recovered from quality gate fallback');
+      return qualityGateFallback;
+    }
+
     throw FormatException(lastError ?? 'task proposal parse failed');
   }
 
@@ -2410,6 +2422,61 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     return WorkflowTaskProposalDraft(tasks: inferredTasks);
+  }
+
+  WorkflowTaskProposalDraft? _buildTaskProposalQualityGateFallback({
+    required Conversation currentConversation,
+    required bool projectLooksEmpty,
+    required _PlanningResearchContext researchContext,
+    WorkflowTaskProposalDraft? bestRetryCandidate,
+    ConversationWorkflowSpec? workflowSpecOverride,
+  }) {
+    final workflowSpec =
+        workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
+    final rawGoal = workflowSpec.goal.trim().isNotEmpty
+        ? workflowSpec.goal.trim()
+        : _deriveWorkflowFallbackGoalFromConversation(currentConversation);
+    if (rawGoal == null || rawGoal.isEmpty) {
+      return null;
+    }
+
+    final contextLines = <String>[
+      rawGoal,
+      ...workflowSpec.constraints,
+      ...workflowSpec.acceptanceCriteria,
+      ...workflowSpec.openQuestions,
+    ];
+    if (bestRetryCandidate != null) {
+      for (final task in bestRetryCandidate.tasks) {
+        contextLines.add(task.title);
+        contextLines.add(task.notes);
+        contextLines.add(task.validationCommand);
+        contextLines.addAll(task.targetFiles);
+      }
+    }
+
+    final fallbackProposal = WorkflowTaskProposalDraft(
+      tasks: _buildHeuristicTaskProposalFallbackTasks(
+        contextLines: contextLines,
+        projectLooksEmpty: projectLooksEmpty,
+      ),
+    );
+    if (fallbackProposal.tasks.isEmpty) {
+      return null;
+    }
+
+    final finalizedFallback = _finalizeTaskProposalDraft(
+      fallbackProposal,
+      researchContext: researchContext,
+    );
+    if (_taskProposalNeedsRetry(
+      fallbackProposal,
+      finalizedFallback,
+      projectLooksEmpty,
+    )) {
+      return null;
+    }
+    return finalizedFallback;
   }
 
   Map<String, dynamic>? _extractJsonMap(String rawContent) {
@@ -4159,7 +4226,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (projectLooksEmpty &&
-        _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(finalized.tasks)) {
+        _taskProposalHasThirdPartyPythonRuntimeDependencyRisk(
+          finalized.tasks,
+        )) {
       return true;
     }
 
@@ -4292,8 +4361,8 @@ class ChatNotifier extends Notifier<ChatState> {
         continue;
       }
 
-      final normalizedContext =
-          '${task.title.trim()} ${task.notes.trim()}'.toLowerCase();
+      final normalizedContext = '${task.title.trim()} ${task.notes.trim()}'
+          .toLowerCase();
       if (riskyFragments.any(normalizedContext.contains)) {
         return true;
       }
@@ -4322,7 +4391,11 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       final target = normalizedTargets.first;
-      implementationCounts.update(target, (count) => count + 1, ifAbsent: () => 1);
+      implementationCounts.update(
+        target,
+        (count) => count + 1,
+        ifAbsent: () => 1,
+      );
       if (implementationCounts[target]! >= 2) {
         return true;
       }
@@ -4399,8 +4472,12 @@ class ChatNotifier extends Notifier<ChatState> {
         overlap.length / smallerTokenCount >= 0.75;
   }
 
-  Iterable<String> _taskProposalDuplicateTargets(ConversationWorkflowTask task) {
-    final normalizedTargets = _normalizeTaskProposalTargetFiles(task.targetFiles);
+  Iterable<String> _taskProposalDuplicateTargets(
+    ConversationWorkflowTask task,
+  ) {
+    final normalizedTargets = _normalizeTaskProposalTargetFiles(
+      task.targetFiles,
+    );
     if (normalizedTargets.isNotEmpty) {
       return normalizedTargets;
     }
@@ -4695,10 +4772,9 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   bool _looksLikeUnboundedPingValidationCommand(String normalizedValidation) {
-    final launchesPythonEntryPoint =
-        RegExp(r'^(python|python3)\s+\S+\.py(?:\s|$)').hasMatch(
-          normalizedValidation,
-        );
+    final launchesPythonEntryPoint = RegExp(
+      r'^(python|python3)\s+\S+\.py(?:\s|$)',
+    ).hasMatch(normalizedValidation);
     if (!launchesPythonEntryPoint) {
       return false;
     }
@@ -4972,6 +5048,57 @@ class ChatNotifier extends Notifier<ChatState> {
       additionalPlanningContext,
       minimalRetry: minimalRetry,
       projectLooksEmpty: projectLooksEmpty,
+    );
+  }
+
+  @visibleForTesting
+  WorkflowTaskProposalDraft? buildTaskProposalQualityGateFallbackForTest({
+    required Conversation currentConversation,
+    required bool projectLooksEmpty,
+    WorkflowTaskProposalDraft? bestRetryCandidate,
+    ConversationWorkflowSpec? workflowSpecOverride,
+  }) {
+    return _buildTaskProposalQualityGateFallback(
+      currentConversation: currentConversation,
+      projectLooksEmpty: projectLooksEmpty,
+      researchContext: const _PlanningResearchContext(),
+      bestRetryCandidate: bestRetryCandidate,
+      workflowSpecOverride: workflowSpecOverride,
+    );
+  }
+
+  @visibleForTesting
+  String buildDuplicateFollowUpRecoveryPromptForTest(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
+    return _buildDuplicateFollowUpRecoveryPrompt(
+      toolCalls,
+      previousToolResults: previousToolResults,
+    );
+  }
+
+  @visibleForTesting
+  String buildToolLoopExhaustionRecoveryPromptForTest(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
+    return _buildToolLoopExhaustionRecoveryPrompt(
+      toolCalls,
+      previousToolResults: previousToolResults,
+    );
+  }
+
+  @visibleForTesting
+  List<ToolResultInfo> buildToolLoopRecoveryToolResultsForTest({
+    required List<ToolResultInfo> currentToolResults,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolCallInfo> pendingToolCalls,
+  }) {
+    return _buildToolLoopRecoveryToolResults(
+      currentToolResults: currentToolResults,
+      executedToolResults: executedToolResults,
+      pendingToolCalls: pendingToolCalls,
     );
   }
 
@@ -5498,6 +5625,35 @@ class ChatNotifier extends Notifier<ChatState> {
     return _hiddenAssistantEvidenceScore(candidate) >= 2;
   }
 
+  bool _shouldAcceptTerminalToolRoleFinalTextResponse(String response) {
+    final candidate = response.trim();
+    if (candidate.isEmpty) {
+      return false;
+    }
+
+    final normalized = candidate.toLowerCase();
+    if (_hiddenAssistantEvidenceScore(candidate) < 2) {
+      return false;
+    }
+    if (!normalized.contains('complete')) {
+      return false;
+    }
+    final mentionsTaskReference =
+        normalized.contains('task "') ||
+        normalized.contains('task `') ||
+        RegExp(r'task [0-9a-f-]{8,}').hasMatch(normalized);
+    if (!mentionsTaskReference) {
+      return false;
+    }
+    if (normalized.contains('next task') ||
+        normalized.contains('shall i proceed') ||
+        normalized.contains('i will ') ||
+        normalized.contains('i can continue')) {
+      return false;
+    }
+    return true;
+  }
+
   void _appendRecoveredAssistantResponse(String response) {
     final candidate = response.trim();
     if (candidate.isEmpty || state.messages.isEmpty) {
@@ -5979,8 +6135,10 @@ class ChatNotifier extends Notifier<ChatState> {
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
-    // Allow multi-step saved-task handoffs while still bounding runaway loops.
-    const maxIterations = 8;
+    // Allow longer implementation and validation repair loops before falling
+    // back to a final answer request. Live runs regularly need more than
+    // eight bounded tool turns to converge on a validated saved task.
+    var maxIterations = 12;
     var iteration = 0;
     var hasTextResponse = false;
     final executedToolCallKeys = <String>{};
@@ -5990,6 +6148,7 @@ class ChatNotifier extends Notifier<ChatState> {
     var skippedDuplicateOnlyBatch = false;
     var attemptedDuplicateInspectionRecovery = false;
     var attemptedDuplicateFollowUpRecovery = false;
+    var attemptedToolLoopExhaustionRecovery = false;
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
@@ -6118,8 +6277,8 @@ class ChatNotifier extends Notifier<ChatState> {
                   timestamp: DateTime.now(),
                 ),
               );
-            final recoveryResult =
-                await _dataSource.createChatCompletionWithToolResults(
+            final recoveryResult = await _dataSource
+                .createChatCompletionWithToolResults(
                   messages: recoveryMessages,
                   toolResults: lastNonEmptyBatchToolResults,
                   assistantContent: currentAssistantContent,
@@ -6176,17 +6335,17 @@ class ChatNotifier extends Notifier<ChatState> {
             final recoveryMessages = _prepareMessagesForLLM()
               ..add(
                 Message(
-                  id:
-                      'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                  id: 'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
                   role: MessageRole.user,
                   content: _buildDuplicateFollowUpRecoveryPrompt(
                     currentToolCalls,
+                    previousToolResults: lastNonEmptyBatchToolResults,
                   ),
                   timestamp: DateTime.now(),
                 ),
               );
-            final recoveryResult =
-                await _dataSource.createChatCompletionWithToolResults(
+            final recoveryResult = await _dataSource
+                .createChatCompletionWithToolResults(
                   messages: recoveryMessages,
                   toolResults: lastNonEmptyBatchToolResults,
                   assistantContent: currentAssistantContent,
@@ -6277,12 +6436,94 @@ class ChatNotifier extends Notifier<ChatState> {
         currentAssistantContent = nextResult.content.isNotEmpty
             ? nextResult.content
             : null;
+        if (iteration >= maxIterations &&
+            !attemptedToolLoopExhaustionRecovery &&
+            batchToolResults.isNotEmpty) {
+          attemptedToolLoopExhaustionRecovery = true;
+          appLog(
+            '[Tool] Tool loop exhausted with pending tool calls, requesting bounded recovery',
+          );
+          _appendToLastMessage('<think>');
+          final mcpToolService = _mcpToolService;
+          if (mcpToolService == null) {
+            _latestCompletedToolResults = List<ToolResultInfo>.unmodifiable(
+              executedToolResults,
+            );
+            await _sendWithoutTools();
+            return;
+          }
+          final tools = mcpToolService.getOpenAiToolDefinitions();
+          final recoveryToolResults = _buildToolLoopRecoveryToolResults(
+            currentToolResults: batchToolResults,
+            executedToolResults: executedToolResults,
+            pendingToolCalls: currentToolCalls,
+          );
+          final recoveryMessages = _prepareMessagesForLLM()
+            ..add(
+              Message(
+                id: 'tool_loop_exhaustion_recovery_${DateTime.now().millisecondsSinceEpoch}',
+                role: MessageRole.user,
+                content: _buildToolLoopExhaustionRecoveryPrompt(
+                  currentToolCalls,
+                  previousToolResults: recoveryToolResults,
+                ),
+                timestamp: DateTime.now(),
+              ),
+            );
+          final recoveryResult = await _dataSource
+              .createChatCompletionWithToolResults(
+                messages: recoveryMessages,
+                toolResults: recoveryToolResults,
+                assistantContent: currentAssistantContent,
+                tools: tools,
+                model: _settings.model,
+                temperature: _settings.temperature,
+                maxTokens: _settings.maxTokens,
+              );
+          if (!ref.mounted) return;
+          _removeTrailingThinkTag();
+          if (recoveryResult.hasToolCalls) {
+            appLog(
+              '[Tool] Tool loop exhaustion recovery requested additional tool calls',
+            );
+            currentToolCalls = recoveryResult.toolCalls!;
+            _recordHiddenAssistantResponse(recoveryResult.content);
+            currentAssistantContent = recoveryResult.content.isNotEmpty
+                ? recoveryResult.content
+                : currentAssistantContent;
+            maxIterations +=
+                _toolResultsContainEditMismatch(recoveryToolResults) ? 4 : 2;
+          } else {
+            appLog(
+              '[Tool] Tool loop exhaustion recovery returned final text response',
+            );
+            currentToolCalls = [];
+            final fallbackResponse = recoveryResult.content.trim();
+            _recordHiddenAssistantResponse(fallbackResponse);
+            if (_shouldAcceptRecoveryFinalTextResponse(fallbackResponse)) {
+              _appendRecoveredAssistantResponse(fallbackResponse);
+              currentAssistantContent = fallbackResponse;
+              hasTextResponse = true;
+              skippedDuplicateOnlyBatch = false;
+              break;
+            }
+          }
+        }
       } else {
         // End the loop on a text response, but delay rendering it.
         appLog('[Tool] LLM returned final text response (via tool role)');
         currentToolCalls = [];
         final fallbackResponse = nextResult.content.trim();
         _recordHiddenAssistantResponse(fallbackResponse);
+        if (_shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
+          appLog(
+            '[Tool] Accepting terminal tool-role final text response without final answer fallback',
+          );
+          _appendRecoveredAssistantResponse(fallbackResponse);
+          currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          break;
+        }
         // Responses through the tool role often claim real-time data is
         // unavailable, so resend the results later as a user message.
       }
@@ -6516,21 +6757,112 @@ class ChatNotifier extends Notifier<ChatState> {
     ].join('\n');
   }
 
-  String _buildDuplicateFollowUpRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+  String _buildDuplicateFollowUpRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
     final repeatedToolNames = toolCalls
         .map((toolCall) => toolCall.name.trim())
         .where((name) => name.isNotEmpty)
         .toSet()
         .join(', ');
+    final repeatedValidationTool = toolCalls.any(_isRepeatableCommandTool);
+    final inspectedFailingFile = previousToolResults.any(
+      (toolResult) => toolResult.name == 'read_file',
+    );
     return [
       'You already attempted the same follow-up tool call for the current saved task.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical tool calls again in this turn: $repeatedToolNames.',
       'Use the previous tool results and take the next concrete saved-task step now.',
       'If the current saved task still needs work, create or edit the saved target file.',
+      if (inspectedFailingFile && repeatedValidationTool)
+        'If you just read a failing saved target file, your next action must modify that same file before rerunning the saved validation command.',
+      if (repeatedValidationTool)
+        'Do not rerun the same validation command until a saved target file edit changes the current task.',
       'If validation already succeeded, reply with a brief completion statement instead of repeating the same tool call.',
       'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
     ].join('\n');
+  }
+
+  String _buildToolLoopExhaustionRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
+    final pendingToolNames = toolCalls
+        .map((toolCall) => toolCall.name.trim())
+        .where((name) => name.isNotEmpty)
+        .toSet()
+        .join(', ');
+    final hasEditMismatch = _toolResultsContainEditMismatch(
+      previousToolResults,
+    );
+    final hasMatchingReadContext = previousToolResults.any(
+      (toolResult) => toolResult.name == 'read_file',
+    );
+    return [
+      'You hit the bounded tool loop limit while working on the current saved task.',
+      if (pendingToolNames.isNotEmpty)
+        'Pending tool calls at the limit: $pendingToolNames.',
+      'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
+      'Use the latest tool results and finish the current saved task now.',
+      if (hasEditMismatch)
+        'A recent edit_file failed because old_text did not match the current file.',
+      if (hasEditMismatch && hasMatchingReadContext)
+        'A recent read_file result for the same path is already provided below. Use that exact file content and return only one edit_file call for the same file, or a brief blocker statement if the edit is unsafe.',
+      if (hasEditMismatch && hasMatchingReadContext)
+        'Do not call read_file again for the same path in this turn.',
+      if (hasEditMismatch && !hasMatchingReadContext)
+        'If the latest tool result reports code=edit_mismatch, read that exact file once and then retry edit_file with the exact current file content as old_text.',
+      'If one final tool call is still required, return only the single most important tool call for the current saved task.',
+      'Otherwise reply with a brief completion or blocker statement for the current saved task.',
+    ].join('\n');
+  }
+
+  List<ToolResultInfo> _buildToolLoopRecoveryToolResults({
+    required List<ToolResultInfo> currentToolResults,
+    required List<ToolResultInfo> executedToolResults,
+    required List<ToolCallInfo> pendingToolCalls,
+  }) {
+    final recoveryToolResults = <ToolResultInfo>[];
+    if (_toolResultsContainEditMismatch(currentToolResults)) {
+      final pendingPaths = pendingToolCalls
+          .map((toolCall) => _toolPathFromArguments(toolCall.arguments))
+          .whereType<String>()
+          .toSet();
+      if (pendingPaths.isNotEmpty) {
+        final seenPaths = <String>{};
+        for (final toolResult in executedToolResults.reversed) {
+          if (toolResult.name != 'read_file') {
+            continue;
+          }
+          final toolPath = _toolPathFromArguments(toolResult.arguments);
+          if (toolPath == null ||
+              !pendingPaths.contains(toolPath) ||
+              !seenPaths.add(toolPath)) {
+            continue;
+          }
+          recoveryToolResults.insert(0, toolResult);
+        }
+      }
+    }
+    recoveryToolResults.addAll(currentToolResults);
+    return _dedupeRecoveryToolResults(recoveryToolResults);
+  }
+
+  List<ToolResultInfo> _dedupeRecoveryToolResults(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final deduped = <ToolResultInfo>[];
+    final seenKeys = <String>{};
+    for (final toolResult in toolResults) {
+      final key =
+          '${toolResult.name}:${_normalizeToolExecutionValue(toolResult.arguments)}:${toolResult.result}';
+      if (seenKeys.add(key)) {
+        deduped.add(toolResult);
+      }
+    }
+    return deduped;
   }
 
   String _extractAssistantStreamDelta({
@@ -6563,6 +6895,16 @@ class ChatNotifier extends Notifier<ChatState> {
 
   String _toolCallDedupKey(String name, Object? arguments) {
     return '$name:${_normalizeToolExecutionValue(arguments)}';
+  }
+
+  String? _toolPathFromArguments(Object? arguments) {
+    if (arguments is Map) {
+      final rawPath = arguments['path'];
+      if (rawPath is String && rawPath.trim().isNotEmpty) {
+        return rawPath.trim();
+      }
+    }
+    return null;
   }
 
   void _markToolCallSeenForContentDedup(String name, Object? arguments) {
@@ -6693,6 +7035,14 @@ class ChatNotifier extends Notifier<ChatState> {
       return 'timeout';
     }
     return 'tool_execution_failed';
+  }
+
+  bool _toolResultsContainEditMismatch(List<ToolResultInfo> toolResults) {
+    return toolResults.any((toolResult) {
+      final normalized = toolResult.result.toLowerCase();
+      return normalized.contains('"code":"edit_mismatch"') ||
+          normalized.contains('old_text was not found in the target file');
+    });
   }
 
   String _buildContentToolResultTag(String toolName, String result) {

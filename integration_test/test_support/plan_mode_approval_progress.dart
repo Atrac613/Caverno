@@ -34,3 +34,38 @@ bool shouldRetryPlanApprovalTap({
     isLoading: isLoading,
   );
 }
+
+bool shouldRecoverPlanApprovalFromExecutionDocument({
+  required Conversation? conversation,
+  required bool isLoading,
+}) {
+  if (isLoading || conversation == null) {
+    return false;
+  }
+  if (conversation.projectedExecutionTasks.isNotEmpty) {
+    return false;
+  }
+  return conversation.shouldPreferPlanDocument &&
+      (conversation.effectiveExecutionDocument?.trim().isNotEmpty ?? false);
+}
+
+bool shouldHandlePlanningDecision({
+  required bool hasPendingDecision,
+  required bool confirmVisible,
+}) {
+  if (!confirmVisible) {
+    return false;
+  }
+  return hasPendingDecision;
+}
+
+bool shouldWaitForPlanApprovalToSettle({
+  required DateTime? approvalTappedAt,
+  required DateTime now,
+  Duration settleDelay = const Duration(seconds: 2),
+}) {
+  if (approvalTappedAt == null) {
+    return false;
+  }
+  return now.difference(approvalTappedAt) < settleDelay;
+}

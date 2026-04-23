@@ -1,3 +1,6 @@
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+
 bool executionLogsContainWorkflowCompleted(List<String> logs) {
   const completionMarkers = <String>[
     'all planned tasks are complete',
@@ -11,10 +14,59 @@ bool executionLogsContainWorkflowCompleted(List<String> logs) {
     'すべての予定されていたタスクが完了しました',
   ];
   return logs.any((line) {
-    final normalized = line.trim().toLowerCase();
-    return completionMarkers.any(normalized.contains);
-  }) ||
+        final normalized = line.trim().toLowerCase();
+        return completionMarkers.any(normalized.contains);
+      }) ||
       _logsShowFinalTaskCompletion(logs);
+}
+
+bool executionLogsContainLateValidationAnswerProgress(List<String> logs) {
+  var sawSuccessfulValidation = false;
+
+  for (final line in logs) {
+    final normalized = line.trim().toLowerCase();
+    if (normalized.contains('"exit_code":0')) {
+      sawSuccessfulValidation = true;
+      continue;
+    }
+    if (!sawSuccessfulValidation) {
+      continue;
+    }
+    if (normalized.contains('[tool] resending tool results as user message') ||
+        normalized.contains(
+          '[llm] ========== streamchatcompletion ==========',
+        )) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
+bool executionTasksContainOnlyCompleted(List<ConversationWorkflowTask> tasks) {
+  return tasks.isNotEmpty &&
+      tasks.every(
+        (task) => task.status == ConversationWorkflowTaskStatus.completed,
+      );
+}
+
+bool shouldRecoverExecutionFromExecutionDocument({
+  required Conversation? conversation,
+  required bool isLoading,
+  required bool hasPendingApprovals,
+  required DateTime? approvalTappedAt,
+}) {
+  if (conversation == null ||
+      isLoading ||
+      hasPendingApprovals ||
+      approvalTappedAt == null) {
+    return false;
+  }
+  if (conversation.projectedExecutionTasks.isNotEmpty) {
+    return false;
+  }
+  return conversation.shouldPreferPlanDocument &&
+      (conversation.effectiveExecutionDocument?.trim().isNotEmpty ?? false);
 }
 
 bool _logsShowFinalTaskCompletion(List<String> logs) {
@@ -34,7 +86,9 @@ bool _logsShowFinalTaskCompletion(List<String> logs) {
   var finalAnswerStreamIndex = -1;
   for (var index = lastTaskCompletionIndex + 1; index < logs.length; index++) {
     final normalized = logs[index].trim().toLowerCase();
-    if (normalized.contains('[llm] ========== streamchatcompletion ==========')) {
+    if (normalized.contains(
+      '[llm] ========== streamchatcompletion ==========',
+    )) {
       finalAnswerStreamIndex = index;
       break;
     }
@@ -44,9 +98,11 @@ bool _logsShowFinalTaskCompletion(List<String> logs) {
     return false;
   }
 
-  for (var index = lastTaskCompletionIndex + 1;
-      index < finalAnswerStreamIndex;
-      index++) {
+  for (
+    var index = lastTaskCompletionIndex + 1;
+    index < finalAnswerStreamIndex;
+    index++
+  ) {
     final normalized = logs[index].trim().toLowerCase();
     if (_isNextTaskHandoffLine(normalized)) {
       return false;
@@ -55,7 +111,9 @@ bool _logsShowFinalTaskCompletion(List<String> logs) {
 
   return logs.skip(lastTaskCompletionIndex).any((line) {
     final normalized = line.trim().toLowerCase();
-    return normalized.contains('[tool] resending tool results as user message') ||
+    return normalized.contains(
+          '[tool] resending tool results as user message',
+        ) ||
         normalized.contains('[llm] ========== streamchatcompletion ==========');
   });
 }
@@ -63,7 +121,8 @@ bool _logsShowFinalTaskCompletion(List<String> logs) {
 bool _isTerminalTaskCompletionLine(String normalized) {
   if ((normalized.contains('the task "') &&
           normalized.contains('has been completed successfully')) ||
-      (normalized.contains('the task "') && normalized.contains('" is complete')) ||
+      (normalized.contains('the task "') &&
+          normalized.contains('" is complete')) ||
       normalized.contains('the final saved task is complete') ||
       normalized.contains(
         'the saved task is complete and no pending saved tasks remain',
