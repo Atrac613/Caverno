@@ -847,6 +847,48 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     },
   );
 
+  test(
+    'marks fragmented single-file implementation plans for retry in empty workspaces',
+    () {
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          const ConversationWorkflowTask(
+            id: 'task-implement-core',
+            title: 'Create ping_cli.py with subprocess-based ping logic',
+            targetFiles: ['ping_cli.py'],
+            validationCommand: 'python3 ping_cli.py --help',
+            notes: 'Use argparse to accept a host and subprocess to run ping.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-implement-json',
+            title: 'Implement JSON output formatting in ping_cli.py',
+            targetFiles: ['ping_cli.py'],
+            validationCommand:
+                'python3 ping_cli.py 127.0.0.1 | python3 -m json.tool',
+            notes: 'Ensure the output is a valid JSON object.',
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify ping_cli.py execution with a single ping',
+            targetFiles: ['ping_cli.py'],
+            validationCommand: 'python3 ping_cli.py 127.0.0.1',
+            notes: 'Run one bounded ping against loopback.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+        isTrue,
+      );
+    },
+  );
+
   test('dedupes near-duplicate README and implementation tasks', () {
     final proposal = WorkflowTaskProposalDraft(
       tasks: [

@@ -4155,6 +4155,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
 
+    if (projectLooksEmpty &&
+        _taskProposalHasFragmentedSingleFileImplementation(finalized.tasks)) {
+      return true;
+    }
+
     if (_taskProposalHasUnboundedPingVerificationValidation(finalized.tasks)) {
       return true;
     }
@@ -4282,6 +4287,35 @@ class ChatNotifier extends Notifier<ChatState> {
       final normalizedContext =
           '${task.title.trim()} ${task.notes.trim()}'.toLowerCase();
       if (riskyFragments.any(normalizedContext.contains)) {
+        return true;
+      }
+    }
+
+    return false;
+  }
+
+  bool _taskProposalHasFragmentedSingleFileImplementation(
+    List<ConversationWorkflowTask> tasks,
+  ) {
+    final implementationCounts = <String, int>{};
+
+    for (final task in tasks) {
+      if (_looksLikeVerificationTaskProposal(task) ||
+          !_looksLikeImplementationTaskTitle(task.title)) {
+        continue;
+      }
+
+      final normalizedTargets = _taskProposalDuplicateTargets(task)
+          .map((path) => path.toLowerCase())
+          .where(_looksLikeImplementationTargetFile)
+          .toSet();
+      if (normalizedTargets.length != 1) {
+        continue;
+      }
+
+      final target = normalizedTargets.first;
+      implementationCounts.update(target, (count) => count + 1, ifAbsent: () => 1);
+      if (implementationCounts[target]! >= 2) {
         return true;
       }
     }

@@ -239,6 +239,9 @@ class ConversationPlanningPromptService {
         '- For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
       )
       ..writeln(
+        '- In an empty or nearly empty workspace, avoid splitting the same source file across multiple implementation tasks in the first pass. Prefer one implementation task per source file, then separate verification or documentation tasks.',
+      )
+      ..writeln(
         compact
             ? '- Keep notes brief and keep the whole response under 180 tokens.'
             : '- validationCommand and notes may be empty strings.',
