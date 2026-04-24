@@ -86,6 +86,33 @@ Map<String, Object> buildPlanModeSuiteWarningSummary(
   };
 }
 
+Map<String, Object> buildPlanModeSuiteTaskDriftSummary(
+  List<Map<String, Object?>> suiteResults,
+) {
+  final scenarios = <Map<String, Object?>>[];
+  for (final result in suiteResults) {
+    final taskDrift = _asObjectMap(result['taskDrift']);
+    final driftDetected =
+        taskDrift['driftDetected'] == true ||
+        result['taskDriftDetected'] == true;
+    if (!driftDetected) {
+      continue;
+    }
+
+    scenarios.add(<String, Object?>{
+      'scenario': result['scenario']?.toString() ?? 'unknown',
+      'driftReason': taskDrift['driftReason']?.toString() ?? 'unknown',
+      'fallbackSource': taskDrift['fallbackSource']?.toString() ?? 'unknown',
+      'expectedTargetFiles': _asList(taskDrift['expectedTargetFiles']),
+      'savedTaskTargetFiles': _asList(taskDrift['savedTaskTargetFiles']),
+      'actualChangedFiles': _asList(taskDrift['actualChangedFiles']),
+      'report': result['scenarioReport'],
+    });
+  }
+
+  return <String, Object>{'detected': scenarios.length, 'scenarios': scenarios};
+}
+
 Map<String, Object> buildPlanModeSuiteExecutionPathSummary(
   List<Map<String, Object?>> suiteResults,
 ) {
@@ -126,5 +153,17 @@ Map<String, Object> buildPlanModeSuiteExecutionPathSummary(
 }
 
 List<Object?> _asList(Object? value) {
-  return value is List<Object?> ? value : const <Object?>[];
+  return value is List ? value.cast<Object?>() : const <Object?>[];
+}
+
+Map<String, Object?> _asObjectMap(Object? value) {
+  if (value is Map<String, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return <String, Object?>{
+      for (final entry in value.entries) entry.key.toString(): entry.value,
+    };
+  }
+  return const <String, Object?>{};
 }

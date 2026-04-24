@@ -4143,6 +4143,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     candidate = candidate.replaceFirst(RegExp(r'^\./'), '');
+    if (!_looksLikeTaskProposalTargetPath(candidate)) {
+      return '';
+    }
     final lowerCandidate = candidate.toLowerCase();
     if (lowerCandidate == 'readme.py' ||
         lowerCandidate.endsWith('/readme.py')) {
@@ -4152,6 +4155,47 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     return candidate;
+  }
+
+  bool _looksLikeTaskProposalTargetPath(String value) {
+    final candidate = value.trim();
+    if (candidate.isEmpty || candidate.length > 180) {
+      return false;
+    }
+
+    final lowerCandidate = candidate.toLowerCase();
+    if (RegExp(r'\s').hasMatch(candidate)) {
+      return false;
+    }
+    if (lowerCandidate.startsWith('ls-') ||
+        lowerCandidate.startsWith('cat-') ||
+        lowerCandidate.startsWith('python-') ||
+        lowerCandidate.startsWith('python3-')) {
+      return false;
+    }
+
+    const knownRootFiles = <String>{
+      '.dockerignore',
+      '.gitignore',
+      'dockerfile',
+      'license',
+      'makefile',
+      'package.json',
+      'pyproject.toml',
+      'readme',
+      'readme.md',
+      'requirements.txt',
+      'pubspec.yaml',
+    };
+    if (knownRootFiles.contains(lowerCandidate)) {
+      return true;
+    }
+    if (candidate.contains('/')) {
+      return true;
+    }
+    return RegExp(
+      r'^[A-Za-z0-9_.-]+\.[A-Za-z][A-Za-z0-9_.-]{0,15}$',
+    ).hasMatch(candidate);
   }
 
   String _normalizeTaskProposalTextField(String value) {

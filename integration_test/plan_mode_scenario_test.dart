@@ -46,6 +46,7 @@ import 'test_support/plan_mode_live_harness_fallback.dart';
 import 'test_support/plan_mode_planning_progress.dart';
 import 'test_support/plan_mode_report_summary.dart';
 import 'test_support/plan_mode_suite_report.dart';
+import 'test_support/plan_mode_task_drift.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/plan_mode_approval_progress.dart';
 import 'test_support/screenshot_capture.dart';
@@ -2314,6 +2315,56 @@ List<String> _listScenarioScreenshotPaths(Directory scenarioDir) {
   return screenshots;
 }
 
+Map<String, Object?> _buildScenarioTaskDriftReport({
+  required PlanModeScenarioSpec scenario,
+  required Directory scenarioDir,
+  Iterable<String> savedTaskTargetFiles = const <String>[],
+}) {
+  return buildPlanModeTaskDriftReport(
+    expectedTargetFiles:
+        scenario.resolvedWorkflowExpectation.firstTaskTargetFilesContain,
+    savedTaskTargetFiles: savedTaskTargetFiles,
+    actualChangedFiles: _collectScenarioChangedFiles(scenarioDir),
+  ).toJson();
+}
+
+List<String> _collectScenarioChangedFiles(Directory scenarioDir) {
+  if (!scenarioDir.existsSync()) {
+    return const <String>[];
+  }
+
+  final rootPath = scenarioDir.path.endsWith(Platform.pathSeparator)
+      ? scenarioDir.path
+      : '${scenarioDir.path}${Platform.pathSeparator}';
+  final files = <String>[];
+  for (final entity in scenarioDir.listSync(
+    recursive: true,
+    followLinks: false,
+  )) {
+    if (entity is! File || !entity.path.startsWith(rootPath)) {
+      continue;
+    }
+    final relativePath = entity.path
+        .substring(rootPath.length)
+        .replaceAll(Platform.pathSeparator, '/');
+    final normalizedPath = normalizePlanModeTaskDriftPath(relativePath);
+    if (normalizedPath.isEmpty || _isScenarioHarnessArtifact(normalizedPath)) {
+      continue;
+    }
+    files.add(normalizedPath);
+  }
+  files.sort();
+  return files;
+}
+
+bool _isScenarioHarnessArtifact(String normalizedPath) {
+  return normalizedPath == 'scenario_report.json' ||
+      normalizedPath == 'scenario_log.txt' ||
+      normalizedPath == '.ds_store' ||
+      normalizedPath.endsWith('/.ds_store') ||
+      normalizedPath.endsWith('.png');
+}
+
 Future<void> _writeFailureScenarioArtifacts({
   required PlanModeScenarioSpec scenario,
   required Directory scenarioDir,
@@ -2355,6 +2406,10 @@ Future<void> _writeFailureScenarioArtifacts({
     toolResultCount: lastHeartbeat['toolResultCount'] as int?,
     fileWriteCount: lastHeartbeat['fileWriteCount'] as int?,
   );
+  final taskDrift = _buildScenarioTaskDriftReport(
+    scenario: scenario,
+    scenarioDir: scenarioDir,
+  );
 
   final report = <String, Object?>{
     'scenario': scenario.name,
@@ -2372,6 +2427,8 @@ Future<void> _writeFailureScenarioArtifacts({
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
     'warningSummary': warningSummary.toJson(),
+    'taskDrift': taskDrift,
+    'taskDriftDetected': taskDrift['driftDetected'],
     'phaseTimings': phaseTrace.toJson(),
     'budgets': budgets.toJson(),
     'lastHeartbeat': lastHeartbeat,
@@ -2826,6 +2883,13 @@ Future<_ScenarioRunResult> _runScenario({
   for (final openQuestion in workflowExpectation.openQuestionsContain) {
     expect(savedWorkflow.openQuestions, contains(openQuestion));
   }
+  final taskDrift = _buildScenarioTaskDriftReport(
+    scenario: scenario,
+    scenarioDir: scenarioDir,
+    savedTaskTargetFiles: savedWorkflow.tasks.isEmpty
+        ? const <String>[]
+        : savedWorkflow.tasks.first.targetFiles,
+  );
 
   if (config.usesLiveLlm) {
     appLog(
@@ -2871,6 +2935,8 @@ Future<_ScenarioRunResult> _runScenario({
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
     'warningSummary': warningSummary.toJson(),
+    'taskDrift': taskDrift,
+    'taskDriftDetected': taskDrift['driftDetected'],
     'postScenarioSettled': postScenarioSettle.settled,
     'postScenarioInitiallySettled': postScenarioSettle.initiallySettled,
     'postScenarioCancellationUsed': postScenarioSettle.cancellationUsed,
@@ -3310,6 +3376,7 @@ void main() {
           Map<String, dynamic> archivedReport = const <String, dynamic>{};
           Map<String, dynamic> archivedDiagnostics = const <String, dynamic>{};
           Map<String, dynamic> archivedHeartbeat = const <String, dynamic>{};
+          Map<String, dynamic> archivedTaskDrift = const <String, dynamic>{};
           bool? archivedPostScenarioSettled;
           bool? archivedPostScenarioCancellationUsed;
           String archivedApprovalPath = planModeApprovalPathUnknown;
@@ -3323,6 +3390,9 @@ void main() {
                 const <String, dynamic>{};
             archivedHeartbeat =
                 archivedReport['lastHeartbeat'] as Map<String, dynamic>? ??
+                const <String, dynamic>{};
+            archivedTaskDrift =
+                archivedReport['taskDrift'] as Map<String, dynamic>? ??
                 const <String, dynamic>{};
             archivedWarnings =
                 archivedReport['warnings'] as List<dynamic>? ??
@@ -3382,6 +3452,9 @@ void main() {
             'fallbackPath': archivedFallbackPath,
             'usedHarnessApprovalFallback':
                 archivedApprovalPath == planModeApprovalPathLiveHarnessFallback,
+            'taskDrift': archivedTaskDrift,
+            'taskDriftDetected':
+                archivedTaskDrift['driftDetected'] as bool? ?? false,
             'warnings': archivedWarnings,
             'allowedWarnings': archivedAllowedWarnings,
             'unexpectedWarnings': archivedUnexpectedWarnings,

@@ -32,6 +32,14 @@ void main() {
         'warnings': const <String>['allowed warning'],
         'allowedWarnings': const <String>['allowed warning'],
         'unexpectedWarnings': const <String>[],
+        'taskDrift': const <String, Object?>{
+          'driftDetected': true,
+          'driftReason': 'unexpectedChangedFiles',
+          'fallbackSource': 'actualChangedFiles',
+          'expectedTargetFiles': <String>['README.md'],
+          'savedTaskTargetFiles': <String>['README.md'],
+          'actualChangedFiles': <String>['README.md', 'requirements.txt'],
+        },
         'screenshots': const <String>[],
         'scenarioReport': '/tmp/caverno reports/live/report.json',
         'scenarioLog': '/tmp/caverno reports/live/scenario_log.txt',
@@ -70,6 +78,7 @@ void main() {
         report['executionPathSummary'],
         containsPair('liveHarnessApprovalFallback', 1),
       );
+      expect(report['taskDriftSummary'], containsPair('detected', 1));
     });
 
     test('builds readable Markdown with compact artifact links', () {
@@ -93,6 +102,9 @@ void main() {
         contains('[log](</tmp/caverno reports/live/scenario_log.txt>)'),
       );
       expect(markdown, contains('broken\\|scenario'));
+      expect(markdown, contains('- Task drift: 1 detected'));
+      expect(markdown, contains('## Task Drift'));
+      expect(markdown, contains('requirements.txt'));
       expect(markdown, contains('## Unexpected Warnings'));
       expect(markdown, contains('## Live Harness Fallback Paths'));
     });
@@ -108,6 +120,8 @@ void main() {
       expect(junit, contains('unexpectedWarnings=1'));
       expect(junit, contains('unexpectedWarning=unexpected warning'));
       expect(junit, contains('approvalPath=liveHarnessApprovalFallback'));
+      expect(junit, contains('taskDriftDetected=true'));
+      expect(junit, contains('taskDriftReason=unexpectedChangedFiles'));
     });
   });
 }

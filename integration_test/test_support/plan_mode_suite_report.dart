@@ -44,6 +44,7 @@ Map<String, Object?> buildPlanModeSuiteJsonReport({
     'failedCount': outcomeSummary['failed'],
     'outcomeSummary': outcomeSummary,
     'warningSummary': buildPlanModeSuiteWarningSummary(suiteResults),
+    'taskDriftSummary': buildPlanModeSuiteTaskDriftSummary(suiteResults),
     'executionPathSummary': buildPlanModeSuiteExecutionPathSummary(
       suiteResults,
     ),
@@ -88,6 +89,12 @@ String buildPlanModeSuiteJUnitReport({
     final logPath = result['scenarioLog'] as String?;
     final failureClass = (result['failureClass'] as String?) ?? 'passed';
     final budgetPhase = (result['budgetPhase'] as String?) ?? '-';
+    final taskDrift = _asObjectMap(result['taskDrift']);
+    final taskDriftDetected =
+        taskDrift['driftDetected'] == true ||
+        result['taskDriftDetected'] == true;
+    final taskDriftReason = (taskDrift['driftReason'] as String?) ?? 'none';
+    final taskDriftSource = (taskDrift['fallbackSource'] as String?) ?? 'none';
     final approvalPath =
         (result['approvalPath'] as String?) ?? planModeApprovalPathUnknown;
     final fallbackPath =
@@ -120,6 +127,9 @@ String buildPlanModeSuiteJUnitReport({
         'postScenarioSettled=$postScenarioSettled',
       if (postScenarioCancellationUsed != null)
         'postScenarioCancellationUsed=$postScenarioCancellationUsed',
+      'taskDriftDetected=$taskDriftDetected',
+      'taskDriftReason=$taskDriftReason',
+      'taskDriftSource=$taskDriftSource',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       'unexpectedWarnings=${unexpectedWarnings.length}',
@@ -147,6 +157,7 @@ String buildPlanModeSuiteMarkdownReport({
 }) {
   final outcomeSummary = buildPlanModeSuiteOutcomeSummary(suiteResults);
   final warningSummary = buildPlanModeSuiteWarningSummary(suiteResults);
+  final taskDriftSummary = buildPlanModeSuiteTaskDriftSummary(suiteResults);
   final executionPathSummary = buildPlanModeSuiteExecutionPathSummary(
     suiteResults,
   );
@@ -187,6 +198,7 @@ String buildPlanModeSuiteMarkdownReport({
       '${warningSummary['allowedWarnings']} allowed, '
       '${warningSummary['unexpectedWarnings']} unexpected',
     )
+    ..writeln('- Task drift: ${taskDriftSummary['detected']} detected')
     ..writeln(
       '- Approval paths: ${executionPathSummary['uiApproval']} UI, '
       '${executionPathSummary['liveHarnessApprovalFallback']} live harness fallback, '
@@ -244,6 +256,27 @@ String buildPlanModeSuiteMarkdownReport({
       ..writeln();
     for (final entry in failureClassCounts.entries) {
       buffer.writeln('- ${entry.key}: ${entry.value}');
+    }
+  }
+
+  final taskDriftScenarios = _asList(taskDriftSummary['scenarios']);
+  if (taskDriftScenarios.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Task Drift')
+      ..writeln();
+    for (final item in taskDriftScenarios) {
+      if (item is! Map<String, Object?>) {
+        continue;
+      }
+      buffer.writeln(
+        '- ${item['scenario']}: ${item['driftReason']} '
+        '(${item['fallbackSource']}) '
+        'expected=${_formatInlineList(item['expectedTargetFiles'])}; '
+        'saved=${_formatInlineList(item['savedTaskTargetFiles'])}; '
+        'actual=${_formatInlineList(item['actualChangedFiles'])} '
+        '${_markdownArtifactLink(item['report'], 'report')}',
+      );
     }
   }
 
@@ -343,5 +376,25 @@ String _xmlEscape(String value) {
 }
 
 List<Object?> _asList(Object? value) {
-  return value is List<Object?> ? value : const <Object?>[];
+  return value is List ? value.cast<Object?>() : const <Object?>[];
+}
+
+Map<String, Object?> _asObjectMap(Object? value) {
+  if (value is Map<String, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return <String, Object?>{
+      for (final entry in value.entries) entry.key.toString(): entry.value,
+    };
+  }
+  return const <String, Object?>{};
+}
+
+String _formatInlineList(Object? value) {
+  final items = _asList(value).map((item) => item.toString()).toList();
+  if (items.isEmpty) {
+    return '-';
+  }
+  return items.join(',');
 }

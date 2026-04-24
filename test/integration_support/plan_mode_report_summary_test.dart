@@ -74,6 +74,38 @@ void main() {
       expect(fallbackScenarios.single, containsPair('scenario', 'harness'));
     });
 
+    test('summarizes task drift scenarios', () {
+      final results = <Map<String, Object?>>[
+        <String, Object?>{
+          'scenario': 'readme_canary',
+          'scenarioReport': '/tmp/readme/report.json',
+          'taskDrift': const <String, Object?>{
+            'driftDetected': true,
+            'driftReason': 'unexpectedChangedFiles',
+            'fallbackSource': 'actualChangedFiles',
+            'expectedTargetFiles': <String>['README.md'],
+            'savedTaskTargetFiles': <String>['README.md'],
+            'actualChangedFiles': <String>['README.md', 'requirements.txt'],
+          },
+        },
+        <String, Object?>{
+          'scenario': 'green',
+          'taskDrift': const <String, Object?>{'driftDetected': false},
+        },
+      ];
+
+      final summary = buildPlanModeSuiteTaskDriftSummary(results);
+
+      expect(summary['detected'], 1);
+      final scenarios = summary['scenarios'] as List<Object?>;
+      expect(scenarios, hasLength(1));
+      expect(scenarios.single, containsPair('scenario', 'readme_canary'));
+      expect(
+        scenarios.single,
+        containsPair('actualChangedFiles', ['README.md', 'requirements.txt']),
+      );
+    });
+
     test('resolves approval path from live harness logs', () {
       expect(
         resolvePlanModeApprovalPathFromLogs(const <String>[
