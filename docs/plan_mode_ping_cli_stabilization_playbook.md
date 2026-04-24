@@ -5,7 +5,7 @@ repair workflow that led to a stable `live_ping_cli_completion` canary run.
 
 ## Current Status
 
-- Branch: `feature/main-py-execution-recovery`
+- Latest stabilization commit: `b811f0c`
 - Latest validated result: `3/3` short live canary pass
 - Primary runner:
   `tool/run_plan_mode_ping_cli_live_canary.sh "I want to build a Python CLI script that can ping a specific host"`
@@ -27,6 +27,41 @@ Most flaky failures came from one of these:
 
 When choosing between transient stream text and persisted workflow/task state,
 prefer the persisted state and then recover forward.
+
+## Terminology
+
+### Canary
+
+A canary is a small, early warning run before trusting a broader change. In
+this project, the ping CLI canary runs the real macOS integration scenario with
+a live OpenAI-compatible LLM endpoint, real tool calling, and a temporary local
+project. It is intentionally smaller than exhaustive testing, but closer to
+real behavior than unit tests.
+
+Use it to answer:
+
+- Does the full workflow still complete with live model variability?
+- Did the latest patch remove the target failure class?
+- Did the fix introduce a new dominant failure class?
+
+### Harness
+
+The harness is the test machinery that drives the live scenario. It launches
+the app, submits the prompt, handles proposal approval, watches workflow
+heartbeats, records logs and screenshots, and classifies failures.
+
+If the app did the right thing but the harness did not observe it, fix or
+improve harness recovery. If the harness accurately observed an app failure,
+fix the app logic or prompt/guardrail layer.
+
+### 1x, 3x, and Full Pass
+
+- `1x` is the discovery loop. Use it after a small patch to see whether the
+  target failure branch moved.
+- `3x` is the short stability gate. Use it after the `1x` branch is green.
+- A full pass should include focused unit tests, static analysis, and a clean
+  `3x` live canary. Increase the repeat count only when the remaining risk is
+  model variability rather than a deterministic bug.
 
 ## Hotspots
 
