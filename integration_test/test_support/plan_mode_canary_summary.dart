@@ -109,6 +109,25 @@ class PlanModeCanarySummary {
       }
     }
 
+    if (failedCount > 0) {
+      buffer
+        ..writeln()
+        ..writeln('## Investigation Order')
+        ..writeln()
+        ..writeln(
+          '1. Start with failed rows in the table and note the failure class.',
+        )
+        ..writeln(
+          '2. Open the report artifact first for structured diagnostics, heartbeat state, and phase timings.',
+        )
+        ..writeln(
+          '3. Open the log artifact next for chronological model, tool, and harness events.',
+        )
+        ..writeln(
+          '4. Patch the smallest layer that explains the failure class before rerunning the canary.',
+        );
+    }
+
     return buffer.toString();
   }
 }

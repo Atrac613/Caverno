@@ -39,6 +39,7 @@ void main() {
     expect(summary.failureClassCounts['streamDisconnect'], 1);
     expect(summary.toMarkdown(), contains('Pass rate: 50.0%'));
     expect(summary.toMarkdown(), contains('Budget Phase'));
+    expect(summary.toMarkdown(), contains('Investigation Order'));
     expect(summary.runs.last.budgetPhase, 'execution');
   });
 
@@ -62,6 +63,8 @@ void main() {
     final markdown = summary.toMarkdown();
 
     expect(markdown, contains('Artifacts'));
+    expect(markdown, contains('Open the report artifact first'));
+    expect(markdown, contains('Open the log artifact next'));
     expect(
       markdown,
       contains('report: `/tmp/canary/run_01_suite_report.json`'),
