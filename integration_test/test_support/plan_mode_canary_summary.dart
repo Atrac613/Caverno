@@ -121,7 +121,7 @@ class PlanModeCanarySummary {
           '2. Open the report artifact first for structured diagnostics, heartbeat state, and phase timings.',
         )
         ..writeln(
-          '3. Open the log artifact next for chronological model, tool, and harness events.',
+          '3. Open the log artifact next for chronological model, tool, app, and harness events.',
         )
         ..writeln(
           '4. Patch the smallest layer that explains the failure class before rerunning the canary.',

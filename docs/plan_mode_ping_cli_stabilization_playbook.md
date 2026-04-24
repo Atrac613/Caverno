@@ -189,15 +189,24 @@ The most useful artifacts are written under:
 Read these first:
 
 - `canary_summary.md`
+  Start here. The summary table includes each run status, failure class,
+  active task, and direct `report` / `log` artifact paths. Failed summaries
+  also include an `Investigation Order` section.
 - `run_0X_suite_report.json`
-- `run_0X_heartbeat.json`
+  Open this next for structured diagnostics, heartbeat state, phase timings,
+  and failure metadata.
 - `run_0X_run.log`
+  Use this after the report for chronological model, tool, app, and harness
+  events.
+- `run_0X_heartbeat.json`
+  Use this when the report and log disagree about progress, or when the stall
+  detector looks stale.
 
 ## Recommended Debug Loop
 
 1. Run a fresh `1x` canary.
-2. Identify the dominant failure class from `canary_summary.md`.
-3. Read the matching `run_0X_suite_report.json` and `run_0X_run.log`.
+2. Open `canary_summary.md` and start from the failed row's failure class.
+3. Follow the summary's artifact paths: report first, log second.
 4. Build or update a replay fixture for that exact branch.
 5. Add a focused test before changing production logic.
 6. Patch the smallest layer that can prevent the failure:

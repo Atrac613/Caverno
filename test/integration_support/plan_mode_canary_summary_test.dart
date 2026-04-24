@@ -64,7 +64,12 @@ void main() {
 
     expect(markdown, contains('Artifacts'));
     expect(markdown, contains('Open the report artifact first'));
-    expect(markdown, contains('Open the log artifact next'));
+    expect(
+      markdown,
+      contains(
+        'Open the log artifact next for chronological model, tool, app, and harness events.',
+      ),
+    );
     expect(
       markdown,
       contains('report: `/tmp/canary/run_01_suite_report.json`'),
