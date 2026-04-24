@@ -89,13 +89,13 @@ class PlanModeCanarySummary {
       ..writeln('- Pass rate: ${(passRate * 100).toStringAsFixed(1)}%')
       ..writeln()
       ..writeln(
-        '| Run | Status | Failure Class | Budget Phase | Last Known Phase | Active Task | Duration (ms) | Error |',
+        '| Run | Status | Failure Class | Budget Phase | Last Known Phase | Active Task | Duration (ms) | Error | Artifacts |',
       )
-      ..writeln('| --- | --- | --- | --- | --- | --- | ---: | --- |');
+      ..writeln('| --- | --- | --- | --- | --- | --- | ---: | --- | --- |');
 
     for (final run in runs) {
       buffer.writeln(
-        '| ${run.name} | ${run.status} | ${run.failureClass} | ${run.budgetPhase ?? '-'} | ${run.lastKnownPhase ?? '-'} | ${run.activeTaskTitle ?? '-'} | ${run.durationMs} | ${run.error ?? '-'} |',
+        '| ${_markdownCell(run.name)} | ${_markdownCell(run.status)} | ${_markdownCell(run.failureClass)} | ${_markdownCell(run.budgetPhase)} | ${_markdownCell(run.lastKnownPhase)} | ${_markdownCell(run.activeTaskTitle)} | ${run.durationMs} | ${_markdownCell(run.error)} | ${_markdownArtifactCell(run)} |',
       );
     }
 
@@ -111,6 +111,34 @@ class PlanModeCanarySummary {
 
     return buffer.toString();
   }
+}
+
+String _markdownArtifactCell(PlanModeCanaryRunSummary run) {
+  final artifacts = <String>[];
+  final reportPath = run.reportPath?.trim();
+  if (reportPath != null && reportPath.isNotEmpty) {
+    artifacts.add('report: `${_escapeMarkdownCode(reportPath)}`');
+  }
+  final logPath = run.logPath?.trim();
+  if (logPath != null && logPath.isNotEmpty) {
+    artifacts.add('log: `${_escapeMarkdownCode(logPath)}`');
+  }
+  if (artifacts.isEmpty) {
+    return '-';
+  }
+  return artifacts.join('<br>');
+}
+
+String _markdownCell(Object? value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) {
+    return '-';
+  }
+  return text.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+String _escapeMarkdownCode(String value) {
+  return value.replaceAll('`', r'\`');
 }
 
 PlanModeCanarySummary buildPlanModeCanarySummary(
@@ -217,9 +245,10 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
 
 String _resolveLogAwareFailureClass(
   String failureClass,
-  List<String> logLines,
-  {required String? lastKnownPhase, required String? activeTaskTitle}
-) {
+  List<String> logLines, {
+  required String? lastKnownPhase,
+  required String? activeTaskTitle,
+}) {
   if (failureClass != 'overallTimeout') {
     return failureClass;
   }

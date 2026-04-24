@@ -42,6 +42,38 @@ void main() {
     expect(summary.runs.last.budgetPhase, 'execution');
   });
 
+  test('includes report and log artifact paths in markdown output', () {
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'failed',
+            'failureClass': 'executionStall',
+            'durationMs': 45000,
+            'scenarioReport': '/tmp/canary/run_01_suite_report.json',
+            'scenarioLog': '/tmp/canary/run_01_run.log',
+            'error': 'Workflow execution stalled after 45s.',
+          },
+        ],
+      },
+    ]);
+
+    final markdown = summary.toMarkdown();
+
+    expect(markdown, contains('Artifacts'));
+    expect(
+      markdown,
+      contains('report: `/tmp/canary/run_01_suite_report.json`'),
+    );
+    expect(markdown, contains('log: `/tmp/canary/run_01_run.log`'));
+    expect(
+      summary.runs.single.reportPath,
+      '/tmp/canary/run_01_suite_report.json',
+    );
+    expect(summary.runs.single.logPath, '/tmp/canary/run_01_run.log');
+  });
+
   test('reads last heartbeat details from timeout reports', () {
     final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
       <String, dynamic>{
