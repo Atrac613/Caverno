@@ -45,6 +45,9 @@ Map<String, Object?> buildPlanModeSuiteJsonReport({
     'outcomeSummary': outcomeSummary,
     'warningSummary': buildPlanModeSuiteWarningSummary(suiteResults),
     'taskDriftSummary': buildPlanModeSuiteTaskDriftSummary(suiteResults),
+    'toolLoopConvergenceSummary': buildPlanModeSuiteToolLoopConvergenceSummary(
+      suiteResults,
+    ),
     'executionPathSummary': buildPlanModeSuiteExecutionPathSummary(
       suiteResults,
     ),
@@ -95,6 +98,11 @@ String buildPlanModeSuiteJUnitReport({
         result['taskDriftDetected'] == true;
     final taskDriftReason = (taskDrift['driftReason'] as String?) ?? 'none';
     final taskDriftSource = (taskDrift['fallbackSource'] as String?) ?? 'none';
+    final toolLoopConvergence = _asObjectMap(result['toolLoopConvergence']);
+    final toolLoopConvergenceDetected = toolLoopConvergence['detected'] == true;
+    final toolLoopGuardActivations = _asInt(
+      toolLoopConvergence['guardActivations'],
+    );
     final approvalPath =
         (result['approvalPath'] as String?) ?? planModeApprovalPathUnknown;
     final fallbackPath =
@@ -130,6 +138,8 @@ String buildPlanModeSuiteJUnitReport({
       'taskDriftDetected=$taskDriftDetected',
       'taskDriftReason=$taskDriftReason',
       'taskDriftSource=$taskDriftSource',
+      'toolLoopConvergenceDetected=$toolLoopConvergenceDetected',
+      'toolLoopConvergenceGuardActivations=$toolLoopGuardActivations',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       'unexpectedWarnings=${unexpectedWarnings.length}',
@@ -158,6 +168,8 @@ String buildPlanModeSuiteMarkdownReport({
   final outcomeSummary = buildPlanModeSuiteOutcomeSummary(suiteResults);
   final warningSummary = buildPlanModeSuiteWarningSummary(suiteResults);
   final taskDriftSummary = buildPlanModeSuiteTaskDriftSummary(suiteResults);
+  final toolLoopConvergenceSummary =
+      buildPlanModeSuiteToolLoopConvergenceSummary(suiteResults);
   final executionPathSummary = buildPlanModeSuiteExecutionPathSummary(
     suiteResults,
   );
@@ -199,6 +211,11 @@ String buildPlanModeSuiteMarkdownReport({
       '${warningSummary['unexpectedWarnings']} unexpected',
     )
     ..writeln('- Task drift: ${taskDriftSummary['detected']} detected')
+    ..writeln(
+      '- Tool-loop convergence guard: '
+      '${toolLoopConvergenceSummary['guardActivations']} activation(s) '
+      'across ${toolLoopConvergenceSummary['detected']} scenario(s)',
+    )
     ..writeln(
       '- Approval paths: ${executionPathSummary['uiApproval']} UI, '
       '${executionPathSummary['liveHarnessApprovalFallback']} live harness fallback, '
@@ -276,6 +293,25 @@ String buildPlanModeSuiteMarkdownReport({
         'saved=${_formatInlineList(item['savedTaskTargetFiles'])}; '
         'actual=${_formatInlineList(item['actualChangedFiles'])} '
         '${_markdownArtifactLink(item['report'], 'report')}',
+      );
+    }
+  }
+
+  final convergenceScenarios = _asList(toolLoopConvergenceSummary['scenarios']);
+  if (convergenceScenarios.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Tool-Loop Convergence')
+      ..writeln();
+    for (final item in convergenceScenarios) {
+      if (item is! Map<String, Object?>) {
+        continue;
+      }
+      buffer.writeln(
+        '- ${item['scenario']}: '
+        '${item['guardActivations']} saved-validation guard activation(s) '
+        '${_markdownArtifactLink(item['report'], 'report')} '
+        '${_markdownArtifactLink(item['log'], 'log')}',
       );
     }
   }
@@ -389,6 +425,16 @@ Map<String, Object?> _asObjectMap(Object? value) {
     };
   }
   return const <String, Object?>{};
+}
+
+int _asInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return 0;
 }
 
 String _formatInlineList(Object? value) {

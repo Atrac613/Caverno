@@ -106,6 +106,38 @@ void main() {
       );
     });
 
+    test('summarizes tool loop convergence guard activations', () {
+      final results = <Map<String, Object?>>[
+        <String, Object?>{
+          'scenario': 'readme_canary',
+          'scenarioReport': '/tmp/readme/report.json',
+          'scenarioLog': '/tmp/readme/log.txt',
+          'toolLoopConvergence': const <String, Object?>{
+            'detected': true,
+            'guardActivations': 2,
+            'guardPattern':
+                '[Tool] Ignoring follow-up tool calls after saved validation success',
+          },
+        },
+        <String, Object?>{
+          'scenario': 'green',
+          'toolLoopConvergence': const <String, Object?>{
+            'detected': false,
+            'guardActivations': 0,
+          },
+        },
+      ];
+
+      final summary = buildPlanModeSuiteToolLoopConvergenceSummary(results);
+
+      expect(summary['detected'], 1);
+      expect(summary['guardActivations'], 2);
+      final scenarios = summary['scenarios'] as List<Object?>;
+      expect(scenarios, hasLength(1));
+      expect(scenarios.single, containsPair('scenario', 'readme_canary'));
+      expect(scenarios.single, containsPair('guardActivations', 2));
+    });
+
     test('resolves approval path from live harness logs', () {
       expect(
         resolvePlanModeApprovalPathFromLogs(const <String>[

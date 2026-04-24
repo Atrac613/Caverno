@@ -40,6 +40,12 @@ void main() {
           'savedTaskTargetFiles': <String>['README.md'],
           'actualChangedFiles': <String>['README.md', 'requirements.txt'],
         },
+        'toolLoopConvergence': const <String, Object?>{
+          'detected': true,
+          'guardActivations': 1,
+          'guardPattern':
+              '[Tool] Ignoring follow-up tool calls after saved validation success',
+        },
         'screenshots': const <String>[],
         'scenarioReport': '/tmp/caverno reports/live/report.json',
         'scenarioLog': '/tmp/caverno reports/live/scenario_log.txt',
@@ -75,6 +81,10 @@ void main() {
       expect(report['failedCount'], 1);
       expect(report['warningSummary'], containsPair('unexpectedWarnings', 1));
       expect(
+        report['toolLoopConvergenceSummary'],
+        containsPair('guardActivations', 1),
+      );
+      expect(
         report['executionPathSummary'],
         containsPair('liveHarnessApprovalFallback', 1),
       );
@@ -103,7 +113,14 @@ void main() {
       );
       expect(markdown, contains('broken\\|scenario'));
       expect(markdown, contains('- Task drift: 1 detected'));
+      expect(
+        markdown,
+        contains(
+          '- Tool-loop convergence guard: 1 activation(s) across 1 scenario(s)',
+        ),
+      );
       expect(markdown, contains('## Task Drift'));
+      expect(markdown, contains('## Tool-Loop Convergence'));
       expect(markdown, contains('requirements.txt'));
       expect(markdown, contains('## Unexpected Warnings'));
       expect(markdown, contains('## Live Harness Fallback Paths'));
@@ -122,6 +139,8 @@ void main() {
       expect(junit, contains('approvalPath=liveHarnessApprovalFallback'));
       expect(junit, contains('taskDriftDetected=true'));
       expect(junit, contains('taskDriftReason=unexpectedChangedFiles'));
+      expect(junit, contains('toolLoopConvergenceDetected=true'));
+      expect(junit, contains('toolLoopConvergenceGuardActivations=1'));
     });
   });
 }

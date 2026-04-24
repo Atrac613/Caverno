@@ -10,6 +10,8 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 
+import 'plan_mode_tool_loop_convergence.dart';
+
 class PlanModeScenarioTaskSpec {
   const PlanModeScenarioTaskSpec({
     required this.title,
@@ -1572,7 +1574,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           'and that task must create or update README.md. Do not add a '
           'separate verification-only task.',
       projectName: 'tmp-live-readme-canary',
-      tags: const <String>['live', 'canary', 'artifact'],
+      tags: const <String>['live', 'canary', 'artifact', 'convergence'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
         PlanModeWorkflowRawResponseSpec(content: '{}'),
       ],
@@ -1604,6 +1606,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationConvergenceGuardPattern,
           minCount: 1,
         ),
       ],

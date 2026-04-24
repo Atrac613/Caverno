@@ -4,6 +4,7 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/domain/entities/message.dart';
 
 import '../../integration_test/test_support/plan_mode_scenario_spec.dart';
+import '../../integration_test/test_support/plan_mode_tool_loop_convergence.dart';
 
 void main() {
   test('log expectation lower bounds require min and exact counts', () {
@@ -47,6 +48,7 @@ void main() {
     );
 
     expect(scenario.tags, contains('canary'));
+    expect(scenario.tags, contains('convergence'));
     expect(scenario.tags, isNot(contains('smoke')));
     expect(scenario.savedWorkflowExpectation, isNotNull);
     expect(scenario.savedWorkflowExpectation!.minTaskCount, 1);
@@ -54,6 +56,22 @@ void main() {
       scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
       contains('README.md'),
     );
+    expect(
+      scenario.logExpectations.map((item) => item.pattern),
+      contains(planModeSavedValidationConvergenceGuardPattern),
+    );
+  });
+
+  test('counts saved validation convergence guard activations', () {
+    final report = buildPlanModeToolLoopConvergenceReport(const <String>[
+      '[Tool] Sending in tool-aware mode (MCP)',
+      planModeSavedValidationConvergenceGuardPattern,
+      '[Tool] Ignoring unrelated duplicate write',
+      planModeSavedValidationConvergenceGuardPattern,
+    ]);
+
+    expect(report, containsPair('detected', true));
+    expect(report, containsPair('guardActivations', 2));
   });
 
   test(

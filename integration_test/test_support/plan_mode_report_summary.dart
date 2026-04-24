@@ -113,6 +113,36 @@ Map<String, Object> buildPlanModeSuiteTaskDriftSummary(
   return <String, Object>{'detected': scenarios.length, 'scenarios': scenarios};
 }
 
+Map<String, Object> buildPlanModeSuiteToolLoopConvergenceSummary(
+  List<Map<String, Object?>> suiteResults,
+) {
+  var guardActivations = 0;
+  final scenarios = <Map<String, Object?>>[];
+
+  for (final result in suiteResults) {
+    final convergence = _asObjectMap(result['toolLoopConvergence']);
+    final activationCount = _asInt(convergence['guardActivations']);
+    if (activationCount <= 0 && convergence['detected'] != true) {
+      continue;
+    }
+
+    guardActivations += activationCount;
+    scenarios.add(<String, Object?>{
+      'scenario': result['scenario']?.toString() ?? 'unknown',
+      'guardActivations': activationCount,
+      'guardPattern': convergence['guardPattern']?.toString(),
+      'report': result['scenarioReport'],
+      'log': result['scenarioLog'],
+    });
+  }
+
+  return <String, Object>{
+    'detected': scenarios.length,
+    'guardActivations': guardActivations,
+    'scenarios': scenarios,
+  };
+}
+
 Map<String, Object> buildPlanModeSuiteExecutionPathSummary(
   List<Map<String, Object?>> suiteResults,
 ) {
@@ -166,4 +196,14 @@ Map<String, Object?> _asObjectMap(Object? value) {
     };
   }
   return const <String, Object?>{};
+}
+
+int _asInt(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return 0;
 }

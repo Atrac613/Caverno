@@ -2586,6 +2586,135 @@ void main() {
   );
 
   test(
+    'sendMessage accepts successful saved validation wrapper commands',
+    () async {
+      final conversation = Conversation(
+        id: 'conversation-tool-loop-wrapper',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 4, 24, 12),
+        updatedAt: DateTime(2026, 4, 24, 12, 5),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-readme',
+              title: 'Create README.md with project description',
+              targetFiles: ['README.md'],
+              validationCommand: 'ls README.md',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final wrappedValidationCommand =
+          'ls README.md && echo "Validation Successful" || '
+          'echo "Validation Failed"';
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_file',
+            arguments: const {
+              'path': 'README.md',
+              'content': '# Host Health Checker\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate',
+                name: 'local_execute_command',
+                arguments: {
+                  'command': wrappedValidationCommand,
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The wrapped saved validation command passed, so the README task is complete.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-rewrite-after-validation',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'README.md',
+                  'content': '# Host Health Checker\n\nRepeated rewrite\n',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
+          'local_execute_command':
+              '{"exit_code":0,"stdout":"Validation Successful\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create the README first');
+
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('README task is complete'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('This final answer should never be requested.')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage includes tool descriptions and identifier guardrails in the final tool prompt',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(

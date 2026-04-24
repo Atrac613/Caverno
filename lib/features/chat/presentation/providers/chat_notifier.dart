@@ -6997,9 +6997,50 @@ class ChatNotifier extends Notifier<ChatState> {
       if (command == null) {
         return false;
       }
-      return _normalizeToolCommandForComparison(command) ==
-          normalizedValidationCommand;
+      return _toolCommandMatchesSavedValidation(
+        result: result,
+        command: command,
+        normalizedValidationCommand: normalizedValidationCommand,
+      );
     });
+  }
+
+  bool _toolCommandMatchesSavedValidation({
+    required ToolResultInfo result,
+    required String command,
+    required String normalizedValidationCommand,
+  }) {
+    final normalizedCommand = _normalizeToolCommandForComparison(command);
+    if (normalizedCommand == normalizedValidationCommand) {
+      return true;
+    }
+    final isValidationWrapper = normalizedCommand.startsWith(
+      '$normalizedValidationCommand && ',
+    );
+    if (!isValidationWrapper) {
+      return false;
+    }
+    if (!normalizedCommand.contains(' || ')) {
+      return true;
+    }
+    if (_toolResultOutputText(result).trim().isEmpty) {
+      return false;
+    }
+    return !_toolResultOutputSuggestsValidationFailure(result);
+  }
+
+  bool _toolResultOutputSuggestsValidationFailure(ToolResultInfo result) {
+    final output = _toolResultOutputText(result).toLowerCase();
+    return output.contains('validation failed') ||
+        output.contains('validation failure');
+  }
+
+  String _toolResultOutputText(ToolResultInfo result) {
+    final decoded = _tryDecodeMap(result.result);
+    return [
+      decoded?['stdout']?.toString(),
+      decoded?['stderr']?.toString(),
+    ].whereType<String>().join('\n');
   }
 
   String? _currentSavedValidationCommandForToolLoop() {

@@ -95,10 +95,11 @@ logs or app-side workflow errors.
 
 ### README Live Canary
 
-`live_readme_first_canary` is intentionally tagged `live, canary, artifact` and
-not `smoke`. It probes whether a narrow README-first plan can still produce a
-reviewable saved plan and at least one README artifact without expanding the
-default smoke surface.
+`live_readme_first_canary` is intentionally tagged `live, canary, artifact,
+convergence` and not `smoke`. It probes whether a narrow README-first plan can
+produce a reviewable saved plan, create the README artifact, and stop the tool
+loop after the saved validation command succeeds without expanding the default
+smoke surface.
 
 Keep this canary's artifact assertion soft for now. The first dry run showed
 that the live model can create the required README sections and later overwrite
@@ -112,21 +113,24 @@ create/update task so this canary tracks README artifact creation rather than
 saved-task ordering experiments.
 
 The third dry run showed that the task proposal quality gate fallback can still
-expand the saved plan back into the generic scaffold shape. Keep task-count
-expectations soft until that fallback can preserve single-file README slices.
+expand the saved plan back into the generic scaffold shape. The quality gate now
+preserves explicit README-only single-task proposals so this canary can focus on
+saved-task convergence instead of generic scaffold fallback drift.
 
-The latest live run after softening the task-count expectation passed:
+The latest live run after the saved-validation convergence patch passed:
 
 - Command: `CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1 tool/run_plan_mode_live_test.sh`
 - Result: `1/1` live canary passed.
-- Warnings: `0 total`, `0 allowed`, `0 unexpected`.
+- Warnings: recovered create-parse warnings may appear as allowed when the
+  proposal later reaches a ready state.
+- Task drift: `0 detected`.
+- Tool-loop convergence guard: at least one activation expected.
 - Approval paths: `0 UI`, `1 liveHarnessApprovalFallback`, `0 unknown`.
 
-The run still demonstrated the intended canary signal: the saved task expanded
-toward `requirements.txt` through the generic fallback, but the README artifact
-was produced and the warning policy stayed clean. Treat this as evidence that
-the canary is useful for observing fallback drift, not proof that README-only
-task slicing is stable.
+Treat a missing tool-loop convergence guard activation as a regression signal
+for this canary. It means the live model either stopped calling tools naturally
+after validation or the guard stopped emitting its diagnostic log; inspect the
+scenario log before deciding whether to relax or update the expectation.
 
 ### 1x, 3x, and Full Pass
 

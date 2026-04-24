@@ -47,6 +47,7 @@ import 'test_support/plan_mode_planning_progress.dart';
 import 'test_support/plan_mode_report_summary.dart';
 import 'test_support/plan_mode_suite_report.dart';
 import 'test_support/plan_mode_task_drift.dart';
+import 'test_support/plan_mode_tool_loop_convergence.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/plan_mode_approval_progress.dart';
 import 'test_support/screenshot_capture.dart';
@@ -2410,6 +2411,7 @@ Future<void> _writeFailureScenarioArtifacts({
     scenario: scenario,
     scenarioDir: scenarioDir,
   );
+  final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
 
   final report = <String, Object?>{
     'scenario': scenario.name,
@@ -2429,6 +2431,7 @@ Future<void> _writeFailureScenarioArtifacts({
     'warningSummary': warningSummary.toJson(),
     'taskDrift': taskDrift,
     'taskDriftDetected': taskDrift['driftDetected'],
+    'toolLoopConvergence': toolLoopConvergence,
     'phaseTimings': phaseTrace.toJson(),
     'budgets': budgets.toJson(),
     'lastHeartbeat': lastHeartbeat,
@@ -2890,6 +2893,7 @@ Future<_ScenarioRunResult> _runScenario({
         ? const <String>[]
         : savedWorkflow.tasks.first.targetFiles,
   );
+  final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
 
   if (config.usesLiveLlm) {
     appLog(
@@ -2937,6 +2941,7 @@ Future<_ScenarioRunResult> _runScenario({
     'warningSummary': warningSummary.toJson(),
     'taskDrift': taskDrift,
     'taskDriftDetected': taskDrift['driftDetected'],
+    'toolLoopConvergence': toolLoopConvergence,
     'postScenarioSettled': postScenarioSettle.settled,
     'postScenarioInitiallySettled': postScenarioSettle.initiallySettled,
     'postScenarioCancellationUsed': postScenarioSettle.cancellationUsed,
@@ -3377,6 +3382,8 @@ void main() {
           Map<String, dynamic> archivedDiagnostics = const <String, dynamic>{};
           Map<String, dynamic> archivedHeartbeat = const <String, dynamic>{};
           Map<String, dynamic> archivedTaskDrift = const <String, dynamic>{};
+          Map<String, dynamic> archivedToolLoopConvergence =
+              const <String, dynamic>{};
           bool? archivedPostScenarioSettled;
           bool? archivedPostScenarioCancellationUsed;
           String archivedApprovalPath = planModeApprovalPathUnknown;
@@ -3393,6 +3400,10 @@ void main() {
                 const <String, dynamic>{};
             archivedTaskDrift =
                 archivedReport['taskDrift'] as Map<String, dynamic>? ??
+                const <String, dynamic>{};
+            archivedToolLoopConvergence =
+                archivedReport['toolLoopConvergence']
+                    as Map<String, dynamic>? ??
                 const <String, dynamic>{};
             archivedWarnings =
                 archivedReport['warnings'] as List<dynamic>? ??
@@ -3455,6 +3466,7 @@ void main() {
             'taskDrift': archivedTaskDrift,
             'taskDriftDetected':
                 archivedTaskDrift['driftDetected'] as bool? ?? false,
+            'toolLoopConvergence': archivedToolLoopConvergence,
             'warnings': archivedWarnings,
             'allowedWarnings': archivedAllowedWarnings,
             'unexpectedWarnings': archivedUnexpectedWarnings,
