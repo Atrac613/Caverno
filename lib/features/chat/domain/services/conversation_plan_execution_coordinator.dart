@@ -725,6 +725,11 @@ class ConversationPlanExecutionCoordinator {
         'Do not run the saved validation command until the current task target files exist and you have created or updated the relevant target file for this task.',
       );
     }
+    if (_looksLikeVerificationTask(task) || _looksLikeCliValidationTask(task)) {
+      lines.add(
+        'For CLI or network negative checks, accept any non-zero failure exit code instead of hard-coding one OS-specific non-zero code unless the saved task explicitly requires it.',
+      );
+    }
     return lines;
   }
 
@@ -797,6 +802,15 @@ class ConversationPlanExecutionCoordinator {
       'host verification',
     ];
     return keywords.any(normalized.contains);
+  }
+
+  static bool _looksLikeCliValidationTask(ConversationWorkflowTask task) {
+    final normalized =
+        '${task.title.trim()} ${task.notes.trim()} ${task.validationCommand.trim()}'
+            .toLowerCase();
+    return normalized.contains(' cli') ||
+        normalized.contains('command line') ||
+        normalized.contains('ping ');
   }
 
   static String buildBlockedTaskReplanContext({

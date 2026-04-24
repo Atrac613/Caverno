@@ -186,6 +186,7 @@ class ChatNotifier extends Notifier<ChatState> {
   TokenUsage _accumulatedTokenUsage = TokenUsage.zero;
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
+  final List<ToolResultInfo> _latestContentToolResults = [];
   String? _latestHiddenAssistantResponse;
   static const Set<String> _planningResearchStopWords = {
     'about',
@@ -380,6 +381,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _sessionMemoryContext = null;
@@ -5079,6 +5081,17 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   @visibleForTesting
+  String buildDuplicateInspectionRecoveryPromptForTest(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
+    return _buildDuplicateInspectionRecoveryPrompt(
+      toolCalls,
+      previousToolResults: previousToolResults,
+    );
+  }
+
+  @visibleForTesting
   String buildToolLoopExhaustionRecoveryPromptForTest(
     List<ToolCallInfo> toolCalls, {
     List<ToolResultInfo> previousToolResults = const [],
@@ -5342,6 +5355,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _isVoiceMode = isVoiceMode;
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _latestCompletedToolResults = const [];
@@ -5566,8 +5580,12 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   List<ToolResultInfo> takeLatestToolResults() {
-    final snapshot = _latestCompletedToolResults;
+    final snapshot = List<ToolResultInfo>.unmodifiable([
+      ..._latestCompletedToolResults,
+      ..._latestContentToolResults,
+    ]);
     _latestCompletedToolResults = const [];
+    _latestContentToolResults.clear();
     return snapshot;
   }
 
@@ -6249,6 +6267,23 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       if (batchToolResults.isEmpty) {
         if (pendingBatchCalls.isEmpty && currentToolCalls.isNotEmpty) {
+          if (_containsOnlyPreviouslySuccessfulCommandToolCalls(
+            currentToolCalls,
+            executedToolResults,
+          )) {
+            appLog(
+              '[Tool] Duplicate command follow-up already has a successful result',
+            );
+            currentToolCalls = [];
+            final fallbackResponse =
+                'The saved validation command already succeeded for the current saved task, so the current saved task is complete.';
+            _recordHiddenAssistantResponse(fallbackResponse);
+            _appendRecoveredAssistantResponse(fallbackResponse);
+            currentAssistantContent = fallbackResponse;
+            hasTextResponse = true;
+            skippedDuplicateOnlyBatch = false;
+            break;
+          }
           if (!attemptedDuplicateInspectionRecovery &&
               _containsOnlyReadOnlyInspectionToolCalls(currentToolCalls) &&
               lastNonEmptyBatchToolResults.isNotEmpty) {
@@ -6273,6 +6308,7 @@ class ChatNotifier extends Notifier<ChatState> {
                   role: MessageRole.user,
                   content: _buildDuplicateInspectionRecoveryPrompt(
                     currentToolCalls,
+                    previousToolResults: lastNonEmptyBatchToolResults,
                   ),
                   timestamp: DateTime.now(),
                 ),
@@ -6430,8 +6466,23 @@ class ChatNotifier extends Notifier<ChatState> {
 
       // Continue looping if the LLM asks for another tool call.
       if (nextResult.hasToolCalls) {
+        final nextToolCalls = nextResult.toolCalls!;
+        final fallbackResponse = nextResult.content.trim();
+        if (_containsOnlyReadOnlyInspectionToolCalls(nextToolCalls) &&
+            _shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
+          appLog(
+            '[Tool] Ignoring read-only follow-up after terminal completion text',
+          );
+          currentToolCalls = [];
+          _recordHiddenAssistantResponse(fallbackResponse);
+          _appendRecoveredAssistantResponse(fallbackResponse);
+          currentAssistantContent = fallbackResponse;
+          hasTextResponse = true;
+          skippedDuplicateOnlyBatch = false;
+          break;
+        }
         appLog('[Tool] LLM requested additional tool calls');
-        currentToolCalls = nextResult.toolCalls!;
+        currentToolCalls = nextToolCalls;
         _recordHiddenAssistantResponse(nextResult.content);
         currentAssistantContent = nextResult.content.isNotEmpty
             ? nextResult.content
@@ -6730,6 +6781,63 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  bool _containsOnlyPreviouslySuccessfulCommandToolCalls(
+    List<ToolCallInfo> toolCalls,
+    List<ToolResultInfo> previousToolResults,
+  ) {
+    if (toolCalls.isEmpty || previousToolResults.isEmpty) {
+      return false;
+    }
+    return toolCalls.every((toolCall) {
+      if (!_isCommandExecutionTool(toolCall.name)) {
+        return false;
+      }
+      final command = _toolCommandArgument(toolCall.arguments);
+      if (command == null) {
+        return false;
+      }
+      return previousToolResults.any(
+        (result) =>
+            result.name == toolCall.name &&
+            _toolCommandArgument(result.arguments) == command &&
+            _toolResultHasSuccessfulExit(result),
+      );
+    });
+  }
+
+  bool _isCommandExecutionTool(String toolName) {
+    switch (toolName.trim().toLowerCase()) {
+      case 'local_execute_command':
+      case 'git_execute_command':
+      case 'ssh_execute_command':
+        return true;
+    }
+    return false;
+  }
+
+  String? _toolCommandArgument(Map<String, dynamic> arguments) {
+    final command = arguments['command']?.toString().trim();
+    return command == null || command.isEmpty ? null : command;
+  }
+
+  bool _toolResultHasSuccessfulExit(ToolResultInfo result) {
+    if (!_isCommandExecutionTool(result.name)) {
+      return false;
+    }
+    final decoded = _tryDecodeMap(result.result);
+    final exitCode = decoded?['exit_code'];
+    if (exitCode is num) {
+      return exitCode == 0;
+    }
+    if (exitCode is String) {
+      return int.tryParse(exitCode.trim()) == 0;
+    }
+    return RegExp(
+      r'^exit_code:\s*0\s*$',
+      multiLine: true,
+    ).hasMatch(result.result);
+  }
+
   bool _isReadOnlyInspectionTool(String toolName) {
     switch (toolName.trim().toLowerCase()) {
       case 'list_directory':
@@ -6741,16 +6849,27 @@ class ChatNotifier extends Notifier<ChatState> {
     return false;
   }
 
-  String _buildDuplicateInspectionRecoveryPrompt(List<ToolCallInfo> toolCalls) {
+  String _buildDuplicateInspectionRecoveryPrompt(
+    List<ToolCallInfo> toolCalls, {
+    List<ToolResultInfo> previousToolResults = const [],
+  }) {
     final repeatedToolNames = toolCalls
         .map((toolCall) => toolCall.name.trim())
         .where((name) => name.isNotEmpty)
         .toSet()
         .join(', ');
+    final previousCommandValidationFailed =
+        _toolResultsContainFailedCommandValidation(previousToolResults);
+    final previousExactExitCodeExpectationFailed =
+        _toolResultsMentionExactNonZeroExitCodeExpectation(previousToolResults);
     return [
       'You already inspected the same local files for the current saved task.',
       if (repeatedToolNames.isNotEmpty)
         'Do not repeat identical read-only inspection tools again in this turn: $repeatedToolNames.',
+      if (previousCommandValidationFailed)
+        'The latest validation command failed; use that failure output now instead of inspecting the directory again.',
+      if (previousExactExitCodeExpectationFailed)
+        'If the failure is only an exact non-zero exit-code mismatch, edit the verification target to accept any non-zero failure code before rerunning validation.',
       'Take the next concrete saved-task action now.',
       'Your next reply must either modify a saved target file or run the saved validation command.',
       'Do not restate the plan, do not ask for confirmation, and do not switch to a future saved task.',
@@ -6940,14 +7059,14 @@ class ChatNotifier extends Notifier<ChatState> {
     appLog('[ContentTool] Executing tool: ${tc.name}');
     appLog('[ContentTool] Arguments: ${tc.arguments}');
 
+    final toolCall = ToolCallInfo(
+      id: 'content_${DateTime.now().microsecondsSinceEpoch}',
+      name: tc.name,
+      arguments: Map<String, dynamic>.unmodifiable(tc.arguments),
+    );
+
     try {
-      final result = await _dispatchToolCall(
-        ToolCallInfo(
-          id: 'content_${DateTime.now().microsecondsSinceEpoch}',
-          name: tc.name,
-          arguments: tc.arguments,
-        ),
-      );
+      final result = await _dispatchToolCall(toolCall);
 
       if (!result.isSuccess) {
         appLog('[ContentTool] Execution failed: ${result.errorMessage}');
@@ -6955,6 +7074,7 @@ class ChatNotifier extends Notifier<ChatState> {
           tc.name,
           result.errorMessage,
         );
+        _recordContentToolResult(toolCall: toolCall, result: failureResult);
         if (ref.mounted && state.messages.isNotEmpty) {
           final updatedMessages = [...state.messages];
           final lastIndex = updatedMessages.length - 1;
@@ -6975,6 +7095,7 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
+      _recordContentToolResult(toolCall: toolCall, result: result.result);
 
       // Append results without triggering recursive tool-call checks.
       if (ref.mounted && state.messages.isNotEmpty) {
@@ -6997,6 +7118,7 @@ class ChatNotifier extends Notifier<ChatState> {
     } catch (e) {
       appLog('[ContentTool] Error: $e');
       final failureResult = _buildContentToolFailureResult(tc.name, '$e');
+      _recordContentToolResult(toolCall: toolCall, result: failureResult);
       if (ref.mounted && state.messages.isNotEmpty) {
         final updatedMessages = [...state.messages];
         final lastIndex = updatedMessages.length - 1;
@@ -7012,6 +7134,20 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       _pendingContentToolResults.add('[Result of ${tc.name}]\n$failureResult');
     }
+  }
+
+  void _recordContentToolResult({
+    required ToolCallInfo toolCall,
+    required String result,
+  }) {
+    _latestContentToolResults.add(
+      ToolResultInfo(
+        id: toolCall.id,
+        name: toolCall.name,
+        arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
+        result: result,
+      ),
+    );
   }
 
   String _buildContentToolFailureResult(String toolName, String? errorMessage) {
@@ -7042,6 +7178,34 @@ class ChatNotifier extends Notifier<ChatState> {
       final normalized = toolResult.result.toLowerCase();
       return normalized.contains('"code":"edit_mismatch"') ||
           normalized.contains('old_text was not found in the target file');
+    });
+  }
+
+  bool _toolResultsContainFailedCommandValidation(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults.any((toolResult) {
+      final normalizedName = toolResult.name.trim().toLowerCase();
+      if (normalizedName != 'local_execute_command' &&
+          normalizedName != 'git_execute_command' &&
+          normalizedName != 'ssh_execute_command') {
+        return false;
+      }
+      final normalizedResult = toolResult.result.toLowerCase();
+      return RegExp(
+            r'"exit_code"\s*:\s*(?!0\b)-?\d+',
+          ).hasMatch(normalizedResult) ||
+          RegExp(r'exit_code:\s*(?!0\b)-?\d+').hasMatch(normalizedResult);
+    });
+  }
+
+  bool _toolResultsMentionExactNonZeroExitCodeExpectation(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults.any((toolResult) {
+      final normalized = toolResult.result.toLowerCase();
+      return normalized.contains('expected exit code') ||
+          RegExp(r'returned\s+-?\d+,\s*expected\s+-?\d+').hasMatch(normalized);
     });
   }
 
@@ -8689,6 +8853,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _seenContentToolCallHashes.clear();
     _toolApprovalCache.clear();
     _pendingContentToolResults.clear();
+    _latestContentToolResults.clear();
     _contentToolContinuationCount = 0;
     _contentToolExecutionTail = Future<void>.value();
     _sessionMemoryContext = null;

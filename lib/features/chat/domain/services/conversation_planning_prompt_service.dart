@@ -236,6 +236,9 @@ class ConversationPlanningPromptService {
         '- For ping or other long-running CLI tasks, validationCommand must be bounded and exit on its own. Prefer one-shot checks such as --help, -c 1, --count 1, or a dedicated verification script instead of commands that can run forever.',
       )
       ..writeln(
+        '- Prefer deterministic CLI validation such as --help or loopback hosts. If a validation script tests a failing network case, require any non-zero exit code instead of one exact non-zero code because those values vary by OS and tool.',
+      )
+      ..writeln(
         '- For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
       )
       ..writeln(
@@ -262,9 +265,7 @@ class ConversationPlanningPromptService {
       ..writeln('- stage: ${savedStage.name}')
       ..writeln('- goal: ${savedSpec.goal}')
       ..writeln('- constraints: ${constraints.join(' | ')}')
-      ..writeln(
-        '- acceptanceCriteria: ${acceptanceCriteria.join(' | ')}',
-      )
+      ..writeln('- acceptanceCriteria: ${acceptanceCriteria.join(' | ')}')
       ..writeln('- openQuestions: ${openQuestions.join(' | ')}');
 
     if (savedTasks.isNotEmpty && !compact) {
@@ -335,7 +336,9 @@ class ConversationPlanningPromptService {
     }
 
     final clipped = lines
-        .map((line) => line.length > 140 ? '${line.substring(0, 140)}...' : line)
+        .map(
+          (line) => line.length > 140 ? '${line.substring(0, 140)}...' : line,
+        )
         .join('\n');
     if (clipped.length <= 420) {
       return clipped;

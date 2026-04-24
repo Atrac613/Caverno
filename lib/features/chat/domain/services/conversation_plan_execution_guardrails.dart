@@ -102,7 +102,13 @@ class ConversationPlanExecutionGuardrails {
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = _effectiveTargetPaths(task);
+    final declaredTargets = _effectiveTargetPaths(task);
+    final inferredMutationTargets = declaredTargets.isEmpty
+        ? _inferTargetPathsFromFileMutations(toolResults)
+        : const <String>{};
+    final normalizedTargets = declaredTargets.isNotEmpty
+        ? declaredTargets
+        : inferredMutationTargets;
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final targetTouchCounts = <String, int>{};
@@ -183,7 +189,13 @@ class ConversationPlanExecutionGuardrails {
     required List<ToolResultInfo> toolResults,
   }) {
     final isScaffoldTask = _isScaffoldLikeTask(task);
-    final normalizedTargets = _effectiveTargetPaths(task);
+    final declaredTargets = _effectiveTargetPaths(task);
+    final inferredMutationTargets = declaredTargets.isEmpty
+        ? _inferTargetPathsFromFileMutations(toolResults)
+        : const <String>{};
+    final normalizedTargets = declaredTargets.isNotEmpty
+        ? declaredTargets
+        : inferredMutationTargets;
     final targetDirectories = _targetDirectories(normalizedTargets);
     final touchedTargetFiles = <String>{};
     final unrelatedTouchedPaths = <String>{};
@@ -223,7 +235,12 @@ class ConversationPlanExecutionGuardrails {
             _matchesPythonTestFallbackValidationCommand(
               task: task,
               command: command,
-            )) {
+            ) ||
+            (declaredTargets.isEmpty &&
+                _looksLikeDirectTargetExecutionCommand(
+                  command: command,
+                  targets: normalizedTargets,
+                ))) {
           final exitCode = _extractExitCode(toolResult.result);
           final succeeded = exitCode == null
               ? !_looksLikeFailureResult(toolResult.result)
@@ -288,7 +305,9 @@ class ConversationPlanExecutionGuardrails {
         .toList(growable: false);
 
     return ConversationPlanExecutionCompletionAssessment(
-      requiresValidation: task.validationCommand.trim().isNotEmpty,
+      requiresValidation:
+          task.validationCommand.trim().isNotEmpty ||
+          inferredMutationTargets.isNotEmpty,
       hasTargetFiles: normalizedTargets.isNotEmpty,
       hasFailure: hasFailure,
       touchedTargetFiles: touchedTargetFiles.toList(growable: false),
@@ -302,9 +321,9 @@ class ConversationPlanExecutionGuardrails {
       failedValidationCommands: failedValidationCommands.toList(
         growable: false,
       ),
-      allowsLightValidationCompletion: _looksLikeLightValidationCommand(
-        task.validationCommand,
-      ),
+      allowsLightValidationCompletion:
+          inferredMutationTargets.isEmpty &&
+          _looksLikeLightValidationCommand(task.validationCommand),
     );
   }
 
@@ -1252,11 +1271,82 @@ class ConversationPlanExecutionGuardrails {
     if (explicitTargets.isNotEmpty) {
       return explicitTargets;
     }
+    final descriptiveText = '${task.title.trim()} ${task.notes.trim()}';
+    final sufficientTargets = _inferSufficientTargetPathsFromText(
+      descriptiveText,
+    );
+    if (sufficientTargets.isNotEmpty) {
+      return sufficientTargets;
+    }
     final inferredTargets = {
-      ..._inferTargetPathsFromText('${task.title.trim()} ${task.notes.trim()}'),
+      ..._inferTargetPathsFromText(descriptiveText),
       ..._inferTargetPathsFromText(task.validationCommand),
     };
     return inferredTargets;
+  }
+
+  static Set<String> _inferSufficientTargetPathsFromText(String text) {
+    if (text.trim().isEmpty) {
+      return const <String>{};
+    }
+    final normalizedText = text
+        .toLowerCase()
+        .replaceAll(RegExp(r'[`*_]'), '')
+        .replaceAll(RegExp(r'\s+'), ' ')
+        .trim();
+    if (normalizedText.isEmpty) {
+      return const <String>{};
+    }
+    final candidates = _inferTargetPathsFromText(text);
+    return candidates.where((target) {
+      final normalizedTarget = target.toLowerCase();
+      return normalizedText.contains('$normalizedTarget is enough') ||
+          normalizedText.contains('$normalizedTarget is sufficient') ||
+          normalizedText.contains('$normalizedTarget alone is enough') ||
+          normalizedText.contains('only $normalizedTarget') ||
+          normalizedText.contains('just $normalizedTarget');
+    }).toSet();
+  }
+
+  static Set<String> _inferTargetPathsFromFileMutations(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final inferredTargets = <String>{};
+    for (final toolResult in toolResults) {
+      if (toolResult.name != 'write_file' && toolResult.name != 'edit_file') {
+        continue;
+      }
+      final path = _normalizePath(toolResult.arguments['path']?.toString());
+      if (path.isEmpty || !_looksLikeInferredTargetPath(path)) {
+        continue;
+      }
+      inferredTargets.add(path);
+    }
+    return inferredTargets;
+  }
+
+  static bool _looksLikeDirectTargetExecutionCommand({
+    required String command,
+    required Set<String> targets,
+  }) {
+    final normalizedCommand = command.trim().toLowerCase();
+    if (normalizedCommand.isEmpty || targets.isEmpty) {
+      return false;
+    }
+    final launchesExecutableTarget =
+        normalizedCommand.startsWith('python ') ||
+        normalizedCommand.startsWith('python3 ') ||
+        normalizedCommand.startsWith('./') ||
+        normalizedCommand.startsWith('bash ') ||
+        normalizedCommand.startsWith('sh ');
+    if (!launchesExecutableTarget) {
+      return false;
+    }
+    return targets.any(
+      (target) =>
+          normalizedCommand.contains(target.toLowerCase()) ||
+          normalizedCommand.contains('/${target.toLowerCase()}'),
+    );
   }
 
   static Set<String> _inferTargetPathsFromText(String text) {

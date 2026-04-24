@@ -211,6 +211,39 @@ void main() {
   );
 
   test(
+    'marks blocked implementation tasks complete after saved validation passes',
+    () {
+      final result = ConversationValidationToolResultInference.infer(
+        task: const ConversationWorkflowTask(
+          id: 'task-blocked-impl',
+          title: 'Implement ping_cli.py with subprocess-based ping logic',
+          status: ConversationWorkflowTaskStatus.blocked,
+          targetFiles: ['ping_cli.py'],
+          validationCommand: 'python3 ping_cli.py 127.0.0.1 -c 2',
+        ),
+        toolResults: const [
+          ConversationValidationToolResultInput(
+            toolName: 'local_execute_command',
+            rawResult:
+                '{"command":"python3 ping_cli.py 127.0.0.1 -c 2","exit_code":0,"stdout":"[SUCCESS] Ping to 127.0.0.1 completed successfully.","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(result, isNotNull);
+      expect(result!.status, ConversationWorkflowTaskStatus.completed);
+      expect(
+        result.validationStatus,
+        ConversationExecutionValidationStatus.passed,
+      );
+      expect(
+        result.summary,
+        'Validation passed while running python3 ping_cli.py 127.0.0.1 -c 2.',
+      );
+    },
+  );
+
+  test(
     'marks unittest-based verification tasks complete even when stdout includes expected error text',
     () {
       final result = ConversationValidationToolResultInference.infer(
@@ -234,7 +267,10 @@ void main() {
         result.validationStatus,
         ConversationExecutionValidationStatus.passed,
       );
-      expect(result.summary, 'Validation passed while running python3 test_ping.py.');
+      expect(
+        result.summary,
+        'Validation passed while running python3 test_ping.py.',
+      );
       expect(result.validationSummary, contains('Ran 3 tests'));
     },
   );

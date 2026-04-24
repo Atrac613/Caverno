@@ -486,6 +486,76 @@ void main() {
   });
 
   test(
+    'assessTaskCompletion infers target coverage from validated file mutations',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement basic ping CLI with argparse and subprocess',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-write',
+          name: 'write_file',
+          arguments: {'path': 'ping_cli.py'},
+          result:
+              '{"path":"/tmp/project/ping_cli.py","bytes_written":600,"created":true}',
+        ),
+        ToolResultInfo(
+          id: 'tool-validation',
+          name: 'local_execute_command',
+          arguments: {'command': 'python3 ping_cli.py --help'},
+          result:
+              '{"command":"python3 ping_cli.py --help","exit_code":0,"stdout":"usage: ping_cli.py [-h] host","stderr":""}',
+        ),
+      ];
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasTargetFiles, isTrue);
+      expect(assessment.touchedTargetFiles, contains('ping_cli.py'));
+      expect(
+        assessment.successfulValidationCommands,
+        contains('python3 ping_cli.py --help'),
+      );
+      expect(assessment.shouldMarkCompleted, isTrue);
+    },
+  );
+
+  test(
+    'assessTaskCompletion does not infer completion from file mutations alone',
+    () {
+      const task = ConversationWorkflowTask(
+        id: 'task-ping-cli',
+        title: 'Implement basic ping CLI with argparse and subprocess',
+      );
+      final toolResults = [
+        ToolResultInfo(
+          id: 'tool-write',
+          name: 'write_file',
+          arguments: {'path': 'ping_cli.py'},
+          result:
+              '{"path":"/tmp/project/ping_cli.py","bytes_written":600,"created":true}',
+        ),
+      ];
+
+      final assessment =
+          ConversationPlanExecutionGuardrails.assessTaskCompletion(
+            task: task,
+            toolResults: toolResults,
+          );
+
+      expect(assessment.hasTargetFiles, isTrue);
+      expect(assessment.touchedTargetFiles, contains('ping_cli.py'));
+      expect(assessment.successfulValidationCommands, isEmpty);
+      expect(assessment.shouldMarkCompleted, isFalse);
+    },
+  );
+
+  test(
     'assessTaskCompletion preserves completion evidence despite a later malformed failure',
     () {
       const task = ConversationWorkflowTask(
@@ -870,6 +940,60 @@ void main() {
       ConversationPlanExecutionGuardrails.effectiveTargetPathsForTask(task),
       contains('main.py'),
     );
+  });
+
+  test('effectiveTargetPathsForTask prefers sufficient scaffold targets', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-scaffold-main',
+      title:
+          'Scaffold the project (create main.py and requirements.txt or pyproject.toml if needed, but since minimal dependencies are requested, main.py is enough)',
+    );
+
+    final targets =
+        ConversationPlanExecutionGuardrails.effectiveTargetPathsForTask(task);
+
+    expect(targets, ['main.py']);
+    expect(
+      ConversationPlanExecutionGuardrails.missingWorkspaceTargetFiles(
+        task: task,
+        existingTargetPaths: const ['main.py'],
+      ),
+      isEmpty,
+    );
+    expect(
+      ConversationPlanExecutionGuardrails.canFinalizeScaffoldFromWorkspaceTargets(
+        task: task,
+        existingTargetPaths: const ['main.py'],
+      ),
+      isTrue,
+    );
+  });
+
+  test('assessTaskCompletion completes sufficient scaffold target writes', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-scaffold-main',
+      title:
+          'Scaffold the project (create main.py and requirements.txt or pyproject.toml if needed, but since minimal dependencies are requested, main.py is enough)',
+    );
+    final toolResults = [
+      ToolResultInfo(
+        id: 'tool-write',
+        name: 'write_file',
+        arguments: {'path': 'main.py'},
+        result:
+            '{"path":"/tmp/project/main.py","bytes_written":479,"created":true}',
+      ),
+    ];
+
+    final assessment = ConversationPlanExecutionGuardrails.assessTaskCompletion(
+      task: task,
+      toolResults: toolResults,
+    );
+
+    expect(assessment.hasTargetFiles, isTrue);
+    expect(assessment.touchedTargetFiles, contains('main.py'));
+    expect(assessment.untouchedTargetFiles, isEmpty);
+    expect(assessment.shouldMarkCompleted, isTrue);
   });
 
   test(

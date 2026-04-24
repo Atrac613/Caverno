@@ -253,6 +253,9 @@ class SystemPromptBuilder {
             'When a saved task is complete, continue to the next pending saved task automatically instead of asking for confirmation between tasks.',
           );
           buffer.writeln(
+            'When writing CLI validation scripts, assert success versus non-zero failure semantics unless the saved task explicitly requires a platform-specific exit code.',
+          );
+          buffer.writeln(
             'Pause only when you are blocked, the requirements changed, or completing the next task would require changing the approved workflow.',
           );
           buffer.writeln(

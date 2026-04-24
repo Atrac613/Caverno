@@ -174,6 +174,18 @@ void main() {
     expect(
       prompt,
       contains(
+        'Prefer deterministic CLI validation such as --help or loopback hosts.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'require any non-zero exit code instead of one exact non-zero code',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'For simple Python CLI tasks, prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly requests a package.',
       ),
     );
@@ -230,10 +242,17 @@ void main() {
 
     expect(
       prompt,
-      contains('- Keep notes brief and keep the whole response under 180 tokens.'),
+      contains(
+        '- Keep notes brief and keep the whole response under 180 tokens.',
+      ),
     );
     expect(prompt, isNot(contains('Saved plan document:')));
     expect(prompt, isNot(contains('Execution progress:')));
-    expect(prompt, contains('- constraints: Keep dependencies minimal | Support continuous mode'));
+    expect(
+      prompt,
+      contains(
+        '- constraints: Keep dependencies minimal | Support continuous mode',
+      ),
+    );
   });
 }

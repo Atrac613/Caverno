@@ -479,9 +479,15 @@ void main() {
             failedCommand: 'python3 src/ping_cli.py 8.8.8.8 -c 1',
           );
 
-      expect(prompt, contains('Saved task: Implement ping logic and CLI in src/ping_cli.py'));
+      expect(
+        prompt,
+        contains('Saved task: Implement ping logic and CLI in src/ping_cli.py'),
+      );
       expect(prompt, contains('Target files: src/ping_cli.py'));
-      expect(prompt, contains('Validation: python3 src/ping_cli.py 8.8.8.8 -c 1'));
+      expect(
+        prompt,
+        contains('Validation: python3 src/ping_cli.py 8.8.8.8 -c 1'),
+      );
     },
   );
 
@@ -559,6 +565,12 @@ void main() {
         'If the saved validation command fails, fix only the failing saved target file or report the blocker clearly.',
       ),
     );
+    expect(
+      prompt,
+      contains(
+        'accept any non-zero failure exit code instead of hard-coding one OS-specific non-zero code',
+      ),
+    );
   });
 
   test(
@@ -589,7 +601,10 @@ void main() {
       );
       expect(prompt, contains('Saved task ID: task-verify-cli'));
       expect(prompt, contains('Missing dependency: pytest'));
-      expect(prompt, contains('Fallback verification command: python3 tests/test_ping.py'));
+      expect(
+        prompt,
+        contains('Fallback verification command: python3 tests/test_ping.py'),
+      );
       expect(
         prompt,
         contains(
@@ -604,7 +619,9 @@ void main() {
       );
       expect(
         prompt,
-        contains('Run the fallback verification command now after updating the saved target file.'),
+        contains(
+          'Run the fallback verification command now after updating the saved target file.',
+        ),
       );
     },
   );
@@ -655,7 +672,9 @@ void main() {
       );
       expect(
         prompt,
-        contains('After the fix, rerun the same saved validation command immediately.'),
+        contains(
+          'After the fix, rerun the same saved validation command immediately.',
+        ),
       );
     },
   );

@@ -1523,6 +1523,49 @@ void main() {
   );
 
   test(
+    'buildDuplicateInspectionRecoveryPromptForTest redirects failed exit-code validation to a target edit',
+    () {
+      final prompt = notifier.buildDuplicateInspectionRecoveryPromptForTest(
+        [
+          ToolCallInfo(
+            id: 'tool-list',
+            name: 'list_directory',
+            arguments: const {'path': '.'},
+          ),
+        ],
+        previousToolResults: [
+          ToolResultInfo(
+            id: 'tool-validation',
+            name: 'local_execute_command',
+            arguments: const {'command': 'python3 test_ping_cli.py'},
+            result:
+                '{"command":"python3 test_ping_cli.py","exit_code":1,"stdout":"Testing host: invalid.hostname.that.should.fail.test (Expected exit code: 1)\\nFAIL: invalid.hostname.that.should.fail.test returned 68, expected 1","stderr":""}',
+          ),
+        ],
+      );
+
+      expect(
+        prompt,
+        contains(
+          'The latest validation command failed; use that failure output now instead of inspecting the directory again.',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'edit the verification target to accept any non-zero failure code before rerunning validation',
+        ),
+      );
+      expect(
+        prompt,
+        contains(
+          'Do not repeat identical read-only inspection tools again in this turn: list_directory.',
+        ),
+      );
+    },
+  );
+
+  test(
     'buildToolLoopRecoveryToolResultsForTest includes latest read context for edit mismatch recovery',
     () {
       final recoveryToolResults = notifier.buildToolLoopRecoveryToolResultsForTest(
@@ -1822,6 +1865,87 @@ void main() {
           contains(
             'The implementation of the ping CLI tool is complete and verified.',
           ),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage ignores read-only follow-up after terminal saved-task text',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_cli',
+            arguments: const {
+              'path': 'ping_cli.py',
+              'content': 'print("json output")',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content:
+                'The task "Add JSON output support to ping_cli.py" is complete. Validation passed.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-read',
+                name: 'read_file',
+                arguments: const {'path': 'ping_cli.py'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_cli': '{"path":"/tmp/ping_cli.py","bytes_written":20}',
+          'read_file': 'print("json output")',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Add JSON output support');
+
+        expect(toolService.executedToolNames, ['write_cli']);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Add JSON output support to ping_cli.py'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('This final answer should never be requested.')),
         );
       } finally {
         toolContainer.dispose();
@@ -2201,6 +2325,105 @@ void main() {
         expect(
           toolNotifier.state.messages.last.content,
           contains('Recovered after validation retry.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage stops duplicate command follow-up after successful validation',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_cli',
+            arguments: const {'path': 'ping_cli.py'},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'python3 ping_cli.py --help',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The validation command already passed, so I will not rerun it.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate-duplicate',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'python3 ping_cli.py --help',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        ],
+        finalAnswerChunks: const [
+          'This final answer should never be requested.',
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_cli': '{"path":"/tmp/ping_cli.py","bytes_written":1200}',
+          'local_execute_command':
+              '{"command":"python3 ping_cli.py --help","exit_code":0,"stdout":"usage: ping_cli.py [-h] host","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Implement ping CLI');
+
+        expect(toolService.executedToolNames, [
+          'write_cli',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.finalAnswerMessages, isEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('saved validation command already succeeded'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('This final answer should never be requested.')),
         );
       } finally {
         toolContainer.dispose();
@@ -2764,6 +2987,75 @@ void main() {
         toolNotifier.state.messages.last.content,
         contains('Continue with the available configuration tooling only.'),
       );
+    } finally {
+      toolContainer.dispose();
+    }
+  });
+
+  test('content tool results are exposed for workflow progress', () async {
+    final conversationRepository = _FakeConversationRepository();
+    final streamingDataSource = _QueuedStreamingChatDataSource([
+      [
+        '<tool_call>{"name":"local_execute_command","arguments":{"command":"pwd"}}</tool_call>',
+      ],
+      ['Validation complete.'],
+    ]);
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'local_execute_command':
+            '{"command":"pwd","exit_code":0,"stdout":"/tmp/content-tools-project","stderr":""}',
+      },
+    );
+    final project = CodingProject(
+      id: 'project-1',
+      name: 'tmp',
+      rootPath: '/tmp/content-tools-project',
+      createdAt: DateTime.now(),
+      updatedAt: DateTime.now(),
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ContentToolSettingsNotifier.new),
+        conversationRepositoryProvider.overrideWithValue(
+          conversationRepository,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(streamingDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        codingProjectsNotifierProvider.overrideWith(
+          () => _FixedCodingProjectsNotifier(project),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      toolContainer
+          .read(conversationsNotifierProvider.notifier)
+          .activateWorkspace(
+            workspaceMode: WorkspaceMode.coding,
+            projectId: project.id,
+            createIfMissing: true,
+          );
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+      await toolNotifier.sendMessage('Run the saved validation command');
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+
+      final latestResults = toolNotifier.takeLatestToolResults();
+      expect(latestResults, hasLength(1));
+      expect(latestResults.single.name, 'local_execute_command');
+      expect(latestResults.single.arguments['command'], 'pwd');
+      expect(latestResults.single.result, contains('"exit_code":0'));
+      expect(toolNotifier.takeLatestToolResults(), isEmpty);
     } finally {
       toolContainer.dispose();
     }

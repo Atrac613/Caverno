@@ -144,6 +144,12 @@ void main() {
     expect(
       prompt,
       contains(
+        'When writing CLI validation scripts, assert success versus non-zero failure semantics unless the saved task explicitly requires a platform-specific exit code.',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
         'If normal file or command approvals are shown by the app, treat those approvals as sufficient and do not ask for duplicate permission in natural language.',
       ),
     );
