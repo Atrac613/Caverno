@@ -750,6 +750,73 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
     },
   );
 
+  test('quality gate keeps explicit README-only single-task proposals', () {
+    const workflowSpec = ConversationWorkflowSpec(
+      goal: 'Create README.md for a Python host health checker.',
+      constraints: ['README.md only', 'No Python source files'],
+      acceptanceCriteria: [
+        'README.md contains project description',
+        'README.md contains usage direction',
+        'README.md contains validation approach',
+      ],
+    );
+    final conversation = Conversation(
+      id: 'conversation-readme-only',
+      title: 'README first slice',
+      messages: [
+        Message(
+          id: 'user-readme-only',
+          content:
+              'Keep the first implementation slice limited to README.md only.',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 24, 10),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 24, 10),
+      updatedAt: DateTime(2026, 4, 24, 10),
+      workflowSpec: workflowSpec,
+    );
+    final proposal = WorkflowTaskProposalDraft(
+      tasks: const [
+        ConversationWorkflowTask(
+          id: 'task-readme',
+          title: 'Create README.md',
+          targetFiles: ['README.md'],
+          validationCommand: 'ls README.md',
+          notes:
+              'Add the project description, usage direction, and validation approach.',
+        ),
+      ],
+    );
+
+    final finalized = notifier.finalizeTaskProposalForTest(
+      proposal,
+      projectLooksEmpty: true,
+    );
+    final fallback = notifier.buildTaskProposalQualityGateFallbackForTest(
+      currentConversation: conversation,
+      projectLooksEmpty: true,
+      bestRetryCandidate: finalized,
+    );
+
+    expect(
+      notifier.taskProposalNeedsRetryForTest(proposal, finalized, true),
+      isTrue,
+    );
+    expect(
+      notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        finalized,
+        true,
+        workflowSpec,
+      ),
+      isFalse,
+    );
+    expect(fallback, isNotNull);
+    expect(fallback!.tasks, hasLength(1));
+    expect(fallback.tasks.single.targetFiles, ['README.md']);
+  });
+
   test('marks duplicate verification tasks for retry', () {
     final fixture =
         jsonDecode(

@@ -36,6 +36,7 @@ import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/services/conversation_compaction_service.dart';
+import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
@@ -2013,6 +2014,8 @@ class ChatNotifier extends Notifier<ChatState> {
     ];
 
     String? lastError;
+    final workflowSpec =
+        workflowSpecOverride ?? currentConversation.effectiveWorkflowSpec;
     for (var index = 0; index < attempts.length; index++) {
       final attempt = attempts[index];
       final result = await _dataSource.createChatCompletion(
@@ -2040,10 +2043,11 @@ class ChatNotifier extends Notifier<ChatState> {
           proposal,
           researchContext: researchContext,
         );
-        if (_taskProposalNeedsRetry(
+        if (_taskProposalNeedsRetryForWorkflow(
           proposal,
           finalizedProposal,
           projectLooksEmpty,
+          workflowSpec,
         )) {
           final preview = finalizedProposal.tasks
               .map((task) => task.title)
@@ -2078,10 +2082,11 @@ class ChatNotifier extends Notifier<ChatState> {
             fallbackProposal,
             researchContext: researchContext,
           );
-          if (!_taskProposalNeedsRetry(
+          if (!_taskProposalNeedsRetryForWorkflow(
             fallbackProposal,
             finalizedFallback,
             projectLooksEmpty,
+            workflowSpec,
           )) {
             appLog(
               '[Workflow] Task proposal recovered from truncated reasoning fallback',
@@ -2106,10 +2111,11 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     if (bestRetryCandidate != null &&
-        !_taskProposalNeedsRetry(
+        !_taskProposalNeedsRetryForWorkflow(
           bestRetryCandidate,
           bestRetryCandidate,
           projectLooksEmpty,
+          workflowSpec,
         )) {
       appLog(
         '[Workflow] Task proposal recovered from the best retry candidate',
@@ -2442,6 +2448,16 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
+    if (bestRetryCandidate != null &&
+        !_taskProposalNeedsRetryForWorkflow(
+          bestRetryCandidate,
+          bestRetryCandidate,
+          projectLooksEmpty,
+          workflowSpec,
+        )) {
+      return bestRetryCandidate;
+    }
+
     final contextLines = <String>[
       rawGoal,
       ...workflowSpec.constraints,
@@ -2471,10 +2487,11 @@ class ChatNotifier extends Notifier<ChatState> {
       fallbackProposal,
       researchContext: researchContext,
     );
-    if (_taskProposalNeedsRetry(
+    if (_taskProposalNeedsRetryForWorkflow(
       fallbackProposal,
       finalizedFallback,
       projectLooksEmpty,
+      workflowSpec,
     )) {
       return null;
     }
@@ -4303,6 +4320,53 @@ class ChatNotifier extends Notifier<ChatState> {
     return false;
   }
 
+  bool _taskProposalNeedsRetryForWorkflow(
+    WorkflowTaskProposalDraft original,
+    WorkflowTaskProposalDraft finalized,
+    bool projectLooksEmpty,
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    if (!_taskProposalNeedsRetry(original, finalized, projectLooksEmpty)) {
+      return false;
+    }
+    return !_workflowAllowsSingleReadmeTask(finalized, workflowSpec);
+  }
+
+  bool _workflowAllowsSingleReadmeTask(
+    WorkflowTaskProposalDraft finalized,
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    if (finalized.tasks.length != 1) {
+      return false;
+    }
+
+    final task = finalized.tasks.single;
+    final targetFiles = task.targetFiles
+        .map((path) => path.trim().toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toList(growable: false);
+    if (targetFiles.isEmpty ||
+        !targetFiles.every((path) => path == 'readme.md')) {
+      return false;
+    }
+
+    final context = [
+      workflowSpec.goal,
+      ...workflowSpec.constraints,
+      ...workflowSpec.acceptanceCriteria,
+      ...workflowSpec.openQuestions,
+    ].join(' ').toLowerCase();
+    final explicitlyReadmeOnly =
+        context.contains('readme.md only') ||
+        context.contains('limited to readme.md') ||
+        context.contains('readme first slice') ||
+        context.contains('exactly one task') ||
+        context.contains('single task') ||
+        context.contains('no python source files') ||
+        context.contains('no source files');
+    return explicitlyReadmeOnly && task.validationCommand.trim().isNotEmpty;
+  }
+
   bool _taskProposalHasImplementationFollowUp(
     List<ConversationWorkflowTask> tasks,
   ) {
@@ -5082,6 +5146,21 @@ class ChatNotifier extends Notifier<ChatState> {
     bool projectLooksEmpty,
   ) {
     return _taskProposalNeedsRetry(original, finalized, projectLooksEmpty);
+  }
+
+  @visibleForTesting
+  bool taskProposalNeedsRetryForWorkflowForTest(
+    WorkflowTaskProposalDraft original,
+    WorkflowTaskProposalDraft finalized,
+    bool projectLooksEmpty,
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    return _taskProposalNeedsRetryForWorkflow(
+      original,
+      finalized,
+      projectLooksEmpty,
+      workflowSpec,
+    );
   }
 
   @visibleForTesting
@@ -6513,6 +6592,23 @@ class ChatNotifier extends Notifier<ChatState> {
       if (nextResult.hasToolCalls) {
         final nextToolCalls = nextResult.toolCalls!;
         final fallbackResponse = nextResult.content.trim();
+        if (_toolResultsContainSuccessfulCurrentSavedValidation(
+          batchToolResults,
+        )) {
+          appLog(
+            '[Tool] Ignoring follow-up tool calls after saved validation success',
+          );
+          currentToolCalls = [];
+          final completionResponse = fallbackResponse.isNotEmpty
+              ? fallbackResponse
+              : 'The saved validation command succeeded for the current saved task, so the current saved task is complete.';
+          _recordHiddenAssistantResponse(completionResponse);
+          _appendRecoveredAssistantResponse(completionResponse);
+          currentAssistantContent = completionResponse;
+          hasTextResponse = true;
+          skippedDuplicateOnlyBatch = false;
+          break;
+        }
         if (_containsOnlyReadOnlyInspectionToolCalls(nextToolCalls) &&
             _shouldAcceptTerminalToolRoleFinalTextResponse(fallbackResponse)) {
           appLog(
@@ -6881,6 +6977,47 @@ class ChatNotifier extends Notifier<ChatState> {
       r'^exit_code:\s*0\s*$',
       multiLine: true,
     ).hasMatch(result.result);
+  }
+
+  bool _toolResultsContainSuccessfulCurrentSavedValidation(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final validationCommand = _currentSavedValidationCommandForToolLoop();
+    if (validationCommand == null) {
+      return false;
+    }
+    final normalizedValidationCommand = _normalizeToolCommandForComparison(
+      validationCommand,
+    );
+    return toolResults.any((result) {
+      if (!_toolResultHasSuccessfulExit(result)) {
+        return false;
+      }
+      final command = _toolCommandArgument(result.arguments);
+      if (command == null) {
+        return false;
+      }
+      return _normalizeToolCommandForComparison(command) ==
+          normalizedValidationCommand;
+    });
+  }
+
+  String? _currentSavedValidationCommandForToolLoop() {
+    final conversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final command = conversation == null
+        ? null
+        : ConversationPlanExecutionCoordinator.validationTask(
+            conversation,
+          )?.validationCommand.trim();
+    return command == null || command.isEmpty ? null : command;
+  }
+
+  String _normalizeToolCommandForComparison(String command) {
+    return LocalShellTools.normalizeCommand(
+      command,
+    ).replaceAll(RegExp(r'\s+'), ' ').trim().toLowerCase();
   }
 
   bool _isReadOnlyInspectionTool(String toolName) {
