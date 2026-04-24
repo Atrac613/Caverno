@@ -3259,47 +3259,17 @@ void main() {
         model: config.model,
         baseUrl: config.baseUrl,
       );
-      final suiteReport = buildPlanModeSuiteJsonReport(
+      final suiteReportArtifacts = await writePlanModeSuiteReportArtifacts(
+        reportDirectory: reportDirectory,
+        suiteRunDirectory: suiteRunDirectory,
+        reportPrefix: config.reportPrefix,
         config: suiteReportConfig,
         suiteResults: suiteResults,
       );
-      final suiteRunReportFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.json',
+      appLog(
+        '[ScenarioSuite] Report written to '
+        '${suiteReportArtifacts.latestJsonPath}',
       );
-      await suiteRunReportFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(suiteReport),
-      );
-      final suiteReportFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.json',
-      );
-      await suiteReportFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(suiteReport),
-      );
-      final suiteMarkdown = buildPlanModeSuiteMarkdownReport(
-        config: suiteReportConfig,
-        suiteResults: suiteResults,
-      );
-      final suiteJUnit = buildPlanModeSuiteJUnitReport(
-        config: suiteReportConfig,
-        suiteResults: suiteResults,
-      );
-      final suiteRunMarkdownFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.md',
-      );
-      await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
-      final suiteRunJUnitFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.xml',
-      );
-      await suiteRunJUnitFile.writeAsString(suiteJUnit);
-      final suiteMarkdownFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.md',
-      );
-      await suiteMarkdownFile.writeAsString(suiteMarkdown);
-      final suiteJUnitFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.xml',
-      );
-      await suiteJUnitFile.writeAsString(suiteJUnit);
-      appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
     });
 
     for (final scenario in scenarios) {
