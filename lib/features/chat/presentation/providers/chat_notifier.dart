@@ -5886,12 +5886,6 @@ class ChatNotifier extends Notifier<ChatState> {
         additionalPlanningContext: additionalPlanningContext,
       );
       if (!ref.mounted) return;
-      state = state.copyWith(
-        isLoading: false,
-        isGeneratingTaskProposal: false,
-        taskProposalDraft: taskDraft,
-        taskProposalError: null,
-      );
       appLog('[Workflow] Task proposal ready');
       await _persistPlanArtifactDraft(
         workflowStage: workflowDraft.workflowStage,
@@ -5899,6 +5893,13 @@ class ChatNotifier extends Notifier<ChatState> {
         tasks: taskDraft.tasks,
       );
       appLog('[Workflow] Task plan artifact draft persisted');
+      if (!ref.mounted) return;
+      state = state.copyWith(
+        isLoading: false,
+        isGeneratingTaskProposal: false,
+        taskProposalDraft: taskDraft,
+        taskProposalError: null,
+      );
     } catch (error) {
       if (!ref.mounted) return;
       state = state.copyWith(

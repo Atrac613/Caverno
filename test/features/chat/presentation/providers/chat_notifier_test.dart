@@ -23,6 +23,7 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -3504,6 +3505,92 @@ void main() {
           contains('Refresh the draft plan'),
         );
       } finally {
+        planContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'generatePlanProposal persists task draft before ending task generation',
+    () async {
+      final conversationRepository = _FakeConversationRepository();
+      final proposalDataSource = _QueuedProposalDataSource([
+        ChatCompletionResult(
+          content:
+              '{"kind":"proposal","workflowStage":"plan","goal":"Create a small Python CLI","constraints":["Keep files minimal"],"acceptanceCriteria":["A runnable task plan is generated"],"openQuestions":[]}',
+          finishReason: 'stop',
+        ),
+        ChatCompletionResult(
+          content:
+              '{"tasks":[{"title":"Create the CLI entrypoint","targetFiles":["main.py"],"validationCommand":"python3 main.py --help","notes":"Add argparse help output."},{"title":"Document the CLI usage","targetFiles":["README.md"],"validationCommand":"python3 main.py --help","notes":"Keep the README short."}]}',
+          finishReason: 'stop',
+        ),
+      ]);
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final planContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(_PlanSettingsNotifier.new),
+          conversationRepositoryProvider.overrideWithValue(
+            conversationRepository,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(proposalDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(null),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      ProviderSubscription<ChatState>? subscription;
+
+      try {
+        planContainer
+            .read(conversationsNotifierProvider.notifier)
+            .activateWorkspace(
+              workspaceMode: WorkspaceMode.coding,
+              projectId: 'project-1',
+              createIfMissing: true,
+            );
+        final taskCountsWhenGenerationEnds = <int>[];
+        subscription = planContainer.listen<ChatState>(chatNotifierProvider, (
+          previous,
+          next,
+        ) {
+          if (!(previous?.isGeneratingTaskProposal ?? false) ||
+              next.isGeneratingTaskProposal ||
+              next.taskProposalDraft == null ||
+              next.taskProposalError != null) {
+            return;
+          }
+          final markdown = planContainer
+              .read(conversationsNotifierProvider)
+              .currentConversation
+              ?.planArtifact
+              ?.normalizedDraftMarkdown;
+          if (markdown == null) {
+            taskCountsWhenGenerationEnds.add(0);
+            return;
+          }
+          final validation = ConversationPlanProjectionService.validateDocument(
+            markdown: markdown,
+            requireTasks: true,
+          );
+          taskCountsWhenGenerationEnds.add(validation.previewTasks.length);
+        });
+        final planNotifier = planContainer.read(chatNotifierProvider.notifier);
+
+        await planNotifier.generatePlanProposal();
+
+        expect(taskCountsWhenGenerationEnds, [2]);
+      } finally {
+        subscription?.close();
         planContainer.dispose();
       }
     },

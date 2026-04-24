@@ -65,6 +65,7 @@ class PlanModeSavedWorkflowExpectation {
     this.taskCount,
     this.minTaskCount,
     this.firstTaskTitle,
+    this.firstTaskTargetFilesContain = const <String>[],
     this.openQuestionsContain = const <String>[],
   });
 
@@ -73,6 +74,7 @@ class PlanModeSavedWorkflowExpectation {
   final int? taskCount;
   final int? minTaskCount;
   final String? firstTaskTitle;
+  final List<String> firstTaskTargetFilesContain;
   final List<String> openQuestionsContain;
 }
 
@@ -142,6 +144,33 @@ class PlanModeLogExpectation {
   final int? exactCount;
   final int? minCount;
   final int? maxCount;
+}
+
+int countPlanModeLogsMatching(List<String> logs, String pattern) {
+  return logs.where((line) => line.contains(pattern)).length;
+}
+
+bool planModeLogLowerBoundsSatisfied(
+  List<String> logs,
+  List<PlanModeLogExpectation> expectations,
+) {
+  for (final expectation in expectations) {
+    final count = countPlanModeLogsMatching(logs, expectation.pattern);
+    final lowerBound = expectation.exactCount ?? expectation.minCount;
+    if (lowerBound != null && count < lowerBound) {
+      return false;
+    }
+  }
+  return true;
+}
+
+String normalizePlanModeDecisionOptionLabel(String value) {
+  return value
+      .trim()
+      .replaceAll(RegExp("^[\"']+|[\"']+\$"), '')
+      .replaceAll(RegExp(r'\s+'), ' ')
+      .trim()
+      .toLowerCase();
 }
 
 sealed class PlanModeWorkflowResponseSpec {
@@ -1466,7 +1495,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       planningProposalTimeout: const Duration(minutes: 3),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
-        firstTaskTitle: 'Create requirements.txt',
+        firstTaskTargetFilesContain: <String>['requirements.txt'],
       ),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
@@ -1474,7 +1503,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
         PlanModeLogExpectation(
-          pattern: '[LLM] === Response (streamWithTools) ===',
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
       ],
@@ -1526,9 +1555,63 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
         PlanModeLogExpectation(
-          pattern: '[LLM] === Response (streamWithTools) ===',
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
+      ],
+    ),
+    PlanModeScenarioSpec(
+      name: 'live_readme_first_canary',
+      userPrompt:
+          'Create a reviewable plan for a Python host health checker README '
+          'first slice. Do not ask clarifying questions. Keep the first '
+          'implementation slice limited to README.md only, and after approval '
+          'create a concise README that explains the project, usage direction, '
+          'and validation approach. Do not create Python source files in the '
+          'first slice. The saved task proposal must contain exactly one task, '
+          'and that task must create or update README.md. Do not add a '
+          'separate verification-only task.',
+      projectName: 'tmp-live-readme-canary',
+      tags: const <String>['live', 'canary', 'artifact'],
+      workflowResponses: const <PlanModeWorkflowResponseSpec>[
+        PlanModeWorkflowRawResponseSpec(content: '{}'),
+      ],
+      taskProposal: const <PlanModeScenarioTaskSpec>[],
+      toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+      continuationStreams: const <String>[],
+      uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.proposal,
+          text: 'Approve and start',
+        ),
+      ],
+      artifactExpectations: const <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(path: 'README.md'),
+      ],
+      planningProposalTimeout: const Duration(minutes: 3),
+      savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 1,
+        firstTaskTargetFilesContain: <String>['README.md'],
+      ),
+      logExpectations: const <PlanModeLogExpectation>[
+        PlanModeLogExpectation(
+          pattern: '[Workflow] Planning research pass started',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== createChatCompletion ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+      ],
+      allowedWarningPatterns: const <String>[
+        '[Workflow] Workflow proposal parse failed',
+        '[Workflow] Workflow proposal recovered on retry',
+        '[Workflow] Using fallback proposal',
+        '[LLM] Recovered raw text response after create parse failure',
       ],
     ),
     PlanModeScenarioSpec(
@@ -1571,7 +1654,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
         PlanModeLogExpectation(
-          pattern: '[LLM] === Response (streamWithTools) ===',
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
       ],
@@ -1618,7 +1701,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
         PlanModeLogExpectation(
-          pattern: '[LLM] === Response (streamWithTools) ===',
+          pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
       ],

@@ -261,6 +261,14 @@ tool/run_plan_mode_live_test.sh
 
 Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json`, `build/integration_test_reports/plan_mode_live_suite_report.md`, and `build/integration_test_reports/plan_mode_live_suite_report.xml`.
 
+The live JSON report includes `outcomeSummary`, `warningSummary`, and
+`executionPathSummary` for quick triage. Scenario reports also include
+`approvalPath` and `fallbackPath`; `liveHarnessApprovalFallback` means the app
+produced a reviewable plan, but the live test harness approved and started it
+directly instead of depending on a foreground-sensitive approval sheet tap.
+Treat `unexpectedWarnings` as fix targets. `allowedWarnings` are still reported,
+but they have a documented recovery path or scenario-level allow pattern.
+
 ## Architecture
 
 Clean Architecture with feature-based modules and Riverpod state management.

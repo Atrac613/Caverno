@@ -21,6 +21,7 @@ void main() {
 
         expect(summary.allowedWarnings, contains(warning));
         expect(summary.unexpectedWarnings, isEmpty);
+        expect(summary.details.single.reason, 'recoveredCreateParseWarning');
       },
     );
 
@@ -35,6 +36,11 @@ void main() {
 
       expect(summary.allowedWarnings, isEmpty);
       expect(summary.unexpectedWarnings, contains(warning));
+      expect(summary.details.single.toJson(), <String, String>{
+        'warning': warning,
+        'disposition': 'unexpected',
+        'reason': 'requiresInvestigation',
+      });
     });
 
     test('still respects explicitly allowed warning patterns', () {
@@ -49,6 +55,11 @@ void main() {
 
       expect(summary.allowedWarnings, contains(warning));
       expect(summary.unexpectedWarnings, isEmpty);
+      expect(summary.toJson()['counts'], <String, int>{
+        'warnings': 1,
+        'allowedWarnings': 1,
+        'unexpectedWarnings': 0,
+      });
     });
 
     test('allows post-completion memory extraction transport warnings', () {
@@ -115,6 +126,32 @@ void main() {
             '[LLM] ========== createChatCompletion ==========',
             '[LLM]   [0] system: You extract reusable user memory from a conversation.',
             '[Memory] LLM memory extraction succeeded',
+          ],
+        );
+
+        expect(summary.allowedWarnings, contains(streamWarning));
+        expect(summary.allowedWarnings, contains(notifierWarning));
+        expect(summary.unexpectedWarnings, isEmpty);
+      },
+    );
+
+    test(
+      'allows continuation stream disconnect warnings after saved task auto-continuation',
+      () {
+        const streamWarning =
+            '[LLM] streamChatCompletion error: ClientException: Connection closed before full header was received';
+        const notifierWarning =
+            '[ChatNotifier] _continueAfterContentToolResults onError: ClientException: Connection closed before full header was received';
+        final summary = summarizeScenarioWarnings(
+          warnings: const <String>[streamWarning, notifierWarning],
+          allowedPatterns: const <String>[],
+          logs: const <String>[
+            '[ContentTool]   - local_execute_command: {command: ls requirements.txt README.md}',
+            streamWarning,
+            notifierWarning,
+            '[Tool] Sending hidden prompt in tool-aware mode',
+            '[LLM]   [4] user: The previous saved task is complete. Continue immediately with the next pending saved task without asking for confirmation.',
+            '[LLM] ========== streamChatCompletionWithTools ==========',
           ],
         );
 

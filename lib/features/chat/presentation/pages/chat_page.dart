@@ -63,6 +63,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
   bool _isApprovedPlanExpanded = false;
   bool _isPresentingPlanReviewSheet = false;
   String? _trackedPlanGenerationConversationId;
+  String? _lastAutoPresentedPlanReviewDraftKey;
   bool _wasGeneratingPlanForTrackedConversation = false;
   bool _wasShowingPlanDraft = false;
   String _composerPrefillText = '';
@@ -799,28 +800,51 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final isGenerating =
         chatState.isGeneratingWorkflowProposal ||
         chatState.isGeneratingTaskProposal;
+    final hasCompletedProposalDrafts =
+        chatState.workflowProposalDraft != null &&
+        chatState.taskProposalDraft != null;
+    final canPresentCompletedPlanModeDraft =
+        isPlanMode && hasCompletedProposalDrafts;
     if (_trackedPlanGenerationConversationId != conversationId) {
       _trackedPlanGenerationConversationId = conversationId;
-      _wasGeneratingPlanForTrackedConversation = isGenerating;
-      return false;
+      _wasGeneratingPlanForTrackedConversation =
+          isGenerating || canPresentCompletedPlanModeDraft;
+      if (!canPresentCompletedPlanModeDraft) {
+        return false;
+      }
     }
 
     if (isGenerating) {
       _wasGeneratingPlanForTrackedConversation = true;
+      _lastAutoPresentedPlanReviewDraftKey = null;
       return false;
     }
 
     final artifact = currentConversation.effectivePlanArtifact;
     final requiresReview =
         isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
-    final shouldPresent =
-        _wasGeneratingPlanForTrackedConversation &&
+    final baseReady =
+        (_wasGeneratingPlanForTrackedConversation ||
+            canPresentCompletedPlanModeDraft) &&
         requiresReview &&
         artifact.normalizedDraftMarkdown != null &&
         chatState.workflowProposalError == null &&
         chatState.taskProposalError == null;
+    if (!baseReady) {
+      _wasGeneratingPlanForTrackedConversation = false;
+      return false;
+    }
+    if (!_planArtifactHasPreviewTasks(artifact)) {
+      _wasGeneratingPlanForTrackedConversation = true;
+      return false;
+    }
+    final draftKey = _planReviewDraftKey(conversationId, artifact);
+    if (_lastAutoPresentedPlanReviewDraftKey == draftKey) {
+      _wasGeneratingPlanForTrackedConversation = false;
+      return false;
+    }
     _wasGeneratingPlanForTrackedConversation = false;
-    return shouldPresent;
+    return true;
   }
 
   void _maybePresentPlanReviewSheet(
@@ -843,18 +867,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
     }
 
     _isPresentingPlanReviewSheet = true;
-    WidgetsBinding.instance.addPostFrameCallback((_) async {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) {
         _isPresentingPlanReviewSheet = false;
         return;
       }
-      await _openPlanReviewSheet(
-        context,
-        currentConversation: currentConversation,
-        chatState: chatState,
-        isPlanMode: isPlanMode,
+      unawaited(
+        Future<void>(() {
+          if (!mounted || !context.mounted) {
+            _isPresentingPlanReviewSheet = false;
+            return;
+          }
+          unawaited(
+            _openPlanReviewSheet(
+              context,
+              currentConversation: currentConversation,
+              chatState: chatState,
+              isPlanMode: isPlanMode,
+            ).whenComplete(() {
+              _isPresentingPlanReviewSheet = false;
+            }),
+          );
+        }),
       );
-      _isPresentingPlanReviewSheet = false;
     });
   }
 
@@ -867,26 +902,53 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final latestConversation =
         ref.read(conversationsNotifierProvider).currentConversation ??
         currentConversation;
-    final artifact = latestConversation.effectivePlanArtifact;
-    if (!artifact.hasContent) {
+    final initialArtifact = latestConversation.effectivePlanArtifact;
+    final initialDraftState =
+        isPlanMode ||
+        initialArtifact.hasPendingEdits ||
+        !initialArtifact.hasApproved;
+    if (!initialArtifact.hasContent ||
+        (initialDraftState && !_planArtifactHasPreviewTasks(initialArtifact))) {
       return;
     }
+    final initialDraftKey = _planReviewDraftKey(
+      latestConversation.id,
+      initialArtifact,
+    );
+    if (initialDraftState && initialDraftKey != null) {
+      _lastAutoPresentedPlanReviewDraftKey = initialDraftKey;
+    }
 
-    final isDraftState =
-        isPlanMode || artifact.hasPendingEdits || !artifact.hasApproved;
     final action = await showModalBottomSheet<PlanReviewSheetAction>(
       context: context,
       isScrollControlled: true,
       useSafeArea: true,
       showDragHandle: true,
-      builder: (sheetContext) => FractionallySizedBox(
-        heightFactor: 0.96,
-        child: PlanReviewSheet(
-          planArtifact: artifact,
-          isPlanMode: isPlanMode,
-          canApprove: isDraftState,
-          canCancel: isDraftState,
-        ),
+      builder: (sheetContext) => Consumer(
+        builder: (context, ref, _) {
+          final latestSheetConversation =
+              ref.watch(conversationsNotifierProvider).currentConversation ??
+              latestConversation;
+          final sheetArtifact = latestSheetConversation.effectivePlanArtifact;
+          final effectiveArtifact = sheetArtifact.hasContent
+              ? sheetArtifact
+              : initialArtifact;
+          final isDraftState =
+              isPlanMode ||
+              effectiveArtifact.hasPendingEdits ||
+              !effectiveArtifact.hasApproved;
+          final canApprove =
+              isDraftState && _planArtifactHasPreviewTasks(effectiveArtifact);
+          return FractionallySizedBox(
+            heightFactor: 0.96,
+            child: PlanReviewSheet(
+              planArtifact: effectiveArtifact,
+              isPlanMode: isPlanMode,
+              canApprove: canApprove,
+              canCancel: isDraftState,
+            ),
+          );
+        },
       ),
     );
     if (!mounted || !context.mounted) {
@@ -908,6 +970,31 @@ class _ChatPageState extends ConsumerState<ChatPage>
     if (action == PlanReviewSheetAction.cancel) {
       await _cancelPlanReview(context, currentConversation: latestConversation);
     }
+  }
+
+  bool _planArtifactHasPreviewTasks(ConversationPlanArtifact artifact) {
+    final markdown =
+        artifact.displayMarkdown(isPlanning: true) ??
+        artifact.displayMarkdown(isPlanning: false);
+    if (markdown == null || markdown.trim().isEmpty) {
+      return false;
+    }
+    final validation = ConversationPlanProjectionService.validateDocument(
+      markdown: markdown,
+      requireTasks: true,
+    );
+    return validation.previewTasks.isNotEmpty;
+  }
+
+  String? _planReviewDraftKey(
+    String conversationId,
+    ConversationPlanArtifact artifact,
+  ) {
+    final draftMarkdown = artifact.normalizedDraftMarkdown;
+    if (draftMarkdown == null) {
+      return null;
+    }
+    return '$conversationId:${draftMarkdown.hashCode}';
   }
 
   Widget _buildConversationCompactionBanner(
@@ -4568,6 +4655,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       languageCode: languageCode,
       bypassPlanMode: true,
     );
+    if (!mounted || !context.mounted) {
+      return;
+    }
+
     final toolResults = chatNotifier.takeLatestToolResults();
     final hiddenAssistantResponse = chatNotifier
         .takeLatestHiddenAssistantResponse();
@@ -5092,6 +5183,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || _toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5147,6 +5241,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5321,6 +5418,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       }
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5342,6 +5442,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5422,6 +5525,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5443,6 +5549,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5525,6 +5634,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5546,6 +5658,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5617,6 +5732,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5638,6 +5756,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || _toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -5732,6 +5853,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -5755,6 +5879,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required bool assistantEvidenceApplied,
     String? fallbackAssistantResponse,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isNotEmpty) {
       return false;
     }
@@ -5968,6 +6095,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
         return false;
       }
 
+      if (!mounted) {
+        return false;
+      }
       final refreshedConversation = ref
           .read(conversationsNotifierProvider)
           .currentConversation;
@@ -6079,6 +6209,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
         return false;
       }
 
+      if (!mounted) {
+        return false;
+      }
       final refreshedConversation = ref
           .read(conversationsNotifierProvider)
           .currentConversation;
@@ -6125,6 +6258,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -6145,6 +6281,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required ConversationWorkflowTask task,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty) {
       return false;
     }
@@ -6206,6 +6345,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required String languageCode,
     required List<ToolResultInfo> toolResults,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty || !_toolResultsContainFailure(toolResults)) {
       return false;
     }
@@ -6284,6 +6426,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       return false;
     }
 
+    if (!mounted) {
+      return false;
+    }
     final refreshedConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
@@ -6306,6 +6451,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required bool isValidationRun,
     String? fallbackAssistantResponse,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     final conversationsNotifier = ref.read(
       conversationsNotifierProvider.notifier,
     );
@@ -6454,6 +6602,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     required List<ToolResultInfo> toolResults,
     String? fallbackAssistantResponse,
   }) async {
+    if (!mounted) {
+      return false;
+    }
     if (toolResults.isEmpty) {
       return false;
     }
@@ -6922,6 +7073,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
       _latestAssistantMessage(conversation)?.id;
 
   bool _taskReachedTerminalStatus(String taskId) {
+    if (!mounted) {
+      return false;
+    }
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;

@@ -21,7 +21,12 @@ import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.da
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
 import 'package:caverno/features/chat/domain/entities/coding_project.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_execution_coordinator.dart';
+import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/presentation/pages/chat_page.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
@@ -37,7 +42,10 @@ import 'test_support/plan_mode_scenario_spec.dart';
 import 'test_support/plan_mode_execution_progress.dart';
 import 'test_support/plan_mode_execution_watchdog.dart';
 import 'test_support/plan_mode_live_diagnostics.dart';
+import 'test_support/plan_mode_live_harness_fallback.dart';
 import 'test_support/plan_mode_planning_progress.dart';
+import 'test_support/plan_mode_report_summary.dart';
+import 'test_support/plan_mode_suite_report.dart';
 import 'test_support/plan_mode_warning_policy.dart';
 import 'test_support/plan_mode_approval_progress.dart';
 import 'test_support/screenshot_capture.dart';
@@ -147,6 +155,26 @@ class _PlanModeTimeoutBudgets {
   }
 }
 
+class _PostScenarioSettleResult {
+  const _PostScenarioSettleResult({
+    required this.initiallySettled,
+    required this.settled,
+    required this.cancellationUsed,
+  });
+
+  final bool initiallySettled;
+  final bool settled;
+  final bool cancellationUsed;
+
+  Map<String, bool> toJson() {
+    return <String, bool>{
+      'initiallySettled': initiallySettled,
+      'settled': settled,
+      'cancellationUsed': cancellationUsed,
+    };
+  }
+}
+
 bool _envFlagEnabled(String name) {
   final rawValue = Platform.environment[name]?.trim().toLowerCase();
   return rawValue == '1' ||
@@ -204,8 +232,11 @@ Duration _resolveExecutionStallTimeout(PlanModeScenarioSpec scenario) {
       scenario.executionStallTimeout;
 }
 
-Duration? _resolveOverallRunTimeout() {
-  return _envDurationFromSeconds('CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS');
+Duration _resolveOverallRunTimeout(PlanModeScenarioSpec scenario) {
+  return _envDurationFromSeconds('CAVERNO_PLAN_MODE_RUN_TIMEOUT_SECONDS') ??
+      scenario.planningProposalTimeout +
+          scenario.executionCompletionTimeout +
+          const Duration(minutes: 5);
 }
 
 String? _resolveLiveHeartbeatPath() {
@@ -544,6 +575,22 @@ Future<void> _resolvePlanningDecisions(
   const maxDecisionRounds = 8;
 
   while (resolvedDecisionCount < maxDecisionRounds) {
+    if (config.usesLiveLlm) {
+      final resolved = await _resolveLivePlanningDecision(
+        container,
+        scenario,
+        scriptedDecisionIndex: scriptedDecisionIndex,
+      );
+      if (!resolved) {
+        return;
+      }
+      if (scriptedDecisionIndex < scenario.decisionSelections.length) {
+        scriptedDecisionIndex += 1;
+      }
+      resolvedDecisionCount += 1;
+      continue;
+    }
+
     await _pumpUntilIdle(tester);
     final chatState = container.read(chatNotifierProvider);
     final decisionSheetFinder = find.byType(BottomSheet);
@@ -551,8 +598,25 @@ Future<void> _resolvePlanningDecisions(
       of: decisionSheetFinder,
       matching: find.text('Continue with this choice'),
     );
-    final shouldHandleDecision = shouldHandlePlanningDecision(
+    if (shouldWaitForPlanningDecisionSheet(
       hasPendingDecision: chatState.pendingWorkflowDecision != null,
+      confirmVisible: confirmFinder.evaluate().isNotEmpty,
+    )) {
+      appLog('[Workflow] Waiting for planning decision sheet');
+      final confirmBecameVisible = await _waitForPlanningDecisionConfirm(
+        tester,
+      );
+      if (!confirmBecameVisible) {
+        throw StateError(
+          'A planning decision is pending, but the decision sheet did not '
+          'show its confirmation control.',
+        );
+      }
+    }
+
+    final refreshedChatState = container.read(chatNotifierProvider);
+    final shouldHandleDecision = shouldHandlePlanningDecision(
+      hasPendingDecision: refreshedChatState.pendingWorkflowDecision != null,
       confirmVisible: confirmFinder.evaluate().isNotEmpty,
     );
     if (!shouldHandleDecision) {
@@ -580,21 +644,28 @@ Future<void> _resolvePlanningDecisions(
       );
     }
 
-    appLog('[Workflow] Decision screenshot started');
-    try {
-      await captureIntegrationScreenshot(
-        binding: binding,
-        tester: tester,
-        repaintBoundaryKey: screenshotBoundaryKey,
-        name:
-            'plan_mode_${scenario.name}_decision_${resolvedDecisionCount + 1}',
-        outputDirectory: outputDirectory,
-      ).timeout(const Duration(seconds: 10));
-      appLog('[Workflow] Decision screenshot finished');
-    } on TimeoutException {
-      appLog('[Workflow] Decision screenshot skipped after timeout');
-    } catch (error) {
-      appLog('[Workflow] Decision screenshot skipped after error: $error');
+    if (config.usesLiveLlm) {
+      appLog(
+        '[Screenshot] Decision screenshot skipped for live scenario '
+        '${scenario.name}',
+      );
+    } else {
+      appLog('[Workflow] Decision screenshot started');
+      try {
+        await captureIntegrationScreenshot(
+          binding: binding,
+          tester: tester,
+          repaintBoundaryKey: screenshotBoundaryKey,
+          name:
+              'plan_mode_${scenario.name}_decision_${resolvedDecisionCount + 1}',
+          outputDirectory: outputDirectory,
+        ).timeout(const Duration(seconds: 10));
+        appLog('[Workflow] Decision screenshot finished');
+      } on TimeoutException {
+        appLog('[Workflow] Decision screenshot skipped after timeout');
+      } catch (error) {
+        appLog('[Workflow] Decision screenshot skipped after error: $error');
+      }
     }
 
     if (scriptedSelection?.freeTextAnswer != null) {
@@ -645,6 +716,108 @@ Future<void> _resolvePlanningDecisions(
   );
 }
 
+Future<bool> _resolveLivePlanningDecision(
+  ProviderContainer container,
+  PlanModeScenarioSpec scenario, {
+  required int scriptedDecisionIndex,
+}) async {
+  final pending = container.read(chatNotifierProvider).pendingWorkflowDecision;
+  if (pending == null) {
+    return false;
+  }
+
+  final decision = pending.decision;
+  final scriptedSelection =
+      scriptedDecisionIndex < scenario.decisionSelections.length
+      ? scenario.decisionSelections[scriptedDecisionIndex]
+      : null;
+  final answer = _buildLivePlanningDecisionAnswer(decision, scriptedSelection);
+  appLog(
+    '[ScenarioLive] Resolved planning decision via harness: '
+    '${decision.question} -> ${answer.optionLabel}',
+  );
+  container
+      .read(chatNotifierProvider.notifier)
+      .resolveWorkflowDecision(id: pending.id, answer: answer);
+  await Future<void>.delayed(const Duration(milliseconds: 100));
+  return true;
+}
+
+WorkflowPlanningDecisionAnswer _buildLivePlanningDecisionAnswer(
+  WorkflowPlanningDecision decision,
+  PlanModeScenarioDecisionSelection? scriptedSelection,
+) {
+  final freeTextAnswer = scriptedSelection?.freeTextAnswer?.trim();
+  if (freeTextAnswer != null && freeTextAnswer.isNotEmpty) {
+    return WorkflowPlanningDecisionAnswer(
+      decisionId: decision.id,
+      question: decision.question,
+      optionId: 'free_text',
+      optionLabel: freeTextAnswer,
+    );
+  }
+
+  final targetOptionLabel = scriptedSelection?.optionLabel?.trim();
+  final selectedOption = targetOptionLabel == null || targetOptionLabel.isEmpty
+      ? decision.options.firstOrNull
+      : decision.options
+                .where(
+                  (option) =>
+                      normalizePlanModeDecisionOptionLabel(option.label) ==
+                      normalizePlanModeDecisionOptionLabel(targetOptionLabel),
+                )
+                .firstOrNull ??
+            decision.options.firstOrNull;
+
+  if (selectedOption != null) {
+    return WorkflowPlanningDecisionAnswer(
+      decisionId: decision.id,
+      question: decision.question,
+      optionId: selectedOption.id,
+      optionLabel: selectedOption.label,
+    );
+  }
+
+  if (decision.allowFreeText) {
+    final fallbackAnswer = targetOptionLabel?.isNotEmpty == true
+        ? targetOptionLabel!
+        : 'Default';
+    return WorkflowPlanningDecisionAnswer(
+      decisionId: decision.id,
+      question: decision.question,
+      optionId: 'free_text',
+      optionLabel: fallbackAnswer,
+    );
+  }
+
+  throw StateError(
+    'Cannot resolve live planning decision because it has no selectable '
+    'options: ${decision.question}',
+  );
+}
+
+Future<bool> _waitForPlanningDecisionConfirm(WidgetTester tester) async {
+  final deadline = DateTime.now().add(const Duration(seconds: 5));
+  while (DateTime.now().isBefore(deadline)) {
+    await _delayAndPumpFrame(tester, const Duration(milliseconds: 100));
+    await _pumpUntilIdle(tester);
+    final decisionSheetFinder = find.byType(BottomSheet);
+    final confirmFinder = find.descendant(
+      of: decisionSheetFinder,
+      matching: find.text('Continue with this choice'),
+    );
+    if (confirmFinder.evaluate().isNotEmpty) {
+      return true;
+    }
+  }
+  return false;
+}
+
+Future<void> _delayAndPumpFrame(WidgetTester tester, Duration delay) async {
+  await Future<void>.delayed(delay);
+  await tester.pump();
+}
+
 Finder _findDecisionSheetText(
   WidgetTester tester,
   Finder decisionSheetFinder,
@@ -658,14 +831,16 @@ Finder _findDecisionSheetText(
     return exactFinder;
   }
 
-  final normalizedTarget = targetText.trim().toLowerCase();
+  final normalizedTarget = normalizePlanModeDecisionOptionLabel(targetText);
   return find.descendant(
     of: decisionSheetFinder,
     matching: find.byWidgetPredicate((widget) {
       if (widget is! Text) {
         return false;
       }
-      final data = widget.data?.trim().toLowerCase();
+      final data = widget.data == null
+          ? null
+          : normalizePlanModeDecisionOptionLabel(widget.data!);
       return data != null && data == normalizedTarget;
     }),
   );
@@ -707,7 +882,7 @@ Future<void> _waitForReadyPlanProposal(
   var proposalUiLogged = false;
 
   bool isApprovalUiReady() {
-    return find.text('Approve and start').evaluate().isNotEmpty;
+    return _reviewablePlanApprovalUiReady(container);
   }
 
   bool isProposalReady(ChatState chatState) {
@@ -741,7 +916,32 @@ Future<void> _waitForReadyPlanProposal(
       conversation?.projectedExecutionTasks ??
           const <ConversationWorkflowTask>[],
     );
-    if (isApprovalUiReady() && !proposalUiLogged) {
+    final draftReadyBeforeUiProbe = isPlanningProposalReady(
+      hasWorkflowDraft: chatState.workflowProposalDraft != null,
+      hasTaskDraft: chatState.taskProposalDraft != null,
+      hasPendingDecision: chatState.pendingWorkflowDecision != null,
+      approvalUiVisible: false,
+      workflowError: chatState.workflowProposalError,
+      taskError: chatState.taskProposalError,
+      logs: logs,
+    );
+    if (draftReadyBeforeUiProbe && chatState.pendingWorkflowDecision == null) {
+      phaseTrace.proposalReadyAt ??= DateTime.now();
+      phaseTrace.taskProposalReadyAt ??= DateTime.now();
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'taskDraftReadyAwaitingApprovalUi',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        workflowSnapshot: workflowSnapshot,
+        messageCount: conversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: false,
+      );
+      return;
+    }
+    final approvalUiReady = isApprovalUiReady();
+    if (approvalUiReady && !proposalUiLogged) {
       proposalUiLogged = true;
       appLog('[Workflow] Proposal approval UI became visible');
       heartbeatWriter.write(
@@ -768,7 +968,7 @@ Future<void> _waitForReadyPlanProposal(
         '${chatState.taskProposalError}|'
         '${planningLogsContainWorkflowDraftReady(logs)}|'
         '${planningLogsContainTaskDraftReady(logs)}|'
-        '${isApprovalUiReady()}';
+        '$approvalUiReady';
     if (planningProgressKey != lastPlanningProgressKey) {
       lastPlanningProgressKey = planningProgressKey;
       deadline = DateTime.now().add(timeout);
@@ -778,7 +978,7 @@ Future<void> _waitForReadyPlanProposal(
       subphase: _resolvePlanningSubphase(
         chatState,
         logs,
-        approvalUiVisible: isApprovalUiReady(),
+        approvalUiVisible: approvalUiReady,
       ),
       phaseTrace: phaseTrace,
       budgets: budgets,
@@ -795,7 +995,9 @@ Future<void> _waitForReadyPlanProposal(
       phaseTrace.taskProposalReadyAt ??= DateTime.now();
       heartbeatWriter.write(
         phase: 'planning',
-        subphase: 'taskDraftReady',
+        subphase: approvalUiReady
+            ? 'taskDraftReady'
+            : 'taskDraftReadyAwaitingApprovalUi',
         phaseTrace: phaseTrace,
         budgets: budgets,
         workflowSnapshot: workflowSnapshot,
@@ -803,7 +1005,6 @@ Future<void> _waitForReadyPlanProposal(
         hasPendingApprovals: false,
         isLoading: false,
       );
-      await tester.pump();
       return;
     }
     if (chatState.pendingWorkflowDecision != null) {
@@ -845,7 +1046,42 @@ Future<void> _waitForReadyPlanProposal(
       continue;
     }
 
-    await tester.pump(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
+    final latestChatState = container.read(chatNotifierProvider);
+    final latestConversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final latestDraftReadyBeforeUiProbe = isPlanningProposalReady(
+      hasWorkflowDraft: latestChatState.workflowProposalDraft != null,
+      hasTaskDraft: latestChatState.taskProposalDraft != null,
+      hasPendingDecision: latestChatState.pendingWorkflowDecision != null,
+      approvalUiVisible: false,
+      workflowError: latestChatState.workflowProposalError,
+      taskError: latestChatState.taskProposalError,
+      logs: logs,
+    );
+    if (latestDraftReadyBeforeUiProbe &&
+        latestChatState.pendingWorkflowDecision == null) {
+      phaseTrace.proposalReadyAt ??= DateTime.now();
+      phaseTrace.taskProposalReadyAt ??= DateTime.now();
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'taskDraftReadyAwaitingApprovalUi',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+        workflowSnapshot: _summarizeWorkflowTasks(
+          latestConversation?.projectedExecutionTasks ??
+              const <ConversationWorkflowTask>[],
+        ),
+        messageCount: latestConversation?.messages.length ?? 0,
+        hasPendingApprovals: false,
+        isLoading: false,
+      );
+      return;
+    }
+    if (!config.usesLiveLlm) {
+      await tester.pump();
+    }
   }
 
   final chatState = container.read(chatNotifierProvider);
@@ -855,9 +1091,12 @@ Future<void> _waitForReadyPlanProposal(
     final conversation = container
         .read(conversationsNotifierProvider)
         .currentConversation;
+    final approvalUiReady = isApprovalUiReady();
     heartbeatWriter.write(
       phase: 'planning',
-      subphase: 'taskDraftReady',
+      subphase: approvalUiReady
+          ? 'taskDraftReady'
+          : 'taskDraftReadyAwaitingApprovalUi',
       phaseTrace: phaseTrace,
       budgets: budgets,
       workflowSnapshot: _summarizeWorkflowTasks(
@@ -868,7 +1107,6 @@ Future<void> _waitForReadyPlanProposal(
       hasPendingApprovals: false,
       isLoading: false,
     );
-    await tester.pump();
     return;
   }
 
@@ -884,6 +1122,369 @@ Future<void> _waitForReadyPlanProposal(
   );
 }
 
+bool _reviewablePlanApprovalUiReady(ProviderContainer container) {
+  final reviewSheet = find.byType(PlanReviewSheet);
+  if (reviewSheet.evaluate().isEmpty) {
+    return false;
+  }
+  final approveAction = _findPreferredPlanApproveAction();
+  if (approveAction.evaluate().isEmpty) {
+    return false;
+  }
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  if (!planReviewArtifactHasPreviewTasks(conversation: conversation)) {
+    return false;
+  }
+  final zeroTaskPreview = find.descendant(
+    of: reviewSheet,
+    matching: find.text('Preview tasks: 0'),
+  );
+  return zeroTaskPreview.evaluate().isEmpty;
+}
+
+bool _reviewablePlanArtifactReady(ProviderContainer container) {
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  return planReviewArtifactHasPreviewTasks(conversation: conversation);
+}
+
+Future<bool> _waitForReviewablePlanApprovalUi(
+  WidgetTester tester,
+  ProviderContainer container, {
+  Duration timeout = const Duration(seconds: 20),
+  Duration step = const Duration(milliseconds: 100),
+  bool allowArtifactReadyFallback = false,
+}) async {
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    await Future<void>.delayed(step);
+    await tester.pump();
+    if (_reviewablePlanApprovalUiReady(container)) {
+      return true;
+    }
+    if (allowArtifactReadyFallback && _reviewablePlanArtifactReady(container)) {
+      return false;
+    }
+  }
+  if (allowArtifactReadyFallback && _reviewablePlanArtifactReady(container)) {
+    return false;
+  }
+  final timeoutAction = resolvePlanModeApprovalUiWaitTimeoutAction(
+    allowArtifactReadyFallback: allowArtifactReadyFallback,
+    artifactReady: _reviewablePlanArtifactReady(container),
+  );
+  switch (timeoutAction) {
+    case PlanModeApprovalUiWaitTimeoutAction.useArtifactReadyFallback:
+    case PlanModeApprovalUiWaitTimeoutAction.useLiveHarnessValidationFallback:
+      return false;
+    case PlanModeApprovalUiWaitTimeoutAction.failUiExpectation:
+      break;
+  }
+  expect(_reviewablePlanApprovalUiReady(container), isTrue);
+  return true;
+}
+
+class _HarnessExecutionHandle {
+  const _HarnessExecutionHandle(this.done);
+
+  final Future<void> done;
+}
+
+Future<_HarnessExecutionHandle> _approvePlanAndStartFromHarness(
+  ProviderContainer container, {
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required _PlanModeTimeoutBudgets budgets,
+}) async {
+  final conversationsNotifier = container.read(
+    conversationsNotifierProvider.notifier,
+  );
+  final chatNotifier = container.read(chatNotifierProvider.notifier);
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  if (conversation == null) {
+    throw StateError('Cannot approve plan because no conversation is active.');
+  }
+
+  final currentArtifact = conversation.effectivePlanArtifact;
+  final draftMarkdown =
+      currentArtifact.normalizedDraftMarkdown ??
+      currentArtifact.normalizedApprovedMarkdown;
+  if (draftMarkdown == null) {
+    throw StateError('Cannot approve plan because no plan document exists.');
+  }
+
+  final validation = ConversationPlanProjectionService.validateDocument(
+    markdown: draftMarkdown,
+    requireTasks: true,
+  );
+  if (!validation.isValid || validation.projection == null) {
+    throw StateError(
+      'Cannot approve plan because the plan document is invalid: '
+      '${validation.errorMessage ?? 'unknown validation error'}.',
+    );
+  }
+
+  final approvedWorkflowStage = switch (validation.workflowStage) {
+    ConversationWorkflowStage.tasks ||
+    ConversationWorkflowStage.implement ||
+    ConversationWorkflowStage.review => validation.workflowStage!,
+    _ =>
+      validation.previewTasks.isEmpty
+          ? ConversationWorkflowStage.tasks
+          : ConversationWorkflowStage.implement,
+  };
+  final approvedMarkdown =
+      ConversationPlanProjectionService.replaceWorkflowStage(
+        markdown: draftMarkdown,
+        workflowStage: approvedWorkflowStage,
+      );
+  final updatedAt = DateTime.now();
+  final nextArtifact = currentArtifact
+      .copyWith(
+        draftMarkdown: approvedMarkdown,
+        approvedMarkdown: approvedMarkdown,
+        updatedAt: updatedAt,
+      )
+      .recordRevision(
+        markdown: approvedMarkdown,
+        kind: ConversationPlanRevisionKind.approved,
+        label: 'Approved plan from live test harness',
+        createdAt: updatedAt,
+      );
+
+  await conversationsNotifier.updateCurrentPlanArtifact(
+    planArtifact: nextArtifact,
+    clearPlanArtifact: !nextArtifact.hasContent,
+  );
+  final refreshed = await conversationsNotifier
+      .refreshCurrentWorkflowProjectionFromApprovedPlan();
+  if (!refreshed && validation.workflowSpec != null) {
+    await conversationsNotifier.updateCurrentWorkflow(
+      workflowStage: approvedWorkflowStage,
+      workflowSpec: validation.workflowSpec!,
+    );
+  }
+  await conversationsNotifier.exitPlanningSession();
+  chatNotifier.dismissPlanProposal();
+
+  final executionConversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  if (executionConversation == null) {
+    throw StateError('Cannot start execution because no saved task is ready.');
+  }
+  final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+    executionConversation,
+  );
+  if (nextTask == null) {
+    throw StateError('Cannot start execution because no saved task is ready.');
+  }
+
+  phaseTrace.approvalTappedAt = DateTime.now();
+  heartbeatWriter.write(
+    phase: 'execution',
+    subphase: 'approvedViaHarness',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    activeTaskTitle: nextTask.title,
+    workflowSnapshot: _summarizeWorkflowTasks(
+      executionConversation.projectedExecutionTasks,
+    ),
+    messageCount: executionConversation.messages.length,
+    hasPendingApprovals: false,
+    isLoading: true,
+  );
+
+  await conversationsNotifier.updateCurrentExecutionTaskProgress(
+    taskId: nextTask.id,
+    status: ConversationWorkflowTaskStatus.inProgress,
+    lastRunAt: DateTime.now(),
+    summary: 'Started from the live test harness approval fallback.',
+    eventType: ConversationExecutionTaskEventType.started,
+  );
+
+  final startedConversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  final previousAssistantMessageId = _latestAssistantMessageId(
+    startedConversation,
+  );
+  phaseTrace.firstTaskStartedAt ??= DateTime.now();
+  phaseTrace.firstTaskTitle ??= nextTask.title;
+  heartbeatWriter.write(
+    phase: 'execution',
+    subphase: 'startedViaHarness',
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    activeTaskTitle: nextTask.title,
+    workflowSnapshot: _summarizeWorkflowTasks(
+      startedConversation?.projectedExecutionTasks ??
+          executionConversation.projectedExecutionTasks,
+    ),
+    messageCount: startedConversation?.messages.length ?? 0,
+    hasPendingApprovals: false,
+    isLoading: true,
+  );
+
+  return _HarnessExecutionHandle(
+    _runApprovedTaskFromHarness(
+      container,
+      task: nextTask,
+      previousAssistantMessageId: previousAssistantMessageId,
+    ),
+  );
+}
+
+Future<void> _runApprovedTaskFromHarness(
+  ProviderContainer container, {
+  required ConversationWorkflowTask task,
+  required String? previousAssistantMessageId,
+}) async {
+  final chatNotifier = container.read(chatNotifierProvider.notifier);
+  final conversationsNotifier = container.read(
+    conversationsNotifierProvider.notifier,
+  );
+  try {
+    await chatNotifier.sendMessage(
+      ConversationPlanExecutionCoordinator.buildTaskPrompt(
+        task: task,
+        intro: 'Use the approved saved task now: ${task.title}',
+        targetFilesLabel: 'Target files',
+        validationLabel: 'Validation',
+        notesLabel: 'Notes',
+        outro:
+            'Implement this task now. Use available tools and report completion evidence.',
+      ),
+      languageCode: 'en',
+      bypassPlanMode: true,
+    );
+
+    final toolResults = chatNotifier.takeLatestToolResults();
+    final hiddenAssistantResponse = chatNotifier
+        .takeLatestHiddenAssistantResponse();
+    final conversation = container
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final latestAssistantResponse = _latestAssistantResponseAfter(
+      conversation,
+      previousAssistantMessageId,
+    );
+    final fallbackResponse = _harnessFallbackAssistantResponse(
+      toolResults: toolResults,
+      hiddenAssistantResponse: hiddenAssistantResponse,
+    );
+    if (latestAssistantResponse.trim().isEmpty &&
+        fallbackResponse.trim().isEmpty) {
+      return;
+    }
+
+    await conversationsNotifier
+        .updateCurrentExecutionTaskProgressFromAssistantTurn(
+          task: task,
+          assistantResponse: latestAssistantResponse,
+          isValidationRun: false,
+          fallbackAssistantResponse: fallbackResponse,
+        );
+  } catch (error, stackTrace) {
+    appLog('[Workflow] Harness task execution failed: $error');
+    appLog('$stackTrace');
+    await conversationsNotifier.updateCurrentExecutionTaskProgress(
+      taskId: task.id,
+      status: ConversationWorkflowTaskStatus.blocked,
+      blockedReason: error.toString(),
+      summary: 'Harness task execution failed before completion.',
+      eventType: ConversationExecutionTaskEventType.blocked,
+      eventSummary: error.toString(),
+    );
+  }
+}
+
+Future<void> _awaitHarnessExecutionCleanup(
+  _HarnessExecutionHandle? executionHandle, {
+  required PlanModeScenarioSpec scenario,
+  Duration timeout = const Duration(seconds: 30),
+}) async {
+  final executionFuture = executionHandle?.done;
+  if (executionFuture == null) {
+    return;
+  }
+  try {
+    await executionFuture.timeout(timeout);
+  } on TimeoutException {
+    appLog(
+      '[Workflow] Harness background execution did not finish before cleanup '
+      'timeout for ${scenario.name}',
+    );
+  }
+}
+
+Duration _resolveHarnessCleanupTimeout(
+  _PlanModeScenarioTestConfig config,
+  _PlanModeTimeoutBudgets budgets,
+) {
+  if (!config.usesLiveLlm) {
+    return const Duration(seconds: 30);
+  }
+  const minimumLiveTimeout = Duration(seconds: 90);
+  return budgets.executionTimeout > minimumLiveTimeout
+      ? budgets.executionTimeout
+      : minimumLiveTimeout;
+}
+
+String? _latestAssistantMessageId(Conversation? conversation) {
+  return _latestAssistantMessage(conversation)?.id;
+}
+
+String _latestAssistantResponseAfter(
+  Conversation? conversation,
+  String? previousAssistantMessageId,
+) {
+  final latest = _latestAssistantMessage(conversation);
+  if (latest == null || latest.id == previousAssistantMessageId) {
+    return '';
+  }
+  return latest.content.trim();
+}
+
+Message? _latestAssistantMessage(Conversation? conversation) {
+  if (conversation == null) {
+    return null;
+  }
+  for (final message in conversation.messages.reversed) {
+    if (message.role == MessageRole.assistant) {
+      return message;
+    }
+  }
+  return null;
+}
+
+String _harnessFallbackAssistantResponse({
+  required List<ToolResultInfo> toolResults,
+  required String? hiddenAssistantResponse,
+}) {
+  final hidden = hiddenAssistantResponse?.trim() ?? '';
+  if (hidden.isNotEmpty) {
+    return hidden;
+  }
+  if (toolResults.isEmpty) {
+    return '';
+  }
+  final toolNames = toolResults
+      .map((result) => result.name.trim())
+      .where((name) => name.isNotEmpty)
+      .toSet()
+      .join(', ');
+  if (toolNames.isEmpty) {
+    return 'The saved task completed with tool execution evidence.';
+  }
+  return 'The saved task completed with tool execution evidence from: $toolNames.';
+}
+
 Future<void> _waitForWorkflowExecutionCompletion(
   WidgetTester tester,
   ProviderContainer container, {
@@ -893,6 +1494,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
   required _PlanModePhaseTrace phaseTrace,
   required _PlanModeTimeoutBudgets budgets,
   required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required bool useFramePump,
 }) async {
   final deadline = DateTime.now().add(timeout);
   final watchdog = PlanModeExecutionWatchdog(stallTimeout: stallTimeout);
@@ -964,7 +1566,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
           isLoading: chatState.isLoading,
         );
         phaseTrace.lastTaskProgressAt = now;
-        await tester.pump(const Duration(milliseconds: 200));
+        await Future<void>.delayed(const Duration(milliseconds: 200));
         continue;
       }
     }
@@ -1000,7 +1602,11 @@ Future<void> _waitForWorkflowExecutionCompletion(
         hasPendingApprovals: false,
         isLoading: false,
       );
-      await _pumpUntilExecutionSettles(tester, container);
+      await _pumpUntilExecutionSettles(
+        tester,
+        container,
+        useFramePump: useFramePump,
+      );
       return;
     }
     if (phaseTrace.firstTaskTitle != null &&
@@ -1076,7 +1682,9 @@ Future<void> _waitForWorkflowExecutionCompletion(
           '${_summarizeWorkflowTasks(tasks)}',
         );
       }
-      await _pumpUntilIdle(tester);
+      if (useFramePump) {
+        await _pumpUntilIdle(tester);
+      }
       return;
     }
 
@@ -1131,7 +1739,7 @@ Future<void> _waitForWorkflowExecutionCompletion(
       );
     }
 
-    await tester.pump(const Duration(milliseconds: 200));
+    await Future<void>.delayed(const Duration(milliseconds: 200));
   }
 
   final chatState = container.read(chatNotifierProvider);
@@ -1166,7 +1774,9 @@ Future<void> _waitForWorkflowExecutionCompletion(
       hasPendingApprovals: false,
       isLoading: false,
     );
-    await _pumpUntilIdle(tester);
+    if (useFramePump) {
+      await _pumpUntilIdle(tester);
+    }
     return;
   }
   final activeTaskTitle = _activeWorkflowTaskTitle(tasks);
@@ -1259,43 +1869,185 @@ String _summarizeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
   return tasks.map((task) => '${task.title}:${task.status.name}').join(', ');
 }
 
+bool _chatStateHasPendingApprovals(ChatState chatState) {
+  return chatState.pendingSshConnect != null ||
+      chatState.pendingSshCommand != null ||
+      chatState.pendingGitCommand != null ||
+      chatState.pendingLocalCommand != null ||
+      chatState.pendingFileOperation != null ||
+      chatState.pendingBleConnect != null ||
+      chatState.pendingWorkflowDecision != null;
+}
+
+void _writePostScenarioHeartbeat({
+  required ProviderContainer container,
+  required List<String> logs,
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeTimeoutBudgets budgets,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required String phase,
+  required String subphase,
+}) {
+  final chatState = container.read(chatNotifierProvider);
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  final tasks = conversation?.projectedExecutionTasks ?? const [];
+  heartbeatWriter.write(
+    phase: phase,
+    subphase: subphase,
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    activeTaskTitle: _activeWorkflowTaskTitle(tasks),
+    workflowSnapshot: _summarizeWorkflowTasks(tasks),
+    toolResultCount: _countContentToolResults(logs),
+    fileWriteCount: _countFileWriteExecutions(logs),
+    messageCount: conversation?.messages.length ?? 0,
+    hasPendingApprovals: _chatStateHasPendingApprovals(chatState),
+    isLoading: chatState.isLoading,
+  );
+}
+
 Future<void> _pumpUntilIdle(
   WidgetTester tester, {
   Duration step = const Duration(milliseconds: 100),
   int maxPumps = 50,
 }) async {
   for (var index = 0; index < maxPumps; index++) {
-    await tester.pump(step);
+    await _delayAndPumpFrame(tester, step);
     if (!tester.binding.hasScheduledFrame) {
       return;
     }
   }
 }
 
-Future<void> _pumpUntilExecutionSettles(
+Future<bool> _pumpUntilExecutionSettles(
   WidgetTester tester,
   ProviderContainer container, {
   Duration timeout = const Duration(seconds: 5),
   Duration step = const Duration(milliseconds: 100),
+  Duration stableDuration = const Duration(seconds: 1),
+  bool useFramePump = true,
 }) async {
   final deadline = DateTime.now().add(timeout);
+  DateTime? settledSince;
   while (DateTime.now().isBefore(deadline)) {
-    await tester.pump(step);
+    if (useFramePump) {
+      await _delayAndPumpFrame(tester, step);
+    } else {
+      await Future<void>.delayed(step);
+    }
+    final now = DateTime.now();
     final chatState = container.read(chatNotifierProvider);
-    final hasPendingApprovals =
-        chatState.pendingSshConnect != null ||
-        chatState.pendingSshCommand != null ||
-        chatState.pendingGitCommand != null ||
-        chatState.pendingLocalCommand != null ||
-        chatState.pendingFileOperation != null ||
-        chatState.pendingBleConnect != null ||
-        chatState.pendingWorkflowDecision != null;
-    if (!chatState.isLoading && !hasPendingApprovals) {
-      await _pumpUntilIdle(tester);
-      return;
+    final hasPendingApprovals = _chatStateHasPendingApprovals(chatState);
+    final isSettled = planModeExecutionIsSettled(
+      isLoading: chatState.isLoading,
+      hasPendingApprovals: hasPendingApprovals,
+    );
+    if (!isSettled) {
+      settledSince = null;
+      continue;
+    }
+    settledSince ??= now;
+    if (now.difference(settledSince) >= stableDuration) {
+      if (useFramePump) {
+        await _pumpUntilIdle(tester);
+      }
+      final latestChatState = container.read(chatNotifierProvider);
+      if (planModeExecutionIsSettled(
+        isLoading: latestChatState.isLoading,
+        hasPendingApprovals: _chatStateHasPendingApprovals(latestChatState),
+      )) {
+        return true;
+      }
+      settledSince = null;
     }
   }
-  await _pumpUntilIdle(tester);
+  if (useFramePump) {
+    await _pumpUntilIdle(tester);
+  }
+  return false;
+}
+
+Future<_PostScenarioSettleResult> _settlePostScenarioExecution(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required Duration timeout,
+  required bool waitForExecutionCompletion,
+  required List<String> logs,
+  required _PlanModePhaseTrace phaseTrace,
+  required _PlanModeTimeoutBudgets budgets,
+  required _PlanModeLiveHeartbeatWriter heartbeatWriter,
+  required bool useFramePump,
+}) async {
+  final initiallySettled = await _pumpUntilExecutionSettles(
+    tester,
+    container,
+    timeout: timeout,
+    useFramePump: useFramePump,
+  );
+  if (initiallySettled) {
+    _writePostScenarioHeartbeat(
+      container: container,
+      logs: logs,
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      heartbeatWriter: heartbeatWriter,
+      phase: 'completed',
+      subphase: 'postScenarioSettled',
+    );
+    return const _PostScenarioSettleResult(
+      initiallySettled: true,
+      settled: true,
+      cancellationUsed: false,
+    );
+  }
+
+  appLog('[Scenario] Background execution still active after settle timeout');
+  _writePostScenarioHeartbeat(
+    container: container,
+    logs: logs,
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    heartbeatWriter: heartbeatWriter,
+    phase: 'execution',
+    subphase: 'postScenarioStillActive',
+  );
+  if (!shouldCancelBackgroundExecutionAfterSettleTimeout(
+    waitForExecutionCompletion: waitForExecutionCompletion,
+    settled: initiallySettled,
+  )) {
+    return const _PostScenarioSettleResult(
+      initiallySettled: false,
+      settled: false,
+      cancellationUsed: false,
+    );
+  }
+
+  appLog('[Scenario] Cancelling background execution after settle timeout');
+  container.read(chatNotifierProvider.notifier).cancelStreaming();
+  final settledAfterCancel = await _pumpUntilExecutionSettles(
+    tester,
+    container,
+    timeout: const Duration(seconds: 10),
+    useFramePump: useFramePump,
+  );
+  _writePostScenarioHeartbeat(
+    container: container,
+    logs: logs,
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    heartbeatWriter: heartbeatWriter,
+    phase: settledAfterCancel ? 'completed' : 'execution',
+    subphase: settledAfterCancel
+        ? 'postScenarioCancelledAndSettled'
+        : 'postScenarioCancelTimedOut',
+  );
+  return _PostScenarioSettleResult(
+    initiallySettled: false,
+    settled: settledAfterCancel,
+    cancellationUsed: true,
+  );
 }
 
 Future<void> _waitForFinder(
@@ -1306,7 +2058,7 @@ Future<void> _waitForFinder(
 }) async {
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
-    await tester.pump(step);
+    await _delayAndPumpFrame(tester, step);
     if (finder.evaluate().isNotEmpty) {
       return;
     }
@@ -1336,6 +2088,25 @@ Future<void> _enterPromptAndSubmit(
   await tester.tap(sendButtonFinder.first);
   await tester.pump();
   await _pumpUntilIdle(tester);
+}
+
+Future<void> _submitScenarioPrompt(
+  WidgetTester tester,
+  ProviderContainer container, {
+  required _PlanModeScenarioTestConfig config,
+  required PlanModeScenarioSpec scenario,
+}) async {
+  if (config.usesLiveLlm) {
+    unawaited(
+      container
+          .read(chatNotifierProvider.notifier)
+          .sendMessage(scenario.userPrompt, languageCode: 'en'),
+    );
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    return;
+  }
+
+  await _enterPromptAndSubmit(tester, prompt: scenario.userPrompt);
 }
 
 String? _extractVisibleDecisionQuestion(WidgetTester tester) {
@@ -1429,6 +2200,7 @@ Future<void> _waitForArtifactExpectations(
   Directory scenarioDir,
   List<PlanModeArtifactExpectation> expectations, {
   Duration timeout = const Duration(seconds: 20),
+  bool useFramePump = true,
 }) async {
   final requiredFiles = expectations
       .where((item) => item.shouldExist)
@@ -1444,7 +2216,11 @@ Future<void> _waitForArtifactExpectations(
     if (allPresent) {
       return;
     }
-    await tester.pump(const Duration(milliseconds: 200));
+    if (useFramePump) {
+      await _delayAndPumpFrame(tester, const Duration(milliseconds: 200));
+    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
   }
 }
 
@@ -1453,9 +2229,7 @@ void _assertLogExpectations(
   List<PlanModeLogExpectation> expectations,
 ) {
   for (final expectation in expectations) {
-    final count = logs
-        .where((line) => line.contains(expectation.pattern))
-        .length;
+    final count = countPlanModeLogsMatching(logs, expectation.pattern);
 
     if (expectation.exactCount != null) {
       expect(
@@ -1480,6 +2254,30 @@ void _assertLogExpectations(
         reason:
             'Expected at most ${expectation.maxCount} log(s) containing "${expectation.pattern}".',
       );
+    }
+  }
+}
+
+Future<void> _waitForLogExpectationLowerBounds(
+  WidgetTester tester,
+  List<String> logs,
+  List<PlanModeLogExpectation> expectations, {
+  Duration timeout = const Duration(seconds: 5),
+  bool useFramePump = true,
+}) async {
+  if (planModeLogLowerBoundsSatisfied(logs, expectations)) {
+    return;
+  }
+
+  final deadline = DateTime.now().add(timeout);
+  while (DateTime.now().isBefore(deadline)) {
+    if (useFramePump) {
+      await _delayAndPumpFrame(tester, const Duration(milliseconds: 200));
+    } else {
+      await Future<void>.delayed(const Duration(milliseconds: 200));
+    }
+    if (planModeLogLowerBoundsSatisfied(logs, expectations)) {
+      return;
     }
   }
 }
@@ -1543,6 +2341,7 @@ Future<void> _writeFailureScenarioArtifacts({
     allowedPatterns: scenario.allowedWarningPatterns,
     logs: logs,
   );
+  final approvalPath = resolvePlanModeApprovalPathFromLogs(logs);
 
   final logFile = File('${scenarioDir.path}/scenario_log.txt');
   await logFile.writeAsString('${logs.join('\n')}\n');
@@ -1562,12 +2361,17 @@ Future<void> _writeFailureScenarioArtifacts({
     'status': 'failed',
     'failureClass': diagnostics.failureClass.name,
     'projectRoot': scenarioDir.path,
+    'approvalPath': approvalPath,
+    'fallbackPath': fallbackPathForApprovalPath(approvalPath),
+    'usedHarnessApprovalFallback':
+        approvalPath == planModeApprovalPathLiveHarnessFallback,
     'error': error.toString(),
     'stackTrace': stackTrace.toString(),
     'screenshots': screenshotPaths,
     'warnings': warnings,
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
+    'warningSummary': warningSummary.toJson(),
     'phaseTimings': phaseTrace.toJson(),
     'budgets': budgets.toJson(),
     'lastHeartbeat': lastHeartbeat,
@@ -1601,214 +2405,6 @@ List<String> _collectScenarioWarnings(List<String> logs) {
     warnings.add(line);
   }
   return warnings;
-}
-
-String _xmlEscape(String value) {
-  return value
-      .replaceAll('&', '&amp;')
-      .replaceAll('<', '&lt;')
-      .replaceAll('>', '&gt;')
-      .replaceAll('"', '&quot;')
-      .replaceAll("'", '&apos;');
-}
-
-String _buildSuiteJUnitReport({
-  required _PlanModeScenarioTestConfig config,
-  required List<Map<String, Object?>> suiteResults,
-}) {
-  final failureCount = suiteResults
-      .where((result) => result['status'] != 'passed')
-      .length;
-  final totalDurationSeconds = suiteResults.fold<num>(
-    0,
-    (sum, result) => sum + ((result['durationMs'] as int? ?? 0) / 1000),
-  );
-
-  final buffer = StringBuffer()
-    ..writeln('<?xml version="1.0" encoding="UTF-8"?>')
-    ..writeln(
-      '<testsuites tests="${suiteResults.length}" '
-      'failures="$failureCount" '
-      'time="${totalDurationSeconds.toStringAsFixed(3)}">',
-    )
-    ..writeln(
-      '  <testsuite name="${_xmlEscape(config.suiteName)}" '
-      'tests="${suiteResults.length}" '
-      'failures="$failureCount" '
-      'time="${totalDurationSeconds.toStringAsFixed(3)}">',
-    );
-
-  for (final result in suiteResults) {
-    final scenarioName = (result['scenario'] as String?) ?? 'unknown';
-    final durationSeconds = ((result['durationMs'] as int? ?? 0) / 1000)
-        .toStringAsFixed(3);
-    final warnings = (result['warnings'] as List<Object?>?) ?? const [];
-    final allowedWarnings =
-        (result['allowedWarnings'] as List<Object?>?) ?? const [];
-    final reportPath = result['scenarioReport'] as String?;
-    final logPath = result['scenarioLog'] as String?;
-    final failureClass = (result['failureClass'] as String?) ?? 'passed';
-    final budgetPhase = (result['budgetPhase'] as String?) ?? '-';
-    buffer.writeln(
-      '    <testcase classname="${_xmlEscape(config.suiteName)}" '
-      'name="${_xmlEscape(scenarioName)}" '
-      'time="$durationSeconds">',
-    );
-    if (result['status'] != 'passed') {
-      final message = (result['error'] as String?) ?? 'Scenario failed';
-      final stackTrace = (result['stackTrace'] as String?) ?? '';
-      buffer.writeln(
-        '      <failure message="${_xmlEscape(message)}">'
-        '${_xmlEscape(stackTrace)}'
-        '</failure>',
-      );
-    }
-    final systemOut = <String>[
-      if (reportPath != null) 'report=$reportPath',
-      if (logPath != null) 'log=$logPath',
-      'failureClass=$failureClass',
-      'budgetPhase=$budgetPhase',
-      'warnings=${warnings.length}',
-      'allowedWarnings=${allowedWarnings.length}',
-      if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
-      if (allowedWarnings.isNotEmpty)
-        ...allowedWarnings.map((warning) => 'allowedWarning=$warning'),
-    ].join('\n');
-    if (systemOut.isNotEmpty) {
-      buffer.writeln('      <system-out>${_xmlEscape(systemOut)}</system-out>');
-    }
-    buffer.writeln('    </testcase>');
-  }
-
-  buffer
-    ..writeln('  </testsuite>')
-    ..writeln('</testsuites>');
-  return buffer.toString();
-}
-
-String _buildSuiteMarkdownReport({
-  required _PlanModeScenarioTestConfig config,
-  required List<Map<String, Object?>> suiteResults,
-  required Directory suiteRunDirectory,
-}) {
-  final passedCount = suiteResults
-      .where((result) => result['status'] == 'passed')
-      .length;
-  final failureClassCounts = <String, int>{};
-  for (final result in suiteResults) {
-    final failureClass = (result['failureClass'] as String?) ?? 'passed';
-    failureClassCounts.update(
-      failureClass,
-      (count) => count + 1,
-      ifAbsent: () => 1,
-    );
-  }
-  final buffer = StringBuffer()
-    ..writeln('# Plan Mode Scenario Suite')
-    ..writeln()
-    ..writeln('- Generated at: ${DateTime.now().toIso8601String()}')
-    ..writeln('- Suite: ${config.suiteName}')
-    ..writeln('- Mode: ${config.mode.name}')
-    ..writeln('- Fail on warnings: ${config.failOnWarnings}')
-    ..writeln(
-      '- Scenario filter: ${config.requestedScenarioNames.isEmpty ? 'all' : config.requestedScenarioNames.join(', ')}',
-    )
-    ..writeln(
-      '- Tag filter: ${config.requestedTags.isEmpty ? 'all' : config.requestedTags.join(', ')}',
-    )
-    ..writeln('- Suite directory: ${suiteRunDirectory.path}')
-    ..writeln(
-      '- Model: ${config.model?.isNotEmpty == true ? config.model : 'default'}',
-    );
-  if (config.baseUrl?.isNotEmpty == true) {
-    buffer.writeln('- Base URL: ${config.baseUrl}');
-  }
-  buffer
-    ..writeln('- Scenario count: ${suiteResults.length}')
-    ..writeln('- Passed: $passedCount')
-    ..writeln('- Failed: ${suiteResults.length - passedCount}')
-    ..writeln()
-    ..writeln(
-      '| Scenario | Tags | Status | Failure Class | Budget Phase | Duration (ms) | Warnings | Allowed Warnings | Screenshots | Report | Log | Error |',
-    )
-    ..writeln(
-      '| --- | --- | --- | --- | --- | ---: | ---: | ---: | ---: | --- | --- | --- |',
-    );
-
-  for (final result in suiteResults) {
-    final screenshots = (result['screenshots'] as List<Object?>?) ?? const [];
-    final warnings = (result['warnings'] as List<Object?>?) ?? const [];
-    final allowedWarnings =
-        (result['allowedWarnings'] as List<Object?>?) ?? const [];
-    final tags = (result['tags'] as List<Object?>?) ?? const [];
-    final failureClass = (result['failureClass'] as String?) ?? 'passed';
-    final budgetPhase = (result['budgetPhase'] as String?) ?? '-';
-    final error = (result['error'] as String?)?.replaceAll('\n', ' ') ?? '';
-    buffer.writeln(
-      '| ${result['scenario']} | ${tags.isEmpty ? '-' : tags.join(', ')} | ${result['status']} | '
-      '$failureClass | $budgetPhase | ${result['durationMs']} | ${warnings.length} | ${allowedWarnings.length} | '
-      '${screenshots.length} | ${result['scenarioReport'] ?? '-'} | ${result['scenarioLog'] ?? '-'} | '
-      '${error.isEmpty ? '-' : error} |',
-    );
-  }
-
-  if (failureClassCounts.isNotEmpty) {
-    buffer
-      ..writeln()
-      ..writeln('## Failure Classes')
-      ..writeln();
-    for (final entry in failureClassCounts.entries) {
-      buffer.writeln('- ${entry.key}: ${entry.value}');
-    }
-  }
-
-  final scenariosWithWarnings = suiteResults
-      .where((result) {
-        final warnings = (result['warnings'] as List<Object?>?) ?? const [];
-        return warnings.isNotEmpty;
-      })
-      .toList(growable: false);
-
-  if (scenariosWithWarnings.isNotEmpty) {
-    buffer
-      ..writeln()
-      ..writeln('## Warnings')
-      ..writeln();
-    for (final result in scenariosWithWarnings) {
-      final warnings = (result['warnings'] as List<Object?>?) ?? const [];
-      buffer.writeln('### ${result['scenario']}');
-      for (final warning in warnings) {
-        buffer.writeln('- $warning');
-      }
-      buffer.writeln();
-    }
-  }
-
-  final scenariosWithAllowedWarnings = suiteResults
-      .where((result) {
-        final allowedWarnings =
-            (result['allowedWarnings'] as List<Object?>?) ?? const [];
-        return allowedWarnings.isNotEmpty;
-      })
-      .toList(growable: false);
-
-  if (scenariosWithAllowedWarnings.isNotEmpty) {
-    buffer
-      ..writeln()
-      ..writeln('## Allowed Warnings')
-      ..writeln();
-    for (final result in scenariosWithAllowedWarnings) {
-      final allowedWarnings =
-          (result['allowedWarnings'] as List<Object?>?) ?? const [];
-      buffer.writeln('### ${result['scenario']}');
-      for (final warning in allowedWarnings) {
-        buffer.writeln('- $warning');
-      }
-      buffer.writeln();
-    }
-  }
-
-  return buffer.toString();
 }
 
 Future<_ScenarioRunResult> _runScenario({
@@ -1920,7 +2516,12 @@ Future<_ScenarioRunResult> _runScenario({
 
   expect(find.text('Coding'), findsAtLeastNWidgets(1));
 
-  await _enterPromptAndSubmit(tester, prompt: scenario.userPrompt);
+  await _submitScenarioPrompt(
+    tester,
+    container,
+    config: config,
+    scenario: scenario,
+  );
   heartbeatWriter.write(
     phase: 'planning',
     subphase: 'promptSubmitted',
@@ -1950,92 +2551,126 @@ Future<_ScenarioRunResult> _runScenario({
     phaseTrace: phaseTrace,
     budgets: budgets,
   );
-  await _waitForFinder(
-    tester,
-    find.text('Approve and start'),
-    timeout: const Duration(seconds: 20),
-  );
-  _assertUiExpectations(
-    tester,
-    scenario.uiExpectations,
-    PlanModeUiPhase.proposal,
-  );
-  expect(find.text('Approve and start'), findsAtLeastNWidgets(1));
-  appLog('[Workflow] Proposal approval UI visible');
-  heartbeatWriter.write(
-    phase: 'planning',
-    subphase: 'proposalUiReady',
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-  );
-
-  appLog('[Workflow] Proposal screenshot started');
-  heartbeatWriter.write(
-    phase: 'planning',
-    subphase: 'proposalScreenshotStarted',
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-  );
-  try {
-    await captureIntegrationScreenshot(
-      binding: binding,
-      tester: tester,
-      repaintBoundaryKey: screenshotBoundaryKey,
-      name: 'plan_mode_${scenario.name}_proposal',
-      outputDirectory: scenarioDir,
-    );
-    appLog('[Workflow] Proposal screenshot finished');
-    heartbeatWriter.write(
-      phase: 'planning',
-      subphase: 'proposalScreenshotFinished',
-      phaseTrace: phaseTrace,
-      budgets: budgets,
-    );
-  } on TimeoutException {
-    appLog('[Workflow] Proposal screenshot skipped after timeout');
-    heartbeatWriter.write(
-      phase: 'planning',
-      subphase: 'proposalScreenshotSkipped',
-      phaseTrace: phaseTrace,
-      budgets: budgets,
-    );
-  } catch (error) {
-    appLog('[Workflow] Proposal screenshot skipped after error: $error');
-    heartbeatWriter.write(
-      phase: 'planning',
-      subphase: 'proposalScreenshotSkipped',
-      phaseTrace: phaseTrace,
-      budgets: budgets,
-    );
-  }
-
-  final approveAction = _findPreferredPlanApproveAction();
-  appLog('[Workflow] Proposal approval tap started');
-  heartbeatWriter.write(
-    phase: 'planning',
-    subphase: 'proposalTapStarted',
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-  );
-  await tester.ensureVisible(approveAction);
-  await tester.tap(approveAction, warnIfMissed: false);
-  appLog('[Workflow] Proposal approval tap finished');
-  phaseTrace.approvalTappedAt = DateTime.now();
-  heartbeatWriter.write(
-    phase: 'execution',
-    subphase: 'approved',
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-  );
-  await tester.pump();
-  await _waitForPlanApprovalTransition(
+  final proposalUiReady = await _waitForReviewablePlanApprovalUi(
     tester,
     container,
-    phaseTrace: phaseTrace,
-    heartbeatWriter: heartbeatWriter,
-    budgets: budgets,
+    timeout: const Duration(seconds: 20),
+    allowArtifactReadyFallback: config.usesLiveLlm,
   );
-  await _pumpUntilIdle(tester);
+  final approvalFallbackDecision = resolvePlanModeApprovalFallbackDecision(
+    proposalUiReady: proposalUiReady,
+    usesLiveLlm: config.usesLiveLlm,
+  );
+  _HarnessExecutionHandle? harnessExecutionHandle;
+  if (approvalFallbackDecision.shouldBypassUi) {
+    appLog('[Workflow] Proposal approval UI bypassed by live harness');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalUiBypassedForLiveHarness',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+    harnessExecutionHandle = await _approvePlanAndStartFromHarness(
+      container,
+      phaseTrace: phaseTrace,
+      heartbeatWriter: heartbeatWriter,
+      budgets: budgets,
+    );
+  } else if (!proposalUiReady) {
+    throw StateError(
+      'Plan approval UI was not ready and live harness fallback is unavailable.',
+    );
+  } else {
+    _assertUiExpectations(
+      tester,
+      scenario.uiExpectations,
+      PlanModeUiPhase.proposal,
+    );
+    expect(find.text('Approve and start'), findsAtLeastNWidgets(1));
+    appLog('[Workflow] Proposal approval UI visible');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalUiReady',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+
+    appLog('[Workflow] Proposal screenshot started');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalScreenshotStarted',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+    try {
+      await captureIntegrationScreenshot(
+        binding: binding,
+        tester: tester,
+        repaintBoundaryKey: screenshotBoundaryKey,
+        name: 'plan_mode_${scenario.name}_proposal',
+        outputDirectory: scenarioDir,
+      );
+      appLog('[Workflow] Proposal screenshot finished');
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalScreenshotFinished',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+    } on TimeoutException {
+      appLog('[Workflow] Proposal screenshot skipped after timeout');
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalScreenshotSkipped',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+    } catch (error) {
+      appLog('[Workflow] Proposal screenshot skipped after error: $error');
+      heartbeatWriter.write(
+        phase: 'planning',
+        subphase: 'proposalScreenshotSkipped',
+        phaseTrace: phaseTrace,
+        budgets: budgets,
+      );
+    }
+
+    final approveAction = _findPreferredPlanApproveAction();
+    appLog('[Workflow] Proposal approval tap started');
+    heartbeatWriter.write(
+      phase: 'planning',
+      subphase: 'proposalTapStarted',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+    await tester.ensureVisible(approveAction);
+    await tester.tap(approveAction, warnIfMissed: false);
+    appLog('[Workflow] Proposal approval tap finished');
+    phaseTrace.approvalTappedAt = DateTime.now();
+    heartbeatWriter.write(
+      phase: 'execution',
+      subphase: 'approved',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+    await tester.pump();
+    final approvalTransitionObserved = await _waitForPlanApprovalTransition(
+      tester,
+      container,
+      phaseTrace: phaseTrace,
+      heartbeatWriter: heartbeatWriter,
+      budgets: budgets,
+    );
+    if (!approvalTransitionObserved) {
+      throw StateError(
+        'Plan approval did not transition into execution after tapping '
+        'Approve and start.',
+      );
+    }
+  }
+  if (proposalUiReady) {
+    await _pumpUntilIdle(tester);
+  }
 
   if (scenario.waitForExecutionCompletion) {
     await _waitForWorkflowExecutionCompletion(
@@ -2047,6 +2682,7 @@ Future<_ScenarioRunResult> _runScenario({
       phaseTrace: phaseTrace,
       budgets: budgets,
       heartbeatWriter: heartbeatWriter,
+      useFramePump: !config.usesLiveLlm,
     );
   }
 
@@ -2057,8 +2693,39 @@ Future<_ScenarioRunResult> _runScenario({
     timeout: config.usesLiveLlm
         ? const Duration(seconds: 30)
         : const Duration(seconds: 5),
+    useFramePump: !config.usesLiveLlm,
   );
-  await _pumpUntilIdle(tester);
+  if (!config.usesLiveLlm) {
+    await _pumpUntilIdle(tester);
+  }
+  await _awaitHarnessExecutionCleanup(
+    harnessExecutionHandle,
+    scenario: scenario,
+    timeout: _resolveHarnessCleanupTimeout(config, budgets),
+  );
+  await _waitForLogExpectationLowerBounds(
+    tester,
+    logs,
+    scenario.logExpectations,
+    timeout: config.usesLiveLlm
+        ? const Duration(seconds: 60)
+        : const Duration(seconds: 5),
+    useFramePump: !config.usesLiveLlm,
+  );
+  final postScenarioSettle = await _settlePostScenarioExecution(
+    tester,
+    container,
+    timeout: resolvePostScenarioSettleTimeout(
+      usesLiveLlm: config.usesLiveLlm,
+      waitForExecutionCompletion: scenario.waitForExecutionCompletion,
+    ),
+    waitForExecutionCompletion: scenario.waitForExecutionCompletion,
+    logs: logs,
+    phaseTrace: phaseTrace,
+    budgets: budgets,
+    heartbeatWriter: heartbeatWriter,
+    useFramePump: !config.usesLiveLlm,
+  );
 
   _assertArtifactExpectations(
     scenarioDir,
@@ -2078,6 +2745,9 @@ Future<_ScenarioRunResult> _runScenario({
     allowedPatterns: scenario.allowedWarningPatterns,
     logs: logs,
   );
+  final approvalPath = harnessExecutionHandle == null
+      ? planModeApprovalPathUi
+      : planModeApprovalPathLiveHarnessFallback;
   if (config.failOnWarnings && warningSummary.unexpectedWarnings.isNotEmpty) {
     throw StateError(
       'Scenario emitted warnings while fail-on-warning mode was enabled:\n'
@@ -2132,17 +2802,45 @@ Future<_ScenarioRunResult> _runScenario({
       _normalizeSavedWorkflowTaskTitle(workflowExpectation.firstTaskTitle!),
     );
   }
+  if (workflowExpectation.firstTaskTargetFilesContain.isNotEmpty) {
+    final firstTaskTargetFiles = savedWorkflow.tasks.first.targetFiles
+        .map(_normalizeSavedWorkflowTargetPath)
+        .toSet();
+    for (final expectedTarget
+        in workflowExpectation.firstTaskTargetFilesContain) {
+      final normalizedExpectedTarget = _normalizeSavedWorkflowTargetPath(
+        expectedTarget,
+      );
+      if (!firstTaskTargetFiles.contains(normalizedExpectedTarget) &&
+          config.usesLiveLlm &&
+          _artifactExpectationFileExists(
+            scenarioDir,
+            scenario.resolvedArtifactExpectations,
+            normalizedExpectedTarget,
+          )) {
+        continue;
+      }
+      expect(firstTaskTargetFiles, contains(normalizedExpectedTarget));
+    }
+  }
   for (final openQuestion in workflowExpectation.openQuestionsContain) {
     expect(savedWorkflow.openQuestions, contains(openQuestion));
   }
 
-  await captureIntegrationScreenshot(
-    binding: binding,
-    tester: tester,
-    repaintBoundaryKey: screenshotBoundaryKey,
-    name: 'plan_mode_${scenario.name}_completed',
-    outputDirectory: scenarioDir,
-  );
+  if (config.usesLiveLlm) {
+    appLog(
+      '[Screenshot] Completed screenshot skipped for live scenario '
+      '${scenario.name}',
+    );
+  } else {
+    await captureIntegrationScreenshot(
+      binding: binding,
+      tester: tester,
+      repaintBoundaryKey: screenshotBoundaryKey,
+      name: 'plan_mode_${scenario.name}_completed',
+      outputDirectory: scenarioDir,
+    );
+  }
 
   final report = <String, dynamic>{
     'scenario': scenario.name,
@@ -2151,6 +2849,10 @@ Future<_ScenarioRunResult> _runScenario({
     'failureClass': PlanModeFailureClass.passed.name,
     'executionMode': config.mode.name,
     'projectRoot': scenarioDir.path,
+    'approvalPath': approvalPath,
+    'fallbackPath': fallbackPathForApprovalPath(approvalPath),
+    'usedHarnessApprovalFallback':
+        approvalPath == planModeApprovalPathLiveHarnessFallback,
     'workflowStage': conversation.workflowStage.name,
     'workflowGoal': savedWorkflow.goal,
     'workflowOpenQuestions': savedWorkflow.openQuestions,
@@ -2168,6 +2870,11 @@ Future<_ScenarioRunResult> _runScenario({
     'warnings': warnings,
     'allowedWarnings': warningSummary.allowedWarnings,
     'unexpectedWarnings': warningSummary.unexpectedWarnings,
+    'warningSummary': warningSummary.toJson(),
+    'postScenarioSettled': postScenarioSettle.settled,
+    'postScenarioInitiallySettled': postScenarioSettle.initiallySettled,
+    'postScenarioCancellationUsed': postScenarioSettle.cancellationUsed,
+    'postScenarioSettle': postScenarioSettle.toJson(),
     'artifacts': <String, String>{
       for (final artifact in scenario.resolvedArtifactExpectations.where(
         (item) => item.shouldExist,
@@ -2221,23 +2928,27 @@ Future<_ScenarioRunResult> _runScenario({
     const JsonEncoder.withIndent('  ').convert(report),
   );
   appLog('[Scenario] Report written to ${reportFile.path}');
-  heartbeatWriter.write(
-    phase: 'completed',
-    subphase: 'workflowCompleted',
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-    activeTaskTitle: _activeWorkflowTaskTitle(
-      conversation.projectedExecutionTasks,
-    ),
-    workflowSnapshot: _summarizeWorkflowTasks(
-      conversation.projectedExecutionTasks,
-    ),
-    toolResultCount: _countContentToolResults(logs),
-    fileWriteCount: _countFileWriteExecutions(logs),
-    messageCount: conversation.messages.length,
-    hasPendingApprovals: false,
-    isLoading: false,
-  );
+  if (postScenarioSettle.settled) {
+    heartbeatWriter.write(
+      phase: 'completed',
+      subphase: postScenarioSettle.cancellationUsed
+          ? 'scenarioCompletedAfterCleanupCancel'
+          : 'scenarioCompleted',
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      activeTaskTitle: _activeWorkflowTaskTitle(
+        conversation.projectedExecutionTasks,
+      ),
+      workflowSnapshot: _summarizeWorkflowTasks(
+        conversation.projectedExecutionTasks,
+      ),
+      toolResultCount: _countContentToolResults(logs),
+      fileWriteCount: _countFileWriteExecutions(logs),
+      messageCount: conversation.messages.length,
+      hasPendingApprovals: false,
+      isLoading: false,
+    );
+  }
   return _ScenarioRunResult(
     outputDirectoryPath: scenarioDir.path,
     reportPath: reportFile.path,
@@ -2255,13 +2966,24 @@ Finder _findPreferredPlanApproveAction() {
       matching: approveLabel,
     );
     if (sheetApprove.evaluate().isNotEmpty) {
-      return sheetApprove.last;
+      return _findPlanApproveButtonForLabel(sheetApprove);
     }
+  }
+  return _findPlanApproveButtonForLabel(approveLabel);
+}
+
+Finder _findPlanApproveButtonForLabel(Finder approveLabel) {
+  final button = find.ancestor(
+    of: approveLabel,
+    matching: find.byType(FilledButton),
+  );
+  if (button.evaluate().isNotEmpty) {
+    return button.last;
   }
   return approveLabel.last;
 }
 
-Future<void> _waitForPlanApprovalTransition(
+Future<bool> _waitForPlanApprovalTransition(
   WidgetTester tester,
   ProviderContainer container, {
   required _PlanModePhaseTrace phaseTrace,
@@ -2282,7 +3004,7 @@ Future<void> _waitForPlanApprovalTransition(
       conversation: conversation,
       isLoading: chatState.isLoading,
     )) {
-      return;
+      return true;
     }
 
     if (shouldRecoverPlanApprovalFromExecutionDocument(
@@ -2309,7 +3031,7 @@ Future<void> _waitForPlanApprovalTransition(
                 const [],
           ),
         );
-        return;
+        return true;
       }
     }
 
@@ -2323,7 +3045,7 @@ Future<void> _waitForPlanApprovalTransition(
         phaseTrace: phaseTrace,
         budgets: budgets,
       );
-      await tester.pump(const Duration(milliseconds: 200));
+      await _delayAndPumpFrame(tester, const Duration(milliseconds: 200));
       continue;
     }
 
@@ -2345,8 +3067,9 @@ Future<void> _waitForPlanApprovalTransition(
       );
       await tester.ensureVisible(approveAction);
       await tester.tap(approveAction, warnIfMissed: false);
-      await tester.pump(const Duration(milliseconds: 250));
-      await tester.pump(const Duration(milliseconds: 250));
+      phaseTrace.approvalTappedAt = DateTime.now();
+      await _delayAndPumpFrame(tester, const Duration(milliseconds: 250));
+      await _delayAndPumpFrame(tester, const Duration(milliseconds: 250));
       appLog('[Workflow] Proposal approval tap retry finished');
       heartbeatWriter.write(
         phase: 'execution',
@@ -2357,8 +3080,9 @@ Future<void> _waitForPlanApprovalTransition(
       continue;
     }
 
-    await tester.pump(const Duration(milliseconds: 200));
+    await _delayAndPumpFrame(tester, const Duration(milliseconds: 200));
   }
+  return false;
 }
 
 String _normalizeSavedWorkflowTaskTitle(String value) {
@@ -2368,6 +3092,27 @@ String _normalizeSavedWorkflowTaskTitle(String value) {
       .replaceAll(RegExp(r'[.!?]+$'), '')
       .trim()
       .toLowerCase();
+}
+
+String _normalizeSavedWorkflowTargetPath(String value) {
+  return value.replaceAll('\\', '/').trim().toLowerCase();
+}
+
+bool _artifactExpectationFileExists(
+  Directory scenarioDir,
+  List<PlanModeArtifactExpectation> expectations,
+  String normalizedTargetPath,
+) {
+  return expectations.any((expectation) {
+    if (!expectation.shouldExist) {
+      return false;
+    }
+    final normalizedExpectationPath = _normalizeSavedWorkflowTargetPath(
+      expectation.path,
+    );
+    return normalizedExpectationPath == normalizedTargetPath &&
+        File('${scenarioDir.path}/${expectation.path}').existsSync();
+  });
 }
 
 void main() {
@@ -2432,24 +3177,21 @@ void main() {
       );
       await reportDirectory.create(recursive: true);
 
-      final passedCount = suiteResults
-          .where((result) => result['status'] == 'passed')
-          .length;
-      final suiteReport = <String, Object?>{
-        'generatedAt': DateTime.now().toIso8601String(),
-        'suite': config.suiteName,
-        'mode': config.mode.name,
-        'requestedScenarioNames': config.requestedScenarioNames,
-        'requestedTags': config.requestedTags,
-        'suiteDirectory': suiteRunDirectory.path,
-        'model': config.model,
-        'baseUrl': config.baseUrl,
-        'failOnWarnings': config.failOnWarnings,
-        'scenarioCount': suiteResults.length,
-        'passedCount': passedCount,
-        'failedCount': suiteResults.length - passedCount,
-        'scenarios': suiteResults,
-      };
+      final suiteReportConfig = PlanModeSuiteReportConfig(
+        generatedAt: DateTime.now(),
+        suiteName: config.suiteName,
+        modeName: config.mode.name,
+        failOnWarnings: config.failOnWarnings,
+        requestedScenarioNames: config.requestedScenarioNames,
+        requestedTags: config.requestedTags,
+        suiteDirectoryPath: suiteRunDirectory.path,
+        model: config.model,
+        baseUrl: config.baseUrl,
+      );
+      final suiteReport = buildPlanModeSuiteJsonReport(
+        config: suiteReportConfig,
+        suiteResults: suiteResults,
+      );
       final suiteRunReportFile = File(
         '${suiteRunDirectory.path}/${config.reportPrefix}_report.json',
       );
@@ -2462,13 +3204,12 @@ void main() {
       await suiteReportFile.writeAsString(
         const JsonEncoder.withIndent('  ').convert(suiteReport),
       );
-      final suiteMarkdown = _buildSuiteMarkdownReport(
-        config: config,
+      final suiteMarkdown = buildPlanModeSuiteMarkdownReport(
+        config: suiteReportConfig,
         suiteResults: suiteResults,
-        suiteRunDirectory: suiteRunDirectory,
       );
-      final suiteJUnit = _buildSuiteJUnitReport(
-        config: config,
+      final suiteJUnit = buildPlanModeSuiteJUnitReport(
+        config: suiteReportConfig,
         suiteResults: suiteResults,
       );
       final suiteRunMarkdownFile = File(
@@ -2501,13 +3242,13 @@ void main() {
           planningTimeout: _resolvePlanningProposalTimeout(scenario),
           executionTimeout: _resolveExecutionCompletionTimeout(scenario),
           executionStallTimeout: _resolveExecutionStallTimeout(scenario),
-          overallTimeout: _resolveOverallRunTimeout(),
+          overallTimeout: _resolveOverallRunTimeout(scenario),
         );
         _ScenarioRunResult? runResult;
         Object? failure;
         StackTrace? failureStackTrace;
         try {
-          runResult = await _runScenario(
+          final scenarioRun = _runScenario(
             tester: tester,
             binding: binding,
             conversationBox: conversationBox,
@@ -2519,6 +3260,16 @@ void main() {
             phaseTrace: phaseTrace,
             budgets: budgets,
             planningReadyObserver: planningReadyObserver,
+          );
+          runResult = await scenarioRun.timeout(
+            budgets.overallTimeout!,
+            onTimeout: () {
+              throw TimeoutException(
+                'Scenario run timed out after '
+                '${budgets.overallTimeout!.inSeconds}s.',
+                budgets.overallTimeout,
+              );
+            },
           );
         } catch (error, stackTrace) {
           failure = error;
@@ -2555,9 +3306,14 @@ void main() {
           );
           List<dynamic> archivedWarnings = const <dynamic>[];
           List<dynamic> archivedAllowedWarnings = const <dynamic>[];
+          List<dynamic> archivedUnexpectedWarnings = const <dynamic>[];
           Map<String, dynamic> archivedReport = const <String, dynamic>{};
           Map<String, dynamic> archivedDiagnostics = const <String, dynamic>{};
           Map<String, dynamic> archivedHeartbeat = const <String, dynamic>{};
+          bool? archivedPostScenarioSettled;
+          bool? archivedPostScenarioCancellationUsed;
+          String archivedApprovalPath = planModeApprovalPathUnknown;
+          String archivedFallbackPath = planModeFallbackPathNone;
           if (archivedReportPath.existsSync()) {
             archivedReport =
                 jsonDecode(archivedReportPath.readAsStringSync())
@@ -2569,12 +3325,24 @@ void main() {
                 archivedReport['lastHeartbeat'] as Map<String, dynamic>? ??
                 const <String, dynamic>{};
             archivedWarnings =
-                archivedReport['unexpectedWarnings'] as List<dynamic>? ??
                 archivedReport['warnings'] as List<dynamic>? ??
                 const <dynamic>[];
             archivedAllowedWarnings =
                 archivedReport['allowedWarnings'] as List<dynamic>? ??
                 const <dynamic>[];
+            archivedUnexpectedWarnings =
+                archivedReport['unexpectedWarnings'] as List<dynamic>? ??
+                const <dynamic>[];
+            archivedPostScenarioSettled =
+                archivedReport['postScenarioSettled'] as bool?;
+            archivedPostScenarioCancellationUsed =
+                archivedReport['postScenarioCancellationUsed'] as bool?;
+            archivedApprovalPath =
+                archivedReport['approvalPath'] as String? ??
+                planModeApprovalPathUnknown;
+            archivedFallbackPath =
+                archivedReport['fallbackPath'] as String? ??
+                fallbackPathForApprovalPath(archivedApprovalPath);
           }
           suiteResults.add(<String, Object?>{
             'scenario': scenario.name,
@@ -2607,8 +3375,16 @@ void main() {
             'lastHeartbeat': archivedHeartbeat,
             'phaseTimings': archivedReport['phaseTimings'],
             'budgets': archivedReport['budgets'],
+            'postScenarioSettled': archivedPostScenarioSettled,
+            'postScenarioCancellationUsed':
+                archivedPostScenarioCancellationUsed,
+            'approvalPath': archivedApprovalPath,
+            'fallbackPath': archivedFallbackPath,
+            'usedHarnessApprovalFallback':
+                archivedApprovalPath == planModeApprovalPathLiveHarnessFallback,
             'warnings': archivedWarnings,
             'allowedWarnings': archivedAllowedWarnings,
+            'unexpectedWarnings': archivedUnexpectedWarnings,
             'error': failure?.toString(),
             'stackTrace': failureStackTrace?.toString(),
           });
