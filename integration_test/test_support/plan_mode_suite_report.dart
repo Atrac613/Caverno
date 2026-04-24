@@ -100,9 +100,15 @@ String buildPlanModeSuiteJUnitReport({
     final taskDriftSource = (taskDrift['fallbackSource'] as String?) ?? 'none';
     final toolLoopConvergence = _asObjectMap(result['toolLoopConvergence']);
     final toolLoopConvergenceDetected = toolLoopConvergence['detected'] == true;
+    final toolLoopConvergenceStatus =
+        (toolLoopConvergence['status'] as String?) ?? 'not_observed';
+    final toolLoopSuccessfulValidations = _asInt(
+      toolLoopConvergence['successfulValidations'],
+    );
     final toolLoopGuardActivations = _asInt(
       toolLoopConvergence['guardActivations'],
     );
+    final toolLoopNaturalStops = _asInt(toolLoopConvergence['naturalStops']);
     final approvalPath =
         (result['approvalPath'] as String?) ?? planModeApprovalPathUnknown;
     final fallbackPath =
@@ -139,7 +145,10 @@ String buildPlanModeSuiteJUnitReport({
       'taskDriftReason=$taskDriftReason',
       'taskDriftSource=$taskDriftSource',
       'toolLoopConvergenceDetected=$toolLoopConvergenceDetected',
+      'toolLoopConvergenceStatus=$toolLoopConvergenceStatus',
+      'toolLoopConvergenceSuccessfulValidations=$toolLoopSuccessfulValidations',
       'toolLoopConvergenceGuardActivations=$toolLoopGuardActivations',
+      'toolLoopConvergenceNaturalStops=$toolLoopNaturalStops',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       'unexpectedWarnings=${unexpectedWarnings.length}',
@@ -212,8 +221,10 @@ String buildPlanModeSuiteMarkdownReport({
     )
     ..writeln('- Task drift: ${taskDriftSummary['detected']} detected')
     ..writeln(
-      '- Tool-loop convergence guard: '
+      '- Tool-loop convergence: '
+      '${toolLoopConvergenceSummary['successfulValidations']} validation(s), '
       '${toolLoopConvergenceSummary['guardActivations']} activation(s) '
+      'and ${toolLoopConvergenceSummary['naturalStops']} natural stop(s) '
       'across ${toolLoopConvergenceSummary['detected']} scenario(s)',
     )
     ..writeln(
@@ -309,7 +320,10 @@ String buildPlanModeSuiteMarkdownReport({
       }
       buffer.writeln(
         '- ${item['scenario']}: '
-        '${item['guardActivations']} saved-validation guard activation(s) '
+        '${item['successfulValidations']} validation(s), '
+        '${item['guardActivations']} guard activation(s), '
+        '${item['naturalStops']} natural stop(s), '
+        'status `${item['status'] ?? 'unknown'}` '
         '${_markdownArtifactLink(item['report'], 'report')} '
         '${_markdownArtifactLink(item['log'], 'log')}',
       );

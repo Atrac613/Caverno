@@ -116,20 +116,31 @@ Map<String, Object> buildPlanModeSuiteTaskDriftSummary(
 Map<String, Object> buildPlanModeSuiteToolLoopConvergenceSummary(
   List<Map<String, Object?>> suiteResults,
 ) {
+  var successfulValidations = 0;
   var guardActivations = 0;
+  var naturalStops = 0;
   final scenarios = <Map<String, Object?>>[];
 
   for (final result in suiteResults) {
     final convergence = _asObjectMap(result['toolLoopConvergence']);
+    final validationCount = _asInt(convergence['successfulValidations']);
     final activationCount = _asInt(convergence['guardActivations']);
-    if (activationCount <= 0 && convergence['detected'] != true) {
+    final naturalStopCount = _asInt(convergence['naturalStops']);
+    if (activationCount <= 0 &&
+        naturalStopCount <= 0 &&
+        convergence['detected'] != true) {
       continue;
     }
 
+    successfulValidations += validationCount;
     guardActivations += activationCount;
+    naturalStops += naturalStopCount;
     scenarios.add(<String, Object?>{
       'scenario': result['scenario']?.toString() ?? 'unknown',
+      'status': convergence['status']?.toString(),
+      'successfulValidations': validationCount,
       'guardActivations': activationCount,
+      'naturalStops': naturalStopCount,
       'guardPattern': convergence['guardPattern']?.toString(),
       'report': result['scenarioReport'],
       'log': result['scenarioLog'],
@@ -138,7 +149,9 @@ Map<String, Object> buildPlanModeSuiteToolLoopConvergenceSummary(
 
   return <String, Object>{
     'detected': scenarios.length,
+    'successfulValidations': successfulValidations,
     'guardActivations': guardActivations,
+    'naturalStops': naturalStops,
     'scenarios': scenarios,
   };
 }

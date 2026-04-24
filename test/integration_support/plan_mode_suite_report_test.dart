@@ -42,7 +42,10 @@ void main() {
         },
         'toolLoopConvergence': const <String, Object?>{
           'detected': true,
+          'status': 'guarded',
+          'successfulValidations': 1,
           'guardActivations': 1,
+          'naturalStops': 0,
           'guardPattern':
               '[Tool] Ignoring follow-up tool calls after saved validation success',
         },
@@ -85,6 +88,10 @@ void main() {
         containsPair('guardActivations', 1),
       );
       expect(
+        report['toolLoopConvergenceSummary'],
+        containsPair('successfulValidations', 1),
+      );
+      expect(
         report['executionPathSummary'],
         containsPair('liveHarnessApprovalFallback', 1),
       );
@@ -116,7 +123,7 @@ void main() {
       expect(
         markdown,
         contains(
-          '- Tool-loop convergence guard: 1 activation(s) across 1 scenario(s)',
+          '- Tool-loop convergence: 1 validation(s), 1 activation(s) and 0 natural stop(s) across 1 scenario(s)',
         ),
       );
       expect(markdown, contains('## Task Drift'));
@@ -140,7 +147,10 @@ void main() {
       expect(junit, contains('taskDriftDetected=true'));
       expect(junit, contains('taskDriftReason=unexpectedChangedFiles'));
       expect(junit, contains('toolLoopConvergenceDetected=true'));
+      expect(junit, contains('toolLoopConvergenceStatus=guarded'));
+      expect(junit, contains('toolLoopConvergenceSuccessfulValidations=1'));
       expect(junit, contains('toolLoopConvergenceGuardActivations=1'));
+      expect(junit, contains('toolLoopConvergenceNaturalStops=0'));
     });
   });
 }

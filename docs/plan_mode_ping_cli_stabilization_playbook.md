@@ -132,6 +132,18 @@ for this canary. It means the live model either stopped calling tools naturally
 after validation or the guard stopped emitting its diagnostic log; inspect the
 scenario log before deciding whether to relax or update the expectation.
 
+Two convergence paths are valid in product behavior:
+
+- Guarded convergence: the saved validator succeeds, the model asks for another
+  tool call, and the guard stops that follow-up call.
+- Natural stop: the saved validator succeeds and the model returns final text
+  without requesting another tool.
+
+The live README canary intentionally exercises the guarded path because the
+observed live model tends to rewrite after validation. Deterministic unit tests
+cover the natural-stop path so the product remains correct if a model becomes
+more disciplined.
+
 ### 1x, 3x, and Full Pass
 
 - `1x` is the discovery loop. Use it after a small patch to see whether the
@@ -140,6 +152,9 @@ scenario log before deciding whether to relax or update the expectation.
 - A full pass should include focused unit tests, static analysis, and a clean
   `3x` live canary. Increase the repeat count only when the remaining risk is
   model variability rather than a deterministic bug.
+- Use `tool/run_plan_mode_convergence_full_pass.sh` for the saved-validation
+  convergence gate. It runs focused regressions, static analysis, and the
+  README convergence canary three times by default.
 
 ## Hotspots
 
@@ -234,11 +249,28 @@ What helped:
 Run focused tests before rerunning the live canary:
 
 ```bash
+flutter test test/features/chat/presentation/providers/chat_notifier_test.dart
+flutter test test/integration/plan_mode_scenario_spec_test.dart
+flutter test test/integration_support/plan_mode_report_summary_test.dart
+flutter test test/integration_support/plan_mode_suite_report_test.dart
 flutter test test/features/chat/presentation/providers/chat_notifier_workflow_proposal_test.dart
 flutter test test/features/chat/domain/services/conversation_plan_execution_guardrails_test.dart
 flutter test test/features/chat/domain/services/conversation_plan_execution_coordinator_test.dart
 flutter analyze
 ```
+
+For the saved-validation convergence slice, the bundled gate is:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_plan_mode_convergence_full_pass.sh
+```
+
+Use `CAVERNO_PLAN_MODE_CONVERGENCE_LIVE_REPEAT_COUNT=1` during local discovery.
+Use `CAVERNO_PLAN_MODE_SKIP_LIVE=1` only when the live model is unavailable and
+the goal is to run the deterministic portion of the gate.
 
 ### Live canary
 

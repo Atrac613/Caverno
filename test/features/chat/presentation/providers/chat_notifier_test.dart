@@ -853,6 +853,153 @@ class _FakeMcpToolService extends McpToolService {
   }
 }
 
+class _SavedValidationToolLoopOutcome {
+  const _SavedValidationToolLoopOutcome({
+    required this.executedToolNames,
+    required this.finalAnswerMessages,
+    required this.lastMessageContent,
+  });
+
+  final List<String> executedToolNames;
+  final List<Message> finalAnswerMessages;
+  final String lastMessageContent;
+}
+
+class _SavedValidationWrapperCase {
+  const _SavedValidationWrapperCase({
+    required this.name,
+    required this.wrapperCommand,
+    required this.commandResult,
+  });
+
+  final String name;
+  final String wrapperCommand;
+  final String commandResult;
+}
+
+Future<_SavedValidationToolLoopOutcome>
+_runSavedValidationWrapperFollowUpScenario({
+  required String wrapperCommand,
+  required String commandResult,
+  String validationCommand = 'ls README.md',
+}) async {
+  final conversation = Conversation(
+    id: 'conversation-tool-loop-negative-wrapper',
+    title: 'Plan thread',
+    messages: const <Message>[],
+    createdAt: DateTime(2026, 4, 24, 12),
+    updatedAt: DateTime(2026, 4, 24, 12, 5),
+    workspaceMode: WorkspaceMode.coding,
+    projectId: 'project-1',
+    workflowStage: ConversationWorkflowStage.implement,
+    workflowSpec: ConversationWorkflowSpec(
+      tasks: [
+        ConversationWorkflowTask(
+          id: 'task-readme',
+          title: 'Create README.md with project description',
+          targetFiles: const ['README.md'],
+          validationCommand: validationCommand,
+          status: ConversationWorkflowTaskStatus.inProgress,
+        ),
+      ],
+    ),
+  );
+  final toolDataSource = _QueuedToolLoopChatDataSource(
+    initialToolCalls: [
+      ToolCallInfo(
+        id: 'tool-write',
+        name: 'write_file',
+        arguments: const {
+          'path': 'README.md',
+          'content': '# Host Health Checker\n',
+        },
+      ),
+    ],
+    toolLoopResponses: [
+      ChatCompletionResult(
+        content: '',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'tool-validate',
+            name: 'local_execute_command',
+            arguments: {'command': wrapperCommand, 'working_directory': '/tmp'},
+          ),
+        ],
+        finishReason: 'tool_calls',
+      ),
+      ChatCompletionResult(
+        content:
+            'The wrapper result did not prove saved validation success, so the follow-up write is still allowed.',
+        toolCalls: [
+          ToolCallInfo(
+            id: 'tool-rewrite-after-untrusted-validation',
+            name: 'write_file',
+            arguments: const {
+              'path': 'README.md',
+              'content': '# Host Health Checker\n\nFollow-up rewrite\n',
+            },
+          ),
+        ],
+        finishReason: 'tool_calls',
+      ),
+      ChatCompletionResult(
+        content:
+            'The current saved task is complete after the follow-up write.',
+        finishReason: 'stop',
+      ),
+    ],
+    finalAnswerChunks: const [
+      'Final answer after rejected validation wrapper.',
+    ],
+  );
+  final toolService = _FakeMcpToolService(
+    results: {
+      'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
+      'local_execute_command': commandResult,
+    },
+  );
+  final appLifecycleService = _MockAppLifecycleService();
+  when(() => appLifecycleService.isInBackground).thenReturn(false);
+  final toolContainer = ProviderContainer(
+    overrides: [
+      settingsNotifierProvider.overrideWith(
+        _ToolEnabledNoConfirmSettingsNotifier.new,
+      ),
+      conversationsNotifierProvider.overrideWith(
+        () => _WorkflowTestConversationsNotifier(conversation),
+      ),
+      chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+      sessionMemoryServiceProvider.overrideWithValue(
+        _TestSessionMemoryService(),
+      ),
+      codingProjectsNotifierProvider.overrideWith(
+        _TestCodingProjectsNotifier.new,
+      ),
+      mcpToolServiceProvider.overrideWithValue(toolService),
+      appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+      backgroundTaskServiceProvider.overrideWithValue(
+        _TestBackgroundTaskService(),
+      ),
+    ],
+  );
+
+  try {
+    final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+    await toolNotifier.sendMessage('Create the README first');
+
+    return _SavedValidationToolLoopOutcome(
+      executedToolNames: List<String>.from(toolService.executedToolNames),
+      finalAnswerMessages: List<Message>.from(
+        toolDataSource.finalAnswerMessages,
+      ),
+      lastMessageContent: toolNotifier.state.messages.last.content,
+    );
+  } finally {
+    toolContainer.dispose();
+  }
+}
+
 class _SelectiveFakeMcpToolService extends McpToolService {
   _SelectiveFakeMcpToolService({required this.results});
 
@@ -2707,6 +2854,165 @@ void main() {
         expect(
           toolNotifier.state.messages.last.content,
           isNot(contains('This final answer should never be requested.')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  const untrustedWrapperCases = <_SavedValidationWrapperCase>[
+    _SavedValidationWrapperCase(
+      name: 'failure output',
+      wrapperCommand: 'ls README.md && echo "Validation Failed"',
+      commandResult:
+          '{"exit_code":0,"stdout":"Validation Failed\\n","stderr":""}',
+    ),
+    _SavedValidationWrapperCase(
+      name: 'empty success-or-failure output',
+      wrapperCommand:
+          'ls README.md && echo "Validation Successful" || echo "Validation Failed"',
+      commandResult: '{"exit_code":0,"stdout":"","stderr":""}',
+    ),
+    _SavedValidationWrapperCase(
+      name: 'different validation command',
+      wrapperCommand:
+          'ls CHANGELOG.md && echo "Validation Successful" || echo "Validation Failed"',
+      commandResult:
+          '{"exit_code":0,"stdout":"Validation Successful\\n","stderr":""}',
+    ),
+  ];
+
+  for (final wrapperCase in untrustedWrapperCases) {
+    test(
+      'sendMessage rejects saved validation wrapper with ${wrapperCase.name}',
+      () async {
+        final outcome = await _runSavedValidationWrapperFollowUpScenario(
+          wrapperCommand: wrapperCase.wrapperCommand,
+          commandResult: wrapperCase.commandResult,
+        );
+
+        expect(outcome.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+          'write_file',
+        ]);
+        expect(outcome.finalAnswerMessages, isNotEmpty);
+        expect(
+          outcome.lastMessageContent,
+          contains('rejected validation wrapper'),
+        );
+        expect(
+          outcome.lastMessageContent,
+          isNot(contains('saved validation command succeeded')),
+        );
+      },
+    );
+  }
+
+  test(
+    'sendMessage accepts natural stop after saved validation succeeds',
+    () async {
+      final conversation = Conversation(
+        id: 'conversation-tool-loop-natural-stop',
+        title: 'Plan thread',
+        messages: const <Message>[],
+        createdAt: DateTime(2026, 4, 24, 12),
+        updatedAt: DateTime(2026, 4, 24, 12, 5),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        workflowStage: ConversationWorkflowStage.implement,
+        workflowSpec: const ConversationWorkflowSpec(
+          tasks: [
+            ConversationWorkflowTask(
+              id: 'task-readme',
+              title: 'Create README.md with project description',
+              targetFiles: ['README.md'],
+              validationCommand: 'ls README.md',
+              status: ConversationWorkflowTaskStatus.inProgress,
+            ),
+          ],
+        ),
+      );
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-write',
+            name: 'write_file',
+            arguments: const {
+              'path': 'README.md',
+              'content': '# Host Health Checker\n',
+            },
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: '',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-validate',
+                name: 'local_execute_command',
+                arguments: const {
+                  'command': 'ls README.md',
+                  'working_directory': '/tmp',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content:
+                'The saved validation command passed, so the README task is complete.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Natural stop final answer.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'write_file': '{"path":"/tmp/README.md","bytes_written":22}',
+          'local_execute_command':
+              '{"command":"ls README.md","exit_code":0,"stdout":"README.md\\n","stderr":""}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledNoConfirmSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            () => _WorkflowTestConversationsNotifier(conversation),
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          codingProjectsNotifierProvider.overrideWith(
+            _TestCodingProjectsNotifier.new,
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Create the README first');
+
+        expect(toolService.executedToolNames, [
+          'write_file',
+          'local_execute_command',
+        ]);
+        expect(toolDataSource.finalAnswerMessages, isNotEmpty);
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Natural stop final answer.'),
         );
       } finally {
         toolContainer.dispose();

@@ -58,6 +58,10 @@ void main() {
     );
     expect(
       scenario.logExpectations.map((item) => item.pattern),
+      contains(planModeSavedValidationSuccessPattern),
+    );
+    expect(
+      scenario.logExpectations.map((item) => item.pattern),
       contains(planModeSavedValidationConvergenceGuardPattern),
     );
   });
@@ -65,13 +69,32 @@ void main() {
   test('counts saved validation convergence guard activations', () {
     final report = buildPlanModeToolLoopConvergenceReport(const <String>[
       '[Tool] Sending in tool-aware mode (MCP)',
+      planModeSavedValidationSuccessPattern,
       planModeSavedValidationConvergenceGuardPattern,
       '[Tool] Ignoring unrelated duplicate write',
+      planModeSavedValidationSuccessPattern,
       planModeSavedValidationConvergenceGuardPattern,
     ]);
 
     expect(report, containsPair('detected', true));
+    expect(report, containsPair('status', 'guarded'));
+    expect(report, containsPair('successfulValidations', 2));
     expect(report, containsPair('guardActivations', 2));
+    expect(report, containsPair('naturalStops', 0));
+  });
+
+  test('classifies saved validation natural stops', () {
+    final report = buildPlanModeToolLoopConvergenceReport(const <String>[
+      '[Tool] Sending in tool-aware mode (MCP)',
+      planModeSavedValidationSuccessPattern,
+      '[LLM] finishReason: FinishReason.stop',
+    ]);
+
+    expect(report, containsPair('detected', false));
+    expect(report, containsPair('status', 'natural_stop'));
+    expect(report, containsPair('successfulValidations', 1));
+    expect(report, containsPair('guardActivations', 0));
+    expect(report, containsPair('naturalStops', 1));
   });
 
   test(

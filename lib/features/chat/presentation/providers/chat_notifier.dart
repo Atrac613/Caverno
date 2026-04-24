@@ -6588,13 +6588,17 @@ class ChatNotifier extends Notifier<ChatState> {
       // Remove the temporary thinking indicator.
       _removeTrailingThinkTag();
 
+      final savedValidationSucceeded =
+          _toolResultsContainSuccessfulCurrentSavedValidation(batchToolResults);
+      if (savedValidationSucceeded) {
+        appLog('[Tool] Saved validation command succeeded');
+      }
+
       // Continue looping if the LLM asks for another tool call.
       if (nextResult.hasToolCalls) {
         final nextToolCalls = nextResult.toolCalls!;
         final fallbackResponse = nextResult.content.trim();
-        if (_toolResultsContainSuccessfulCurrentSavedValidation(
-          batchToolResults,
-        )) {
+        if (savedValidationSucceeded) {
           appLog(
             '[Tool] Ignoring follow-up tool calls after saved validation success',
           );
@@ -7018,6 +7022,9 @@ class ChatNotifier extends Notifier<ChatState> {
       '$normalizedValidationCommand && ',
     );
     if (!isValidationWrapper) {
+      return false;
+    }
+    if (_toolResultOutputSuggestsValidationFailure(result)) {
       return false;
     }
     if (!normalizedCommand.contains(' || ')) {

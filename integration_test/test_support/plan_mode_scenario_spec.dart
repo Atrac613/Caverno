@@ -1609,6 +1609,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           minCount: 1,
         ),
         PlanModeLogExpectation(
+          pattern: planModeSavedValidationSuccessPattern,
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
           pattern: planModeSavedValidationConvergenceGuardPattern,
           minCount: 1,
         ),

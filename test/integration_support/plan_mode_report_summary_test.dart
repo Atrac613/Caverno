@@ -114,9 +114,24 @@ void main() {
           'scenarioLog': '/tmp/readme/log.txt',
           'toolLoopConvergence': const <String, Object?>{
             'detected': true,
+            'status': 'guarded',
+            'successfulValidations': 2,
             'guardActivations': 2,
+            'naturalStops': 0,
             'guardPattern':
                 '[Tool] Ignoring follow-up tool calls after saved validation success',
+          },
+        },
+        <String, Object?>{
+          'scenario': 'natural_stop',
+          'scenarioReport': '/tmp/natural/report.json',
+          'scenarioLog': '/tmp/natural/log.txt',
+          'toolLoopConvergence': const <String, Object?>{
+            'detected': false,
+            'status': 'natural_stop',
+            'successfulValidations': 1,
+            'guardActivations': 0,
+            'naturalStops': 1,
           },
         },
         <String, Object?>{
@@ -130,12 +145,16 @@ void main() {
 
       final summary = buildPlanModeSuiteToolLoopConvergenceSummary(results);
 
-      expect(summary['detected'], 1);
+      expect(summary['detected'], 2);
+      expect(summary['successfulValidations'], 3);
       expect(summary['guardActivations'], 2);
+      expect(summary['naturalStops'], 1);
       final scenarios = summary['scenarios'] as List<Object?>;
-      expect(scenarios, hasLength(1));
-      expect(scenarios.single, containsPair('scenario', 'readme_canary'));
-      expect(scenarios.single, containsPair('guardActivations', 2));
+      expect(scenarios, hasLength(2));
+      expect(scenarios.first, containsPair('scenario', 'readme_canary'));
+      expect(scenarios.first, containsPair('guardActivations', 2));
+      expect(scenarios.last, containsPair('scenario', 'natural_stop'));
+      expect(scenarios.last, containsPair('naturalStops', 1));
     });
 
     test('resolves approval path from live harness logs', () {
