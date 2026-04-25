@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/logger.dart';
+import 'macos_computer_use_setup.dart';
 
 final macosComputerUseServiceProvider = Provider<MacosComputerUseService>((
   ref,
@@ -188,11 +189,13 @@ class MacosComputerUseService {
   }
 
   String? _nextActionForCode(String code) {
+    final permissionOwner =
+        MacosComputerUseBackends.inProcessCompatibility.permissionOwnerName;
     return switch (code) {
       'accessibility_denied' =>
-        'Open System Settings > Privacy & Security > Accessibility, grant Caverno, then refresh permissions.',
+        'Open System Settings > Privacy & Security > Accessibility, grant $permissionOwner, then refresh permissions.',
       'screen_capture_unavailable' || 'screenshot_failed' =>
-        'Open System Settings > Privacy & Security > Screen & System Audio Recording, grant Caverno, then refresh permissions.',
+        'Open System Settings > Privacy & Security > Screen & System Audio Recording, grant $permissionOwner, then refresh permissions.',
       _ => null,
     };
   }

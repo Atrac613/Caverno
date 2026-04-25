@@ -8,6 +8,23 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  testWidgets('shows helper boundary while using compatibility backend', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Computer Use App Boundary'), findsOneWidget);
+    expect(find.text('Current executor'), findsOneWidget);
+    expect(find.text('Permission owner now'), findsOneWidget);
+    expect(find.text('Target helper'), findsOneWidget);
+    expect(find.text('Caverno (in_process_compatibility)'), findsOneWidget);
+    expect(
+      find.text('Caverno Computer Use (com.noguwo.apps.caverno.computer-use)'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('refreshes permission and audio recording state', (tester) async {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
@@ -121,6 +138,8 @@ void main() {
     final text = arguments['text'] as String;
 
     expect(text, contains('"coordinateTarget": "display"'));
+    expect(text, contains('"setupChecklist"'));
+    expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
     expect(text, isNot(contains(_png1x1Base64)));
 

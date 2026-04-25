@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/services/macos_computer_use_service.dart';
+import '../../../../core/services/macos_computer_use_setup.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
   const ComputerUseDebugPage({super.key});
@@ -109,6 +110,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Widget _buildPermissionsCard() {
+    final setupChecklist = _setupChecklist;
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -119,8 +121,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               icon: Icons.verified_user_outlined,
               title: 'Permissions',
               subtitle:
-                  'Check and request macOS Accessibility and Screen Recording access.',
+                  'Track the current backend while preparing the separate computer-use helper.',
             ),
+            const SizedBox(height: 12),
+            _HelperBoundaryPanel(backend: setupChecklist.backend),
             const SizedBox(height: 12),
             _buildPermissionChecklist(),
             const SizedBox(height: 12),
@@ -656,13 +660,9 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Widget _buildPermissionChecklist() {
-    final hasSnapshot = _permissions != null;
-    final missing = <String>[
-      if (_permissionValue('accessibilityGranted') != true) 'Accessibility',
-      if (_permissionValue('screenCaptureGranted') != true)
-        'Screen & System Audio Recording',
-    ];
-    final ready = hasSnapshot && missing.isEmpty;
+    final setupChecklist = _setupChecklist;
+    final hasSnapshot = setupChecklist.hasSnapshot;
+    final ready = setupChecklist.isReady;
     final colorScheme = Theme.of(context).colorScheme;
     final icon = ready
         ? Icons.task_alt_outlined
@@ -674,16 +674,6 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         : hasSnapshot
         ? colorScheme.error
         : colorScheme.secondary;
-    final title = ready
-        ? 'Ready for visual, input, and audio smoke checks'
-        : hasSnapshot
-        ? 'Action required: ${missing.join(', ')}'
-        : 'Refresh permissions before running smoke checks';
-    final subtitle = ready
-        ? 'Run screenshots first, then arm input or audio checks only when needed.'
-        : hasSnapshot
-        ? 'Open System Settings, grant Caverno, then refresh permissions.'
-        : 'Use Refresh to load the current macOS privacy state.';
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -702,9 +692,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  Text(
+                    setupChecklist.title,
+                    style: Theme.of(context).textTheme.titleSmall,
+                  ),
                   const SizedBox(height: 2),
-                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                  Text(
+                    setupChecklist.subtitle,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
                 ],
               ),
             ),
@@ -889,6 +885,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Map<String, dynamic> _diagnosticsMap() {
     return {
       'generatedAt': DateTime.now().toIso8601String(),
+      'setupChecklist': _setupChecklist.toJson(),
       'permissions': _permissions,
       'audioRecording': _audioRecording,
       'inputActionsArmed': _inputActionsArmed,
@@ -971,6 +968,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   bool? _permissionValue(String key) {
     final value = _permissions?[key];
     return value is bool ? value : null;
+  }
+
+  MacosComputerUseSetupChecklist get _setupChecklist {
+    return MacosComputerUseSetupChecklist(
+      backend: MacosComputerUseBackends.inProcessCompatibility,
+      permissions: _permissions == null
+          ? null
+          : MacosComputerUsePermissionSnapshot.fromMap(_permissions),
+    );
   }
 
   int _maxWidth() {
@@ -1183,6 +1189,99 @@ class _SectionTitle extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+class _HelperBoundaryPanel extends StatelessWidget {
+  const _HelperBoundaryPanel({required this.backend});
+
+  final MacosComputerUseBackendInfo backend;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: colorScheme.surfaceContainerHighest,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(Icons.account_tree_outlined, color: colorScheme.primary),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Computer Use App Boundary',
+                        style: Theme.of(context).textTheme.titleSmall,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        backend.usesSeparateHelper
+                            ? 'Privileged desktop control runs in the helper app.'
+                            : 'Smoke checks still use the in-process compatibility backend.',
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            _BoundaryValueRow(
+              label: 'Current executor',
+              value: '${backend.displayName} (${backend.executionMode})',
+            ),
+            _BoundaryValueRow(
+              label: 'Permission owner now',
+              value: backend.permissionOwnerName,
+            ),
+            _BoundaryValueRow(
+              label: 'Target helper',
+              value:
+                  '${backend.targetHelperName} (${backend.targetHelperBundleIdentifier})',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _BoundaryValueRow extends StatelessWidget {
+  const _BoundaryValueRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: 4),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 136,
+            child: Text(label, style: Theme.of(context).textTheme.bodySmall),
+          ),
+          Expanded(
+            child: SelectableText(
+              value,
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
