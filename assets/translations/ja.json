@@ -577,6 +577,7 @@
     "completion_action_hint": "Routine 完了後に行う処理を選びます。",
     "completion_action_none": "なし",
     "completion_action_google_chat": "Google Chat に投稿",
+    "completion_action_prompt_google_chat": "プロンプト判断で Google Chat に投稿",
     "google_chat_rule_label": "Google Chat 投稿条件",
     "google_chat_rule_hint": "どの実行結果を Google Chat に投稿するか選びます。",
     "google_chat_rule_on_success": "成功時のみ",

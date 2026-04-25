@@ -89,6 +89,25 @@ void main() {
       expect(decision.message, 'Google Chat webhook is not configured.');
     });
 
+    test(
+      'does not post a completion summary for prompt-controlled Google Chat',
+      () {
+        final decision = service.planGoogleChatDelivery(
+          routine: buildRoutine(
+            completionAction: RoutineCompletionAction.promptGoogleChat,
+          ),
+          runRecord: buildRunRecord(),
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+
+        expect(decision.shouldDeliver, isFalse);
+        expect(decision.status, RoutineDeliveryStatus.notRequested);
+        expect(decision.message, contains('controlled by the routine prompt'));
+      },
+    );
+
     test('builds a payload when the rule matches and the webhook exists', () {
       final decision = service.planGoogleChatDelivery(
         routine: buildRoutine(

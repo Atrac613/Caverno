@@ -9,7 +9,7 @@ enum RoutineRunStatus { completed, failed }
 
 enum RoutineRunTrigger { manual, scheduled }
 
-enum RoutineCompletionAction { none, googleChat }
+enum RoutineCompletionAction { none, googleChat, promptGoogleChat }
 
 enum RoutineGoogleChatRule { onSuccess, onFailure, always }
 
@@ -137,4 +137,7 @@ abstract class Routine with _$Routine {
 
   bool get postsToGoogleChat =>
       completionAction == RoutineCompletionAction.googleChat;
+
+  bool get allowsPromptGoogleChatPost =>
+      completionAction == RoutineCompletionAction.promptGoogleChat;
 }

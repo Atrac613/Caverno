@@ -30,6 +30,13 @@ class RoutineCompletionActionService {
     required RoutineRunRecord runRecord,
     required AppSettings settings,
   }) {
+    if (routine.allowsPromptGoogleChatPost) {
+      return const RoutineDeliveryDecision(
+        status: RoutineDeliveryStatus.notRequested,
+        message: 'Google Chat delivery is controlled by the routine prompt.',
+      );
+    }
+
     if (!routine.postsToGoogleChat) {
       return const RoutineDeliveryDecision(
         status: RoutineDeliveryStatus.notRequested,

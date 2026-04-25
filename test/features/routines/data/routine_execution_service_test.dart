@@ -17,6 +17,7 @@ void main() {
     bool toolsEnabled = false,
     String workspaceDirectory = '',
     bool allowWorkspaceWrites = false,
+    RoutineCompletionAction completionAction = RoutineCompletionAction.none,
   }) {
     final now = DateTime(2026, 4, 21, 10);
     return Routine(
@@ -28,6 +29,7 @@ void main() {
       toolsEnabled: toolsEnabled,
       workspaceDirectory: workspaceDirectory,
       allowWorkspaceWrites: allowWorkspaceWrites,
+      completionAction: completionAction,
     );
   }
 
@@ -572,7 +574,12 @@ void main() {
         ),
       );
 
-      final record = await service.execute(buildRoutine(toolsEnabled: true));
+      final record = await service.execute(
+        buildRoutine(
+          toolsEnabled: true,
+          completionAction: RoutineCompletionAction.promptGoogleChat,
+        ),
+      );
 
       expect(record.isSuccessful, isTrue);
       expect(record.toolNames, [
@@ -594,6 +601,41 @@ void main() {
       );
       expect(deliveryService.calls.single.text, 'New LAN device: 192.168.1.42');
     });
+
+    test(
+      'exposes the prompt-controlled Google Chat tool only when selected',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          plainResults: [
+            ChatCompletionResult(
+              content: 'No tools used',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+
+        await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(dataSource.toolRequestNames, isEmpty);
+
+        await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            completionAction: RoutineCompletionAction.promptGoogleChat,
+          ),
+        );
+
+        expect(dataSource.toolRequestNames, [
+          RoutineExecutionService.googleChatPostToolName,
+        ]);
+      },
+    );
   });
 }
 

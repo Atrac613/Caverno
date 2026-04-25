@@ -164,6 +164,7 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
 const _$RoutineCompletionActionEnumMap = {
   RoutineCompletionAction.none: 'none',
   RoutineCompletionAction.googleChat: 'googleChat',
+  RoutineCompletionAction.promptGoogleChat: 'promptGoogleChat',
 };
 
 const _$RoutineGoogleChatRuleEnumMap = {

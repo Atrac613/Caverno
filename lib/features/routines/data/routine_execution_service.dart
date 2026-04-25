@@ -282,7 +282,8 @@ class RoutineExecutionService {
       return const <Map<String, dynamic>>[];
     }
     final extraDefinitions = <Map<String, dynamic>>[
-      if (_settings.hasGoogleChatWebhook) _googleChatPostToolDefinition,
+      if (_settings.hasGoogleChatWebhook && routine.allowsPromptGoogleChatPost)
+        _googleChatPostToolDefinition,
     ];
     return RoutineToolPolicy.filterAllowedToolDefinitions(
       _mcpToolService?.getOpenAiToolDefinitions() ?? const [],

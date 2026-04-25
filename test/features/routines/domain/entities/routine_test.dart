@@ -163,5 +163,25 @@ void main() {
         expect(decoded.hasWorkspaceWriteAccess, isTrue);
       },
     );
+
+    test('preserves prompt-controlled Google Chat action', () {
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'LAN watch',
+        prompt: 'Post to Google Chat only when new devices are found.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        completionAction: RoutineCompletionAction.promptGoogleChat,
+      );
+
+      final decoded = Routine.fromJson(routine.toJson());
+
+      expect(
+        decoded.completionAction,
+        RoutineCompletionAction.promptGoogleChat,
+      );
+      expect(decoded.postsToGoogleChat, isFalse);
+      expect(decoded.allowsPromptGoogleChatPost, isTrue);
+    });
   });
 }

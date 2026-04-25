@@ -577,6 +577,7 @@
     "completion_action_hint": "Choose what happens after this routine finishes.",
     "completion_action_none": "None",
     "completion_action_google_chat": "Post to Google Chat",
+    "completion_action_prompt_google_chat": "Let the prompt post to Google Chat",
     "google_chat_rule_label": "Google Chat rule",
     "google_chat_rule_hint": "Choose which runs are allowed to post to Google Chat.",
     "google_chat_rule_on_success": "Only on success",

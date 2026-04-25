@@ -353,6 +353,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
       RoutineCompletionAction.none => 'routines.completion_action_none'.tr(),
       RoutineCompletionAction.googleChat =>
         'routines.completion_action_google_chat'.tr(),
+      RoutineCompletionAction.promptGoogleChat =>
+        'routines.completion_action_prompt_google_chat'.tr(),
     };
   }
 
