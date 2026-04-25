@@ -482,6 +482,93 @@ void main() {
     );
 
     test(
+      'executes structured final tool calls after collecting routine evidence',
+      () async {
+        const workspaceDirectory = '/tmp/caverno-routine-workspace';
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Scanning the LAN',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-scan',
+                name: 'lan_scan',
+                arguments: const {'ip_version': 'auto'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected LAN scan results',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: '',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-write',
+                  name: 'write_file',
+                  arguments: const {
+                    'path': 'lan_devices.json',
+                    'content': '[\n  "192.168.100.1"\n]',
+                  },
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Saved the current LAN device list.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('lan_scan', 'Scan the local network'),
+            _toolDefinition('write_file', 'Write a file'),
+          ],
+          resultsByToolName: {
+            'lan_scan': const McpToolResult(
+              toolName: 'lan_scan',
+              result: '{"hosts":[{"ip":"192.168.100.1"}]}',
+              isSuccess: true,
+            ),
+            'write_file': const McpToolResult(
+              toolName: 'write_file',
+              result: '{"bytes_written":1}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            workspaceDirectory: workspaceDirectory,
+            allowWorkspaceWrites: true,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.output, 'Saved the current LAN device list.');
+        expect(record.toolNames, ['lan_scan', 'write_file']);
+        expect(toolService.executedCalls.map((call) => call.name), [
+          'lan_scan',
+          'write_file',
+        ]);
+        expect(
+          toolService.executedCalls.last.arguments['path'],
+          '/tmp/caverno-routine-workspace/lan_devices.json',
+        );
+      },
+    );
+
+    test(
       'resolves relative read paths against the routine workspace',
       () async {
         const workspaceDirectory = '/tmp/caverno-routine-workspace';
@@ -654,6 +741,13 @@ void main() {
       expect(dataSource.toolRequestNames, [
         RoutineExecutionService.googleChatPostToolName,
       ]);
+      final systemPrompt = dataSource.lastToolAwareMessages
+          .singleWhere((message) => message.role == MessageRole.system)
+          .content;
+      expect(
+        systemPrompt,
+        contains('call routine_google_chat_post before the final answer'),
+      );
       expect(deliveryService.calls, hasLength(1));
       expect(
         deliveryService.calls.single.webhookUrl,
@@ -718,6 +812,7 @@ class _FakeChatDataSource implements ChatDataSource {
   final ChatCompletionResult? initialToolAwareResult;
   final ChatCompletionResult? toolLoopResult;
   final Queue<ChatCompletionResult> _plainResults;
+  bool _usedInitialToolAwareResult = false;
 
   List<String> toolRequestNames = const [];
   List<Message> lastToolAwareMessages = const [];
@@ -738,8 +833,15 @@ class _FakeChatDataSource implements ChatDataSource {
           .map((tool) => (tool['function'] as Map<String, dynamic>)['name'])
           .whereType<String>()
           .toList(growable: false);
-      return initialToolAwareResult ??
-          ChatCompletionResult(content: '', finishReason: 'stop');
+      final initialResult = initialToolAwareResult;
+      if (initialResult != null && !_usedInitialToolAwareResult) {
+        _usedInitialToolAwareResult = true;
+        return initialResult;
+      }
+      if (_plainResults.isNotEmpty) {
+        return _plainResults.removeFirst();
+      }
+      return ChatCompletionResult(content: '', finishReason: 'stop');
     }
 
     if (_plainResults.isEmpty) {

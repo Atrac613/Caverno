@@ -56,8 +56,10 @@ class RoutineExecutionService {
       'name': googleChatPostToolName,
       'description':
           'Post a concise routine-created message to the configured Google '
-          'Chat incoming webhook. Use this only when the routine prompt asks '
-          'for a conditional Google Chat notification.',
+          'Chat incoming webhook. When the routine prompt asks for a '
+          'conditional Google Chat notification and the condition is true, '
+          'call this tool before the final answer. Do not claim that Google '
+          'Chat was posted unless this tool has been called successfully.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -291,7 +293,10 @@ class RoutineExecutionService {
     if (allowedToolNames.contains(googleChatPostToolName)) {
       guidance.add(
         'Use $googleChatPostToolName only when the routine prompt condition '
-        'for a Google Chat notification is satisfied. Keep the message concise.',
+        'for a Google Chat notification is satisfied. If that condition is '
+        'satisfied, call $googleChatPostToolName before the final answer. Do '
+        'not say that Google Chat was posted unless the tool has been called '
+        'successfully. Keep the message concise.',
       );
     }
     return guidance;

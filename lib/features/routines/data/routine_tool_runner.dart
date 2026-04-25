@@ -114,7 +114,7 @@ class RoutineToolRunner {
       );
     }
 
-    final answerPrompt = ToolResultPromptBuilder.buildAnswerPrompt(
+    final answerPrompt = _buildRoutineAnswerPrompt(
       executedToolResults,
       descriptionsByName: descriptionsByName,
     );
@@ -131,6 +131,7 @@ class RoutineToolRunner {
       model: model,
       temperature: temperature,
       maxTokens: maxTokens,
+      tools: tools,
     );
 
     var finalOutput = finalResult.content.trim();
@@ -153,7 +154,7 @@ class RoutineToolRunner {
       executedToolResults.addAll(batchToolResults);
       executedFinalToolCall = true;
 
-      final followUpPrompt = ToolResultPromptBuilder.buildAnswerPrompt(
+      final followUpPrompt = _buildRoutineAnswerPrompt(
         executedToolResults,
         descriptionsByName: descriptionsByName,
       );
@@ -170,6 +171,7 @@ class RoutineToolRunner {
         model: model,
         temperature: temperature,
         maxTokens: maxTokens,
+        tools: tools,
       );
       finalOutput = finalResult.content.trim();
       finalToolCalls = _extractToolCalls(finalResult);
@@ -291,6 +293,30 @@ class RoutineToolRunner {
   bool _isCompletionTruncated(String finishReason) {
     final normalized = finishReason.trim().toLowerCase();
     return normalized == 'length' || normalized == 'max_tokens';
+  }
+
+  String _buildRoutineAnswerPrompt(
+    List<ToolResultInfo> toolResults, {
+    required Map<String, String> descriptionsByName,
+  }) {
+    final basePrompt = ToolResultPromptBuilder.buildAnswerPrompt(
+      toolResults,
+      descriptionsByName: descriptionsByName,
+    );
+    return [
+      'Before writing the final answer, check whether the original routine '
+          'prompt still requires any tool action based on these results. If a '
+          'remaining tool action is required, call that tool now instead of '
+          'answering.',
+      'If routine_google_chat_post is available and the original routine prompt '
+          'asks for a Google Chat notification when a condition is true, call '
+          'routine_google_chat_post before the final answer when the results '
+          'show that condition is true.',
+      'Do not claim that a file was updated, a message was posted, or any other '
+          'side effect was completed unless the corresponding tool call has '
+          'succeeded.',
+      basePrompt,
+    ].join('\n\n');
   }
 }
 
