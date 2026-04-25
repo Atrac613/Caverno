@@ -222,64 +222,33 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   }
 
   @objc private func runOnboardingVerification() {
+    let verification = performOnboardingVerification()
+    let permissionStep = verification.permissionStep
+    let displayStep = verification.displayScreenshotStep
+    let windowStep = verification.windowCaptureStep
+
     refreshPermissionRows()
-    let permissions = computerUsePermissionSnapshot()
-    let permissionsReady = permissions.accessibilityGranted && permissions.screenCaptureGranted
     permissionSmokeRow?.setStatus(
-      permissionsReady ? .done : .failed,
-      detail: permissionsReady ? "Ready" : "Missing permissions"
+      permissionStep.ok ? .done : .failed,
+      detail: permissionStep.detail
     )
 
-    let displayResult = verifyDisplayScreenshot()
     displayScreenshotSmokeRow?.setStatus(
-      displayResult.ok ? .done : .failed,
-      detail: displayResult.detail
+      displayStep.ok ? .done : .failed,
+      detail: displayStep.detail
     )
 
-    let windowResult = verifyWindowCapture()
     windowCaptureSmokeRow?.setStatus(
-      windowResult.ok ? .done : .failed,
-      detail: windowResult.detail
+      windowStep.ok ? .done : .failed,
+      detail: windowStep.detail
     )
 
-    let allReady = permissionsReady && displayResult.ok && windowResult.ok
-    statusSummaryLabel?.stringValue = allReady
+    ipc.recordOnboardingVerification(verification.toMap())
+
+    statusSummaryLabel?.stringValue = verification.ok
       ? "Verification complete. Caverno can observe displays and windows through this helper."
       : "Verification incomplete. Fix the failed step, then run Verify again."
-    statusSummaryLabel?.textColor = allReady ? .systemGreen : .secondaryLabelColor
-  }
-
-  private func verifyDisplayScreenshot() -> (ok: Bool, detail: String) {
-    guard let screen = NSScreen.main else {
-      return (false, "No display")
-    }
-    guard let image = CGDisplayCreateImage(screen.displayID) else {
-      return (false, "Screen Recording required")
-    }
-    if image.width <= 0 || image.height <= 0 {
-      return (false, "Empty image")
-    }
-    return (true, "\(image.width) x \(image.height) px")
-  }
-
-  private func verifyWindowCapture() -> (ok: Bool, detail: String) {
-    let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
-    let candidates = visibleWindows()
-    guard let window = candidates.first(where: { $0.ownerPID != helperPid }) ?? candidates.first else {
-      return (false, "No visible window")
-    }
-    guard let image = CGWindowListCreateImage(
-      .null,
-      .optionIncludingWindow,
-      CGWindowID(window.windowID),
-      [.boundsIgnoreFraming, .bestResolution]
-    ) else {
-      return (false, "Window capture failed")
-    }
-    if image.width <= 0 || image.height <= 0 {
-      return (false, "Empty image")
-    }
-    return (true, "\(window.ownerName) #\(window.windowID)")
+    statusSummaryLabel?.textColor = verification.ok ? .systemGreen : .secondaryLabelColor
   }
 }
 
@@ -345,6 +314,58 @@ private struct PermissionSnapshot {
       "accessibilityGranted": accessibilityGranted,
       "screenCaptureGranted": screenCaptureGranted,
       "systemAudioRecordingSupported": systemAudioRecordingSupported,
+    ]
+  }
+}
+
+private struct OnboardingVerificationStep {
+  let id: String
+  let label: String
+  let ok: Bool
+  let detail: String
+
+  var status: String {
+    ok ? "done" : "failed"
+  }
+
+  func toMap() -> [String: Any] {
+    [
+      "id": id,
+      "label": label,
+      "ok": ok,
+      "status": status,
+      "detail": detail,
+    ]
+  }
+}
+
+private struct OnboardingVerificationResult {
+  let generatedAt: Date
+  let permissions: [String: Any]
+  let permissionStep: OnboardingVerificationStep
+  let displayScreenshotStep: OnboardingVerificationStep
+  let windowCaptureStep: OnboardingVerificationStep
+
+  var ok: Bool {
+    permissionStep.ok && displayScreenshotStep.ok && windowCaptureStep.ok
+  }
+
+  func toMap() -> [String: Any] {
+    let formatter = ISO8601DateFormatter()
+    let steps = [
+      permissionStep,
+      displayScreenshotStep,
+      windowCaptureStep,
+    ]
+    let summary = ok ? "Verification complete" : "Verification incomplete"
+    return [
+      "ok": ok,
+      "generatedAt": formatter.string(from: generatedAt),
+      "summary": summary,
+      "permissions": permissions,
+      "steps": steps.map { $0.toMap() },
+      "displayScreenshot": displayScreenshotStep.toMap(),
+      "windowCapture": windowCaptureStep.toMap(),
     ]
   }
 }
@@ -443,6 +464,7 @@ private final class ComputerUseHelperIpc: NSObject {
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   private let center = DistributedNotificationCenter.default()
   private var audioRecorder: Any?
+  private var lastOnboardingVerification: [String: Any]?
 
   func start() {
     center.addObserver(
@@ -452,6 +474,10 @@ private final class ComputerUseHelperIpc: NSObject {
       object: mainAppBundleIdentifier,
       suspensionBehavior: .deliverImmediately
     )
+  }
+
+  func recordOnboardingVerification(_ verification: [String: Any]) {
+    lastOnboardingVerification = verification
   }
 
   @objc private func handleRequest(_ notification: Notification) {
@@ -1048,6 +1074,7 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
+    let audioRecordingActive = audioRecorder != nil
     var response: [String: Any] = [
       "ok": ok,
       "backend": "helper",
@@ -1059,7 +1086,14 @@ private final class ComputerUseHelperIpc: NSObject {
       "requestObject": "com.noguwo.apps.caverno",
       "responseObject": "com.noguwo.apps.caverno.computer-use",
       "xpcReady": false,
+      "audioRecordingActive": audioRecordingActive,
+      "activeWork": [
+        "systemAudioRecording": audioRecordingActive,
+      ],
     ]
+    if let lastOnboardingVerification {
+      response["onboardingVerification"] = lastOnboardingVerification
+    }
     for (key, value) in extra {
       response[key] = value
     }
@@ -1165,6 +1199,97 @@ private func visibleWindows() -> [WindowDescriptor] {
       isOnScreen: (info[kCGWindowIsOnscreen as String] as? Bool) ?? true
     )
   }
+}
+
+private func performOnboardingVerification() -> OnboardingVerificationResult {
+  let permissions = computerUsePermissionSnapshot()
+  let permissionsReady = permissions.accessibilityGranted && permissions.screenCaptureGranted
+  let permissionStep = OnboardingVerificationStep(
+    id: "permissions",
+    label: "Permissions",
+    ok: permissionsReady,
+    detail: permissionsReady ? "Ready" : "Missing permissions"
+  )
+  return OnboardingVerificationResult(
+    generatedAt: Date(),
+    permissions: permissions.toMap(),
+    permissionStep: permissionStep,
+    displayScreenshotStep: verifyOnboardingDisplayScreenshot(),
+    windowCaptureStep: verifyOnboardingWindowCapture()
+  )
+}
+
+private func verifyOnboardingDisplayScreenshot() -> OnboardingVerificationStep {
+  guard let screen = NSScreen.main else {
+    return OnboardingVerificationStep(
+      id: "display_screenshot",
+      label: "Display Screenshot",
+      ok: false,
+      detail: "No display"
+    )
+  }
+  guard let image = CGDisplayCreateImage(screen.displayID) else {
+    return OnboardingVerificationStep(
+      id: "display_screenshot",
+      label: "Display Screenshot",
+      ok: false,
+      detail: "Screen Recording required"
+    )
+  }
+  if image.width <= 0 || image.height <= 0 {
+    return OnboardingVerificationStep(
+      id: "display_screenshot",
+      label: "Display Screenshot",
+      ok: false,
+      detail: "Empty image"
+    )
+  }
+  return OnboardingVerificationStep(
+    id: "display_screenshot",
+    label: "Display Screenshot",
+    ok: true,
+    detail: "\(image.width) x \(image.height) px"
+  )
+}
+
+private func verifyOnboardingWindowCapture() -> OnboardingVerificationStep {
+  let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
+  let candidates = visibleWindows()
+  guard let window = candidates.first(where: { $0.ownerPID != helperPid }) ?? candidates.first else {
+    return OnboardingVerificationStep(
+      id: "window_capture",
+      label: "Window Capture",
+      ok: false,
+      detail: "No visible window"
+    )
+  }
+  guard let image = CGWindowListCreateImage(
+    .null,
+    .optionIncludingWindow,
+    CGWindowID(window.windowID),
+    [.boundsIgnoreFraming, .bestResolution]
+  ) else {
+    return OnboardingVerificationStep(
+      id: "window_capture",
+      label: "Window Capture",
+      ok: false,
+      detail: "Window capture failed"
+    )
+  }
+  if image.width <= 0 || image.height <= 0 {
+    return OnboardingVerificationStep(
+      id: "window_capture",
+      label: "Window Capture",
+      ok: false,
+      detail: "Empty image"
+    )
+  }
+  return OnboardingVerificationStep(
+    id: "window_capture",
+    label: "Window Capture",
+    ok: true,
+    detail: "\(window.ownerName) #\(window.windowID)"
+  )
 }
 
 private func findWindow(windowID: Int) -> WindowDescriptor? {

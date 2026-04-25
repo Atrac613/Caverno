@@ -1253,6 +1253,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
       ),
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
+      onboardingVerification: _onboardingVerification(),
       helperStatus: _helperStatus,
       permissions: _permissions,
       audioRecording: _audioRecording,
@@ -1336,6 +1337,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         'complete': _lastDiagnosticExportPath != null,
       },
     ];
+  }
+
+  Map<String, dynamic>? _onboardingVerification() {
+    final value =
+        _helperStatus?['onboardingVerification'] ??
+        _permissions?['onboardingVerification'];
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
   }
 
   Map<String, dynamic> _helperIpcProtocol() {

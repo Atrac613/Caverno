@@ -107,6 +107,7 @@ class MacosComputerUseOnboardingDiagnostics {
     required this.setupChecklist,
     required this.onboardingSmokeChecklist,
     required this.helperIpcProtocol,
+    this.onboardingVerification,
     this.helperStatus,
     this.permissions,
     this.audioRecording,
@@ -136,6 +137,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final MacosComputerUseSetupChecklist setupChecklist;
   final List<Map<String, dynamic>> onboardingSmokeChecklist;
   final Map<String, dynamic> helperIpcProtocol;
+  final Map<String, dynamic>? onboardingVerification;
   final Map<String, dynamic>? helperStatus;
   final Map<String, dynamic>? permissions;
   final bool? audioRecording;
@@ -164,6 +166,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'generatedAt': generatedAt.toIso8601String(),
       'setupChecklist': setupChecklist.toJson(),
       'onboardingSmokeChecklist': onboardingSmokeChecklist,
+      'onboardingVerification': onboardingVerification,
       'helperStatus': helperStatus,
       'permissions': permissions,
       'audioRecording': audioRecording,

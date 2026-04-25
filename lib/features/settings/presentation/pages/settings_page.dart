@@ -337,6 +337,7 @@ class _ComputerUseOnboardingCardState
   bool _isLoading = false;
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
+  Map<String, dynamic>? _lastStopResult;
   String? _lastDiagnosticExportPath;
 
   @override
@@ -372,6 +373,10 @@ class _ComputerUseOnboardingCardState
 
     final checklist = _setupChecklist(service.permissionBackendInfo);
     final ready = checklist.isReady;
+    final onboardingVerification = _onboardingVerification();
+    final verificationOk = onboardingVerification?['ok'] == true;
+    final verificationRan = onboardingVerification != null;
+    final helperWorkActive = _helperWorkActive() == true;
     final helperReady =
         _permissionValue('helperReachable') == true ||
         (_permissionValue('helperInstalled') == true &&
@@ -443,8 +448,24 @@ class _ComputerUseOnboardingCardState
                   trueText: 'XPC ready',
                   falseText: 'DNC bridge',
                 ),
+                _StatusChip(
+                  label: 'Verify',
+                  value: verificationOk,
+                  trueText: 'Passed',
+                  falseText: verificationRan ? 'Needs attention' : 'Not run',
+                ),
+                _StatusChip(
+                  label: 'Helper Work',
+                  value: !helperWorkActive,
+                  trueText: 'Idle',
+                  falseText: 'Active',
+                ),
               ],
             ),
+            if (onboardingVerification != null) ...[
+              const SizedBox(height: 8),
+              _VerificationSummary(verification: onboardingVerification),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -463,17 +484,34 @@ class _ComputerUseOnboardingCardState
                   label: const Text('Open Smoke Test'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey('computer-use-settings-stop-helper-work'),
+                  onPressed: _isLoading ? null : _stopHelperWork,
+                  icon: const Icon(Icons.stop_circle_outlined),
+                  label: const Text('Stop Helper Work'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey('computer-use-settings-copy-diagnostics'),
                   onPressed: _copyDiagnostics,
                   icon: const Icon(Icons.copy_outlined),
                   label: const Text('Copy Diagnostics'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey(
+                    'computer-use-settings-export-diagnostics',
+                  ),
                   onPressed: _exportDiagnostics,
                   icon: const Icon(Icons.file_download_outlined),
                   label: const Text('Export Diagnostics'),
                 ),
               ],
             ),
+            if (_lastStopResult != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last stop: ${_resultSummary(_lastStopResult!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (_lastDiagnosticExportPath != null) ...[
               const SizedBox(height: 8),
               SelectableText(
@@ -505,6 +543,25 @@ class _ComputerUseOnboardingCardState
       if (mounted) {
         await _refresh(force: true);
       }
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _stopHelperWork() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final result = _decodeMap(await service.stopHelperWork());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastStopResult = result ?? {'ok': false, 'error': 'Invalid response'};
+      });
+      await _refresh(force: true);
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -604,11 +661,19 @@ class _ComputerUseOnboardingCardState
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
       ),
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
+      onboardingVerification: _onboardingVerification(),
       helperStatus: _helperStatus,
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
-      lastAction: 'Settings onboarding status',
-      lastResult: {'helperStatus': _helperStatus, 'permissions': _permissions},
+      lastAction: _lastStopResult == null
+          ? 'Settings onboarding status'
+          : 'Settings stop helper work',
+      lastResult: {
+        'helperStatus': _helperStatus,
+        'permissions': _permissions,
+        'onboardingVerification': _onboardingVerification(),
+        'lastStopResult': _lastStopResult,
+      },
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
   }
@@ -666,6 +731,38 @@ class _ComputerUseOnboardingCardState
     return value is bool ? value : null;
   }
 
+  bool? _helperWorkActive() {
+    final value =
+        _helperStatus?['audioRecordingActive'] ??
+        _permissions?['audioRecordingActive'];
+    return value is bool ? value : null;
+  }
+
+  Map<String, dynamic>? _onboardingVerification() {
+    final value =
+        _helperStatus?['onboardingVerification'] ??
+        _permissions?['onboardingVerification'];
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  String _resultSummary(Map<String, dynamic> result) {
+    final ok = result['ok'] == true;
+    final code = result['code'];
+    final error = result['error'];
+    if (ok) {
+      final stoppedAudioRecording = result['stoppedAudioRecording'];
+      final cancelledInputEvents = result['cancelledInputEvents'];
+      return 'ok, audio stopped: $stoppedAudioRecording, input cancelled: $cancelledInputEvents';
+    }
+    if (code != null || error != null) {
+      return '${code ?? 'failed'}: ${error ?? 'Unknown error'}';
+    }
+    return ok ? 'ok' : 'failed';
+  }
+
   Map<String, dynamic>? _decodeMap(String raw) {
     try {
       final decoded = jsonDecode(raw);
@@ -703,6 +800,46 @@ class _StatusChip extends StatelessWidget {
         color: color,
       ),
       label: Text('$label: ${value ? trueText : falseText}'),
+    );
+  }
+}
+
+class _VerificationSummary extends StatelessWidget {
+  const _VerificationSummary({required this.verification});
+
+  final Map<String, dynamic> verification;
+
+  @override
+  Widget build(BuildContext context) {
+    final generatedAt = verification['generatedAt'];
+    final steps = verification['steps'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          generatedAt is String
+              ? 'Last Verify: ${verification['summary'] ?? generatedAt}'
+              : 'Last Verify: ${verification['summary'] ?? 'Unknown'}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        if (steps is List) ...[
+          const SizedBox(height: 6),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              for (final step in steps)
+                if (step is Map)
+                  _StatusChip(
+                    label: '${step['label'] ?? step['id'] ?? 'Step'}',
+                    value: step['ok'] == true,
+                    trueText: 'Done',
+                    falseText: '${step['status'] ?? 'Failed'}',
+                  ),
+            ],
+          ),
+        ],
+      ],
     );
   }
 }

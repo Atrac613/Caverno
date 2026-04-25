@@ -48,6 +48,14 @@ void main() {
         {'id': 'launch_helper', 'label': 'Launch helper', 'complete': true},
       ],
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
+      onboardingVerification: const {
+        'ok': false,
+        'steps': [
+          {'id': 'permissions', 'ok': true},
+          {'id': 'display_screenshot', 'ok': true},
+          {'id': 'window_capture', 'ok': false},
+        ],
+      },
       helperStatus: const {'helperRunning': true},
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
@@ -69,6 +77,7 @@ void main() {
     );
     expect(diagnostics['generatedAt'], '2026-04-25T12:00:00.000Z');
     expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
+    expect(diagnostics['onboardingVerification'], containsPair('ok', false));
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', false));
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

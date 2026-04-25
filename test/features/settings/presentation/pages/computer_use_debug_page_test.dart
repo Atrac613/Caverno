@@ -486,4 +486,4 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 String _json(Map<String, dynamic> value) => jsonEncode(value);
 
 const _png1x1Base64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP8z8BQDwAFgwJ/lzWj8QAAAABJRU5ErkJggg==';
