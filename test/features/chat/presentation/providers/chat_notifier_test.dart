@@ -1503,6 +1503,128 @@ void main() {
   });
 
   test(
+    'sendMessage carries computer-use screenshots into final vision prompt',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-display',
+            name: 'computer_screenshot',
+            arguments: const {'max_width': 800},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The display is visible; I need the window list.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-windows',
+                name: 'computer_list_windows',
+                arguments: const {'include_current_app': true},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'I found the target window and need a focused screenshot.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-window-image',
+                name: 'computer_screenshot_window',
+                arguments: const {'window_id': 42, 'max_width': 800},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Visual inspection is ready.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Observed the target window.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'computer_screenshot':
+              '{"imageBase64":"display-image-payload","imageMimeType":"image/png","width":800,"height":500}',
+          'computer_list_windows':
+              '{"windows":[{"windowId":42,"appName":"Caverno","title":"Debug","bounds":{"x":0,"y":0,"width":800,"height":500}}],"count":1}',
+          'computer_screenshot_window':
+              '{"imageBase64":"window-image-payload","imageMimeType":"image/png","width":640,"height":400,"windowId":42}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the desktop visually');
+
+        expect(toolService.executedToolNames, [
+          'computer_screenshot',
+          'computer_list_windows',
+          'computer_screenshot_window',
+        ]);
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['computer_screenshot'],
+            ['computer_list_windows'],
+            ['computer_screenshot_window'],
+          ],
+        );
+
+        final answerPrompt = toolDataSource.finalAnswerMessages.singleWhere(
+          (message) => message.content.contains('[Tool: computer_screenshot]'),
+        );
+        expect(answerPrompt.content, isNot(contains('display-image-payload')));
+        expect(answerPrompt.content, isNot(contains('window-image-payload')));
+        expect(answerPrompt.content, contains('[attached as image content]'));
+
+        final imageMessages = toolDataSource.finalAnswerMessages
+            .where((message) => message.imageBase64 != null)
+            .toList();
+        expect(imageMessages.map((message) => message.imageBase64).toList(), [
+          'display-image-payload',
+          'window-image-payload',
+        ]);
+        expect(
+          imageMessages.last.content,
+          contains('Visual observation from computer_screenshot_window'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Observed the target window.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
     'sendMessage allows repeated read_file retries across tool loops',
     () async {
       final toolDataSource = _ToolBatchChatDataSource(

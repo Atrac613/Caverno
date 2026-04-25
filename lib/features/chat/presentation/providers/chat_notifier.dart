@@ -6265,6 +6265,50 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  List<Message> _buildToolResultAnswerMessages(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final timestamp = DateTime.now();
+    final messages = <Message>[
+      Message(
+        id: 'tool_result_${timestamp.microsecondsSinceEpoch}',
+        content: _buildToolResultAnswerPrompt(toolResults),
+        role: MessageRole.user,
+        timestamp: timestamp,
+      ),
+    ];
+
+    for (var i = 0; i < toolResults.length; i++) {
+      final toolResult = toolResults[i];
+      final decoded = _tryDecodeMap(toolResult.result);
+      if (decoded == null) {
+        continue;
+      }
+      final imageBase64 = decoded['imageBase64'];
+      if (imageBase64 is! String || imageBase64.isEmpty) {
+        continue;
+      }
+
+      final metadata = Map<String, dynamic>.from(decoded)
+        ..remove('imageBase64');
+      messages.add(
+        Message(
+          id: 'tool_image_${timestamp.microsecondsSinceEpoch}_$i',
+          content:
+              'Visual observation from ${toolResult.name}. '
+              'Use this screenshot to answer the user and decide any next '
+              'computer-use action. Metadata: ${jsonEncode(metadata)}',
+          role: MessageRole.user,
+          timestamp: timestamp,
+          imageBase64: imageBase64,
+          imageMimeType: decoded['imageMimeType'] as String? ?? 'image/png',
+        ),
+      );
+    }
+
+    return messages;
+  }
+
   Map<String, String> _toolDescriptionsByName() {
     return ToolResultPromptBuilder.descriptionsByNameFromDefinitions(
       _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
@@ -6739,16 +6783,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!ref.mounted) return;
 
-      // Build a prompt that includes tool results as a user message.
+      // Build answer messages that include redacted tool text and attach
+      // screenshot payloads as vision content for multimodal models.
       final messagesForLLM = _prepareMessagesForLLM();
-      // Append the collected tool results as a user message.
-      messagesForLLM.add(
-        Message(
-          id: 'tool_result_${DateTime.now().millisecondsSinceEpoch}',
-          content: _buildToolResultAnswerPrompt(executedToolResults),
-          role: MessageRole.user,
-          timestamp: DateTime.now(),
-        ),
+      messagesForLLM.addAll(
+        _buildToolResultAnswerMessages(executedToolResults),
       );
 
       // Show a thinking indicator while waiting for the final streaming answer.
