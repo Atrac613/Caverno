@@ -78,7 +78,7 @@ class RoutineCompletionActionService {
     if (runRecord.usedTools) {
       final toolSummary = runRecord.toolNames.isEmpty
           ? '${runRecord.toolCallCount} tool call(s)'
-          : runRecord.toolNames.join(', ');
+          : runRecord.toolDisplayNames.join(', ');
       buffer.writeln('Tools: $toolSummary');
     }
 

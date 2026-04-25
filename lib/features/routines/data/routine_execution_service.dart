@@ -79,6 +79,11 @@ class RoutineExecutionService {
         executionResult.output,
       );
       final preview = RoutineScheduleService.summarizeOutput(output);
+      final toolNames = _toolNamesFromResults(executionResult.toolResults);
+      final toolSourceLabels = _toolSourceLabelsFromResults(
+        executionResult.toolResults,
+        allowedTools,
+      );
       final finishedAt = DateTime.now();
       final durationMs = finishedAt.difference(startedAt).inMilliseconds;
 
@@ -92,7 +97,8 @@ class RoutineExecutionService {
           durationMs: durationMs,
           usedTools: executionResult.toolResults.isNotEmpty,
           toolCallCount: executionResult.toolResults.length,
-          toolNames: _toolNamesFromResults(executionResult.toolResults),
+          toolNames: toolNames,
+          toolSourceLabels: toolSourceLabels,
           preview: 'Routine completed without any visible output.',
           error: 'Routine completed without any visible output.',
         );
@@ -107,7 +113,8 @@ class RoutineExecutionService {
         durationMs: durationMs,
         usedTools: executionResult.toolResults.isNotEmpty,
         toolCallCount: executionResult.toolResults.length,
-        toolNames: _toolNamesFromResults(executionResult.toolResults),
+        toolNames: toolNames,
+        toolSourceLabels: toolSourceLabels,
         preview: preview,
         output: output,
       );
@@ -235,5 +242,32 @@ class RoutineExecutionService {
       }
     }
     return names;
+  }
+
+  Map<String, String> _toolSourceLabelsFromResults(
+    List<ToolResultInfo> toolResults,
+    List<Map<String, dynamic>> toolDefinitions,
+  ) {
+    final labelsByName = <String, String>{};
+    for (final tool in toolDefinitions) {
+      final function = tool['function'];
+      final name = function is Map ? function['name'] as String? : null;
+      final sourceLabel = tool[McpToolEntity.openAiSourceLabelKey] as String?;
+      if (name != null &&
+          name.isNotEmpty &&
+          sourceLabel != null &&
+          sourceLabel.trim().isNotEmpty) {
+        labelsByName[name] = sourceLabel.trim();
+      }
+    }
+
+    final executedLabels = <String, String>{};
+    for (final toolResult in toolResults) {
+      final sourceLabel = labelsByName[toolResult.name];
+      if (sourceLabel != null && sourceLabel.isNotEmpty) {
+        executedLabels[toolResult.name] = sourceLabel;
+      }
+    }
+    return executedLabels;
   }
 }

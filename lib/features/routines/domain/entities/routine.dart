@@ -33,6 +33,7 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default(false) bool usedTools,
     @Default(0) int toolCallCount,
     @Default(<String>[]) List<String> toolNames,
+    @Default(<String, String>{}) Map<String, String> toolSourceLabels,
     @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)
     @Default(RoutineDeliveryStatus.notRequested)
     RoutineDeliveryStatus deliveryStatus,
@@ -53,6 +54,18 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
       status == RoutineRunStatus.failed && !failureAcknowledged;
 
   bool get wasDelivered => deliveryStatus == RoutineDeliveryStatus.delivered;
+
+  List<String> get toolDisplayNames {
+    return toolNames
+        .map((name) {
+          final sourceLabel = toolSourceLabels[name]?.trim();
+          if (sourceLabel == null || sourceLabel.isEmpty) {
+            return name;
+          }
+          return '$name ($sourceLabel)';
+        })
+        .toList(growable: false);
+  }
 
   int get effectiveDurationMs {
     final measured = finishedAt.difference(startedAt).inMilliseconds;

@@ -600,7 +600,7 @@ class _RoutineCard extends StatelessWidget {
                         'routines.tools_used_summary'.tr(
                           namedArgs: {
                             'count': latestRun.toolCallCount.toString(),
-                            'names': latestRun.toolNames.join(', '),
+                            'names': latestRun.toolDisplayNames.join(', '),
                           },
                         ),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(

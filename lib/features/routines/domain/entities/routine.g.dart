@@ -33,6 +33,11 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      toolSourceLabels:
+          (json['toolSourceLabels'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String),
+          ) ??
+          const <String, String>{},
       deliveryStatus:
           $enumDecodeNullable(
             _$RoutineDeliveryStatusEnumMap,
@@ -62,6 +67,7 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'usedTools': instance.usedTools,
   'toolCallCount': instance.toolCallCount,
   'toolNames': instance.toolNames,
+  'toolSourceLabels': instance.toolSourceLabels,
   'deliveryStatus': _$RoutineDeliveryStatusEnumMap[instance.deliveryStatus]!,
   'deliveredAt': instance.deliveredAt?.toIso8601String(),
   'deliveryMessage': instance.deliveryMessage,

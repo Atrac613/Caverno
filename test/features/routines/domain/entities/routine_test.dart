@@ -15,6 +15,7 @@ void main() {
         usedTools: true,
         toolCallCount: 2,
         toolNames: const ['web_search', 'read_file'],
+        toolSourceLabels: const {'web_search': 'search.local:8765'},
         deliveryStatus: RoutineDeliveryStatus.delivered,
         deliveredAt: DateTime(2026, 4, 21, 10, 0, 5),
         deliveryMessage: 'Posted to Google Chat.',
@@ -30,6 +31,11 @@ void main() {
       expect(decoded.usedTools, isTrue);
       expect(decoded.toolCallCount, 2);
       expect(decoded.toolNames, ['web_search', 'read_file']);
+      expect(decoded.toolSourceLabels, {'web_search': 'search.local:8765'});
+      expect(decoded.toolDisplayNames, [
+        'web_search (search.local:8765)',
+        'read_file',
+      ]);
       expect(decoded.deliveryStatus, RoutineDeliveryStatus.delivered);
       expect(decoded.deliveredAt, DateTime(2026, 4, 21, 10, 0, 5));
       expect(decoded.deliveryMessage, 'Posted to Google Chat.');

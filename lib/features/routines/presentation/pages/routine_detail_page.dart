@@ -652,7 +652,7 @@ class _RunRecordCard extends StatelessWidget {
                     label: 'routines.tools_label'.tr(),
                     value: run.toolNames.isEmpty
                         ? 'routines.tools_mode_read_only'.tr()
-                        : run.toolNames.join(', '),
+                        : run.toolDisplayNames.join(', '),
                   ),
                 if (run.deliveryStatus != RoutineDeliveryStatus.notRequested)
                   _MetaLine(

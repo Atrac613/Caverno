@@ -183,6 +183,12 @@ void main() {
 
         expect(record.output, 'Router status is stable.');
         expect(record.toolNames, ['router_health_snapshot']);
+        expect(record.toolSourceLabels, {
+          'router_health_snapshot': 'router-mcp.local:8765',
+        });
+        expect(record.toolDisplayNames, [
+          'router_health_snapshot (router-mcp.local:8765)',
+        ]);
         expect(toolService.executedCalls.single.name, 'router_health_snapshot');
         expect(toolService.executedCalls.single.arguments, {
           'lookback_minutes': 15,

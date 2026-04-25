@@ -21,6 +21,10 @@ void main() {
       final description = function['description']! as String;
 
       expect(openAiTool[McpToolEntity.openAiExternalToolKey], isTrue);
+      expect(
+        openAiTool[McpToolEntity.openAiSourceLabelKey],
+        'example.com:8080',
+      );
       expect(jsonEncode(openAiTool), isNot(contains('user:secret')));
       expect(jsonEncode(openAiTool), isNot(contains('token=abc')));
       expect(description, contains('example.com:8080'));
