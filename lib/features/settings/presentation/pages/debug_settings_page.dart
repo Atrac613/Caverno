@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../providers/settings_notifier.dart';
+import 'computer_use_debug_page.dart';
 
 class DebugSettingsPage extends ConsumerWidget {
   const DebugSettingsPage({super.key});
@@ -30,6 +31,23 @@ class DebugSettingsPage extends ConsumerWidget {
                   subtitle: Text('settings.show_memory_updates_desc'.tr()),
                   value: settings.showMemoryUpdates,
                   onChanged: notifier.updateShowMemoryUpdates,
+                ),
+                const Divider(height: 1),
+                ListTile(
+                  leading: const Icon(Icons.desktop_mac_outlined),
+                  title: const Text('Computer Use Smoke Test'),
+                  subtitle: const Text(
+                    'Run direct macOS permission, screenshot, window, input, and audio checks.',
+                  ),
+                  trailing: const Icon(Icons.chevron_right),
+                  onTap: () {
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => const ComputerUseDebugPage(),
+                      ),
+                    );
+                  },
                 ),
               ],
             ),
