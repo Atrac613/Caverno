@@ -1,8 +1,9 @@
 import 'dart:convert';
-import 'dart:typed_data';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/services/macos_computer_use_service.dart';
 
@@ -22,9 +23,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
 
   bool _isBusy = false;
   bool _audioRecording = false;
+  bool _inputActionsArmed = false;
+  bool _audioRecordingArmed = false;
   String? _busyAction;
   String _lastAction = 'No action has run yet.';
   String _lastResult = 'Run a smoke check to see the native response.';
+  Object? _lastResultForDiagnostics =
+      'Run a smoke check to see the native response.';
+  String? _lastDiagnosticExportPath;
   Map<String, dynamic>? _permissions;
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
@@ -70,6 +76,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           _buildInputCard(),
           const SizedBox(height: 12),
           _buildAudioCard(),
+          const SizedBox(height: 12),
+          _buildDiagnosticsCard(),
           const SizedBox(height: 12),
           _buildResultCard(),
         ],
@@ -379,6 +387,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   'Run explicit input events against the selected window or display coordinates.',
             ),
             const SizedBox(height: 12),
+            _ArmSwitch(
+              title: 'Input Events Armed',
+              subtitle:
+                  'Required before moving the pointer, clicking, or typing text.',
+              value: _inputActionsArmed,
+              onChanged: _isBusy
+                  ? null
+                  : (value) => setState(() => _inputActionsArmed = value),
+            ),
+            const SizedBox(height: 12),
             _CoordinateTargetRow(label: _coordinateTargetLabel),
             const SizedBox(height: 12),
             Row(
@@ -422,17 +440,21 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 _actionButton(
                   icon: Icons.mouse_outlined,
                   label: 'Move Pointer',
-                  onPressed: hasTarget ? _movePointer : null,
+                  onPressed: hasTarget && _inputActionsArmed
+                      ? _movePointer
+                      : null,
                 ),
                 _actionButton(
                   icon: Icons.touch_app_outlined,
                   label: 'Click Point',
-                  onPressed: hasTarget ? _clickPoint : null,
+                  onPressed: hasTarget && _inputActionsArmed
+                      ? _clickPoint
+                      : null,
                 ),
                 _actionButton(
                   icon: Icons.keyboard_alt_outlined,
                   label: 'Type Text',
-                  onPressed: _typeText,
+                  onPressed: _inputActionsArmed ? _typeText : null,
                 ),
               ],
             ),
@@ -454,6 +476,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               title: 'System Audio',
               subtitle:
                   'Start and stop a ScreenCaptureKit system audio recording.',
+            ),
+            const SizedBox(height: 12),
+            _ArmSwitch(
+              title: 'System Audio Armed',
+              subtitle: 'Required before starting a system audio recording.',
+              value: _audioRecordingArmed,
+              onChanged: _isBusy || _audioRecording
+                  ? null
+                  : (value) => setState(() => _audioRecordingArmed = value),
             ),
             const SizedBox(height: 12),
             Row(
@@ -478,7 +509,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 _actionButton(
                   icon: Icons.fiber_manual_record_outlined,
                   label: 'Start Recording',
-                  onPressed: _audioRecording
+                  onPressed: _audioRecording || !_audioRecordingArmed
                       ? null
                       : () => _run(
                           'Start system audio recording',
@@ -488,6 +519,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                           onResult: (result) {
                             if (result['ok'] == true) {
                               _audioRecording = true;
+                              _audioRecordingArmed = false;
                             }
                           },
                         ),
@@ -510,6 +542,51 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 ),
               ],
             ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildDiagnosticsCard() {
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const _SectionTitle(
+              icon: Icons.summarize_outlined,
+              title: 'Diagnostics',
+              subtitle:
+                  'Copy or export a redacted smoke-test snapshot for debugging.',
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _actionButton(
+                  key: const ValueKey('computer-use-copy-diagnostics'),
+                  icon: Icons.copy_outlined,
+                  label: 'Copy Diagnostics',
+                  onPressed: _copyDiagnostics,
+                ),
+                _actionButton(
+                  key: const ValueKey('computer-use-export-diagnostics'),
+                  icon: Icons.file_download_outlined,
+                  label: 'Export Diagnostics',
+                  onPressed: _exportDiagnostics,
+                ),
+              ],
+            ),
+            if (_lastDiagnosticExportPath != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last export: $_lastDiagnosticExportPath',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       ),
@@ -542,11 +619,13 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Widget _actionButton({
+    Key? key,
     required IconData icon,
     required String label,
     required VoidCallback? onPressed,
   }) {
     return FilledButton.tonalIcon(
+      key: key,
       onPressed: _isBusy ? null : onPressed,
       icon: Icon(icon),
       label: Text(label),
@@ -562,6 +641,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Move pointer',
       (service) => service.moveMouse(_coordinateArguments(coordinates)),
     );
+    _disarmInputActions();
   }
 
   Future<void> _clickPoint() async {
@@ -572,6 +652,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final arguments = _coordinateArguments(coordinates)
       ..addAll({'button': 'left', 'click_count': 1});
     await _run('Click point', (service) => service.click(arguments));
+    _disarmInputActions();
   }
 
   void _selectImagePoint(_CoordinateTarget target, _ImagePoint point) {
@@ -591,6 +672,54 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       return;
     }
     await _run('Type text', (service) => service.typeText({'text': text}));
+    _disarmInputActions();
+  }
+
+  void _disarmInputActions() {
+    if (!mounted || !_inputActionsArmed) {
+      return;
+    }
+    setState(() => _inputActionsArmed = false);
+  }
+
+  Future<void> _copyDiagnostics() async {
+    final diagnostics = _diagnosticsJson();
+    await Clipboard.setData(ClipboardData(text: diagnostics));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Diagnostics copied to clipboard.')),
+    );
+  }
+
+  Future<void> _exportDiagnostics() async {
+    try {
+      final diagnostics = _diagnosticsJson();
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .replaceAll('.', '-');
+      final file = File(
+        '${Directory.systemTemp.path}/caverno-computer-use-smoke-$timestamp.json',
+      );
+      await file.writeAsString(diagnostics);
+      if (!mounted) {
+        return;
+      }
+      setState(() => _lastDiagnosticExportPath = file.path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Diagnostics exported to ${file.path}')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _lastDiagnosticExportPath = 'Failed: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to export diagnostics: $error')),
+      );
+    }
   }
 
   Future<void> _run(
@@ -616,11 +745,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         return;
       }
       setState(() {
-        _lastResult = decoded == null
-            ? raw
-            : const JsonEncoder.withIndent(
-                '  ',
-              ).convert(_redactForDisplay(decoded));
+        final redacted = decoded == null ? raw : _redactForDisplay(decoded);
+        _lastResultForDiagnostics = redacted;
+        _lastResult = redacted is String
+            ? redacted
+            : const JsonEncoder.withIndent('  ').convert(redacted);
         if (decoded != null) {
           onResult?.call(decoded);
         }
@@ -631,6 +760,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       }
       setState(() {
         _lastResult = 'Unexpected error: $error';
+        _lastResultForDiagnostics = {'error': error.toString()};
       });
     } finally {
       if (mounted) {
@@ -640,6 +770,58 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         });
       }
     }
+  }
+
+  String _diagnosticsJson() {
+    return const JsonEncoder.withIndent('  ').convert(_diagnosticsMap());
+  }
+
+  Map<String, dynamic> _diagnosticsMap() {
+    return {
+      'generatedAt': DateTime.now().toIso8601String(),
+      'permissions': _permissions,
+      'audioRecording': _audioRecording,
+      'inputActionsArmed': _inputActionsArmed,
+      'audioRecordingArmed': _audioRecordingArmed,
+      'selectedWindowId': _selectedWindowId,
+      'selectedWindow': _selectedWindow(),
+      'windowCount': _windows.length,
+      'coordinateTarget': _coordinateTargetName,
+      'coordinates': _coordinateMap(),
+      'displayScreenshot': _imageSummary(_displayScreenshot),
+      'windowScreenshot': _imageSummary(_windowScreenshot),
+      'lastAction': _lastAction,
+      'lastResult': _lastResultForDiagnostics,
+      if (_lastDiagnosticExportPath != null)
+        'lastDiagnosticExportPath': _lastDiagnosticExportPath,
+    };
+  }
+
+  Map<String, double?> _coordinateMap() {
+    return {
+      'x': double.tryParse(_xController.text.trim()),
+      'y': double.tryParse(_yController.text.trim()),
+    };
+  }
+
+  Map<String, dynamic>? _imageSummary(_ImageSnapshot? snapshot) {
+    if (snapshot == null) {
+      return null;
+    }
+    return {
+      'title': snapshot.title,
+      'width': snapshot.width,
+      'height': snapshot.height,
+      'mimeType': snapshot.mimeType,
+    };
+  }
+
+  String? get _coordinateTargetName {
+    return switch (_coordinateTarget) {
+      _CoordinateTarget.display => 'display',
+      _CoordinateTarget.window => 'window',
+      null => null,
+    };
   }
 
   void _storePermissions(Map<String, dynamic> result) {
@@ -929,6 +1111,42 @@ class _PermissionRow extends StatelessWidget {
           Expanded(child: Text(label)),
           Text(labelText, style: TextStyle(color: color)),
         ],
+      ),
+    );
+  }
+}
+
+class _ArmSwitch extends StatelessWidget {
+  const _ArmSwitch({
+    required this.title,
+    required this.subtitle,
+    required this.value,
+    required this.onChanged,
+  });
+
+  final String title;
+  final String subtitle;
+  final bool value;
+  final ValueChanged<bool>? onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: value
+            ? Theme.of(context).colorScheme.errorContainer
+            : Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: SwitchListTile(
+        value: value,
+        onChanged: onChanged,
+        title: Text(title),
+        subtitle: Text(subtitle),
+        secondary: Icon(
+          value ? Icons.lock_open_outlined : Icons.lock_outline,
+          color: value ? Theme.of(context).colorScheme.error : null,
+        ),
       ),
     );
   }

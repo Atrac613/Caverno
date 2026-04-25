@@ -4,6 +4,7 @@ import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -16,6 +17,7 @@ void main() {
     expect(find.text('Granted'), findsNWidgets(2));
     expect(find.text('Missing'), findsOneWidget);
 
+    await _tapSwitch(tester, 'System Audio Armed');
     await _tapButton(tester, 'Start Recording');
 
     expect(find.text('Recording active'), findsOneWidget);
@@ -35,6 +37,7 @@ void main() {
 
     await _tapButton(tester, 'Capture Display');
     await _tapPreview(tester, 'computer-use-display-preview-tap-area');
+    await _tapSwitch(tester, 'Input Events Armed');
     await _tapButton(tester, 'Move Pointer');
 
     expect(service.lastMoveArguments, isNotNull);
@@ -56,6 +59,7 @@ void main() {
 
     await _tapButton(tester, 'Capture Selected');
     await _tapPreview(tester, 'computer-use-window-preview-tap-area');
+    await _tapSwitch(tester, 'Input Events Armed');
     await _tapButton(tester, 'Click Point');
 
     expect(
@@ -71,6 +75,46 @@ void main() {
     expect(service.lastClickArguments, containsPair('button', 'left'));
     expect(service.lastClickArguments, containsPair('click_count', 1));
   });
+
+  testWidgets('copies and exports redacted diagnostics', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    final platformCalls = <MethodCall>[];
+    tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+      SystemChannels.platform,
+      (call) async {
+        platformCalls.add(call);
+        return null;
+      },
+    );
+    addTearDown(
+      () => tester.binding.defaultBinaryMessenger.setMockMethodCallHandler(
+        SystemChannels.platform,
+        null,
+      ),
+    );
+
+    await _pumpPage(tester, service);
+    await _tapButton(tester, 'Capture Display');
+    await _tapByKey(tester, 'computer-use-copy-diagnostics');
+
+    final clipboardCall = platformCalls.singleWhere(
+      (call) => call.method == 'Clipboard.setData',
+    );
+    final arguments = clipboardCall.arguments as Map<Object?, Object?>;
+    final text = arguments['text'] as String;
+
+    expect(text, contains('"coordinateTarget": "display"'));
+    expect(text, contains('"displayScreenshot"'));
+    expect(text, isNot(contains(_png1x1Base64)));
+
+    await _pumpPage(tester, service);
+    await _tapByKey(tester, 'computer-use-export-diagnostics');
+
+    expect(
+      find.textContaining('Last export:', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpPage(
@@ -78,7 +122,7 @@ Future<void> _pumpPage(
   _FakeMacosComputerUseService service,
 ) async {
   tester.view.devicePixelRatio = 1;
-  tester.view.physicalSize = const Size(1200, 1600);
+  tester.view.physicalSize = const Size(1400, 3200);
   addTearDown(tester.view.resetDevicePixelRatio);
   addTearDown(tester.view.resetPhysicalSize);
 
@@ -92,9 +136,36 @@ Future<void> _pumpPage(
 }
 
 Future<void> _tapButton(WidgetTester tester, String label) async {
+  final finder = find.widgetWithText(FilledButton, label);
+  await _scrollUntilVisible(tester, finder);
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapByKey(WidgetTester tester, String key) async {
+  final finder = find.byKey(ValueKey(key));
+  await _scrollUntilVisible(tester, finder);
+  final widget = tester.widget(finder);
+  if (widget is FilledButton) {
+    expect(widget.onPressed, isNotNull);
+    await tester.runAsync(() async {
+      widget.onPressed!();
+      await Future<void>.delayed(const Duration(milliseconds: 100));
+    });
+    await tester.pumpAndSettle();
+    return;
+  }
+  await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapSwitch(WidgetTester tester, String label) async {
   final finder = find.text(label);
   await _scrollUntilVisible(tester, finder);
   await tester.tap(finder);
+  await tester.pump(const Duration(milliseconds: 100));
   await tester.pumpAndSettle();
 }
 
