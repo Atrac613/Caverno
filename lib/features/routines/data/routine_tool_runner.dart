@@ -23,7 +23,8 @@ class RoutineToolRunner {
   RoutineToolRunner({required ChatDataSource dataSource})
     : _dataSource = dataSource;
 
-  static const int _maxIterations = 5;
+  static const int _maxToolLoopIterations = 5;
+  static const int _maxFinalToolIterations = 3;
 
   final ChatDataSource _dataSource;
 
@@ -65,7 +66,7 @@ class RoutineToolRunner {
     var wasTruncated = _isCompletionTruncated(initialResult.finishReason);
     var iteration = 0;
 
-    while (currentToolCalls.isNotEmpty && iteration < _maxIterations) {
+    while (currentToolCalls.isNotEmpty && iteration < _maxToolLoopIterations) {
       iteration += 1;
       final batchResult = await _executeToolCallBatch(
         toolCalls: currentToolCalls,
@@ -139,8 +140,10 @@ class RoutineToolRunner {
     wasTruncated =
         wasTruncated || _isCompletionTruncated(finalResult.finishReason);
     var executedFinalToolCall = false;
-    while (finalToolCalls.isNotEmpty && iteration < _maxIterations) {
-      iteration += 1;
+    var finalIteration = 0;
+    while (finalToolCalls.isNotEmpty &&
+        finalIteration < _maxFinalToolIterations) {
+      finalIteration += 1;
       final batchResult = await _executeToolCallBatch(
         toolCalls: finalToolCalls,
         dispatchToolCall: dispatchToolCall,

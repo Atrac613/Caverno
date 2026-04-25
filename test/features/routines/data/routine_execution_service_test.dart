@@ -757,6 +757,147 @@ void main() {
     });
 
     test(
+      'keeps final action budget after evidence collection consumes the loop',
+      () async {
+        final deliveryService = _FakeGoogleChatDeliveryService();
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Scanning the LAN',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-scan-auto',
+                name: 'lan_scan',
+                arguments: const {'ip_version': 'auto'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResults: [
+            ChatCompletionResult(
+              content: 'Reading previous state',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-read',
+                  name: 'read_file',
+                  arguments: const {'path': 'lan_devices.json'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Checking IPv4 devices',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-scan-ipv4',
+                  name: 'lan_scan',
+                  arguments: const {'ip_version': 'ipv4'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Reading previous state again',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-read-duplicate',
+                  name: 'read_file',
+                  arguments: const {'path': 'lan_devices.json'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+          ],
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Saving updated state',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-write',
+                  name: 'write_file',
+                  arguments: const {
+                    'path': 'lan_devices.json',
+                    'content': '["192.168.100.42"]',
+                  },
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Posting the new device alert',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-chat',
+                  name: RoutineExecutionService.googleChatPostToolName,
+                  arguments: const {'text': 'New LAN device: 192.168.100.42'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Routine completed.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('lan_scan', 'Scan the local network'),
+            _toolDefinition('read_file', 'Read a file'),
+            _toolDefinition('write_file', 'Write a file'),
+          ],
+          resultsByToolName: {
+            'lan_scan': const McpToolResult(
+              toolName: 'lan_scan',
+              result: '{"hosts":[{"ip":"192.168.100.42"}]}',
+              isSuccess: true,
+            ),
+            'read_file': const McpToolResult(
+              toolName: 'read_file',
+              result: '{"content":"[]"}',
+              isSuccess: true,
+            ),
+            'write_file': const McpToolResult(
+              toolName: 'write_file',
+              result: '{"bytes_written":18}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          googleChatDeliveryService: deliveryService,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            workspaceDirectory: '/tmp/caverno-routine-workspace',
+            allowWorkspaceWrites: true,
+            completionAction: RoutineCompletionAction.promptGoogleChat,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.output, 'Routine completed.');
+        expect(record.toolNames, [
+          'lan_scan',
+          'read_file',
+          'write_file',
+          RoutineExecutionService.googleChatPostToolName,
+        ]);
+        expect(deliveryService.calls, hasLength(1));
+        expect(
+          deliveryService.calls.single.text,
+          'New LAN device: 192.168.100.42',
+        );
+      },
+    );
+
+    test(
       'exposes the prompt-controlled Google Chat tool only when selected',
       () async {
         final dataSource = _FakeChatDataSource(
@@ -806,11 +947,14 @@ class _FakeChatDataSource implements ChatDataSource {
   _FakeChatDataSource({
     this.initialToolAwareResult,
     this.toolLoopResult,
+    List<ChatCompletionResult> toolLoopResults = const [],
     List<ChatCompletionResult> plainResults = const [],
-  }) : _plainResults = Queue<ChatCompletionResult>.from(plainResults);
+  }) : _toolLoopResults = Queue<ChatCompletionResult>.from(toolLoopResults),
+       _plainResults = Queue<ChatCompletionResult>.from(plainResults);
 
   final ChatCompletionResult? initialToolAwareResult;
   final ChatCompletionResult? toolLoopResult;
+  final Queue<ChatCompletionResult> _toolLoopResults;
   final Queue<ChatCompletionResult> _plainResults;
   bool _usedInitialToolAwareResult = false;
 
@@ -878,6 +1022,9 @@ class _FakeChatDataSource implements ChatDataSource {
   }) async {
     createChatCompletionWithToolResultsCallCount += 1;
     lastToolResults = toolResults;
+    if (_toolLoopResults.isNotEmpty) {
+      return _toolLoopResults.removeFirst();
+    }
     return toolLoopResult ??
         ChatCompletionResult(content: '', finishReason: 'stop');
   }
