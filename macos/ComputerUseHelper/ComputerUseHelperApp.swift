@@ -13,11 +13,14 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private var helperReachableRow: PermissionRowView?
   private var accessibilityRow: PermissionRowView?
   private var screenRecordingRow: PermissionRowView?
+  private var permissionSmokeRow: SmokeStepRowView?
+  private var displayScreenshotSmokeRow: SmokeStepRowView?
+  private var windowCaptureSmokeRow: SmokeStepRowView?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     ipc.start()
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
+      contentRect: NSRect(x: 0, y: 0, width: 760, height: 700),
       styleMask: [.titled, .closable, .miniaturizable],
       backing: .buffered,
       defer: false
@@ -113,6 +116,36 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     rows.addArrangedSubview(accessibilityRow)
     rows.addArrangedSubview(screenRecordingRow)
 
+    let smokeTitle = NSTextField(labelWithString: "Verification")
+    smokeTitle.font = .systemFont(ofSize: 15, weight: .semibold)
+    smokeTitle.textColor = .secondaryLabelColor
+    smokeTitle.alignment = .left
+
+    let smokeRows = NSStackView()
+    smokeRows.orientation = .vertical
+    smokeRows.alignment = .width
+    smokeRows.spacing = 8
+    smokeRows.translatesAutoresizingMaskIntoConstraints = false
+
+    let permissionSmokeRow = SmokeStepRowView(
+      title: "Permissions",
+      subtitle: "Accessibility and Screen & System Audio Recording are granted."
+    )
+    let displayScreenshotSmokeRow = SmokeStepRowView(
+      title: "Display Screenshot",
+      subtitle: "A display image can be captured after Screen Recording is granted."
+    )
+    let windowCaptureSmokeRow = SmokeStepRowView(
+      title: "Window Capture",
+      subtitle: "A visible window can be located and captured for visual grounding."
+    )
+    self.permissionSmokeRow = permissionSmokeRow
+    self.displayScreenshotSmokeRow = displayScreenshotSmokeRow
+    self.windowCaptureSmokeRow = windowCaptureSmokeRow
+    smokeRows.addArrangedSubview(permissionSmokeRow)
+    smokeRows.addArrangedSubview(displayScreenshotSmokeRow)
+    smokeRows.addArrangedSubview(windowCaptureSmokeRow)
+
     let refreshButton = NSButton(
       title: "Refresh",
       target: self,
@@ -122,7 +155,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let verifyButton = NSButton(
       title: "Verify",
       target: self,
-      action: #selector(refreshFromButton)
+      action: #selector(runOnboardingVerification)
     )
     verifyButton.bezelStyle = .rounded
     verifyButton.keyEquivalent = "\r"
@@ -146,6 +179,8 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     stack.addArrangedSubview(subtitle)
     stack.addArrangedSubview(statusSummaryLabel)
     stack.addArrangedSubview(rows)
+    stack.addArrangedSubview(smokeTitle)
+    stack.addArrangedSubview(smokeRows)
     stack.addArrangedSubview(buttonStack)
     stack.addArrangedSubview(footer)
 
@@ -156,6 +191,8 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       icon.heightAnchor.constraint(equalToConstant: 68),
       icon.widthAnchor.constraint(equalToConstant: 68),
       rows.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      smokeTitle.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      smokeRows.widthAnchor.constraint(equalTo: stack.widthAnchor),
     ])
 
     refreshPermissionRows()
@@ -167,6 +204,12 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     helperReachableRow?.setGranted(true)
     accessibilityRow?.setGranted(permissions.accessibilityGranted)
     screenRecordingRow?.setGranted(permissions.screenCaptureGranted)
+    permissionSmokeRow?.setStatus(
+      permissions.accessibilityGranted && permissions.screenCaptureGranted ? .done : .waiting,
+      detail: permissions.accessibilityGranted && permissions.screenCaptureGranted
+        ? "Ready"
+        : "Grant missing permissions"
+    )
     let ready = permissions.accessibilityGranted && permissions.screenCaptureGranted
     statusSummaryLabel?.stringValue = ready
       ? "Ready for visual checks. Caverno will still ask before input or audio actions."
@@ -176,6 +219,67 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
   @objc private func refreshFromButton() {
     refreshPermissionRows()
+  }
+
+  @objc private func runOnboardingVerification() {
+    refreshPermissionRows()
+    let permissions = computerUsePermissionSnapshot()
+    let permissionsReady = permissions.accessibilityGranted && permissions.screenCaptureGranted
+    permissionSmokeRow?.setStatus(
+      permissionsReady ? .done : .failed,
+      detail: permissionsReady ? "Ready" : "Missing permissions"
+    )
+
+    let displayResult = verifyDisplayScreenshot()
+    displayScreenshotSmokeRow?.setStatus(
+      displayResult.ok ? .done : .failed,
+      detail: displayResult.detail
+    )
+
+    let windowResult = verifyWindowCapture()
+    windowCaptureSmokeRow?.setStatus(
+      windowResult.ok ? .done : .failed,
+      detail: windowResult.detail
+    )
+
+    let allReady = permissionsReady && displayResult.ok && windowResult.ok
+    statusSummaryLabel?.stringValue = allReady
+      ? "Verification complete. Caverno can observe displays and windows through this helper."
+      : "Verification incomplete. Fix the failed step, then run Verify again."
+    statusSummaryLabel?.textColor = allReady ? .systemGreen : .secondaryLabelColor
+  }
+
+  private func verifyDisplayScreenshot() -> (ok: Bool, detail: String) {
+    guard let screen = NSScreen.main else {
+      return (false, "No display")
+    }
+    guard let image = CGDisplayCreateImage(screen.displayID) else {
+      return (false, "Screen Recording required")
+    }
+    if image.width <= 0 || image.height <= 0 {
+      return (false, "Empty image")
+    }
+    return (true, "\(image.width) x \(image.height) px")
+  }
+
+  private func verifyWindowCapture() -> (ok: Bool, detail: String) {
+    let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
+    let candidates = visibleWindows()
+    guard let window = candidates.first(where: { $0.ownerPID != helperPid }) ?? candidates.first else {
+      return (false, "No visible window")
+    }
+    guard let image = CGWindowListCreateImage(
+      .null,
+      .optionIncludingWindow,
+      CGWindowID(window.windowID),
+      [.boundsIgnoreFraming, .bestResolution]
+    ) else {
+      return (false, "Window capture failed")
+    }
+    if image.width <= 0 || image.height <= 0 {
+      return (false, "Empty image")
+    }
+    return (true, "\(window.ownerName) #\(window.windowID)")
   }
 }
 
@@ -1634,5 +1738,105 @@ private final class PermissionRowView: NSView {
 
   @objc private func runAction() {
     action()
+  }
+}
+
+private enum SmokeStepStatus {
+  case waiting
+  case done
+  case failed
+
+  var label: String {
+    switch self {
+    case .waiting:
+      return "Waiting"
+    case .done:
+      return "Done"
+    case .failed:
+      return "Needs attention"
+    }
+  }
+
+  var color: NSColor {
+    switch self {
+    case .waiting:
+      return .secondaryLabelColor
+    case .done:
+      return .systemGreen
+    case .failed:
+      return .systemOrange
+    }
+  }
+
+  var symbolName: String {
+    switch self {
+    case .waiting:
+      return "circle"
+    case .done:
+      return "checkmark.circle.fill"
+    case .failed:
+      return "exclamationmark.triangle.fill"
+    }
+  }
+}
+
+private final class SmokeStepRowView: NSView {
+  private let icon = NSImageView()
+  private let statusLabel = NSTextField(labelWithString: "Waiting")
+  private let detailLabel: NSTextField
+
+  init(title: String, subtitle: String) {
+    self.detailLabel = NSTextField(wrappingLabelWithString: subtitle)
+    super.init(frame: .zero)
+    wantsLayer = true
+    layer?.cornerRadius = 8
+    layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.65).cgColor
+
+    icon.symbolConfiguration = .init(pointSize: 18, weight: .semibold)
+    icon.translatesAutoresizingMaskIntoConstraints = false
+
+    let titleLabel = NSTextField(labelWithString: title)
+    titleLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+
+    detailLabel.font = .systemFont(ofSize: 12, weight: .regular)
+    detailLabel.textColor = .secondaryLabelColor
+    detailLabel.maximumNumberOfLines = 2
+
+    let textStack = NSStackView(views: [titleLabel, detailLabel])
+    textStack.orientation = .vertical
+    textStack.alignment = .leading
+    textStack.spacing = 3
+
+    statusLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+
+    let rowStack = NSStackView(views: [icon, textStack, statusLabel])
+    rowStack.orientation = .horizontal
+    rowStack.alignment = .centerY
+    rowStack.spacing = 12
+    rowStack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(rowStack)
+
+    NSLayoutConstraint.activate([
+      heightAnchor.constraint(greaterThanOrEqualToConstant: 58),
+      icon.widthAnchor.constraint(equalToConstant: 24),
+      rowStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
+      rowStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
+      rowStack.topAnchor.constraint(equalTo: topAnchor, constant: 10),
+      rowStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+    ])
+
+    setStatus(.waiting, detail: subtitle)
+  }
+
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  func setStatus(_ status: SmokeStepStatus, detail: String) {
+    icon.image = NSImage(systemSymbolName: status.symbolName, accessibilityDescription: status.label)
+    icon.contentTintColor = status.color
+    statusLabel.stringValue = status.label
+    statusLabel.textColor = status.color
+    detailLabel.stringValue = detail
   }
 }

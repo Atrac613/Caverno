@@ -3,7 +3,9 @@ import 'dart:convert';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
+import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../providers/settings_notifier.dart';
@@ -330,19 +332,35 @@ class _ComputerUseOnboardingCard extends ConsumerStatefulWidget {
 }
 
 class _ComputerUseOnboardingCardState
-    extends ConsumerState<_ComputerUseOnboardingCard> {
+    extends ConsumerState<_ComputerUseOnboardingCard>
+    with WidgetsBindingObserver {
   bool _isLoading = false;
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
+  String? _lastDiagnosticExportPath;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _refresh();
       }
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) {
+      _refresh();
+    }
   }
 
   @override
@@ -444,8 +462,25 @@ class _ComputerUseOnboardingCardState
                   icon: const Icon(Icons.fact_check_outlined),
                   label: const Text('Open Smoke Test'),
                 ),
+                OutlinedButton.icon(
+                  onPressed: _copyDiagnostics,
+                  icon: const Icon(Icons.copy_outlined),
+                  label: const Text('Copy Diagnostics'),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _exportDiagnostics,
+                  icon: const Icon(Icons.file_download_outlined),
+                  label: const Text('Export Diagnostics'),
+                ),
               ],
             ),
+            if (_lastDiagnosticExportPath != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last export: $_lastDiagnosticExportPath',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
           ],
         ),
       ),
@@ -466,6 +501,10 @@ class _ComputerUseOnboardingCardState
         }
       });
       await _refresh(force: true);
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        await _refresh(force: true);
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -511,7 +550,95 @@ class _ComputerUseOnboardingCardState
     Navigator.push(
       context,
       MaterialPageRoute(builder: (_) => const ComputerUseDebugPage()),
+    ).then((_) {
+      if (mounted) {
+        _refresh();
+      }
+    });
+  }
+
+  Future<void> _copyDiagnostics() async {
+    final diagnostics = _diagnosticsJson();
+    await Clipboard.setData(ClipboardData(text: diagnostics));
+    if (!mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Computer-use diagnostics copied.')),
     );
+  }
+
+  Future<void> _exportDiagnostics() async {
+    try {
+      final diagnostics = _diagnosticsJson();
+      final path = await exportLocalDiagnostics(
+        filePrefix: 'caverno-computer-use-onboarding',
+        contents: diagnostics,
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() => _lastDiagnosticExportPath = path);
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Computer-use diagnostics exported to $path')),
+      );
+    } catch (error) {
+      if (!mounted) {
+        return;
+      }
+      setState(() => _lastDiagnosticExportPath = 'Failed: $error');
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Failed to export diagnostics: $error')),
+      );
+    }
+  }
+
+  String _diagnosticsJson() {
+    return const JsonEncoder.withIndent('  ').convert(_diagnosticsMap());
+  }
+
+  Map<String, dynamic> _diagnosticsMap() {
+    return MacosComputerUseOnboardingDiagnostics(
+      generatedAt: DateTime.now(),
+      setupChecklist: _setupChecklist(
+        ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
+      ),
+      onboardingSmokeChecklist: _onboardingSmokeChecklist(),
+      helperStatus: _helperStatus,
+      permissions: _permissions,
+      helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
+      lastAction: 'Settings onboarding status',
+      lastResult: {'helperStatus': _helperStatus, 'permissions': _permissions},
+      lastDiagnosticExportPath: _lastDiagnosticExportPath,
+    ).toJson();
+  }
+
+  List<Map<String, dynamic>> _onboardingSmokeChecklist() {
+    return [
+      {
+        'id': 'launch_helper',
+        'label': 'Launch Caverno Computer Use',
+        'complete':
+            _permissionValue('helperInstalled') == true &&
+            _permissionValue('helperRunning') == true,
+      },
+      {
+        'id': 'verify_helper_ipc',
+        'label': 'Verify helper IPC reachability',
+        'complete': _permissionValue('helperReachable') == true,
+      },
+      {
+        'id': 'grant_accessibility',
+        'label': 'Grant Accessibility to Caverno Computer Use',
+        'complete': _permissionValue('accessibilityGranted') == true,
+      },
+      {
+        'id': 'grant_screen_recording',
+        'label':
+            'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'complete': _permissionValue('screenCaptureGranted') == true,
+      },
+    ];
   }
 
   MacosComputerUseSetupChecklist _setupChecklist(

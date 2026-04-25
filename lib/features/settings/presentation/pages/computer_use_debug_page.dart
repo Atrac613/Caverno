@@ -1,10 +1,10 @@
 import 'dart:convert';
-import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
+import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 
@@ -1170,21 +1170,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Future<void> _exportDiagnostics() async {
     try {
       final diagnostics = _diagnosticsJson();
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .replaceAll('.', '-');
-      final file = File(
-        '${Directory.systemTemp.path}/caverno-computer-use-smoke-$timestamp.json',
+      final path = await exportLocalDiagnostics(
+        filePrefix: 'caverno-computer-use-smoke',
+        contents: diagnostics,
       );
-      await file.writeAsString(diagnostics);
       if (!mounted) {
         return;
       }
-      setState(() => _lastDiagnosticExportPath = file.path);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Diagnostics exported to ${file.path}')),
-      );
+      setState(() => _lastDiagnosticExportPath = path);
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Diagnostics exported to $path')));
     } catch (error) {
       if (!mounted) {
         return;
