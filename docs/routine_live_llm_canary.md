@@ -85,6 +85,25 @@ small deterministic unit test.
 Keep it outside `test/` so normal test discovery does not run it accidentally.
 Run it intentionally after changes that affect routine execution behavior.
 
+## Captured Failure Example
+
+This canary caught a real tool-loop budget issue in the LAN watcher routine.
+The live model gathered evidence with `lan_scan` and `read_file`, then called
+`write_file` during the final action check. The model requested
+`routine_google_chat_post` after the file write, but the runner had already
+spent the shared tool-loop iteration budget and stopped before executing the
+Google Chat tool.
+
+The fix was to keep separate budgets for evidence collection and final action
+tools. Evidence collection still has a bounded loop, while final side-effect
+tools such as `write_file` and `routine_google_chat_post` get their own small
+bounded loop before the final answer.
+
+This failure is important because the assistant transcript can show that the
+model intended to post to Google Chat, while the persisted run record proves
+whether the tool actually executed. Treat the persisted tool call list as the
+source of truth.
+
 ## Failure Triage
 
 Start from the diagnostic output in the failed expectation. It includes:
