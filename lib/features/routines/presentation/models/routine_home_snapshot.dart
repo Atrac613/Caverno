@@ -90,7 +90,7 @@ class RoutineHomeSnapshotBuilder {
     if (RoutineScheduleService.isDue(routine)) {
       return true;
     }
-    return routine.latestRun?.status == RoutineRunStatus.failed;
+    return routine.latestRun?.requiresAttention ?? false;
   }
 
   static void _sortAttention(
@@ -166,7 +166,7 @@ class RoutineHomeSnapshotBuilder {
     if (RoutineScheduleService.isDue(routine)) {
       return 1;
     }
-    if (routine.latestRun?.status == RoutineRunStatus.failed) {
+    if (routine.latestRun?.requiresAttention ?? false) {
       return 2;
     }
     return 3;

@@ -47,6 +47,7 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
       preview: json['preview'] as String? ?? '',
       output: json['output'] as String? ?? '',
       error: json['error'] as String? ?? '',
+      failureAcknowledged: json['failureAcknowledged'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$RoutineRunRecordToJson(
@@ -67,6 +68,7 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'preview': instance.preview,
   'output': instance.output,
   'error': instance.error,
+  'failureAcknowledged': instance.failureAcknowledged,
 };
 
 const _$RoutineRunStatusEnumMap = {

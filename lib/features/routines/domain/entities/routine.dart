@@ -41,12 +41,16 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default('') String preview,
     @Default('') String output,
     @Default('') String error,
+    @Default(false) bool failureAcknowledged,
   }) = _RoutineRunRecord;
 
   factory RoutineRunRecord.fromJson(Map<String, dynamic> json) =>
       _$RoutineRunRecordFromJson(json);
 
   bool get isSuccessful => status == RoutineRunStatus.completed;
+
+  bool get requiresAttention =>
+      status == RoutineRunStatus.failed && !failureAcknowledged;
 
   bool get wasDelivered => deliveryStatus == RoutineDeliveryStatus.delivered;
 

@@ -21,6 +21,9 @@ class RoutineDetailPage extends ConsumerWidget {
         .read(routinesNotifierProvider.notifier)
         .findRoutine(routineId);
     final isRunning = routinesState.isRunning(routineId);
+    final latestRun = routine?.latestRun;
+    final requiresFailureAcknowledgement =
+        latestRun?.requiresAttention ?? false;
 
     if (routine == null) {
       return Scaffold(
@@ -195,6 +198,18 @@ class RoutineDetailPage extends ConsumerWidget {
                         icon: const Icon(Icons.edit_outlined),
                         label: Text('routines.edit'.tr()),
                       ),
+                      if (requiresFailureAcknowledgement)
+                        OutlinedButton.icon(
+                          onPressed: isRunning
+                              ? null
+                              : () => _acknowledgeLatestFailure(
+                                  context,
+                                  ref,
+                                  routine,
+                                ),
+                          icon: const Icon(Icons.check_circle_outline),
+                          label: Text('routines.acknowledge_failure'.tr()),
+                        ),
                     ],
                   ),
                 ],
@@ -306,6 +321,22 @@ class RoutineDetailPage extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _acknowledgeLatestFailure(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    await ref
+        .read(routinesNotifierProvider.notifier)
+        .acknowledgeLatestFailure(routine.id);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('routines.acknowledge_failure_done'.tr())),
+    );
   }
 
   Future<void> _openEditor(
@@ -634,6 +665,15 @@ class _RunRecordCard extends StatelessWidget {
             ),
             const SizedBox(height: 12),
             Text(summaryText, style: theme.textTheme.bodyMedium),
+            if (!run.isSuccessful && run.failureAcknowledged) ...[
+              const SizedBox(height: 12),
+              Text(
+                'routines.failure_reviewed_hint'.tr(),
+                style: theme.textTheme.bodySmall?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              ),
+            ],
             if (run.deliveryMessage.trim().isNotEmpty) ...[
               const SizedBox(height: 12),
               Text(

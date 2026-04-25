@@ -20,6 +20,7 @@ void main() {
         deliveryMessage: 'Posted to Google Chat.',
         preview: 'Finished successfully',
         output: 'Full output',
+        failureAcknowledged: true,
       );
 
       final decoded = RoutineRunRecord.fromJson(record.toJson());
@@ -34,6 +35,7 @@ void main() {
       expect(decoded.deliveryMessage, 'Posted to Google Chat.');
       expect(decoded.preview, 'Finished successfully');
       expect(decoded.output, 'Full output');
+      expect(decoded.failureAcknowledged, isTrue);
     });
 
     test('falls back to measured duration when durationMs is not stored', () {
@@ -44,6 +46,22 @@ void main() {
       );
 
       expect(record.effectiveDurationMs, 3250);
+    });
+
+    test('requires attention only for unreviewed failed runs', () {
+      final failedRecord = RoutineRunRecord(
+        id: 'run-failed',
+        startedAt: DateTime(2026, 4, 21, 10),
+        finishedAt: DateTime(2026, 4, 21, 10, 0, 3),
+        status: RoutineRunStatus.failed,
+        error: 'Request timed out',
+      );
+
+      expect(failedRecord.requiresAttention, isTrue);
+      expect(
+        failedRecord.copyWith(failureAcknowledged: true).requiresAttention,
+        isFalse,
+      );
     });
   });
 

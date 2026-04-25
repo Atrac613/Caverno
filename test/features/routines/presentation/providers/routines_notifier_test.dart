@@ -152,6 +152,48 @@ void main() {
     );
 
     test(
+      'acknowledgeLatestFailure clears attention without deleting run history',
+      () async {
+        final failedRun = RoutineRunRecord(
+          id: 'run-failed',
+          startedAt: DateTime(2026, 4, 21, 9),
+          finishedAt: DateTime(2026, 4, 21, 9, 0, 5),
+          status: RoutineRunStatus.failed,
+          preview: 'Request timed out',
+          error: 'Request timed out',
+        );
+        final previousRun = RoutineRunRecord(
+          id: 'run-previous',
+          startedAt: DateTime(2026, 4, 21, 8),
+          finishedAt: DateTime(2026, 4, 21, 8, 0, 5),
+          preview: 'Previous output',
+        );
+        final source = buildRoutine(
+          id: 'routine-1',
+          name: 'Morning summary',
+          nextRunAt: DateTime(2026, 4, 21, 11),
+          lastRunAt: DateTime(2026, 4, 21, 9),
+          runs: [failedRun, previousRun],
+        );
+        final container = await createContainer(initialRoutines: [source]);
+        addTearDown(container.dispose);
+
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        await notifier.acknowledgeLatestFailure(source.id);
+
+        final updated = notifier.findRoutine(source.id);
+        expect(updated, isNotNull);
+        expect(updated!.runs, hasLength(2));
+        expect(updated.latestRun?.id, failedRun.id);
+        expect(updated.latestRun?.failureAcknowledged, isTrue);
+        expect(updated.latestRun?.requiresAttention, isFalse);
+        expect(updated.latestRun?.error, 'Request timed out');
+        expect(updated.lastRunAt, source.lastRunAt);
+        expect(updated.nextRunAt, source.nextRunAt);
+      },
+    );
+
+    test(
       'runDueRoutines executes only due routines with the requested trigger',
       () async {
         final dueRoutine = buildRoutine(
