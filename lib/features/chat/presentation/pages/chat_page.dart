@@ -335,6 +335,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
       },
     );
 
+    ref.listen<PendingComputerUseAction?>(
+      chatNotifierProvider.select((s) => s.pendingComputerUseAction),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showComputerUseActionDialog(context, next),
+          );
+        }
+      },
+    );
+
     ref.listen<PendingFileOperation?>(
       chatNotifierProvider.select((s) => s.pendingFileOperation),
       (prev, next) {
@@ -8291,6 +8303,249 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref
         .read(chatNotifierProvider.notifier)
         .resolveLocalCommand(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showComputerUseActionDialog(
+    BuildContext context,
+    PendingComputerUseAction pending,
+  ) async {
+    final approved = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final isTextInput = pending.toolName == 'computer_type_text';
+        final isAudio =
+            pending.toolName == 'computer_start_system_audio_recording';
+        final icon = isAudio
+            ? Icons.graphic_eq_rounded
+            : isTextInput
+            ? Icons.keyboard_rounded
+            : Icons.ads_click_rounded;
+        return Container(
+          decoration: BoxDecoration(
+            color: theme.colorScheme.surface,
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          ),
+          child: SafeArea(
+            top: false,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.only(top: 12, bottom: 4),
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.onSurfaceVariant.withValues(
+                        alpha: 0.4,
+                      ),
+                      borderRadius: BorderRadius.circular(2),
+                    ),
+                  ),
+                ),
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                  child: Row(
+                    children: [
+                      Container(
+                        padding: const EdgeInsets.all(10),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.errorContainer.withValues(
+                            alpha: 0.6,
+                          ),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Icon(
+                          icon,
+                          color: theme.colorScheme.onErrorContainer,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              pending.title,
+                              style: theme.textTheme.titleMedium?.copyWith(
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                            Text(
+                              pending.toolName,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                                fontFamily: 'monospace',
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                const Divider(height: 24),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Icon(
+                        Icons.warning_amber_rounded,
+                        size: 20,
+                        color: theme.colorScheme.error,
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          'This action can control your macOS desktop. Approve only if the target and content look correct.',
+                          style: theme.textTheme.bodyMedium?.copyWith(
+                            color: theme.colorScheme.onSurfaceVariant,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (pending.reason != null && pending.reason!.isNotEmpty) ...[
+                  const SizedBox(height: 16),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(
+                          Icons.info_outline_rounded,
+                          size: 18,
+                          color: theme.colorScheme.onSurfaceVariant,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            pending.reason!,
+                            style: theme.textTheme.bodyMedium?.copyWith(
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ],
+                const SizedBox(height: 16),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 24),
+                  child: Container(
+                    width: double.infinity,
+                    padding: const EdgeInsets.all(16),
+                    decoration: BoxDecoration(
+                      color: theme.colorScheme.surfaceContainerHighest
+                          .withValues(alpha: 0.6),
+                      borderRadius: BorderRadius.circular(12),
+                      border: Border.all(
+                        color: theme.colorScheme.outline.withValues(
+                          alpha: 0.15,
+                        ),
+                      ),
+                    ),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        SelectableText(
+                          pending.summary,
+                          style: TextStyle(
+                            fontFamily: 'monospace',
+                            fontSize: 14,
+                            height: 1.5,
+                            color: theme.colorScheme.onSurface,
+                          ),
+                        ),
+                        if (pending.details.isNotEmpty) ...[
+                          const SizedBox(height: 12),
+                          for (final detail in pending.details)
+                            Padding(
+                              padding: const EdgeInsets.only(top: 4),
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    '• ',
+                                    style: TextStyle(
+                                      color: theme.colorScheme.onSurfaceVariant,
+                                      height: 1.4,
+                                    ),
+                                  ),
+                                  Expanded(
+                                    child: SelectableText(
+                                      detail,
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        height: 1.4,
+                                        color:
+                                            theme.colorScheme.onSurfaceVariant,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 24),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    0,
+                    24,
+                    16 + MediaQuery.of(sheetContext).padding.bottom,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(sheetContext, false),
+                          icon: const Icon(Icons.block_rounded, size: 18),
+                          label: const Text('Deny'),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        flex: 2,
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pop(sheetContext, true),
+                          icon: const Icon(Icons.check_rounded, size: 20),
+                          label: const Text('Approve Action'),
+                          style: FilledButton.styleFrom(
+                            backgroundColor: theme.colorScheme.error,
+                            foregroundColor: theme.colorScheme.onError,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        );
+      },
+    );
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveComputerUseAction(id: pending.id, approved: approved ?? false);
   }
 
   Future<void> _showFileOperationDialog(

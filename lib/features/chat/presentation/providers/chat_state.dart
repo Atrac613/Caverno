@@ -107,6 +107,27 @@ class PendingLocalCommand {
   final Completer<bool> completer;
 }
 
+/// Pending macOS computer-use action awaiting user approval.
+class PendingComputerUseAction {
+  PendingComputerUseAction({
+    required this.id,
+    required this.toolName,
+    required this.title,
+    required this.summary,
+    required this.details,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String toolName;
+  final String title;
+  final String summary;
+  final List<String> details;
+  final String? reason;
+  final Completer<bool> completer;
+}
+
 /// Pending local file operation awaiting user approval.
 class PendingFileOperation {
   PendingFileOperation({
@@ -229,6 +250,8 @@ abstract class ChatState with _$ChatState {
     PendingGitCommand? pendingGitCommand,
     // Local shell tool UI flow.
     PendingLocalCommand? pendingLocalCommand,
+    // macOS computer-use tool UI flow.
+    PendingComputerUseAction? pendingComputerUseAction,
     // File mutation tool UI flow.
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.

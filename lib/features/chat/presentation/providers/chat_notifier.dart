@@ -8084,9 +8084,11 @@ class ChatNotifier extends Notifier<ChatState> {
       return cachedResult;
     }
 
-    final approved = await requestLocalCommand(
-      command: _describeComputerUseAction(toolCall),
-      workingDirectory: 'macOS desktop',
+    final approved = await requestComputerUseAction(
+      toolName: toolCall.name,
+      title: _computerUseActionTitle(toolCall.name),
+      summary: _describeComputerUseAction(toolCall),
+      details: _computerUseActionDetails(toolCall),
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
@@ -8113,23 +8115,138 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  Future<bool> requestComputerUseAction({
+    required String toolName,
+    required String title,
+    required String summary,
+    required List<String> details,
+    String? reason,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingComputerUseAction: PendingComputerUseAction(
+        id: const Uuid().v4(),
+        toolName: toolName,
+        title: title,
+        summary: summary,
+        details: details,
+        reason: reason,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  void resolveComputerUseAction({required String id, required bool approved}) {
+    final pending = state.pendingComputerUseAction;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingComputerUseAction: null);
+  }
+
+  String _computerUseActionTitle(String toolName) {
+    return switch (toolName) {
+      'computer_click' => 'Approve macOS Click',
+      'computer_drag' => 'Approve macOS Drag',
+      'computer_scroll' => 'Approve macOS Scroll',
+      'computer_type_text' => 'Approve macOS Text Input',
+      'computer_press_key' => 'Approve macOS Key Press',
+      'computer_start_system_audio_recording' =>
+        'Approve System Audio Recording',
+      _ => 'Approve macOS Computer Use',
+    };
+  }
+
   String _describeComputerUseAction(ToolCallInfo toolCall) {
     final args = toolCall.arguments;
     return switch (toolCall.name) {
       'computer_click' =>
-        'computer_click x=${args['x']} y=${args['y']} button=${args['button'] ?? 'left'}',
+        'Click ${args['button'] ?? 'left'} at (${args['x']}, ${args['y']})',
       'computer_drag' =>
-        'computer_drag from=(${args['from_x']}, ${args['from_y']}) to=(${args['to_x']}, ${args['to_y']})',
+        'Drag from (${args['from_x']}, ${args['from_y']}) to (${args['to_x']}, ${args['to_y']})',
       'computer_scroll' =>
-        'computer_scroll delta_x=${args['delta_x'] ?? 0} delta_y=${args['delta_y'] ?? -5}',
-      'computer_type_text' =>
-        'computer_type_text ${jsonEncode({'text': args['text']})}',
+        'Scroll by (${args['delta_x'] ?? 0}, ${args['delta_y'] ?? -5})',
+      'computer_type_text' => 'Type ${_summarizeComputerUseText(args['text'])}',
       'computer_press_key' =>
-        'computer_press_key key=${args['key']} modifiers=${args['modifiers'] ?? const []}',
+        'Press ${_formatComputerUseKey(args['key'], args['modifiers'])}',
       'computer_start_system_audio_recording' =>
-        'computer_start_system_audio_recording output=${args['output_path'] ?? 'temporary CAF file'}',
+        'Start recording system audio to ${args['output_path'] ?? 'a temporary CAF file'}',
       _ => '${toolCall.name} ${jsonEncode(args)}',
     };
+  }
+
+  List<String> _computerUseActionDetails(ToolCallInfo toolCall) {
+    final args = toolCall.arguments;
+    final details = <String>['Tool: ${toolCall.name}'];
+    final reason = args['reason'] as String?;
+    switch (toolCall.name) {
+      case 'computer_click':
+        details.addAll([
+          'Coordinates: x=${args['x']}, y=${args['y']}',
+          'Button: ${args['button'] ?? 'left'}',
+          'Click count: ${args['click_count'] ?? 1}',
+          if (args['source_width'] != null && args['source_height'] != null)
+            'Source screenshot: ${args['source_width']} x ${args['source_height']} px',
+          if (args['display_id'] != null) 'Display ID: ${args['display_id']}',
+        ]);
+      case 'computer_drag':
+        details.addAll([
+          'From: x=${args['from_x']}, y=${args['from_y']}',
+          'To: x=${args['to_x']}, y=${args['to_y']}',
+          'Duration: ${args['duration_ms'] ?? 300} ms',
+          if (args['source_width'] != null && args['source_height'] != null)
+            'Source screenshot: ${args['source_width']} x ${args['source_height']} px',
+          if (args['display_id'] != null) 'Display ID: ${args['display_id']}',
+        ]);
+      case 'computer_scroll':
+        details.addAll([
+          'Delta X: ${args['delta_x'] ?? 0}',
+          'Delta Y: ${args['delta_y'] ?? -5}',
+          if (args['x'] != null && args['y'] != null)
+            'Pointer target: x=${args['x']}, y=${args['y']}',
+        ]);
+      case 'computer_type_text':
+        details.addAll([
+          'Text length: ${('${args['text'] ?? ''}').length} characters',
+          'Text preview: ${_summarizeComputerUseText(args['text'], maxLength: 160)}',
+        ]);
+      case 'computer_press_key':
+        details.add(
+          'Key: ${_formatComputerUseKey(args['key'], args['modifiers'])}',
+        );
+      case 'computer_start_system_audio_recording':
+        details.addAll([
+          'Output: ${args['output_path'] ?? 'temporary CAF file'}',
+          'Exclude Caverno audio: ${args['exclude_current_process_audio'] ?? true}',
+        ]);
+    }
+    if (reason != null && reason.trim().isNotEmpty) {
+      details.add('Model reason: ${reason.trim()}');
+    }
+    return details;
+  }
+
+  String _summarizeComputerUseText(Object? value, {int maxLength = 80}) {
+    final text = (value as String?) ?? '';
+    if (text.isEmpty) return '(empty text)';
+    final normalized = text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    if (normalized.length <= maxLength) {
+      return jsonEncode(normalized);
+    }
+    return jsonEncode('${normalized.substring(0, maxLength - 1)}...');
+  }
+
+  String _formatComputerUseKey(Object? key, Object? modifiers) {
+    final modifierList = modifiers is List
+        ? modifiers.map((value) => '$value').where((value) => value.isNotEmpty)
+        : const Iterable<String>.empty();
+    final parts = [
+      ...modifierList,
+      '${key ?? ''}',
+    ].where((value) => value.trim().isNotEmpty).toList();
+    return parts.isEmpty ? '(unknown key)' : parts.join('+');
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {
