@@ -16,6 +16,10 @@ void main() {
 
     expect(find.text('Granted'), findsNWidgets(2));
     expect(find.text('Missing'), findsOneWidget);
+    expect(
+      find.text('Action required: Screen & System Audio Recording'),
+      findsOneWidget,
+    );
 
     await _tapSwitch(tester, 'System Audio Armed');
     await _tapButton(tester, 'Start Recording');
@@ -27,6 +31,19 @@ void main() {
 
     expect(find.text('Not recording'), findsOneWidget);
     expect(service.stopAudioCallCount, 1);
+  });
+
+  testWidgets('opens macOS permission settings shortcuts', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Open Accessibility Settings');
+    await _tapButton(tester, 'Open Screen Recording Settings');
+
+    expect(service.openedSettingsSections, [
+      'accessibility',
+      'screen_recording',
+    ]);
   });
 
   testWidgets('uses display preview taps for move pointer arguments', (
@@ -191,6 +208,7 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 class _FakeMacosComputerUseService extends MacosComputerUseService {
   int startAudioCallCount = 0;
   int stopAudioCallCount = 0;
+  final List<String> openedSettingsSections = [];
   Map<String, dynamic>? lastMoveArguments;
   Map<String, dynamic>? lastClickArguments;
   Map<String, dynamic>? lastWindowScreenshotArguments;
@@ -205,6 +223,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'screenCaptureGranted': false,
       'systemAudioRecordingSupported': true,
     });
+  }
+
+  @override
+  Future<String> openSystemSettings({required String section}) async {
+    openedSettingsSections.add(section);
+    return _json({'ok': true, 'section': section});
   }
 
   @override

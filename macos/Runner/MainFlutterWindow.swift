@@ -181,6 +181,8 @@ final class MacosComputerUseChannel {
       requestAccessibility(result: result)
     case "requestScreenCapture":
       requestScreenCapture(result: result)
+    case "openSystemSettings":
+      openSystemSettings(call, result: result)
     case "listWindows":
       listWindows(call, result: result)
     case "focusWindow":
@@ -238,6 +240,53 @@ final class MacosComputerUseChannel {
       return
     }
     result(["screenCaptureGranted": true])
+  }
+
+  private func openSystemSettings(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
+    let section = (arguments["section"] as? String ?? "").lowercased()
+    let target: (section: String, url: String)?
+    switch section {
+    case "accessibility":
+      target = (
+        "accessibility",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
+      )
+    case "screen_capture", "screencapture", "screen_recording", "screenrecording":
+      target = (
+        "screenRecording",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy_ScreenCapture"
+      )
+    case "privacy":
+      target = (
+        "privacy",
+        "x-apple.systempreferences:com.apple.preference.security?Privacy"
+      )
+    default:
+      target = nil
+    }
+
+    guard let target else {
+      result(
+        FlutterError(
+          code: "invalid_args",
+          message: "section must be accessibility, screen_recording, or privacy",
+          details: section
+        )
+      )
+      return
+    }
+    guard let url = URL(string: target.url) else {
+      result(FlutterError(code: "invalid_url", message: "Failed to build System Settings URL", details: target.url))
+      return
+    }
+
+    let opened = NSWorkspace.shared.open(url)
+    result([
+      "ok": opened,
+      "section": target.section,
+      "url": url.absoluteString,
+    ])
   }
 
   private func isSystemAudioRecordingSupported() -> Bool {

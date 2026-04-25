@@ -89,6 +89,7 @@ class McpToolService {
     ...LanScanTools.allToolNames,
     'computer_get_permissions',
     'computer_request_permissions',
+    'computer_open_system_settings',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -1666,6 +1667,9 @@ class McpToolService {
             arguments['screenCapture'] as bool? ??
             true,
       ),
+      'computer_open_system_settings' => service.openSystemSettings(
+        section: arguments['section'] as String? ?? 'privacy',
+      ),
       'computer_list_windows' => service.listWindows(arguments),
       'computer_focus_window' => service.focusWindow(arguments),
       'computer_screenshot' => service.screenshot(arguments),
@@ -1764,6 +1768,26 @@ class McpToolService {
               'description': 'Request Screen Recording permission.',
             },
           },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_open_system_settings',
+        'description':
+            'Open the relevant macOS Privacy & Security pane for granting Accessibility or Screen Recording permissions. The user must still grant access manually.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'section': {
+              'type': 'string',
+              'enum': ['accessibility', 'screen_recording', 'privacy'],
+              'description':
+                  'System Settings section to open. Use screen_recording for Screen & System Audio Recording.',
+            },
+          },
+          'required': ['section'],
         },
       },
     },

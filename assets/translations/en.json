@@ -465,6 +465,7 @@
     "tool_os_log_read": "Read recent local OS logs for WiFi or auth issues",
     "tool_computer_get_permissions": "Check macOS computer-use permissions",
     "tool_computer_request_permissions": "Request macOS Accessibility and Screen Recording permissions",
+    "tool_computer_open_system_settings": "Open macOS Privacy & Security settings",
     "tool_computer_screenshot": "Capture a macOS display screenshot",
     "tool_computer_list_windows": "List visible macOS windows",
     "tool_computer_focus_window": "Focus a specific macOS window",

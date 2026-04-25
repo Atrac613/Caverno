@@ -38,6 +38,10 @@ class MacosComputerUseService {
     return jsonEncode(responses);
   }
 
+  Future<String> openSystemSettings({required String section}) async {
+    return _invokeJson('openSystemSettings', {'section': section});
+  }
+
   Future<String> screenshot(Map<String, dynamic> arguments) async {
     return _invokeJson('screenshot', _normalizeCoordinateArguments(arguments));
   }
@@ -140,7 +144,7 @@ class MacosComputerUseService {
 
     try {
       final result = await _invokeMap(method, arguments);
-      return jsonEncode(result);
+      return jsonEncode(_withNextAction(result));
     } on MissingPluginException {
       return jsonEncode({
         'ok': false,
@@ -149,12 +153,14 @@ class MacosComputerUseService {
       });
     } on PlatformException catch (error) {
       appLog('[ComputerUse] $method failed: $error');
-      return jsonEncode({
-        'ok': false,
-        'code': error.code,
-        'error': error.message ?? error.toString(),
-        if (error.details != null) 'details': error.details,
-      });
+      return jsonEncode(
+        _withNextAction({
+          'ok': false,
+          'code': error.code,
+          'error': error.message ?? error.toString(),
+          if (error.details != null) 'details': error.details,
+        }),
+      );
     }
   }
 
@@ -167,5 +173,27 @@ class MacosComputerUseService {
       arguments,
     );
     return result ?? const <String, dynamic>{};
+  }
+
+  Map<String, dynamic> _withNextAction(Map<String, dynamic> result) {
+    final code = result['code'];
+    if (code is! String || result.containsKey('nextAction')) {
+      return result;
+    }
+    final nextAction = _nextActionForCode(code);
+    if (nextAction == null) {
+      return result;
+    }
+    return {...result, 'nextAction': nextAction};
+  }
+
+  String? _nextActionForCode(String code) {
+    return switch (code) {
+      'accessibility_denied' =>
+        'Open System Settings > Privacy & Security > Accessibility, grant Caverno, then refresh permissions.',
+      'screen_capture_unavailable' || 'screenshot_failed' =>
+        'Open System Settings > Privacy & Security > Screen & System Audio Recording, grant Caverno, then refresh permissions.',
+      _ => null,
+    };
   }
 }

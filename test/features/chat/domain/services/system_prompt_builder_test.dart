@@ -183,6 +183,7 @@ void main() {
         'computer_list_windows',
         'computer_screenshot',
         'computer_screenshot_window',
+        'computer_open_system_settings',
         'computer_click',
         'computer_type_text',
       ],
@@ -206,6 +207,7 @@ void main() {
         'Include window_id for window screenshots and include source_width and source_height',
       ),
     );
+    expect(prompt, contains('follow the returned nextAction'));
     expect(
       prompt,
       contains('credential, payment, destructive, or external-send behavior'),

@@ -190,6 +190,11 @@ class BuiltInToolRegistry {
       category: categoryComputerUse,
     ),
     BuiltInToolInfo(
+      name: 'computer_open_system_settings',
+      descriptionKey: 'settings.tool_computer_open_system_settings',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
       name: 'computer_screenshot',
       descriptionKey: 'settings.tool_computer_screenshot',
       category: categoryComputerUse,

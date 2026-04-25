@@ -342,6 +342,12 @@ class SystemPromptBuilder {
           'and source_height when calling coordinate-based computer tools.',
         );
         buffer.writeln(
+          'If a computer-use result reports accessibility_denied, '
+          'screen_capture_unavailable, or screenshot_failed, follow the '
+          'returned nextAction. Use computer_open_system_settings only when '
+          'the user wants the relevant macOS settings pane opened.',
+        );
+        buffer.writeln(
           'If the target is ambiguous, hidden, or could trigger credential, '
           'payment, destructive, or external-send behavior, pause and ask the '
           'user instead of guessing.',

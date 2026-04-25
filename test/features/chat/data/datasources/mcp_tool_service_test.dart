@@ -77,6 +77,7 @@ void main() {
           .toList();
 
       expect(functionNames, contains('computer_get_permissions'));
+      expect(functionNames, contains('computer_open_system_settings'));
       expect(functionNames, contains('computer_list_windows'));
       expect(functionNames, contains('computer_focus_window'));
       expect(functionNames, contains('computer_screenshot'));
@@ -102,6 +103,23 @@ void main() {
         expect(jsonDecode(result.result), containsPair('ok', true));
       },
     );
+
+    test('opens macOS System Settings through the native service', () async {
+      final computerUseService = _FakeMacosComputerUseService();
+      final service = McpToolService(computerUseService: computerUseService);
+
+      final result = await service.executeTool(
+        name: 'computer_open_system_settings',
+        arguments: const {'section': 'screen_recording'},
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(computerUseService.calledMethods, ['openSystemSettings']);
+      expect(
+        jsonDecode(result.result),
+        containsPair('section', 'screen_recording'),
+      );
+    });
 
     test(
       'executes os_get_system_info through the built-in tool service',
@@ -292,6 +310,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   Future<String> click(Map<String, dynamic> arguments) async {
     calledMethods.add('click');
     return jsonEncode({'ok': true, 'x': arguments['x'], 'y': arguments['y']});
+  }
+
+  @override
+  Future<String> openSystemSettings({required String section}) async {
+    calledMethods.add('openSystemSettings');
+    return jsonEncode({'ok': true, 'section': section});
   }
 }
 

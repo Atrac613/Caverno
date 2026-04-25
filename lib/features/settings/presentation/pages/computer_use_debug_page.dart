@@ -122,13 +122,25 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   'Check and request macOS Accessibility and Screen Recording access.',
             ),
             const SizedBox(height: 12),
+            _buildPermissionChecklist(),
+            const SizedBox(height: 12),
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
+              openSettingsTooltip: 'Open Accessibility Settings',
+              onOpenSettings: () => _openSystemSettings(
+                section: 'accessibility',
+                action: 'Open Accessibility Settings',
+              ),
             ),
             _PermissionRow(
-              label: 'Screen Recording',
+              label: 'Screen & System Audio Recording',
               value: _permissionValue('screenCaptureGranted'),
+              openSettingsTooltip: 'Open Screen Recording Settings',
+              onOpenSettings: () => _openSystemSettings(
+                section: 'screen_recording',
+                action: 'Open Screen Recording Settings',
+              ),
             ),
             _PermissionRow(
               label: 'System Audio Supported',
@@ -161,6 +173,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   ),
                 ),
                 _actionButton(
+                  key: const ValueKey(
+                    'computer-use-open-accessibility-settings',
+                  ),
+                  icon: Icons.settings_outlined,
+                  label: 'Open Accessibility Settings',
+                  onPressed: () => _openSystemSettings(
+                    section: 'accessibility',
+                    action: 'Open Accessibility Settings',
+                  ),
+                ),
+                _actionButton(
                   icon: Icons.screenshot_monitor_outlined,
                   label: 'Request Screen Recording',
                   onPressed: () => _run(
@@ -170,6 +193,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                       screenCapture: true,
                     ),
                     onResult: _storePermissions,
+                  ),
+                ),
+                _actionButton(
+                  key: const ValueKey(
+                    'computer-use-open-screen-recording-settings',
+                  ),
+                  icon: Icons.settings_applications_outlined,
+                  label: 'Open Screen Recording Settings',
+                  onPressed: () => _openSystemSettings(
+                    section: 'screen_recording',
+                    action: 'Open Screen Recording Settings',
                   ),
                 ),
               ],
@@ -618,6 +652,75 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       onPressed: _isBusy ? null : onPressed,
       icon: Icon(icon),
       label: Text(label),
+    );
+  }
+
+  Widget _buildPermissionChecklist() {
+    final hasSnapshot = _permissions != null;
+    final missing = <String>[
+      if (_permissionValue('accessibilityGranted') != true) 'Accessibility',
+      if (_permissionValue('screenCaptureGranted') != true)
+        'Screen & System Audio Recording',
+    ];
+    final ready = hasSnapshot && missing.isEmpty;
+    final colorScheme = Theme.of(context).colorScheme;
+    final icon = ready
+        ? Icons.task_alt_outlined
+        : hasSnapshot
+        ? Icons.warning_amber_outlined
+        : Icons.info_outline;
+    final color = ready
+        ? colorScheme.primary
+        : hasSnapshot
+        ? colorScheme.error
+        : colorScheme.secondary;
+    final title = ready
+        ? 'Ready for visual, input, and audio smoke checks'
+        : hasSnapshot
+        ? 'Action required: ${missing.join(', ')}'
+        : 'Refresh permissions before running smoke checks';
+    final subtitle = ready
+        ? 'Run screenshots first, then arm input or audio checks only when needed.'
+        : hasSnapshot
+        ? 'Open System Settings, grant Caverno, then refresh permissions.'
+        : 'Use Refresh to load the current macOS privacy state.';
+
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: color.withValues(alpha: 0.12),
+        border: Border.all(color: color.withValues(alpha: 0.35)),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: color),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(subtitle, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _openSystemSettings({
+    required String section,
+    required String action,
+  }) {
+    return _run(
+      action,
+      (service) => service.openSystemSettings(section: section),
     );
   }
 
@@ -1085,10 +1188,17 @@ class _SectionTitle extends StatelessWidget {
 }
 
 class _PermissionRow extends StatelessWidget {
-  const _PermissionRow({required this.label, required this.value});
+  const _PermissionRow({
+    required this.label,
+    required this.value,
+    this.openSettingsTooltip,
+    this.onOpenSettings,
+  });
 
   final String label;
   final bool? value;
+  final String? openSettingsTooltip;
+  final VoidCallback? onOpenSettings;
 
   @override
   Widget build(BuildContext context) {
@@ -1108,6 +1218,7 @@ class _PermissionRow extends StatelessWidget {
       false => 'Missing',
       null => 'Unknown',
     };
+    final showSettingsButton = value != true && onOpenSettings != null;
 
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 4),
@@ -1117,6 +1228,14 @@ class _PermissionRow extends StatelessWidget {
           const SizedBox(width: 8),
           Expanded(child: Text(label)),
           Text(labelText, style: TextStyle(color: color)),
+          if (showSettingsButton) ...[
+            const SizedBox(width: 4),
+            IconButton.filledTonal(
+              tooltip: openSettingsTooltip ?? 'Open System Settings',
+              onPressed: onOpenSettings,
+              icon: const Icon(Icons.settings_outlined),
+            ),
+          ],
         ],
       ),
     );

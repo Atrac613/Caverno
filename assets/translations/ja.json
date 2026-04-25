@@ -465,6 +465,7 @@
     "tool_os_log_read": "最近のローカルOSログを読み取りWiFiや認証問題を調査",
     "tool_computer_get_permissions": "macOS computer-use permissionsを確認",
     "tool_computer_request_permissions": "macOS AccessibilityとScreen Recording permissionsを要求",
+    "tool_computer_open_system_settings": "Open macOS Privacy & Security settings",
     "tool_computer_screenshot": "macOS display screenshotを取得",
     "tool_computer_list_windows": "visible macOS windowsを一覧表示",
     "tool_computer_focus_window": "specific macOS windowを前面に表示",
