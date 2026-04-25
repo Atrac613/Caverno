@@ -68,7 +68,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             _buildUnsupportedPlatformCard(context),
             const SizedBox(height: 12),
           ],
-          _buildPermissionsCard(),
+          _buildPermissionsCard(service.permissionBackendInfo),
           const SizedBox(height: 12),
           _buildDisplayScreenshotCard(),
           const SizedBox(height: 12),
@@ -109,8 +109,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     );
   }
 
-  Widget _buildPermissionsCard() {
-    final setupChecklist = _setupChecklist;
+  Widget _buildPermissionsCard(MacosComputerUseBackendInfo backend) {
+    final setupChecklist = _setupChecklist(backend);
     return Card(
       child: Padding(
         padding: const EdgeInsets.all(16),
@@ -126,8 +126,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             const SizedBox(height: 12),
             _HelperBoundaryPanel(backend: setupChecklist.backend),
             const SizedBox(height: 12),
-            _buildPermissionChecklist(),
+            _buildPermissionChecklist(backend),
             const SizedBox(height: 12),
+            _PermissionRow(
+              label: 'Helper Reachable',
+              value: _permissionValue('helperReachable'),
+            ),
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -155,6 +159,13 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               spacing: 8,
               runSpacing: 8,
               children: [
+                _actionButton(
+                  key: const ValueKey('computer-use-ping-helper'),
+                  icon: Icons.sensors_outlined,
+                  label: 'Ping Helper',
+                  onPressed: () =>
+                      _run('Ping helper', (service) => service.pingHelper()),
+                ),
                 _actionButton(
                   icon: Icons.refresh,
                   label: 'Refresh',
@@ -197,6 +208,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                       screenCapture: true,
                     ),
                     onResult: _storePermissions,
+                  ),
+                ),
+                _actionButton(
+                  key: const ValueKey('computer-use-stop-helper-work'),
+                  icon: Icons.stop_circle_outlined,
+                  label: 'Stop Helper Work',
+                  onPressed: () => _run(
+                    'Stop helper work',
+                    (service) => service.stopHelperWork(),
                   ),
                 ),
                 _actionButton(
@@ -659,8 +679,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     );
   }
 
-  Widget _buildPermissionChecklist() {
-    final setupChecklist = _setupChecklist;
+  Widget _buildPermissionChecklist(MacosComputerUseBackendInfo backend) {
+    final setupChecklist = _setupChecklist(backend);
     final hasSnapshot = setupChecklist.hasSnapshot;
     final ready = setupChecklist.isReady;
     final colorScheme = Theme.of(context).colorScheme;
@@ -885,7 +905,9 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Map<String, dynamic> _diagnosticsMap() {
     return {
       'generatedAt': DateTime.now().toIso8601String(),
-      'setupChecklist': _setupChecklist.toJson(),
+      'setupChecklist': _setupChecklist(
+        ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
+      ).toJson(),
       'permissions': _permissions,
       'audioRecording': _audioRecording,
       'inputActionsArmed': _inputActionsArmed,
@@ -970,9 +992,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return value is bool ? value : null;
   }
 
-  MacosComputerUseSetupChecklist get _setupChecklist {
+  MacosComputerUseSetupChecklist _setupChecklist(
+    MacosComputerUseBackendInfo backend,
+  ) {
     return MacosComputerUseSetupChecklist(
-      backend: MacosComputerUseBackends.inProcessCompatibility,
+      backend: backend,
       permissions: _permissions == null
           ? null
           : MacosComputerUsePermissionSnapshot.fromMap(_permissions),

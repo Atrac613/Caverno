@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/logger.dart';
 import 'macos_computer_use_setup.dart';
+import 'macos_computer_use_transport.dart';
 
 final macosComputerUseServiceProvider = Provider<MacosComputerUseService>((
   ref,
@@ -14,14 +15,28 @@ final macosComputerUseServiceProvider = Provider<MacosComputerUseService>((
 });
 
 class MacosComputerUseService {
+  MacosComputerUseService({
+    MacosComputerUsePermissionTransport? permissionTransport,
+  }) : _permissionTransport =
+           permissionTransport ?? const HelperMacosComputerUseTransport();
+
   static const MethodChannel _channel = MethodChannel(
     'com.caverno/macos_computer_use',
   );
 
+  final MacosComputerUsePermissionTransport _permissionTransport;
+
   bool get isAvailable => Platform.isMacOS;
 
+  MacosComputerUseBackendInfo get permissionBackendInfo =>
+      _permissionTransport.backendInfo;
+
+  Future<String> pingHelper() async {
+    return _invokeTransportJson(_permissionTransport.ping);
+  }
+
   Future<String> getPermissions() async {
-    return _invokeJson('getPermissions');
+    return _invokeTransportJson(_permissionTransport.getPermissions);
   }
 
   Future<String> requestPermissions({
@@ -35,12 +50,22 @@ class MacosComputerUseService {
     if (screenCapture) {
       responses['screenCapture'] = await _invokeMap('requestScreenCapture');
     }
-    responses['current'] = await _invokeMap('getPermissions');
+    responses['current'] =
+        _decodeMap(
+          await _invokeTransportJson(_permissionTransport.getPermissions),
+        ) ??
+        const <String, dynamic>{};
     return jsonEncode(responses);
   }
 
   Future<String> openSystemSettings({required String section}) async {
-    return _invokeJson('openSystemSettings', {'section': section});
+    return _invokeTransportJson(
+      () => _permissionTransport.openSystemSettings(section: section),
+    );
+  }
+
+  Future<String> stopHelperWork() async {
+    return _invokeTransportJson(_permissionTransport.stopAll);
   }
 
   Future<String> screenshot(Map<String, dynamic> arguments) async {
@@ -176,6 +201,27 @@ class MacosComputerUseService {
     return result ?? const <String, dynamic>{};
   }
 
+  Future<String> _invokeTransportJson(Future<String> Function() invoke) async {
+    final raw = await invoke();
+    final decoded = _decodeMap(raw);
+    if (decoded == null) {
+      return raw;
+    }
+    return jsonEncode(_withNextAction(decoded));
+  }
+
+  Map<String, dynamic>? _decodeMap(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+
   Map<String, dynamic> _withNextAction(Map<String, dynamic> result) {
     final code = result['code'];
     if (code is! String || result.containsKey('nextAction')) {
@@ -189,9 +235,10 @@ class MacosComputerUseService {
   }
 
   String? _nextActionForCode(String code) {
-    final permissionOwner =
-        MacosComputerUseBackends.inProcessCompatibility.permissionOwnerName;
+    final permissionOwner = permissionBackendInfo.permissionOwnerName;
     return switch (code) {
+      'helper_unreachable' =>
+        'Launch ${MacosComputerUseBackends.helperDisplayName}, then refresh permissions.',
       'accessibility_denied' =>
         'Open System Settings > Privacy & Security > Accessibility, grant $permissionOwner, then refresh permissions.',
       'screen_capture_unavailable' || 'screenshot_failed' =>

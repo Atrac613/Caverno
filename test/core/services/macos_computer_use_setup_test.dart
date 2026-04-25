@@ -11,6 +11,15 @@ void main() {
     expect(backend.usesSeparateHelper, isFalse);
   });
 
+  test('describes the helper IPC backend', () {
+    const backend = MacosComputerUseBackends.helperIpc;
+
+    expect(backend.displayName, 'Caverno Computer Use');
+    expect(backend.permissionOwnerName, 'Caverno Computer Use');
+    expect(backend.executionMode, 'helper_ipc');
+    expect(backend.usesSeparateHelper, isTrue);
+  });
+
   test('reports missing permissions before a snapshot is loaded', () {
     const checklist = MacosComputerUseSetupChecklist(
       backend: MacosComputerUseBackends.inProcessCompatibility,
@@ -24,6 +33,26 @@ void main() {
       'Screen & System Audio Recording',
     ]);
     expect(checklist.title, 'Refresh permissions before running smoke checks');
+  });
+
+  test('reports helper reachability before permission labels', () {
+    final permissions = MacosComputerUsePermissionSnapshot.fromMap({
+      'ok': false,
+      'backend': 'helper',
+      'helperReachable': false,
+      'code': 'helper_unreachable',
+    });
+    final checklist = MacosComputerUseSetupChecklist(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: permissions,
+    );
+
+    expect(checklist.isReady, isFalse);
+    expect(checklist.missingPermissionLabels, ['Caverno Computer Use']);
+    expect(
+      checklist.subtitle,
+      'Launch Caverno Computer Use, then refresh permissions.',
+    );
   });
 
   test('builds action copy for a partial permission snapshot', () {

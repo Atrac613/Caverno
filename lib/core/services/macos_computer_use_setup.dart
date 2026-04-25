@@ -47,10 +47,21 @@ class MacosComputerUseBackends {
     targetHelperBundleIdentifier: helperBundleIdentifier,
     usesSeparateHelper: false,
   );
+
+  static const helperIpc = MacosComputerUseBackendInfo(
+    displayName: helperDisplayName,
+    bundleIdentifier: helperBundleIdentifier,
+    executionMode: 'helper_ipc',
+    permissionOwnerName: helperDisplayName,
+    targetHelperName: helperDisplayName,
+    targetHelperBundleIdentifier: helperBundleIdentifier,
+    usesSeparateHelper: true,
+  );
 }
 
 class MacosComputerUsePermissionSnapshot {
   const MacosComputerUsePermissionSnapshot({
+    required this.helperReachable,
     required this.accessibilityGranted,
     required this.screenCaptureGranted,
     required this.systemAudioRecordingSupported,
@@ -59,7 +70,13 @@ class MacosComputerUsePermissionSnapshot {
   factory MacosComputerUsePermissionSnapshot.fromMap(
     Map<String, dynamic>? values,
   ) {
+    final helperReachable = values?['helperReachable'];
     return MacosComputerUsePermissionSnapshot(
+      helperReachable: helperReachable is bool
+          ? helperReachable
+          : values?['backend'] == 'helper'
+          ? true
+          : null,
       accessibilityGranted: _boolValue(values?['accessibilityGranted']),
       screenCaptureGranted: _boolValue(values?['screenCaptureGranted']),
       systemAudioRecordingSupported: _boolValue(
@@ -68,14 +85,20 @@ class MacosComputerUsePermissionSnapshot {
     );
   }
 
+  final bool? helperReachable;
   final bool? accessibilityGranted;
   final bool? screenCaptureGranted;
   final bool? systemAudioRecordingSupported;
 
   bool get hasRequiredPermissions =>
-      accessibilityGranted == true && screenCaptureGranted == true;
+      helperReachable != false &&
+      accessibilityGranted == true &&
+      screenCaptureGranted == true;
 
   List<String> get missingPermissionLabels {
+    if (helperReachable == false) {
+      return ['Caverno Computer Use'];
+    }
     return [
       if (accessibilityGranted != true) 'Accessibility',
       if (screenCaptureGranted != true) 'Screen & System Audio Recording',
@@ -84,6 +107,7 @@ class MacosComputerUsePermissionSnapshot {
 
   Map<String, dynamic> toJson() {
     return {
+      'helperReachable': helperReachable,
       'accessibilityGranted': accessibilityGranted,
       'screenCaptureGranted': screenCaptureGranted,
       'systemAudioRecordingSupported': systemAudioRecordingSupported,
@@ -124,6 +148,9 @@ class MacosComputerUseSetupChecklist {
   }
 
   String get subtitle {
+    if (permissions?.helperReachable == false) {
+      return 'Launch ${backend.permissionOwnerName}, then refresh permissions.';
+    }
     if (isReady) {
       return 'Run screenshots first, then arm input or audio checks only when needed.';
     }

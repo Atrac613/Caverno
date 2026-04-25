@@ -161,8 +161,90 @@ final class SecurityScopedBookmarkChannel {
   }
 }
 
+final class MacosComputerUseHelperClient: NSObject {
+  private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
+  private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  private let center = DistributedNotificationCenter.default()
+  private var pendingResults: [String: FlutterResult] = [:]
+
+  override init() {
+    super.init()
+    center.addObserver(
+      self,
+      selector: #selector(handleResponse(_:)),
+      name: responseName,
+      object: nil,
+      suspensionBehavior: .deliverImmediately
+    )
+  }
+
+  deinit {
+    center.removeObserver(self)
+  }
+
+  func send(
+    command: String,
+    arguments: [String: Any] = [:],
+    timeout: TimeInterval = 1.5,
+    result: @escaping FlutterResult
+  ) {
+    let requestId = UUID().uuidString
+    pendingResults[requestId] = result
+    center.postNotificationName(
+      requestName,
+      object: nil,
+      userInfo: [
+        "requestId": requestId,
+        "command": command,
+        "arguments": arguments,
+      ],
+      deliverImmediately: true
+    )
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
+      guard let result = self?.pendingResults.removeValue(forKey: requestId) else {
+        return
+      }
+      result(
+        FlutterError(
+          code: "helper_unreachable",
+          message: "Caverno Computer Use did not respond to \(command).",
+          details: [
+            "command": command,
+            "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+          ]
+        )
+      )
+    }
+  }
+
+  @objc private func handleResponse(_ notification: Notification) {
+    guard
+      let userInfo = notification.userInfo,
+      let requestId = userInfo["requestId"] as? String,
+      let result = pendingResults.removeValue(forKey: requestId)
+    else {
+      return
+    }
+
+    guard let response = userInfo["response"] as? [String: Any] else {
+      result(
+        FlutterError(
+          code: "helper_invalid_response",
+          message: "Caverno Computer Use returned an invalid response.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    result(response)
+  }
+}
+
 final class MacosComputerUseChannel {
   private let channel: FlutterMethodChannel
+  private let helperClient = MacosComputerUseHelperClient()
   private var audioRecorder: Any?
 
   init(messenger: FlutterBinaryMessenger) {
@@ -175,6 +257,18 @@ final class MacosComputerUseChannel {
 
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "helperPing":
+      helperClient.send(command: "ping", result: result)
+    case "helperPermissionStatus":
+      helperClient.send(command: "permissionStatus", result: result)
+    case "helperOpenSystemSettings":
+      helperClient.send(
+        command: "openSettings",
+        arguments: call.arguments as? [String: Any] ?? [:],
+        result: result
+      )
+    case "helperStopAll":
+      helperClient.send(command: "stopAll", result: result)
     case "getPermissions":
       result(permissionSnapshot())
     case "requestAccessibility":

@@ -8,7 +8,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
-  testWidgets('shows helper boundary while using compatibility backend', (
+  testWidgets('shows helper boundary while using helper IPC backend', (
     tester,
   ) async {
     final service = _FakeMacosComputerUseService();
@@ -18,7 +18,7 @@ void main() {
     expect(find.text('Current executor'), findsOneWidget);
     expect(find.text('Permission owner now'), findsOneWidget);
     expect(find.text('Target helper'), findsOneWidget);
-    expect(find.text('Caverno (in_process_compatibility)'), findsOneWidget);
+    expect(find.text('Caverno Computer Use (helper_ipc)'), findsOneWidget);
     expect(
       find.text('Caverno Computer Use (com.noguwo.apps.caverno.computer-use)'),
       findsOneWidget,
@@ -31,7 +31,7 @@ void main() {
 
     await _tapButton(tester, 'Refresh');
 
-    expect(find.text('Granted'), findsNWidgets(2));
+    expect(find.text('Granted'), findsNWidgets(3));
     expect(find.text('Missing'), findsOneWidget);
     expect(
       find.text('Action required: Screen & System Audio Recording'),
@@ -48,6 +48,19 @@ void main() {
 
     expect(find.text('Not recording'), findsOneWidget);
     expect(service.stopAudioCallCount, 1);
+  });
+
+  testWidgets('pings and stops helper work from the permission panel', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Ping Helper');
+    await _tapButton(tester, 'Stop Helper Work');
+
+    expect(service.pingHelperCallCount, 1);
+    expect(service.stopHelperWorkCallCount, 1);
   });
 
   testWidgets('opens macOS permission settings shortcuts', (tester) async {
@@ -225,6 +238,8 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
+  int pingHelperCallCount = 0;
+  int stopHelperWorkCallCount = 0;
   int startAudioCallCount = 0;
   int stopAudioCallCount = 0;
   final List<String> openedSettingsSections = [];
@@ -238,6 +253,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> getPermissions() async {
     return _json({
+      'backend': 'helper',
+      'helperReachable': true,
       'accessibilityGranted': true,
       'screenCaptureGranted': false,
       'systemAudioRecordingSupported': true,
@@ -245,9 +262,21 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   }
 
   @override
+  Future<String> pingHelper() async {
+    pingHelperCallCount += 1;
+    return _json({'ok': true, 'backend': 'helper', 'message': 'pong'});
+  }
+
+  @override
   Future<String> openSystemSettings({required String section}) async {
     openedSettingsSections.add(section);
     return _json({'ok': true, 'section': section});
+  }
+
+  @override
+  Future<String> stopHelperWork() async {
+    stopHelperWorkCallCount += 1;
+    return _json({'ok': true, 'backend': 'helper'});
   }
 
   @override

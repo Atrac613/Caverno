@@ -70,6 +70,11 @@ be constrained to the bundled helper. A Unix domain socket or localhost HTTP
 transport can be used as a temporary development transport if it accelerates
 iteration.
 
+The current helper milestone uses `DistributedNotificationCenter` as a
+request/response transport so the separate app can prove the boundary before it
+is embedded and packaged with the main app. XPC remains the preferred production
+transport once packaging and launch management are stable.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.

@@ -4,11 +4,13 @@ import CoreGraphics
 
 @main
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
+  private let ipc = ComputerUseHelperIpc()
   private var window: NSWindow?
   private var accessibilityRow: PermissionRowView?
   private var screenRecordingRow: PermissionRowView?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    ipc.start()
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 720, height: 420),
       styleMask: [.titled, .closable, .miniaturizable],
@@ -105,21 +107,45 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   }
 
   private func refreshPermissionRows() {
-    accessibilityRow?.setGranted(AXIsProcessTrusted())
-    if #available(macOS 10.15, *) {
-      screenRecordingRow?.setGranted(CGPreflightScreenCaptureAccess())
-    } else {
-      screenRecordingRow?.setGranted(true)
-    }
+    let permissions = computerUsePermissionSnapshot()
+    accessibilityRow?.setGranted(permissions.accessibilityGranted)
+    screenRecordingRow?.setGranted(permissions.screenCaptureGranted)
   }
 }
 
 private enum SettingsPane {
+  case privacy
   case accessibility
   case screenRecording
 
+  init?(section: String) {
+    switch section.lowercased() {
+    case "accessibility":
+      self = .accessibility
+    case "screen_capture", "screencapture", "screen_recording", "screenrecording":
+      self = .screenRecording
+    case "privacy":
+      self = .privacy
+    default:
+      return nil
+    }
+  }
+
+  var responseSection: String {
+    switch self {
+    case .privacy:
+      return "privacy"
+    case .accessibility:
+      return "accessibility"
+    case .screenRecording:
+      return "screenRecording"
+    }
+  }
+
   var url: URL? {
     switch self {
+    case .privacy:
+      return URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy")
     case .accessibility:
       return URL(
         string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility"
@@ -137,6 +163,151 @@ private func openSettingsPane(_ pane: SettingsPane) {
     return
   }
   NSWorkspace.shared.open(url)
+}
+
+private struct PermissionSnapshot {
+  let accessibilityGranted: Bool
+  let screenCaptureGranted: Bool
+  let systemAudioRecordingSupported: Bool
+
+  func toMap() -> [String: Any] {
+    [
+      "accessibilityGranted": accessibilityGranted,
+      "screenCaptureGranted": screenCaptureGranted,
+      "systemAudioRecordingSupported": systemAudioRecordingSupported,
+    ]
+  }
+}
+
+private func computerUsePermissionSnapshot() -> PermissionSnapshot {
+  let screenCaptureGranted: Bool
+  if #available(macOS 10.15, *) {
+    screenCaptureGranted = CGPreflightScreenCaptureAccess()
+  } else {
+    screenCaptureGranted = true
+  }
+
+  let systemAudioRecordingSupported: Bool
+  if #available(macOS 13.0, *) {
+    systemAudioRecordingSupported = true
+  } else {
+    systemAudioRecordingSupported = false
+  }
+
+  return PermissionSnapshot(
+    accessibilityGranted: AXIsProcessTrusted(),
+    screenCaptureGranted: screenCaptureGranted,
+    systemAudioRecordingSupported: systemAudioRecordingSupported
+  )
+}
+
+private final class ComputerUseHelperIpc: NSObject {
+  private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
+  private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  private let center = DistributedNotificationCenter.default()
+
+  func start() {
+    center.addObserver(
+      self,
+      selector: #selector(handleRequest(_:)),
+      name: requestName,
+      object: nil,
+      suspensionBehavior: .deliverImmediately
+    )
+  }
+
+  @objc private func handleRequest(_ notification: Notification) {
+    guard
+      let userInfo = notification.userInfo,
+      let requestId = userInfo["requestId"] as? String,
+      let command = userInfo["command"] as? String
+    else {
+      return
+    }
+
+    let arguments = userInfo["arguments"] as? [String: Any] ?? [:]
+    let response = handle(command: command, arguments: arguments)
+    postResponse(requestId: requestId, response: response)
+  }
+
+  private func handle(command: String, arguments: [String: Any]) -> [String: Any] {
+    switch command {
+    case "ping":
+      return baseResponse(extra: ["message": "pong"])
+    case "permissionStatus":
+      return permissionStatus()
+    case "openSettings":
+      return openSettings(arguments: arguments)
+    case "stopAll":
+      return baseResponse(
+        extra: [
+          "stoppedAudioRecording": false,
+          "cancelledInputEvents": true,
+        ]
+      )
+    default:
+      return [
+        "ok": false,
+        "code": "unknown_command",
+        "error": "Unknown computer-use helper command: \(command)",
+      ]
+    }
+  }
+
+  private func permissionStatus() -> [String: Any] {
+    var response = baseResponse()
+    for (key, value) in computerUsePermissionSnapshot().toMap() {
+      response[key] = value
+    }
+    return response
+  }
+
+  private func openSettings(arguments: [String: Any]) -> [String: Any] {
+    let section = arguments["section"] as? String ?? "privacy"
+    guard let pane = SettingsPane(section: section), let url = pane.url else {
+      return [
+        "ok": false,
+        "code": "invalid_args",
+        "error": "section must be accessibility, screen_recording, or privacy",
+        "details": section,
+      ]
+    }
+
+    let opened = NSWorkspace.shared.open(url)
+    return baseResponse(
+      ok: opened,
+      extra: [
+        "section": pane.responseSection,
+        "url": url.absoluteString,
+      ]
+    )
+  }
+
+  private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
+    var response: [String: Any] = [
+      "ok": ok,
+      "backend": "helper",
+      "protocolVersion": 1,
+      "helperDisplayName": "Caverno Computer Use",
+      "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+    ]
+    for (key, value) in extra {
+      response[key] = value
+    }
+    return response
+  }
+
+  private func postResponse(requestId: String, response: [String: Any]) {
+    center.postNotificationName(
+      responseName,
+      object: nil,
+      userInfo: [
+        "requestId": requestId,
+        "response": response,
+      ],
+      deliverImmediately: true
+    )
+  }
 }
 
 private final class PermissionRowView: NSView {
