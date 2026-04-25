@@ -3,10 +3,11 @@
 ## Status
 
 This document defines the target split between `Caverno.app` and a separate
-`Caverno Computer Use.app` helper. The current implementation still runs the
-native computer-use channel inside `Caverno.app`; the migration should keep the
-public tool contracts stable while moving privileged macOS work behind the
-helper boundary.
+`Caverno Computer Use.app` helper. A minimal helper target exists for onboarding
+and build validation, but the current tool implementation still runs the native
+computer-use channel inside `Caverno.app`. The migration should keep the public
+tool contracts stable while moving privileged macOS work behind the helper
+boundary.
 
 ## Goals
 
