@@ -255,7 +255,7 @@ class RoutineExecutionService {
       guidance.add(
         'Routine workspace directory: ${routine.trimmedWorkspaceDirectory}. '
         'Use this directory for persistent routine state files. Relative paths '
-        'passed to workspace write tools are resolved against this directory.',
+        'passed to workspace file tools are resolved against this directory.',
       );
       guidance.add(
         'When the task needs to compare current results with previous runs, '
@@ -383,15 +383,21 @@ class RoutineExecutionService {
     required Routine routine,
     required ToolCallInfo toolCall,
   }) {
-    if (!RoutineToolPolicy.isWorkspaceWriteToolName(toolCall.name)) {
-      return _ScopedRoutineArguments(arguments: toolCall.arguments);
+    final arguments = _normalizeRoutineToolArguments(
+      toolCall.name,
+      toolCall.arguments,
+    );
+
+    if (!RoutineToolPolicy.isWorkspacePathToolName(toolCall.name)) {
+      return _ScopedRoutineArguments(arguments: arguments);
     }
 
     final workspaceDirectory = routine.trimmedWorkspaceDirectory;
-    final rawPath = (toolCall.arguments['path'] as String?)?.trim() ?? '';
-    if (!routine.hasWorkspaceWriteAccess || rawPath.isEmpty) {
+    final rawPath = (arguments['path'] as String?)?.trim() ?? '';
+    if (RoutineToolPolicy.isWorkspaceWriteToolName(toolCall.name) &&
+        (!routine.hasWorkspaceWriteAccess || rawPath.isEmpty)) {
       return _ScopedRoutineArguments(
-        arguments: toolCall.arguments,
+        arguments: arguments,
         deniedResult: RoutineToolPolicy.buildWorkspaceWriteDeniedResult(
           toolCall,
           workspaceDirectory: workspaceDirectory,
@@ -400,18 +406,25 @@ class RoutineExecutionService {
       );
     }
 
+    if (!routine.hasWorkspaceDirectory) {
+      return _ScopedRoutineArguments(arguments: arguments);
+    }
+
     final workspacePath = _normalizeDirectoryPath(workspaceDirectory);
-    final targetPath = _resolveWorkspacePath(
-      workspacePath: workspacePath,
-      rawPath: rawPath,
-    );
-    if (!_isInsideOrSame(workspacePath, targetPath) ||
-        _existingPathEscapesWorkspace(
-          workspacePath: workspacePath,
-          targetPath: targetPath,
-        )) {
+    final targetPath = rawPath.isEmpty
+        ? (RoutineToolPolicy.isWorkspaceReadToolName(toolCall.name)
+              ? workspacePath
+              : rawPath)
+        : _resolveWorkspacePath(workspacePath: workspacePath, rawPath: rawPath);
+
+    if (RoutineToolPolicy.isWorkspaceWriteToolName(toolCall.name) &&
+        (!_isInsideOrSame(workspacePath, targetPath) ||
+            _existingPathEscapesWorkspace(
+              workspacePath: workspacePath,
+              targetPath: targetPath,
+            ))) {
       return _ScopedRoutineArguments(
-        arguments: toolCall.arguments,
+        arguments: arguments,
         deniedResult: RoutineToolPolicy.buildWorkspaceWriteDeniedResult(
           toolCall,
           workspaceDirectory: workspacePath,
@@ -421,8 +434,27 @@ class RoutineExecutionService {
     }
 
     return _ScopedRoutineArguments(
-      arguments: {...toolCall.arguments, 'path': targetPath},
+      arguments: rawPath.isEmpty && toolCall.name == 'read_file'
+          ? arguments
+          : {...arguments, 'path': targetPath},
     );
+  }
+
+  Map<String, dynamic> _normalizeRoutineToolArguments(
+    String toolName,
+    Map<String, dynamic> arguments,
+  ) {
+    final normalizedArguments = <String, dynamic>{...arguments};
+    if (toolName == 'write_file') {
+      final content = (normalizedArguments['content'] as String?)?.trim();
+      final contents = (normalizedArguments['contents'] as String?)?.trim();
+      if ((content == null || content.isEmpty) &&
+          contents != null &&
+          contents.isNotEmpty) {
+        normalizedArguments['content'] = contents;
+      }
+    }
+    return normalizedArguments;
   }
 
   String _resolveWorkspacePath({

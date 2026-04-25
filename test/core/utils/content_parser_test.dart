@@ -59,6 +59,18 @@ void main() {
     expect(toolCalls.first.arguments['path'], 'pubspec.yaml');
   });
 
+  test('extractCompletedToolCalls parses legacy malformed closing tokens', () {
+    const content =
+        '<|tool_call>call:write_file{path:"lan_devices.json",contents:"[]"}<tool_call|>';
+
+    final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+    expect(toolCalls, hasLength(1));
+    expect(toolCalls.first.name, 'write_file');
+    expect(toolCalls.first.arguments['path'], 'lan_devices.json');
+    expect(toolCalls.first.arguments['contents'], '[]');
+  });
+
   test('extractCompletedToolCalls parses bare tool calls at message end', () {
     const content =
         'Sorry, retrying with the staged file. call:git_execute_command{command:"git status",working_directory:"/tmp/project"}';

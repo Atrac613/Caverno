@@ -57,6 +57,13 @@ class RoutineToolPolicy {
     'edit_file',
   };
 
+  static const Set<String> _workspaceReadToolNames = {
+    'list_directory',
+    'read_file',
+    'find_files',
+    'search_files',
+  };
+
   static bool isAllowedToolName(String toolName) {
     if (_allowedToolNames.contains(toolName)) {
       return true;
@@ -71,6 +78,15 @@ class RoutineToolPolicy {
 
   static bool isWorkspaceWriteToolName(String toolName) {
     return _workspaceWriteToolNames.contains(toolName);
+  }
+
+  static bool isWorkspaceReadToolName(String toolName) {
+    return _workspaceReadToolNames.contains(toolName);
+  }
+
+  static bool isWorkspacePathToolName(String toolName) {
+    return isWorkspaceReadToolName(toolName) ||
+        isWorkspaceWriteToolName(toolName);
   }
 
   static List<Map<String, dynamic>> filterAllowedToolDefinitions(

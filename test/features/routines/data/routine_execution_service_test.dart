@@ -333,6 +333,144 @@ void main() {
       },
     );
 
+    test(
+      'executes embedded final tool calls and normalizes routine workspace writes',
+      () async {
+        const workspaceDirectory = '/tmp/caverno-routine-workspace';
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Scanning the LAN',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-scan',
+                name: 'lan_scan',
+                arguments: const {'ip_version': 'auto'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected LAN scan results',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content:
+                  '<|tool_call>call:write_file{path:"lan_devices.json",contents:"[]"}<tool_call|>',
+              finishReason: 'stop',
+            ),
+            ChatCompletionResult(
+              content: 'Saved the current LAN device list.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('lan_scan', 'Scan the local network'),
+            _toolDefinition('write_file', 'Write a file'),
+          ],
+          resultsByToolName: {
+            'lan_scan': const McpToolResult(
+              toolName: 'lan_scan',
+              result: '{"hosts":[{"ip":"192.168.100.1"}]}',
+              isSuccess: true,
+            ),
+            'write_file': const McpToolResult(
+              toolName: 'write_file',
+              result: '{"bytes_written":2}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            workspaceDirectory: workspaceDirectory,
+            allowWorkspaceWrites: true,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.output, 'Saved the current LAN device list.');
+        expect(record.toolNames, ['lan_scan', 'write_file']);
+        expect(toolService.executedCalls.map((call) => call.name), [
+          'lan_scan',
+          'write_file',
+        ]);
+        expect(
+          toolService.executedCalls.last.arguments['path'],
+          '/tmp/caverno-routine-workspace/lan_devices.json',
+        );
+        expect(toolService.executedCalls.last.arguments['content'], '[]');
+      },
+    );
+
+    test(
+      'resolves relative read paths against the routine workspace',
+      () async {
+        const workspaceDirectory = '/tmp/caverno-routine-workspace';
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Reading previous routine state',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-read',
+                name: 'read_file',
+                arguments: const {'path': 'lan_devices.json'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected file contents',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Compared the previous device list.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [_toolDefinition('read_file', 'Read a file')],
+          resultsByToolName: {
+            'read_file': const McpToolResult(
+              toolName: 'read_file',
+              result: '{"content":"[]"}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            workspaceDirectory: workspaceDirectory,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.toolNames, ['read_file']);
+        expect(
+          toolService.executedCalls.single.arguments['path'],
+          '/tmp/caverno-routine-workspace/lan_devices.json',
+        );
+      },
+    );
+
     test('blocks routine writes outside the configured workspace', () async {
       final dataSource = _FakeChatDataSource(
         initialToolAwareResult: ChatCompletionResult(

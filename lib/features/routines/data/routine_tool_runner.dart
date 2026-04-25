@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/domain/entities/mcp_tool_entity.dart';
@@ -41,7 +42,8 @@ class RoutineToolRunner {
       maxTokens: maxTokens,
     );
 
-    if (!initialResult.hasToolCalls) {
+    final initialToolCalls = _extractToolCalls(initialResult);
+    if (initialToolCalls.isEmpty) {
       return RoutineToolExecutionResult(output: initialResult.content.trim());
     }
 
@@ -50,7 +52,7 @@ class RoutineToolRunner {
     final executedToolResults = <ToolResultInfo>[];
     final executedToolCallKeys = <String>{};
     final toolFailureCounts = <String, int>{};
-    var currentToolCalls = initialResult.toolCalls!;
+    var currentToolCalls = initialToolCalls;
     String? currentAssistantContent = initialResult.content.trim().isEmpty
         ? null
         : initialResult.content;
@@ -59,45 +61,16 @@ class RoutineToolRunner {
 
     while (currentToolCalls.isNotEmpty && iteration < _maxIterations) {
       iteration += 1;
-      final batchToolResults = <ToolResultInfo>[];
-      var abortLoop = false;
+      final batchResult = await _executeToolCallBatch(
+        toolCalls: currentToolCalls,
+        dispatchToolCall: dispatchToolCall,
+        executedToolCallKeys: executedToolCallKeys,
+        toolFailureCounts: toolFailureCounts,
+      );
+      final batchToolResults = batchResult.toolResults;
+      executedToolResults.addAll(batchToolResults);
 
-      for (final toolCall in currentToolCalls) {
-        final toolCallKey = _toolExecutionKey(toolCall);
-        if (executedToolCallKeys.contains(toolCallKey)) {
-          continue;
-        }
-
-        final result = await dispatchToolCall(toolCall);
-        final toolResultText = result.isSuccess
-            ? result.result
-            : (result.result.trim().isNotEmpty
-                  ? result.result
-                  : 'Error: ${result.errorMessage ?? 'Tool execution failed'}');
-
-        final toolResult = ToolResultInfo(
-          id: toolCall.id,
-          name: toolCall.name,
-          arguments: toolCall.arguments,
-          result: toolResultText,
-        );
-        batchToolResults.add(toolResult);
-        executedToolResults.add(toolResult);
-
-        if (result.isSuccess) {
-          executedToolCallKeys.add(toolCallKey);
-          toolFailureCounts.remove(toolCallKey);
-        } else {
-          final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
-          toolFailureCounts[toolCallKey] = failureCount;
-          if (failureCount >= 2) {
-            abortLoop = true;
-            break;
-          }
-        }
-      }
-
-      if (batchToolResults.isEmpty || abortLoop) {
+      if (batchToolResults.isEmpty || batchResult.abortLoop) {
         break;
       }
 
@@ -112,8 +85,9 @@ class RoutineToolRunner {
       );
 
       final nextContent = nextResult.content.trim();
-      if (nextResult.hasToolCalls) {
-        currentToolCalls = nextResult.toolCalls!;
+      final nextToolCalls = _extractToolCalls(nextResult);
+      if (nextToolCalls.isNotEmpty) {
+        currentToolCalls = nextToolCalls;
         currentAssistantContent = nextContent.isEmpty
             ? null
             : nextResult.content;
@@ -131,7 +105,7 @@ class RoutineToolRunner {
       executedToolResults,
       descriptionsByName: descriptionsByName,
     );
-    final finalResult = await _dataSource.createChatCompletion(
+    var finalResult = await _dataSource.createChatCompletion(
       messages: [
         ...messages,
         Message(
@@ -146,13 +120,132 @@ class RoutineToolRunner {
       maxTokens: maxTokens,
     );
 
-    final finalOutput = finalResult.content.trim();
+    var finalOutput = finalResult.content.trim();
+    var finalToolCalls = _extractToolCalls(finalResult);
+    var executedFinalToolCall = false;
+    while (finalToolCalls.isNotEmpty && iteration < _maxIterations) {
+      iteration += 1;
+      final batchResult = await _executeToolCallBatch(
+        toolCalls: finalToolCalls,
+        dispatchToolCall: dispatchToolCall,
+        executedToolCallKeys: executedToolCallKeys,
+        toolFailureCounts: toolFailureCounts,
+      );
+      final batchToolResults = batchResult.toolResults;
+      if (batchToolResults.isEmpty || batchResult.abortLoop) {
+        break;
+      }
+      executedToolResults.addAll(batchToolResults);
+      executedFinalToolCall = true;
+
+      final followUpPrompt = ToolResultPromptBuilder.buildAnswerPrompt(
+        executedToolResults,
+        descriptionsByName: descriptionsByName,
+      );
+      finalResult = await _dataSource.createChatCompletion(
+        messages: [
+          ...messages,
+          Message(
+            id: 'routine_tool_result_${DateTime.now().millisecondsSinceEpoch}',
+            content: followUpPrompt,
+            role: MessageRole.user,
+            timestamp: DateTime.now(),
+          ),
+        ],
+        model: model,
+        temperature: temperature,
+        maxTokens: maxTokens,
+      );
+      finalOutput = finalResult.content.trim();
+      finalToolCalls = _extractToolCalls(finalResult);
+    }
+
     return RoutineToolExecutionResult(
-      output: finalOutput.isNotEmpty
+      output: finalOutput.isNotEmpty && finalToolCalls.isEmpty
           ? finalOutput
-          : (fallbackResponse?.trim() ?? ''),
+          : (fallbackResponse?.trim() ??
+                (executedFinalToolCall ? 'Routine tools completed.' : '')),
       toolResults: List<ToolResultInfo>.unmodifiable(executedToolResults),
     );
+  }
+
+  Future<_RoutineToolBatchResult> _executeToolCallBatch({
+    required List<ToolCallInfo> toolCalls,
+    required Future<McpToolResult> Function(ToolCallInfo toolCall)
+    dispatchToolCall,
+    required Set<String> executedToolCallKeys,
+    required Map<String, int> toolFailureCounts,
+  }) async {
+    final toolResults = <ToolResultInfo>[];
+    var abortLoop = false;
+
+    for (final toolCall in toolCalls) {
+      final toolCallKey = _toolExecutionKey(toolCall);
+      if (executedToolCallKeys.contains(toolCallKey)) {
+        continue;
+      }
+
+      final result = await dispatchToolCall(toolCall);
+      final toolResultText = result.isSuccess
+          ? result.result
+          : (result.result.trim().isNotEmpty
+                ? result.result
+                : 'Error: ${result.errorMessage ?? 'Tool execution failed'}');
+
+      toolResults.add(
+        ToolResultInfo(
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: toolCall.arguments,
+          result: toolResultText,
+        ),
+      );
+
+      if (result.isSuccess) {
+        executedToolCallKeys.add(toolCallKey);
+        toolFailureCounts.remove(toolCallKey);
+      } else {
+        final failureCount = (toolFailureCounts[toolCallKey] ?? 0) + 1;
+        toolFailureCounts[toolCallKey] = failureCount;
+        if (failureCount >= 2) {
+          abortLoop = true;
+          break;
+        }
+      }
+    }
+
+    return _RoutineToolBatchResult(
+      toolResults: toolResults,
+      abortLoop: abortLoop,
+    );
+  }
+
+  List<ToolCallInfo> _extractToolCalls(ChatCompletionResult result) {
+    final calls = <ToolCallInfo>[];
+    final seenKeys = <String>{};
+
+    for (final toolCall in result.toolCalls ?? const <ToolCallInfo>[]) {
+      final key = _toolExecutionKey(toolCall);
+      if (seenKeys.add(key)) {
+        calls.add(toolCall);
+      }
+    }
+
+    for (final toolCall in ContentParser.extractCompletedToolCalls(
+      result.content,
+    )) {
+      final info = ToolCallInfo(
+        id: toolCall.occurrenceId ?? 'embedded_${toolCall.name}',
+        name: toolCall.name,
+        arguments: toolCall.arguments,
+      );
+      final key = _toolExecutionKey(info);
+      if (seenKeys.add(key)) {
+        calls.add(info);
+      }
+    }
+
+    return calls;
   }
 
   String _toolExecutionKey(ToolCallInfo toolCall) {
@@ -164,4 +257,14 @@ class RoutineToolRunner {
       ..sort((left, right) => left.key.compareTo(right.key));
     return jsonEncode(Map<String, dynamic>.fromEntries(sortedEntries));
   }
+}
+
+class _RoutineToolBatchResult {
+  const _RoutineToolBatchResult({
+    required this.toolResults,
+    required this.abortLoop,
+  });
+
+  final List<ToolResultInfo> toolResults;
+  final bool abortLoop;
 }

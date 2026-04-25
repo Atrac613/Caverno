@@ -62,7 +62,7 @@ class ContentParser {
   );
 
   static final _structuralTagPattern = RegExp(
-    r'(?:</?(?:think|thinking|thought|tool_call|tool_use|tool_result)>|<\|/?(?:think|thinking|thought|tool_call|tool_use|tool_result|end_tool_call|end_tool_use)\|?>)',
+    r'(?:</?(?:think|thinking|thought|tool_call|tool_use|tool_result)>|<\|/?(?:think|thinking|thought|tool_call|tool_use|tool_result|end_tool_call|end_tool_use)\|?>|<tool_(?:call|use)\|>)',
   );
 
   // Regex to detect complete tags
@@ -72,12 +72,12 @@ class ContentParser {
   );
 
   static final _toolCallPattern = RegExp(
-    r'(?:<tool_call>|<\|tool_call\|?>)(.*?)(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>)',
+    r'(?:<tool_call>|<\|tool_call\|?>)(.*?)(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>|<tool_call\|>)',
     dotAll: true,
   );
 
   static final _toolUsePattern = RegExp(
-    r'(?:<tool_use>|<\|tool_use\|?>)(.*?)(?:</tool_use>|<\|/tool_use\|?>|<\|end_tool_use\|?>)',
+    r'(?:<tool_use>|<\|tool_use\|?>)(.*?)(?:</tool_use>|<\|/tool_use\|?>|<\|end_tool_use\|?>|<tool_use\|>)',
     dotAll: true,
   );
 
@@ -93,17 +93,17 @@ class ContentParser {
   );
 
   static final _incompleteToolCallStart = RegExp(
-    r'(?:<tool_call>|<\|tool_call\|?>)(?!.*(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>)).*$',
+    r'(?:<tool_call>|<\|tool_call\|?>)(?!.*(?:</tool_call>|<\|/tool_call\|?>|<\|end_tool_call\|?>|<tool_call\|>)).*$',
     dotAll: true,
   );
 
   static final _incompleteToolUseStart = RegExp(
-    r'(?:<tool_use>|<\|tool_use\|?>)(?!.*(?:</tool_use>|<\|/tool_use\|?>|<\|end_tool_use\|?>)).*$',
+    r'(?:<tool_use>|<\|tool_use\|?>)(?!.*(?:</tool_use>|<\|/tool_use\|?>|<tool_use\|>|<\|end_tool_use\|?>)).*$',
     dotAll: true,
   );
 
   static final _controlToolCallUntilEndPattern = RegExp(
-    r'<\|tool_(?:call|use)\|?>(.*?)(?=<\|(?:/?[a-zA-Z_][a-zA-Z0-9_-]*|end_tool_(?:call|use))\|?>|$)',
+    r'<\|tool_(?:call|use)\|?>(.*?)(?=<\|(?:/?[a-zA-Z_][a-zA-Z0-9_-]*|end_tool_(?:call|use))\|?>|<tool_(?:call|use)\|>|$)',
     dotAll: true,
   );
 
@@ -319,21 +319,24 @@ class ContentParser {
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
 
-    final matches =
-        [
-              ..._toolCallPattern.allMatches(content),
-              ..._toolUsePattern.allMatches(content),
-              ..._controlToolCallUntilEndPattern.allMatches(content),
-            ]
-            .map(
-              (match) => _TagMatch(
-                start: match.start,
-                end: match.end,
-                type: ContentType.toolCall,
-                innerContent: match.group(1) ?? '',
-              ),
-            )
-            .toList();
+    final matches = <_TagMatch>[];
+    for (final match in [
+      ..._toolCallPattern.allMatches(content),
+      ..._toolUsePattern.allMatches(content),
+      ..._controlToolCallUntilEndPattern.allMatches(content),
+    ]) {
+      if (_overlapsExistingMatch(match.start, match.end, matches)) {
+        continue;
+      }
+      matches.add(
+        _TagMatch(
+          start: match.start,
+          end: match.end,
+          type: ContentType.toolCall,
+          innerContent: match.group(1) ?? '',
+        ),
+      );
+    }
 
     matches.addAll(_extractBareToolCallMatches(content, matches));
     matches.sort((a, b) => a.start.compareTo(b.start));
