@@ -236,6 +236,12 @@ final class MacosComputerUseHelperClient: NSObject {
       "helperInstalled": FileManager.default.fileExists(atPath: helperURL.path),
       "helperRunning": runningApplication != nil,
       "helperPath": helperURL.path,
+      "protocolVersion": MacosComputerUseHelperRequest.protocolVersion,
+      "ipcTransport": "distributed_notification_center",
+      "preferredIpcTransport": "xpc_service",
+      "requestObject": Bundle.main.bundleIdentifier ?? "",
+      "responseObject": helperBundleIdentifier,
+      "xpcReady": false,
     ]
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
@@ -327,6 +333,9 @@ final class MacosComputerUseHelperClient: NSObject {
           details: [
             "command": pendingRequest.command.rawValue,
             "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+            "ipcTransport": "distributed_notification_center",
+            "preferredIpcTransport": "xpc_service",
+            "xpcReady": false,
           ]
         )
       )

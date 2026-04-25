@@ -887,6 +887,11 @@ private final class ComputerUseHelperIpc: NSObject {
       "protocolVersion": 1,
       "helperDisplayName": "Caverno Computer Use",
       "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+      "ipcTransport": "distributed_notification_center",
+      "preferredIpcTransport": "xpc_service",
+      "requestObject": "com.noguwo.apps.caverno",
+      "responseObject": "com.noguwo.apps.caverno.computer-use",
+      "xpcReady": false,
     ]
     for (key, value) in extra {
       response[key] = value

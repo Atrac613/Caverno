@@ -7,6 +7,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/notification_providers.dart';
+import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/voice_providers.dart';
@@ -7658,6 +7659,10 @@ class ChatNotifier extends Notifier<ChatState> {
       return planningPolicyResult;
     }
 
+    if (MacosComputerUseToolPolicy.requiresUserApproval(toolCall.name)) {
+      return _handleComputerUseAction(toolCall);
+    }
+
     switch (toolCall.name) {
       case 'list_directory':
       case 'read_file':
@@ -7680,14 +7685,6 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleGitExecuteCommand(toolCall);
       case 'ble_connect':
         return _handleBleConnect(toolCall);
-      case 'computer_focus_window':
-      case 'computer_click':
-      case 'computer_drag':
-      case 'computer_scroll':
-      case 'computer_type_text':
-      case 'computer_press_key':
-      case 'computer_start_system_audio_recording':
-        return _handleComputerUseAction(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -7717,6 +7714,16 @@ class ChatNotifier extends Notifier<ChatState> {
       return null;
     }
 
+    if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
+      return MacosComputerUseToolPolicy.isAllowedInPlanning(toolCall.name)
+          ? null
+          : _buildPlanningToolDeniedResult(
+              toolCall,
+              detail:
+                  'Planning mode allows only macOS computer-use observation tools.',
+            );
+    }
+
     switch (toolCall.name) {
       case 'list_directory':
       case 'read_file':
@@ -7742,13 +7749,6 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'os_log_read':
       case 'lan_scan':
       case 'lan_get_scan_results':
-      case 'computer_get_permissions':
-      case 'computer_request_permissions':
-      case 'computer_list_windows':
-      case 'computer_screenshot':
-      case 'computer_screenshot_window':
-      case 'computer_move_mouse':
-      case 'computer_stop_system_audio_recording':
         return null;
       case 'local_execute_command':
         final resolvedArguments = _resolveProjectScopedArguments(
@@ -7794,13 +7794,7 @@ class ChatNotifier extends Notifier<ChatState> {
       return true;
     }
     if (toolName.startsWith('computer_')) {
-      return !{
-        'computer_get_permissions',
-        'computer_request_permissions',
-        'computer_list_windows',
-        'computer_screenshot',
-        'computer_screenshot_window',
-      }.contains(toolName);
+      return !MacosComputerUseToolPolicy.isAllowedInPlanning(toolName);
     }
 
     return switch (toolName) {
@@ -8128,11 +8122,20 @@ class ChatNotifier extends Notifier<ChatState> {
       return cachedResult;
     }
 
+    final policy = MacosComputerUseToolPolicy.decision(toolCall.name);
+    final details = [
+      if (policy != null) ...[
+        'Policy: ${policy.policyLabel}',
+        'Requires post-action observation: ${policy.requiresPostActionObservation}',
+      ],
+      ..._computerUseActionDetails(toolCall),
+    ];
+
     final approved = await requestComputerUseAction(
       toolName: toolCall.name,
       title: _computerUseActionTitle(toolCall.name),
       summary: _describeComputerUseAction(toolCall),
-      details: _computerUseActionDetails(toolCall),
+      details: details,
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
@@ -8194,6 +8197,7 @@ class ChatNotifier extends Notifier<ChatState> {
     return switch (toolName) {
       'computer_click' => 'Approve macOS Click',
       'computer_focus_window' => 'Approve macOS Window Focus',
+      'computer_move_mouse' => 'Approve macOS Pointer Move',
       'computer_drag' => 'Approve macOS Drag',
       'computer_scroll' => 'Approve macOS Scroll',
       'computer_type_text' => 'Approve macOS Text Input',
@@ -8208,6 +8212,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final args = toolCall.arguments;
     return switch (toolCall.name) {
       'computer_focus_window' => 'Focus window ${args['window_id']}',
+      'computer_move_mouse' => 'Move pointer to (${args['x']}, ${args['y']})',
       'computer_click' =>
         'Click ${args['button'] ?? 'left'} at (${args['x']}, ${args['y']})',
       'computer_drag' =>
@@ -8230,6 +8235,14 @@ class ChatNotifier extends Notifier<ChatState> {
     switch (toolCall.name) {
       case 'computer_focus_window':
         details.add('Window ID: ${args['window_id']}');
+      case 'computer_move_mouse':
+        details.addAll([
+          'Coordinates: x=${args['x']}, y=${args['y']}',
+          if (args['window_id'] != null) 'Window ID: ${args['window_id']}',
+          if (args['source_width'] != null && args['source_height'] != null)
+            'Source screenshot: ${args['source_width']} x ${args['source_height']} px',
+          if (args['display_id'] != null) 'Display ID: ${args['display_id']}',
+        ]);
       case 'computer_click':
         details.addAll([
           'Coordinates: x=${args['x']}, y=${args['y']}',

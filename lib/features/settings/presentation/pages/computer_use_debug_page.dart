@@ -28,12 +28,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   bool _inputSmokeCompleted = false;
   bool _audioSmokeCompleted = false;
   bool _audioRecordingArmed = false;
+  bool _manualSmokeRunning = false;
   String? _busyAction;
   String _lastAction = 'No action has run yet.';
   String _lastResult = 'Run a smoke check to see the native response.';
   Object? _lastResultForDiagnostics =
       'Run a smoke check to see the native response.';
   String? _lastDiagnosticExportPath;
+  List<Map<String, dynamic>> _manualSmokeSteps = const [];
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
   List<Map<String, dynamic>> _windows = const [];
@@ -653,6 +655,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               runSpacing: 8,
               children: [
                 _actionButton(
+                  key: const ValueKey('computer-use-run-smoke-sequence'),
+                  icon: Icons.playlist_play_outlined,
+                  label: 'Run Smoke Sequence',
+                  onPressed: _runManualSmokeSequence,
+                ),
+                _actionButton(
                   key: const ValueKey('computer-use-copy-diagnostics'),
                   icon: Icons.copy_outlined,
                   label: 'Copy Diagnostics',
@@ -914,6 +922,233 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     }
   }
 
+  Future<void> _runManualSmokeSequence() async {
+    if (_isBusy) {
+      return;
+    }
+
+    setState(() {
+      _isBusy = true;
+      _manualSmokeRunning = true;
+      _manualSmokeSteps = const [];
+      _busyAction = 'Run smoke sequence';
+      _lastAction = 'Run smoke sequence';
+    });
+
+    final service = ref.read(macosComputerUseServiceProvider);
+    final steps = <Map<String, dynamic>>[];
+
+    void publishSteps() {
+      if (!mounted) {
+        return;
+      }
+      final stepSnapshot = steps
+          .map((step) => Map<String, dynamic>.from(step))
+          .toList(growable: false);
+      setState(() {
+        _manualSmokeSteps = stepSnapshot;
+        _lastResultForDiagnostics = {'manualSmokeSteps': stepSnapshot};
+        _lastResult = const JsonEncoder.withIndent(
+          '  ',
+        ).convert(_lastResultForDiagnostics);
+      });
+    }
+
+    Future<Map<String, dynamic>?> runStep(
+      String id,
+      String label,
+      Future<String> Function(MacosComputerUseService service) invoke, {
+      void Function(Map<String, dynamic> result)? onResult,
+    }) async {
+      try {
+        final raw = await invoke(service);
+        final decoded = _decodeMap(raw);
+        final ok = decoded == null ? false : decoded['ok'] != false;
+        if (decoded != null) {
+          onResult?.call(decoded);
+        }
+        steps.add({
+          'id': id,
+          'label': label,
+          'ok': ok,
+          'skipped': false,
+          'result': decoded == null ? raw : _redactForDisplay(decoded),
+        });
+        publishSteps();
+        return decoded;
+      } catch (error) {
+        steps.add({
+          'id': id,
+          'label': label,
+          'ok': false,
+          'skipped': false,
+          'error': error.toString(),
+        });
+        publishSteps();
+        return null;
+      }
+    }
+
+    void skipStep(String id, String label, String reason) {
+      steps.add({
+        'id': id,
+        'label': label,
+        'ok': true,
+        'skipped': true,
+        'reason': reason,
+      });
+      publishSteps();
+    }
+
+    try {
+      await runStep(
+        'launch_helper',
+        'Launch Caverno Computer Use',
+        (service) => service.launchHelper(),
+        onResult: _storeHelperStatus,
+      );
+      await runStep(
+        'verify_helper_ipc',
+        'Verify helper IPC reachability',
+        (service) => service.pingHelper(),
+        onResult: _storeHelperStatus,
+      );
+      await runStep(
+        'refresh_permissions',
+        'Refresh helper-owned permissions',
+        (service) => service.getPermissions(),
+        onResult: _storePermissions,
+      );
+      await runStep(
+        'capture_display',
+        'Capture a display screenshot',
+        (service) => service.screenshot({'max_width': _maxWidth()}),
+        onResult: (result) {
+          final snapshot = _imageSnapshot(result, 'Display screenshot');
+          if (snapshot != null) {
+            _displayScreenshot = snapshot;
+            _coordinateTarget = _CoordinateTarget.display;
+          }
+        },
+      );
+      await runStep(
+        'list_windows',
+        'List visible windows',
+        (service) => service.listWindows({
+          'include_current_app': true,
+          'max_windows': 80,
+        }),
+        onResult: _storeWindows,
+      );
+
+      final selectedWindowId = _selectedWindowId;
+      if (selectedWindowId == null) {
+        skipStep(
+          'capture_window',
+          'Capture a selected window screenshot',
+          'No selectable window was returned.',
+        );
+      } else {
+        await runStep(
+          'capture_window',
+          'Capture a selected window screenshot',
+          (service) => service.screenshotWindow({
+            'window_id': selectedWindowId,
+            'max_width': _maxWidth(),
+          }),
+          onResult: (result) {
+            final snapshot = _imageSnapshot(result, _windowTitle(result));
+            if (snapshot != null) {
+              _windowScreenshot = snapshot;
+              _coordinateTarget = _CoordinateTarget.window;
+            }
+          },
+        );
+      }
+
+      if (_inputActionsArmed) {
+        final coordinates = _coordinates();
+        if (coordinates == null) {
+          skipStep(
+            'run_input_smoke',
+            'Run an armed input smoke check',
+            'Coordinates were not valid.',
+          );
+        } else {
+          await runStep(
+            'run_input_smoke',
+            'Move pointer at selected coordinates',
+            (service) => service.moveMouse(_coordinateArguments(coordinates)),
+            onResult: (result) {
+              if (result['ok'] == true) {
+                _inputSmokeCompleted = true;
+              }
+              _inputActionsArmed = false;
+            },
+          );
+        }
+      } else {
+        skipStep(
+          'run_input_smoke',
+          'Run an armed input smoke check',
+          'Input events were not armed.',
+        );
+      }
+
+      if (_audioRecordingArmed) {
+        await runStep(
+          'run_audio_smoke',
+          'Start and stop an armed system audio recording',
+          _startAndStopSystemAudioForSmoke,
+          onResult: (result) {
+            if (result['ok'] == true) {
+              _audioSmokeCompleted = true;
+            }
+            _audioRecording = false;
+            _audioRecordingArmed = false;
+          },
+        );
+      } else {
+        skipStep(
+          'run_audio_smoke',
+          'Start and stop an armed system audio recording',
+          'System audio recording was not armed.',
+        );
+      }
+    } finally {
+      if (mounted) {
+        setState(() {
+          _isBusy = false;
+          _manualSmokeRunning = false;
+          _busyAction = null;
+          _lastAction = 'Run smoke sequence';
+        });
+      }
+    }
+  }
+
+  Future<String> _startAndStopSystemAudioForSmoke(
+    MacosComputerUseService service,
+  ) async {
+    final startRaw = await service.startSystemAudioRecording({
+      'exclude_current_process_audio': true,
+    });
+    final start = _decodeMap(startRaw);
+    if (start?['ok'] == true) {
+      _audioRecording = true;
+      await Future<void>.delayed(const Duration(milliseconds: 250));
+      final stopRaw = await service.stopSystemAudioRecording();
+      final stop = _decodeMap(stopRaw);
+      return jsonEncode({
+        'ok': stop?['ok'] == true,
+        'start': start ?? startRaw,
+        'stop': stop ?? stopRaw,
+      });
+    }
+    _audioRecording = false;
+    return jsonEncode({'ok': false, 'start': start ?? startRaw});
+  }
+
   void _disarmInputActions() {
     if (!mounted || !_inputActionsArmed) {
       return;
@@ -1029,6 +1264,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'inputSmokeCompleted': _inputSmokeCompleted,
       'audioSmokeCompleted': _audioSmokeCompleted,
       'audioRecordingArmed': _audioRecordingArmed,
+      'manualSmokeRunning': _manualSmokeRunning,
+      'manualSmokeSteps': _manualSmokeSteps,
       'helperIpcProtocol': _helperIpcProtocol(),
       'migratedCommands': _migratedCommands(),
       'selectedWindowId': _selectedWindowId,
@@ -1046,6 +1283,9 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   List<Map<String, dynamic>> _onboardingSmokeChecklist() {
+    final manualSmokeComplete =
+        _manualSmokeSteps.isNotEmpty &&
+        _manualSmokeSteps.every((step) => step['ok'] == true);
     return [
       {
         'id': 'launch_helper',
@@ -1081,6 +1321,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         'complete': _windowScreenshot != null,
       },
       {
+        'id': 'run_smoke_sequence',
+        'label': 'Run the semi-automated smoke sequence',
+        'complete': manualSmokeComplete,
+      },
+      {
         'id': 'run_input_smoke',
         'label': 'Run an armed input smoke check',
         'complete': _inputSmokeCompleted,
@@ -1099,12 +1344,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Map<String, dynamic> _helperIpcProtocol() {
-    return const {
-      'version': 1,
-      'transport': 'distributed_notification_center',
-      'requestObject': MacosComputerUseBackends.mainAppBundleIdentifier,
-      'responseObject': MacosComputerUseBackends.helperBundleIdentifier,
-    };
+    return MacosComputerUseIpc.current.toJson();
   }
 
   List<Map<String, String>> _migratedCommands() {

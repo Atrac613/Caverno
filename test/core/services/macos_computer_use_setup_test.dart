@@ -20,6 +20,17 @@ void main() {
     expect(backend.usesSeparateHelper, isTrue);
   });
 
+  test('describes the current helper IPC transport', () {
+    final info = MacosComputerUseIpc.current.toJson();
+
+    expect(info['version'], 1);
+    expect(info['transport'], 'distributed_notification_center');
+    expect(info['preferredTransport'], 'xpc_service');
+    expect(info['requestObject'], 'com.noguwo.apps.caverno');
+    expect(info['responseObject'], 'com.noguwo.apps.caverno.computer-use');
+    expect(info['xpcReady'], isFalse);
+  });
+
   test('reports missing permissions before a snapshot is loaded', () {
     const checklist = MacosComputerUseSetupChecklist(
       backend: MacosComputerUseBackends.inProcessCompatibility,

@@ -59,6 +59,48 @@ class MacosComputerUseBackends {
   );
 }
 
+class MacosComputerUseIpcInfo {
+  const MacosComputerUseIpcInfo({
+    required this.version,
+    required this.transport,
+    required this.preferredTransport,
+    required this.requestObject,
+    required this.responseObject,
+    required this.xpcReady,
+  });
+
+  final int version;
+  final String transport;
+  final String preferredTransport;
+  final String requestObject;
+  final String responseObject;
+  final bool xpcReady;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'version': version,
+      'transport': transport,
+      'preferredTransport': preferredTransport,
+      'requestObject': requestObject,
+      'responseObject': responseObject,
+      'xpcReady': xpcReady,
+    };
+  }
+}
+
+class MacosComputerUseIpc {
+  const MacosComputerUseIpc._();
+
+  static const current = MacosComputerUseIpcInfo(
+    version: 1,
+    transport: 'distributed_notification_center',
+    preferredTransport: 'xpc_service',
+    requestObject: MacosComputerUseBackends.mainAppBundleIdentifier,
+    responseObject: MacosComputerUseBackends.helperBundleIdentifier,
+    xpcReady: false,
+  );
+}
+
 class MacosComputerUsePermissionSnapshot {
   const MacosComputerUsePermissionSnapshot({
     required this.helperReachable,

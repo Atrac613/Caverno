@@ -143,6 +143,49 @@ void main() {
     expect(service.lastClickArguments, containsPair('click_count', 1));
   });
 
+  testWidgets('runs smoke sequence without unsafe armed actions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-run-smoke-sequence');
+
+    expect(service.launchHelperCallCount, 1);
+    expect(service.pingHelperCallCount, 2);
+    expect(service.getPermissionsCallCount, 1);
+    expect(service.screenshotCallCount, 1);
+    expect(service.listWindowsCallCount, 1);
+    expect(
+      service.lastWindowScreenshotArguments,
+      containsPair('window_id', 42),
+    );
+    expect(service.lastMoveArguments, isNull);
+    expect(service.startAudioCallCount, 0);
+    expect(service.stopAudioCallCount, 0);
+  });
+
+  testWidgets('runs armed input and audio during smoke sequence', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapSwitch(tester, 'Input Events Armed');
+    await _tapSwitch(tester, 'System Audio Armed');
+    await _tapByKey(
+      tester,
+      'computer-use-run-smoke-sequence',
+      wait: const Duration(milliseconds: 500),
+    );
+
+    expect(service.lastMoveArguments, containsPair('window_id', 42));
+    expect(service.lastMoveArguments, containsPair('source_width', 1));
+    expect(service.lastMoveArguments, containsPair('source_height', 1));
+    expect(service.startAudioCallCount, 1);
+    expect(service.stopAudioCallCount, 1);
+  });
+
   testWidgets('copies and exports redacted diagnostics', (tester) async {
     final service = _FakeMacosComputerUseService();
     final platformCalls = <MethodCall>[];
@@ -174,9 +217,13 @@ void main() {
     expect(text, contains('"setupChecklist"'));
     expect(text, contains('"onboardingSmokeChecklist"'));
     expect(text, contains('"id": "capture_display"'));
+    expect(text, contains('"id": "run_smoke_sequence"'));
     expect(text, contains('"id": "run_input_smoke"'));
     expect(text, contains('"id": "run_audio_smoke"'));
+    expect(text, contains('"manualSmokeSteps"'));
     expect(text, contains('"helperIpcProtocol"'));
+    expect(text, contains('"preferredTransport": "xpc_service"'));
+    expect(text, contains('"xpcReady": false'));
     expect(text, contains('"migratedCommands"'));
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
@@ -220,7 +267,11 @@ Future<void> _tapButton(WidgetTester tester, String label) async {
   await tester.pumpAndSettle();
 }
 
-Future<void> _tapByKey(WidgetTester tester, String key) async {
+Future<void> _tapByKey(
+  WidgetTester tester,
+  String key, {
+  Duration wait = const Duration(milliseconds: 100),
+}) async {
   final finder = find.byKey(ValueKey(key));
   await _scrollUntilVisible(tester, finder);
   final widget = tester.widget(finder);
@@ -228,7 +279,7 @@ Future<void> _tapByKey(WidgetTester tester, String key) async {
     expect(widget.onPressed, isNotNull);
     await tester.runAsync(() async {
       widget.onPressed!();
-      await Future<void>.delayed(const Duration(milliseconds: 100));
+      await Future<void>.delayed(wait);
     });
     await tester.pumpAndSettle();
     return;
@@ -271,6 +322,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
+  int screenshotCallCount = 0;
+  int listWindowsCallCount = 0;
   int startAudioCallCount = 0;
   int stopAudioCallCount = 0;
   final List<String> openedSettingsSections = [];
@@ -345,11 +398,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 
   @override
   Future<String> screenshot(Map<String, dynamic> arguments) async {
+    screenshotCallCount += 1;
     return _imageResult(title: 'Display');
   }
 
   @override
   Future<String> listWindows(Map<String, dynamic> arguments) async {
+    listWindowsCallCount += 1;
     return _json({
       'windows': [
         {

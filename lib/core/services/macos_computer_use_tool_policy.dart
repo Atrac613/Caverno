@@ -1,0 +1,148 @@
+enum MacosComputerUseToolCategory {
+  setup,
+  observation,
+  windowFocus,
+  pointerInput,
+  keyboardInput,
+  audio,
+}
+
+class MacosComputerUseToolPolicyDecision {
+  const MacosComputerUseToolPolicyDecision({
+    required this.toolName,
+    required this.category,
+    required this.requiresUserApproval,
+    required this.allowedInPlanning,
+    required this.requiresPostActionObservation,
+    required this.policyLabel,
+  });
+
+  final String toolName;
+  final MacosComputerUseToolCategory category;
+  final bool requiresUserApproval;
+  final bool allowedInPlanning;
+  final bool requiresPostActionObservation;
+  final String policyLabel;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'toolName': toolName,
+      'category': category.name,
+      'requiresUserApproval': requiresUserApproval,
+      'allowedInPlanning': allowedInPlanning,
+      'requiresPostActionObservation': requiresPostActionObservation,
+      'policyLabel': policyLabel,
+    };
+  }
+}
+
+class MacosComputerUseToolPolicy {
+  const MacosComputerUseToolPolicy._();
+
+  static const allToolNames = {
+    'computer_get_permissions',
+    'computer_request_permissions',
+    'computer_open_system_settings',
+    'computer_list_windows',
+    'computer_focus_window',
+    'computer_screenshot',
+    'computer_screenshot_window',
+    'computer_move_mouse',
+    'computer_click',
+    'computer_drag',
+    'computer_scroll',
+    'computer_type_text',
+    'computer_press_key',
+    'computer_start_system_audio_recording',
+    'computer_stop_system_audio_recording',
+  };
+
+  static const planningAllowedToolNames = {
+    'computer_get_permissions',
+    'computer_list_windows',
+    'computer_screenshot',
+    'computer_screenshot_window',
+  };
+
+  static const approvalRequiredToolNames = {
+    'computer_focus_window',
+    'computer_move_mouse',
+    'computer_click',
+    'computer_drag',
+    'computer_scroll',
+    'computer_type_text',
+    'computer_press_key',
+    'computer_start_system_audio_recording',
+  };
+
+  static bool isComputerUseTool(String toolName) {
+    return allToolNames.contains(toolName);
+  }
+
+  static bool isAllowedInPlanning(String toolName) {
+    return planningAllowedToolNames.contains(toolName);
+  }
+
+  static bool requiresUserApproval(String toolName) {
+    return approvalRequiredToolNames.contains(toolName);
+  }
+
+  static MacosComputerUseToolPolicyDecision? decision(String toolName) {
+    if (!isComputerUseTool(toolName)) {
+      return null;
+    }
+
+    final category = switch (toolName) {
+      'computer_get_permissions' ||
+      'computer_request_permissions' ||
+      'computer_open_system_settings' => MacosComputerUseToolCategory.setup,
+      'computer_list_windows' ||
+      'computer_screenshot' ||
+      'computer_screenshot_window' => MacosComputerUseToolCategory.observation,
+      'computer_focus_window' => MacosComputerUseToolCategory.windowFocus,
+      'computer_move_mouse' ||
+      'computer_click' ||
+      'computer_drag' ||
+      'computer_scroll' => MacosComputerUseToolCategory.pointerInput,
+      'computer_type_text' ||
+      'computer_press_key' => MacosComputerUseToolCategory.keyboardInput,
+      'computer_start_system_audio_recording' ||
+      'computer_stop_system_audio_recording' =>
+        MacosComputerUseToolCategory.audio,
+      _ => MacosComputerUseToolCategory.setup,
+    };
+
+    return MacosComputerUseToolPolicyDecision(
+      toolName: toolName,
+      category: category,
+      requiresUserApproval: requiresUserApproval(toolName),
+      allowedInPlanning: isAllowedInPlanning(toolName),
+      requiresPostActionObservation: switch (toolName) {
+        'computer_focus_window' ||
+        'computer_move_mouse' ||
+        'computer_click' ||
+        'computer_drag' ||
+        'computer_scroll' ||
+        'computer_type_text' ||
+        'computer_press_key' ||
+        'computer_start_system_audio_recording' ||
+        'computer_stop_system_audio_recording' => true,
+        _ => false,
+      },
+      policyLabel: switch (category) {
+        MacosComputerUseToolCategory.setup => 'setup',
+        MacosComputerUseToolCategory.observation => 'observation',
+        MacosComputerUseToolCategory.windowFocus => 'window_focus',
+        MacosComputerUseToolCategory.pointerInput => 'pointer_input',
+        MacosComputerUseToolCategory.keyboardInput => 'keyboard_input',
+        MacosComputerUseToolCategory.audio => 'system_audio',
+      },
+    );
+  }
+
+  static List<Map<String, dynamic>> coverage() {
+    return allToolNames
+        .map((toolName) => decision(toolName)!.toJson())
+        .toList(growable: false);
+  }
+}
