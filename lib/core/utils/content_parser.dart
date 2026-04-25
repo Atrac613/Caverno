@@ -361,7 +361,7 @@ class ContentParser {
 
   /// Parse tool_call content
   static ToolCallData? _parseToolCallContent(String content) {
-    final trimmed = content.trim();
+    final trimmed = _sanitizeModelControlTokens(content).trim();
     if (trimmed.isEmpty) return null;
 
     try {
@@ -482,9 +482,13 @@ class ContentParser {
   }
 
   static String _sanitizeDisplayText(String text) {
-    return text
-        .replaceAll(_modelControlTokenPattern, '')
-        .replaceAll(_structuralTagPattern, '');
+    return _sanitizeModelControlTokens(
+      text,
+    ).replaceAll(_structuralTagPattern, '');
+  }
+
+  static String _sanitizeModelControlTokens(String text) {
+    return text.replaceAll(_modelControlTokenPattern, '');
   }
 
   static Map<String, dynamic> sanitizeToolArguments(Map<String, dynamic> args) {

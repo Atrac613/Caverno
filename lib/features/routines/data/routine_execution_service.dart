@@ -446,15 +446,36 @@ class RoutineExecutionService {
   ) {
     final normalizedArguments = <String, dynamic>{...arguments};
     if (toolName == 'write_file') {
-      final content = (normalizedArguments['content'] as String?)?.trim();
-      final contents = (normalizedArguments['contents'] as String?)?.trim();
-      if ((content == null || content.isEmpty) &&
-          contents != null &&
-          contents.isNotEmpty) {
-        normalizedArguments['content'] = contents;
+      final content = normalizedArguments['content'];
+      if (content != null && content is! String) {
+        normalizedArguments['content'] = _stringifyWriteFileContent(content);
+      }
+
+      final normalizedContent = (normalizedArguments['content'] as String?)
+          ?.trim();
+      final contents = normalizedArguments['contents'];
+      if ((normalizedContent == null || normalizedContent.isEmpty) &&
+          contents != null) {
+        final normalizedContents = _stringifyWriteFileContent(contents);
+        if (normalizedContents.trim().isNotEmpty) {
+          normalizedArguments['content'] = normalizedContents;
+        }
       }
     }
     return normalizedArguments;
+  }
+
+  String _stringifyWriteFileContent(Object? value) {
+    if (value == null) {
+      return '';
+    }
+    if (value is String) {
+      return value;
+    }
+    if (value is List || value is Map) {
+      return const JsonEncoder.withIndent('  ').convert(value);
+    }
+    return value.toString();
   }
 
   String _resolveWorkspacePath({

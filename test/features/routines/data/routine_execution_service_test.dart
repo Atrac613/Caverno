@@ -355,8 +355,12 @@ void main() {
           ),
           plainResults: [
             ChatCompletionResult(
-              content:
-                  '<|tool_call>call:write_file{path:"lan_devices.json",contents:"[]"}<tool_call|>',
+              content: '''
+<|tool_call>call:write_file{contents:<|"|>[
+  "192.168.100.1",
+  "192.168.100.8"
+]
+<|"|>,path:<|"|>lan_devices.json<|"|>}<tool_call|>''',
               finishReason: 'stop',
             ),
             ChatCompletionResult(
@@ -408,7 +412,10 @@ void main() {
           toolService.executedCalls.last.arguments['path'],
           '/tmp/caverno-routine-workspace/lan_devices.json',
         );
-        expect(toolService.executedCalls.last.arguments['content'], '[]');
+        expect(
+          toolService.executedCalls.last.arguments['content'],
+          '[\n  "192.168.100.1",\n  "192.168.100.8"\n]',
+        );
       },
     );
 
