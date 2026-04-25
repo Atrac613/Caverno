@@ -1,6 +1,9 @@
 import AppKit
 import ApplicationServices
+import AVFoundation
 import CoreGraphics
+import CoreMedia
+import ScreenCaptureKit
 
 @main
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
@@ -187,18 +190,18 @@ private func computerUsePermissionSnapshot() -> PermissionSnapshot {
     screenCaptureGranted = true
   }
 
-  let systemAudioRecordingSupported: Bool
-  if #available(macOS 13.0, *) {
-    systemAudioRecordingSupported = true
-  } else {
-    systemAudioRecordingSupported = false
-  }
-
   return PermissionSnapshot(
     accessibilityGranted: AXIsProcessTrusted(),
     screenCaptureGranted: screenCaptureGranted,
-    systemAudioRecordingSupported: systemAudioRecordingSupported
+    systemAudioRecordingSupported: systemAudioRecordingSupported()
   )
+}
+
+private func systemAudioRecordingSupported() -> Bool {
+  if #available(macOS 13.0, *) {
+    return true
+  }
+  return false
 }
 
 private enum ComputerUseHelperCommand: String {
@@ -216,6 +219,8 @@ private enum ComputerUseHelperCommand: String {
   case scroll
   case typeText
   case pressKey
+  case startSystemAudioRecording
+  case stopSystemAudioRecording
 }
 
 private struct ComputerUseHelperRequest {
@@ -270,6 +275,7 @@ private final class ComputerUseHelperIpc: NSObject {
   private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   private let center = DistributedNotificationCenter.default()
+  private var audioRecorder: Any?
 
   func start() {
     center.addObserver(
@@ -330,45 +336,52 @@ private final class ComputerUseHelperIpc: NSObject {
       return
     }
 
-    let response = handle(request: request)
-    postResponse(requestId: requestId, command: request.command, response: response)
+    handle(request: request) { [weak self] response in
+      self?.postResponse(
+        requestId: requestId,
+        command: request.command,
+        response: response
+      )
+    }
   }
 
-  private func handle(request: ComputerUseHelperRequest) -> [String: Any] {
+  private func handle(
+    request: ComputerUseHelperRequest,
+    completion: @escaping ([String: Any]) -> Void
+  ) {
     switch request.command {
     case .ping:
-      return baseResponse(extra: ["message": "pong"])
+      completion(baseResponse(extra: ["message": "pong"]))
     case .permissionStatus:
-      return permissionStatus()
+      completion(permissionStatus())
     case .openSettings:
-      return openSettings(arguments: request.arguments)
+      completion(openSettings(arguments: request.arguments))
     case .stopAll:
-      return baseResponse(
-        extra: [
-          "stoppedAudioRecording": false,
-          "cancelledInputEvents": true,
-        ]
-      )
+      stopAll(completion: completion)
     case .screenshot:
-      return screenshot(arguments: request.arguments)
+      completion(screenshot(arguments: request.arguments))
     case .listWindows:
-      return listWindows(arguments: request.arguments)
+      completion(listWindows(arguments: request.arguments))
     case .focusWindow:
-      return focusWindow(arguments: request.arguments)
+      completion(focusWindow(arguments: request.arguments))
     case .screenshotWindow:
-      return screenshotWindow(arguments: request.arguments)
+      completion(screenshotWindow(arguments: request.arguments))
     case .moveMouse:
-      return moveMouse(arguments: request.arguments)
+      completion(moveMouse(arguments: request.arguments))
     case .click:
-      return click(arguments: request.arguments)
+      completion(click(arguments: request.arguments))
     case .drag:
-      return drag(arguments: request.arguments)
+      completion(drag(arguments: request.arguments))
     case .scroll:
-      return scroll(arguments: request.arguments)
+      completion(scroll(arguments: request.arguments))
     case .typeText:
-      return typeText(arguments: request.arguments)
+      completion(typeText(arguments: request.arguments))
     case .pressKey:
-      return pressKey(arguments: request.arguments)
+      completion(pressKey(arguments: request.arguments))
+    case .startSystemAudioRecording:
+      startSystemAudioRecording(arguments: request.arguments, completion: completion)
+    case .stopSystemAudioRecording:
+      stopSystemAudioRecording(completion: completion)
     }
   }
 
@@ -398,6 +411,27 @@ private final class ComputerUseHelperIpc: NSObject {
         "url": url.absoluteString,
       ]
     )
+  }
+
+  private func stopAll(completion: @escaping ([String: Any]) -> Void) {
+    guard audioRecorder != nil else {
+      completion(
+        baseResponse(
+          extra: [
+            "stoppedAudioRecording": false,
+            "cancelledInputEvents": true,
+          ]
+        )
+      )
+      return
+    }
+
+    stopSystemAudioRecording { response in
+      var merged = response
+      merged["stoppedAudioRecording"] = response["ok"] as? Bool == true
+      merged["cancelledInputEvents"] = true
+      completion(merged)
+    }
   }
 
   private func screenshot(arguments: [String: Any]) -> [String: Any] {
@@ -757,6 +791,93 @@ private final class ComputerUseHelperIpc: NSObject {
         "modifiers": arguments["modifiers"] as? [String] ?? [],
       ]
     )
+  }
+
+  private func startSystemAudioRecording(
+    arguments: [String: Any],
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    guard systemAudioRecordingSupported() else {
+      completion(
+        errorResponse(
+          code: "unsupported",
+          error: "System audio recording requires macOS 13 or later."
+        )
+      )
+      return
+    }
+    guard audioRecorder == nil else {
+      completion(
+        errorResponse(
+          code: "already_recording",
+          error: "System audio recording is already active."
+        )
+      )
+      return
+    }
+
+    let outputPath = arguments["output_path"] as? String
+      ?? arguments["outputPath"] as? String
+    let excludeCurrentProcessAudio =
+      boolValue(
+        arguments["exclude_current_process_audio"]
+          ?? arguments["excludeCurrentProcessAudio"]
+      ) ?? true
+
+    if #available(macOS 13.0, *) {
+      let recorder = SystemAudioRecorder()
+      audioRecorder = recorder
+      recorder.start(
+        outputPath: outputPath,
+        excludeCurrentProcessAudio: excludeCurrentProcessAudio
+      ) { [weak self] response in
+        if response["ok"] as? Bool != true {
+          self?.audioRecorder = nil
+        }
+        completion(self?.audioResponse(response) ?? response)
+      }
+    }
+  }
+
+  private func stopSystemAudioRecording(
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    guard let recorder = audioRecorder else {
+      completion(
+        errorResponse(
+          code: "not_recording",
+          error: "System audio recording is not active."
+        )
+      )
+      return
+    }
+
+    if #available(macOS 13.0, *), let typedRecorder = recorder as? SystemAudioRecorder {
+      typedRecorder.stop { [weak self] response in
+        guard let self else {
+          completion(response)
+          return
+        }
+        self.audioRecorder = nil
+        completion(self.audioResponse(response))
+      }
+    } else {
+      audioRecorder = nil
+      completion(
+        errorResponse(
+          code: "unsupported",
+          error: "System audio recording requires macOS 13 or later."
+        )
+      )
+    }
+  }
+
+  private func audioResponse(_ response: [String: Any]) -> [String: Any] {
+    var merged = baseResponse(ok: response["ok"] as? Bool ?? false)
+    for (key, value) in response {
+      merged[key] = value
+    }
+    return merged
   }
 
   private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
@@ -1199,6 +1320,174 @@ private let keyCodes: [String: CGKeyCode] = [
   "page_down": 121, "f1": 122, "left": 123, "right": 124, "down": 125,
   "up": 126,
 ]
+
+@available(macOS 13.0, *)
+private final class SystemAudioRecorder: NSObject, SCStreamOutput {
+  private var stream: SCStream?
+  private var audioFile: AVAudioFile?
+  private var outputURL: URL?
+  private var startedAt: Date?
+  private let queue = DispatchQueue(label: "com.caverno.computer-use.system-audio-recorder")
+
+  func start(
+    outputPath: String?,
+    excludeCurrentProcessAudio: Bool,
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    let url = outputPath.map(URL.init(fileURLWithPath:)) ?? defaultOutputURL()
+    outputURL = url
+    startedAt = Date()
+
+    SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { [weak self] content, error in
+      guard let self else { return }
+      if let error {
+        completion([
+          "ok": false,
+          "code": "screen_capture_unavailable",
+          "error": error.localizedDescription,
+        ])
+        return
+      }
+      guard let display = content?.displays.first else {
+        completion([
+          "ok": false,
+          "code": "display_not_found",
+          "error": "No display is available",
+        ])
+        return
+      }
+
+      let filter = SCContentFilter(display: display, excludingWindows: [])
+      let configuration = SCStreamConfiguration()
+      configuration.width = 2
+      configuration.height = 2
+      configuration.minimumFrameInterval = CMTime(value: 1, timescale: 2)
+      configuration.queueDepth = 3
+      configuration.capturesAudio = true
+      configuration.excludesCurrentProcessAudio = excludeCurrentProcessAudio
+      configuration.sampleRate = 48_000
+      configuration.channelCount = 2
+
+      let stream = SCStream(filter: filter, configuration: configuration, delegate: nil)
+      do {
+        try stream.addStreamOutput(self, type: .audio, sampleHandlerQueue: self.queue)
+      } catch {
+        completion([
+          "ok": false,
+          "code": "audio_output_failed",
+          "error": error.localizedDescription,
+        ])
+        return
+      }
+
+      self.stream = stream
+      stream.startCapture { error in
+        if let error {
+          completion([
+            "ok": false,
+            "code": "recording_start_failed",
+            "error": error.localizedDescription,
+          ])
+          return
+        }
+        completion([
+          "ok": true,
+          "path": url.path,
+          "format": "caf",
+          "excludeCurrentProcessAudio": excludeCurrentProcessAudio,
+        ])
+      }
+    }
+  }
+
+  func stop(completion: @escaping ([String: Any]) -> Void) {
+    guard let stream else {
+      completion([
+        "ok": false,
+        "code": "not_recording",
+        "error": "System audio recording is not active",
+      ])
+      return
+    }
+
+    stream.stopCapture { [weak self] error in
+      guard let self else { return }
+      let url = self.outputURL
+      let startedAt = self.startedAt
+      self.stream = nil
+      self.audioFile = nil
+      self.outputURL = nil
+      self.startedAt = nil
+
+      if let error {
+        completion([
+          "ok": false,
+          "code": "recording_stop_failed",
+          "error": error.localizedDescription,
+        ])
+        return
+      }
+
+      var response: [String: Any] = ["ok": true]
+      if let url {
+        response["path"] = url.path
+        if let attributes = try? FileManager.default.attributesOfItem(atPath: url.path),
+           let size = attributes[.size] as? NSNumber {
+          response["bytes"] = size.intValue
+        }
+      }
+      if let startedAt {
+        response["durationMs"] = Int(Date().timeIntervalSince(startedAt) * 1000)
+      }
+      completion(response)
+    }
+  }
+
+  func stream(
+    _ stream: SCStream,
+    didOutputSampleBuffer sampleBuffer: CMSampleBuffer,
+    of outputType: SCStreamOutputType
+  ) {
+    guard outputType == .audio, sampleBuffer.isValid else {
+      return
+    }
+
+    try? sampleBuffer.withAudioBufferList { audioBufferList, _ in
+      guard
+        let description = sampleBuffer.formatDescription?.audioStreamBasicDescription,
+        let format = AVAudioFormat(
+          standardFormatWithSampleRate: description.mSampleRate,
+          channels: description.mChannelsPerFrame
+        ),
+        let buffer = AVAudioPCMBuffer(
+          pcmFormat: format,
+          bufferListNoCopy: audioBufferList.unsafePointer
+        )
+      else {
+        return
+      }
+
+      if audioFile == nil, let outputURL {
+        try? FileManager.default.createDirectory(
+          at: outputURL.deletingLastPathComponent(),
+          withIntermediateDirectories: true
+        )
+        audioFile = try? AVAudioFile(forWriting: outputURL, settings: format.settings)
+      }
+
+      try? audioFile?.write(from: buffer)
+    }
+  }
+
+  private func defaultOutputURL() -> URL {
+    let directory = FileManager.default.temporaryDirectory
+      .appendingPathComponent("CavernoComputerUse", isDirectory: true)
+    let formatter = ISO8601DateFormatter()
+    let fileName = "system-audio-\(formatter.string(from: Date())).caf"
+      .replacingOccurrences(of: ":", with: "-")
+    return directory.appendingPathComponent(fileName)
+  }
+}
 
 private final class PermissionRowView: NSView {
   private let statusLabel = NSTextField(labelWithString: "Unknown")

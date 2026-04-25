@@ -26,6 +26,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   bool _audioRecording = false;
   bool _inputActionsArmed = false;
   bool _inputSmokeCompleted = false;
+  bool _audioSmokeCompleted = false;
   bool _audioRecordingArmed = false;
   String? _busyAction;
   String _lastAction = 'No action has run yet.';
@@ -616,8 +617,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                           'Stop system audio recording',
                           (service) => service.stopSystemAudioRecording(),
                           onResult: (result) {
-                            if (result['ok'] == true ||
-                                result['code'] == 'not_recording') {
+                            if (result['ok'] == true) {
+                              _audioSmokeCompleted = true;
+                              _audioRecording = false;
+                            } else if (result['code'] == 'not_recording') {
                               _audioRecording = false;
                             }
                           },
@@ -1024,7 +1027,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'audioRecording': _audioRecording,
       'inputActionsArmed': _inputActionsArmed,
       'inputSmokeCompleted': _inputSmokeCompleted,
+      'audioSmokeCompleted': _audioSmokeCompleted,
       'audioRecordingArmed': _audioRecordingArmed,
+      'helperIpcProtocol': _helperIpcProtocol(),
+      'migratedCommands': _migratedCommands(),
       'selectedWindowId': _selectedWindowId,
       'selectedWindow': _selectedWindow(),
       'windowCount': _windows.length,
@@ -1080,10 +1086,45 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         'complete': _inputSmokeCompleted,
       },
       {
+        'id': 'run_audio_smoke',
+        'label': 'Start and stop an armed system audio recording',
+        'complete': _audioSmokeCompleted,
+      },
+      {
         'id': 'export_diagnostics',
         'label': 'Export redacted diagnostics',
         'complete': _lastDiagnosticExportPath != null,
       },
+    ];
+  }
+
+  Map<String, dynamic> _helperIpcProtocol() {
+    return const {
+      'version': 1,
+      'transport': 'distributed_notification_center',
+      'requestObject': MacosComputerUseBackends.mainAppBundleIdentifier,
+      'responseObject': MacosComputerUseBackends.helperBundleIdentifier,
+    };
+  }
+
+  List<Map<String, String>> _migratedCommands() {
+    return const [
+      {'command': 'ping', 'owner': 'helper'},
+      {'command': 'permissionStatus', 'owner': 'helper'},
+      {'command': 'openSettings', 'owner': 'helper'},
+      {'command': 'stopAll', 'owner': 'helper'},
+      {'command': 'screenshot', 'owner': 'helper'},
+      {'command': 'listWindows', 'owner': 'helper'},
+      {'command': 'focusWindow', 'owner': 'helper'},
+      {'command': 'screenshotWindow', 'owner': 'helper'},
+      {'command': 'moveMouse', 'owner': 'helper'},
+      {'command': 'click', 'owner': 'helper'},
+      {'command': 'drag', 'owner': 'helper'},
+      {'command': 'scroll', 'owner': 'helper'},
+      {'command': 'typeText', 'owner': 'helper'},
+      {'command': 'pressKey', 'owner': 'helper'},
+      {'command': 'startSystemAudioRecording', 'owner': 'helper'},
+      {'command': 'stopSystemAudioRecording', 'owner': 'helper'},
     ];
   }
 

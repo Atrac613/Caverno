@@ -175,6 +175,10 @@ void main() {
     expect(text, contains('"onboardingSmokeChecklist"'));
     expect(text, contains('"id": "capture_display"'));
     expect(text, contains('"id": "run_input_smoke"'));
+    expect(text, contains('"id": "run_audio_smoke"'));
+    expect(text, contains('"helperIpcProtocol"'));
+    expect(text, contains('"migratedCommands"'));
+    expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
