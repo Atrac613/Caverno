@@ -511,18 +511,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   label: 'Start Recording',
                   onPressed: _audioRecording || !_audioRecordingArmed
                       ? null
-                      : () => _run(
-                          'Start system audio recording',
-                          (service) => service.startSystemAudioRecording({
-                            'exclude_current_process_audio': true,
-                          }),
-                          onResult: (result) {
-                            if (result['ok'] == true) {
-                              _audioRecording = true;
-                              _audioRecordingArmed = false;
-                            }
-                          },
-                        ),
+                      : _startAudioRecording,
                 ),
                 _actionButton(
                   icon: Icons.stop_circle_outlined,
@@ -673,6 +662,24 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     }
     await _run('Type text', (service) => service.typeText({'text': text}));
     _disarmInputActions();
+  }
+
+  Future<void> _startAudioRecording() async {
+    await _run(
+      'Start system audio recording',
+      (service) => service.startSystemAudioRecording({
+        'exclude_current_process_audio': true,
+      }),
+      onResult: (result) {
+        if (result['ok'] == true) {
+          _audioRecording = true;
+        }
+        _audioRecordingArmed = false;
+      },
+    );
+    if (mounted && _audioRecordingArmed) {
+      setState(() => _audioRecordingArmed = false);
+    }
   }
 
   void _disarmInputActions() {
