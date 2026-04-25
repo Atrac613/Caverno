@@ -25,6 +25,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   bool _isBusy = false;
   bool _audioRecording = false;
   bool _inputActionsArmed = false;
+  bool _inputSmokeCompleted = false;
   bool _audioRecordingArmed = false;
   String? _busyAction;
   String _lastAction = 'No action has run yet.';
@@ -836,6 +837,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     await _run(
       'Move pointer',
       (service) => service.moveMouse(_coordinateArguments(coordinates)),
+      onResult: (result) {
+        if (result['ok'] == true) {
+          _inputSmokeCompleted = true;
+        }
+      },
     );
     _disarmInputActions();
   }
@@ -847,7 +853,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     }
     final arguments = _coordinateArguments(coordinates)
       ..addAll({'button': 'left', 'click_count': 1});
-    await _run('Click point', (service) => service.click(arguments));
+    await _run(
+      'Click point',
+      (service) => service.click(arguments),
+      onResult: (result) {
+        if (result['ok'] == true) {
+          _inputSmokeCompleted = true;
+        }
+      },
+    );
     _disarmInputActions();
   }
 
@@ -867,7 +881,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       );
       return;
     }
-    await _run('Type text', (service) => service.typeText({'text': text}));
+    await _run(
+      'Type text',
+      (service) => service.typeText({'text': text}),
+      onResult: (result) {
+        if (result['ok'] == true) {
+          _inputSmokeCompleted = true;
+        }
+      },
+    );
     _disarmInputActions();
   }
 
@@ -1001,6 +1023,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'permissions': _permissions,
       'audioRecording': _audioRecording,
       'inputActionsArmed': _inputActionsArmed,
+      'inputSmokeCompleted': _inputSmokeCompleted,
       'audioRecordingArmed': _audioRecordingArmed,
       'selectedWindowId': _selectedWindowId,
       'selectedWindow': _selectedWindow(),
@@ -1050,6 +1073,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         'id': 'capture_window',
         'label': 'Capture a selected window screenshot',
         'complete': _windowScreenshot != null,
+      },
+      {
+        'id': 'run_input_smoke',
+        'label': 'Run an armed input smoke check',
+        'complete': _inputSmokeCompleted,
       },
       {
         'id': 'export_diagnostics',

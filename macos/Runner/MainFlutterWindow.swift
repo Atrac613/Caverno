@@ -170,6 +170,12 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   case listWindows
   case focusWindow
   case screenshotWindow
+  case moveMouse
+  case click
+  case drag
+  case scroll
+  case typeText
+  case pressKey
 }
 
 fileprivate struct MacosComputerUseHelperRequest {
@@ -184,6 +190,8 @@ fileprivate struct MacosComputerUseHelperRequest {
       "protocolVersion": Self.protocolVersion,
       "requestId": requestId,
       "command": command.rawValue,
+      "senderBundleIdentifier": Bundle.main.bundleIdentifier ?? "",
+      "senderProcessIdentifier": Int(ProcessInfo.processInfo.processIdentifier),
       "arguments": arguments,
     ]
   }
@@ -208,7 +216,7 @@ final class MacosComputerUseHelperClient: NSObject {
       self,
       selector: #selector(handleResponse(_:)),
       name: responseName,
-      object: nil,
+      object: helperBundleIdentifier,
       suspensionBehavior: .deliverImmediately
     )
   }
@@ -304,7 +312,7 @@ final class MacosComputerUseHelperClient: NSObject {
     )
     center.postNotificationName(
       requestName,
-      object: nil,
+      object: Bundle.main.bundleIdentifier,
       userInfo: request.userInfo,
       deliverImmediately: true
     )
@@ -344,6 +352,21 @@ final class MacosComputerUseHelperClient: NSObject {
           details: [
             "protocolVersion": protocolVersion,
             "command": pendingRequest.command.rawValue,
+          ]
+        )
+      )
+      return
+    }
+
+    let commandName = userInfo["command"] as? String ?? ""
+    guard commandName == pendingRequest.command.rawValue else {
+      pendingRequest.result(
+        FlutterError(
+          code: "helper_response_mismatch",
+          message: "Caverno Computer Use returned a response for a different command.",
+          details: [
+            "expectedCommand": pendingRequest.command.rawValue,
+            "actualCommand": commandName,
           ]
         )
       )
@@ -414,43 +437,73 @@ final class MacosComputerUseChannel {
     case "listWindows":
       helperClient.send(
         command: .listWindows,
-        arguments: helperObservationArguments(call),
+        arguments: helperArguments(call),
         timeout: 3,
         result: result
       )
     case "focusWindow":
       helperClient.send(
         command: .focusWindow,
-        arguments: helperObservationArguments(call),
+        arguments: helperArguments(call),
         timeout: 3,
         result: result
       )
     case "screenshot":
       helperClient.send(
         command: .screenshot,
-        arguments: helperObservationArguments(call),
+        arguments: helperArguments(call),
         timeout: 8,
         result: result
       )
     case "screenshotWindow":
       helperClient.send(
         command: .screenshotWindow,
-        arguments: helperObservationArguments(call),
+        arguments: helperArguments(call),
         timeout: 8,
         result: result
       )
     case "click":
-      click(call, result: result)
+      helperClient.send(
+        command: .click,
+        arguments: helperArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "moveMouse":
-      moveMouse(call, result: result)
+      helperClient.send(
+        command: .moveMouse,
+        arguments: helperArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "drag":
-      drag(call, result: result)
+      helperClient.send(
+        command: .drag,
+        arguments: helperArguments(call),
+        timeout: 6,
+        result: result
+      )
     case "scroll":
-      scroll(call, result: result)
+      helperClient.send(
+        command: .scroll,
+        arguments: helperArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "typeText":
-      typeText(call, result: result)
+      helperClient.send(
+        command: .typeText,
+        arguments: helperArguments(call),
+        timeout: 5,
+        result: result
+      )
     case "pressKey":
-      pressKey(call, result: result)
+      helperClient.send(
+        command: .pressKey,
+        arguments: helperArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "startSystemAudioRecording":
       startSystemAudioRecording(call, result: result)
     case "stopSystemAudioRecording":
@@ -460,7 +513,7 @@ final class MacosComputerUseChannel {
     }
   }
 
-  private func helperObservationArguments(_ call: FlutterMethodCall) -> [String: Any] {
+  private func helperArguments(_ call: FlutterMethodCall) -> [String: Any] {
     var arguments = call.arguments as? [String: Any] ?? [:]
     arguments["mainAppPid"] = Int(ProcessInfo.processInfo.processIdentifier)
     return arguments

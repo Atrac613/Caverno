@@ -210,14 +210,23 @@ private enum ComputerUseHelperCommand: String {
   case listWindows
   case focusWindow
   case screenshotWindow
+  case moveMouse
+  case click
+  case drag
+  case scroll
+  case typeText
+  case pressKey
 }
 
 private struct ComputerUseHelperRequest {
   static let protocolVersion = 1
+  static let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
 
   let protocolVersion: Int
   let requestId: String
   let command: ComputerUseHelperCommand
+  let senderBundleIdentifier: String
+  let senderProcessIdentifier: Int
   let arguments: [String: Any]
 
   init?(userInfo: [AnyHashable: Any]) {
@@ -232,15 +241,32 @@ private struct ComputerUseHelperRequest {
     self.protocolVersion = userInfo["protocolVersion"] as? Int ?? 0
     self.requestId = requestId
     self.command = command
+    self.senderBundleIdentifier = userInfo["senderBundleIdentifier"] as? String ?? ""
+    self.senderProcessIdentifier = intValue(userInfo["senderProcessIdentifier"]) ?? 0
     self.arguments = userInfo["arguments"] as? [String: Any] ?? [:]
   }
 
   var isSupportedProtocolVersion: Bool {
     protocolVersion == Self.protocolVersion
   }
+
+  var hasTrustedSender: Bool {
+    guard senderBundleIdentifier == Self.mainAppBundleIdentifier else {
+      return false
+    }
+    guard senderProcessIdentifier > 0 else {
+      return false
+    }
+    let application = NSRunningApplication(
+      processIdentifier: pid_t(senderProcessIdentifier)
+    )
+    return application?.bundleIdentifier == Self.mainAppBundleIdentifier
+  }
 }
 
 private final class ComputerUseHelperIpc: NSObject {
+  private let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
+  private let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
   private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   private let center = DistributedNotificationCenter.default()
@@ -250,7 +276,7 @@ private final class ComputerUseHelperIpc: NSObject {
       self,
       selector: #selector(handleRequest(_:)),
       name: requestName,
-      object: nil,
+      object: mainAppBundleIdentifier,
       suspensionBehavior: .deliverImmediately
     )
   }
@@ -278,6 +304,7 @@ private final class ComputerUseHelperIpc: NSObject {
     guard request.isSupportedProtocolVersion else {
       postResponse(
         requestId: request.requestId,
+        command: request.command,
         response: errorResponse(
           code: "unsupported_protocol",
           error: "Unsupported computer-use helper protocol version.",
@@ -287,8 +314,24 @@ private final class ComputerUseHelperIpc: NSObject {
       return
     }
 
+    guard request.hasTrustedSender else {
+      postResponse(
+        requestId: request.requestId,
+        command: request.command,
+        response: errorResponse(
+          code: "untrusted_sender",
+          error: "Caverno Computer Use only accepts commands from Caverno.",
+          details: [
+            "senderBundleIdentifier": request.senderBundleIdentifier,
+            "senderProcessIdentifier": request.senderProcessIdentifier,
+          ]
+        )
+      )
+      return
+    }
+
     let response = handle(request: request)
-    postResponse(requestId: requestId, response: response)
+    postResponse(requestId: requestId, command: request.command, response: response)
   }
 
   private func handle(request: ComputerUseHelperRequest) -> [String: Any] {
@@ -314,6 +357,18 @@ private final class ComputerUseHelperIpc: NSObject {
       return focusWindow(arguments: request.arguments)
     case .screenshotWindow:
       return screenshotWindow(arguments: request.arguments)
+    case .moveMouse:
+      return moveMouse(arguments: request.arguments)
+    case .click:
+      return click(arguments: request.arguments)
+    case .drag:
+      return drag(arguments: request.arguments)
+    case .scroll:
+      return scroll(arguments: request.arguments)
+    case .typeText:
+      return typeText(arguments: request.arguments)
+    case .pressKey:
+      return pressKey(arguments: request.arguments)
     }
   }
 
@@ -507,6 +562,203 @@ private final class ComputerUseHelperIpc: NSObject {
     }
   }
 
+  private func click(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    guard let point = resolvePoint(arguments: arguments) else {
+      return errorResponse(code: "invalid_args", error: "x and y are required")
+    }
+
+    let buttonName = (arguments["button"] as? String ?? "left").lowercased()
+    let clickCount = max(1, min(intValue(arguments["click_count"] ?? arguments["clickCount"]) ?? 1, 3))
+    let button = mouseButton(buttonName)
+    let downType = mouseDownType(buttonName)
+    let upType = mouseUpType(buttonName)
+
+    for _ in 0..<clickCount {
+      postMouseEvent(type: downType, point: point, button: button)
+      postMouseEvent(type: upType, point: point, button: button)
+      usleep(60_000)
+    }
+
+    return baseResponse(
+      extra: [
+        "x": Double(point.x),
+        "y": Double(point.y),
+        "button": buttonName,
+        "clickCount": clickCount,
+      ]
+    )
+  }
+
+  private func moveMouse(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    guard let point = resolvePoint(arguments: arguments) else {
+      return errorResponse(code: "invalid_args", error: "x and y are required")
+    }
+
+    postMouseEvent(type: .mouseMoved, point: point, button: .left)
+    return baseResponse(extra: ["x": Double(point.x), "y": Double(point.y)])
+  }
+
+  private func drag(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    guard
+      let fromX = number(arguments["from_x"] ?? arguments["fromX"]),
+      let fromY = number(arguments["from_y"] ?? arguments["fromY"]),
+      let toX = number(arguments["to_x"] ?? arguments["toX"]),
+      let toY = number(arguments["to_y"] ?? arguments["toY"])
+    else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "from_x, from_y, to_x, and to_y are required"
+      )
+    }
+
+    var fromArguments = arguments
+    fromArguments["x"] = fromX
+    fromArguments["y"] = fromY
+    var toArguments = arguments
+    toArguments["x"] = toX
+    toArguments["y"] = toY
+
+    guard
+      let fromPoint = resolvePoint(arguments: fromArguments),
+      let toPoint = resolvePoint(arguments: toArguments)
+    else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "Unable to resolve drag coordinates"
+      )
+    }
+
+    let durationMs = max(
+      50,
+      min(intValue(arguments["duration_ms"] ?? arguments["durationMs"]) ?? 300, 3000)
+    )
+    let steps = max(4, min(durationMs / 16, 120))
+    postMouseEvent(type: .leftMouseDown, point: fromPoint, button: .left)
+    for step in 1...steps {
+      let t = CGFloat(step) / CGFloat(steps)
+      let point = CGPoint(
+        x: fromPoint.x + (toPoint.x - fromPoint.x) * t,
+        y: fromPoint.y + (toPoint.y - fromPoint.y) * t
+      )
+      postMouseEvent(type: .leftMouseDragged, point: point, button: .left)
+      usleep(useconds_t(durationMs * 1000 / steps))
+    }
+    postMouseEvent(type: .leftMouseUp, point: toPoint, button: .left)
+
+    return baseResponse(
+      extra: [
+        "from": pointMap(fromPoint),
+        "to": pointMap(toPoint),
+        "durationMs": durationMs,
+      ]
+    )
+  }
+
+  private func scroll(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    if let point = resolvePoint(arguments: arguments) {
+      postMouseEvent(type: .mouseMoved, point: point, button: .left)
+    }
+
+    let deltaX = Int(number(arguments["delta_x"] ?? arguments["deltaX"]) ?? 0)
+    let deltaY = Int(number(arguments["delta_y"] ?? arguments["deltaY"]) ?? -5)
+    guard let event = CGEvent(
+      scrollWheelEvent2Source: nil,
+      units: .line,
+      wheelCount: 2,
+      wheel1: Int32(deltaY),
+      wheel2: Int32(deltaX),
+      wheel3: 0
+    ) else {
+      return errorResponse(code: "event_failed", error: "Failed to create scroll event")
+    }
+    event.post(tap: .cghidEventTap)
+    return baseResponse(extra: ["deltaX": deltaX, "deltaY": deltaY])
+  }
+
+  private func typeText(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    guard let text = arguments["text"] as? String, !text.isEmpty else {
+      return errorResponse(code: "invalid_args", error: "text is required")
+    }
+
+    for character in text {
+      var units = Array(String(character).utf16)
+      guard !units.isEmpty else {
+        continue
+      }
+      guard
+        let down = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: true),
+        let up = CGEvent(keyboardEventSource: nil, virtualKey: 0, keyDown: false)
+      else {
+        continue
+      }
+      units.withUnsafeMutableBufferPointer { buffer in
+        down.keyboardSetUnicodeString(
+          stringLength: buffer.count,
+          unicodeString: buffer.baseAddress
+        )
+        up.keyboardSetUnicodeString(
+          stringLength: buffer.count,
+          unicodeString: buffer.baseAddress
+        )
+      }
+      down.post(tap: .cghidEventTap)
+      up.post(tap: .cghidEventTap)
+      usleep(10_000)
+    }
+
+    return baseResponse(extra: ["characters": text.count])
+  }
+
+  private func pressKey(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+    guard
+      let rawKey = arguments["key"] as? String,
+      let keyCode = keyCodes[rawKey.lowercased()]
+    else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "Unsupported key",
+        details: arguments["key"]
+      )
+    }
+
+    let flags = eventFlags(arguments["modifiers"] as? [String] ?? [])
+    guard
+      let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
+      let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
+    else {
+      return errorResponse(code: "event_failed", error: "Failed to create key event")
+    }
+
+    down.flags = flags
+    up.flags = flags
+    down.post(tap: .cghidEventTap)
+    up.post(tap: .cghidEventTap)
+    return baseResponse(
+      extra: [
+        "key": rawKey,
+        "modifiers": arguments["modifiers"] as? [String] ?? [],
+      ]
+    )
+  }
+
   private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
     var response: [String: Any] = [
       "ok": ok,
@@ -542,15 +794,24 @@ private final class ComputerUseHelperIpc: NSObject {
     )
   }
 
-  private func postResponse(requestId: String, response: [String: Any]) {
+  private func postResponse(
+    requestId: String,
+    command: ComputerUseHelperCommand? = nil,
+    response: [String: Any]
+  ) {
+    var userInfo: [String: Any] = [
+      "protocolVersion": ComputerUseHelperRequest.protocolVersion,
+      "requestId": requestId,
+      "response": response,
+    ]
+    if let command {
+      userInfo["command"] = command.rawValue
+    }
+
     center.postNotificationName(
       responseName,
-      object: nil,
-      userInfo: [
-        "protocolVersion": ComputerUseHelperRequest.protocolVersion,
-        "requestId": requestId,
-        "response": response,
-      ],
+      object: helperBundleIdentifier,
+      userInfo: userInfo,
       deliverImmediately: true
     )
   }
@@ -651,6 +912,49 @@ private func windowID(arguments: [String: Any]) -> Int? {
   intValue(arguments["window_id"] ?? arguments["windowId"])
 }
 
+private func resolvePoint(arguments: [String: Any]) -> CGPoint? {
+  guard
+    let x = number(arguments["x"]),
+    let y = number(arguments["y"])
+  else {
+    return nil
+  }
+
+  if let windowID = windowID(arguments: arguments),
+     let window = findWindow(windowID: windowID) {
+    let sourceWidth = number(arguments["source_width"] ?? arguments["sourceWidth"])
+    let sourceHeight = number(arguments["source_height"] ?? arguments["sourceHeight"])
+    let xScale = sourceWidth == nil || sourceWidth == 0
+      ? 1
+      : window.bounds.width / sourceWidth!
+    let yScale = sourceHeight == nil || sourceHeight == 0
+      ? 1
+      : window.bounds.height / sourceHeight!
+    return CGPoint(
+      x: window.bounds.origin.x + x * xScale,
+      y: window.bounds.origin.y + y * yScale
+    )
+  }
+
+  guard let screen = resolveScreen(arguments: arguments) else {
+    return nil
+  }
+
+  let sourceWidth = number(arguments["source_width"] ?? arguments["sourceWidth"])
+  let sourceHeight = number(arguments["source_height"] ?? arguments["sourceHeight"])
+  let xScale = sourceWidth == nil || sourceWidth == 0
+    ? screen.bounds.width / CGFloat(CGDisplayPixelsWide(screen.displayID))
+    : screen.bounds.width / sourceWidth!
+  let yScale = sourceHeight == nil || sourceHeight == 0
+    ? screen.bounds.height / CGFloat(CGDisplayPixelsHigh(screen.displayID))
+    : screen.bounds.height / sourceHeight!
+
+  return CGPoint(
+    x: screen.bounds.origin.x + x * xScale,
+    y: screen.bounds.origin.y + y * yScale
+  )
+}
+
 private func encodePng(image: CGImage, maxWidth: Int?) throws -> EncodedImage {
   let targetImage: CGImage
   if let maxWidth, maxWidth > 0, image.width > maxWidth {
@@ -741,6 +1045,68 @@ private func number(_ value: Any?) -> CGFloat? {
   return nil
 }
 
+private func postMouseEvent(type: CGEventType, point: CGPoint, button: CGMouseButton) {
+  let event = CGEvent(
+    mouseEventSource: nil,
+    mouseType: type,
+    mouseCursorPosition: point,
+    mouseButton: button
+  )
+  event?.post(tap: .cghidEventTap)
+}
+
+private func mouseButton(_ value: String) -> CGMouseButton {
+  switch value {
+  case "right":
+    return .right
+  case "middle":
+    return .center
+  default:
+    return .left
+  }
+}
+
+private func mouseDownType(_ value: String) -> CGEventType {
+  switch value {
+  case "right":
+    return .rightMouseDown
+  case "middle":
+    return .otherMouseDown
+  default:
+    return .leftMouseDown
+  }
+}
+
+private func mouseUpType(_ value: String) -> CGEventType {
+  switch value {
+  case "right":
+    return .rightMouseUp
+  case "middle":
+    return .otherMouseUp
+  default:
+    return .leftMouseUp
+  }
+}
+
+private func eventFlags(_ modifiers: [String]) -> CGEventFlags {
+  var flags = CGEventFlags()
+  for modifier in modifiers.map({ $0.lowercased() }) {
+    switch modifier {
+    case "cmd", "command", "meta":
+      flags.insert(.maskCommand)
+    case "shift":
+      flags.insert(.maskShift)
+    case "option", "alt":
+      flags.insert(.maskAlternate)
+    case "ctrl", "control":
+      flags.insert(.maskControl)
+    default:
+      continue
+    }
+  }
+  return flags
+}
+
 private func rectMap(_ rect: CGRect) -> [String: Double] {
   [
     "x": Double(rect.origin.x),
@@ -748,6 +1114,10 @@ private func rectMap(_ rect: CGRect) -> [String: Double] {
     "width": Double(rect.width),
     "height": Double(rect.height),
   ]
+}
+
+private func pointMap(_ point: CGPoint) -> [String: Double] {
+  ["x": Double(point.x), "y": Double(point.y)]
 }
 
 private struct EncodedImage {
@@ -808,6 +1178,27 @@ private extension NSScreen {
       ?? CGMainDisplayID()
   }
 }
+
+private let keyCodes: [String: CGKeyCode] = [
+  "a": 0, "s": 1, "d": 2, "f": 3, "h": 4, "g": 5, "z": 6, "x": 7,
+  "c": 8, "v": 9, "b": 11, "q": 12, "w": 13, "e": 14, "r": 15,
+  "y": 16, "t": 17, "1": 18, "2": 19, "3": 20, "4": 21, "6": 22,
+  "5": 23, "=": 24, "9": 25, "7": 26, "-": 27, "8": 28, "0": 29,
+  "]": 30, "o": 31, "u": 32, "[": 33, "i": 34, "p": 35, "l": 37,
+  "j": 38, "'": 39, "k": 40, ";": 41, "\\": 42, ",": 43, "/": 44,
+  "n": 45, "m": 46, ".": 47, "`": 50,
+  "return": 36, "enter": 36, "tab": 48, "space": 49, "delete": 51,
+  "escape": 53, "esc": 53, "command": 55, "shift": 56, "caps_lock": 57,
+  "option": 58, "control": 59, "right_shift": 60, "right_option": 61,
+  "right_control": 62, "function": 63, "f17": 64, "volume_up": 72,
+  "volume_down": 73, "mute": 74, "f18": 79, "f19": 80, "f20": 90,
+  "f5": 96, "f6": 97, "f7": 98, "f3": 99, "f8": 100, "f9": 101,
+  "f11": 103, "f13": 105, "f16": 106, "f14": 107, "f10": 109,
+  "f12": 111, "f15": 113, "help": 114, "home": 115, "page_up": 116,
+  "forward_delete": 117, "f4": 118, "end": 119, "f2": 120,
+  "page_down": 121, "f1": 122, "left": 123, "right": 124, "down": 125,
+  "up": 126,
+]
 
 private final class PermissionRowView: NSView {
   private let statusLabel = NSTextField(labelWithString: "Unknown")

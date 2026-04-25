@@ -5,10 +5,10 @@
 This document defines the target split between `Caverno.app` and a separate
 `Caverno Computer Use.app` helper. The helper target is bundled inside
 `Caverno.app`, can be launched from the settings smoke-test panel, and now owns
-permission status, System Settings shortcuts, reachability checks, and emergency
-stop requests. The remaining privileged screenshot, input, and audio operations
-still run through the compatibility channel until they are migrated behind the
-helper boundary.
+permission status, System Settings shortcuts, reachability checks, emergency
+stop requests, visual observation, window focus, and input events. System audio
+recording still runs through the compatibility channel until it migrates behind
+the helper boundary.
 
 ## Goals
 
@@ -86,12 +86,6 @@ Initial commands:
 
 Later commands:
 
-- `moveMouse`
-- `click`
-- `drag`
-- `scroll`
-- `typeText`
-- `pressKey`
 - `startSystemAudioRecording`
 - `stopSystemAudioRecording`
 
@@ -101,6 +95,12 @@ Migrated commands:
 - `listWindows`
 - `focusWindow`
 - `screenshotWindow`
+- `moveMouse`
+- `click`
+- `drag`
+- `scroll`
+- `typeText`
+- `pressKey`
 
 ## Helper IPC Protocol
 
@@ -136,8 +136,10 @@ Use the Computer Use smoke-test panel to verify a local build:
 7. Run **Capture Display** and confirm a screenshot preview appears.
 8. Run **List Windows**, select a non-helper window, then run
    **Capture Selected**.
-9. Export diagnostics and verify `onboardingSmokeChecklist` contains the
-   completed launch, IPC, permission, display, and window steps.
+9. Arm **Input Events**, then run **Move Pointer** or **Click Point** against
+   the selected screenshot coordinates.
+10. Export diagnostics and verify `onboardingSmokeChecklist` contains the
+    completed launch, IPC, permission, observation, and input steps.
 
 ## Safety Invariants
 
