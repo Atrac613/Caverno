@@ -54,6 +54,8 @@ void main() {
     required String name,
     bool enabled = true,
     bool toolsEnabled = false,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
     bool notifyOnCompletion = true,
     RoutineCompletionAction completionAction = RoutineCompletionAction.none,
     RoutineGoogleChatRule googleChatRule = RoutineGoogleChatRule.onFailure,
@@ -71,6 +73,8 @@ void main() {
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
+      workspaceDirectory: workspaceDirectory,
+      allowWorkspaceWrites: allowWorkspaceWrites,
       completionAction: completionAction,
       googleChatRule: googleChatRule,
       intervalValue: 1,
@@ -87,6 +91,8 @@ void main() {
         id: 'routine-1',
         name: 'Morning summary',
         toolsEnabled: true,
+        workspaceDirectory: '/tmp/caverno-routines/lan-watch',
+        allowWorkspaceWrites: true,
         nextRunAt: DateTime(2026, 4, 21, 11),
         lastRunAt: DateTime(2026, 4, 21, 9),
         runs: [
@@ -113,6 +119,8 @@ void main() {
       expect(duplicate!.name, 'Copy of Morning summary');
       expect(duplicate.prompt, source.prompt);
       expect(duplicate.toolsEnabled, isTrue);
+      expect(duplicate.workspaceDirectory, source.workspaceDirectory);
+      expect(duplicate.allowWorkspaceWrites, isTrue);
       expect(duplicate.runs, isEmpty);
       expect(duplicate.lastRunAt, isNull);
       expect(duplicate.nextRunAt, isNotNull);

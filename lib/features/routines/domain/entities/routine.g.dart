@@ -117,6 +117,8 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
         unknownValue: RoutineGoogleChatRule.onFailure,
       ) ??
       RoutineGoogleChatRule.onFailure,
+  workspaceDirectory: json['workspaceDirectory'] as String? ?? '',
+  allowWorkspaceWrites: json['allowWorkspaceWrites'] as bool? ?? false,
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -150,6 +152,8 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'completionAction':
       _$RoutineCompletionActionEnumMap[instance.completionAction]!,
   'googleChatRule': _$RoutineGoogleChatRuleEnumMap[instance.googleChatRule]!,
+  'workspaceDirectory': instance.workspaceDirectory,
+  'allowWorkspaceWrites': instance.allowWorkspaceWrites,
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),

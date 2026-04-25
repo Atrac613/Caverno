@@ -7,6 +7,8 @@ import '../../../chat/domain/services/tool_result_prompt_builder.dart';
 class RoutineToolPolicy {
   RoutineToolPolicy._();
 
+  static const String routineToolDefinitionKey = 'x-caverno-routine-tool';
+
   static const Set<String> _allowedToolNames = {
     'get_current_datetime',
     'search_past_conversations',
@@ -50,6 +52,11 @@ class RoutineToolPolicy {
     'get_notice_events',
   };
 
+  static const Set<String> _workspaceWriteToolNames = {
+    'write_file',
+    'edit_file',
+  };
+
   static bool isAllowedToolName(String toolName) {
     if (_allowedToolNames.contains(toolName)) {
       return true;
@@ -62,14 +69,23 @@ class RoutineToolPolicy {
     return _allowedToolNames.contains(toolName.substring(0, namespaceIndex));
   }
 
+  static bool isWorkspaceWriteToolName(String toolName) {
+    return _workspaceWriteToolNames.contains(toolName);
+  }
+
   static List<Map<String, dynamic>> filterAllowedToolDefinitions(
-    List<Map<String, dynamic>> definitions,
-  ) {
-    final filtered = definitions
+    List<Map<String, dynamic>> definitions, {
+    bool allowWorkspaceWrites = false,
+    List<Map<String, dynamic>> extraDefinitions = const [],
+  }) {
+    final filtered = [...definitions, ...extraDefinitions]
         .where((tool) {
           final name = (tool['function'] as Map?)?['name'] as String?;
           return name != null &&
-              (isExternalMcpToolDefinition(tool) || isAllowedToolName(name));
+              (isExternalMcpToolDefinition(tool) ||
+                  isRoutineToolDefinition(tool) ||
+                  isAllowedToolName(name) ||
+                  (allowWorkspaceWrites && isWorkspaceWriteToolName(name)));
         })
         .toList(growable: false);
 
@@ -78,6 +94,10 @@ class RoutineToolPolicy {
 
   static bool isExternalMcpToolDefinition(Map<String, dynamic> tool) {
     return tool[McpToolEntity.openAiExternalToolKey] == true;
+  }
+
+  static bool isRoutineToolDefinition(Map<String, dynamic> tool) {
+    return tool[routineToolDefinitionKey] == true;
   }
 
   static McpToolResult buildDeniedResult(ToolCallInfo toolCall) {
@@ -95,6 +115,31 @@ class RoutineToolPolicy {
       result: payload,
       isSuccess: false,
       errorMessage: 'Routine blocked non-read-only tool execution',
+    );
+  }
+
+  static McpToolResult buildWorkspaceWriteDeniedResult(
+    ToolCallInfo toolCall, {
+    required String workspaceDirectory,
+    String? attemptedPath,
+  }) {
+    final payload = jsonEncode({
+      'error':
+          'Routine write tools can only write inside the configured workspace '
+          'directory.',
+      'code': 'permission_denied',
+      'reason': 'routine_workspace_write_denied',
+      'tool': toolCall.name,
+      'workspace_directory': workspaceDirectory,
+      if (attemptedPath != null && attemptedPath.isNotEmpty)
+        'attempted_path': attemptedPath,
+    });
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Routine blocked a write outside the workspace directory',
     );
   }
 

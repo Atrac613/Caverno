@@ -148,6 +148,8 @@ void main() {
           toolsEnabled: true,
           completionAction: RoutineCompletionAction.googleChat,
           googleChatRule: RoutineGoogleChatRule.always,
+          workspaceDirectory: '/tmp/caverno-routines/lan-watch',
+          allowWorkspaceWrites: true,
         );
 
         final decoded = Routine.fromJson(routine.toJson());
@@ -156,6 +158,9 @@ void main() {
         expect(decoded.toolsEnabled, isTrue);
         expect(decoded.completionAction, RoutineCompletionAction.googleChat);
         expect(decoded.googleChatRule, RoutineGoogleChatRule.always);
+        expect(decoded.workspaceDirectory, '/tmp/caverno-routines/lan-watch');
+        expect(decoded.allowWorkspaceWrites, isTrue);
+        expect(decoded.hasWorkspaceWriteAccess, isTrue);
       },
     );
   });

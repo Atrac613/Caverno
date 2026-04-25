@@ -1,6 +1,10 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
+import '../../../core/services/google_chat_delivery_service.dart';
 import '../../../core/types/assistant_mode.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
@@ -22,6 +26,7 @@ final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
 ) {
   return RoutineExecutionService(
     dataSource: ref.watch(chatRemoteDataSourceProvider),
+    googleChatDeliveryService: ref.watch(googleChatDeliveryServiceProvider),
     mcpToolService: ref.watch(mcpToolServiceProvider),
     settings: ref.watch(settingsNotifierProvider),
   );
@@ -30,15 +35,44 @@ final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
 class RoutineExecutionService {
   RoutineExecutionService({
     required ChatDataSource dataSource,
+    GoogleChatDeliveryService? googleChatDeliveryService,
     McpToolService? mcpToolService,
     required AppSettings settings,
     RoutineToolRunner? toolRunner,
   }) : _dataSource = dataSource,
+       _googleChatDeliveryService = googleChatDeliveryService,
        _mcpToolService = mcpToolService,
        _toolRunner = toolRunner ?? RoutineToolRunner(dataSource: dataSource),
        _settings = settings;
 
+  static const String googleChatPostToolName = 'routine_google_chat_post';
+  static const String _googleChatSourceLabel = 'Google Chat';
+
+  static Map<String, dynamic> get _googleChatPostToolDefinition => {
+    'type': 'function',
+    RoutineToolPolicy.routineToolDefinitionKey: true,
+    McpToolEntity.openAiSourceLabelKey: _googleChatSourceLabel,
+    'function': {
+      'name': googleChatPostToolName,
+      'description':
+          'Post a concise routine-created message to the configured Google '
+          'Chat incoming webhook. Use this only when the routine prompt asks '
+          'for a conditional Google Chat notification.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'text': {
+            'type': 'string',
+            'description': 'Message text to post to Google Chat.',
+          },
+        },
+        'required': ['text'],
+      },
+    },
+  };
+
   final ChatDataSource _dataSource;
+  final GoogleChatDeliveryService? _googleChatDeliveryService;
   final McpToolService? _mcpToolService;
   final RoutineToolRunner _toolRunner;
   final AppSettings _settings;
@@ -54,6 +88,7 @@ class RoutineExecutionService {
       final allowedTools = _allowedRoutineTools(routine);
       final systemPrompt = _buildRoutineSystemPrompt(
         now: startedAt,
+        routine: routine,
         allowedTools: allowedTools,
       );
       final messages = [
@@ -73,6 +108,7 @@ class RoutineExecutionService {
 
       final executionResult = await _executeRoutine(
         messages: messages,
+        routine: routine,
         allowedTools: allowedTools,
       );
       final output = RoutineScheduleService.truncateOutput(
@@ -146,6 +182,7 @@ class RoutineExecutionService {
 
   String _buildRoutineSystemPrompt({
     required DateTime now,
+    required Routine routine,
     required List<Map<String, dynamic>> allowedTools,
   }) {
     final toolNames = _toolNamesFromDefinitions(allowedTools);
@@ -156,24 +193,32 @@ class RoutineExecutionService {
       toolNames: toolNames,
     );
 
-    if (allowedTools.isEmpty) {
+    final routineGuidance = _buildRoutineGuidance(
+      routine: routine,
+      allowedToolNames: toolNames.toSet(),
+    );
+
+    if (allowedTools.isEmpty && routineGuidance.isEmpty) {
       return basePrompt;
     }
 
     return [
       basePrompt,
-      'Routine execution context: this is an unattended scheduled/manual routine. '
-          'When the routine prompt asks for diagnostics, lookup, or inspection '
-          'that requires available read-only tools, call the relevant tools directly. '
-          'Do not ask the user for confirmation before read-only routine tool use. '
-          'Do not answer with only a proposed tool workflow when the available tools '
-          'can satisfy the request. Provide a concise final result after tool evidence '
-          'is collected.',
+      if (allowedTools.isNotEmpty)
+        'Routine execution context: this is an unattended scheduled/manual routine. '
+            'When the routine prompt asks for diagnostics, lookup, or inspection '
+            'that requires available tools, call the relevant tools directly. '
+            'Do not ask the user for confirmation before routine tool use. '
+            'Do not answer with only a proposed tool workflow when the available tools '
+            'can satisfy the request. Provide a concise final result after tool evidence '
+            'is collected.',
+      ...routineGuidance,
     ].join('\n');
   }
 
   Future<RoutineToolExecutionResult> _executeRoutine({
     required List<Message> messages,
+    required Routine routine,
     required List<Map<String, dynamic>> allowedTools,
   }) async {
     if (allowedTools.isEmpty) {
@@ -192,6 +237,7 @@ class RoutineExecutionService {
       tools: allowedTools,
       dispatchToolCall: (toolCall) => _dispatchRoutineToolCall(
         toolCall,
+        routine: routine,
         allowedToolNames: allowedToolNames,
       ),
       model: _settings.model,
@@ -200,12 +246,48 @@ class RoutineExecutionService {
     );
   }
 
+  List<String> _buildRoutineGuidance({
+    required Routine routine,
+    required Set<String> allowedToolNames,
+  }) {
+    final guidance = <String>[];
+    if (routine.hasWorkspaceDirectory) {
+      guidance.add(
+        'Routine workspace directory: ${routine.trimmedWorkspaceDirectory}. '
+        'Use this directory for persistent routine state files. Relative paths '
+        'passed to workspace write tools are resolved against this directory.',
+      );
+      guidance.add(
+        'When the task needs to compare current results with previous runs, '
+        'read and update state files in the routine workspace.',
+      );
+    }
+    if (routine.hasWorkspaceWriteAccess) {
+      guidance.add(
+        'Workspace write access is enabled for write_file and edit_file only, '
+        'and only inside the routine workspace directory.',
+      );
+    }
+    if (allowedToolNames.contains(googleChatPostToolName)) {
+      guidance.add(
+        'Use $googleChatPostToolName only when the routine prompt condition '
+        'for a Google Chat notification is satisfied. Keep the message concise.',
+      );
+    }
+    return guidance;
+  }
+
   List<Map<String, dynamic>> _allowedRoutineTools(Routine routine) {
     if (!routine.toolsEnabled) {
       return const <Map<String, dynamic>>[];
     }
+    final extraDefinitions = <Map<String, dynamic>>[
+      if (_settings.hasGoogleChatWebhook) _googleChatPostToolDefinition,
+    ];
     return RoutineToolPolicy.filterAllowedToolDefinitions(
       _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
+      allowWorkspaceWrites: routine.hasWorkspaceWriteAccess,
+      extraDefinitions: extraDefinitions,
     );
   }
 
@@ -218,20 +300,241 @@ class RoutineExecutionService {
 
   Future<McpToolResult> _dispatchRoutineToolCall(
     ToolCallInfo toolCall, {
+    required Routine routine,
     required Set<String> allowedToolNames,
   }) async {
-    final toolService = _mcpToolService;
-    if (toolService == null) {
-      return RoutineToolPolicy.buildUnavailableResult(toolCall);
-    }
     if (!allowedToolNames.contains(toolCall.name)) {
       return RoutineToolPolicy.buildDeniedResult(toolCall);
     }
 
+    if (toolCall.name == googleChatPostToolName) {
+      return _postRoutineGoogleChatMessage(toolCall);
+    }
+
+    final toolService = _mcpToolService;
+    if (toolService == null) {
+      return RoutineToolPolicy.buildUnavailableResult(toolCall);
+    }
+
+    final scopedArgumentsResult = _scopedWorkspaceArguments(
+      routine: routine,
+      toolCall: toolCall,
+    );
+    if (scopedArgumentsResult.deniedResult != null) {
+      return scopedArgumentsResult.deniedResult!;
+    }
+
     return toolService.executeTool(
       name: toolCall.name,
-      arguments: toolCall.arguments,
+      arguments: scopedArgumentsResult.arguments,
     );
+  }
+
+  Future<McpToolResult> _postRoutineGoogleChatMessage(
+    ToolCallInfo toolCall,
+  ) async {
+    final deliveryService = _googleChatDeliveryService;
+    if (deliveryService == null) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'error': 'Google Chat delivery service is unavailable.',
+          'code': 'tool_unavailable',
+          'reason': 'routine_google_chat_service_unavailable',
+        }),
+        isSuccess: false,
+        errorMessage: 'Google Chat delivery service is unavailable',
+      );
+    }
+
+    final text = (toolCall.arguments['text'] as String?)?.trim() ?? '';
+    if (text.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'error': 'text is required',
+          'code': 'invalid_arguments',
+          'reason': 'routine_google_chat_text_required',
+        }),
+        isSuccess: false,
+        errorMessage: 'Google Chat message text is required',
+      );
+    }
+
+    final result = await deliveryService.sendMessage(
+      webhookUrl: _settings.normalizedGoogleChatWebhookUrl,
+      text: text,
+    );
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({
+        'delivered': result.isSuccessful,
+        'message': result.message,
+        if (result.deliveredAt != null)
+          'delivered_at': result.deliveredAt!.toIso8601String(),
+      }),
+      isSuccess: result.isSuccessful,
+      errorMessage: result.isSuccessful ? null : result.message,
+    );
+  }
+
+  _ScopedRoutineArguments _scopedWorkspaceArguments({
+    required Routine routine,
+    required ToolCallInfo toolCall,
+  }) {
+    if (!RoutineToolPolicy.isWorkspaceWriteToolName(toolCall.name)) {
+      return _ScopedRoutineArguments(arguments: toolCall.arguments);
+    }
+
+    final workspaceDirectory = routine.trimmedWorkspaceDirectory;
+    final rawPath = (toolCall.arguments['path'] as String?)?.trim() ?? '';
+    if (!routine.hasWorkspaceWriteAccess || rawPath.isEmpty) {
+      return _ScopedRoutineArguments(
+        arguments: toolCall.arguments,
+        deniedResult: RoutineToolPolicy.buildWorkspaceWriteDeniedResult(
+          toolCall,
+          workspaceDirectory: workspaceDirectory,
+          attemptedPath: rawPath,
+        ),
+      );
+    }
+
+    final workspacePath = _normalizeDirectoryPath(workspaceDirectory);
+    final targetPath = _resolveWorkspacePath(
+      workspacePath: workspacePath,
+      rawPath: rawPath,
+    );
+    if (!_isInsideOrSame(workspacePath, targetPath) ||
+        _existingPathEscapesWorkspace(
+          workspacePath: workspacePath,
+          targetPath: targetPath,
+        )) {
+      return _ScopedRoutineArguments(
+        arguments: toolCall.arguments,
+        deniedResult: RoutineToolPolicy.buildWorkspaceWriteDeniedResult(
+          toolCall,
+          workspaceDirectory: workspacePath,
+          attemptedPath: rawPath,
+        ),
+      );
+    }
+
+    return _ScopedRoutineArguments(
+      arguments: {...toolCall.arguments, 'path': targetPath},
+    );
+  }
+
+  String _resolveWorkspacePath({
+    required String workspacePath,
+    required String rawPath,
+  }) {
+    if (_isAbsolutePath(rawPath)) {
+      return _normalizeFilePath(rawPath);
+    }
+    return _normalizeFilePath(
+      '$workspacePath${Platform.pathSeparator}$rawPath',
+    );
+  }
+
+  String _normalizeDirectoryPath(String path) {
+    final normalized = _normalizePath(path, isDirectory: true);
+    if (FileSystemEntity.typeSync(normalized, followLinks: true) ==
+        FileSystemEntityType.notFound) {
+      return normalized;
+    }
+
+    try {
+      return _normalizePath(
+        Directory(normalized).resolveSymbolicLinksSync(),
+        isDirectory: true,
+      );
+    } on FileSystemException {
+      return normalized;
+    }
+  }
+
+  String _normalizeFilePath(String path) {
+    return _normalizePath(path, isDirectory: false);
+  }
+
+  String _normalizePath(String path, {required bool isDirectory}) {
+    final absolutePath = isDirectory
+        ? Directory(path).absolute.path
+        : File(path).absolute.path;
+    final normalizedPath = Uri.file(absolutePath).normalizePath().toFilePath();
+    if (normalizedPath.length > 1 &&
+        normalizedPath.endsWith(Platform.pathSeparator)) {
+      return normalizedPath.substring(0, normalizedPath.length - 1);
+    }
+    return normalizedPath;
+  }
+
+  bool _isAbsolutePath(String path) {
+    return path.startsWith('/') ||
+        path.startsWith(r'\\') ||
+        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
+  }
+
+  bool _isInsideOrSame(String workspacePath, String targetPath) {
+    if (targetPath == workspacePath) {
+      return true;
+    }
+    final prefix = workspacePath.endsWith(Platform.pathSeparator)
+        ? workspacePath
+        : '$workspacePath${Platform.pathSeparator}';
+    return targetPath.startsWith(prefix);
+  }
+
+  bool _existingPathEscapesWorkspace({
+    required String workspacePath,
+    required String targetPath,
+  }) {
+    final resolvedTarget = _resolveExistingPath(targetPath);
+    if (resolvedTarget != null &&
+        !_isInsideOrSame(workspacePath, resolvedTarget)) {
+      return true;
+    }
+
+    var parentPath = _normalizePath(
+      File(targetPath).parent.path,
+      isDirectory: true,
+    );
+    while (_isInsideOrSame(workspacePath, parentPath)) {
+      final resolvedParent = _resolveExistingPath(parentPath);
+      if (resolvedParent != null &&
+          !_isInsideOrSame(workspacePath, resolvedParent)) {
+        return true;
+      }
+      final nextParentPath = _normalizePath(
+        Directory(parentPath).parent.path,
+        isDirectory: true,
+      );
+      if (nextParentPath == parentPath) {
+        break;
+      }
+      parentPath = nextParentPath;
+    }
+    return false;
+  }
+
+  String? _resolveExistingPath(String path) {
+    final type = FileSystemEntity.typeSync(path, followLinks: true);
+    if (type == FileSystemEntityType.notFound) {
+      return null;
+    }
+
+    try {
+      final resolvedPath = switch (type) {
+        FileSystemEntityType.directory => Directory(
+          path,
+        ).resolveSymbolicLinksSync(),
+        _ => File(path).resolveSymbolicLinksSync(),
+      };
+      return _normalizeFilePath(resolvedPath);
+    } on FileSystemException {
+      return _normalizeFilePath(path);
+    }
   }
 
   List<String> _toolNamesFromResults(List<ToolResultInfo> toolResults) {
@@ -270,4 +573,11 @@ class RoutineExecutionService {
     }
     return executedLabels;
   }
+}
+
+class _ScopedRoutineArguments {
+  const _ScopedRoutineArguments({required this.arguments, this.deniedResult});
+
+  final Map<String, dynamic> arguments;
+  final McpToolResult? deniedResult;
 }

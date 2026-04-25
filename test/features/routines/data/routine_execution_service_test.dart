@@ -2,6 +2,7 @@ import 'dart:collection';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/services/google_chat_delivery_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
@@ -12,7 +13,11 @@ import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
-  Routine buildRoutine({bool toolsEnabled = false}) {
+  Routine buildRoutine({
+    bool toolsEnabled = false,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
+  }) {
     final now = DateTime(2026, 4, 21, 10);
     return Routine(
       id: 'routine-1',
@@ -21,6 +26,8 @@ void main() {
       createdAt: now,
       updatedAt: now,
       toolsEnabled: toolsEnabled,
+      workspaceDirectory: workspaceDirectory,
+      allowWorkspaceWrites: allowWorkspaceWrites,
     );
   }
 
@@ -250,6 +257,198 @@ void main() {
         expect(record.error, contains('without any visible output'));
       },
     );
+
+    test(
+      'allows write tools only inside the configured routine workspace',
+      () async {
+        final workspaceDirectory = '/tmp/caverno-routine-workspace';
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Updating saved LAN state',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-write',
+                name: 'write_file',
+                arguments: const {
+                  'path': 'lan/devices.json',
+                  'content': '{"ips":["192.168.1.10"]}',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected write result',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Saved the current LAN device list.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('write_file', 'Write a file'),
+            _toolDefinition('edit_file', 'Edit a file'),
+          ],
+          resultsByToolName: {
+            'write_file': const McpToolResult(
+              toolName: 'write_file',
+              result: '{"bytes_written":26}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            workspaceDirectory: workspaceDirectory,
+            allowWorkspaceWrites: true,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.toolNames, ['write_file']);
+        expect(dataSource.toolRequestNames, ['write_file', 'edit_file']);
+        expect(toolService.executedCalls, hasLength(1));
+        expect(toolService.executedCalls.single.name, 'write_file');
+        expect(
+          toolService.executedCalls.single.arguments['path'],
+          '/tmp/caverno-routine-workspace/lan/devices.json',
+        );
+        final systemPrompt = dataSource.lastToolAwareMessages
+            .singleWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(systemPrompt, contains('Routine workspace directory:'));
+        expect(systemPrompt, contains(workspaceDirectory));
+        expect(systemPrompt, contains('Workspace write access is enabled'));
+      },
+    );
+
+    test('blocks routine writes outside the configured workspace', () async {
+      final dataSource = _FakeChatDataSource(
+        initialToolAwareResult: ChatCompletionResult(
+          content: 'Trying to write outside the workspace',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-write',
+              name: 'write_file',
+              arguments: const {
+                'path': '/tmp/outside-routine-workspace.txt',
+                'content': 'unsafe',
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        toolLoopResult: ChatCompletionResult(
+          content: 'Collected blocked write result',
+          finishReason: 'stop',
+        ),
+        plainResults: [
+          ChatCompletionResult(
+            content: 'The write was blocked because it was outside workspace.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        definitions: [_toolDefinition('write_file', 'Write a file')],
+        resultsByToolName: const {},
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        mcpToolService: toolService,
+        settings: AppSettings.defaults(),
+      );
+
+      final record = await service.execute(
+        buildRoutine(
+          toolsEnabled: true,
+          workspaceDirectory: '/tmp/caverno-routine-workspace',
+          allowWorkspaceWrites: true,
+        ),
+      );
+
+      expect(record.isSuccessful, isTrue);
+      expect(record.toolNames, ['write_file']);
+      expect(toolService.executedCalls, isEmpty);
+      expect(dataSource.lastToolResults, hasLength(1));
+      expect(
+        dataSource.lastToolResults.single.result,
+        contains('routine_workspace_write_denied'),
+      );
+    });
+
+    test('posts to Google Chat through the routine-only tool', () async {
+      final deliveryService = _FakeGoogleChatDeliveryService(
+        result: GoogleChatDeliveryResult(
+          isSuccessful: true,
+          message: 'Posted to Google Chat.',
+          deliveredAt: DateTime(2026, 4, 21, 10, 0, 2),
+        ),
+      );
+      final dataSource = _FakeChatDataSource(
+        initialToolAwareResult: ChatCompletionResult(
+          content: 'New LAN device found',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-chat',
+              name: RoutineExecutionService.googleChatPostToolName,
+              arguments: const {'text': 'New LAN device: 192.168.1.42'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        toolLoopResult: ChatCompletionResult(
+          content: 'Collected Google Chat result',
+          finishReason: 'stop',
+        ),
+        plainResults: [
+          ChatCompletionResult(
+            content: 'Posted the new device alert.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        googleChatDeliveryService: deliveryService,
+        settings: AppSettings.defaults().copyWith(
+          googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+        ),
+      );
+
+      final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+      expect(record.isSuccessful, isTrue);
+      expect(record.toolNames, [
+        RoutineExecutionService.googleChatPostToolName,
+      ]);
+      expect(record.toolSourceLabels, {
+        RoutineExecutionService.googleChatPostToolName: 'Google Chat',
+      });
+      expect(record.toolDisplayNames, [
+        '${RoutineExecutionService.googleChatPostToolName} (Google Chat)',
+      ]);
+      expect(dataSource.toolRequestNames, [
+        RoutineExecutionService.googleChatPostToolName,
+      ]);
+      expect(deliveryService.calls, hasLength(1));
+      expect(
+        deliveryService.calls.single.webhookUrl,
+        'https://chat.googleapis.com/v1/spaces/test',
+      );
+      expect(deliveryService.calls.single.text, 'New LAN device: 192.168.1.42');
+    });
   });
 }
 
@@ -275,6 +474,7 @@ class _FakeChatDataSource implements ChatDataSource {
 
   List<String> toolRequestNames = const [];
   List<Message> lastToolAwareMessages = const [];
+  List<ToolResultInfo> lastToolResults = const [];
   int createChatCompletionWithToolResultsCallCount = 0;
 
   @override
@@ -328,6 +528,7 @@ class _FakeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     createChatCompletionWithToolResultsCallCount += 1;
+    lastToolResults = toolResults;
     return toolLoopResult ??
         ChatCompletionResult(content: '', finishReason: 'stop');
   }
@@ -403,4 +604,32 @@ class _ExecutedToolCall {
 
   final String name;
   final Map<String, dynamic> arguments;
+}
+
+class _FakeGoogleChatDeliveryService extends GoogleChatDeliveryService {
+  _FakeGoogleChatDeliveryService({
+    this.result = const GoogleChatDeliveryResult(
+      isSuccessful: true,
+      message: 'Posted to Google Chat.',
+    ),
+  }) : super();
+
+  final GoogleChatDeliveryResult result;
+  final List<_GoogleChatDeliveryCall> calls = [];
+
+  @override
+  Future<GoogleChatDeliveryResult> sendMessage({
+    required String webhookUrl,
+    required String text,
+  }) async {
+    calls.add(_GoogleChatDeliveryCall(webhookUrl: webhookUrl, text: text));
+    return result;
+  }
+}
+
+class _GoogleChatDeliveryCall {
+  const _GoogleChatDeliveryCall({required this.webhookUrl, required this.text});
+
+  final String webhookUrl;
+  final String text;
 }

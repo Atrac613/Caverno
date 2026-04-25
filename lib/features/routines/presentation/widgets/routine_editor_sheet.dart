@@ -14,6 +14,8 @@ class RoutineEditorResult {
     required this.toolsEnabled,
     required this.completionAction,
     required this.googleChatRule,
+    required this.workspaceDirectory,
+    required this.allowWorkspaceWrites,
   });
 
   final String name;
@@ -25,6 +27,8 @@ class RoutineEditorResult {
   final bool toolsEnabled;
   final RoutineCompletionAction completionAction;
   final RoutineGoogleChatRule googleChatRule;
+  final String workspaceDirectory;
+  final bool allowWorkspaceWrites;
 }
 
 class RoutineEditorSheet extends StatefulWidget {
@@ -41,10 +45,12 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late final TextEditingController _nameController;
   late final TextEditingController _promptController;
   late final TextEditingController _intervalController;
+  late final TextEditingController _workspaceDirectoryController;
   late RoutineIntervalUnit _intervalUnit;
   late bool _enabled;
   late bool _notifyOnCompletion;
   late bool _toolsEnabled;
+  late bool _allowWorkspaceWrites;
   late RoutineCompletionAction _completionAction;
   late RoutineGoogleChatRule _googleChatRule;
 
@@ -61,10 +67,14 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _intervalController = TextEditingController(
       text: (initialRoutine?.intervalValue ?? 1).toString(),
     );
+    _workspaceDirectoryController = TextEditingController(
+      text: initialRoutine?.workspaceDirectory ?? '',
+    );
     _intervalUnit = initialRoutine?.intervalUnit ?? RoutineIntervalUnit.hours;
     _enabled = initialRoutine?.enabled ?? true;
     _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
     _toolsEnabled = initialRoutine?.toolsEnabled ?? false;
+    _allowWorkspaceWrites = initialRoutine?.allowWorkspaceWrites ?? false;
     _completionAction =
         initialRoutine?.completionAction ?? RoutineCompletionAction.none;
     _googleChatRule =
@@ -76,6 +86,7 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     _nameController.dispose();
     _promptController.dispose();
     _intervalController.dispose();
+    _workspaceDirectoryController.dispose();
     super.dispose();
   }
 
@@ -89,171 +100,176 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
           16,
           16 + MediaQuery.of(context).viewInsets.bottom,
         ),
-        child: Form(
-          key: _formKey,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                _isEditing
-                    ? 'routines.edit_title'.tr()
-                    : 'routines.create_title'.tr(),
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _nameController,
-                decoration: InputDecoration(
-                  labelText: 'routines.name_label'.tr(),
-                  border: const OutlineInputBorder(),
+        child: SingleChildScrollView(
+          child: Form(
+            key: _formKey,
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  _isEditing
+                      ? 'routines.edit_title'.tr()
+                      : 'routines.create_title'.tr(),
+                  style: Theme.of(context).textTheme.titleLarge,
                 ),
-                textInputAction: TextInputAction.next,
-                validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'routines.name_required'.tr();
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              TextFormField(
-                controller: _promptController,
-                minLines: 4,
-                maxLines: 8,
-                decoration: InputDecoration(
-                  labelText: 'routines.prompt_label'.tr(),
-                  border: const OutlineInputBorder(),
-                  alignLabelWithHint: true,
-                ),
-                validator: (value) {
-                  if ((value ?? '').trim().isEmpty) {
-                    return 'routines.prompt_required'.tr();
-                  }
-                  return null;
-                },
-              ),
-              const SizedBox(height: 16),
-              Row(
-                children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: _intervalController,
-                      decoration: InputDecoration(
-                        labelText: 'routines.interval_value_label'.tr(),
-                        border: const OutlineInputBorder(),
-                      ),
-                      keyboardType: TextInputType.number,
-                      validator: (value) {
-                        final parsed = int.tryParse((value ?? '').trim());
-                        if (parsed == null || parsed < 1) {
-                          return 'routines.interval_value_required'.tr();
-                        }
-                        return null;
-                      },
-                    ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _nameController,
+                  decoration: InputDecoration(
+                    labelText: 'routines.name_label'.tr(),
+                    border: const OutlineInputBorder(),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: DropdownButtonFormField<RoutineIntervalUnit>(
-                      initialValue: _intervalUnit,
-                      decoration: InputDecoration(
-                        labelText: 'routines.interval_unit_label'.tr(),
-                        border: const OutlineInputBorder(),
+                  textInputAction: TextInputAction.next,
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'routines.name_required'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                TextFormField(
+                  controller: _promptController,
+                  minLines: 4,
+                  maxLines: 8,
+                  decoration: InputDecoration(
+                    labelText: 'routines.prompt_label'.tr(),
+                    border: const OutlineInputBorder(),
+                    alignLabelWithHint: true,
+                  ),
+                  validator: (value) {
+                    if ((value ?? '').trim().isEmpty) {
+                      return 'routines.prompt_required'.tr();
+                    }
+                    return null;
+                  },
+                ),
+                const SizedBox(height: 16),
+                Row(
+                  children: [
+                    Expanded(
+                      child: TextFormField(
+                        controller: _intervalController,
+                        decoration: InputDecoration(
+                          labelText: 'routines.interval_value_label'.tr(),
+                          border: const OutlineInputBorder(),
+                        ),
+                        keyboardType: TextInputType.number,
+                        validator: (value) {
+                          final parsed = int.tryParse((value ?? '').trim());
+                          if (parsed == null || parsed < 1) {
+                            return 'routines.interval_value_required'.tr();
+                          }
+                          return null;
+                        },
                       ),
-                      items: RoutineIntervalUnit.values
-                          .map(
-                            (unit) => DropdownMenuItem(
-                              value: unit,
-                              child: Text(_intervalUnitLabel(unit)),
-                            ),
-                          )
-                          .toList(growable: false),
-                      onChanged: (value) {
-                        if (value == null) {
-                          return;
-                        }
-                        setState(() {
-                          _intervalUnit = value;
-                        });
-                      },
                     ),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: DropdownButtonFormField<RoutineIntervalUnit>(
+                        initialValue: _intervalUnit,
+                        decoration: InputDecoration(
+                          labelText: 'routines.interval_unit_label'.tr(),
+                          border: const OutlineInputBorder(),
+                        ),
+                        items: RoutineIntervalUnit.values
+                            .map(
+                              (unit) => DropdownMenuItem(
+                                value: unit,
+                                child: Text(_intervalUnitLabel(unit)),
+                              ),
+                            )
+                            .toList(growable: false),
+                        onChanged: (value) {
+                          if (value == null) {
+                            return;
+                          }
+                          setState(() {
+                            _intervalUnit = value;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: 8),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('routines.enabled_label'.tr()),
+                  subtitle: Text('routines.enabled_hint'.tr()),
+                  value: _enabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _enabled = value;
+                    });
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('routines.notify_on_completion_label'.tr()),
+                  subtitle: Text('routines.notify_on_completion_hint'.tr()),
+                  value: _notifyOnCompletion,
+                  onChanged: (value) {
+                    setState(() {
+                      _notifyOnCompletion = value;
+                    });
+                  },
+                ),
+                SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('routines.tools_enabled_label'.tr()),
+                  subtitle: Text('routines.tools_enabled_hint'.tr()),
+                  value: _toolsEnabled,
+                  onChanged: (value) {
+                    setState(() {
+                      _toolsEnabled = value;
+                    });
+                  },
+                ),
+                if (_toolsEnabled) ...[
+                  const SizedBox(height: 8),
+                  TextFormField(
+                    controller: _workspaceDirectoryController,
+                    decoration: InputDecoration(
+                      labelText: 'routines.workspace_directory_label'.tr(),
+                      helperText: 'routines.workspace_directory_hint'.tr(),
+                      border: const OutlineInputBorder(),
+                    ),
+                    textInputAction: TextInputAction.next,
+                    validator: (value) {
+                      if (_allowWorkspaceWrites &&
+                          (value ?? '').trim().isEmpty) {
+                        return 'routines.workspace_directory_required'.tr();
+                      }
+                      return null;
+                    },
+                  ),
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('routines.allow_workspace_writes_label'.tr()),
+                    subtitle: Text('routines.allow_workspace_writes_hint'.tr()),
+                    value: _allowWorkspaceWrites,
+                    onChanged: (value) {
+                      setState(() {
+                        _allowWorkspaceWrites = value;
+                      });
+                    },
                   ),
                 ],
-              ),
-              const SizedBox(height: 8),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('routines.enabled_label'.tr()),
-                subtitle: Text('routines.enabled_hint'.tr()),
-                value: _enabled,
-                onChanged: (value) {
-                  setState(() {
-                    _enabled = value;
-                  });
-                },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('routines.notify_on_completion_label'.tr()),
-                subtitle: Text('routines.notify_on_completion_hint'.tr()),
-                value: _notifyOnCompletion,
-                onChanged: (value) {
-                  setState(() {
-                    _notifyOnCompletion = value;
-                  });
-                },
-              ),
-              SwitchListTile(
-                contentPadding: EdgeInsets.zero,
-                title: Text('routines.tools_enabled_label'.tr()),
-                subtitle: Text('routines.tools_enabled_hint'.tr()),
-                value: _toolsEnabled,
-                onChanged: (value) {
-                  setState(() {
-                    _toolsEnabled = value;
-                  });
-                },
-              ),
-              const SizedBox(height: 8),
-              DropdownButtonFormField<RoutineCompletionAction>(
-                initialValue: _completionAction,
-                decoration: InputDecoration(
-                  labelText: 'routines.completion_action_label'.tr(),
-                  border: const OutlineInputBorder(),
-                  helperText: 'routines.completion_action_hint'.tr(),
-                ),
-                items: RoutineCompletionAction.values
-                    .map(
-                      (action) => DropdownMenuItem(
-                        value: action,
-                        child: Text(_completionActionLabel(action)),
-                      ),
-                    )
-                    .toList(growable: false),
-                onChanged: (value) {
-                  if (value == null) {
-                    return;
-                  }
-                  setState(() {
-                    _completionAction = value;
-                  });
-                },
-              ),
-              if (_completionAction == RoutineCompletionAction.googleChat) ...[
-                const SizedBox(height: 16),
-                DropdownButtonFormField<RoutineGoogleChatRule>(
-                  initialValue: _googleChatRule,
+                const SizedBox(height: 8),
+                DropdownButtonFormField<RoutineCompletionAction>(
+                  initialValue: _completionAction,
                   decoration: InputDecoration(
-                    labelText: 'routines.google_chat_rule_label'.tr(),
+                    labelText: 'routines.completion_action_label'.tr(),
                     border: const OutlineInputBorder(),
-                    helperText: 'routines.google_chat_rule_hint'.tr(),
+                    helperText: 'routines.completion_action_hint'.tr(),
                   ),
-                  items: RoutineGoogleChatRule.values
+                  items: RoutineCompletionAction.values
                       .map(
-                        (rule) => DropdownMenuItem(
-                          value: rule,
-                          child: Text(_googleChatRuleLabel(rule)),
+                        (action) => DropdownMenuItem(
+                          value: action,
+                          child: Text(_completionActionLabel(action)),
                         ),
                       )
                       .toList(growable: false),
@@ -262,27 +278,55 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                       return;
                     }
                     setState(() {
-                      _googleChatRule = value;
+                      _completionAction = value;
                     });
                   },
                 ),
-              ],
-              const SizedBox(height: 8),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.end,
-                children: [
-                  TextButton(
-                    onPressed: () => Navigator.of(context).pop(),
-                    child: Text('common.cancel'.tr()),
-                  ),
-                  const SizedBox(width: 8),
-                  FilledButton(
-                    onPressed: _save,
-                    child: Text('common.save'.tr()),
+                if (_completionAction ==
+                    RoutineCompletionAction.googleChat) ...[
+                  const SizedBox(height: 16),
+                  DropdownButtonFormField<RoutineGoogleChatRule>(
+                    initialValue: _googleChatRule,
+                    decoration: InputDecoration(
+                      labelText: 'routines.google_chat_rule_label'.tr(),
+                      border: const OutlineInputBorder(),
+                      helperText: 'routines.google_chat_rule_hint'.tr(),
+                    ),
+                    items: RoutineGoogleChatRule.values
+                        .map(
+                          (rule) => DropdownMenuItem(
+                            value: rule,
+                            child: Text(_googleChatRuleLabel(rule)),
+                          ),
+                        )
+                        .toList(growable: false),
+                    onChanged: (value) {
+                      if (value == null) {
+                        return;
+                      }
+                      setState(() {
+                        _googleChatRule = value;
+                      });
+                    },
                   ),
                 ],
-              ),
-            ],
+                const SizedBox(height: 8),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('common.cancel'.tr()),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _save,
+                      child: Text('common.save'.tr()),
+                    ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -333,6 +377,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         toolsEnabled: _toolsEnabled,
         completionAction: _completionAction,
         googleChatRule: _googleChatRule,
+        workspaceDirectory: _workspaceDirectoryController.text.trim(),
+        allowWorkspaceWrites: _toolsEnabled && _allowWorkspaceWrites,
       ),
     );
   }

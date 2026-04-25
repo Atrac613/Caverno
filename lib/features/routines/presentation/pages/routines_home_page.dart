@@ -142,6 +142,8 @@ class RoutinesHomePage extends ConsumerWidget {
         toolsEnabled: result.toolsEnabled,
         completionAction: result.completionAction,
         googleChatRule: result.googleChatRule,
+        workspaceDirectory: result.workspaceDirectory,
+        allowWorkspaceWrites: result.allowWorkspaceWrites,
       );
     } else {
       await notifier.updateRoutine(
@@ -155,6 +157,8 @@ class RoutinesHomePage extends ConsumerWidget {
         toolsEnabled: result.toolsEnabled,
         completionAction: result.completionAction,
         googleChatRule: result.googleChatRule,
+        workspaceDirectory: result.workspaceDirectory,
+        allowWorkspaceWrites: result.allowWorkspaceWrites,
       );
     }
   }
@@ -470,7 +474,9 @@ class _RoutineCard extends StatelessWidget {
                           ),
                           if (routine.toolsEnabled)
                             _RoutineStatusChip(
-                              label: 'routines.tools_read_only_badge'.tr(),
+                              label: routine.hasWorkspaceWriteAccess
+                                  ? 'routines.tools_workspace_write_badge'.tr()
+                                  : 'routines.tools_read_only_badge'.tr(),
                               color: colorScheme.secondaryContainer,
                             ),
                           if (routine.postsToGoogleChat)

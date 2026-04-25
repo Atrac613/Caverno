@@ -115,7 +115,9 @@ class RoutineDetailPage extends ConsumerWidget {
                         ),
                       if (routine.toolsEnabled)
                         _StatusChip(
-                          label: 'routines.tools_read_only_badge'.tr(),
+                          label: routine.hasWorkspaceWriteAccess
+                              ? 'routines.tools_workspace_write_badge'.tr()
+                              : 'routines.tools_read_only_badge'.tr(),
                           color: Theme.of(
                             context,
                           ).colorScheme.secondaryContainer,
@@ -170,9 +172,16 @@ class RoutineDetailPage extends ConsumerWidget {
                       _MetaLine(
                         label: 'routines.tools_label'.tr(),
                         value: routine.toolsEnabled
-                            ? 'routines.tools_mode_read_only'.tr()
+                            ? (routine.hasWorkspaceWriteAccess
+                                  ? 'routines.tools_mode_workspace_writes'.tr()
+                                  : 'routines.tools_mode_read_only'.tr())
                             : 'routines.tools_mode_off'.tr(),
                       ),
+                      if (routine.toolsEnabled && routine.hasWorkspaceDirectory)
+                        _MetaLine(
+                          label: 'routines.workspace_directory_label'.tr(),
+                          value: routine.trimmedWorkspaceDirectory,
+                        ),
                       _MetaLine(
                         label: 'routines.completion_action_label'.tr(),
                         value: _formatCompletionAction(context, routine),
@@ -372,6 +381,8 @@ class RoutineDetailPage extends ConsumerWidget {
           toolsEnabled: result.toolsEnabled,
           completionAction: result.completionAction,
           googleChatRule: result.googleChatRule,
+          workspaceDirectory: result.workspaceDirectory,
+          allowWorkspaceWrites: result.allowWorkspaceWrites,
         );
   }
 

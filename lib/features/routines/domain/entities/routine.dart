@@ -95,6 +95,8 @@ abstract class Routine with _$Routine {
     @JsonKey(unknownEnumValue: RoutineGoogleChatRule.onFailure)
     @Default(RoutineGoogleChatRule.onFailure)
     RoutineGoogleChatRule googleChatRule,
+    @Default('') String workspaceDirectory,
+    @Default(false) bool allowWorkspaceWrites,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)
@@ -111,7 +113,14 @@ abstract class Routine with _$Routine {
 
   String get trimmedPrompt => prompt.trim();
 
+  String get trimmedWorkspaceDirectory => workspaceDirectory.trim();
+
   bool get hasPrompt => trimmedPrompt.isNotEmpty;
+
+  bool get hasWorkspaceDirectory => trimmedWorkspaceDirectory.isNotEmpty;
+
+  bool get hasWorkspaceWriteAccess =>
+      toolsEnabled && allowWorkspaceWrites && hasWorkspaceDirectory;
 
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
 
