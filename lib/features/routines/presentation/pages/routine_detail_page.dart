@@ -2,6 +2,7 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../chat/presentation/widgets/parsed_content_view.dart';
 import '../../domain/entities/routine.dart';
 import '../../domain/services/routine_schedule_service.dart';
 import '../providers/routines_notifier.dart';
@@ -252,12 +253,13 @@ class RoutineDetailPage extends ConsumerWidget {
                 padding: const EdgeInsets.only(bottom: 12),
                 child: _RunRecordCard(
                   run: run,
-                  onViewOutput: run.output.trim().isEmpty
+                  onViewTranscript:
+                      run.output.trim().isEmpty && run.toolCalls.isEmpty
                       ? null
-                      : () => _showTextViewer(
+                      : () => _showRunTranscriptViewer(
                           context,
-                          title: 'routines.output_title'.tr(),
-                          content: run.output,
+                          routine: routine,
+                          run: run,
                         ),
                   onViewError: run.error.trim().isEmpty
                       ? null
@@ -560,17 +562,178 @@ class RoutineDetailPage extends ConsumerWidget {
       ),
     );
   }
+
+  Future<void> _showRunTranscriptViewer(
+    BuildContext context, {
+    required Routine routine,
+    required RoutineRunRecord run,
+  }) async {
+    await showModalBottomSheet<void>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) {
+        final maxHeight = MediaQuery.of(context).size.height * 0.86;
+        return SafeArea(
+          child: ConstrainedBox(
+            constraints: BoxConstraints(maxHeight: maxHeight),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(
+                16,
+                16,
+                16,
+                16 + MediaQuery.of(context).viewInsets.bottom,
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          'routines.transcript_title'.tr(),
+                          style: Theme.of(context).textTheme.titleLarge,
+                        ),
+                      ),
+                      TextButton(
+                        onPressed: () => Navigator.of(context).pop(),
+                        child: Text('common.close'.tr()),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Expanded(
+                    child: ListView(
+                      children: [
+                        _TranscriptBlock(
+                          label: 'routines.transcript_user'.tr(),
+                          content: routine.trimmedPrompt,
+                          role: _TranscriptRole.user,
+                        ),
+                        for (final toolCall in run.toolCalls)
+                          _TranscriptBlock(
+                            label: 'routines.transcript_tool'.tr(
+                              namedArgs: {'name': toolCall.name},
+                            ),
+                            content: [
+                              if (toolCall.arguments.trim().isNotEmpty)
+                                '${'routines.tool_arguments_label'.tr()}\n${toolCall.arguments.trim()}',
+                              if (toolCall.result.trim().isNotEmpty)
+                                '${'routines.tool_result_label'.tr()}\n${toolCall.result.trim()}',
+                            ].join('\n\n'),
+                            role: _TranscriptRole.tool,
+                          ),
+                        if (run.output.trim().isNotEmpty)
+                          _TranscriptBlock(
+                            label: 'routines.transcript_assistant'.tr(),
+                            content: run.output.trim(),
+                            role: _TranscriptRole.assistant,
+                          ),
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+enum _TranscriptRole { user, tool, assistant }
+
+class _TranscriptBlock extends StatelessWidget {
+  const _TranscriptBlock({
+    required this.label,
+    required this.content,
+    required this.role,
+  });
+
+  final String label;
+  final String content;
+  final _TranscriptRole role;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final isUser = role == _TranscriptRole.user;
+    final isTool = role == _TranscriptRole.tool;
+    final screenWidth = MediaQuery.sizeOf(context).width;
+    final maxBubbleWidth = screenWidth < 720 ? screenWidth * 0.84 : 680.0;
+    final backgroundColor = isUser
+        ? theme.colorScheme.primary
+        : isTool
+        ? theme.colorScheme.surfaceContainer
+        : theme.colorScheme.surfaceContainerHighest;
+    final foregroundColor = isUser
+        ? theme.colorScheme.onPrimary
+        : theme.colorScheme.onSurface;
+    final labelColor = isUser
+        ? theme.colorScheme.onPrimary.withValues(alpha: 0.78)
+        : theme.colorScheme.onSurfaceVariant;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 12),
+      child: Align(
+        alignment: isUser ? Alignment.centerRight : Alignment.centerLeft,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: maxBubbleWidth),
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              color: backgroundColor,
+              borderRadius: BorderRadius.circular(16).copyWith(
+                bottomRight: isUser ? const Radius.circular(4) : null,
+                bottomLeft: !isUser ? const Radius.circular(4) : null,
+              ),
+              border: isTool
+                  ? Border.all(color: theme.colorScheme.outlineVariant)
+                  : null,
+            ),
+            child: Padding(
+              padding: const EdgeInsets.symmetric(vertical: 10, horizontal: 14),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    label,
+                    style: theme.textTheme.labelMedium?.copyWith(
+                      color: labelColor,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                  const SizedBox(height: 6),
+                  if (role == _TranscriptRole.assistant)
+                    ParsedContentView(
+                      content: content,
+                      textColor: foregroundColor,
+                    )
+                  else
+                    SelectableText(
+                      content,
+                      style: theme.textTheme.bodyMedium?.copyWith(
+                        color: foregroundColor,
+                        height: 1.35,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }
 
 class _RunRecordCard extends StatelessWidget {
   const _RunRecordCard({
     required this.run,
-    this.onViewOutput,
+    this.onViewTranscript,
     this.onViewError,
   });
 
   final RoutineRunRecord run;
-  final VoidCallback? onViewOutput;
+  final VoidCallback? onViewTranscript;
   final VoidCallback? onViewError;
 
   @override
@@ -701,17 +864,17 @@ class _RunRecordCard extends StatelessWidget {
                 ),
               ),
             ],
-            if (onViewOutput != null || onViewError != null) ...[
+            if (onViewTranscript != null || onViewError != null) ...[
               const SizedBox(height: 12),
               Wrap(
                 spacing: 8,
                 runSpacing: 8,
                 children: [
-                  if (onViewOutput != null)
+                  if (onViewTranscript != null)
                     OutlinedButton.icon(
-                      onPressed: onViewOutput,
+                      onPressed: onViewTranscript,
                       icon: const Icon(Icons.article_outlined),
-                      label: Text('routines.view_output'.tr()),
+                      label: Text('routines.view_transcript'.tr()),
                     ),
                   if (onViewError != null)
                     OutlinedButton.icon(

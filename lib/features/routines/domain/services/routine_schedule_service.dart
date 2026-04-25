@@ -50,6 +50,17 @@ class RoutineScheduleService {
   }
 
   static String summarizeOutput(String content, {int maxLength = 220}) {
+    final normalized = visibleOutput(content);
+    if (normalized.isEmpty) {
+      return '';
+    }
+    if (normalized.length <= maxLength) {
+      return normalized;
+    }
+    return '${normalized.substring(0, maxLength - 3)}...';
+  }
+
+  static String visibleOutput(String content) {
     final parsed = ContentParser.parse(content);
     final buffer = StringBuffer();
 
@@ -59,14 +70,7 @@ class RoutineScheduleService {
       }
     }
 
-    final normalized = buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
-    if (normalized.isEmpty) {
-      return '';
-    }
-    if (normalized.length <= maxLength) {
-      return normalized;
-    }
-    return '${normalized.substring(0, maxLength - 3)}...';
+    return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
   }
 
   static String truncateOutput(String content, {int maxLength = 4000}) {

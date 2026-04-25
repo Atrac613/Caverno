@@ -11,10 +11,12 @@ class RoutineToolExecutionResult {
   const RoutineToolExecutionResult({
     required this.output,
     this.toolResults = const <ToolResultInfo>[],
+    this.wasTruncated = false,
   });
 
   final String output;
   final List<ToolResultInfo> toolResults;
+  final bool wasTruncated;
 }
 
 class RoutineToolRunner {
@@ -44,7 +46,10 @@ class RoutineToolRunner {
 
     final initialToolCalls = _extractToolCalls(initialResult);
     if (initialToolCalls.isEmpty) {
-      return RoutineToolExecutionResult(output: initialResult.content.trim());
+      return RoutineToolExecutionResult(
+        output: initialResult.content.trim(),
+        wasTruncated: _isCompletionTruncated(initialResult.finishReason),
+      );
     }
 
     final descriptionsByName =
@@ -57,6 +62,7 @@ class RoutineToolRunner {
         ? null
         : initialResult.content;
     String? fallbackResponse;
+    var wasTruncated = _isCompletionTruncated(initialResult.finishReason);
     var iteration = 0;
 
     while (currentToolCalls.isNotEmpty && iteration < _maxIterations) {
@@ -83,6 +89,8 @@ class RoutineToolRunner {
         temperature: temperature,
         maxTokens: maxTokens,
       );
+      wasTruncated =
+          wasTruncated || _isCompletionTruncated(nextResult.finishReason);
 
       final nextContent = nextResult.content.trim();
       final nextToolCalls = _extractToolCalls(nextResult);
@@ -92,13 +100,18 @@ class RoutineToolRunner {
             ? null
             : nextResult.content;
       } else {
-        fallbackResponse = nextContent.isEmpty ? null : nextResult.content;
+        fallbackResponse = _hasVisibleOutput(nextContent)
+            ? nextResult.content
+            : null;
         break;
       }
     }
 
     if (executedToolResults.isEmpty) {
-      return RoutineToolExecutionResult(output: initialResult.content.trim());
+      return RoutineToolExecutionResult(
+        output: initialResult.content.trim(),
+        wasTruncated: wasTruncated,
+      );
     }
 
     final answerPrompt = ToolResultPromptBuilder.buildAnswerPrompt(
@@ -122,6 +135,8 @@ class RoutineToolRunner {
 
     var finalOutput = finalResult.content.trim();
     var finalToolCalls = _extractToolCalls(finalResult);
+    wasTruncated =
+        wasTruncated || _isCompletionTruncated(finalResult.finishReason);
     var executedFinalToolCall = false;
     while (finalToolCalls.isNotEmpty && iteration < _maxIterations) {
       iteration += 1;
@@ -158,14 +173,21 @@ class RoutineToolRunner {
       );
       finalOutput = finalResult.content.trim();
       finalToolCalls = _extractToolCalls(finalResult);
+      wasTruncated =
+          wasTruncated || _isCompletionTruncated(finalResult.finishReason);
     }
 
     return RoutineToolExecutionResult(
-      output: finalOutput.isNotEmpty && finalToolCalls.isEmpty
+      output: _hasVisibleOutput(finalOutput) && finalToolCalls.isEmpty
           ? finalOutput
-          : (fallbackResponse?.trim() ??
-                (executedFinalToolCall ? 'Routine tools completed.' : '')),
+          : (wasTruncated
+                ? ''
+                : fallbackResponse?.trim() ??
+                      (executedFinalToolCall
+                          ? 'Routine tools completed.'
+                          : '')),
       toolResults: List<ToolResultInfo>.unmodifiable(executedToolResults),
+      wasTruncated: wasTruncated,
     );
   }
 
@@ -256,6 +278,19 @@ class RoutineToolRunner {
     final sortedEntries = arguments.entries.toList(growable: false)
       ..sort((left, right) => left.key.compareTo(right.key));
     return jsonEncode(Map<String, dynamic>.fromEntries(sortedEntries));
+  }
+
+  bool _hasVisibleOutput(String content) {
+    final parsed = ContentParser.parse(content);
+    return parsed.segments.any(
+      (segment) =>
+          segment.type == ContentType.text && segment.content.trim().isNotEmpty,
+    );
+  }
+
+  bool _isCompletionTruncated(String finishReason) {
+    final normalized = finishReason.trim().toLowerCase();
+    return normalized == 'length' || normalized == 'max_tokens';
   }
 }
 

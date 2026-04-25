@@ -15,7 +15,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$RoutineRunRecord {
 
- String get id; DateTime get startedAt; DateTime get finishedAt;@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus get status;@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger get trigger; int get durationMs; bool get usedTools; int get toolCallCount; List<String> get toolNames; Map<String, String> get toolSourceLabels;@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus get deliveryStatus; DateTime? get deliveredAt; String get deliveryMessage; String get preview; String get output; String get error; bool get failureAcknowledged;
+ String get id; DateTime get startedAt; DateTime get finishedAt;@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus get status;@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger get trigger; int get durationMs; bool get usedTools; int get toolCallCount; List<String> get toolNames;@JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) List<RoutineRunToolCall> get toolCalls; Map<String, String> get toolSourceLabels;@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus get deliveryStatus; DateTime? get deliveredAt; String get deliveryMessage; String get preview; String get output; String get error; bool get failureAcknowledged;
 /// Create a copy of RoutineRunRecord
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -28,16 +28,16 @@ $RoutineRunRecordCopyWith<RoutineRunRecord> get copyWith => _$RoutineRunRecordCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other.toolNames, toolNames)&&const DeepCollectionEquality().equals(other.toolSourceLabels, toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other.toolNames, toolNames)&&const DeepCollectionEquality().equals(other.toolCalls, toolCalls)&&const DeepCollectionEquality().equals(other.toolSourceLabels, toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,startedAt,finishedAt,status,trigger,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(toolNames),const DeepCollectionEquality().hash(toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged);
+int get hashCode => Object.hash(runtimeType,id,startedAt,finishedAt,status,trigger,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(toolNames),const DeepCollectionEquality().hash(toolCalls),const DeepCollectionEquality().hash(toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged);
 
 @override
 String toString() {
-  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged)';
+  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolCalls: $toolCalls, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged)';
 }
 
 
@@ -48,7 +48,7 @@ abstract mixin class $RoutineRunRecordCopyWith<$Res>  {
   factory $RoutineRunRecordCopyWith(RoutineRunRecord value, $Res Function(RoutineRunRecord) _then) = _$RoutineRunRecordCopyWithImpl;
 @useResult
 $Res call({
- String id, DateTime startedAt, DateTime finishedAt,@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus status,@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger trigger, int durationMs, bool usedTools, int toolCallCount, List<String> toolNames, Map<String, String> toolSourceLabels,@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus deliveryStatus, DateTime? deliveredAt, String deliveryMessage, String preview, String output, String error, bool failureAcknowledged
+ String id, DateTime startedAt, DateTime finishedAt,@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus status,@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger trigger, int durationMs, bool usedTools, int toolCallCount, List<String> toolNames,@JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) List<RoutineRunToolCall> toolCalls, Map<String, String> toolSourceLabels,@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus deliveryStatus, DateTime? deliveredAt, String deliveryMessage, String preview, String output, String error, bool failureAcknowledged
 });
 
 
@@ -65,7 +65,7 @@ class _$RoutineRunRecordCopyWithImpl<$Res>
 
 /// Create a copy of RoutineRunRecord
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? startedAt = null,Object? finishedAt = null,Object? status = null,Object? trigger = null,Object? durationMs = null,Object? usedTools = null,Object? toolCallCount = null,Object? toolNames = null,Object? toolSourceLabels = null,Object? deliveryStatus = null,Object? deliveredAt = freezed,Object? deliveryMessage = null,Object? preview = null,Object? output = null,Object? error = null,Object? failureAcknowledged = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? startedAt = null,Object? finishedAt = null,Object? status = null,Object? trigger = null,Object? durationMs = null,Object? usedTools = null,Object? toolCallCount = null,Object? toolNames = null,Object? toolCalls = null,Object? toolSourceLabels = null,Object? deliveryStatus = null,Object? deliveredAt = freezed,Object? deliveryMessage = null,Object? preview = null,Object? output = null,Object? error = null,Object? failureAcknowledged = null,}) {
   return _then(_self.copyWith(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,startedAt: null == startedAt ? _self.startedAt : startedAt // ignore: cast_nullable_to_non_nullable
@@ -76,7 +76,8 @@ as RoutineRunTrigger,durationMs: null == durationMs ? _self.durationMs : duratio
 as int,usedTools: null == usedTools ? _self.usedTools : usedTools // ignore: cast_nullable_to_non_nullable
 as bool,toolCallCount: null == toolCallCount ? _self.toolCallCount : toolCallCount // ignore: cast_nullable_to_non_nullable
 as int,toolNames: null == toolNames ? _self.toolNames : toolNames // ignore: cast_nullable_to_non_nullable
-as List<String>,toolSourceLabels: null == toolSourceLabels ? _self.toolSourceLabels : toolSourceLabels // ignore: cast_nullable_to_non_nullable
+as List<String>,toolCalls: null == toolCalls ? _self.toolCalls : toolCalls // ignore: cast_nullable_to_non_nullable
+as List<RoutineRunToolCall>,toolSourceLabels: null == toolSourceLabels ? _self.toolSourceLabels : toolSourceLabels // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,deliveryStatus: null == deliveryStatus ? _self.deliveryStatus : deliveryStatus // ignore: cast_nullable_to_non_nullable
 as RoutineDeliveryStatus,deliveredAt: freezed == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,deliveryMessage: null == deliveryMessage ? _self.deliveryMessage : deliveryMessage // ignore: cast_nullable_to_non_nullable
@@ -169,10 +170,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames, @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson)  List<RoutineRunToolCall> toolCalls,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _RoutineRunRecord() when $default != null:
-return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
+return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolCalls,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
   return orElse();
 
 }
@@ -190,10 +191,10 @@ return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.tri
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames, @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson)  List<RoutineRunToolCall> toolCalls,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)  $default,) {final _that = this;
 switch (_that) {
 case _RoutineRunRecord():
-return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
+return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolCalls,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -210,10 +211,10 @@ return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.tri
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  DateTime startedAt,  DateTime finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed)  RoutineRunStatus status, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)  RoutineRunTrigger trigger,  int durationMs,  bool usedTools,  int toolCallCount,  List<String> toolNames, @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson)  List<RoutineRunToolCall> toolCalls,  Map<String, String> toolSourceLabels, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)  RoutineDeliveryStatus deliveryStatus,  DateTime? deliveredAt,  String deliveryMessage,  String preview,  String output,  String error,  bool failureAcknowledged)?  $default,) {final _that = this;
 switch (_that) {
 case _RoutineRunRecord() when $default != null:
-return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
+return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.trigger,_that.durationMs,_that.usedTools,_that.toolCallCount,_that.toolNames,_that.toolCalls,_that.toolSourceLabels,_that.deliveryStatus,_that.deliveredAt,_that.deliveryMessage,_that.preview,_that.output,_that.error,_that.failureAcknowledged);case _:
   return null;
 
 }
@@ -225,7 +226,7 @@ return $default(_that.id,_that.startedAt,_that.finishedAt,_that.status,_that.tri
 @JsonSerializable()
 
 class _RoutineRunRecord extends RoutineRunRecord {
-  const _RoutineRunRecord({required this.id, required this.startedAt, required this.finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed) this.status = RoutineRunStatus.completed, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual) this.trigger = RoutineRunTrigger.manual, this.durationMs = 0, this.usedTools = false, this.toolCallCount = 0, final  List<String> toolNames = const <String>[], final  Map<String, String> toolSourceLabels = const <String, String>{}, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) this.deliveryStatus = RoutineDeliveryStatus.notRequested, this.deliveredAt, this.deliveryMessage = '', this.preview = '', this.output = '', this.error = '', this.failureAcknowledged = false}): _toolNames = toolNames,_toolSourceLabels = toolSourceLabels,super._();
+  const _RoutineRunRecord({required this.id, required this.startedAt, required this.finishedAt, @JsonKey(unknownEnumValue: RoutineRunStatus.completed) this.status = RoutineRunStatus.completed, @JsonKey(unknownEnumValue: RoutineRunTrigger.manual) this.trigger = RoutineRunTrigger.manual, this.durationMs = 0, this.usedTools = false, this.toolCallCount = 0, final  List<String> toolNames = const <String>[], @JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) final  List<RoutineRunToolCall> toolCalls = const <RoutineRunToolCall>[], final  Map<String, String> toolSourceLabels = const <String, String>{}, @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) this.deliveryStatus = RoutineDeliveryStatus.notRequested, this.deliveredAt, this.deliveryMessage = '', this.preview = '', this.output = '', this.error = '', this.failureAcknowledged = false}): _toolNames = toolNames,_toolCalls = toolCalls,_toolSourceLabels = toolSourceLabels,super._();
   factory _RoutineRunRecord.fromJson(Map<String, dynamic> json) => _$RoutineRunRecordFromJson(json);
 
 @override final  String id;
@@ -241,6 +242,13 @@ class _RoutineRunRecord extends RoutineRunRecord {
   if (_toolNames is EqualUnmodifiableListView) return _toolNames;
   // ignore: implicit_dynamic_type
   return EqualUnmodifiableListView(_toolNames);
+}
+
+ final  List<RoutineRunToolCall> _toolCalls;
+@override@JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) List<RoutineRunToolCall> get toolCalls {
+  if (_toolCalls is EqualUnmodifiableListView) return _toolCalls;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_toolCalls);
 }
 
  final  Map<String, String> _toolSourceLabels;
@@ -271,16 +279,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other._toolNames, _toolNames)&&const DeepCollectionEquality().equals(other._toolSourceLabels, _toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunRecord&&(identical(other.id, id) || other.id == id)&&(identical(other.startedAt, startedAt) || other.startedAt == startedAt)&&(identical(other.finishedAt, finishedAt) || other.finishedAt == finishedAt)&&(identical(other.status, status) || other.status == status)&&(identical(other.trigger, trigger) || other.trigger == trigger)&&(identical(other.durationMs, durationMs) || other.durationMs == durationMs)&&(identical(other.usedTools, usedTools) || other.usedTools == usedTools)&&(identical(other.toolCallCount, toolCallCount) || other.toolCallCount == toolCallCount)&&const DeepCollectionEquality().equals(other._toolNames, _toolNames)&&const DeepCollectionEquality().equals(other._toolCalls, _toolCalls)&&const DeepCollectionEquality().equals(other._toolSourceLabels, _toolSourceLabels)&&(identical(other.deliveryStatus, deliveryStatus) || other.deliveryStatus == deliveryStatus)&&(identical(other.deliveredAt, deliveredAt) || other.deliveredAt == deliveredAt)&&(identical(other.deliveryMessage, deliveryMessage) || other.deliveryMessage == deliveryMessage)&&(identical(other.preview, preview) || other.preview == preview)&&(identical(other.output, output) || other.output == output)&&(identical(other.error, error) || other.error == error)&&(identical(other.failureAcknowledged, failureAcknowledged) || other.failureAcknowledged == failureAcknowledged));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hash(runtimeType,id,startedAt,finishedAt,status,trigger,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(_toolNames),const DeepCollectionEquality().hash(_toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged);
+int get hashCode => Object.hash(runtimeType,id,startedAt,finishedAt,status,trigger,durationMs,usedTools,toolCallCount,const DeepCollectionEquality().hash(_toolNames),const DeepCollectionEquality().hash(_toolCalls),const DeepCollectionEquality().hash(_toolSourceLabels),deliveryStatus,deliveredAt,deliveryMessage,preview,output,error,failureAcknowledged);
 
 @override
 String toString() {
-  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged)';
+  return 'RoutineRunRecord(id: $id, startedAt: $startedAt, finishedAt: $finishedAt, status: $status, trigger: $trigger, durationMs: $durationMs, usedTools: $usedTools, toolCallCount: $toolCallCount, toolNames: $toolNames, toolCalls: $toolCalls, toolSourceLabels: $toolSourceLabels, deliveryStatus: $deliveryStatus, deliveredAt: $deliveredAt, deliveryMessage: $deliveryMessage, preview: $preview, output: $output, error: $error, failureAcknowledged: $failureAcknowledged)';
 }
 
 
@@ -291,7 +299,7 @@ abstract mixin class _$RoutineRunRecordCopyWith<$Res> implements $RoutineRunReco
   factory _$RoutineRunRecordCopyWith(_RoutineRunRecord value, $Res Function(_RoutineRunRecord) _then) = __$RoutineRunRecordCopyWithImpl;
 @override @useResult
 $Res call({
- String id, DateTime startedAt, DateTime finishedAt,@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus status,@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger trigger, int durationMs, bool usedTools, int toolCallCount, List<String> toolNames, Map<String, String> toolSourceLabels,@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus deliveryStatus, DateTime? deliveredAt, String deliveryMessage, String preview, String output, String error, bool failureAcknowledged
+ String id, DateTime startedAt, DateTime finishedAt,@JsonKey(unknownEnumValue: RoutineRunStatus.completed) RoutineRunStatus status,@JsonKey(unknownEnumValue: RoutineRunTrigger.manual) RoutineRunTrigger trigger, int durationMs, bool usedTools, int toolCallCount, List<String> toolNames,@JsonKey(fromJson: _routineRunToolCallsFromJson, toJson: _routineRunToolCallsToJson) List<RoutineRunToolCall> toolCalls, Map<String, String> toolSourceLabels,@JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested) RoutineDeliveryStatus deliveryStatus, DateTime? deliveredAt, String deliveryMessage, String preview, String output, String error, bool failureAcknowledged
 });
 
 
@@ -308,7 +316,7 @@ class __$RoutineRunRecordCopyWithImpl<$Res>
 
 /// Create a copy of RoutineRunRecord
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? startedAt = null,Object? finishedAt = null,Object? status = null,Object? trigger = null,Object? durationMs = null,Object? usedTools = null,Object? toolCallCount = null,Object? toolNames = null,Object? toolSourceLabels = null,Object? deliveryStatus = null,Object? deliveredAt = freezed,Object? deliveryMessage = null,Object? preview = null,Object? output = null,Object? error = null,Object? failureAcknowledged = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? startedAt = null,Object? finishedAt = null,Object? status = null,Object? trigger = null,Object? durationMs = null,Object? usedTools = null,Object? toolCallCount = null,Object? toolNames = null,Object? toolCalls = null,Object? toolSourceLabels = null,Object? deliveryStatus = null,Object? deliveredAt = freezed,Object? deliveryMessage = null,Object? preview = null,Object? output = null,Object? error = null,Object? failureAcknowledged = null,}) {
   return _then(_RoutineRunRecord(
 id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
 as String,startedAt: null == startedAt ? _self.startedAt : startedAt // ignore: cast_nullable_to_non_nullable
@@ -319,7 +327,8 @@ as RoutineRunTrigger,durationMs: null == durationMs ? _self.durationMs : duratio
 as int,usedTools: null == usedTools ? _self.usedTools : usedTools // ignore: cast_nullable_to_non_nullable
 as bool,toolCallCount: null == toolCallCount ? _self.toolCallCount : toolCallCount // ignore: cast_nullable_to_non_nullable
 as int,toolNames: null == toolNames ? _self._toolNames : toolNames // ignore: cast_nullable_to_non_nullable
-as List<String>,toolSourceLabels: null == toolSourceLabels ? _self._toolSourceLabels : toolSourceLabels // ignore: cast_nullable_to_non_nullable
+as List<String>,toolCalls: null == toolCalls ? _self._toolCalls : toolCalls // ignore: cast_nullable_to_non_nullable
+as List<RoutineRunToolCall>,toolSourceLabels: null == toolSourceLabels ? _self._toolSourceLabels : toolSourceLabels // ignore: cast_nullable_to_non_nullable
 as Map<String, String>,deliveryStatus: null == deliveryStatus ? _self.deliveryStatus : deliveryStatus // ignore: cast_nullable_to_non_nullable
 as RoutineDeliveryStatus,deliveredAt: freezed == deliveredAt ? _self.deliveredAt : deliveredAt // ignore: cast_nullable_to_non_nullable
 as DateTime?,deliveryMessage: null == deliveryMessage ? _self.deliveryMessage : deliveryMessage // ignore: cast_nullable_to_non_nullable
@@ -328,6 +337,278 @@ as String,output: null == output ? _self.output : output // ignore: cast_nullabl
 as String,error: null == error ? _self.error : error // ignore: cast_nullable_to_non_nullable
 as String,failureAcknowledged: null == failureAcknowledged ? _self.failureAcknowledged : failureAcknowledged // ignore: cast_nullable_to_non_nullable
 as bool,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
+mixin _$RoutineRunToolCall {
+
+ String get id; String get name; String get arguments; String get result;
+/// Create a copy of RoutineRunToolCall
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$RoutineRunToolCallCopyWith<RoutineRunToolCall> get copyWith => _$RoutineRunToolCallCopyWithImpl<RoutineRunToolCall>(this as RoutineRunToolCall, _$identity);
+
+  /// Serializes this RoutineRunToolCall to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is RoutineRunToolCall&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.arguments, arguments) || other.arguments == arguments)&&(identical(other.result, result) || other.result == result));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,name,arguments,result);
+
+@override
+String toString() {
+  return 'RoutineRunToolCall(id: $id, name: $name, arguments: $arguments, result: $result)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $RoutineRunToolCallCopyWith<$Res>  {
+  factory $RoutineRunToolCallCopyWith(RoutineRunToolCall value, $Res Function(RoutineRunToolCall) _then) = _$RoutineRunToolCallCopyWithImpl;
+@useResult
+$Res call({
+ String id, String name, String arguments, String result
+});
+
+
+
+
+}
+/// @nodoc
+class _$RoutineRunToolCallCopyWithImpl<$Res>
+    implements $RoutineRunToolCallCopyWith<$Res> {
+  _$RoutineRunToolCallCopyWithImpl(this._self, this._then);
+
+  final RoutineRunToolCall _self;
+  final $Res Function(RoutineRunToolCall) _then;
+
+/// Create a copy of RoutineRunToolCall
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? name = null,Object? arguments = null,Object? result = null,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,arguments: null == arguments ? _self.arguments : arguments // ignore: cast_nullable_to_non_nullable
+as String,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [RoutineRunToolCall].
+extension RoutineRunToolCallPatterns on RoutineRunToolCall {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _RoutineRunToolCall value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _RoutineRunToolCall() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _RoutineRunToolCall value)  $default,){
+final _that = this;
+switch (_that) {
+case _RoutineRunToolCall():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _RoutineRunToolCall value)?  $default,){
+final _that = this;
+switch (_that) {
+case _RoutineRunToolCall() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  String name,  String arguments,  String result)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _RoutineRunToolCall() when $default != null:
+return $default(_that.id,_that.name,_that.arguments,_that.result);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  String name,  String arguments,  String result)  $default,) {final _that = this;
+switch (_that) {
+case _RoutineRunToolCall():
+return $default(_that.id,_that.name,_that.arguments,_that.result);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  String name,  String arguments,  String result)?  $default,) {final _that = this;
+switch (_that) {
+case _RoutineRunToolCall() when $default != null:
+return $default(_that.id,_that.name,_that.arguments,_that.result);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _RoutineRunToolCall extends RoutineRunToolCall {
+  const _RoutineRunToolCall({required this.id, required this.name, this.arguments = '', this.result = ''}): super._();
+  factory _RoutineRunToolCall.fromJson(Map<String, dynamic> json) => _$RoutineRunToolCallFromJson(json);
+
+@override final  String id;
+@override final  String name;
+@override@JsonKey() final  String arguments;
+@override@JsonKey() final  String result;
+
+/// Create a copy of RoutineRunToolCall
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$RoutineRunToolCallCopyWith<_RoutineRunToolCall> get copyWith => __$RoutineRunToolCallCopyWithImpl<_RoutineRunToolCall>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$RoutineRunToolCallToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _RoutineRunToolCall&&(identical(other.id, id) || other.id == id)&&(identical(other.name, name) || other.name == name)&&(identical(other.arguments, arguments) || other.arguments == arguments)&&(identical(other.result, result) || other.result == result));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,name,arguments,result);
+
+@override
+String toString() {
+  return 'RoutineRunToolCall(id: $id, name: $name, arguments: $arguments, result: $result)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$RoutineRunToolCallCopyWith<$Res> implements $RoutineRunToolCallCopyWith<$Res> {
+  factory _$RoutineRunToolCallCopyWith(_RoutineRunToolCall value, $Res Function(_RoutineRunToolCall) _then) = __$RoutineRunToolCallCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, String name, String arguments, String result
+});
+
+
+
+
+}
+/// @nodoc
+class __$RoutineRunToolCallCopyWithImpl<$Res>
+    implements _$RoutineRunToolCallCopyWith<$Res> {
+  __$RoutineRunToolCallCopyWithImpl(this._self, this._then);
+
+  final _RoutineRunToolCall _self;
+  final $Res Function(_RoutineRunToolCall) _then;
+
+/// Create a copy of RoutineRunToolCall
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? name = null,Object? arguments = null,Object? result = null,}) {
+  return _then(_RoutineRunToolCall(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
+as String,arguments: null == arguments ? _self.arguments : arguments // ignore: cast_nullable_to_non_nullable
+as String,result: null == result ? _self.result : result // ignore: cast_nullable_to_non_nullable
+as String,
   ));
 }
 

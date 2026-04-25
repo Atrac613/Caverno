@@ -15,6 +15,14 @@ void main() {
         usedTools: true,
         toolCallCount: 2,
         toolNames: const ['web_search', 'read_file'],
+        toolCalls: const [
+          RoutineRunToolCall(
+            id: 'tool-1',
+            name: 'web_search',
+            arguments: '{"query":"tokyo"}',
+            result: '{"results":[]}',
+          ),
+        ],
         toolSourceLabels: const {'web_search': 'search.local:8765'},
         deliveryStatus: RoutineDeliveryStatus.delivered,
         deliveredAt: DateTime(2026, 4, 21, 10, 0, 5),
@@ -31,6 +39,10 @@ void main() {
       expect(decoded.usedTools, isTrue);
       expect(decoded.toolCallCount, 2);
       expect(decoded.toolNames, ['web_search', 'read_file']);
+      expect(decoded.toolCalls, hasLength(1));
+      expect(decoded.toolCalls.single.name, 'web_search');
+      expect(decoded.toolCalls.single.arguments, '{"query":"tokyo"}');
+      expect(decoded.toolCalls.single.result, '{"results":[]}');
       expect(decoded.toolSourceLabels, {'web_search': 'search.local:8765'});
       expect(decoded.toolDisplayNames, [
         'web_search (search.local:8765)',

@@ -33,6 +33,9 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      toolCalls: json['toolCalls'] == null
+          ? const <RoutineRunToolCall>[]
+          : _routineRunToolCallsFromJson(json['toolCalls'] as List?),
       toolSourceLabels:
           (json['toolSourceLabels'] as Map<String, dynamic>?)?.map(
             (k, e) => MapEntry(k, e as String),
@@ -67,6 +70,7 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'usedTools': instance.usedTools,
   'toolCallCount': instance.toolCallCount,
   'toolNames': instance.toolNames,
+  'toolCalls': _routineRunToolCallsToJson(instance.toolCalls),
   'toolSourceLabels': instance.toolSourceLabels,
   'deliveryStatus': _$RoutineDeliveryStatusEnumMap[instance.deliveryStatus]!,
   'deliveredAt': instance.deliveredAt?.toIso8601String(),
@@ -93,6 +97,22 @@ const _$RoutineDeliveryStatusEnumMap = {
   RoutineDeliveryStatus.delivered: 'delivered',
   RoutineDeliveryStatus.failed: 'failed',
 };
+
+_RoutineRunToolCall _$RoutineRunToolCallFromJson(Map<String, dynamic> json) =>
+    _RoutineRunToolCall(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      arguments: json['arguments'] as String? ?? '',
+      result: json['result'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$RoutineRunToolCallToJson(_RoutineRunToolCall instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'arguments': instance.arguments,
+      'result': instance.result,
+    };
 
 _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   id: json['id'] as String,

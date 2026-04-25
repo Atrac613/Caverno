@@ -33,6 +33,12 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default(false) bool usedTools,
     @Default(0) int toolCallCount,
     @Default(<String>[]) List<String> toolNames,
+    @JsonKey(
+      fromJson: _routineRunToolCallsFromJson,
+      toJson: _routineRunToolCallsToJson,
+    )
+    @Default(<RoutineRunToolCall>[])
+    List<RoutineRunToolCall> toolCalls,
     @Default(<String, String>{}) Map<String, String> toolSourceLabels,
     @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)
     @Default(RoutineDeliveryStatus.notRequested)
@@ -74,6 +80,43 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     }
     return measured < 0 ? 0 : measured;
   }
+}
+
+List<RoutineRunToolCall> _routineRunToolCallsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <RoutineRunToolCall>[];
+  }
+  return json
+      .map((item) {
+        if (item is RoutineRunToolCall) {
+          return item;
+        }
+        return RoutineRunToolCall.fromJson(
+          Map<String, dynamic>.from(item as Map),
+        );
+      })
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _routineRunToolCallsToJson(
+  List<RoutineRunToolCall> toolCalls,
+) {
+  return toolCalls.map((toolCall) => toolCall.toJson()).toList(growable: false);
+}
+
+@freezed
+abstract class RoutineRunToolCall with _$RoutineRunToolCall {
+  const RoutineRunToolCall._();
+
+  const factory RoutineRunToolCall({
+    required String id,
+    required String name,
+    @Default('') String arguments,
+    @Default('') String result,
+  }) = _RoutineRunToolCall;
+
+  factory RoutineRunToolCall.fromJson(Map<String, dynamic> json) =>
+      _$RoutineRunToolCallFromJson(json);
 }
 
 @freezed

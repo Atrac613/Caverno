@@ -113,6 +113,10 @@ void main() {
       expect(record.usedTools, isTrue);
       expect(record.toolCallCount, 1);
       expect(record.toolNames, ['web_search']);
+      expect(record.toolCalls, hasLength(1));
+      expect(record.toolCalls.single.name, 'web_search');
+      expect(record.toolCalls.single.arguments, contains('tokyo weather'));
+      expect(record.toolCalls.single.result, contains('Forecast'));
       expect(dataSource.toolRequestNames, ['web_search']);
       expect(dataSource.createChatCompletionWithToolResultsCallCount, 1);
       expect(toolService.executedCalls, hasLength(1));
@@ -121,6 +125,57 @@ void main() {
         'query': 'tokyo weather',
       });
     });
+
+    test(
+      'fails when the final routine answer is truncated thinking only',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Scanning the LAN',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-scan',
+                name: 'lan_scan',
+                arguments: const {'ip_version': 'auto'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: '<think>I still need to write the state file.</think>',
+            finishReason: 'length',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: '<think>I need to compare and save the file.</think>',
+              finishReason: 'length',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [_toolDefinition('lan_scan', 'Scan the local network')],
+          resultsByToolName: {
+            'lan_scan': const McpToolResult(
+              toolName: 'lan_scan',
+              result: '{"hosts":[{"ip":"192.168.100.1"}]}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(record.isSuccessful, isFalse);
+        expect(record.error, contains('truncated'));
+        expect(record.output, isEmpty);
+        expect(record.toolNames, ['lan_scan']);
+      },
+    );
 
     test(
       'adds routine guidance and keeps external MCP tools available',
@@ -406,6 +461,11 @@ void main() {
         expect(record.isSuccessful, isTrue);
         expect(record.output, 'Saved the current LAN device list.');
         expect(record.toolNames, ['lan_scan', 'write_file']);
+        expect(record.toolCalls, hasLength(2));
+        expect(record.toolCalls.first.name, 'lan_scan');
+        expect(record.toolCalls.first.result, contains('192.168.100.1'));
+        expect(record.toolCalls.last.name, 'write_file');
+        expect(record.toolCalls.last.arguments, contains('lan_devices.json'));
         expect(toolService.executedCalls.map((call) => call.name), [
           'lan_scan',
           'write_file',

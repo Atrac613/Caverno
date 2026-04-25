@@ -77,6 +77,9 @@ class RoutineExecutionService {
   final RoutineToolRunner _toolRunner;
   final AppSettings _settings;
   final Uuid _uuid = const Uuid();
+  static const int _maxStoredOutputLength = 24000;
+  static const int _maxStoredToolArgumentsLength = 4000;
+  static const int _maxStoredToolResultLength = 12000;
 
   Future<RoutineRunRecord> execute(
     Routine routine, {
@@ -113,9 +116,12 @@ class RoutineExecutionService {
       );
       final output = RoutineScheduleService.truncateOutput(
         executionResult.output,
+        maxLength: _maxStoredOutputLength,
       );
+      final visibleOutput = RoutineScheduleService.visibleOutput(output);
       final preview = RoutineScheduleService.summarizeOutput(output);
       final toolNames = _toolNamesFromResults(executionResult.toolResults);
+      final toolCalls = _toolCallsFromResults(executionResult.toolResults);
       final toolSourceLabels = _toolSourceLabelsFromResults(
         executionResult.toolResults,
         allowedTools,
@@ -123,7 +129,10 @@ class RoutineExecutionService {
       final finishedAt = DateTime.now();
       final durationMs = finishedAt.difference(startedAt).inMilliseconds;
 
-      if (output.isEmpty) {
+      if (visibleOutput.isEmpty) {
+        final failureMessage = executionResult.wasTruncated
+            ? 'Routine response was truncated before producing visible output.'
+            : 'Routine completed without any visible output.';
         return RoutineRunRecord(
           id: _uuid.v4(),
           startedAt: startedAt,
@@ -134,9 +143,11 @@ class RoutineExecutionService {
           usedTools: executionResult.toolResults.isNotEmpty,
           toolCallCount: executionResult.toolResults.length,
           toolNames: toolNames,
+          toolCalls: toolCalls,
           toolSourceLabels: toolSourceLabels,
-          preview: 'Routine completed without any visible output.',
-          error: 'Routine completed without any visible output.',
+          preview: failureMessage,
+          output: output,
+          error: failureMessage,
         );
       }
 
@@ -150,6 +161,7 @@ class RoutineExecutionService {
         usedTools: executionResult.toolResults.isNotEmpty,
         toolCallCount: executionResult.toolResults.length,
         toolNames: toolNames,
+        toolCalls: toolCalls,
         toolSourceLabels: toolSourceLabels,
         preview: preview,
         output: output,
@@ -228,7 +240,10 @@ class RoutineExecutionService {
         temperature: _settings.temperature,
         maxTokens: _settings.maxTokens,
       );
-      return RoutineToolExecutionResult(output: result.content);
+      return RoutineToolExecutionResult(
+        output: result.content,
+        wasTruncated: _isCompletionTruncated(result.finishReason),
+      );
     }
 
     final allowedToolNames = _toolNamesFromDefinitions(allowedTools).toSet();
@@ -244,6 +259,11 @@ class RoutineExecutionService {
       temperature: _settings.temperature,
       maxTokens: _settings.maxTokens,
     );
+  }
+
+  bool _isCompletionTruncated(String finishReason) {
+    final normalized = finishReason.trim().toLowerCase();
+    return normalized == 'length' || normalized == 'max_tokens';
   }
 
   List<String> _buildRoutineGuidance({
@@ -599,6 +619,32 @@ class RoutineExecutionService {
       }
     }
     return names;
+  }
+
+  List<RoutineRunToolCall> _toolCallsFromResults(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return toolResults
+        .map(
+          (toolResult) => RoutineRunToolCall(
+            id: toolResult.id,
+            name: toolResult.name,
+            arguments: _encodeToolArguments(toolResult.arguments),
+            result: RoutineScheduleService.truncateOutput(
+              toolResult.result,
+              maxLength: _maxStoredToolResultLength,
+            ),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  String _encodeToolArguments(Map<String, dynamic> arguments) {
+    final encoded = const JsonEncoder.withIndent('  ').convert(arguments);
+    return RoutineScheduleService.truncateOutput(
+      encoded,
+      maxLength: _maxStoredToolArgumentsLength,
+    );
   }
 
   Map<String, String> _toolSourceLabelsFromResults(
