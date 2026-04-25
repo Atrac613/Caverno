@@ -887,6 +887,13 @@ class ChatRemoteDataSource implements ChatDataSource {
     return _formatToolResultContentForLlm(toolResult);
   }
 
+  @visibleForTesting
+  int countToolImageObservationMessagesForTest(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return _buildToolImageObservationMessages(toolResults).length;
+  }
+
   String _formatToolResultContentForLlm(ToolResultInfo toolResult) {
     final decoded = _tryDecodeToolResultJson(toolResult.result);
     if (decoded == null) {

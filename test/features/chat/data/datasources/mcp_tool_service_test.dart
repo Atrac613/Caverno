@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -61,6 +62,43 @@ void main() {
         expect(functionNames, contains('os_log_read'));
       }
     });
+
+    test('includes macOS computer-use tool definitions when available', () {
+      final service = McpToolService(
+        computerUseService: _FakeMacosComputerUseService(),
+      );
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(
+            (tool) =>
+                (tool['function']! as Map<String, dynamic>)['name']! as String,
+          )
+          .toList();
+
+      expect(functionNames, contains('computer_get_permissions'));
+      expect(functionNames, contains('computer_screenshot'));
+      expect(functionNames, contains('computer_click'));
+      expect(functionNames, contains('computer_type_text'));
+      expect(functionNames, contains('computer_start_system_audio_recording'));
+    });
+
+    test(
+      'executes macOS computer-use tools through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_click',
+          arguments: const {'x': 10, 'y': 20},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['click']);
+        expect(jsonDecode(result.result), containsPair('ok', true));
+      },
+    );
 
     test(
       'executes os_get_system_info through the built-in tool service',
@@ -239,6 +277,19 @@ BuildVersion: 23F79
       });
     });
   });
+}
+
+class _FakeMacosComputerUseService extends MacosComputerUseService {
+  final List<String> calledMethods = [];
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<String> click(Map<String, dynamic> arguments) async {
+    calledMethods.add('click');
+    return jsonEncode({'ok': true, 'x': arguments['x'], 'y': arguments['y']});
+  }
 }
 
 class _FakeMcpClient extends McpClient {

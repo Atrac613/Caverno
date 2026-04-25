@@ -51,6 +51,9 @@ class SystemPromptBuilder {
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
+    final hasComputerUseTools = uniqueToolNames.any(
+      (name) => name.startsWith('computer_'),
+    );
 
     final date = _formatDate(now);
     final time = _formatTime(now);
@@ -318,6 +321,33 @@ class SystemPromptBuilder {
           'conversations, use search_past_conversations to find the relevant '
           'information before answering from memory alone. '
           'Use recall_memory for quick lookups of known facts and preferences.',
+        );
+      }
+      if (hasComputerUseTools) {
+        buffer.writeln(
+          'For macOS computer-use tasks, first observe the screen with '
+          'computer_screenshot unless the current target state is already '
+          'visible in the latest tool result.',
+        );
+        buffer.writeln(
+          'After every click, drag, scroll, text input, key press, or system '
+          'audio recording state change, observe again with computer_screenshot '
+          'before deciding the next desktop action.',
+        );
+        buffer.writeln(
+          'Use screenshot pixel coordinates from the latest observation and '
+          'include source_width and source_height when calling coordinate-based '
+          'computer tools.',
+        );
+        buffer.writeln(
+          'If the target is ambiguous, hidden, or could trigger credential, '
+          'payment, destructive, or external-send behavior, pause and ask the '
+          'user instead of guessing.',
+        );
+        buffer.writeln(
+          'The app will show approval dialogs for desktop control actions; '
+          'treat those approvals as sufficient and do not ask for duplicate '
+          'permission in natural language.',
         );
       }
     }

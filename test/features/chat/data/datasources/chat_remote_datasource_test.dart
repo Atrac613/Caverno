@@ -59,7 +59,9 @@ void main() {
 
     expect(
       content,
-      contains('Interpretation: write_file succeeded and updated an existing file.'),
+      contains(
+        'Interpretation: write_file succeeded and updated an existing file.',
+      ),
     );
     expect(
       content,
@@ -68,5 +70,41 @@ void main() {
       ),
     );
     expect(content, contains('Raw result:'));
+  });
+
+  test('redacts screenshot base64 from text tool result content', () {
+    final content = dataSource.formatToolResultContentForLlm(
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'computer_screenshot',
+        arguments: const {},
+        result:
+            '{"imageBase64":"very-large-payload","imageMimeType":"image/png","width":800,"height":600}',
+      ),
+    );
+
+    expect(content, isNot(contains('very-large-payload')));
+    expect(content, contains('[attached as image content]'));
+    expect(content, contains('"width":800'));
+  });
+
+  test('counts screenshot tool results as image observations', () {
+    final count = dataSource.countToolImageObservationMessagesForTest([
+      ToolResultInfo(
+        id: 'tool-1',
+        name: 'computer_screenshot',
+        arguments: const {},
+        result:
+            '{"imageBase64":"payload","imageMimeType":"image/png","width":800,"height":600}',
+      ),
+      ToolResultInfo(
+        id: 'tool-2',
+        name: 'computer_get_permissions',
+        arguments: const {},
+        result: '{"accessibilityGranted":true}',
+      ),
+    ]);
+
+    expect(count, 1);
   });
 }

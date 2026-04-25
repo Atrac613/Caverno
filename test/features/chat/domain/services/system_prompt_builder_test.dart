@@ -174,6 +174,42 @@ void main() {
     expect(prompt, contains('Project name: "caverno".'));
   });
 
+  test('includes macOS computer-use operating policy when tools exist', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 4, 13, 10, 30),
+      assistantMode: AssistantMode.general,
+      languageCode: 'en',
+      toolNames: const [
+        'computer_screenshot',
+        'computer_click',
+        'computer_type_text',
+      ],
+    );
+
+    expect(
+      prompt,
+      contains(
+        'first observe the screen with computer_screenshot unless the current target state is already visible',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'After every click, drag, scroll, text input, key press, or system audio recording state change, observe again with computer_screenshot',
+      ),
+    );
+    expect(
+      prompt,
+      contains(
+        'include source_width and source_height when calling coordinate-based computer tools',
+      ),
+    );
+    expect(
+      prompt,
+      contains('credential, payment, destructive, or external-send behavior'),
+    );
+  });
+
   test('includes plan document context in coding prompts', () {
     final prompt = SystemPromptBuilder.build(
       now: DateTime(2026, 4, 13, 10, 30),
