@@ -570,6 +570,7 @@
     "workspace_directory_label": "Workspace directory",
     "workspace_directory_hint": "Routine の状態ファイルを置く任意の絶対パスです。",
     "workspace_directory_required": "書き込みを許可するには workspace directory を入力してください。",
+    "workspace_directory_pick_tooltip": "workspace directory を選択",
     "allow_workspace_writes_label": "Workspace 内の書き込みを許可",
     "allow_workspace_writes_hint": "write_file と edit_file を workspace directory 内だけで許可します。",
     "completion_action_label": "完了後のアクション",

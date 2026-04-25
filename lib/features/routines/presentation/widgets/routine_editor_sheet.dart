@@ -1,4 +1,5 @@
 import 'package:easy_localization/easy_localization.dart';
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 
 import '../../domain/entities/routine.dart';
@@ -235,6 +236,12 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                       labelText: 'routines.workspace_directory_label'.tr(),
                       helperText: 'routines.workspace_directory_hint'.tr(),
                       border: const OutlineInputBorder(),
+                      suffixIcon: IconButton(
+                        tooltip: 'routines.workspace_directory_pick_tooltip'
+                            .tr(),
+                        icon: const Icon(Icons.folder_open_outlined),
+                        onPressed: _pickWorkspaceDirectory,
+                      ),
                     ),
                     textInputAction: TextInputAction.next,
                     validator: (value) {
@@ -357,6 +364,16 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         'routines.google_chat_rule_on_failure'.tr(),
       RoutineGoogleChatRule.always => 'routines.google_chat_rule_always'.tr(),
     };
+  }
+
+  Future<void> _pickWorkspaceDirectory() async {
+    final selectedDirectory = await FilePicker.getDirectoryPath();
+    if (selectedDirectory == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _workspaceDirectoryController.text = selectedDirectory;
+    });
   }
 
   void _save() {

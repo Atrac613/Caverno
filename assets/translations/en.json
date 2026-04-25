@@ -570,6 +570,7 @@
     "workspace_directory_label": "Workspace directory",
     "workspace_directory_hint": "Optional absolute directory for routine state files.",
     "workspace_directory_required": "Add a workspace directory before enabling writes.",
+    "workspace_directory_pick_tooltip": "Choose workspace directory",
     "allow_workspace_writes_label": "Allow workspace writes",
     "allow_workspace_writes_hint": "Allow write_file and edit_file only inside the workspace directory.",
     "completion_action_label": "Completion action",
