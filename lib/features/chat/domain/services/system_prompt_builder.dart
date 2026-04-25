@@ -325,19 +325,21 @@ class SystemPromptBuilder {
       }
       if (hasComputerUseTools) {
         buffer.writeln(
-          'For macOS computer-use tasks, first observe the screen with '
-          'computer_screenshot unless the current target state is already '
-          'visible in the latest tool result.',
+          'For macOS computer-use tasks, prefer computer_list_windows and '
+          'computer_screenshot_window when the task targets a specific app or '
+          'window; otherwise observe the full display with computer_screenshot.',
         );
         buffer.writeln(
           'After every click, drag, scroll, text input, key press, or system '
-          'audio recording state change, observe again with computer_screenshot '
-          'before deciding the next desktop action.',
+          'audio recording state change, observe again with '
+          'computer_screenshot_window for the target window or '
+          'computer_screenshot for the display before deciding the next '
+          'desktop action.',
         );
         buffer.writeln(
-          'Use screenshot pixel coordinates from the latest observation and '
-          'include source_width and source_height when calling coordinate-based '
-          'computer tools.',
+          'Use screenshot pixel coordinates from the latest observation. '
+          'Include window_id for window screenshots and include source_width '
+          'and source_height when calling coordinate-based computer tools.',
         );
         buffer.writeln(
           'If the target is ambiguous, hidden, or could trigger credential, '

@@ -180,7 +180,9 @@ void main() {
       assistantMode: AssistantMode.general,
       languageCode: 'en',
       toolNames: const [
+        'computer_list_windows',
         'computer_screenshot',
+        'computer_screenshot_window',
         'computer_click',
         'computer_type_text',
       ],
@@ -189,19 +191,19 @@ void main() {
     expect(
       prompt,
       contains(
-        'first observe the screen with computer_screenshot unless the current target state is already visible',
+        'prefer computer_list_windows and computer_screenshot_window when the task targets a specific app or window',
       ),
     );
     expect(
       prompt,
       contains(
-        'After every click, drag, scroll, text input, key press, or system audio recording state change, observe again with computer_screenshot',
+        'observe again with computer_screenshot_window for the target window or computer_screenshot for the display',
       ),
     );
     expect(
       prompt,
       contains(
-        'include source_width and source_height when calling coordinate-based computer tools',
+        'Include window_id for window screenshots and include source_width and source_height',
       ),
     );
     expect(

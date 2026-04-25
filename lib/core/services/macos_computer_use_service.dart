@@ -42,6 +42,18 @@ class MacosComputerUseService {
     return _invokeJson('screenshot', _normalizeCoordinateArguments(arguments));
   }
 
+  Future<String> listWindows(Map<String, dynamic> arguments) async {
+    return _invokeJson('listWindows', arguments);
+  }
+
+  Future<String> focusWindow(Map<String, dynamic> arguments) async {
+    return _invokeJson('focusWindow', arguments);
+  }
+
+  Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
+    return _invokeJson('screenshotWindow', arguments);
+  }
+
   Future<String> click(Map<String, dynamic> arguments) async {
     return _invokeJson('click', _normalizeCoordinateArguments(arguments));
   }
@@ -98,6 +110,17 @@ class MacosComputerUseService {
       final value = normalized[key];
       if (value is num) {
         normalized[key] = value.toDouble();
+      }
+    }
+    for (final key in const [
+      'window_id',
+      'windowId',
+      'display_id',
+      'displayId',
+    ]) {
+      final value = normalized[key];
+      if (value is num) {
+        normalized[key] = value.toInt();
       }
     }
     return normalized;

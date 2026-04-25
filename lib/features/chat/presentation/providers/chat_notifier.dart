@@ -7641,6 +7641,7 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleGitExecuteCommand(toolCall);
       case 'ble_connect':
         return _handleBleConnect(toolCall);
+      case 'computer_focus_window':
       case 'computer_click':
       case 'computer_drag':
       case 'computer_scroll':
@@ -7704,7 +7705,9 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'lan_get_scan_results':
       case 'computer_get_permissions':
       case 'computer_request_permissions':
+      case 'computer_list_windows':
       case 'computer_screenshot':
+      case 'computer_screenshot_window':
       case 'computer_move_mouse':
       case 'computer_stop_system_audio_recording':
         return null;
@@ -7755,7 +7758,9 @@ class ChatNotifier extends Notifier<ChatState> {
       return !{
         'computer_get_permissions',
         'computer_request_permissions',
+        'computer_list_windows',
         'computer_screenshot',
+        'computer_screenshot_window',
       }.contains(toolName);
     }
 
@@ -8149,6 +8154,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String _computerUseActionTitle(String toolName) {
     return switch (toolName) {
       'computer_click' => 'Approve macOS Click',
+      'computer_focus_window' => 'Approve macOS Window Focus',
       'computer_drag' => 'Approve macOS Drag',
       'computer_scroll' => 'Approve macOS Scroll',
       'computer_type_text' => 'Approve macOS Text Input',
@@ -8162,6 +8168,7 @@ class ChatNotifier extends Notifier<ChatState> {
   String _describeComputerUseAction(ToolCallInfo toolCall) {
     final args = toolCall.arguments;
     return switch (toolCall.name) {
+      'computer_focus_window' => 'Focus window ${args['window_id']}',
       'computer_click' =>
         'Click ${args['button'] ?? 'left'} at (${args['x']}, ${args['y']})',
       'computer_drag' =>
@@ -8182,11 +8189,14 @@ class ChatNotifier extends Notifier<ChatState> {
     final details = <String>['Tool: ${toolCall.name}'];
     final reason = args['reason'] as String?;
     switch (toolCall.name) {
+      case 'computer_focus_window':
+        details.add('Window ID: ${args['window_id']}');
       case 'computer_click':
         details.addAll([
           'Coordinates: x=${args['x']}, y=${args['y']}',
           'Button: ${args['button'] ?? 'left'}',
           'Click count: ${args['click_count'] ?? 1}',
+          if (args['window_id'] != null) 'Window ID: ${args['window_id']}',
           if (args['source_width'] != null && args['source_height'] != null)
             'Source screenshot: ${args['source_width']} x ${args['source_height']} px',
           if (args['display_id'] != null) 'Display ID: ${args['display_id']}',
@@ -8196,6 +8206,7 @@ class ChatNotifier extends Notifier<ChatState> {
           'From: x=${args['from_x']}, y=${args['from_y']}',
           'To: x=${args['to_x']}, y=${args['to_y']}',
           'Duration: ${args['duration_ms'] ?? 300} ms',
+          if (args['window_id'] != null) 'Window ID: ${args['window_id']}',
           if (args['source_width'] != null && args['source_height'] != null)
             'Source screenshot: ${args['source_width']} x ${args['source_height']} px',
           if (args['display_id'] != null) 'Display ID: ${args['display_id']}',
@@ -8204,6 +8215,7 @@ class ChatNotifier extends Notifier<ChatState> {
         details.addAll([
           'Delta X: ${args['delta_x'] ?? 0}',
           'Delta Y: ${args['delta_y'] ?? -5}',
+          if (args['window_id'] != null) 'Window ID: ${args['window_id']}',
           if (args['x'] != null && args['y'] != null)
             'Pointer target: x=${args['x']}, y=${args['y']}',
         ]);

@@ -181,8 +181,14 @@ final class MacosComputerUseChannel {
       requestAccessibility(result: result)
     case "requestScreenCapture":
       requestScreenCapture(result: result)
+    case "listWindows":
+      listWindows(call, result: result)
+    case "focusWindow":
+      focusWindow(call, result: result)
     case "screenshot":
       takeScreenshot(call, result: result)
+    case "screenshotWindow":
+      takeWindowScreenshot(call, result: result)
     case "click":
       click(call, result: result)
     case "moveMouse":
@@ -285,6 +291,125 @@ final class MacosComputerUseChannel {
       "inputOrigin": "top_left",
       "xScaleToDisplay": screen.bounds.width / CGFloat(encodedImage.width),
       "yScaleToDisplay": screen.bounds.height / CGFloat(encodedImage.height),
+    ])
+  }
+
+  private func listWindows(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
+    let includeCurrentApp = arguments["include_current_app"] as? Bool
+      ?? arguments["includeCurrentApp"] as? Bool
+      ?? false
+    let maxWindows = max(1, min(arguments["max_windows"] as? Int ?? arguments["maxWindows"] as? Int ?? 80, 200))
+    let currentPid = Int(ProcessInfo.processInfo.processIdentifier)
+    let windows = visibleWindows()
+      .filter { includeCurrentApp || $0.ownerPID != currentPid }
+      .prefix(maxWindows)
+      .map { $0.toMap() }
+
+    result([
+      "windows": Array(windows),
+      "count": windows.count,
+      "coordinateSpace": "window_pixels",
+      "inputOrigin": "top_left",
+    ])
+  }
+
+  private func focusWindow(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
+    guard let windowID = windowID(arguments: arguments) else {
+      result(FlutterError(code: "invalid_args", message: "window_id is required", details: nil))
+      return
+    }
+    guard let window = findWindow(windowID: windowID) else {
+      result(FlutterError(code: "window_not_found", message: "No matching window is available", details: windowID))
+      return
+    }
+    guard AXIsProcessTrusted() else {
+      result(permissionError(code: "accessibility_denied"))
+      return
+    }
+
+    let app = NSRunningApplication(processIdentifier: pid_t(window.ownerPID))
+    app?.activate(options: [.activateIgnoringOtherApps])
+
+    let appElement = AXUIElementCreateApplication(pid_t(window.ownerPID))
+    var focused = false
+    if let axWindow = findAccessibilityWindow(appElement: appElement, windowID: windowID) {
+      AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString)
+      let setResult = AXUIElementSetAttributeValue(
+        appElement,
+        kAXFocusedWindowAttribute as CFString,
+        axWindow
+      )
+      focused = setResult == .success
+    }
+
+    result([
+      "ok": focused || app != nil,
+      "windowId": window.windowID,
+      "ownerPid": window.ownerPID,
+      "appName": window.ownerName,
+      "title": window.title,
+      "focusedWindow": focused,
+    ])
+  }
+
+  private func takeWindowScreenshot(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
+    let arguments = call.arguments as? [String: Any] ?? [:]
+    guard let windowID = windowID(arguments: arguments) else {
+      result(FlutterError(code: "invalid_args", message: "window_id is required", details: nil))
+      return
+    }
+    guard let window = findWindow(windowID: windowID) else {
+      result(FlutterError(code: "window_not_found", message: "No matching window is available", details: windowID))
+      return
+    }
+
+    guard let image = CGWindowListCreateImage(
+      .null,
+      .optionIncludingWindow,
+      CGWindowID(windowID),
+      [.boundsIgnoreFraming, .bestResolution]
+    ) else {
+      result(
+        FlutterError(
+          code: "screenshot_failed",
+          message: "Failed to capture the window. Grant Screen Recording permission in System Settings.",
+          details: windowID
+        )
+      )
+      return
+    }
+
+    let maxWidth = arguments["max_width"] as? Int ?? arguments["maxWidth"] as? Int
+    let encodedImage: EncodedImage
+    do {
+      encodedImage = try encodePng(image: image, maxWidth: maxWidth)
+    } catch {
+      result(
+        FlutterError(
+          code: "image_encode_failed",
+          message: "Failed to encode the window screenshot",
+          details: error.localizedDescription
+        )
+      )
+      return
+    }
+
+    result([
+      "imageBase64": encodedImage.base64,
+      "imageMimeType": "image/png",
+      "width": encodedImage.width,
+      "height": encodedImage.height,
+      "windowId": window.windowID,
+      "ownerPid": window.ownerPID,
+      "appName": window.ownerName,
+      "title": window.title,
+      "windowBounds": rectMap(window.bounds),
+      "coordinateSpace": "window_pixels",
+      "inputOrigin": "top_left",
+      "xScaleToWindow": window.bounds.width / CGFloat(encodedImage.width),
+      "yScaleToWindow": window.bounds.height / CGFloat(encodedImage.height),
     ])
   }
 
@@ -522,9 +647,28 @@ final class MacosComputerUseChannel {
   private func resolvePoint(arguments: [String: Any]) -> CGPoint? {
     guard
       let x = number(arguments["x"]),
-      let y = number(arguments["y"]),
-      let screen = resolveScreen(arguments: arguments)
+      let y = number(arguments["y"])
     else {
+      return nil
+    }
+
+    if let windowID = windowID(arguments: arguments),
+       let window = findWindow(windowID: windowID) {
+      let sourceWidth = number(arguments["source_width"] ?? arguments["sourceWidth"])
+      let sourceHeight = number(arguments["source_height"] ?? arguments["sourceHeight"])
+      let xScale = sourceWidth == nil || sourceWidth == 0
+        ? 1
+        : window.bounds.width / sourceWidth!
+      let yScale = sourceHeight == nil || sourceHeight == 0
+        ? 1
+        : window.bounds.height / sourceHeight!
+      return CGPoint(
+        x: window.bounds.origin.x + x * xScale,
+        y: window.bounds.origin.y + y * yScale
+      )
+    }
+
+    guard let screen = resolveScreen(arguments: arguments) else {
       return nil
     }
 
@@ -541,6 +685,99 @@ final class MacosComputerUseChannel {
       x: screen.bounds.origin.x + x * xScale,
       y: screen.bounds.origin.y + y * yScale
     )
+  }
+
+  private func visibleWindows() -> [WindowDescriptor] {
+    guard
+      let windowInfoList = CGWindowListCopyWindowInfo(
+        [.optionOnScreenOnly, .excludeDesktopElements],
+        kCGNullWindowID
+      ) as? [[String: Any]]
+    else {
+      return []
+    }
+
+    return windowInfoList.compactMap { info in
+      guard
+        let windowID = info[kCGWindowNumber as String] as? Int,
+        let ownerPID = info[kCGWindowOwnerPID as String] as? Int,
+        let ownerName = info[kCGWindowOwnerName as String] as? String,
+        let layer = info[kCGWindowLayer as String] as? Int,
+        layer == 0,
+        let boundsInfo = info[kCGWindowBounds as String] as? NSDictionary,
+        let bounds = CGRect(dictionaryRepresentation: boundsInfo),
+        bounds.width >= 32,
+        bounds.height >= 32
+      else {
+        return nil
+      }
+
+      let alpha = number(info[kCGWindowAlpha as String]) ?? 1
+      if alpha <= 0 {
+        return nil
+      }
+
+      return WindowDescriptor(
+        windowID: windowID,
+        ownerPID: ownerPID,
+        ownerName: ownerName,
+        title: info[kCGWindowName as String] as? String ?? "",
+        bounds: bounds,
+        layer: layer,
+        alpha: Double(alpha),
+        isOnScreen: (info[kCGWindowIsOnscreen as String] as? Bool) ?? true
+      )
+    }
+  }
+
+  private func findWindow(windowID: Int) -> WindowDescriptor? {
+    return visibleWindows().first { $0.windowID == windowID }
+  }
+
+  private func findAccessibilityWindow(
+    appElement: AXUIElement,
+    windowID: Int
+  ) -> AXUIElement? {
+    var value: CFTypeRef?
+    let copyResult = AXUIElementCopyAttributeValue(
+      appElement,
+      kAXWindowsAttribute as CFString,
+      &value
+    )
+    guard copyResult == .success, let windows = value as? [AXUIElement] else {
+      return nil
+    }
+
+    for window in windows {
+      var rawWindowID: CFTypeRef?
+      let idResult = AXUIElementCopyAttributeValue(
+        window,
+        "AXWindowNumber" as CFString,
+        &rawWindowID
+      )
+      if idResult == .success,
+         let number = rawWindowID as? NSNumber,
+         number.intValue == windowID {
+        return window
+      }
+    }
+    return nil
+  }
+
+  private func windowID(arguments: [String: Any]) -> Int? {
+    if let value = arguments["window_id"] as? Int {
+      return value
+    }
+    if let value = arguments["windowId"] as? Int {
+      return value
+    }
+    if let value = arguments["window_id"] as? NSNumber {
+      return value.intValue
+    }
+    if let value = arguments["windowId"] as? NSNumber {
+      return value.intValue
+    }
+    return nil
   }
 
   private func encodePng(image: CGImage, maxWidth: Int?) throws -> EncodedImage {
@@ -695,6 +932,35 @@ private struct ScreenDescriptor {
     self.screen = screen
     self.displayID = screen.displayID
     self.bounds = CGDisplayBounds(screen.displayID)
+  }
+}
+
+private struct WindowDescriptor {
+  let windowID: Int
+  let ownerPID: Int
+  let ownerName: String
+  let title: String
+  let bounds: CGRect
+  let layer: Int
+  let alpha: Double
+  let isOnScreen: Bool
+
+  func toMap() -> [String: Any] {
+    return [
+      "windowId": windowID,
+      "ownerPid": ownerPID,
+      "appName": ownerName,
+      "title": title,
+      "bounds": [
+        "x": Double(bounds.origin.x),
+        "y": Double(bounds.origin.y),
+        "width": Double(bounds.width),
+        "height": Double(bounds.height),
+      ],
+      "layer": layer,
+      "alpha": alpha,
+      "isOnScreen": isOnScreen,
+    ]
   }
 }
 

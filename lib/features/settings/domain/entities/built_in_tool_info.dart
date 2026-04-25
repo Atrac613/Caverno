@@ -195,6 +195,21 @@ class BuiltInToolRegistry {
       category: categoryComputerUse,
     ),
     BuiltInToolInfo(
+      name: 'computer_list_windows',
+      descriptionKey: 'settings.tool_computer_list_windows',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_focus_window',
+      descriptionKey: 'settings.tool_computer_focus_window',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_screenshot_window',
+      descriptionKey: 'settings.tool_computer_screenshot_window',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
       name: 'computer_move_mouse',
       descriptionKey: 'settings.tool_computer_move_mouse',
       category: categoryComputerUse,

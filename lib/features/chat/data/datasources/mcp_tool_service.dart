@@ -89,7 +89,10 @@ class McpToolService {
     ...LanScanTools.allToolNames,
     'computer_get_permissions',
     'computer_request_permissions',
+    'computer_list_windows',
+    'computer_focus_window',
     'computer_screenshot',
+    'computer_screenshot_window',
     'computer_move_mouse',
     'computer_click',
     'computer_drag',
@@ -1663,7 +1666,10 @@ class McpToolService {
             arguments['screenCapture'] as bool? ??
             true,
       ),
+      'computer_list_windows' => service.listWindows(arguments),
+      'computer_focus_window' => service.focusWindow(arguments),
       'computer_screenshot' => service.screenshot(arguments),
+      'computer_screenshot_window' => service.screenshotWindow(arguments),
       'computer_move_mouse' => service.moveMouse(arguments),
       'computer_click' => service.click(arguments),
       'computer_drag' => service.drag(arguments),
@@ -1780,6 +1786,70 @@ class McpToolService {
               'description': 'Optional maximum PNG width to reduce tokens.',
             },
           },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_list_windows',
+        'description':
+            'List visible macOS application windows with window IDs, app names, titles, and bounds. Prefer this before focusing or capturing a specific app window.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'include_current_app': {
+              'type': 'boolean',
+              'description':
+                  'Include Caverno windows in the result. Defaults to false.',
+            },
+            'max_windows': {
+              'type': 'integer',
+              'description': 'Maximum number of windows to return.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_focus_window',
+        'description':
+            'Bring a specific macOS window to the foreground by window_id. Requires Accessibility permission.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'window_id': {
+              'type': 'integer',
+              'description':
+                  'Window ID from computer_list_windows or computer_screenshot_window.',
+            },
+            'reason': {'type': 'string'},
+          },
+          'required': ['window_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_screenshot_window',
+        'description':
+            'Capture a specific macOS window screenshot. Use returned window pixel coordinates and window_id for follow-up computer input tools.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'window_id': {
+              'type': 'integer',
+              'description': 'Window ID from computer_list_windows.',
+            },
+            'max_width': {
+              'type': 'integer',
+              'description': 'Optional maximum PNG width to reduce tokens.',
+            },
+          },
+          'required': ['window_id'],
         },
       },
     },
@@ -1956,6 +2026,11 @@ class McpToolService {
   };
 
   static Map<String, dynamic> get _computerDisplayProperties => {
+    'window_id': {
+      'type': 'integer',
+      'description':
+          'Optional window ID from computer_list_windows or computer_screenshot_window. When set, x/y are interpreted as window screenshot pixels.',
+    },
     'display_id': {
       'type': 'integer',
       'description': 'Optional display ID from computer_screenshot.',

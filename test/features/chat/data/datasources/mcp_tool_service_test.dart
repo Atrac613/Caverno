@@ -77,7 +77,10 @@ void main() {
           .toList();
 
       expect(functionNames, contains('computer_get_permissions'));
+      expect(functionNames, contains('computer_list_windows'));
+      expect(functionNames, contains('computer_focus_window'));
       expect(functionNames, contains('computer_screenshot'));
+      expect(functionNames, contains('computer_screenshot_window'));
       expect(functionNames, contains('computer_click'));
       expect(functionNames, contains('computer_type_text'));
       expect(functionNames, contains('computer_start_system_audio_recording'));
