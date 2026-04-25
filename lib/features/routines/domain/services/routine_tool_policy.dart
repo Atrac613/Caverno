@@ -40,10 +40,26 @@ class RoutineToolPolicy {
     'wifi_get_connection_info',
     'lan_scan',
     'lan_get_scan_results',
+    'explain_network_slowdown_context',
+    'get_latest_summary',
+    'compare_recent_windows',
+    'get_capture_health',
+    'get_dns_health',
+    'get_conn_overview',
+    'get_weird_events',
+    'get_notice_events',
   };
 
   static bool isAllowedToolName(String toolName) {
-    return _allowedToolNames.contains(toolName);
+    if (_allowedToolNames.contains(toolName)) {
+      return true;
+    }
+
+    final namespaceIndex = toolName.indexOf('__');
+    if (namespaceIndex <= 0) {
+      return false;
+    }
+    return _allowedToolNames.contains(toolName.substring(0, namespaceIndex));
   }
 
   static List<Map<String, dynamic>> filterAllowedToolDefinitions(
@@ -52,11 +68,16 @@ class RoutineToolPolicy {
     final filtered = definitions
         .where((tool) {
           final name = (tool['function'] as Map?)?['name'] as String?;
-          return name != null && isAllowedToolName(name);
+          return name != null &&
+              (isExternalMcpToolDefinition(tool) || isAllowedToolName(name));
         })
         .toList(growable: false);
 
     return ToolResultPromptBuilder.dedupeToolsByName(filtered);
+  }
+
+  static bool isExternalMcpToolDefinition(Map<String, dynamic> tool) {
+    return tool[McpToolEntity.openAiExternalToolKey] == true;
   }
 
   static McpToolResult buildDeniedResult(ToolCallInfo toolCall) {

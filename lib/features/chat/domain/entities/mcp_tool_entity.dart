@@ -8,6 +8,8 @@ part 'mcp_tool_entity.g.dart';
 abstract class McpToolEntity with _$McpToolEntity {
   const McpToolEntity._();
 
+  static const openAiExternalToolKey = 'x-caverno-external-mcp-tool';
+
   const factory McpToolEntity({
     required String name,
     required String description,
@@ -22,6 +24,7 @@ abstract class McpToolEntity with _$McpToolEntity {
   /// Converts the tool definition to the OpenAI tool format.
   Map<String, dynamic> toOpenAiTool() => {
     'type': 'function',
+    if (sourceUrl != null) openAiExternalToolKey: true,
     'function': {
       'name': name,
       'description': sourceUrl == null

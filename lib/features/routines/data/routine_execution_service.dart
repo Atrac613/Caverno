@@ -51,10 +51,10 @@ class RoutineExecutionService {
     final startedAt = DateTime.now();
 
     try {
-      final systemPrompt = SystemPromptBuilder.build(
+      final allowedTools = _allowedRoutineTools(routine);
+      final systemPrompt = _buildRoutineSystemPrompt(
         now: startedAt,
-        assistantMode: AssistantMode.general,
-        languageCode: _resolveLanguageCode(),
+        allowedTools: allowedTools,
       );
       final messages = [
         Message(
@@ -72,8 +72,8 @@ class RoutineExecutionService {
       ];
 
       final executionResult = await _executeRoutine(
-        routine: routine,
         messages: messages,
+        allowedTools: allowedTools,
       );
       final output = RoutineScheduleService.truncateOutput(
         executionResult.output,
@@ -137,16 +137,38 @@ class RoutineExecutionService {
     return 'en';
   }
 
-  Future<RoutineToolExecutionResult> _executeRoutine({
-    required Routine routine,
-    required List<Message> messages,
-  }) async {
-    final allowedTools = routine.toolsEnabled
-        ? RoutineToolPolicy.filterAllowedToolDefinitions(
-            _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
-          )
-        : const <Map<String, dynamic>>[];
+  String _buildRoutineSystemPrompt({
+    required DateTime now,
+    required List<Map<String, dynamic>> allowedTools,
+  }) {
+    final toolNames = _toolNamesFromDefinitions(allowedTools);
+    final basePrompt = SystemPromptBuilder.build(
+      now: now,
+      assistantMode: AssistantMode.general,
+      languageCode: _resolveLanguageCode(),
+      toolNames: toolNames,
+    );
 
+    if (allowedTools.isEmpty) {
+      return basePrompt;
+    }
+
+    return [
+      basePrompt,
+      'Routine execution context: this is an unattended scheduled/manual routine. '
+          'When the routine prompt asks for diagnostics, lookup, or inspection '
+          'that requires available read-only tools, call the relevant tools directly. '
+          'Do not ask the user for confirmation before read-only routine tool use. '
+          'Do not answer with only a proposed tool workflow when the available tools '
+          'can satisfy the request. Provide a concise final result after tool evidence '
+          'is collected.',
+    ].join('\n');
+  }
+
+  Future<RoutineToolExecutionResult> _executeRoutine({
+    required List<Message> messages,
+    required List<Map<String, dynamic>> allowedTools,
+  }) async {
     if (allowedTools.isEmpty) {
       final result = await _dataSource.createChatCompletion(
         messages: messages,
@@ -157,22 +179,45 @@ class RoutineExecutionService {
       return RoutineToolExecutionResult(output: result.content);
     }
 
+    final allowedToolNames = _toolNamesFromDefinitions(allowedTools).toSet();
     return _toolRunner.execute(
       messages: messages,
       tools: allowedTools,
-      dispatchToolCall: _dispatchRoutineToolCall,
+      dispatchToolCall: (toolCall) => _dispatchRoutineToolCall(
+        toolCall,
+        allowedToolNames: allowedToolNames,
+      ),
       model: _settings.model,
       temperature: _settings.temperature,
       maxTokens: _settings.maxTokens,
     );
   }
 
-  Future<McpToolResult> _dispatchRoutineToolCall(ToolCallInfo toolCall) async {
+  List<Map<String, dynamic>> _allowedRoutineTools(Routine routine) {
+    if (!routine.toolsEnabled) {
+      return const <Map<String, dynamic>>[];
+    }
+    return RoutineToolPolicy.filterAllowedToolDefinitions(
+      _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
+    );
+  }
+
+  List<String> _toolNamesFromDefinitions(List<Map<String, dynamic>> tools) {
+    return tools
+        .map((tool) => (tool['function'] as Map?)?['name'] as String?)
+        .whereType<String>()
+        .toList(growable: false);
+  }
+
+  Future<McpToolResult> _dispatchRoutineToolCall(
+    ToolCallInfo toolCall, {
+    required Set<String> allowedToolNames,
+  }) async {
     final toolService = _mcpToolService;
     if (toolService == null) {
       return RoutineToolPolicy.buildUnavailableResult(toolCall);
     }
-    if (!RoutineToolPolicy.isAllowedToolName(toolCall.name)) {
+    if (!allowedToolNames.contains(toolCall.name)) {
       return RoutineToolPolicy.buildDeniedResult(toolCall);
     }
 

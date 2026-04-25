@@ -112,6 +112,138 @@ void main() {
         'query': 'tokyo weather',
       });
     });
+
+    test(
+      'adds routine guidance and keeps external MCP tools available',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Checking external router status',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-router',
+                name: 'router_health_snapshot',
+                arguments: const {'lookback_minutes': 15},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected router status',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Router status is stable.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final routerTool = McpToolEntity(
+          name: 'router_health_snapshot',
+          description: 'Summarize router health from an external MCP server',
+          inputSchema: const {'type': 'object', 'properties': {}},
+          sourceUrl: 'http://router-mcp.local:8765',
+        ).toOpenAiTool();
+        final zeekTool = McpToolEntity(
+          name: 'get_dns_health__zeek_server',
+          description: 'Summarize recent Zeek dns.log activity',
+          inputSchema: const {'type': 'object', 'properties': {}},
+          sourceUrl: 'http://zeek-mcp.local:8765',
+        ).toOpenAiTool();
+        final localToolWithDisallowedName = _toolDefinition(
+          'write_file',
+          'Write a file',
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition(
+              'interface_info',
+              'Inspect local network interfaces',
+            ),
+            routerTool,
+            zeekTool,
+            localToolWithDisallowedName,
+          ],
+          resultsByToolName: {
+            'router_health_snapshot': const McpToolResult(
+              toolName: 'router_health_snapshot',
+              result: '{"status":"stable"}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(record.output, 'Router status is stable.');
+        expect(record.toolNames, ['router_health_snapshot']);
+        expect(toolService.executedCalls.single.name, 'router_health_snapshot');
+        expect(toolService.executedCalls.single.arguments, {
+          'lookback_minutes': 15,
+        });
+        expect(dataSource.toolRequestNames, [
+          'interface_info',
+          'router_health_snapshot',
+          'get_dns_health__zeek_server',
+        ]);
+        final systemPrompt = dataSource.lastToolAwareMessages
+            .singleWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(systemPrompt, contains('Available tools:'));
+        expect(systemPrompt, contains('router_health_snapshot'));
+        expect(systemPrompt, contains('get_dns_health__zeek_server'));
+        expect(systemPrompt, contains('unattended scheduled/manual routine'));
+        expect(systemPrompt, contains('Do not ask the user for confirmation'));
+        expect(
+          systemPrompt,
+          contains('Do not answer with only a proposed tool workflow'),
+        );
+      },
+    );
+
+    test(
+      'blocks disallowed built-in tools even when the model asks for them',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Trying to mutate a file',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-write',
+                name: 'write_file',
+                arguments: const {'path': 'notes.txt', 'content': 'unsafe'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('web_search', 'Search the web'),
+            _toolDefinition('write_file', 'Write a file'),
+          ],
+          resultsByToolName: const {},
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(dataSource.toolRequestNames, ['web_search']);
+        expect(toolService.executedCalls, isEmpty);
+        expect(record.isSuccessful, isFalse);
+        expect(record.error, contains('without any visible output'));
+      },
+    );
   });
 }
 
@@ -136,6 +268,7 @@ class _FakeChatDataSource implements ChatDataSource {
   final Queue<ChatCompletionResult> _plainResults;
 
   List<String> toolRequestNames = const [];
+  List<Message> lastToolAwareMessages = const [];
   int createChatCompletionWithToolResultsCallCount = 0;
 
   @override
@@ -147,6 +280,7 @@ class _FakeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     if (tools != null && tools.isNotEmpty) {
+      lastToolAwareMessages = messages;
       toolRequestNames = tools
           .map((tool) => (tool['function'] as Map<String, dynamic>)['name'])
           .whereType<String>()
