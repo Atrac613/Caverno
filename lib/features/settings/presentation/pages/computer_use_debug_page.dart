@@ -996,6 +996,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'setupChecklist': _setupChecklist(
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
       ).toJson(),
+      'onboardingSmokeChecklist': _onboardingSmokeChecklist(),
       'helperStatus': _helperStatus,
       'permissions': _permissions,
       'audioRecording': _audioRecording,
@@ -1013,6 +1014,49 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       if (_lastDiagnosticExportPath != null)
         'lastDiagnosticExportPath': _lastDiagnosticExportPath,
     };
+  }
+
+  List<Map<String, dynamic>> _onboardingSmokeChecklist() {
+    return [
+      {
+        'id': 'launch_helper',
+        'label': 'Launch Caverno Computer Use',
+        'complete':
+            _permissionValue('helperInstalled') == true &&
+            _permissionValue('helperRunning') == true,
+      },
+      {
+        'id': 'verify_helper_ipc',
+        'label': 'Verify helper IPC reachability',
+        'complete': _permissionValue('helperReachable') == true,
+      },
+      {
+        'id': 'grant_accessibility',
+        'label': 'Grant Accessibility to Caverno Computer Use',
+        'complete': _permissionValue('accessibilityGranted') == true,
+      },
+      {
+        'id': 'grant_screen_recording',
+        'label':
+            'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'complete': _permissionValue('screenCaptureGranted') == true,
+      },
+      {
+        'id': 'capture_display',
+        'label': 'Capture a display screenshot',
+        'complete': _displayScreenshot != null,
+      },
+      {
+        'id': 'capture_window',
+        'label': 'Capture a selected window screenshot',
+        'complete': _windowScreenshot != null,
+      },
+      {
+        'id': 'export_diagnostics',
+        'label': 'Export redacted diagnostics',
+        'complete': _lastDiagnosticExportPath != null,
+      },
+    ];
   }
 
   Map<String, double?> _coordinateMap() {

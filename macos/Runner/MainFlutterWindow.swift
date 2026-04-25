@@ -161,13 +161,46 @@ final class SecurityScopedBookmarkChannel {
   }
 }
 
+fileprivate enum MacosComputerUseHelperCommand: String {
+  case ping
+  case permissionStatus
+  case openSettings
+  case stopAll
+  case screenshot
+  case listWindows
+  case focusWindow
+  case screenshotWindow
+}
+
+fileprivate struct MacosComputerUseHelperRequest {
+  static let protocolVersion = 1
+
+  let requestId: String
+  let command: MacosComputerUseHelperCommand
+  let arguments: [String: Any]
+
+  var userInfo: [String: Any] {
+    [
+      "protocolVersion": Self.protocolVersion,
+      "requestId": requestId,
+      "command": command.rawValue,
+      "arguments": arguments,
+    ]
+  }
+}
+
+fileprivate struct PendingMacosComputerUseHelperRequest {
+  let command: MacosComputerUseHelperCommand
+  let result: FlutterResult
+}
+
 final class MacosComputerUseHelperClient: NSObject {
   private let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
   private let helperDisplayName = "Caverno Computer Use"
   private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   private let center = DistributedNotificationCenter.default()
-  private var pendingResults: [String: FlutterResult] = [:]
+  private var pendingRequests: [String: PendingMacosComputerUseHelperRequest] = [:]
 
   override init() {
     super.init()
@@ -253,35 +286,39 @@ final class MacosComputerUseHelperClient: NSObject {
     }
   }
 
-  func send(
-    command: String,
+  fileprivate func send(
+    command: MacosComputerUseHelperCommand,
     arguments: [String: Any] = [:],
     timeout: TimeInterval = 1.5,
     result: @escaping FlutterResult
   ) {
     let requestId = UUID().uuidString
-    pendingResults[requestId] = result
+    let request = MacosComputerUseHelperRequest(
+      requestId: requestId,
+      command: command,
+      arguments: arguments
+    )
+    pendingRequests[requestId] = PendingMacosComputerUseHelperRequest(
+      command: command,
+      result: result
+    )
     center.postNotificationName(
       requestName,
       object: nil,
-      userInfo: [
-        "requestId": requestId,
-        "command": command,
-        "arguments": arguments,
-      ],
+      userInfo: request.userInfo,
       deliverImmediately: true
     )
 
     DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-      guard let result = self?.pendingResults.removeValue(forKey: requestId) else {
+      guard let pendingRequest = self?.pendingRequests.removeValue(forKey: requestId) else {
         return
       }
-      result(
+      pendingRequest.result(
         FlutterError(
           code: "helper_unreachable",
-          message: "Caverno Computer Use did not respond to \(command).",
+          message: "Caverno Computer Use did not respond to \(pendingRequest.command.rawValue).",
           details: [
-            "command": command,
+            "command": pendingRequest.command.rawValue,
             "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
           ]
         )
@@ -293,13 +330,28 @@ final class MacosComputerUseHelperClient: NSObject {
     guard
       let userInfo = notification.userInfo,
       let requestId = userInfo["requestId"] as? String,
-      let result = pendingResults.removeValue(forKey: requestId)
+      let pendingRequest = pendingRequests.removeValue(forKey: requestId)
     else {
       return
     }
 
+    let protocolVersion = userInfo["protocolVersion"] as? Int ?? 0
+    guard protocolVersion == MacosComputerUseHelperRequest.protocolVersion else {
+      pendingRequest.result(
+        FlutterError(
+          code: "helper_unsupported_protocol",
+          message: "Caverno Computer Use returned an unsupported protocol version.",
+          details: [
+            "protocolVersion": protocolVersion,
+            "command": pendingRequest.command.rawValue,
+          ]
+        )
+      )
+      return
+    }
+
     guard let response = userInfo["response"] as? [String: Any] else {
-      result(
+      pendingRequest.result(
         FlutterError(
           code: "helper_invalid_response",
           message: "Caverno Computer Use returned an invalid response.",
@@ -309,7 +361,7 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
-    result(response)
+    pendingRequest.result(response)
   }
 
   private func embeddedHelperURL() -> URL {
@@ -340,17 +392,17 @@ final class MacosComputerUseChannel {
     case "launchHelper":
       helperClient.launch(result: result)
     case "helperPing":
-      helperClient.send(command: "ping", result: result)
+      helperClient.send(command: .ping, result: result)
     case "helperPermissionStatus":
-      helperClient.send(command: "permissionStatus", result: result)
+      helperClient.send(command: .permissionStatus, result: result)
     case "helperOpenSystemSettings":
       helperClient.send(
-        command: "openSettings",
+        command: .openSettings,
         arguments: call.arguments as? [String: Any] ?? [:],
         result: result
       )
     case "helperStopAll":
-      helperClient.send(command: "stopAll", result: result)
+      helperClient.send(command: .stopAll, result: result)
     case "getPermissions":
       result(permissionSnapshot())
     case "requestAccessibility":
@@ -360,13 +412,33 @@ final class MacosComputerUseChannel {
     case "openSystemSettings":
       openSystemSettings(call, result: result)
     case "listWindows":
-      listWindows(call, result: result)
+      helperClient.send(
+        command: .listWindows,
+        arguments: helperObservationArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "focusWindow":
-      focusWindow(call, result: result)
+      helperClient.send(
+        command: .focusWindow,
+        arguments: helperObservationArguments(call),
+        timeout: 3,
+        result: result
+      )
     case "screenshot":
-      takeScreenshot(call, result: result)
+      helperClient.send(
+        command: .screenshot,
+        arguments: helperObservationArguments(call),
+        timeout: 8,
+        result: result
+      )
     case "screenshotWindow":
-      takeWindowScreenshot(call, result: result)
+      helperClient.send(
+        command: .screenshotWindow,
+        arguments: helperObservationArguments(call),
+        timeout: 8,
+        result: result
+      )
     case "click":
       click(call, result: result)
     case "moveMouse":
@@ -386,6 +458,12 @@ final class MacosComputerUseChannel {
     default:
       result(FlutterMethodNotImplemented)
     }
+  }
+
+  private func helperObservationArguments(_ call: FlutterMethodCall) -> [String: Any] {
+    var arguments = call.arguments as? [String: Any] ?? [:]
+    arguments["mainAppPid"] = Int(ProcessInfo.processInfo.processIdentifier)
+    return arguments
   }
 
   private func permissionSnapshot() -> [String: Any] {

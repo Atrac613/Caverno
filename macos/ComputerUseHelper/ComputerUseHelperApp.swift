@@ -201,6 +201,45 @@ private func computerUsePermissionSnapshot() -> PermissionSnapshot {
   )
 }
 
+private enum ComputerUseHelperCommand: String {
+  case ping
+  case permissionStatus
+  case openSettings
+  case stopAll
+  case screenshot
+  case listWindows
+  case focusWindow
+  case screenshotWindow
+}
+
+private struct ComputerUseHelperRequest {
+  static let protocolVersion = 1
+
+  let protocolVersion: Int
+  let requestId: String
+  let command: ComputerUseHelperCommand
+  let arguments: [String: Any]
+
+  init?(userInfo: [AnyHashable: Any]) {
+    guard
+      let requestId = userInfo["requestId"] as? String,
+      let commandName = userInfo["command"] as? String,
+      let command = ComputerUseHelperCommand(rawValue: commandName)
+    else {
+      return nil
+    }
+
+    self.protocolVersion = userInfo["protocolVersion"] as? Int ?? 0
+    self.requestId = requestId
+    self.command = command
+    self.arguments = userInfo["arguments"] as? [String: Any] ?? [:]
+  }
+
+  var isSupportedProtocolVersion: Bool {
+    protocolVersion == Self.protocolVersion
+  }
+}
+
 private final class ComputerUseHelperIpc: NSObject {
   private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
@@ -219,38 +258,62 @@ private final class ComputerUseHelperIpc: NSObject {
   @objc private func handleRequest(_ notification: Notification) {
     guard
       let userInfo = notification.userInfo,
-      let requestId = userInfo["requestId"] as? String,
-      let command = userInfo["command"] as? String
+      let requestId = userInfo["requestId"] as? String
     else {
       return
     }
 
-    let arguments = userInfo["arguments"] as? [String: Any] ?? [:]
-    let response = handle(command: command, arguments: arguments)
+    guard let request = ComputerUseHelperRequest(userInfo: userInfo) else {
+      postResponse(
+        requestId: requestId,
+        response: errorResponse(
+          code: "invalid_request",
+          error: "Caverno Computer Use received an invalid helper request.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    guard request.isSupportedProtocolVersion else {
+      postResponse(
+        requestId: request.requestId,
+        response: errorResponse(
+          code: "unsupported_protocol",
+          error: "Unsupported computer-use helper protocol version.",
+          details: request.protocolVersion
+        )
+      )
+      return
+    }
+
+    let response = handle(request: request)
     postResponse(requestId: requestId, response: response)
   }
 
-  private func handle(command: String, arguments: [String: Any]) -> [String: Any] {
-    switch command {
-    case "ping":
+  private func handle(request: ComputerUseHelperRequest) -> [String: Any] {
+    switch request.command {
+    case .ping:
       return baseResponse(extra: ["message": "pong"])
-    case "permissionStatus":
+    case .permissionStatus:
       return permissionStatus()
-    case "openSettings":
-      return openSettings(arguments: arguments)
-    case "stopAll":
+    case .openSettings:
+      return openSettings(arguments: request.arguments)
+    case .stopAll:
       return baseResponse(
         extra: [
           "stoppedAudioRecording": false,
           "cancelledInputEvents": true,
         ]
       )
-    default:
-      return [
-        "ok": false,
-        "code": "unknown_command",
-        "error": "Unknown computer-use helper command: \(command)",
-      ]
+    case .screenshot:
+      return screenshot(arguments: request.arguments)
+    case .listWindows:
+      return listWindows(arguments: request.arguments)
+    case .focusWindow:
+      return focusWindow(arguments: request.arguments)
+    case .screenshotWindow:
+      return screenshotWindow(arguments: request.arguments)
     }
   }
 
@@ -265,12 +328,11 @@ private final class ComputerUseHelperIpc: NSObject {
   private func openSettings(arguments: [String: Any]) -> [String: Any] {
     let section = arguments["section"] as? String ?? "privacy"
     guard let pane = SettingsPane(section: section), let url = pane.url else {
-      return [
-        "ok": false,
-        "code": "invalid_args",
-        "error": "section must be accessibility, screen_recording, or privacy",
-        "details": section,
-      ]
+      return errorResponse(
+        code: "invalid_args",
+        error: "section must be accessibility, screen_recording, or privacy",
+        details: section
+      )
     }
 
     let opened = NSWorkspace.shared.open(url)
@@ -281,6 +343,168 @@ private final class ComputerUseHelperIpc: NSObject {
         "url": url.absoluteString,
       ]
     )
+  }
+
+  private func screenshot(arguments: [String: Any]) -> [String: Any] {
+    guard let screen = resolveScreen(arguments: arguments) else {
+      return errorResponse(code: "display_not_found", error: "No display is available")
+    }
+
+    guard let image = CGDisplayCreateImage(screen.displayID) else {
+      return errorResponse(
+        code: "screenshot_failed",
+        error: "Failed to capture the display. Grant Screen Recording permission in System Settings."
+      )
+    }
+
+    do {
+      let encodedImage = try encodePng(
+        image: image,
+        maxWidth: intValue(arguments["max_width"] ?? arguments["maxWidth"])
+      )
+      return baseResponse(
+        extra: [
+          "imageBase64": encodedImage.base64,
+          "imageMimeType": "image/png",
+          "width": encodedImage.width,
+          "height": encodedImage.height,
+          "displayId": screen.displayID,
+          "displayBounds": rectMap(screen.bounds),
+          "coordinateSpace": "screenshot_pixels",
+          "inputOrigin": "top_left",
+          "xScaleToDisplay": screen.bounds.width / CGFloat(encodedImage.width),
+          "yScaleToDisplay": screen.bounds.height / CGFloat(encodedImage.height),
+        ]
+      )
+    } catch {
+      return errorResponse(
+        code: "image_encode_failed",
+        error: "Failed to encode the screenshot.",
+        details: error.localizedDescription
+      )
+    }
+  }
+
+  private func listWindows(arguments: [String: Any]) -> [String: Any] {
+    let includeCurrentApp =
+      boolValue(arguments["include_current_app"] ?? arguments["includeCurrentApp"]) ?? false
+    let maxWindows = max(1, min(intValue(arguments["max_windows"] ?? arguments["maxWindows"]) ?? 80, 200))
+    let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
+    let mainAppPid = intValue(arguments["main_app_pid"] ?? arguments["mainAppPid"])
+    let windows = visibleWindows()
+      .filter { window in
+        includeCurrentApp ||
+          (window.ownerPID != helperPid && window.ownerPID != mainAppPid)
+      }
+      .prefix(maxWindows)
+      .map { $0.toMap() }
+
+    return baseResponse(
+      extra: [
+        "windows": Array(windows),
+        "count": windows.count,
+        "coordinateSpace": "window_pixels",
+        "inputOrigin": "top_left",
+      ]
+    )
+  }
+
+  private func focusWindow(arguments: [String: Any]) -> [String: Any] {
+    guard let windowID = windowID(arguments: arguments) else {
+      return errorResponse(code: "invalid_args", error: "window_id is required")
+    }
+    guard let window = findWindow(windowID: windowID) else {
+      return errorResponse(
+        code: "window_not_found",
+        error: "No matching window is available.",
+        details: windowID
+      )
+    }
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+
+    let app = NSRunningApplication(processIdentifier: pid_t(window.ownerPID))
+    app?.activate(options: [.activateIgnoringOtherApps])
+
+    let appElement = AXUIElementCreateApplication(pid_t(window.ownerPID))
+    var focused = false
+    if let axWindow = findAccessibilityWindow(appElement: appElement, windowID: windowID) {
+      AXUIElementPerformAction(axWindow, kAXRaiseAction as CFString)
+      let setResult = AXUIElementSetAttributeValue(
+        appElement,
+        kAXFocusedWindowAttribute as CFString,
+        axWindow
+      )
+      focused = setResult == .success
+    }
+
+    return baseResponse(
+      extra: [
+        "ok": focused || app != nil,
+        "windowId": window.windowID,
+        "ownerPid": window.ownerPID,
+        "appName": window.ownerName,
+        "title": window.title,
+        "focusedWindow": focused,
+      ]
+    )
+  }
+
+  private func screenshotWindow(arguments: [String: Any]) -> [String: Any] {
+    guard let windowID = windowID(arguments: arguments) else {
+      return errorResponse(code: "invalid_args", error: "window_id is required")
+    }
+    guard let window = findWindow(windowID: windowID) else {
+      return errorResponse(
+        code: "window_not_found",
+        error: "No matching window is available.",
+        details: windowID
+      )
+    }
+
+    guard let image = CGWindowListCreateImage(
+      .null,
+      .optionIncludingWindow,
+      CGWindowID(windowID),
+      [.boundsIgnoreFraming, .bestResolution]
+    ) else {
+      return errorResponse(
+        code: "screenshot_failed",
+        error: "Failed to capture the window. Grant Screen Recording permission in System Settings.",
+        details: windowID
+      )
+    }
+
+    do {
+      let encodedImage = try encodePng(
+        image: image,
+        maxWidth: intValue(arguments["max_width"] ?? arguments["maxWidth"])
+      )
+      return baseResponse(
+        extra: [
+          "imageBase64": encodedImage.base64,
+          "imageMimeType": "image/png",
+          "width": encodedImage.width,
+          "height": encodedImage.height,
+          "windowId": window.windowID,
+          "ownerPid": window.ownerPID,
+          "appName": window.ownerName,
+          "title": window.title,
+          "windowBounds": rectMap(window.bounds),
+          "coordinateSpace": "window_pixels",
+          "inputOrigin": "top_left",
+          "xScaleToWindow": window.bounds.width / CGFloat(encodedImage.width),
+          "yScaleToWindow": window.bounds.height / CGFloat(encodedImage.height),
+        ]
+      )
+    } catch {
+      return errorResponse(
+        code: "image_encode_failed",
+        error: "Failed to encode the window screenshot.",
+        details: error.localizedDescription
+      )
+    }
   }
 
   private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
@@ -297,16 +521,291 @@ private final class ComputerUseHelperIpc: NSObject {
     return response
   }
 
+  private func errorResponse(
+    code: String,
+    error: String,
+    details: Any? = nil
+  ) -> [String: Any] {
+    var response = baseResponse(ok: false)
+    response["code"] = code
+    response["error"] = error
+    if let details {
+      response["details"] = details
+    }
+    return response
+  }
+
+  private func accessibilityDeniedResponse() -> [String: Any] {
+    errorResponse(
+      code: "accessibility_denied",
+      error: "Accessibility permission is required. Grant Caverno Computer Use in System Settings > Privacy & Security > Accessibility."
+    )
+  }
+
   private func postResponse(requestId: String, response: [String: Any]) {
     center.postNotificationName(
       responseName,
       object: nil,
       userInfo: [
+        "protocolVersion": ComputerUseHelperRequest.protocolVersion,
         "requestId": requestId,
         "response": response,
       ],
       deliverImmediately: true
     )
+  }
+}
+
+private func resolveScreen(arguments: [String: Any]) -> ScreenDescriptor? {
+  let requestedDisplayId = directDisplayIdValue(arguments["display_id"] ?? arguments["displayId"])
+  let screens = NSScreen.screens
+  if let requestedDisplayId {
+    for screen in screens {
+      if screen.displayID == requestedDisplayId {
+        return ScreenDescriptor(screen: screen)
+      }
+    }
+    return nil
+  }
+  return NSScreen.main.map(ScreenDescriptor.init(screen:))
+}
+
+private func visibleWindows() -> [WindowDescriptor] {
+  guard
+    let windowInfoList = CGWindowListCopyWindowInfo(
+      [.optionOnScreenOnly, .excludeDesktopElements],
+      kCGNullWindowID
+    ) as? [[String: Any]]
+  else {
+    return []
+  }
+
+  return windowInfoList.compactMap { info in
+    guard
+      let windowID = intValue(info[kCGWindowNumber as String]),
+      let ownerPID = intValue(info[kCGWindowOwnerPID as String]),
+      let ownerName = info[kCGWindowOwnerName as String] as? String,
+      let layer = intValue(info[kCGWindowLayer as String]),
+      layer == 0,
+      let boundsInfo = info[kCGWindowBounds as String] as? NSDictionary,
+      let bounds = CGRect(dictionaryRepresentation: boundsInfo),
+      bounds.width >= 32,
+      bounds.height >= 32
+    else {
+      return nil
+    }
+
+    let alpha = number(info[kCGWindowAlpha as String]) ?? 1
+    if alpha <= 0 {
+      return nil
+    }
+
+    return WindowDescriptor(
+      windowID: windowID,
+      ownerPID: ownerPID,
+      ownerName: ownerName,
+      title: info[kCGWindowName as String] as? String ?? "",
+      bounds: bounds,
+      layer: layer,
+      alpha: Double(alpha),
+      isOnScreen: (info[kCGWindowIsOnscreen as String] as? Bool) ?? true
+    )
+  }
+}
+
+private func findWindow(windowID: Int) -> WindowDescriptor? {
+  visibleWindows().first { $0.windowID == windowID }
+}
+
+private func findAccessibilityWindow(
+  appElement: AXUIElement,
+  windowID: Int
+) -> AXUIElement? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    appElement,
+    kAXWindowsAttribute as CFString,
+    &value
+  )
+  guard copyResult == .success, let windows = value as? [AXUIElement] else {
+    return nil
+  }
+
+  for window in windows {
+    var rawWindowID: CFTypeRef?
+    let idResult = AXUIElementCopyAttributeValue(
+      window,
+      "AXWindowNumber" as CFString,
+      &rawWindowID
+    )
+    if idResult == .success,
+       let number = rawWindowID as? NSNumber,
+       number.intValue == windowID {
+      return window
+    }
+  }
+  return nil
+}
+
+private func windowID(arguments: [String: Any]) -> Int? {
+  intValue(arguments["window_id"] ?? arguments["windowId"])
+}
+
+private func encodePng(image: CGImage, maxWidth: Int?) throws -> EncodedImage {
+  let targetImage: CGImage
+  if let maxWidth, maxWidth > 0, image.width > maxWidth {
+    let scale = CGFloat(maxWidth) / CGFloat(image.width)
+    let targetWidth = maxWidth
+    let targetHeight = max(1, Int(CGFloat(image.height) * scale))
+    let colorSpace = CGColorSpaceCreateDeviceRGB()
+    guard
+      let context = CGContext(
+        data: nil,
+        width: targetWidth,
+        height: targetHeight,
+        bitsPerComponent: 8,
+        bytesPerRow: 0,
+        space: colorSpace,
+        bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue
+      )
+    else {
+      throw ComputerUseError.imageResizeFailed
+    }
+    context.interpolationQuality = .medium
+    context.draw(image, in: CGRect(x: 0, y: 0, width: targetWidth, height: targetHeight))
+    guard let resized = context.makeImage() else {
+      throw ComputerUseError.imageResizeFailed
+    }
+    targetImage = resized
+  } else {
+    targetImage = image
+  }
+
+  let bitmap = NSBitmapImageRep(cgImage: targetImage)
+  guard let data = bitmap.representation(using: .png, properties: [:]) else {
+    throw ComputerUseError.imageEncodeFailed
+  }
+  return EncodedImage(
+    base64: data.base64EncodedString(),
+    width: targetImage.width,
+    height: targetImage.height
+  )
+}
+
+private func intValue(_ value: Any?) -> Int? {
+  if let value = value as? Int {
+    return value
+  }
+  if let value = value as? UInt32 {
+    return Int(value)
+  }
+  if let value = value as? Double {
+    return Int(value)
+  }
+  if let value = value as? NSNumber {
+    return value.intValue
+  }
+  return nil
+}
+
+private func directDisplayIdValue(_ value: Any?) -> CGDirectDisplayID? {
+  guard let intValue = intValue(value), intValue >= 0 else {
+    return nil
+  }
+  return CGDirectDisplayID(intValue)
+}
+
+private func boolValue(_ value: Any?) -> Bool? {
+  if let value = value as? Bool {
+    return value
+  }
+  if let value = value as? NSNumber {
+    return value.boolValue
+  }
+  return nil
+}
+
+private func number(_ value: Any?) -> CGFloat? {
+  if let value = value as? CGFloat {
+    return value
+  }
+  if let value = value as? Double {
+    return CGFloat(value)
+  }
+  if let value = value as? Int {
+    return CGFloat(value)
+  }
+  if let value = value as? NSNumber {
+    return CGFloat(truncating: value)
+  }
+  return nil
+}
+
+private func rectMap(_ rect: CGRect) -> [String: Double] {
+  [
+    "x": Double(rect.origin.x),
+    "y": Double(rect.origin.y),
+    "width": Double(rect.width),
+    "height": Double(rect.height),
+  ]
+}
+
+private struct EncodedImage {
+  let base64: String
+  let width: Int
+  let height: Int
+}
+
+private enum ComputerUseError: Error {
+  case imageResizeFailed
+  case imageEncodeFailed
+}
+
+private struct ScreenDescriptor {
+  let screen: NSScreen
+  let displayID: CGDirectDisplayID
+  let bounds: CGRect
+
+  init(screen: NSScreen) {
+    self.screen = screen
+    self.displayID = screen.displayID
+    self.bounds = CGDisplayBounds(screen.displayID)
+  }
+}
+
+private struct WindowDescriptor {
+  let windowID: Int
+  let ownerPID: Int
+  let ownerName: String
+  let title: String
+  let bounds: CGRect
+  let layer: Int
+  let alpha: Double
+  let isOnScreen: Bool
+
+  func toMap() -> [String: Any] {
+    [
+      "windowId": windowID,
+      "ownerPid": ownerPID,
+      "appName": ownerName,
+      "title": title,
+      "bounds": [
+        "x": Double(bounds.origin.x),
+        "y": Double(bounds.origin.y),
+        "width": Double(bounds.width),
+        "height": Double(bounds.height),
+      ],
+      "layer": layer,
+      "alpha": alpha,
+      "isOnScreen": isOnScreen,
+    ]
+  }
+}
+
+private extension NSScreen {
+  var displayID: CGDirectDisplayID {
+    deviceDescription[NSDeviceDescriptionKey("NSScreenNumber")] as? CGDirectDisplayID
+      ?? CGMainDisplayID()
   }
 }
 
