@@ -3,11 +3,12 @@
 ## Status
 
 This document defines the target split between `Caverno.app` and a separate
-`Caverno Computer Use.app` helper. A minimal helper target exists for onboarding
-and build validation, but the current tool implementation still runs the native
-computer-use channel inside `Caverno.app`. The migration should keep the public
-tool contracts stable while moving privileged macOS work behind the helper
-boundary.
+`Caverno Computer Use.app` helper. The helper target is bundled inside
+`Caverno.app`, can be launched from the settings smoke-test panel, and now owns
+permission status, System Settings shortcuts, reachability checks, and emergency
+stop requests. The remaining privileged screenshot, input, and audio operations
+still run through the compatibility channel until they are migrated behind the
+helper boundary.
 
 ## Goals
 
@@ -71,9 +72,9 @@ transport can be used as a temporary development transport if it accelerates
 iteration.
 
 The current helper milestone uses `DistributedNotificationCenter` as a
-request/response transport so the separate app can prove the boundary before it
-is embedded and packaged with the main app. XPC remains the preferred production
-transport once packaging and launch management are stable.
+request/response transport so the separate bundled app can prove the boundary.
+XPC remains the preferred production transport once the remaining privileged
+commands move into the helper.
 
 Initial commands:
 
@@ -138,10 +139,11 @@ Each missing state should have one primary action:
    privileged operations.
 4. Add IPC `ping`, `permissionStatus`, `openSettings`, and `stopAll`.
 5. Move permission status and settings shortcuts to the helper backend.
-6. Move screenshot and window listing.
-7. Move input events behind the existing approval and arming flow.
-8. Move system audio recording behind the existing approval and arming flow.
-9. Remove privileged computer-use APIs from the main app once parity is verified.
+6. Bundle the helper in `Caverno.app` and launch it from the permission panel.
+7. Move screenshot and window listing.
+8. Move input events behind the existing approval and arming flow.
+9. Move system audio recording behind the existing approval and arming flow.
+10. Remove privileged computer-use APIs from the main app once parity is verified.
 
 ## Verification Gates
 

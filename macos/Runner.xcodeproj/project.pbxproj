@@ -47,6 +47,13 @@
 			remoteGlobalIDString = 33CC111A2044C6BA0003C045;
 			remoteInfo = FLX;
 		};
+		C0DE10000000000000000010 /* PBXContainerItemProxy */ = {
+			isa = PBXContainerItemProxy;
+			containerPortal = 33CC10E52044A3C60003C045 /* Project object */;
+			proxyType = 1;
+			remoteGlobalIDString = C0DE1000000000000000000B;
+			remoteInfo = "Caverno Computer Use";
+		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -264,12 +271,14 @@
 				33CC10EA2044A3C60003C045 /* Frameworks */,
 				33CC10EB2044A3C60003C045 /* Resources */,
 				33CC110E2044A8840003C045 /* Bundle Framework */,
+				C0DE10000000000000000012 /* Embed Computer Use Helper */,
 				3399D490228B24CF009A79C7 /* ShellScript */,
 				3F5DC2351297B1A148E5C3F5 /* [CP] Embed Pods Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
+				C0DE10000000000000000011 /* PBXTargetDependency */,
 				33CC11202044C79F0003C045 /* PBXTargetDependency */,
 			);
 			name = Runner;
@@ -393,6 +402,26 @@
 			shellPath = /bin/sh;
 			shellScript = "echo \"$PRODUCT_NAME.app\" > \"$PROJECT_DIR\"/Flutter/ephemeral/.app_filename && \"$FLUTTER_ROOT\"/packages/flutter_tools/bin/macos_assemble.sh embed\n";
 		};
+		C0DE10000000000000000012 /* Embed Computer Use Helper */ = {
+			isa = PBXShellScriptBuildPhase;
+			buildActionMask = 2147483647;
+			files = (
+			);
+			inputFileListPaths = (
+			);
+			inputPaths = (
+				"$(BUILT_PRODUCTS_DIR)/Caverno Computer Use.app",
+			);
+			name = "Embed Computer Use Helper";
+			outputFileListPaths = (
+			);
+			outputPaths = (
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/Caverno Computer Use.app",
+			);
+			runOnlyForDeploymentPostprocessing = 0;
+			shellPath = /bin/sh;
+			shellScript = "set -eu\nHELPER_APP=\"${BUILT_PRODUCTS_DIR}/Caverno Computer Use.app\"\nDESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nif [ ! -d \"$HELPER_APP\" ]; then\n  echo \"error: Missing built Caverno Computer Use helper at $HELPER_APP\" >&2\n  exit 1\nfi\nmkdir -p \"$DESTINATION\"\nrm -rf \"$DESTINATION/Caverno Computer Use.app\"\nditto \"$HELPER_APP\" \"$DESTINATION/Caverno Computer Use.app\"\n";
+		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;
 			buildActionMask = 2147483647;
@@ -515,6 +544,11 @@
 			isa = PBXTargetDependency;
 			target = 33CC111A2044C6BA0003C045 /* Flutter Assemble */;
 			targetProxy = 33CC111F2044C79F0003C045 /* PBXContainerItemProxy */;
+		};
+		C0DE10000000000000000011 /* PBXTargetDependency */ = {
+			isa = PBXTargetDependency;
+			target = C0DE1000000000000000000B /* Caverno Computer Use */;
+			targetProxy = C0DE10000000000000000010 /* PBXContainerItemProxy */;
 		};
 /* End PBXTargetDependency section */
 

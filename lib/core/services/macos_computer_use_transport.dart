@@ -11,6 +11,10 @@ abstract class MacosComputerUsePermissionTransport {
 
   MacosComputerUseBackendInfo get backendInfo;
 
+  Future<String> helperStatus();
+
+  Future<String> launchHelper();
+
   Future<String> ping();
 
   Future<String> getPermissions();
@@ -35,6 +39,16 @@ class HelperMacosComputerUseTransport
   @override
   MacosComputerUseBackendInfo get backendInfo =>
       MacosComputerUseBackends.helperIpc;
+
+  @override
+  Future<String> helperStatus() {
+    return _invokeJson('helperStatus');
+  }
+
+  @override
+  Future<String> launchHelper() {
+    return _invokeJson('launchHelper');
+  }
 
   @override
   Future<String> ping() {
@@ -113,6 +127,26 @@ class InProcessMacosComputerUseTransport
   @override
   MacosComputerUseBackendInfo get backendInfo =>
       MacosComputerUseBackends.inProcessCompatibility;
+
+  @override
+  Future<String> helperStatus() async {
+    return jsonEncode({
+      'ok': true,
+      'backend': 'in_process',
+      'helperInstalled': false,
+      'helperRunning': false,
+    });
+  }
+
+  @override
+  Future<String> launchHelper() async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'code': 'helper_not_used',
+      'error': 'The in-process backend does not launch a helper app.',
+    });
+  }
 
   @override
   Future<String> ping() async {

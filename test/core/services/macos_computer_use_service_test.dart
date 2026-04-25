@@ -57,6 +57,37 @@ void main() {
       );
     },
   );
+
+  test('launches the helper before guiding permission requests', () async {
+    final transport = _FakePermissionTransport(
+      permissions: {
+        'ok': true,
+        'backend': 'helper',
+        'helperReachable': true,
+        'accessibilityGranted': false,
+        'screenCaptureGranted': false,
+        'systemAudioRecordingSupported': true,
+      },
+    );
+    final service = MacosComputerUseService(permissionTransport: transport);
+
+    final result =
+        jsonDecode(
+              await service.requestPermissions(
+                accessibility: true,
+                screenCapture: false,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(transport.calledMethods, [
+      'launchHelper',
+      'openSystemSettings:accessibility',
+      'getPermissions',
+    ]);
+    expect(result, containsPair('helper', isA<Map<String, dynamic>>()));
+    expect(result, containsPair('current', isA<Map<String, dynamic>>()));
+  });
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
@@ -70,6 +101,22 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
       MacosComputerUseBackends.helperIpc;
 
   @override
+  Future<String> helperStatus() async {
+    calledMethods.add('helperStatus');
+    return jsonEncode({
+      'ok': true,
+      'helperInstalled': true,
+      'helperRunning': true,
+    });
+  }
+
+  @override
+  Future<String> launchHelper() async {
+    calledMethods.add('launchHelper');
+    return jsonEncode({'ok': true, 'helperRunning': true});
+  }
+
+  @override
   Future<String> getPermissions() async {
     calledMethods.add('getPermissions');
     return jsonEncode(permissions);
@@ -77,7 +124,7 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
 
   @override
   Future<String> openSystemSettings({required String section}) async {
-    calledMethods.add('openSystemSettings');
+    calledMethods.add('openSystemSettings:$section');
     return jsonEncode({'ok': true, 'section': section});
   }
 

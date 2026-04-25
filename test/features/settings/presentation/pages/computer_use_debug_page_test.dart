@@ -19,10 +19,15 @@ void main() {
     expect(find.text('Permission owner now'), findsOneWidget);
     expect(find.text('Target helper'), findsOneWidget);
     expect(find.text('Caverno Computer Use (helper_ipc)'), findsOneWidget);
+    expect(find.text('Installed'), findsOneWidget);
+    expect(find.text('Running'), findsOneWidget);
+    expect(find.text('Reachable'), findsOneWidget);
     expect(
       find.text('Caverno Computer Use (com.noguwo.apps.caverno.computer-use)'),
       findsOneWidget,
     );
+    expect(service.helperStatusCallCount, 1);
+    expect(service.pingHelperCallCount, 1);
   });
 
   testWidgets('refreshes permission and audio recording state', (tester) async {
@@ -31,7 +36,8 @@ void main() {
 
     await _tapButton(tester, 'Refresh');
 
-    expect(find.text('Granted'), findsNWidgets(3));
+    expect(find.text('Granted'), findsNWidgets(2));
+    expect(find.text('Reachable'), findsOneWidget);
     expect(find.text('Missing'), findsOneWidget);
     expect(
       find.text('Action required: Screen & System Audio Recording'),
@@ -59,8 +65,22 @@ void main() {
     await _tapButton(tester, 'Ping Helper');
     await _tapButton(tester, 'Stop Helper Work');
 
-    expect(service.pingHelperCallCount, 1);
+    expect(service.pingHelperCallCount, 2);
     expect(service.stopHelperWorkCallCount, 1);
+  });
+
+  testWidgets('launches helper and refreshes helper-owned permissions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Launch Helper');
+
+    expect(service.launchHelperCallCount, 1);
+    expect(service.helperStatusCallCount, 2);
+    expect(service.pingHelperCallCount, 2);
+    expect(service.getPermissionsCallCount, 1);
   });
 
   testWidgets('opens macOS permission settings shortcuts', (tester) async {
@@ -152,6 +172,7 @@ void main() {
 
     expect(text, contains('"coordinateTarget": "display"'));
     expect(text, contains('"setupChecklist"'));
+    expect(text, contains('"helperStatus"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
     expect(text, isNot(contains(_png1x1Base64)));
@@ -238,8 +259,11 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
+  int helperStatusCallCount = 0;
+  int launchHelperCallCount = 0;
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
+  int getPermissionsCallCount = 0;
   int startAudioCallCount = 0;
   int stopAudioCallCount = 0;
   final List<String> openedSettingsSections = [];
@@ -251,7 +275,35 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   bool get isAvailable => true;
 
   @override
+  Future<String> getHelperStatus() async {
+    helperStatusCallCount += 1;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperDisplayName': 'Caverno Computer Use',
+      'helperBundleIdentifier': 'com.noguwo.apps.caverno.computer-use',
+      'helperInstalled': true,
+      'helperRunning': true,
+      'helperPath':
+          '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+    });
+  }
+
+  @override
+  Future<String> launchHelper() async {
+    launchHelperCallCount += 1;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperInstalled': true,
+      'helperRunning': true,
+      'launched': true,
+    });
+  }
+
+  @override
   Future<String> getPermissions() async {
+    getPermissionsCallCount += 1;
     return _json({
       'backend': 'helper',
       'helperReachable': true,
@@ -264,7 +316,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> pingHelper() async {
     pingHelperCallCount += 1;
-    return _json({'ok': true, 'backend': 'helper', 'message': 'pong'});
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperReachable': true,
+      'message': 'pong',
+    });
   }
 
   @override
@@ -365,4 +422,4 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 String _json(Map<String, dynamic> value) => jsonEncode(value);
 
 const _png1x1Base64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/l1vNswAAAABJRU5ErkJggg==';

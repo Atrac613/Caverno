@@ -16,6 +16,19 @@ void main() {
         .setMockMethodCallHandler(channel, (call) async {
           calls.add(call);
           return switch (call.method) {
+            'helperStatus' => {
+              'ok': true,
+              'backend': 'helper',
+              'helperInstalled': true,
+              'helperRunning': false,
+            },
+            'launchHelper' => {
+              'ok': true,
+              'backend': 'helper',
+              'helperInstalled': true,
+              'helperRunning': true,
+              'launched': true,
+            },
             'helperPing' => {
               'ok': true,
               'backend': 'helper',
@@ -53,6 +66,10 @@ void main() {
     () async {
       const transport = HelperMacosComputerUseTransport(channel: channel);
 
+      final status =
+          jsonDecode(await transport.helperStatus()) as Map<String, dynamic>;
+      final launch =
+          jsonDecode(await transport.launchHelper()) as Map<String, dynamic>;
       final ping = jsonDecode(await transport.ping()) as Map<String, dynamic>;
       final permissions =
           jsonDecode(await transport.getPermissions()) as Map<String, dynamic>;
@@ -65,11 +82,16 @@ void main() {
           jsonDecode(await transport.stopAll()) as Map<String, dynamic>;
 
       expect(calls.map((call) => call.method), [
+        'helperStatus',
+        'launchHelper',
         'helperPing',
         'helperPermissionStatus',
         'helperOpenSystemSettings',
         'helperStopAll',
       ]);
+      expect(status, containsPair('helperInstalled', true));
+      expect(status, containsPair('helperRunning', false));
+      expect(launch, containsPair('helperRunning', true));
       expect(ping, containsPair('helperReachable', true));
       expect(permissions, containsPair('accessibilityGranted', true));
       expect(permissions, containsPair('screenCaptureGranted', false));

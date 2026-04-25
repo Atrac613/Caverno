@@ -32,12 +32,24 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Object? _lastResultForDiagnostics =
       'Run a smoke check to see the native response.';
   String? _lastDiagnosticExportPath;
+  Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
   _CoordinateTarget? _coordinateTarget;
   _ImageSnapshot? _displayScreenshot;
   _ImageSnapshot? _windowScreenshot;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) {
+        return;
+      }
+      _refreshHelperStatus();
+    });
+  }
 
   @override
   void dispose() {
@@ -121,16 +133,33 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               icon: Icons.verified_user_outlined,
               title: 'Permissions',
               subtitle:
-                  'Track the current backend while preparing the separate computer-use helper.',
+                  'Launch the helper, then grant Caverno Computer Use in macOS Privacy & Security.',
             ),
             const SizedBox(height: 12),
             _HelperBoundaryPanel(backend: setupChecklist.backend),
             const SizedBox(height: 12),
             _buildPermissionChecklist(backend),
             const SizedBox(height: 12),
-            _PermissionRow(
+            _StatusRow(
+              label: 'Helper Installed',
+              value: _permissionValue('helperInstalled'),
+              trueLabel: 'Installed',
+              falseLabel: 'Missing',
+              unknownLabel: 'Unknown',
+            ),
+            _StatusRow(
+              label: 'Helper Running',
+              value: _permissionValue('helperRunning'),
+              trueLabel: 'Running',
+              falseLabel: 'Stopped',
+              unknownLabel: 'Unknown',
+            ),
+            _StatusRow(
               label: 'Helper Reachable',
               value: _permissionValue('helperReachable'),
+              trueLabel: 'Reachable',
+              falseLabel: 'Unreachable',
+              unknownLabel: 'Unknown',
             ),
             _PermissionRow(
               label: 'Accessibility',
@@ -160,20 +189,25 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               runSpacing: 8,
               children: [
                 _actionButton(
+                  key: const ValueKey('computer-use-launch-helper'),
+                  icon: Icons.rocket_launch_outlined,
+                  label: 'Launch Helper',
+                  onPressed: _launchHelper,
+                ),
+                _actionButton(
                   key: const ValueKey('computer-use-ping-helper'),
                   icon: Icons.sensors_outlined,
                   label: 'Ping Helper',
-                  onPressed: () =>
-                      _run('Ping helper', (service) => service.pingHelper()),
+                  onPressed: () => _run(
+                    'Ping helper',
+                    (service) => service.pingHelper(),
+                    onResult: _storeHelperStatus,
+                  ),
                 ),
                 _actionButton(
                   icon: Icons.refresh,
                   label: 'Refresh',
-                  onPressed: () => _run(
-                    'Refresh permissions',
-                    (service) => service.getPermissions(),
-                    onResult: _storePermissions,
-                  ),
+                  onPressed: _refreshPermissions,
                 ),
                 _actionButton(
                   icon: Icons.accessibility_new_outlined,
@@ -217,6 +251,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   onPressed: () => _run(
                     'Stop helper work',
                     (service) => service.stopHelperWork(),
+                    onResult: _storeHelperStatus,
                   ),
                 ),
                 _actionButton(
@@ -740,6 +775,59 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     );
   }
 
+  Future<void> _launchHelper() async {
+    await _run(
+      'Launch helper',
+      (service) => service.launchHelper(),
+      onResult: _storeHelperStatus,
+    );
+    await _refreshHelperStatus(refreshPermissions: true);
+  }
+
+  Future<void> _refreshPermissions() async {
+    await _run(
+      'Refresh permissions',
+      (service) => service.getPermissions(),
+      onResult: _storePermissions,
+    );
+    await _refreshHelperStatus();
+  }
+
+  Future<void> _refreshHelperStatus({bool refreshPermissions = false}) async {
+    final service = ref.read(macosComputerUseServiceProvider);
+    final nextHelperStatus = <String, dynamic>{...?_helperStatus};
+    Map<String, dynamic>? nextPermissions;
+
+    try {
+      for (final raw in [
+        await service.getHelperStatus(),
+        await service.pingHelper(),
+      ]) {
+        final decoded = _decodeMap(raw);
+        if (decoded != null) {
+          nextHelperStatus.addAll(decoded);
+        }
+      }
+      if (refreshPermissions) {
+        nextPermissions = _decodeMap(await service.getPermissions());
+      }
+    } catch (error) {
+      nextHelperStatus.addAll({'ok': false, 'error': error.toString()});
+    }
+
+    if (!mounted) {
+      return;
+    }
+    setState(() {
+      if (nextHelperStatus.isNotEmpty) {
+        _helperStatus = nextHelperStatus;
+      }
+      if (nextPermissions != null) {
+        _storePermissions(nextPermissions);
+      }
+    });
+  }
+
   Future<void> _movePointer() async {
     final coordinates = _coordinates();
     if (coordinates == null) {
@@ -908,6 +996,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'setupChecklist': _setupChecklist(
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
       ).toJson(),
+      'helperStatus': _helperStatus,
       'permissions': _permissions,
       'audioRecording': _audioRecording,
       'inputActionsArmed': _inputActionsArmed,
@@ -954,12 +1043,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   void _storePermissions(Map<String, dynamic> result) {
+    final helper = result['helper'];
+    if (helper is Map) {
+      _storeHelperStatus(Map<String, dynamic>.from(helper));
+    }
     final current = result['current'];
     if (current is Map) {
       _permissions = Map<String, dynamic>.from(current);
       return;
     }
     _permissions = result;
+  }
+
+  void _storeHelperStatus(Map<String, dynamic> result) {
+    _helperStatus = {...?_helperStatus, ...result};
   }
 
   void _storeWindows(Map<String, dynamic> result) {
@@ -988,18 +1085,30 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   bool? _permissionValue(String key) {
-    final value = _permissions?[key];
+    final value = _setupSnapshotMap?[key];
     return value is bool ? value : null;
+  }
+
+  Map<String, dynamic>? get _setupSnapshotMap {
+    final snapshot = <String, dynamic>{};
+    if (_permissions != null) {
+      snapshot.addAll(_permissions!);
+    }
+    if (_helperStatus != null) {
+      snapshot.addAll(_helperStatus!);
+    }
+    return snapshot.isEmpty ? null : snapshot;
   }
 
   MacosComputerUseSetupChecklist _setupChecklist(
     MacosComputerUseBackendInfo backend,
   ) {
+    final snapshot = _setupSnapshotMap;
     return MacosComputerUseSetupChecklist(
       backend: backend,
-      permissions: _permissions == null
+      permissions: snapshot == null
           ? null
-          : MacosComputerUsePermissionSnapshot.fromMap(_permissions),
+          : MacosComputerUsePermissionSnapshot.fromMap(snapshot),
     );
   }
 
@@ -1359,6 +1468,54 @@ class _PermissionRow extends StatelessWidget {
               icon: const Icon(Icons.settings_outlined),
             ),
           ],
+        ],
+      ),
+    );
+  }
+}
+
+class _StatusRow extends StatelessWidget {
+  const _StatusRow({
+    required this.label,
+    required this.value,
+    required this.trueLabel,
+    required this.falseLabel,
+    required this.unknownLabel,
+  });
+
+  final String label;
+  final bool? value;
+  final String trueLabel;
+  final String falseLabel;
+  final String unknownLabel;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final icon = switch (value) {
+      true => Icons.check_circle_outline,
+      false => Icons.error_outline,
+      null => Icons.help_outline,
+    };
+    final color = switch (value) {
+      true => colorScheme.primary,
+      false => colorScheme.error,
+      null => Theme.of(context).disabledColor,
+    };
+    final labelText = switch (value) {
+      true => trueLabel,
+      false => falseLabel,
+      null => unknownLabel,
+    };
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(icon, color: color, size: 20),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label)),
+          Text(labelText, style: TextStyle(color: color)),
         ],
       ),
     );

@@ -31,6 +31,14 @@ class MacosComputerUseService {
   MacosComputerUseBackendInfo get permissionBackendInfo =>
       _permissionTransport.backendInfo;
 
+  Future<String> getHelperStatus() async {
+    return _invokeTransportJson(_permissionTransport.helperStatus);
+  }
+
+  Future<String> launchHelper() async {
+    return _invokeTransportJson(_permissionTransport.launchHelper);
+  }
+
   Future<String> pingHelper() async {
     return _invokeTransportJson(_permissionTransport.ping);
   }
@@ -43,6 +51,43 @@ class MacosComputerUseService {
     bool accessibility = true,
     bool screenCapture = true,
   }) async {
+    if (_permissionTransport.backendInfo.usesSeparateHelper) {
+      final responses = <String, dynamic>{};
+      responses['helper'] =
+          _decodeMap(
+            await _invokeTransportJson(_permissionTransport.launchHelper),
+          ) ??
+          const <String, dynamic>{};
+      if (accessibility) {
+        responses['accessibility'] =
+            _decodeMap(
+              await _invokeTransportJson(
+                () => _permissionTransport.openSystemSettings(
+                  section: 'accessibility',
+                ),
+              ),
+            ) ??
+            const <String, dynamic>{};
+      }
+      if (screenCapture) {
+        responses['screenCapture'] =
+            _decodeMap(
+              await _invokeTransportJson(
+                () => _permissionTransport.openSystemSettings(
+                  section: 'screen_recording',
+                ),
+              ),
+            ) ??
+            const <String, dynamic>{};
+      }
+      responses['current'] =
+          _decodeMap(
+            await _invokeTransportJson(_permissionTransport.getPermissions),
+          ) ??
+          const <String, dynamic>{};
+      return jsonEncode(responses);
+    }
+
     final responses = <String, dynamic>{};
     if (accessibility) {
       responses['accessibility'] = await _invokeMap('requestAccessibility');
@@ -239,6 +284,8 @@ class MacosComputerUseService {
     return switch (code) {
       'helper_unreachable' =>
         'Launch ${MacosComputerUseBackends.helperDisplayName}, then refresh permissions.',
+      'helper_not_installed' =>
+        'Build Caverno with the bundled Caverno Computer Use helper, then launch it from the permissions panel.',
       'accessibility_denied' =>
         'Open System Settings > Privacy & Security > Accessibility, grant $permissionOwner, then refresh permissions.',
       'screen_capture_unavailable' || 'screenshot_failed' =>

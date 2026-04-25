@@ -162,6 +162,8 @@ final class SecurityScopedBookmarkChannel {
 }
 
 final class MacosComputerUseHelperClient: NSObject {
+  private let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
+  private let helperDisplayName = "Caverno Computer Use"
   private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   private let center = DistributedNotificationCenter.default()
@@ -180,6 +182,75 @@ final class MacosComputerUseHelperClient: NSObject {
 
   deinit {
     center.removeObserver(self)
+  }
+
+  func status() -> [String: Any] {
+    let helperURL = embeddedHelperURL()
+    let runningApplication = NSRunningApplication.runningApplications(
+      withBundleIdentifier: helperBundleIdentifier
+    ).first { !$0.isTerminated }
+    var response: [String: Any] = [
+      "ok": true,
+      "helperDisplayName": helperDisplayName,
+      "helperBundleIdentifier": helperBundleIdentifier,
+      "helperInstalled": FileManager.default.fileExists(atPath: helperURL.path),
+      "helperRunning": runningApplication != nil,
+      "helperPath": helperURL.path,
+    ]
+    if let processIdentifier = runningApplication?.processIdentifier {
+      response["helperProcessIdentifier"] = Int(processIdentifier)
+    }
+    return response
+  }
+
+  func launch(result: @escaping FlutterResult) {
+    let helperURL = embeddedHelperURL()
+    guard FileManager.default.fileExists(atPath: helperURL.path) else {
+      result(
+        FlutterError(
+          code: "helper_not_installed",
+          message: "Caverno Computer Use is not bundled with this Caverno build.",
+          details: ["helperPath": helperURL.path]
+        )
+      )
+      return
+    }
+
+    if let runningApplication = NSRunningApplication.runningApplications(
+      withBundleIdentifier: helperBundleIdentifier
+    ).first(where: { !$0.isTerminated }) {
+      runningApplication.activate(options: [.activateIgnoringOtherApps])
+      var response = status()
+      response["alreadyRunning"] = true
+      result(response)
+      return
+    }
+
+    let configuration = NSWorkspace.OpenConfiguration()
+    configuration.activates = true
+    NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) {
+      [weak self] application, error in
+      guard let self else {
+        return
+      }
+      if let error {
+        result(
+          FlutterError(
+            code: "helper_launch_failed",
+            message: "Failed to launch Caverno Computer Use.",
+            details: error.localizedDescription
+          )
+        )
+        return
+      }
+
+      var response = self.status()
+      response["launched"] = true
+      if let processIdentifier = application?.processIdentifier {
+        response["helperProcessIdentifier"] = Int(processIdentifier)
+      }
+      result(response)
+    }
   }
 
   func send(
@@ -240,6 +311,13 @@ final class MacosComputerUseHelperClient: NSObject {
 
     result(response)
   }
+
+  private func embeddedHelperURL() -> URL {
+    Bundle.main.bundleURL
+      .appendingPathComponent("Contents", isDirectory: true)
+      .appendingPathComponent("Helpers", isDirectory: true)
+      .appendingPathComponent("\(helperDisplayName).app", isDirectory: true)
+  }
 }
 
 final class MacosComputerUseChannel {
@@ -257,6 +335,10 @@ final class MacosComputerUseChannel {
 
   private func handle(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
     switch call.method {
+    case "helperStatus":
+      result(helperClient.status())
+    case "launchHelper":
+      helperClient.launch(result: result)
     case "helperPing":
       helperClient.send(command: "ping", result: result)
     case "helperPermissionStatus":
