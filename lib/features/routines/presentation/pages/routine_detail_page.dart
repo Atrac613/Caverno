@@ -156,6 +156,11 @@ class RoutineDetailPage extends ConsumerWidget {
                         label: 'routines.last_run_label'.tr(),
                         value: _formatLastRun(context, routine),
                       ),
+                      if (routine.consecutiveFailureCount > 0)
+                        _MetaLine(
+                          label: 'routines.consecutive_failures_label'.tr(),
+                          value: routine.consecutiveFailureCount.toString(),
+                        ),
                       _MetaLine(
                         label: 'routines.notifications_label'.tr(),
                         value: routine.notifyOnCompletion

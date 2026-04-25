@@ -433,6 +433,7 @@ class _RoutineCard extends StatelessWidget {
     final isFailed = latestRun != null && !latestRun.isSuccessful;
     final requiresFailureAcknowledgement =
         latestRun?.requiresAttention ?? false;
+    final consecutiveFailureCount = routine.consecutiveFailureCount;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -492,6 +493,13 @@ class _RoutineCard extends StatelessWidget {
                           if (isFailed)
                             _RoutineStatusChip(
                               label: 'routines.failed_badge'.tr(),
+                              color: colorScheme.errorContainer,
+                            ),
+                          if (consecutiveFailureCount > 1)
+                            _RoutineStatusChip(
+                              label: _formatConsecutiveFailures(
+                                consecutiveFailureCount,
+                              ),
                               color: colorScheme.errorContainer,
                             ),
                         ],
@@ -566,6 +574,16 @@ class _RoutineCard extends StatelessWidget {
                             : colorScheme.onErrorContainer,
                       ),
                     ),
+                    if (isFailed) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _formatConsecutiveFailures(consecutiveFailureCount),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
                     if (isFailed && latestRun.failureAcknowledged) ...[
                       const SizedBox(height: 8),
                       Text(
@@ -675,6 +693,15 @@ class _RoutineCard extends StatelessWidget {
       return 'routines.never_value'.tr();
     }
     return DateFormat('yyyy/MM/dd HH:mm').format(lastRunAt);
+  }
+
+  String _formatConsecutiveFailures(int count) {
+    if (count == 1) {
+      return 'routines.consecutive_failure_summary'.tr();
+    }
+    return 'routines.consecutive_failures_summary'.tr(
+      namedArgs: {'count': count.toString()},
+    );
   }
 }
 

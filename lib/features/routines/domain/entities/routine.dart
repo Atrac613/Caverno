@@ -102,6 +102,17 @@ abstract class Routine with _$Routine {
 
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
 
+  int get consecutiveFailureCount {
+    var count = 0;
+    for (final run in runs) {
+      if (run.isSuccessful) {
+        break;
+      }
+      count += 1;
+    }
+    return count;
+  }
+
   bool get postsToGoogleChat =>
       completionAction == RoutineCompletionAction.googleChat;
 }

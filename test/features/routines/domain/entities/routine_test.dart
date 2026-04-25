@@ -66,6 +66,69 @@ void main() {
   });
 
   group('Routine', () {
+    test('counts consecutive failed runs from the latest run', () {
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'Morning summary',
+        prompt: 'Summarize the latest updates.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        runs: [
+          RoutineRunRecord(
+            id: 'run-failed-2',
+            startedAt: DateTime(2026, 4, 21, 9),
+            finishedAt: DateTime(2026, 4, 21, 9, 0, 5),
+            status: RoutineRunStatus.failed,
+          ),
+          RoutineRunRecord(
+            id: 'run-failed-1',
+            startedAt: DateTime(2026, 4, 21, 8),
+            finishedAt: DateTime(2026, 4, 21, 8, 0, 5),
+            status: RoutineRunStatus.failed,
+            failureAcknowledged: true,
+          ),
+          RoutineRunRecord(
+            id: 'run-completed',
+            startedAt: DateTime(2026, 4, 21, 7),
+            finishedAt: DateTime(2026, 4, 21, 7, 0, 5),
+          ),
+          RoutineRunRecord(
+            id: 'run-old-failed',
+            startedAt: DateTime(2026, 4, 21, 6),
+            finishedAt: DateTime(2026, 4, 21, 6, 0, 5),
+            status: RoutineRunStatus.failed,
+          ),
+        ],
+      );
+
+      expect(routine.consecutiveFailureCount, 2);
+    });
+
+    test('reports zero consecutive failures after the latest run succeeds', () {
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'Morning summary',
+        prompt: 'Summarize the latest updates.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        runs: [
+          RoutineRunRecord(
+            id: 'run-completed',
+            startedAt: DateTime(2026, 4, 21, 9),
+            finishedAt: DateTime(2026, 4, 21, 9, 0, 5),
+          ),
+          RoutineRunRecord(
+            id: 'run-failed',
+            startedAt: DateTime(2026, 4, 21, 8),
+            finishedAt: DateTime(2026, 4, 21, 8, 0, 5),
+            status: RoutineRunStatus.failed,
+          ),
+        ],
+      );
+
+      expect(routine.consecutiveFailureCount, 0);
+    });
+
     test(
       'preserves notification and tool settings through JSON serialization',
       () {
