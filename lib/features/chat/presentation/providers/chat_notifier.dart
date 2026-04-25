@@ -6160,6 +6160,10 @@ class ChatNotifier extends Notifier<ChatState> {
         final name = (t['function'] as Map?)?['name'] as String?;
         return codingToolNames.contains(name);
       }).toList();
+      final computerTools = allTools.where((t) {
+        final name = (t['function'] as Map?)?['name'] as String?;
+        return name != null && name.startsWith('computer_');
+      }).toList();
       final initialTools = searchOnlyTools.isNotEmpty
           ? _dedupeToolsByName([
               ...searchOnlyTools,
@@ -6167,6 +6171,7 @@ class ChatNotifier extends Notifier<ChatState> {
               ...memoryTools,
               ...networkTools,
               ...codingTools,
+              ...computerTools,
             ])
           : allTools;
       final streamedMessageIndex = state.messages.isEmpty
@@ -7636,6 +7641,13 @@ class ChatNotifier extends Notifier<ChatState> {
         return _handleGitExecuteCommand(toolCall);
       case 'ble_connect':
         return _handleBleConnect(toolCall);
+      case 'computer_click':
+      case 'computer_drag':
+      case 'computer_scroll':
+      case 'computer_type_text':
+      case 'computer_press_key':
+      case 'computer_start_system_audio_recording':
+        return _handleComputerUseAction(toolCall);
       default:
         return _mcpToolService!.executeTool(
           name: toolCall.name,
@@ -7690,6 +7702,11 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'os_log_read':
       case 'lan_scan':
       case 'lan_get_scan_results':
+      case 'computer_get_permissions':
+      case 'computer_request_permissions':
+      case 'computer_screenshot':
+      case 'computer_move_mouse':
+      case 'computer_stop_system_audio_recording':
         return null;
       case 'local_execute_command':
         final resolvedArguments = _resolveProjectScopedArguments(
@@ -7733,6 +7750,13 @@ class ChatNotifier extends Notifier<ChatState> {
   bool _isPlanningDeniedToolName(String toolName) {
     if (toolName.startsWith('ssh_') || toolName.startsWith('ble_')) {
       return true;
+    }
+    if (toolName.startsWith('computer_')) {
+      return !{
+        'computer_get_permissions',
+        'computer_request_permissions',
+        'computer_screenshot',
+      }.contains(toolName);
     }
 
     return switch (toolName) {
@@ -8049,6 +8073,63 @@ class ChatNotifier extends Notifier<ChatState> {
       arguments: localArguments,
     );
     return _rememberToolApprovalResult(toolCall.name, localArguments, result);
+  }
+
+  Future<McpToolResult> _handleComputerUseAction(ToolCallInfo toolCall) async {
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      toolCall.arguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final approved = await requestLocalCommand(
+      command: _describeComputerUseAction(toolCall),
+      workingDirectory: 'macOS desktop',
+      reason: toolCall.arguments['reason'] as String?,
+    );
+    if (!approved) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        toolCall.arguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User denied macOS computer use action',
+        ),
+      );
+    }
+
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    return _rememberToolApprovalResult(
+      toolCall.name,
+      toolCall.arguments,
+      result,
+    );
+  }
+
+  String _describeComputerUseAction(ToolCallInfo toolCall) {
+    final args = toolCall.arguments;
+    return switch (toolCall.name) {
+      'computer_click' =>
+        'computer_click x=${args['x']} y=${args['y']} button=${args['button'] ?? 'left'}',
+      'computer_drag' =>
+        'computer_drag from=(${args['from_x']}, ${args['from_y']}) to=(${args['to_x']}, ${args['to_y']})',
+      'computer_scroll' =>
+        'computer_scroll delta_x=${args['delta_x'] ?? 0} delta_y=${args['delta_y'] ?? -5}',
+      'computer_type_text' =>
+        'computer_type_text ${jsonEncode({'text': args['text']})}',
+      'computer_press_key' =>
+        'computer_press_key key=${args['key']} modifiers=${args['modifiers'] ?? const []}',
+      'computer_start_system_audio_recording' =>
+        'computer_start_system_audio_recording output=${args['output_path'] ?? 'temporary CAF file'}',
+      _ => '${toolCall.name} ${jsonEncode(args)}',
+    };
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {

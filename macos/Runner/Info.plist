@@ -30,6 +30,8 @@
 	<string>NSApplication</string>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>This app requires microphone access to use the voice mode.</string>
+	<key>NSSystemAudioUsageDescription</key>
+	<string>Caverno records system audio only when you explicitly approve a computer-use audio recording tool call.</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>This app requires speech recognition access to transcribe your voice.</string>
 	<key>NSLocationUsageDescription</key>
