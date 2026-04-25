@@ -1251,35 +1251,34 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Map<String, dynamic> _diagnosticsMap() {
-    return {
-      'generatedAt': DateTime.now().toIso8601String(),
-      'setupChecklist': _setupChecklist(
+    return MacosComputerUseOnboardingDiagnostics(
+      generatedAt: DateTime.now(),
+      setupChecklist: _setupChecklist(
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
-      ).toJson(),
-      'onboardingSmokeChecklist': _onboardingSmokeChecklist(),
-      'helperStatus': _helperStatus,
-      'permissions': _permissions,
-      'audioRecording': _audioRecording,
-      'inputActionsArmed': _inputActionsArmed,
-      'inputSmokeCompleted': _inputSmokeCompleted,
-      'audioSmokeCompleted': _audioSmokeCompleted,
-      'audioRecordingArmed': _audioRecordingArmed,
-      'manualSmokeRunning': _manualSmokeRunning,
-      'manualSmokeSteps': _manualSmokeSteps,
-      'helperIpcProtocol': _helperIpcProtocol(),
-      'migratedCommands': _migratedCommands(),
-      'selectedWindowId': _selectedWindowId,
-      'selectedWindow': _selectedWindow(),
-      'windowCount': _windows.length,
-      'coordinateTarget': _coordinateTargetName,
-      'coordinates': _coordinateMap(),
-      'displayScreenshot': _imageSummary(_displayScreenshot),
-      'windowScreenshot': _imageSummary(_windowScreenshot),
-      'lastAction': _lastAction,
-      'lastResult': _lastResultForDiagnostics,
-      if (_lastDiagnosticExportPath != null)
-        'lastDiagnosticExportPath': _lastDiagnosticExportPath,
-    };
+      ),
+      onboardingSmokeChecklist: _onboardingSmokeChecklist(),
+      helperStatus: _helperStatus,
+      permissions: _permissions,
+      audioRecording: _audioRecording,
+      inputActionsArmed: _inputActionsArmed,
+      inputSmokeCompleted: _inputSmokeCompleted,
+      audioSmokeCompleted: _audioSmokeCompleted,
+      audioRecordingArmed: _audioRecordingArmed,
+      manualSmokeRunning: _manualSmokeRunning,
+      manualSmokeSteps: _manualSmokeSteps,
+      helperIpcProtocol: _helperIpcProtocol(),
+      migratedCommands: _migratedCommands(),
+      selectedWindowId: _selectedWindowId,
+      selectedWindow: _selectedWindow(),
+      windowCount: _windows.length,
+      coordinateTarget: _coordinateTargetName,
+      coordinates: _coordinateMap(),
+      displayScreenshot: _imageSummary(_displayScreenshot),
+      windowScreenshot: _imageSummary(_windowScreenshot),
+      lastAction: _lastAction,
+      lastResult: _lastResultForDiagnostics,
+      lastDiagnosticExportPath: _lastDiagnosticExportPath,
+    ).toJson();
   }
 
   List<Map<String, dynamic>> _onboardingSmokeChecklist() {

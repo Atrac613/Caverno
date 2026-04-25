@@ -101,6 +101,95 @@ class MacosComputerUseIpc {
   );
 }
 
+class MacosComputerUseOnboardingDiagnostics {
+  const MacosComputerUseOnboardingDiagnostics({
+    required this.generatedAt,
+    required this.setupChecklist,
+    required this.onboardingSmokeChecklist,
+    required this.helperIpcProtocol,
+    this.helperStatus,
+    this.permissions,
+    this.audioRecording,
+    this.inputActionsArmed,
+    this.inputSmokeCompleted,
+    this.audioSmokeCompleted,
+    this.audioRecordingArmed,
+    this.manualSmokeRunning,
+    this.manualSmokeSteps = const [],
+    this.migratedCommands = const [],
+    this.selectedWindowId,
+    this.selectedWindow,
+    this.windowCount,
+    this.coordinateTarget,
+    this.coordinates,
+    this.displayScreenshot,
+    this.windowScreenshot,
+    this.lastAction,
+    this.lastResult,
+    this.lastDiagnosticExportPath,
+  });
+
+  static const schemaName = 'macos_computer_use_onboarding';
+  static const schemaVersion = 1;
+
+  final DateTime generatedAt;
+  final MacosComputerUseSetupChecklist setupChecklist;
+  final List<Map<String, dynamic>> onboardingSmokeChecklist;
+  final Map<String, dynamic> helperIpcProtocol;
+  final Map<String, dynamic>? helperStatus;
+  final Map<String, dynamic>? permissions;
+  final bool? audioRecording;
+  final bool? inputActionsArmed;
+  final bool? inputSmokeCompleted;
+  final bool? audioSmokeCompleted;
+  final bool? audioRecordingArmed;
+  final bool? manualSmokeRunning;
+  final List<Map<String, dynamic>> manualSmokeSteps;
+  final List<Map<String, String>> migratedCommands;
+  final int? selectedWindowId;
+  final Map<String, dynamic>? selectedWindow;
+  final int? windowCount;
+  final String? coordinateTarget;
+  final Map<String, double?>? coordinates;
+  final Map<String, dynamic>? displayScreenshot;
+  final Map<String, dynamic>? windowScreenshot;
+  final String? lastAction;
+  final Object? lastResult;
+  final String? lastDiagnosticExportPath;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'schemaName': schemaName,
+      'schemaVersion': schemaVersion,
+      'generatedAt': generatedAt.toIso8601String(),
+      'setupChecklist': setupChecklist.toJson(),
+      'onboardingSmokeChecklist': onboardingSmokeChecklist,
+      'helperStatus': helperStatus,
+      'permissions': permissions,
+      'audioRecording': audioRecording,
+      'inputActionsArmed': inputActionsArmed,
+      'inputSmokeCompleted': inputSmokeCompleted,
+      'audioSmokeCompleted': audioSmokeCompleted,
+      'audioRecordingArmed': audioRecordingArmed,
+      'manualSmokeRunning': manualSmokeRunning,
+      'manualSmokeSteps': manualSmokeSteps,
+      'helperIpcProtocol': helperIpcProtocol,
+      'migratedCommands': migratedCommands,
+      'selectedWindowId': selectedWindowId,
+      'selectedWindow': selectedWindow,
+      'windowCount': windowCount,
+      'coordinateTarget': coordinateTarget,
+      'coordinates': coordinates,
+      'displayScreenshot': displayScreenshot,
+      'windowScreenshot': windowScreenshot,
+      'lastAction': lastAction,
+      'lastResult': lastResult,
+      if (lastDiagnosticExportPath != null)
+        'lastDiagnosticExportPath': lastDiagnosticExportPath,
+    };
+  }
+}
+
 class MacosComputerUsePermissionSnapshot {
   const MacosComputerUsePermissionSnapshot({
     required this.helperReachable,

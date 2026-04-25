@@ -213,6 +213,8 @@ void main() {
     final arguments = clipboardCall.arguments as Map<Object?, Object?>;
     final text = arguments['text'] as String;
 
+    expect(text, contains('"schemaName": "macos_computer_use_onboarding"'));
+    expect(text, contains('"schemaVersion": 1'));
     expect(text, contains('"coordinateTarget": "display"'));
     expect(text, contains('"setupChecklist"'));
     expect(text, contains('"onboardingSmokeChecklist"'));
@@ -484,4 +486,4 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 String _json(Map<String, dynamic> value) => jsonEncode(value);
 
 const _png1x1Base64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADUlEQVR42mP8z8BQDwAFgwJ/l1vNswAAAABJRU5ErkJggg==';
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';

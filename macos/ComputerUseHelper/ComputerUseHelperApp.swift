@@ -9,13 +9,15 @@ import ScreenCaptureKit
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private let ipc = ComputerUseHelperIpc()
   private var window: NSWindow?
+  private var statusSummaryLabel: NSTextField?
+  private var helperReachableRow: PermissionRowView?
   private var accessibilityRow: PermissionRowView?
   private var screenRecordingRow: PermissionRowView?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     ipc.start()
     let window = NSWindow(
-      contentRect: NSRect(x: 0, y: 0, width: 720, height: 420),
+      contentRect: NSRect(x: 0, y: 0, width: 760, height: 560),
       styleMask: [.titled, .closable, .miniaturizable],
       backing: .buffered,
       defer: false
@@ -40,9 +42,18 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let stack = NSStackView()
     stack.orientation = .vertical
     stack.alignment = .centerX
-    stack.spacing = 22
+    stack.spacing = 18
     stack.translatesAutoresizingMaskIntoConstraints = false
     root.addSubview(stack)
+
+    let icon = NSImageView()
+    icon.symbolConfiguration = .init(pointSize: 52, weight: .medium)
+    icon.image = NSImage(
+      systemSymbolName: "cursorarrow.click.2",
+      accessibilityDescription: "Caverno Computer Use"
+    )
+    icon.contentTintColor = .controlAccentColor
+    icon.translatesAutoresizingMaskIntoConstraints = false
 
     let title = NSTextField(labelWithString: "Enable Caverno Computer Use")
     title.font = .systemFont(ofSize: 32, weight: .bold)
@@ -58,12 +69,28 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     subtitle.alignment = .center
     subtitle.maximumNumberOfLines = 3
 
+    let statusSummaryLabel = NSTextField(
+      wrappingLabelWithString: "Refresh permissions to verify readiness."
+    )
+    statusSummaryLabel.font = .systemFont(ofSize: 14, weight: .semibold)
+    statusSummaryLabel.textColor = .secondaryLabelColor
+    statusSummaryLabel.alignment = .center
+    statusSummaryLabel.maximumNumberOfLines = 2
+    self.statusSummaryLabel = statusSummaryLabel
+
     let rows = NSStackView()
     rows.orientation = .vertical
     rows.alignment = .width
     rows.spacing = 12
     rows.translatesAutoresizingMaskIntoConstraints = false
 
+    let helperReachableRow = PermissionRowView(
+      symbolName: "bolt.horizontal.circle",
+      title: "Helper Reachable",
+      subtitle: "Confirms Caverno can reach this helper over the current IPC bridge.",
+      buttonTitle: "Refresh",
+      action: { [weak self] in self?.refreshPermissionRows() }
+    )
     let accessibilityRow = PermissionRowView(
       symbolName: "figure.stand",
       title: "Accessibility",
@@ -78,30 +105,56 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       buttonTitle: "Open",
       action: { openSettingsPane(.screenRecording) }
     )
+    self.helperReachableRow = helperReachableRow
     self.accessibilityRow = accessibilityRow
     self.screenRecordingRow = screenRecordingRow
 
+    rows.addArrangedSubview(helperReachableRow)
     rows.addArrangedSubview(accessibilityRow)
     rows.addArrangedSubview(screenRecordingRow)
 
+    let refreshButton = NSButton(
+      title: "Refresh",
+      target: self,
+      action: #selector(refreshFromButton)
+    )
+    refreshButton.bezelStyle = .rounded
+    let verifyButton = NSButton(
+      title: "Verify",
+      target: self,
+      action: #selector(refreshFromButton)
+    )
+    verifyButton.bezelStyle = .rounded
+    verifyButton.keyEquivalent = "\r"
+
+    let buttonStack = NSStackView(views: [refreshButton, verifyButton])
+    buttonStack.orientation = .horizontal
+    buttonStack.alignment = .centerY
+    buttonStack.spacing = 10
+
     let footer = NSTextField(
       wrappingLabelWithString:
-        "Permissions must be granted manually in System Settings. You can revoke them at any time without removing Caverno."
+        "Grant permissions to Caverno Computer Use, not Caverno. You can revoke them at any time in System Settings."
     )
     footer.font = .systemFont(ofSize: 12, weight: .regular)
     footer.textColor = .tertiaryLabelColor
     footer.alignment = .center
     footer.maximumNumberOfLines = 2
 
+    stack.addArrangedSubview(icon)
     stack.addArrangedSubview(title)
     stack.addArrangedSubview(subtitle)
+    stack.addArrangedSubview(statusSummaryLabel)
     stack.addArrangedSubview(rows)
+    stack.addArrangedSubview(buttonStack)
     stack.addArrangedSubview(footer)
 
     NSLayoutConstraint.activate([
       stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 64),
       stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -64),
       stack.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+      icon.heightAnchor.constraint(equalToConstant: 68),
+      icon.widthAnchor.constraint(equalToConstant: 68),
       rows.widthAnchor.constraint(equalTo: stack.widthAnchor),
     ])
 
@@ -111,8 +164,18 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
   private func refreshPermissionRows() {
     let permissions = computerUsePermissionSnapshot()
+    helperReachableRow?.setGranted(true)
     accessibilityRow?.setGranted(permissions.accessibilityGranted)
     screenRecordingRow?.setGranted(permissions.screenCaptureGranted)
+    let ready = permissions.accessibilityGranted && permissions.screenCaptureGranted
+    statusSummaryLabel?.stringValue = ready
+      ? "Ready for visual checks. Caverno will still ask before input or audio actions."
+      : "Action required: grant the missing permissions below, then verify again."
+    statusSummaryLabel?.textColor = ready ? .systemGreen : .secondaryLabelColor
+  }
+
+  @objc private func refreshFromButton() {
+    refreshPermissionRows()
   }
 }
 

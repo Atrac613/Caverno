@@ -1,9 +1,14 @@
+import 'dart:convert';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/services/macos_computer_use_service.dart';
+import '../../../../core/services/macos_computer_use_setup.dart';
 import '../providers/settings_notifier.dart';
 import '../widgets/qr_export_dialog.dart';
+import 'computer_use_debug_page.dart';
 import 'debug_settings_page.dart';
 import 'general_settings_page.dart';
 import 'chat_settings_page.dart';
@@ -133,6 +138,8 @@ class SettingsPage extends ConsumerWidget {
       ),
       body: ListView(
         children: [
+          const _ComputerUseOnboardingCard(),
+          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: Text('settings.menu_general'.tr()),
@@ -310,6 +317,265 @@ class SettingsPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => QrExportDialog(data: data),
+    );
+  }
+}
+
+class _ComputerUseOnboardingCard extends ConsumerStatefulWidget {
+  const _ComputerUseOnboardingCard();
+
+  @override
+  ConsumerState<_ComputerUseOnboardingCard> createState() =>
+      _ComputerUseOnboardingCardState();
+}
+
+class _ComputerUseOnboardingCardState
+    extends ConsumerState<_ComputerUseOnboardingCard> {
+  bool _isLoading = false;
+  Map<String, dynamic>? _helperStatus;
+  Map<String, dynamic>? _permissions;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _refresh();
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final service = ref.watch(macosComputerUseServiceProvider);
+    if (!service.isAvailable) {
+      return const SizedBox.shrink();
+    }
+
+    final checklist = _setupChecklist(service.permissionBackendInfo);
+    final ready = checklist.isReady;
+    final helperReady =
+        _permissionValue('helperReachable') == true ||
+        (_permissionValue('helperInstalled') == true &&
+            _permissionValue('helperRunning') == true);
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Icon(
+                  ready
+                      ? Icons.verified_user_outlined
+                      : Icons.ads_click_outlined,
+                  color: Theme.of(context).colorScheme.primary,
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        ready ? 'Computer Use Ready' : 'Enable Computer Use',
+                        style: Theme.of(context).textTheme.titleMedium,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        checklist.subtitle,
+                        style: Theme.of(context).textTheme.bodySmall,
+                      ),
+                    ],
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Refresh computer-use status',
+                  onPressed: _isLoading ? null : _refresh,
+                  icon: _isLoading
+                      ? const SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.refresh),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                _StatusChip(label: 'Helper', value: helperReady),
+                _StatusChip(
+                  label: 'Accessibility',
+                  value: _permissionValue('accessibilityGranted') == true,
+                ),
+                _StatusChip(
+                  label: 'Screen & System Audio',
+                  value: _permissionValue('screenCaptureGranted') == true,
+                ),
+                _StatusChip(
+                  label: MacosComputerUseIpc.current.preferredTransport,
+                  value: MacosComputerUseIpc.current.xpcReady,
+                  trueText: 'XPC ready',
+                  falseText: 'DNC bridge',
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                FilledButton.icon(
+                  onPressed: _isLoading ? null : _launchHelper,
+                  icon: const Icon(Icons.rocket_launch_outlined),
+                  label: Text(
+                    ready ? 'Open Computer Use' : 'Enable Computer Use',
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: _openSmokeTest,
+                  icon: const Icon(Icons.fact_check_outlined),
+                  label: const Text('Open Smoke Test'),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _launchHelper() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final helper = _decodeMap(await service.launchHelper());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (helper != null) {
+          _helperStatus = {...?_helperStatus, ...helper};
+        }
+      });
+      await _refresh(force: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _refresh({bool force = false}) async {
+    if (_isLoading && !force) {
+      return;
+    }
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final nextHelperStatus = <String, dynamic>{...?_helperStatus};
+      for (final raw in [
+        await service.getHelperStatus(),
+        await service.pingHelper(),
+      ]) {
+        final decoded = _decodeMap(raw);
+        if (decoded != null) {
+          nextHelperStatus.addAll(decoded);
+        }
+      }
+      final nextPermissions = _decodeMap(await service.getPermissions());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _helperStatus = nextHelperStatus;
+        if (nextPermissions != null) {
+          _permissions = nextPermissions;
+        }
+      });
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  void _openSmokeTest() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const ComputerUseDebugPage()),
+    );
+  }
+
+  MacosComputerUseSetupChecklist _setupChecklist(
+    MacosComputerUseBackendInfo backend,
+  ) {
+    final snapshot = <String, dynamic>{};
+    if (_permissions != null) {
+      snapshot.addAll(_permissions!);
+    }
+    if (_helperStatus != null) {
+      snapshot.addAll(_helperStatus!);
+    }
+    return MacosComputerUseSetupChecklist(
+      backend: backend,
+      permissions: snapshot.isEmpty
+          ? null
+          : MacosComputerUsePermissionSnapshot.fromMap(snapshot),
+    );
+  }
+
+  bool? _permissionValue(String key) {
+    final permissions = _permissions;
+    final helperStatus = _helperStatus;
+    final value = permissions?[key] ?? helperStatus?[key];
+    return value is bool ? value : null;
+  }
+
+  Map<String, dynamic>? _decodeMap(String raw) {
+    try {
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return Map<String, dynamic>.from(decoded);
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
+}
+
+class _StatusChip extends StatelessWidget {
+  const _StatusChip({
+    required this.label,
+    required this.value,
+    this.trueText = 'Ready',
+    this.falseText = 'Missing',
+  });
+
+  final String label;
+  final bool value;
+  final String trueText;
+  final String falseText;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = value ? colorScheme.primary : colorScheme.outline;
+    return Chip(
+      avatar: Icon(
+        value ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+        size: 18,
+        color: color,
+      ),
+      label: Text('$label: ${value ? trueText : falseText}'),
     );
   }
 }

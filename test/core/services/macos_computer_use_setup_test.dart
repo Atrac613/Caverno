@@ -31,6 +31,49 @@ void main() {
     expect(info['xpcReady'], isFalse);
   });
 
+  test('builds the onboarding diagnostics schema', () {
+    const checklist = MacosComputerUseSetupChecklist(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: MacosComputerUsePermissionSnapshot(
+        helperReachable: true,
+        accessibilityGranted: true,
+        screenCaptureGranted: false,
+        systemAudioRecordingSupported: true,
+      ),
+    );
+    final diagnostics = MacosComputerUseOnboardingDiagnostics(
+      generatedAt: DateTime.utc(2026, 4, 25, 12),
+      setupChecklist: checklist,
+      onboardingSmokeChecklist: const [
+        {'id': 'launch_helper', 'label': 'Launch helper', 'complete': true},
+      ],
+      helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
+      helperStatus: const {'helperRunning': true},
+      permissions: const {'accessibilityGranted': true},
+      manualSmokeSteps: const [
+        {'id': 'capture_display', 'ok': true},
+      ],
+      migratedCommands: const [
+        {'command': 'ping', 'owner': 'helper'},
+      ],
+      lastAction: 'Run smoke sequence',
+    ).toJson();
+
+    expect(
+      diagnostics['schemaName'],
+      MacosComputerUseOnboardingDiagnostics.schemaName,
+    );
+    expect(
+      diagnostics['schemaVersion'],
+      MacosComputerUseOnboardingDiagnostics.schemaVersion,
+    );
+    expect(diagnostics['generatedAt'], '2026-04-25T12:00:00.000Z');
+    expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
+    expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', false));
+    expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
+    expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
+  });
+
   test('reports missing permissions before a snapshot is loaded', () {
     const checklist = MacosComputerUseSetupChecklist(
       backend: MacosComputerUseBackends.inProcessCompatibility,
