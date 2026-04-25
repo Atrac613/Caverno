@@ -185,6 +185,27 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     await _persistRoutine(updated);
   }
 
+  Future<void> acknowledgeLatestFailure(String routineId) async {
+    final existing = _findRoutine(routineId);
+    final latestRun = existing?.latestRun;
+    if (existing == null ||
+        latestRun == null ||
+        latestRun.isSuccessful ||
+        latestRun.failureAcknowledged) {
+      return;
+    }
+
+    final updatedRuns = [
+      latestRun.copyWith(failureAcknowledged: true),
+      ...existing.runs.skip(1),
+    ];
+    final updated = existing.copyWith(
+      runs: updatedRuns,
+      updatedAt: DateTime.now(),
+    );
+    await _persistRoutine(updated);
+  }
+
   Future<RoutineRunRecord?> runRoutineNow(
     String routineId, {
     RoutineRunTrigger trigger = RoutineRunTrigger.manual,

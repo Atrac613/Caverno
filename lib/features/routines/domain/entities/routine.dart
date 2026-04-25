@@ -41,12 +41,16 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default('') String preview,
     @Default('') String output,
     @Default('') String error,
+    @Default(false) bool failureAcknowledged,
   }) = _RoutineRunRecord;
 
   factory RoutineRunRecord.fromJson(Map<String, dynamic> json) =>
       _$RoutineRunRecordFromJson(json);
 
   bool get isSuccessful => status == RoutineRunStatus.completed;
+
+  bool get requiresAttention =>
+      status == RoutineRunStatus.failed && !failureAcknowledged;
 
   bool get wasDelivered => deliveryStatus == RoutineDeliveryStatus.delivered;
 
@@ -97,6 +101,17 @@ abstract class Routine with _$Routine {
   bool get hasPrompt => trimmedPrompt.isNotEmpty;
 
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
+
+  int get consecutiveFailureCount {
+    var count = 0;
+    for (final run in runs) {
+      if (run.isSuccessful) {
+        break;
+      }
+      count += 1;
+    }
+    return count;
+  }
 
   bool get postsToGoogleChat =>
       completionAction == RoutineCompletionAction.googleChat;
