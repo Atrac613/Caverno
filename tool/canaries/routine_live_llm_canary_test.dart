@@ -18,7 +18,8 @@ const _routinePrompt =
     '\u65b0\u898f IP \u304c\u306a\u3051\u308c\u3070\u30d5\u30a1\u30a4\u30eb\u3060\u3051\u66f4\u65b0\u3057\u3001\u6295\u7a3f\u3057\u306a\u3044\u3067\u304f\u3060\u3055\u3044\u3002';
 
 void main() {
-  final liveEnabled = Platform.environment['CAVERNO_ROUTINE_LIVE_LLM'] == '1';
+  final liveEnabled =
+      Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY'] == '1';
 
   test(
     'live LLM completes the LAN watcher routine with file update and chat alert',
@@ -27,10 +28,14 @@ void main() {
       final apiKey = _requiredEnv('CAVERNO_LLM_API_KEY');
       final model = _requiredEnv('CAVERNO_LLM_MODEL');
       final maxTokens = int.tryParse(
-        Platform.environment['CAVERNO_ROUTINE_LIVE_MAX_TOKENS'] ?? '',
+        Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_MAX_TOKENS'] ??
+            Platform.environment['CAVERNO_ROUTINE_LIVE_MAX_TOKENS'] ??
+            '',
       );
       final temperature = double.tryParse(
-        Platform.environment['CAVERNO_ROUTINE_LIVE_TEMPERATURE'] ?? '',
+        Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_TEMPERATURE'] ??
+            Platform.environment['CAVERNO_ROUTINE_LIVE_TEMPERATURE'] ??
+            '',
       );
 
       final workspace = Directory.systemTemp.createTempSync(
@@ -110,7 +115,7 @@ void main() {
     },
     skip: liveEnabled
         ? false
-        : 'Set CAVERNO_ROUTINE_LIVE_LLM=1 and CAVERNO_LLM_* to run.',
+        : 'Set CAVERNO_ROUTINE_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 5)),
   );
 }
