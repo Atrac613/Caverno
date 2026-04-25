@@ -28,6 +28,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Map<String, dynamic>? _permissions;
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
+  _CoordinateTarget? _coordinateTarget;
   _ImageSnapshot? _displayScreenshot;
   _ImageSnapshot? _windowScreenshot;
 
@@ -203,13 +204,23 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   final snapshot = _imageSnapshot(result, 'Display screenshot');
                   if (snapshot != null) {
                     _displayScreenshot = snapshot;
+                    _coordinateTarget = _CoordinateTarget.display;
                   }
                 },
               ),
             ),
             if (_displayScreenshot != null) ...[
               const SizedBox(height: 12),
-              _ImagePreview(snapshot: _displayScreenshot!),
+              _ImagePreview(
+                key: const ValueKey('computer-use-display-preview'),
+                snapshot: _displayScreenshot!,
+                active: _coordinateTarget == _CoordinateTarget.display,
+                tapAreaKey: const ValueKey(
+                  'computer-use-display-preview-tap-area',
+                ),
+                onPointSelected: (point) =>
+                    _selectImagePoint(_CoordinateTarget.display, point),
+              ),
             ],
           ],
         ),
@@ -280,6 +291,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                             );
                             if (snapshot != null) {
                               _windowScreenshot = snapshot;
+                              _coordinateTarget = _CoordinateTarget.window;
                             }
                           },
                         ),
@@ -314,7 +326,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                     .toList(),
                 onChanged: _isBusy
                     ? null
-                    : (value) => setState(() => _selectedWindowId = value),
+                    : (value) => setState(() {
+                        if (_selectedWindowId != value) {
+                          _selectedWindowId = value;
+                          _windowScreenshot = null;
+                          if (_coordinateTarget == _CoordinateTarget.window) {
+                            _coordinateTarget = null;
+                          }
+                        }
+                      }),
               ),
             ],
             if (selectedWindow != null) ...[
@@ -326,7 +346,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ],
             if (_windowScreenshot != null) ...[
               const SizedBox(height: 12),
-              _ImagePreview(snapshot: _windowScreenshot!),
+              _ImagePreview(
+                key: const ValueKey('computer-use-window-preview'),
+                snapshot: _windowScreenshot!,
+                active: _coordinateTarget == _CoordinateTarget.window,
+                tapAreaKey: const ValueKey(
+                  'computer-use-window-preview-tap-area',
+                ),
+                onPointSelected: (point) =>
+                    _selectImagePoint(_CoordinateTarget.window, point),
+              ),
             ],
           ],
         ),
@@ -335,7 +364,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Widget _buildInputCard() {
-    final hasTarget = _selectedWindowId != null || _displayScreenshot != null;
+    final hasTarget = _hasCoordinateTarget;
 
     return Card(
       child: Padding(
@@ -349,6 +378,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               subtitle:
                   'Run explicit input events against the selected window or display coordinates.',
             ),
+            const SizedBox(height: 12),
+            _CoordinateTargetRow(label: _coordinateTargetLabel),
             const SizedBox(height: 12),
             Row(
               children: [
@@ -543,6 +574,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     await _run('Click point', (service) => service.click(arguments));
   }
 
+  void _selectImagePoint(_CoordinateTarget target, _ImagePoint point) {
+    setState(() {
+      _coordinateTarget = target;
+      _xController.text = point.x.round().toString();
+      _yController.text = point.y.round().toString();
+    });
+  }
+
   Future<void> _typeText() async {
     final text = _textController.text;
     if (text.trim().isEmpty) {
@@ -665,21 +704,45 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Map<String, dynamic> _coordinateArguments(_Coordinates coordinates) {
     final arguments = <String, dynamic>{'x': coordinates.x, 'y': coordinates.y};
 
-    final selectedWindowId = _selectedWindowId;
-    if (selectedWindowId != null) {
-      arguments['window_id'] = selectedWindowId;
-      if (_windowScreenshot case final snapshot?) {
+    switch (_coordinateTarget) {
+      case _CoordinateTarget.window:
+        final selectedWindowId = _selectedWindowId;
+        final snapshot = _windowScreenshot;
+        if (selectedWindowId == null || snapshot == null) {
+          return arguments;
+        }
+        arguments['window_id'] = selectedWindowId;
         arguments['source_width'] = snapshot.width;
         arguments['source_height'] = snapshot.height;
-      }
-      return arguments;
-    }
-
-    if (_displayScreenshot case final snapshot?) {
-      arguments['source_width'] = snapshot.width;
-      arguments['source_height'] = snapshot.height;
+      case _CoordinateTarget.display:
+        final snapshot = _displayScreenshot;
+        if (snapshot == null) {
+          return arguments;
+        }
+        arguments['source_width'] = snapshot.width;
+        arguments['source_height'] = snapshot.height;
+      case null:
+        break;
     }
     return arguments;
+  }
+
+  bool get _hasCoordinateTarget {
+    return switch (_coordinateTarget) {
+      _CoordinateTarget.window =>
+        _selectedWindowId != null && _windowScreenshot != null,
+      _CoordinateTarget.display => _displayScreenshot != null,
+      null => false,
+    };
+  }
+
+  String get _coordinateTargetLabel {
+    return switch (_coordinateTarget) {
+      _CoordinateTarget.window when _selectedWindowId != null =>
+        'Active source: selected window screenshot',
+      _CoordinateTarget.display => 'Active source: display screenshot',
+      _ => 'Active source: none',
+    };
   }
 
   Map<String, dynamic>? _decodeMap(String raw) {
@@ -871,10 +934,62 @@ class _PermissionRow extends StatelessWidget {
   }
 }
 
-class _ImagePreview extends StatelessWidget {
-  const _ImagePreview({required this.snapshot});
+class _CoordinateTargetRow extends StatelessWidget {
+  const _CoordinateTargetRow({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        color: Theme.of(context).colorScheme.surfaceContainerHighest,
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        child: Row(
+          children: [
+            Icon(
+              Icons.my_location_outlined,
+              color: Theme.of(context).colorScheme.primary,
+              size: 20,
+            ),
+            const SizedBox(width: 8),
+            Expanded(child: Text(label)),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ImagePreview extends StatefulWidget {
+  const _ImagePreview({
+    super.key,
+    required this.snapshot,
+    required this.active,
+    required this.tapAreaKey,
+    required this.onPointSelected,
+  });
 
   final _ImageSnapshot snapshot;
+  final bool active;
+  final Key tapAreaKey;
+  final ValueChanged<_ImagePoint>? onPointSelected;
+
+  @override
+  State<_ImagePreview> createState() => _ImagePreviewState();
+}
+
+class _ImagePreviewState extends State<_ImagePreview> {
+  final _transformationController = TransformationController();
+
+  @override
+  void dispose() {
+    _transformationController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -882,14 +997,14 @@ class _ImagePreview extends StatelessWidget {
     if (bytes == null) {
       return const Text('Failed to decode image payload.');
     }
-    final aspectRatio = snapshot.width > 0 && snapshot.height > 0
-        ? snapshot.width / snapshot.height
+    final aspectRatio = widget.snapshot.width > 0 && widget.snapshot.height > 0
+        ? widget.snapshot.width / widget.snapshot.height
         : 16 / 9;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          '${snapshot.title} (${snapshot.width}x${snapshot.height}, ${snapshot.mimeType})',
+          '${widget.snapshot.title} (${widget.snapshot.width}x${widget.snapshot.height}, ${widget.snapshot.mimeType})',
           style: Theme.of(context).textTheme.bodySmall,
         ),
         const SizedBox(height: 8),
@@ -897,25 +1012,45 @@ class _ImagePreview extends StatelessWidget {
           borderRadius: BorderRadius.circular(8),
           child: DecoratedBox(
             decoration: BoxDecoration(
-              border: Border.all(color: Theme.of(context).dividerColor),
+              border: Border.all(
+                color: widget.active
+                    ? Theme.of(context).colorScheme.primary
+                    : Theme.of(context).dividerColor,
+                width: 2,
+              ),
               color: Theme.of(context).colorScheme.surfaceContainerHighest,
             ),
             child: ConstrainedBox(
               constraints: const BoxConstraints(maxHeight: 420),
               child: AspectRatio(
                 aspectRatio: aspectRatio,
-                child: InteractiveViewer(
-                  minScale: 0.5,
-                  maxScale: 4,
-                  child: Image.memory(
-                    bytes,
-                    fit: BoxFit.contain,
-                    gaplessPlayback: true,
-                    errorBuilder: (context, error, stackTrace) => Padding(
-                      padding: const EdgeInsets.all(16),
-                      child: Text('Failed to decode image: $error'),
-                    ),
-                  ),
+                child: LayoutBuilder(
+                  builder: (context, constraints) {
+                    return GestureDetector(
+                      key: widget.tapAreaKey,
+                      behavior: HitTestBehavior.opaque,
+                      onTapDown: widget.onPointSelected == null
+                          ? null
+                          : (details) => _handleTap(
+                              details.localPosition,
+                              constraints.biggest,
+                            ),
+                      child: InteractiveViewer(
+                        transformationController: _transformationController,
+                        minScale: 0.5,
+                        maxScale: 4,
+                        child: Image.memory(
+                          bytes,
+                          fit: BoxFit.contain,
+                          gaplessPlayback: true,
+                          errorBuilder: (context, error, stackTrace) => Padding(
+                            padding: const EdgeInsets.all(16),
+                            child: Text('Failed to decode image: $error'),
+                          ),
+                        ),
+                      ),
+                    );
+                  },
                 ),
               ),
             ),
@@ -925,9 +1060,28 @@ class _ImagePreview extends StatelessWidget {
     );
   }
 
+  void _handleTap(Offset viewportPosition, Size viewportSize) {
+    if (viewportSize.width <= 0 ||
+        viewportSize.height <= 0 ||
+        widget.snapshot.width <= 0 ||
+        widget.snapshot.height <= 0) {
+      return;
+    }
+
+    final scenePosition = _transformationController.toScene(viewportPosition);
+    final x = scenePosition.dx.clamp(0, viewportSize.width).toDouble();
+    final y = scenePosition.dy.clamp(0, viewportSize.height).toDouble();
+    widget.onPointSelected?.call(
+      _ImagePoint(
+        x / viewportSize.width * widget.snapshot.width,
+        y / viewportSize.height * widget.snapshot.height,
+      ),
+    );
+  }
+
   Uint8List? _decodeBytes() {
     try {
-      return base64Decode(snapshot.base64);
+      return base64Decode(widget.snapshot.base64);
     } catch (_) {
       return null;
     }
@@ -956,3 +1110,12 @@ class _Coordinates {
   final double x;
   final double y;
 }
+
+class _ImagePoint {
+  const _ImagePoint(this.x, this.y);
+
+  final double x;
+  final double y;
+}
+
+enum _CoordinateTarget { display, window }

@@ -1,0 +1,225 @@
+import 'dart:convert';
+
+import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  testWidgets('refreshes permission and audio recording state', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Refresh');
+
+    expect(find.text('Granted'), findsNWidgets(2));
+    expect(find.text('Missing'), findsOneWidget);
+
+    await _tapButton(tester, 'Start Recording');
+
+    expect(find.text('Recording active'), findsOneWidget);
+    expect(service.startAudioCallCount, 1);
+
+    await _tapButton(tester, 'Stop Recording');
+
+    expect(find.text('Not recording'), findsOneWidget);
+    expect(service.stopAudioCallCount, 1);
+  });
+
+  testWidgets('uses display preview taps for move pointer arguments', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Capture Display');
+    await _tapPreview(tester, 'computer-use-display-preview-tap-area');
+    await _tapButton(tester, 'Move Pointer');
+
+    expect(service.lastMoveArguments, isNotNull);
+    expect(service.lastMoveArguments, containsPair('x', 1.0));
+    expect(service.lastMoveArguments, containsPair('y', 1.0));
+    expect(service.lastMoveArguments, containsPair('source_width', 1));
+    expect(service.lastMoveArguments, containsPair('source_height', 1));
+    expect(service.lastMoveArguments!.containsKey('window_id'), isFalse);
+  });
+
+  testWidgets('uses selected window preview taps for click arguments', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'List Windows');
+    expect(find.text('Terminal - Shell (#42)'), findsOneWidget);
+
+    await _tapButton(tester, 'Capture Selected');
+    await _tapPreview(tester, 'computer-use-window-preview-tap-area');
+    await _tapButton(tester, 'Click Point');
+
+    expect(
+      service.lastWindowScreenshotArguments,
+      containsPair('window_id', 42),
+    );
+    expect(service.lastClickArguments, isNotNull);
+    expect(service.lastClickArguments, containsPair('window_id', 42));
+    expect(service.lastClickArguments, containsPair('x', 1.0));
+    expect(service.lastClickArguments, containsPair('y', 1.0));
+    expect(service.lastClickArguments, containsPair('source_width', 1));
+    expect(service.lastClickArguments, containsPair('source_height', 1));
+    expect(service.lastClickArguments, containsPair('button', 'left'));
+    expect(service.lastClickArguments, containsPair('click_count', 1));
+  });
+}
+
+Future<void> _pumpPage(
+  WidgetTester tester,
+  _FakeMacosComputerUseService service,
+) async {
+  tester.view.devicePixelRatio = 1;
+  tester.view.physicalSize = const Size(1200, 1600);
+  addTearDown(tester.view.resetDevicePixelRatio);
+  addTearDown(tester.view.resetPhysicalSize);
+
+  await tester.pumpWidget(
+    ProviderScope(
+      overrides: [macosComputerUseServiceProvider.overrideWithValue(service)],
+      child: const MaterialApp(home: ComputerUseDebugPage()),
+    ),
+  );
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapButton(WidgetTester tester, String label) async {
+  final finder = find.text(label);
+  await _scrollUntilVisible(tester, finder);
+  await tester.tap(finder);
+  await tester.pumpAndSettle();
+}
+
+Future<void> _tapPreview(WidgetTester tester, String key) async {
+  final finder = find.byKey(ValueKey(key));
+  await _scrollUntilVisible(tester, finder);
+  await tester.tapAt(tester.getCenter(finder));
+  await tester.pumpAndSettle();
+}
+
+Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
+  if (!tester.any(finder)) {
+    await tester.scrollUntilVisible(
+      finder,
+      300,
+      scrollable: find.byType(Scrollable).first,
+    );
+  }
+  await tester.ensureVisible(finder);
+  await tester.pumpAndSettle();
+}
+
+class _FakeMacosComputerUseService extends MacosComputerUseService {
+  int startAudioCallCount = 0;
+  int stopAudioCallCount = 0;
+  Map<String, dynamic>? lastMoveArguments;
+  Map<String, dynamic>? lastClickArguments;
+  Map<String, dynamic>? lastWindowScreenshotArguments;
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<String> getPermissions() async {
+    return _json({
+      'accessibilityGranted': true,
+      'screenCaptureGranted': false,
+      'systemAudioRecordingSupported': true,
+    });
+  }
+
+  @override
+  Future<String> screenshot(Map<String, dynamic> arguments) async {
+    return _imageResult(title: 'Display');
+  }
+
+  @override
+  Future<String> listWindows(Map<String, dynamic> arguments) async {
+    return _json({
+      'windows': [
+        {
+          'windowId': 42,
+          'ownerPid': 100,
+          'appName': 'Terminal',
+          'title': 'Shell',
+          'bounds': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+          'layer': 0,
+          'alpha': 1,
+          'isOnScreen': true,
+        },
+      ],
+      'count': 1,
+      'coordinateSpace': 'window_pixels',
+      'inputOrigin': 'top_left',
+    });
+  }
+
+  @override
+  Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
+    lastWindowScreenshotArguments = Map<String, dynamic>.from(arguments);
+    return _imageResult(
+      title: 'Shell',
+      extra: {
+        'windowId': 42,
+        'ownerPid': 100,
+        'appName': 'Terminal',
+        'windowBounds': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+      },
+    );
+  }
+
+  @override
+  Future<String> moveMouse(Map<String, dynamic> arguments) async {
+    lastMoveArguments = Map<String, dynamic>.from(arguments);
+    return _json({'ok': true});
+  }
+
+  @override
+  Future<String> click(Map<String, dynamic> arguments) async {
+    lastClickArguments = Map<String, dynamic>.from(arguments);
+    return _json({'ok': true});
+  }
+
+  @override
+  Future<String> startSystemAudioRecording(
+    Map<String, dynamic> arguments,
+  ) async {
+    startAudioCallCount += 1;
+    return _json({'ok': true, 'path': '/tmp/system-audio.caf'});
+  }
+
+  @override
+  Future<String> stopSystemAudioRecording() async {
+    stopAudioCallCount += 1;
+    return _json({'ok': true, 'path': '/tmp/system-audio.caf'});
+  }
+
+  String _imageResult({
+    required String title,
+    Map<String, dynamic> extra = const {},
+  }) {
+    return _json({
+      'imageBase64': _png1x1Base64,
+      'imageMimeType': 'image/png',
+      'width': 1,
+      'height': 1,
+      'title': title,
+      'coordinateSpace': 'screenshot_pixels',
+      'inputOrigin': 'top_left',
+      ...extra,
+    });
+  }
+}
+
+String _json(Map<String, dynamic> value) => jsonEncode(value);
+
+const _png1x1Base64 =
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';
