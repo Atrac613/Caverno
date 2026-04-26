@@ -41,9 +41,10 @@ void main() {
     expect(info['responseEnvelope'], contains('response'));
     expect(info['timeoutsMs'], containsPair('stopAll', 8000));
     expect(info['errorCodes'], contains('helper_unreachable'));
+    expect(info['errorCodes'], contains('helper_xpc_timeout'));
     expect(info['xpcServiceName'], 'com.noguwo.apps.caverno.computer-use.xpc');
     expect(info['xpcSupportedCommands'], ['ping', 'permissionStatus']);
-    expect(info['xpcReady'], isFalse);
+    expect(info['xpcReady'], isTrue);
   });
 
   test('builds the onboarding diagnostics schema', () {
@@ -103,7 +104,7 @@ void main() {
     expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
     expect(diagnostics['onboardingVerification'], containsPair('ok', false));
     expect(diagnostics['helperStatusPersistence'], contains('activeWork'));
-    expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', false));
+    expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', true));
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
     expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));

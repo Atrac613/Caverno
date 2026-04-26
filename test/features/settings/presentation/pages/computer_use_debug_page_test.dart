@@ -225,7 +225,7 @@ void main() {
     expect(text, contains('"manualSmokeSteps"'));
     expect(text, contains('"helperIpcProtocol"'));
     expect(text, contains('"preferredTransport": "xpc_service"'));
-    expect(text, contains('"xpcReady": false'));
+    expect(text, contains('"xpcReady": true'));
     expect(text, contains('"migratedCommands"'));
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));

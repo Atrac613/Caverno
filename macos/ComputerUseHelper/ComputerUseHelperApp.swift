@@ -5,8 +5,24 @@ import CoreGraphics
 import CoreMedia
 import ScreenCaptureKit
 
+@objc(CavernoComputerUseXpcProtocol)
+protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
+  func handleRequest(_ request: NSDictionary, withReply reply: @escaping (NSDictionary) -> Void)
+}
+
 @main
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
+  private static var delegateInstance: ComputerUseHelperApp?
+
+  static func main() {
+    let application = NSApplication.shared
+    let delegate = ComputerUseHelperApp()
+    delegateInstance = delegate
+    application.delegate = delegate
+    application.setActivationPolicy(.regular)
+    application.run()
+  }
+
   private let ipc = ComputerUseHelperIpc()
   private var window: NSWindow?
   private var statusSummaryLabel: NSTextField?
@@ -34,6 +50,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
+    ipc.start()
     refreshPermissionRows()
   }
 
@@ -420,7 +437,7 @@ private enum ComputerUseHelperIpcSchema {
   static let fallbackTransport = activeTransport
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = ["ping", "permissionStatus"]
-  static let xpcReady = false
+  static let xpcReady = true
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let requestEnvelope = [
@@ -462,6 +479,39 @@ private enum ComputerUseHelperSharedDiagnostics {
     } catch {
       NSLog("CavernoComputerUseHelperIPC shared diagnostics write failed: %@", error.localizedDescription)
     }
+  }
+}
+
+private final class ComputerUseHelperXpcHandler: NSObject, CavernoComputerUseXpcProtocol {
+  weak var ipc: ComputerUseHelperIpc?
+
+  init(ipc: ComputerUseHelperIpc) {
+    self.ipc = ipc
+  }
+
+  func handleRequest(_ request: NSDictionary, withReply reply: @escaping (NSDictionary) -> Void) {
+    let payload = request as? [String: Any] ?? [:]
+    ipc?.handleXpcRequest(payload) { response in
+      reply(response as NSDictionary)
+    }
+  }
+}
+
+private final class ComputerUseHelperXpcListenerDelegate: NSObject, NSXPCListenerDelegate {
+  private let handler: ComputerUseHelperXpcHandler
+
+  init(ipc: ComputerUseHelperIpc) {
+    self.handler = ComputerUseHelperXpcHandler(ipc: ipc)
+  }
+
+  func listener(
+    _ listener: NSXPCListener,
+    shouldAcceptNewConnection newConnection: NSXPCConnection
+  ) -> Bool {
+    newConnection.exportedInterface = NSXPCInterface(with: CavernoComputerUseXpcProtocol.self)
+    newConnection.exportedObject = handler
+    newConnection.resume()
+    return true
   }
 }
 
@@ -542,6 +592,10 @@ private final class ComputerUseHelperIpc: NSObject {
   private var lastOnboardingVerification: [String: Any]?
   private var helperIpcEventCount = 0
   private var lastHelperIpcRequest: [String: Any]?
+  private var started = false
+  private var xpcListener: NSXPCListener?
+  private var xpcListenerDelegate: ComputerUseHelperXpcListenerDelegate?
+  private var xpcListenerStarted = false
 
   override init() {
     super.init()
@@ -549,6 +603,11 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   func start() {
+    guard !started else {
+      writeSharedDiagnostics(event: "listener_already_started")
+      return
+    }
+    started = true
     center.addObserver(
       self,
       selector: #selector(handleRequest(_:)),
@@ -557,7 +616,25 @@ private final class ComputerUseHelperIpc: NSObject {
       suspensionBehavior: .deliverImmediately
     )
     center.suspended = false
+    startXpcListener()
     writeSharedDiagnostics(event: "listener_started")
+  }
+
+  private func startXpcListener() {
+    guard xpcListener == nil else {
+      return
+    }
+    let listener = NSXPCListener(machServiceName: ComputerUseHelperIpcSchema.xpcServiceName)
+    let delegate = ComputerUseHelperXpcListenerDelegate(ipc: self)
+    listener.delegate = delegate
+    listener.resume()
+    xpcListener = listener
+    xpcListenerDelegate = delegate
+    xpcListenerStarted = true
+    NSLog(
+      "CavernoComputerUseHelperIPC xpc listener started service=%@",
+      ComputerUseHelperIpcSchema.xpcServiceName
+    )
   }
 
   func recordOnboardingVerification(_ verification: [String: Any]) {
@@ -657,6 +734,94 @@ private final class ComputerUseHelperIpc: NSObject {
         command: request.command,
         response: responseWithDiagnostics
       )
+    }
+  }
+
+  func handleXpcRequest(_ payload: [String: Any], completion: @escaping ([String: Any]) -> Void) {
+    let userInfo = payload.reduce(into: [AnyHashable: Any]()) { partial, entry in
+      partial[AnyHashable(entry.key)] = entry.value
+    }
+    guard let request = ComputerUseHelperRequest(userInfo: userInfo) else {
+      recordRequestDiagnostic(
+        requestId: payload[ComputerUseHelperIpcSchema.Field.requestId] as? String,
+        commandName: payload[ComputerUseHelperIpcSchema.Field.command] as? String,
+        senderBundleIdentifier: payload[ComputerUseHelperIpcSchema.Field.senderBundleIdentifier] as? String,
+        senderProcessIdentifier: intValue(payload[ComputerUseHelperIpcSchema.Field.senderProcessIdentifier]),
+        status: "xpc_invalid_request"
+      )
+      completion(
+        errorResponse(
+          code: "invalid_request",
+          error: "Caverno Computer Use received an invalid XPC helper request.",
+          details: nil
+        )
+      )
+      return
+    }
+
+    recordRequestDiagnostic(request: request, status: "xpc_received")
+    NSLog(
+      "CavernoComputerUseHelperIPC xpc request received requestId=%@ command=%@ sender=%@ pid=%d",
+      request.requestId,
+      request.command.rawValue,
+      request.senderBundleIdentifier,
+      request.senderProcessIdentifier
+    )
+
+    guard request.isSupportedProtocolVersion else {
+      recordRequestDiagnostic(request: request, status: "xpc_unsupported_protocol")
+      completion(
+        errorResponse(
+          code: "unsupported_protocol",
+          error: "Unsupported computer-use helper protocol version.",
+          details: request.protocolVersion
+        )
+      )
+      return
+    }
+
+    guard request.hasTrustedSender else {
+      recordRequestDiagnostic(request: request, status: "xpc_untrusted_sender")
+      completion(
+        errorResponse(
+          code: "untrusted_sender",
+          error: "Caverno Computer Use only accepts commands from Caverno.",
+          details: [
+            "senderBundleIdentifier": request.senderBundleIdentifier,
+            "senderProcessIdentifier": request.senderProcessIdentifier,
+          ]
+        )
+      )
+      return
+    }
+
+    guard request.command == .ping || request.command == .permissionStatus else {
+      recordRequestDiagnostic(request: request, status: "xpc_unsupported_command")
+      completion(
+        errorResponse(
+          code: "unsupported_command",
+          error: "This command is not available over XPC.",
+          details: request.command.rawValue
+        )
+      )
+      return
+    }
+
+    handle(request: request) { [weak self] response in
+      guard let self else {
+        completion(response)
+        return
+      }
+      let diagnostic = self.recordRequestDiagnostic(
+        request: request,
+        status: response["ok"] as? Bool == false ? "xpc_response_error" : "xpc_response",
+        errorCode: response["code"] as? String
+      )
+      var responseWithDiagnostics = response
+      responseWithDiagnostics["helperIpcEventCount"] = self.helperIpcEventCount
+      responseWithDiagnostics["lastHelperIpcRequest"] = diagnostic
+      responseWithDiagnostics["selectedIpcTransport"] = ComputerUseHelperIpcSchema.preferredTransport
+      completion(responseWithDiagnostics)
     }
   }
 
@@ -1221,6 +1386,7 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcServiceName": ComputerUseHelperIpcSchema.xpcServiceName,
       "xpcSupportedCommands": ComputerUseHelperIpcSchema.xpcSupportedCommands,
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
+      "xpcListenerStarted": xpcListenerStarted,
       "audioRecordingActive": audioRecordingActive,
       "activeWork": activeWork,
       "helperStatusPersistence": persistedStatus,
@@ -1368,6 +1534,7 @@ private final class ComputerUseHelperIpc: NSObject {
       "preferredIpcTransport": ComputerUseHelperIpcSchema.preferredTransport,
       "fallbackIpcTransport": ComputerUseHelperIpcSchema.fallbackTransport,
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
+      "xpcListenerStarted": xpcListenerStarted,
       "helperIpcEventCount": helperIpcEventCount,
     ]
     if let lastHelperIpcRequest {

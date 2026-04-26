@@ -155,6 +155,8 @@ class MacosComputerUseIpc {
   };
   static const errorCodes = [
     'helper_unreachable',
+    'helper_xpc_unavailable',
+    'helper_xpc_timeout',
     'helper_unsupported_protocol',
     'helper_response_mismatch',
     'helper_invalid_response',
@@ -178,7 +180,7 @@ class MacosComputerUseIpc {
     errorCodes: errorCodes,
     xpcServiceName: xpcServiceName,
     xpcSupportedCommands: xpcSupportedCommands,
-    xpcReady: false,
+    xpcReady: true,
   );
 }
 

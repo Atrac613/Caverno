@@ -2,6 +2,11 @@ import Cocoa
 import CoreGraphics
 import FlutterMacOS
 
+@objc(CavernoComputerUseXpcProtocol)
+protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
+  func handleRequest(_ request: NSDictionary, withReply reply: @escaping (NSDictionary) -> Void)
+}
+
 class MainFlutterWindow: NSWindow {
   private var securityScopedBookmarkChannel: SecurityScopedBookmarkChannel?
   private var computerUseChannel: MacosComputerUseChannel?
@@ -193,10 +198,13 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let fallbackTransport = activeTransport
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = ["ping", "permissionStatus"]
-  static let xpcReady = false
+  static let xpcReady = true
+  static let xpcFallbackTimeout = 0.7
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let helperUnreachable = "helper_unreachable"
+  static let xpcUnavailable = "helper_xpc_unavailable"
+  static let xpcTimeout = "helper_xpc_timeout"
   static let unsupportedProtocol = "helper_unsupported_protocol"
   static let responseMismatch = "helper_response_mismatch"
   static let invalidResponse = "helper_invalid_response"
@@ -266,6 +274,7 @@ fileprivate struct PendingMacosComputerUseHelperRequest {
   let command: MacosComputerUseHelperCommand
   let selectedTransport: String
   let attemptedTransport: String?
+  let preferredAttemptDiagnostic: [String: Any]?
   let sentAt: Date
   let timeout: TimeInterval
   let result: FlutterResult
@@ -280,6 +289,7 @@ final class MacosComputerUseHelperClient: NSObject {
   private var pendingRequests: [String: PendingMacosComputerUseHelperRequest] = [:]
   private var helperIpcSequence = 0
   private var lastHelperIpcAttempt: [String: Any]?
+  private var lastPreferredIpcAttempt: [String: Any]?
 
   override init() {
     super.init()
@@ -327,14 +337,22 @@ final class MacosComputerUseHelperClient: NSObject {
     if let lastHelperIpcAttempt {
       response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
     }
+    if let lastPreferredIpcAttempt {
+      response["lastPreferredIpcAttempt"] = lastPreferredIpcAttempt
+    }
     response["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
     if let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() {
       response["helperSharedDiagnostics"] = helperSharedDiagnostics
       if let diagnosticProcessIdentifier =
         helperSharedDiagnostics["helperProcessIdentifier"] as? Int,
         let runningProcessIdentifier = runningApplication?.processIdentifier {
-        response["helperSharedDiagnosticsMatchesRunningHelper"] =
+        let diagnosticsMatchesRunningHelper =
           diagnosticProcessIdentifier == Int(runningProcessIdentifier)
+        response["helperSharedDiagnosticsMatchesRunningHelper"] =
+          diagnosticsMatchesRunningHelper
+        response["helperSharedDiagnosticsStale"] = !diagnosticsMatchesRunningHelper
+      } else if runningApplication == nil {
+        response["helperSharedDiagnosticsStale"] = true
       }
     }
     if let processIdentifier = runningApplication?.processIdentifier {
@@ -399,6 +417,7 @@ final class MacosComputerUseHelperClient: NSObject {
     timeout: TimeInterval = 1.5,
     selectedTransport: String = MacosComputerUseIpcSchema.activeTransport,
     attemptedTransport: String? = nil,
+    preferredAttemptDiagnostic: [String: Any]? = nil,
     result: @escaping FlutterResult
   ) {
     let requestId = UUID().uuidString
@@ -416,6 +435,7 @@ final class MacosComputerUseHelperClient: NSObject {
       command: command,
       selectedTransport: selectedTransport,
       attemptedTransport: attemptedTransport,
+      preferredAttemptDiagnostic: preferredAttemptDiagnostic,
       sentAt: sentAt,
       timeout: timeout,
       result: result
@@ -470,6 +490,9 @@ final class MacosComputerUseHelperClient: NSObject {
       ]
       if let attemptedTransport = pendingRequest.attemptedTransport {
         details["attemptedIpcTransport"] = attemptedTransport
+      }
+      if let preferredAttemptDiagnostic = pendingRequest.preferredAttemptDiagnostic {
+        details["preferredIpcAttempt"] = preferredAttemptDiagnostic
       }
       if let runningProcessIdentifier = self.runningHelperApplication()?.processIdentifier {
         details["helperProcessIdentifier"] = Int(runningProcessIdentifier)
@@ -529,10 +552,144 @@ final class MacosComputerUseHelperClient: NSObject {
     guard command.supportsPreferredXpcTransport else {
       return false
     }
-    _ = arguments
-    _ = timeout
-    _ = result
-    return false
+
+    let requestId = UUID().uuidString
+    let sentAt = Date()
+    helperIpcSequence += 1
+    let sequence = helperIpcSequence
+    let request = MacosComputerUseHelperRequest(
+      requestId: requestId,
+      command: command,
+      arguments: arguments
+    )
+    lastHelperIpcAttempt = helperIpcDiagnostic(
+      sequence: sequence,
+      requestId: requestId,
+      command: command,
+      selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+      attemptedTransport: nil,
+      sentAt: sentAt,
+      timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
+      status: "sent"
+    )
+
+    let connection = NSXPCConnection(
+      machServiceName: MacosComputerUseIpcSchema.xpcServiceName,
+      options: []
+    )
+    connection.remoteObjectInterface = NSXPCInterface(with: CavernoComputerUseXpcProtocol.self)
+    var completed = false
+
+    func fallback(status: String, errorCode: String) {
+      guard !completed else {
+        return
+      }
+      completed = true
+      connection.invalidate()
+      let diagnostic = helperIpcDiagnostic(
+        sequence: sequence,
+        requestId: requestId,
+        command: command,
+        selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+        attemptedTransport: nil,
+        sentAt: sentAt,
+        timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
+        status: status,
+        completedAt: Date(),
+        errorCode: errorCode
+      )
+      lastHelperIpcAttempt = diagnostic
+      lastPreferredIpcAttempt = diagnostic
+      send(
+        command: command,
+        arguments: arguments,
+        timeout: timeout,
+        selectedTransport: MacosComputerUseIpcSchema.fallbackTransport,
+        attemptedTransport: MacosComputerUseIpcSchema.preferredTransport,
+        preferredAttemptDiagnostic: diagnostic,
+        result: result
+      )
+    }
+
+    connection.invalidationHandler = { [weak self] in
+      DispatchQueue.main.async {
+        guard let self, !completed else {
+          return
+        }
+        self.lastHelperIpcAttempt = self.helperIpcDiagnostic(
+          sequence: sequence,
+          requestId: requestId,
+          command: command,
+          selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+          attemptedTransport: nil,
+          sentAt: sentAt,
+          timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
+          status: "xpc_invalidated",
+          completedAt: Date(),
+          errorCode: MacosComputerUseIpcSchema.xpcUnavailable
+        )
+      }
+    }
+    connection.resume()
+
+    let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+      DispatchQueue.main.async {
+        NSLog(
+          "CavernoComputerUseIPC xpc error requestId=%@ command=%@ error=%@",
+          requestId,
+          command.rawValue,
+          error.localizedDescription
+        )
+        fallback(status: "xpc_error", errorCode: MacosComputerUseIpcSchema.xpcUnavailable)
+      }
+    } as? CavernoComputerUseXpcProtocol
+
+    guard let proxy else {
+      fallback(status: "xpc_proxy_unavailable", errorCode: MacosComputerUseIpcSchema.xpcUnavailable)
+      return true
+    }
+
+    NSLog(
+      "CavernoComputerUseIPC xpc request sent requestId=%@ command=%@",
+      requestId,
+      command.rawValue
+    )
+    proxy.handleRequest(request.userInfo as NSDictionary) { [weak self] response in
+      DispatchQueue.main.async {
+        guard let self, !completed else {
+          return
+        }
+        completed = true
+        connection.invalidate()
+        let responseMap = response as? [String: Any] ?? [:]
+        var responseWithTransport = responseMap
+        responseWithTransport["selectedIpcTransport"] = MacosComputerUseIpcSchema.preferredTransport
+        responseWithTransport["fallbackIpcTransport"] = MacosComputerUseIpcSchema.fallbackTransport
+        self.lastHelperIpcAttempt = self.helperIpcDiagnostic(
+          sequence: sequence,
+          requestId: requestId,
+          command: command,
+          selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+          attemptedTransport: nil,
+          sentAt: sentAt,
+          timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
+          status: responseMap["ok"] as? Bool == false ? "xpc_response_error" : "xpc_response",
+          completedAt: Date(),
+          errorCode: responseMap["code"] as? String
+        )
+        NSLog(
+          "CavernoComputerUseIPC xpc response received requestId=%@ command=%@",
+          requestId,
+          command.rawValue
+        )
+        result(responseWithTransport)
+      }
+    }
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + MacosComputerUseIpcSchema.xpcFallbackTimeout) {
+      fallback(status: "xpc_timeout", errorCode: MacosComputerUseIpcSchema.xpcTimeout)
+    }
+    return true
   }
 
   @objc private func handleResponse(_ notification: Notification) {
@@ -608,6 +765,9 @@ final class MacosComputerUseHelperClient: NSObject {
     responseWithTransport["fallbackIpcTransport"] = MacosComputerUseIpcSchema.fallbackTransport
     if let attemptedTransport = pendingRequest.attemptedTransport {
       responseWithTransport["attemptedIpcTransport"] = attemptedTransport
+    }
+    if let preferredAttemptDiagnostic = pendingRequest.preferredAttemptDiagnostic {
+      responseWithTransport["preferredIpcAttempt"] = preferredAttemptDiagnostic
     }
     lastHelperIpcAttempt = helperIpcDiagnostic(
       pendingRequest: pendingRequest,
