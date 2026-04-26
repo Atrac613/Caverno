@@ -151,11 +151,11 @@ void main() {
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
       find.text(
-        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow',
+        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click',
       ),
       findsOneWidget,
     );
-    expect(find.text('Next XPC parity: moveMouse, click'), findsOneWidget);
+    expect(find.text('Next XPC parity: drag, scroll'), findsOneWidget);
     expect(
       find.text('Fallback reason: xpc_error (helper_xpc_unavailable)'),
       findsOneWidget,
@@ -172,6 +172,11 @@ void main() {
       success: true,
       result:
           '{"selectedIpcTransport":"distributed_notification_center","preferredIpcTransport":"xpc_service","fallbackIpcTransport":"distributed_notification_center","preferredIpcAttempt":{"status":"xpc_error","errorCode":"helper_xpc_unavailable"},"code":"ok","x":40,"y":40}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_screenshot',
+        success: true,
+        result: '{"selectedIpcTransport":"xpc_service"}',
+      ),
     );
     MacosComputerUseAuditLog.instance.record(
       toolName: 'computer_start_system_audio_recording',
@@ -197,6 +202,10 @@ void main() {
     );
     expect(
       find.text('Fallback: xpc_error (helper_xpc_unavailable)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Post-action observation: passed (computer_screenshot)'),
       findsOneWidget,
     );
   });
@@ -464,11 +473,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'listWindows',
         'focusWindow',
         'screenshotWindow',
+        'moveMouse',
+        'click',
       ],
-      'xpcNextParityCommands': ['moveMouse', 'click'],
+      'xpcNextParityCommands': ['drag', 'scroll'],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

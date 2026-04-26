@@ -153,6 +153,8 @@ class MacosComputerUseIpc {
     'listWindows',
     'focusWindow',
     'screenshotWindow',
+    'moveMouse',
+    'click',
   ];
   static const xpcProductionReady = false;
   static const xpcStatus = 'experimental_fallback';
@@ -165,10 +167,10 @@ class MacosComputerUseIpc {
     'system_audio_recording',
     'emergency_stop',
   ];
-  static const xpcNextParityCommands = ['moveMouse', 'click'];
+  static const xpcNextParityCommands = ['drag', 'scroll'];
   static const xpcProductionReadinessCriteria = [
     'named_service_connects_from_signed_main_app',
-    'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_match_dnc',
+    'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_match_dnc',
     'capture_input_audio_commands_have_parity_smoke_coverage',
     'fallback_path_is_observable_and_non_destructive',
   ];

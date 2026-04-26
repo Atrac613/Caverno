@@ -293,6 +293,11 @@ void main() {
       success: false,
       result:
           '{"selectedIpcTransport":"distributed_notification_center","preferredIpcTransport":"xpc_service","fallbackIpcTransport":"distributed_notification_center","preferredIpcAttempt":{"status":"xpc_timeout","errorCode":"helper_xpc_timeout"},"code":"click_failed"}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_screenshot',
+        success: false,
+        errorCode: 'screen_capture_denied',
+      ),
     );
 
     final service = _FakeMacosComputerUseService();
@@ -311,6 +316,12 @@ void main() {
     );
     expect(
       find.text('Fallback: xpc_timeout (helper_xpc_timeout)'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Post-action observation: failed (computer_screenshot, screen_capture_denied)',
+      ),
       findsOneWidget,
     );
   });

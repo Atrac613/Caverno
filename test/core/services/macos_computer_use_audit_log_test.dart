@@ -22,6 +22,7 @@ void main() {
     expect(entries.single['riskCategory'], 'input');
     expect(entries.single['approvalResult'], 'approved');
     expect(entries.single['transport'], 'xpc_service');
+    expect(entries.single['postActionObservationRequired'], isTrue);
     expect(entries.single.containsKey('imageBase64'), isFalse);
   });
 
@@ -65,6 +66,31 @@ void main() {
     expect(entry['preferredAttemptStatus'], 'xpc_timeout');
     expect(entry['preferredAttemptErrorCode'], 'helper_xpc_timeout');
     expect(entry['fallbackReason'], 'xpc_timeout (helper_xpc_timeout)');
+    expect(entry.containsKey('imageBase64'), isFalse);
+  });
+
+  test('records post-action observation metadata without payloads', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_click',
+      policy: MacosComputerUseToolPolicy.decision('computer_click'),
+      approvalResult: 'approved',
+      success: true,
+      result: '{"ok":true,"selectedIpcTransport":"xpc_service"}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_screenshot',
+        success: true,
+        result:
+            '{"ok":true,"selectedIpcTransport":"xpc_service","imageBase64":"secret"}',
+      ),
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    expect(entry['postActionObservationRequired'], isTrue);
+    expect(entry['postActionObservationToolName'], 'computer_screenshot');
+    expect(entry['postActionObservationSuccess'], isTrue);
+    expect(entry['postActionObservationTransport'], 'xpc_service');
     expect(entry.containsKey('imageBase64'), isFalse);
   });
 }

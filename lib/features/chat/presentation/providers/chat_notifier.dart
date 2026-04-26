@@ -8179,6 +8179,9 @@ class ChatNotifier extends Notifier<ChatState> {
       name: toolCall.name,
       arguments: toolCall.arguments,
     );
+    final postActionObservation = result.isSuccess
+        ? await _runComputerUsePostActionObservation(policy)
+        : null;
     MacosComputerUseAuditLog.instance.record(
       toolName: toolCall.name,
       policy: policy,
@@ -8186,6 +8189,7 @@ class ChatNotifier extends Notifier<ChatState> {
       success: result.isSuccess,
       result: result.result,
       errorCode: result.errorMessage,
+      postActionObservation: postActionObservation,
     );
     return _rememberToolApprovalResult(
       toolCall.name,
@@ -8211,6 +8215,48 @@ class ChatNotifier extends Notifier<ChatState> {
       errorCode: result.errorMessage,
     );
     return result;
+  }
+
+  Future<MacosComputerUsePostActionObservation?>
+  _runComputerUsePostActionObservation(
+    MacosComputerUseToolPolicyDecision? policy,
+  ) async {
+    if (policy?.requiresPostActionObservation != true) {
+      return null;
+    }
+
+    final observationToolName = switch (policy!.riskCategory) {
+      MacosComputerUseRiskCategory.input => 'computer_screenshot',
+      MacosComputerUseRiskCategory.sensitive ||
+      MacosComputerUseRiskCategory.recovery => 'computer_get_permissions',
+      _ => null,
+    };
+    if (observationToolName == null) {
+      return null;
+    }
+
+    final observationArguments = switch (observationToolName) {
+      'computer_screenshot' => <String, dynamic>{'max_width': 800},
+      _ => <String, dynamic>{},
+    };
+    try {
+      final result = await _mcpToolService!.executeTool(
+        name: observationToolName,
+        arguments: observationArguments,
+      );
+      return MacosComputerUsePostActionObservation(
+        toolName: observationToolName,
+        success: result.isSuccess,
+        result: result.result,
+        errorCode: result.errorMessage,
+      );
+    } catch (error) {
+      return MacosComputerUsePostActionObservation(
+        toolName: observationToolName,
+        success: false,
+        errorCode: error.toString(),
+      );
+    }
   }
 
   Future<bool> requestComputerUseAction({

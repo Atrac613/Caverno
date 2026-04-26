@@ -14,6 +14,11 @@ class MacosComputerUseAuditEntry {
     required this.fallbackReason,
     required this.responseCode,
     required this.success,
+    required this.postActionObservationRequired,
+    required this.postActionObservationToolName,
+    required this.postActionObservationSuccess,
+    required this.postActionObservationResponseCode,
+    required this.postActionObservationTransport,
   });
 
   final DateTime timestamp;
@@ -26,6 +31,11 @@ class MacosComputerUseAuditEntry {
   final String? fallbackReason;
   final String? responseCode;
   final bool success;
+  final bool postActionObservationRequired;
+  final String? postActionObservationToolName;
+  final bool? postActionObservationSuccess;
+  final String? postActionObservationResponseCode;
+  final String? postActionObservationTransport;
 
   Map<String, dynamic> toJson() {
     return {
@@ -39,8 +49,27 @@ class MacosComputerUseAuditEntry {
       'fallbackReason': fallbackReason,
       'responseCode': responseCode,
       'success': success,
+      'postActionObservationRequired': postActionObservationRequired,
+      'postActionObservationToolName': postActionObservationToolName,
+      'postActionObservationSuccess': postActionObservationSuccess,
+      'postActionObservationResponseCode': postActionObservationResponseCode,
+      'postActionObservationTransport': postActionObservationTransport,
     };
   }
+}
+
+class MacosComputerUsePostActionObservation {
+  const MacosComputerUsePostActionObservation({
+    required this.toolName,
+    required this.success,
+    this.result,
+    this.errorCode,
+  });
+
+  final String toolName;
+  final bool success;
+  final String? result;
+  final String? errorCode;
 }
 
 class MacosComputerUseAuditLog {
@@ -69,8 +98,10 @@ class MacosComputerUseAuditLog {
     required bool success,
     String? result,
     String? errorCode,
+    MacosComputerUsePostActionObservation? postActionObservation,
   }) {
     final decoded = _decodeResult(result);
+    final observationDecoded = _decodeResult(postActionObservation?.result);
     final preferredAttempt = _mapValue(decoded?['preferredIpcAttempt']);
     final preferredAttemptStatus = _stringValue(preferredAttempt?['status']);
     final preferredAttemptErrorCode = _stringValue(
@@ -97,6 +128,17 @@ class MacosComputerUseAuditLog {
       ),
       responseCode: responseCode,
       success: success,
+      postActionObservationRequired:
+          policy?.requiresPostActionObservation == true &&
+          approvalResult != 'denied',
+      postActionObservationToolName: postActionObservation?.toolName,
+      postActionObservationSuccess: postActionObservation?.success,
+      postActionObservationResponseCode:
+          _stringValue(observationDecoded?['code']) ??
+          postActionObservation?.errorCode,
+      postActionObservationTransport:
+          _stringValue(observationDecoded?['selectedIpcTransport']) ??
+          _stringValue(observationDecoded?['ipcTransport']),
     );
     _entries.add(entry);
     if (_entries.length > maxEntries) {

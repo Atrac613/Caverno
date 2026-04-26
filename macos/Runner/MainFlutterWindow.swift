@@ -190,7 +190,9 @@ fileprivate enum MacosComputerUseHelperCommand: String {
       .screenshot,
       .listWindows,
       .focusWindow,
-      .screenshotWindow:
+      .screenshotWindow,
+      .moveMouse,
+      .click:
       return true
     default:
       return false
@@ -213,6 +215,8 @@ fileprivate enum MacosComputerUseIpcSchema {
     "listWindows",
     "focusWindow",
     "screenshotWindow",
+    "moveMouse",
+    "click",
   ]
   static let xpcReady = true
   static let xpcProductionReady = false
@@ -226,10 +230,10 @@ fileprivate enum MacosComputerUseIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
-  static let xpcNextParityCommands = ["moveMouse", "click"]
+  static let xpcNextParityCommands = ["drag", "scroll"]
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_match_dnc",
+    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -1049,14 +1053,14 @@ final class MacosComputerUseChannel {
         result: result
       )
     case "click":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .click,
         arguments: helperArguments(call),
         timeout: 3,
         result: result
       )
     case "moveMouse":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .moveMouse,
         arguments: helperArguments(call),
         timeout: 3,

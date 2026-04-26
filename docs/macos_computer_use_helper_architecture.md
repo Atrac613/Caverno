@@ -74,18 +74,19 @@ The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
 `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-`listWindows`, `focusWindow`, and `screenshotWindow`; when the named service is
-unavailable, the app records the preferred attempt and falls back to
-`DistributedNotificationCenter`. XPC should not be treated as production-ready
-until the named service and all migrated commands pass parity smoke checks.
+`listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, and `click`;
+when the named service is unavailable, the app records the preferred attempt
+and falls back to `DistributedNotificationCenter`. XPC should not be treated as
+production-ready until the named service and all migrated commands pass parity
+smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-  `listWindows`, `focusWindow`, and `screenshotWindow` match the active
-  distributed-notification behavior. The next parity commands are `moveMouse`
-  and `click`.
+  `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, and `click`
+  match the active distributed-notification behavior. The next parity commands
+  are `drag` and `scroll`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate
@@ -102,6 +103,10 @@ Initial commands:
 - `listWindows`: list visible windows.
 - `focusWindow`: focus a selected window.
 - `screenshotWindow`: capture a selected window.
+- `moveMouse`: move the pointer after app-level approval and explicit arming in
+  smoke tests.
+- `click`: click the pointer after app-level approval and the extra click
+  arming gate in smoke tests.
 
 Migrated commands:
 
@@ -191,8 +196,13 @@ reachable and the required macOS permissions are granted.
   or `recovery`.
 - The app records a redacted audit entry for each approval-gated computer-use
   command with timestamp, tool name, risk category, approval result, transport,
-  response code, and success state. Screenshot payloads, audio payloads, and
-  typed text bodies must not be stored in the audit log.
+  response code, fallback reason, success state, and post-action observation
+  metadata. Screenshot payloads, audio payloads, and typed text bodies must not
+  be stored in the audit log.
+- Input and sensitive commands that require post-action observation run a
+  bounded screenshot or status observation after a successful approved action;
+  only the observation tool name, success flag, transport, and response code are
+  recorded.
 - Debug smoke checks for input and system audio require an explicit arming
   toggle; the live smoke harness only runs those actions when
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED=1` or `--unsafe-armed` is set.

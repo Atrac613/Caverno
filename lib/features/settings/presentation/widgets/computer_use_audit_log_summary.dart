@@ -57,6 +57,14 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
     final transport = _optionalText(entry['transport']) ?? 'transport unknown';
     final responseCode = _optionalText(entry['responseCode']);
     final fallbackReason = _optionalText(entry['fallbackReason']);
+    final observationRequired = entry['postActionObservationRequired'] == true;
+    final observationTool = _optionalText(
+      entry['postActionObservationToolName'],
+    );
+    final observationSuccess = entry['postActionObservationSuccess'];
+    final observationCode = _optionalText(
+      entry['postActionObservationResponseCode'],
+    );
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -120,6 +128,19 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
                       ),
                     ),
                   ],
+                  if (observationRequired) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _observationText(
+                        toolName: observationTool,
+                        success: observationSuccess,
+                        responseCode: observationCode,
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -158,6 +179,23 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
       return _ComputerUseAuditStatus.approved;
     }
     return _ComputerUseAuditStatus.recorded;
+  }
+
+  String _observationText({
+    required String? toolName,
+    required Object? success,
+    required String? responseCode,
+  }) {
+    final status = switch (success) {
+      true => 'passed',
+      false => 'failed',
+      _ => 'pending',
+    };
+    final tool = toolName ?? 'not recorded';
+    if (responseCode == null) {
+      return 'Post-action observation: $status ($tool)';
+    }
+    return 'Post-action observation: $status ($tool, $responseCode)';
   }
 }
 
