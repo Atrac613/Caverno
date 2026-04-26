@@ -183,7 +183,7 @@ fileprivate enum MacosComputerUseHelperCommand: String {
 
   var supportsPreferredXpcTransport: Bool {
     switch self {
-    case .ping, .permissionStatus, .openSettings, .stopAll:
+    case .ping, .permissionStatus, .openSettings, .stopAll, .screenshot, .listWindows:
       return true
     default:
       return false
@@ -197,7 +197,14 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let preferredTransport = "xpc_service"
   static let fallbackTransport = activeTransport
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
-  static let xpcSupportedCommands = ["ping", "permissionStatus", "openSettings", "stopAll"]
+  static let xpcSupportedCommands = [
+    "ping",
+    "permissionStatus",
+    "openSettings",
+    "stopAll",
+    "screenshot",
+    "listWindows",
+  ]
   static let xpcReady = true
   static let xpcProductionReady = false
   static let xpcStatus = "experimental_fallback"
@@ -210,10 +217,10 @@ fileprivate enum MacosComputerUseIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
-  static let xpcNextParityCommands = ["screenshot", "listWindows"]
+  static let xpcNextParityCommands = ["focusWindow", "screenshotWindow"]
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_stop_all_match_dnc",
+    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]

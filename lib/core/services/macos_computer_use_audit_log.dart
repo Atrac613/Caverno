@@ -42,6 +42,9 @@ class MacosComputerUseAuditLog {
   final int maxEntries;
   final List<MacosComputerUseAuditEntry> _entries = [];
 
+  List<MacosComputerUseAuditEntry> get entries =>
+      List<MacosComputerUseAuditEntry>.unmodifiable(_entries);
+
   List<Map<String, dynamic>> get redactedEntries {
     return _entries.map((entry) => entry.toJson()).toList(growable: false);
   }

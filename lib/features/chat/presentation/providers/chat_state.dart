@@ -113,6 +113,10 @@ class PendingComputerUseAction {
     required this.id,
     required this.toolName,
     required this.title,
+    required this.riskCategory,
+    required this.riskLabel,
+    required this.warningMessage,
+    required this.approveLabel,
     required this.summary,
     required this.details,
     required this.reason,
@@ -122,6 +126,10 @@ class PendingComputerUseAction {
   final String id;
   final String toolName;
   final String title;
+  final String riskCategory;
+  final String riskLabel;
+  final String warningMessage;
+  final String approveLabel;
   final String summary;
   final List<String> details;
   final String? reason;

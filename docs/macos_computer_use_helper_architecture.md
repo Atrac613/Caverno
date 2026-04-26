@@ -73,17 +73,18 @@ iteration.
 The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
-`permissionStatus`, `openSettings`, and `stopAll`; when the named service is
-unavailable, the app records the preferred attempt and falls back to
-`DistributedNotificationCenter`. XPC should not be treated as production-ready
-until the named service and all migrated commands pass parity smoke checks.
+`permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
+`listWindows`; when the named service is unavailable, the app records the
+preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
+not be treated as production-ready until the named service and all migrated
+commands pass parity smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
-- `ping`, `permissionStatus`, `openSettings`, and `stopAll` match the active
-  distributed-notification behavior. The next parity commands are `screenshot`
-  and `listWindows`.
+- `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
+  `listWindows` match the active distributed-notification behavior. The next
+  parity commands are `focusWindow` and `screenshotWindow`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate

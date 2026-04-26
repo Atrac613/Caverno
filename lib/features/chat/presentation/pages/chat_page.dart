@@ -8317,14 +8317,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
         final theme = Theme.of(sheetContext);
-        final isTextInput = pending.toolName == 'computer_type_text';
-        final isAudio =
-            pending.toolName == 'computer_start_system_audio_recording';
-        final icon = isAudio
-            ? Icons.graphic_eq_rounded
-            : isTextInput
-            ? Icons.keyboard_rounded
-            : Icons.ads_click_rounded;
+        final riskStyle = _computerUseRiskStyle(
+          theme,
+          pending.riskCategory,
+          pending.toolName,
+        );
         return Container(
           decoration: BoxDecoration(
             color: theme.colorScheme.surface,
@@ -8355,14 +8352,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       Container(
                         padding: const EdgeInsets.all(10),
                         decoration: BoxDecoration(
-                          color: theme.colorScheme.errorContainer.withValues(
+                          color: riskStyle.containerColor.withValues(
                             alpha: 0.6,
                           ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Icon(
-                          icon,
-                          color: theme.colorScheme.onErrorContainer,
+                          riskStyle.icon,
+                          color: riskStyle.iconColor,
                           size: 22,
                         ),
                       ),
@@ -8386,6 +8383,21 @@ class _ChatPageState extends ConsumerState<ChatPage>
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
+                            const SizedBox(height: 6),
+                            Chip(
+                              avatar: Icon(
+                                riskStyle.icon,
+                                size: 16,
+                                color: riskStyle.accentColor,
+                              ),
+                              label: Text(pending.riskLabel),
+                              visualDensity: VisualDensity.compact,
+                              side: BorderSide(
+                                color: riskStyle.accentColor.withValues(
+                                  alpha: 0.2,
+                                ),
+                              ),
+                            ),
                           ],
                         ),
                       ),
@@ -8399,14 +8411,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Icon(
-                        Icons.warning_amber_rounded,
+                        riskStyle.warningIcon,
                         size: 20,
-                        color: theme.colorScheme.error,
+                        color: riskStyle.accentColor,
                       ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
-                          'This action can control your macOS desktop. Approve only if the target and content look correct.',
+                          pending.warningMessage,
                           style: theme.textTheme.bodyMedium?.copyWith(
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
@@ -8525,11 +8537,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         flex: 2,
                         child: FilledButton.icon(
                           onPressed: () => Navigator.pop(sheetContext, true),
-                          icon: const Icon(Icons.check_rounded, size: 20),
-                          label: const Text('Approve Action'),
+                          icon: Icon(riskStyle.approveIcon, size: 20),
+                          label: Text(pending.approveLabel),
                           style: FilledButton.styleFrom(
-                            backgroundColor: theme.colorScheme.error,
-                            foregroundColor: theme.colorScheme.onError,
+                            backgroundColor: riskStyle.buttonColor,
+                            foregroundColor: riskStyle.buttonForegroundColor,
                           ),
                         ),
                       ),
@@ -8546,6 +8558,68 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref
         .read(chatNotifierProvider.notifier)
         .resolveComputerUseAction(id: pending.id, approved: approved ?? false);
+  }
+
+  _ComputerUseRiskStyle _computerUseRiskStyle(
+    ThemeData theme,
+    String riskCategory,
+    String toolName,
+  ) {
+    final scheme = theme.colorScheme;
+    return switch (riskCategory) {
+      'observe' => _ComputerUseRiskStyle(
+        icon: Icons.visibility_outlined,
+        warningIcon: Icons.visibility_outlined,
+        approveIcon: Icons.visibility_rounded,
+        containerColor: scheme.primaryContainer,
+        iconColor: scheme.onPrimaryContainer,
+        accentColor: scheme.primary,
+        buttonColor: scheme.primary,
+        buttonForegroundColor: scheme.onPrimary,
+      ),
+      'sensitive' => _ComputerUseRiskStyle(
+        icon: Icons.graphic_eq_rounded,
+        warningIcon: Icons.hearing_outlined,
+        approveIcon: Icons.mic_rounded,
+        containerColor: scheme.errorContainer,
+        iconColor: scheme.onErrorContainer,
+        accentColor: scheme.error,
+        buttonColor: scheme.error,
+        buttonForegroundColor: scheme.onError,
+      ),
+      'recovery' => _ComputerUseRiskStyle(
+        icon: Icons.health_and_safety_outlined,
+        warningIcon: Icons.shield_outlined,
+        approveIcon: Icons.stop_circle_outlined,
+        containerColor: scheme.tertiaryContainer,
+        iconColor: scheme.onTertiaryContainer,
+        accentColor: scheme.tertiary,
+        buttonColor: scheme.tertiary,
+        buttonForegroundColor: scheme.onTertiary,
+      ),
+      'setup' => _ComputerUseRiskStyle(
+        icon: Icons.settings_suggest_outlined,
+        warningIcon: Icons.info_outline_rounded,
+        approveIcon: Icons.arrow_forward_rounded,
+        containerColor: scheme.secondaryContainer,
+        iconColor: scheme.onSecondaryContainer,
+        accentColor: scheme.secondary,
+        buttonColor: scheme.secondary,
+        buttonForegroundColor: scheme.onSecondary,
+      ),
+      _ => _ComputerUseRiskStyle(
+        icon: toolName == 'computer_type_text'
+            ? Icons.keyboard_rounded
+            : Icons.ads_click_rounded,
+        warningIcon: Icons.warning_amber_rounded,
+        approveIcon: Icons.check_rounded,
+        containerColor: scheme.errorContainer,
+        iconColor: scheme.onErrorContainer,
+        accentColor: scheme.error,
+        buttonColor: scheme.error,
+        buttonForegroundColor: scheme.onError,
+      ),
+    };
   }
 
   Future<void> _showFileOperationDialog(
@@ -9888,6 +9962,28 @@ class _WorkflowQuickAction {
   final IconData icon;
   final ConversationWorkflowStage targetStage;
   final String promptKey;
+}
+
+class _ComputerUseRiskStyle {
+  const _ComputerUseRiskStyle({
+    required this.icon,
+    required this.warningIcon,
+    required this.approveIcon,
+    required this.containerColor,
+    required this.iconColor,
+    required this.accentColor,
+    required this.buttonColor,
+    required this.buttonForegroundColor,
+  });
+
+  final IconData icon;
+  final IconData warningIcon;
+  final IconData approveIcon;
+  final Color containerColor;
+  final Color iconColor;
+  final Color accentColor;
+  final Color buttonColor;
+  final Color buttonForegroundColor;
 }
 
 const List<_WorkflowQuickAction> _workflowQuickActions = [

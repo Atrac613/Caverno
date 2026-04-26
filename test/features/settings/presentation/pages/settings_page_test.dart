@@ -1,7 +1,9 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
 import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
 import 'package:easy_localization/easy_localization.dart';
@@ -28,6 +30,10 @@ class _TestTranslationLoader extends AssetLoader {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   EasyLocalization.logger.printer = (_, {stackTrace, level, name}) {};
+
+  setUp(() {
+    MacosComputerUseAuditLog.instance.clear();
+  });
 
   testWidgets('copies and exports diagnostics from the Settings card', (
     tester,
@@ -144,9 +150,41 @@ void main() {
     expect(find.text('OS action owner: helper'), findsOneWidget);
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
-      find.text('Next XPC parity: screenshot, listWindows'),
+      find.text('Next XPC parity: focusWindow, screenshotWindow'),
       findsOneWidget,
     );
+  });
+
+  testWidgets('shows recent redacted audit entries in the Settings card', (
+    tester,
+  ) async {
+    MacosComputerUseAuditLog.instance.record(
+      toolName: 'computer_click',
+      policy: MacosComputerUseToolPolicy.decision('computer_click'),
+      approvalResult: 'approved',
+      success: true,
+      result:
+          '{"selectedIpcTransport":"xpc_service","code":"ok","x":40,"y":40}',
+    );
+    MacosComputerUseAuditLog.instance.record(
+      toolName: 'computer_start_system_audio_recording',
+      policy: MacosComputerUseToolPolicy.decision(
+        'computer_start_system_audio_recording',
+      ),
+      approvalResult: 'denied',
+      success: false,
+      errorCode: 'approval_denied',
+    );
+
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Recent audit entries'), findsOneWidget);
+    expect(find.text('computer_click'), findsOneWidget);
+    expect(find.text('approved • input'), findsOneWidget);
+    expect(find.text('computer_start_system_audio_recording'), findsOneWidget);
+    expect(find.text('denied • sensitive'), findsOneWidget);
+    expect(find.text('Transport: xpc_service • Response: ok'), findsOneWidget);
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -403,10 +441,18 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcProductionReady': false,
       'mainAppUnsafeOsActionsAllowed': false,
       'helperOwnsUnsafeOsActions': true,
-      'xpcNextParityCommands': ['screenshot', 'listWindows'],
+      'xpcSupportedCommands': [
+        'ping',
+        'permissionStatus',
+        'openSettings',
+        'stopAll',
+        'screenshot',
+        'listWindows',
+      ],
+      'xpcNextParityCommands': ['focusWindow', 'screenshotWindow'],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_permission_status_open_settings_stop_all_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

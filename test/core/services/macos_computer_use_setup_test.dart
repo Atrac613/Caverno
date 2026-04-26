@@ -48,6 +48,8 @@ void main() {
       'permissionStatus',
       'openSettings',
       'stopAll',
+      'screenshot',
+      'listWindows',
     ]);
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
@@ -59,10 +61,12 @@ void main() {
       info['helperOwnedActionCategories'],
       contains('system_audio_recording'),
     );
-    expect(info['xpcNextParityCommands'], ['screenshot', 'listWindows']);
+    expect(info['xpcNextParityCommands'], ['focusWindow', 'screenshotWindow']);
     expect(
       info['xpcProductionReadinessCriteria'],
-      contains('ping_permission_status_open_settings_stop_all_match_dnc'),
+      contains(
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_match_dnc',
+      ),
     );
   });
 
@@ -138,7 +142,10 @@ void main() {
     );
     expect(
       diagnostics['helperIpcProtocol'],
-      containsPair('xpcNextParityCommands', ['screenshot', 'listWindows']),
+      containsPair('xpcNextParityCommands', [
+        'focusWindow',
+        'screenshotWindow',
+      ]),
     );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());

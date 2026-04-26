@@ -1,6 +1,8 @@
 import 'dart:convert';
 
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +10,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  setUp(() {
+    MacosComputerUseAuditLog.instance.clear();
+  });
+
   testWidgets('shows helper boundary while using helper IPC backend', (
     tester,
   ) async {
@@ -266,6 +272,41 @@ void main() {
 
     expect(
       find.textContaining('Last export:', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('shows recent audit entries in the diagnostics card', (
+    tester,
+  ) async {
+    MacosComputerUseAuditLog.instance.record(
+      toolName: 'computer_list_windows',
+      policy: MacosComputerUseToolPolicy.decision('computer_list_windows'),
+      approvalResult: 'not_required',
+      success: true,
+      result: '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+    );
+    MacosComputerUseAuditLog.instance.record(
+      toolName: 'computer_click',
+      policy: MacosComputerUseToolPolicy.decision('computer_click'),
+      approvalResult: 'approved',
+      success: false,
+      result:
+          '{"selectedIpcTransport":"distributed_notification_center","code":"click_failed"}',
+    );
+
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Recent audit entries'), findsOneWidget);
+    expect(find.text('computer_list_windows'), findsOneWidget);
+    expect(find.text('not_required • observe'), findsOneWidget);
+    expect(find.text('computer_click'), findsOneWidget);
+    expect(find.text('approved • input'), findsOneWidget);
+    expect(
+      find.text(
+        'Transport: distributed_notification_center • Response: click_failed',
+      ),
       findsOneWidget,
     );
   });

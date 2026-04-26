@@ -8,6 +8,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../widgets/computer_use_audit_log_summary.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
   const ComputerUseDebugPage({super.key});
@@ -681,6 +682,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   onPressed: _exportDiagnostics,
                 ),
               ],
+            ),
+            const SizedBox(height: 12),
+            ComputerUseAuditLogSummary(
+              entries: MacosComputerUseAuditLog.instance.redactedEntries,
+              maxEntries: 5,
             ),
             if (_lastDiagnosticExportPath != null) ...[
               const SizedBox(height: 8),

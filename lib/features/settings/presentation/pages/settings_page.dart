@@ -10,6 +10,7 @@ import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../providers/settings_notifier.dart';
+import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/qr_export_dialog.dart';
 import 'computer_use_debug_page.dart';
 import 'debug_settings_page.dart';
@@ -528,6 +529,11 @@ class _ComputerUseOnboardingCardState
               const SizedBox(height: 8),
               _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
             ],
+            const SizedBox(height: 8),
+            ComputerUseAuditLogSummary(
+              entries: MacosComputerUseAuditLog.instance.redactedEntries,
+              maxEntries: 3,
+            ),
             const SizedBox(height: 12),
             Text(
               'Next action: ${primaryAction.detail}',

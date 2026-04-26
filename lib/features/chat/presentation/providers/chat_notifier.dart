@@ -46,6 +46,7 @@ import '../../domain/services/tool_result_prompt_builder.dart';
 import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';
+import 'macos_computer_use_approval_copy.dart';
 import 'mcp_tool_provider.dart';
 import 'tool_approval_cache.dart';
 
@@ -8127,6 +8128,10 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final policy = MacosComputerUseToolPolicy.decision(toolCall.name);
+    final approvalCopy = MacosComputerUseApprovalCopy.from(
+      toolName: toolCall.name,
+      policy: policy,
+    );
     final details = [
       if (policy != null) ...[
         'Policy: ${policy.policyLabel}',
@@ -8141,7 +8146,11 @@ class ChatNotifier extends Notifier<ChatState> {
 
     final approved = await requestComputerUseAction(
       toolName: toolCall.name,
-      title: _computerUseActionTitle(toolCall.name),
+      title: approvalCopy.title,
+      riskCategory: policy?.riskCategory.name ?? 'unknown',
+      riskLabel: approvalCopy.riskLabel,
+      warningMessage: approvalCopy.warningMessage,
+      approveLabel: approvalCopy.approveLabel,
       summary: _describeComputerUseAction(toolCall),
       details: details,
       reason: toolCall.arguments['reason'] as String?,
@@ -8207,6 +8216,10 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<bool> requestComputerUseAction({
     required String toolName,
     required String title,
+    required String riskCategory,
+    required String riskLabel,
+    required String warningMessage,
+    required String approveLabel,
     required String summary,
     required List<String> details,
     String? reason,
@@ -8217,6 +8230,10 @@ class ChatNotifier extends Notifier<ChatState> {
         id: const Uuid().v4(),
         toolName: toolName,
         title: title,
+        riskCategory: riskCategory,
+        riskLabel: riskLabel,
+        warningMessage: warningMessage,
+        approveLabel: approveLabel,
         summary: summary,
         details: details,
         reason: reason,
@@ -8233,21 +8250,6 @@ class ChatNotifier extends Notifier<ChatState> {
       pending.completer.complete(approved);
     }
     state = state.copyWith(pendingComputerUseAction: null);
-  }
-
-  String _computerUseActionTitle(String toolName) {
-    return switch (toolName) {
-      'computer_click' => 'Approve macOS Click',
-      'computer_focus_window' => 'Approve macOS Window Focus',
-      'computer_move_mouse' => 'Approve macOS Pointer Move',
-      'computer_drag' => 'Approve macOS Drag',
-      'computer_scroll' => 'Approve macOS Scroll',
-      'computer_type_text' => 'Approve macOS Text Input',
-      'computer_press_key' => 'Approve macOS Key Press',
-      'computer_start_system_audio_recording' =>
-        'Approve System Audio Recording',
-      _ => 'Approve macOS Computer Use',
-    };
   }
 
   String _describeComputerUseAction(ToolCallInfo toolCall) {
