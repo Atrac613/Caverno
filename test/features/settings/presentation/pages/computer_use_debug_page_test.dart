@@ -229,6 +229,7 @@ void main() {
     expect(text, contains('"migratedCommands"'));
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
+    expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
     expect(text, isNot(contains(_png1x1Base64)));
@@ -348,6 +349,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'helperRunning': true,
       'helperPath':
           '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -372,6 +374,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'accessibilityGranted': true,
       'screenCaptureGranted': false,
       'systemAudioRecordingSupported': true,
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -383,6 +386,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'backend': 'helper',
       'helperReachable': true,
       'message': 'pong',
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -395,8 +399,17 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> stopHelperWork() async {
     stopHelperWorkCallCount += 1;
-    return _json({'ok': true, 'backend': 'helper'});
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperStatusPersistence': _persistence,
+    });
   }
+
+  Map<String, dynamic> get _persistence => {
+    'updatedAt': '2026-04-25T12:00:30Z',
+    'activeWork': {'systemAudioRecording': false},
+  };
 
   @override
   Future<String> screenshot(Map<String, dynamic> arguments) async {

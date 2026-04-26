@@ -417,6 +417,10 @@ private enum ComputerUseHelperIpcSchema {
   static let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
   static let activeTransport = "distributed_notification_center"
   static let preferredTransport = "xpc_service"
+  static let fallbackTransport = activeTransport
+  static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
+  static let xpcSupportedCommands = ["ping", "permissionStatus"]
+  static let xpcReady = false
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let requestEnvelope = [
@@ -531,9 +535,10 @@ private final class ComputerUseHelperIpc: NSObject {
       self,
       selector: #selector(handleRequest(_:)),
       name: requestName,
-      object: mainAppBundleIdentifier,
+      object: nil,
       suspensionBehavior: .deliverImmediately
     )
+    center.suspended = false
   }
 
   func recordOnboardingVerification(_ verification: [String: Any]) {
@@ -1148,14 +1153,18 @@ private final class ComputerUseHelperIpc: NSObject {
       "helperDisplayName": "Caverno Computer Use",
       "helperBundleIdentifier": ComputerUseHelperIpcSchema.helperBundleIdentifier,
       "ipcTransport": ComputerUseHelperIpcSchema.activeTransport,
+      "selectedIpcTransport": ComputerUseHelperIpcSchema.activeTransport,
       "preferredIpcTransport": ComputerUseHelperIpcSchema.preferredTransport,
+      "fallbackIpcTransport": ComputerUseHelperIpcSchema.fallbackTransport,
       "requestObject": ComputerUseHelperIpcSchema.mainAppBundleIdentifier,
       "responseObject": ComputerUseHelperIpcSchema.helperBundleIdentifier,
       "requestNotificationName": ComputerUseHelperIpcSchema.requestName.rawValue,
       "responseNotificationName": ComputerUseHelperIpcSchema.responseName.rawValue,
       "requestEnvelope": ComputerUseHelperIpcSchema.requestEnvelope,
       "responseEnvelope": ComputerUseHelperIpcSchema.responseEnvelope,
-      "xpcReady": false,
+      "xpcServiceName": ComputerUseHelperIpcSchema.xpcServiceName,
+      "xpcSupportedCommands": ComputerUseHelperIpcSchema.xpcSupportedCommands,
+      "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
       "audioRecordingActive": audioRecordingActive,
       "activeWork": activeWork,
       "helperStatusPersistence": persistedStatus,

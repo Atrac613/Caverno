@@ -175,12 +175,25 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   case pressKey
   case startSystemAudioRecording
   case stopSystemAudioRecording
+
+  var supportsPreferredXpcTransport: Bool {
+    switch self {
+    case .ping, .permissionStatus:
+      return true
+    default:
+      return false
+    }
+  }
 }
 
 fileprivate enum MacosComputerUseIpcSchema {
   static let protocolVersion = 1
   static let activeTransport = "distributed_notification_center"
   static let preferredTransport = "xpc_service"
+  static let fallbackTransport = activeTransport
+  static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
+  static let xpcSupportedCommands = ["ping", "permissionStatus"]
+  static let xpcReady = false
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let helperUnreachable = "helper_unreachable"
@@ -234,6 +247,8 @@ fileprivate struct MacosComputerUseHelperRequest {
 
 fileprivate struct PendingMacosComputerUseHelperRequest {
   let command: MacosComputerUseHelperCommand
+  let selectedTransport: String
+  let attemptedTransport: String?
   let result: FlutterResult
 }
 
@@ -251,9 +266,10 @@ final class MacosComputerUseHelperClient: NSObject {
       self,
       selector: #selector(handleResponse(_:)),
       name: responseName,
-      object: helperBundleIdentifier,
+      object: nil,
       suspensionBehavior: .deliverImmediately
     )
+    center.suspended = false
   }
 
   deinit {
@@ -275,13 +291,16 @@ final class MacosComputerUseHelperClient: NSObject {
       "protocolVersion": MacosComputerUseHelperRequest.protocolVersion,
       "ipcTransport": MacosComputerUseIpcSchema.activeTransport,
       "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
+      "fallbackIpcTransport": MacosComputerUseIpcSchema.fallbackTransport,
       "requestObject": Bundle.main.bundleIdentifier ?? "",
       "responseObject": helperBundleIdentifier,
       "requestNotificationName": MacosComputerUseIpcSchema.requestName.rawValue,
       "responseNotificationName": MacosComputerUseIpcSchema.responseName.rawValue,
       "requestEnvelope": MacosComputerUseIpcSchema.requestEnvelope,
       "responseEnvelope": MacosComputerUseIpcSchema.responseEnvelope,
-      "xpcReady": false,
+      "xpcServiceName": MacosComputerUseIpcSchema.xpcServiceName,
+      "xpcSupportedCommands": MacosComputerUseIpcSchema.xpcSupportedCommands,
+      "xpcReady": MacosComputerUseIpcSchema.xpcReady,
     ]
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
@@ -343,6 +362,8 @@ final class MacosComputerUseHelperClient: NSObject {
     command: MacosComputerUseHelperCommand,
     arguments: [String: Any] = [:],
     timeout: TimeInterval = 1.5,
+    selectedTransport: String = MacosComputerUseIpcSchema.activeTransport,
+    attemptedTransport: String? = nil,
     result: @escaping FlutterResult
   ) {
     let requestId = UUID().uuidString
@@ -353,6 +374,8 @@ final class MacosComputerUseHelperClient: NSObject {
     )
     pendingRequests[requestId] = PendingMacosComputerUseHelperRequest(
       command: command,
+      selectedTransport: selectedTransport,
+      attemptedTransport: attemptedTransport,
       result: result
     )
     center.postNotificationName(
@@ -366,20 +389,70 @@ final class MacosComputerUseHelperClient: NSObject {
       guard let pendingRequest = self?.pendingRequests.removeValue(forKey: requestId) else {
         return
       }
+      var details: [String: Any] = [
+        "command": pendingRequest.command.rawValue,
+        "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+        "ipcTransport": pendingRequest.selectedTransport,
+        "selectedIpcTransport": pendingRequest.selectedTransport,
+        "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
+        "fallbackIpcTransport": MacosComputerUseIpcSchema.fallbackTransport,
+        "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+      ]
+      if let attemptedTransport = pendingRequest.attemptedTransport {
+        details["attemptedIpcTransport"] = attemptedTransport
+      }
       pendingRequest.result(
         FlutterError(
           code: MacosComputerUseIpcSchema.helperUnreachable,
           message: "Caverno Computer Use did not respond to \(pendingRequest.command.rawValue).",
-          details: [
-            "command": pendingRequest.command.rawValue,
-            "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
-            "ipcTransport": MacosComputerUseIpcSchema.activeTransport,
-            "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
-            "xpcReady": false,
-          ]
+          details: details
         )
       )
     }
+  }
+
+  fileprivate func sendPreferred(
+    command: MacosComputerUseHelperCommand,
+    arguments: [String: Any] = [:],
+    timeout: TimeInterval = 1.5,
+    result: @escaping FlutterResult
+  ) {
+    if sendXpc(command: command, arguments: arguments, timeout: timeout, result: result) {
+      return
+    }
+
+    let attemptedTransport: String?
+    if command.supportsPreferredXpcTransport {
+      attemptedTransport = MacosComputerUseIpcSchema.preferredTransport
+    } else {
+      attemptedTransport = nil
+    }
+    send(
+      command: command,
+      arguments: arguments,
+      timeout: timeout,
+      selectedTransport: MacosComputerUseIpcSchema.fallbackTransport,
+      attemptedTransport: attemptedTransport,
+      result: result
+    )
+  }
+
+  private func sendXpc(
+    command: MacosComputerUseHelperCommand,
+    arguments: [String: Any],
+    timeout: TimeInterval,
+    result: @escaping FlutterResult
+  ) -> Bool {
+    guard MacosComputerUseIpcSchema.xpcReady else {
+      return false
+    }
+    guard command.supportsPreferredXpcTransport else {
+      return false
+    }
+    _ = arguments
+    _ = timeout
+    _ = result
+    return false
   }
 
   @objc private func handleResponse(_ notification: Notification) {
@@ -432,7 +505,13 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
-    pendingRequest.result(response)
+    var responseWithTransport = response
+    responseWithTransport["selectedIpcTransport"] = pendingRequest.selectedTransport
+    responseWithTransport["fallbackIpcTransport"] = MacosComputerUseIpcSchema.fallbackTransport
+    if let attemptedTransport = pendingRequest.attemptedTransport {
+      responseWithTransport["attemptedIpcTransport"] = attemptedTransport
+    }
+    pendingRequest.result(responseWithTransport)
   }
 
   private func embeddedHelperURL() -> URL {
@@ -462,9 +541,9 @@ final class MacosComputerUseChannel {
     case "launchHelper":
       helperClient.launch(result: result)
     case "helperPing":
-      helperClient.send(command: .ping, result: result)
+      helperClient.sendPreferred(command: .ping, result: result)
     case "helperPermissionStatus":
-      helperClient.send(command: .permissionStatus, result: result)
+      helperClient.sendPreferred(command: .permissionStatus, result: result)
     case "helperOpenSystemSettings":
       helperClient.send(
         command: .openSettings,

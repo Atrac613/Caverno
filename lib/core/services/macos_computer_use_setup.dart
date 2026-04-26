@@ -64,6 +64,7 @@ class MacosComputerUseIpcInfo {
     required this.version,
     required this.transport,
     required this.preferredTransport,
+    required this.fallbackTransport,
     required this.requestObject,
     required this.responseObject,
     required this.requestNotificationName,
@@ -72,12 +73,15 @@ class MacosComputerUseIpcInfo {
     required this.responseEnvelope,
     required this.timeoutsMs,
     required this.errorCodes,
+    required this.xpcServiceName,
+    required this.xpcSupportedCommands,
     required this.xpcReady,
   });
 
   final int version;
   final String transport;
   final String preferredTransport;
+  final String fallbackTransport;
   final String requestObject;
   final String responseObject;
   final String requestNotificationName;
@@ -86,6 +90,8 @@ class MacosComputerUseIpcInfo {
   final List<String> responseEnvelope;
   final Map<String, int> timeoutsMs;
   final List<String> errorCodes;
+  final String xpcServiceName;
+  final List<String> xpcSupportedCommands;
   final bool xpcReady;
 
   Map<String, dynamic> toJson() {
@@ -93,6 +99,7 @@ class MacosComputerUseIpcInfo {
       'version': version,
       'transport': transport,
       'preferredTransport': preferredTransport,
+      'fallbackTransport': fallbackTransport,
       'requestObject': requestObject,
       'responseObject': responseObject,
       'requestNotificationName': requestNotificationName,
@@ -101,6 +108,8 @@ class MacosComputerUseIpcInfo {
       'responseEnvelope': responseEnvelope,
       'timeoutsMs': timeoutsMs,
       'errorCodes': errorCodes,
+      'xpcServiceName': xpcServiceName,
+      'xpcSupportedCommands': xpcSupportedCommands,
       'xpcReady': xpcReady,
     };
   }
@@ -112,6 +121,9 @@ class MacosComputerUseIpc {
   static const protocolVersion = 1;
   static const transport = 'distributed_notification_center';
   static const preferredTransport = 'xpc_service';
+  static const fallbackTransport = transport;
+  static const xpcServiceName = 'com.noguwo.apps.caverno.computer-use.xpc';
+  static const xpcSupportedCommands = ['ping', 'permissionStatus'];
   static const requestNotificationName =
       'com.caverno.computer_use.helper.request';
   static const responseNotificationName =
@@ -155,6 +167,7 @@ class MacosComputerUseIpc {
     version: protocolVersion,
     transport: transport,
     preferredTransport: preferredTransport,
+    fallbackTransport: fallbackTransport,
     requestObject: MacosComputerUseBackends.mainAppBundleIdentifier,
     responseObject: MacosComputerUseBackends.helperBundleIdentifier,
     requestNotificationName: requestNotificationName,
@@ -163,6 +176,8 @@ class MacosComputerUseIpc {
     responseEnvelope: responseEnvelope,
     timeoutsMs: timeoutsMs,
     errorCodes: errorCodes,
+    xpcServiceName: xpcServiceName,
+    xpcSupportedCommands: xpcSupportedCommands,
     xpcReady: false,
   );
 }
@@ -175,6 +190,7 @@ class MacosComputerUseOnboardingDiagnostics {
     required this.helperIpcProtocol,
     this.onboardingVerification,
     this.helperStatus,
+    this.helperStatusPersistence,
     this.permissions,
     this.audioRecording,
     this.inputActionsArmed,
@@ -205,6 +221,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Map<String, dynamic> helperIpcProtocol;
   final Map<String, dynamic>? onboardingVerification;
   final Map<String, dynamic>? helperStatus;
+  final Map<String, dynamic>? helperStatusPersistence;
   final Map<String, dynamic>? permissions;
   final bool? audioRecording;
   final bool? inputActionsArmed;
@@ -234,6 +251,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'onboardingSmokeChecklist': onboardingSmokeChecklist,
       'onboardingVerification': onboardingVerification,
       'helperStatus': helperStatus,
+      'helperStatusPersistence': helperStatusPersistence,
       'permissions': permissions,
       'audioRecording': audioRecording,
       'inputActionsArmed': inputActionsArmed,

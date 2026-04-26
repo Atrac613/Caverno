@@ -59,8 +59,13 @@ void main() {
 
     expect(text, contains('"schemaName": "macos_computer_use_onboarding"'));
     expect(text, contains('"onboardingVerification"'));
+    expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
+    expect(
+      find.textContaining('Helper status saved:', skipOffstage: false),
+      findsOneWidget,
+    );
 
     await _tapByKey(tester, 'computer-use-settings-export-diagnostics');
 
@@ -278,6 +283,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'helperRunning': true,
       'helperPath':
           '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -303,6 +309,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'screenCaptureGranted': _screenCaptureGranted,
       'systemAudioRecordingSupported': true,
       'onboardingVerification': _verification,
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -323,6 +330,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'audioRecordingActive': _helperWorkActive,
       'activeWork': {'systemAudioRecording': _helperWorkActive},
       'onboardingVerification': _verification,
+      'helperStatusPersistence': _persistence,
     });
   }
 
@@ -336,8 +344,15 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'stoppedAudioRecording': true,
       'cancelledInputEvents': true,
       'audioRecordingActive': false,
+      'helperStatusPersistence': _persistence,
     });
   }
+
+  Map<String, dynamic> get _persistence => {
+    'updatedAt': '2026-04-25T12:00:30Z',
+    'activeWork': {'systemAudioRecording': _helperWorkActive},
+    'onboardingVerification': _verification,
+  };
 
   static Map<String, dynamic> get _verification => {
     'ok': false,

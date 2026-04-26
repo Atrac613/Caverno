@@ -1255,6 +1255,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
       helperStatus: _helperStatus,
+      helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
       audioRecording: _audioRecording,
       inputActionsArmed: _inputActionsArmed,
@@ -1343,6 +1344,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final value =
         _helperStatus?['onboardingVerification'] ??
         _permissions?['onboardingVerification'];
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _helperStatusPersistence() {
+    final value =
+        _helperStatus?['helperStatusPersistence'] ??
+        _permissions?['helperStatusPersistence'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
     }

@@ -26,6 +26,7 @@ void main() {
     expect(info['version'], 1);
     expect(info['transport'], 'distributed_notification_center');
     expect(info['preferredTransport'], 'xpc_service');
+    expect(info['fallbackTransport'], 'distributed_notification_center');
     expect(info['requestObject'], 'com.noguwo.apps.caverno');
     expect(info['responseObject'], 'com.noguwo.apps.caverno.computer-use');
     expect(
@@ -40,6 +41,8 @@ void main() {
     expect(info['responseEnvelope'], contains('response'));
     expect(info['timeoutsMs'], containsPair('stopAll', 8000));
     expect(info['errorCodes'], contains('helper_unreachable'));
+    expect(info['xpcServiceName'], 'com.noguwo.apps.caverno.computer-use.xpc');
+    expect(info['xpcSupportedCommands'], ['ping', 'permissionStatus']);
     expect(info['xpcReady'], isFalse);
   });
 
@@ -69,6 +72,10 @@ void main() {
         ],
       },
       helperStatus: const {'helperRunning': true},
+      helperStatusPersistence: const {
+        'updatedAt': '2026-04-25T12:00:30Z',
+        'activeWork': {'systemAudioRecording': false},
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -90,6 +97,7 @@ void main() {
     expect(diagnostics['generatedAt'], '2026-04-25T12:00:00.000Z');
     expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
     expect(diagnostics['onboardingVerification'], containsPair('ok', false));
+    expect(diagnostics['helperStatusPersistence'], contains('activeWork'));
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', false));
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

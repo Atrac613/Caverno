@@ -375,6 +375,7 @@ class _ComputerUseOnboardingCardState
     final checklist = _setupChecklist(service.permissionBackendInfo);
     final ready = checklist.isReady;
     final onboardingVerification = _onboardingVerification();
+    final helperStatusPersistence = _helperStatusPersistence();
     final verificationOk = onboardingVerification?['ok'] == true;
     final verificationRan = onboardingVerification != null;
     final helperWorkActive = _helperWorkActive() == true;
@@ -473,6 +474,10 @@ class _ComputerUseOnboardingCardState
             if (onboardingVerification != null) ...[
               const SizedBox(height: 8),
               _VerificationSummary(verification: onboardingVerification),
+            ],
+            if (helperStatusPersistence != null) ...[
+              const SizedBox(height: 8),
+              _PersistenceSummary(persistence: helperStatusPersistence),
             ],
             if (showAccessibilityCta || showScreenRecordingCta) ...[
               const SizedBox(height: 12),
@@ -735,11 +740,13 @@ class _ComputerUseOnboardingCardState
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
       helperStatus: _helperStatus,
+      helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,
+        'helperStatusPersistence': _helperStatusPersistence(),
         'permissions': _permissions,
         'onboardingVerification': _onboardingVerification(),
         'lastStopResult': _lastStopResult,
@@ -806,13 +813,33 @@ class _ComputerUseOnboardingCardState
     final value =
         _helperStatus?['audioRecordingActive'] ??
         _permissions?['audioRecordingActive'];
-    return value is bool ? value : null;
+    if (value is bool) {
+      return value;
+    }
+    final activeWork = _helperStatusPersistence()?['activeWork'];
+    if (activeWork is Map) {
+      final systemAudioRecording = activeWork['systemAudioRecording'];
+      if (systemAudioRecording is bool) {
+        return systemAudioRecording;
+      }
+    }
+    return null;
   }
 
   Map<String, dynamic>? _onboardingVerification() {
     final value =
         _helperStatus?['onboardingVerification'] ??
         _permissions?['onboardingVerification'];
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _helperStatusPersistence() {
+    final value =
+        _helperStatus?['helperStatusPersistence'] ??
+        _permissions?['helperStatusPersistence'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
     }
@@ -930,6 +957,64 @@ class _VerificationSummary extends StatelessWidget {
             ],
           ),
         ],
+      ],
+    );
+  }
+}
+
+class _PersistenceSummary extends StatelessWidget {
+  const _PersistenceSummary({required this.persistence});
+
+  final Map<String, dynamic> persistence;
+
+  @override
+  Widget build(BuildContext context) {
+    final updatedAt = persistence['updatedAt'];
+    final activeWork = persistence['activeWork'];
+    final activeWorkLabels = <String>[];
+    if (activeWork is Map) {
+      for (final entry in activeWork.entries) {
+        if (entry.value == true) {
+          activeWorkLabels.add('${entry.key}');
+        }
+      }
+    }
+    final verification = persistence['onboardingVerification'];
+    final hasVerification = verification is Map;
+    final verificationOk = hasVerification && verification['ok'] == true;
+    final hasActiveWork = activeWorkLabels.isNotEmpty;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'Helper status saved: ${updatedAt is String ? updatedAt : 'Unknown'}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _StatusChip(
+              label: 'Saved Work',
+              value: !hasActiveWork,
+              trueText: 'Idle',
+              falseText: 'Active',
+            ),
+            _StatusChip(
+              label: 'Saved Verify',
+              value: verificationOk,
+              trueText: 'Passed',
+              falseText: hasVerification ? 'Needs attention' : 'Not saved',
+            ),
+          ],
+        ),
+        const SizedBox(height: 4),
+        Text(
+          'Saved active work: ${hasActiveWork ? activeWorkLabels.join(', ') : 'none'}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
       ],
     );
   }
