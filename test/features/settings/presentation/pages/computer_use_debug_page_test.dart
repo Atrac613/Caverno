@@ -292,7 +292,7 @@ void main() {
       approvalResult: 'approved',
       success: false,
       result:
-          '{"selectedIpcTransport":"distributed_notification_center","code":"click_failed"}',
+          '{"selectedIpcTransport":"distributed_notification_center","preferredIpcTransport":"xpc_service","fallbackIpcTransport":"distributed_notification_center","preferredIpcAttempt":{"status":"xpc_timeout","errorCode":"helper_xpc_timeout"},"code":"click_failed"}',
     );
 
     final service = _FakeMacosComputerUseService();
@@ -307,6 +307,10 @@ void main() {
       find.text(
         'Transport: distributed_notification_center • Response: click_failed',
       ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Fallback: xpc_timeout (helper_xpc_timeout)'),
       findsOneWidget,
     );
   });

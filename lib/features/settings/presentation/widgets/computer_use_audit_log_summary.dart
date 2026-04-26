@@ -56,6 +56,7 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
     final approvalResult = '${entry['approvalResult'] ?? 'unknown'}';
     final transport = _optionalText(entry['transport']) ?? 'transport unknown';
     final responseCode = _optionalText(entry['responseCode']);
+    final fallbackReason = _optionalText(entry['fallbackReason']);
 
     return DecoratedBox(
       decoration: BoxDecoration(
@@ -110,6 +111,15 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
                         : 'Transport: $transport • Response: $responseCode',
                     style: theme.textTheme.bodySmall,
                   ),
+                  if (fallbackReason != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      'Fallback: $fallbackReason',
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                 ],
               ),
             ),

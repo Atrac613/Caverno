@@ -1100,6 +1100,9 @@ class _ComputerUseOnboardingCardState
       'helperOwnedActionCategories':
           snapshot['helperOwnedActionCategories'] ??
           MacosComputerUseIpc.current.helperOwnedActionCategories,
+      'xpcSupportedCommands':
+          snapshot['xpcSupportedCommands'] ??
+          MacosComputerUseIpc.current.xpcSupportedCommands,
       'xpcNextParityCommands':
           snapshot['xpcNextParityCommands'] ??
           MacosComputerUseIpc.current.xpcNextParityCommands,
@@ -1119,6 +1122,12 @@ class _ComputerUseOnboardingCardState
     }
     if (preferredAttemptErrorCode != null) {
       runtime['preferredAttemptErrorCode'] = preferredAttemptErrorCode;
+    }
+    if (runtime['preferredFallbackActive'] == true &&
+        preferredAttemptStatus != null) {
+      runtime['preferredFallbackReason'] = preferredAttemptErrorCode == null
+          ? preferredAttemptStatus
+          : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
     }
     return runtime;
   }
@@ -1387,6 +1396,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final status = fallbackActive
         ? 'preferred XPC fell back to $fallback'
         : 'using $selected';
+    final fallbackReason = runtime['preferredFallbackReason'];
+    final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
 
     return Column(
@@ -1403,6 +1414,11 @@ class _IpcRuntimeSummary extends StatelessWidget {
           children: [
             _InfoChip(label: 'Active IPC', value: selected),
             _InfoChip(label: 'Preferred IPC', value: preferred),
+            if (supportedCommands.isNotEmpty)
+              _InfoChip(
+                label: 'XPC commands',
+                value: supportedCommands.join(', '),
+              ),
             _InfoChip(label: 'XPC status', value: '${runtime['xpcStatus']}'),
             _InfoChip(
               label: 'OS action owner',
@@ -1422,6 +1438,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Preferred error',
                 value: preferredAttemptErrorCode,
               ),
+            if (fallbackReason is String)
+              _InfoChip(label: 'Fallback reason', value: fallbackReason),
             if (nextParityCommands.isNotEmpty)
               _InfoChip(
                 label: 'Next XPC parity',

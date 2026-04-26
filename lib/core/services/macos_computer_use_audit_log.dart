@@ -9,6 +9,9 @@ class MacosComputerUseAuditEntry {
     required this.riskCategory,
     required this.approvalResult,
     required this.transport,
+    required this.preferredAttemptStatus,
+    required this.preferredAttemptErrorCode,
+    required this.fallbackReason,
     required this.responseCode,
     required this.success,
   });
@@ -18,6 +21,9 @@ class MacosComputerUseAuditEntry {
   final String riskCategory;
   final String approvalResult;
   final String? transport;
+  final String? preferredAttemptStatus;
+  final String? preferredAttemptErrorCode;
+  final String? fallbackReason;
   final String? responseCode;
   final bool success;
 
@@ -28,6 +34,9 @@ class MacosComputerUseAuditEntry {
       'riskCategory': riskCategory,
       'approvalResult': approvalResult,
       'transport': transport,
+      'preferredAttemptStatus': preferredAttemptStatus,
+      'preferredAttemptErrorCode': preferredAttemptErrorCode,
+      'fallbackReason': fallbackReason,
       'responseCode': responseCode,
       'success': success,
     };
@@ -62,15 +71,30 @@ class MacosComputerUseAuditLog {
     String? errorCode,
   }) {
     final decoded = _decodeResult(result);
+    final preferredAttempt = _mapValue(decoded?['preferredIpcAttempt']);
+    final preferredAttemptStatus = _stringValue(preferredAttempt?['status']);
+    final preferredAttemptErrorCode = _stringValue(
+      preferredAttempt?['errorCode'],
+    );
+    final transport =
+        _stringValue(decoded?['selectedIpcTransport']) ??
+        _stringValue(decoded?['ipcTransport']);
     final responseCode = _stringValue(decoded?['code']) ?? errorCode;
     final entry = MacosComputerUseAuditEntry(
       timestamp: DateTime.now(),
       toolName: toolName,
       riskCategory: policy?.riskCategory.name ?? 'unknown',
       approvalResult: approvalResult,
-      transport:
-          _stringValue(decoded?['selectedIpcTransport']) ??
-          _stringValue(decoded?['ipcTransport']),
+      transport: transport,
+      preferredAttemptStatus: preferredAttemptStatus,
+      preferredAttemptErrorCode: preferredAttemptErrorCode,
+      fallbackReason: _fallbackReason(
+        transport: transport,
+        preferredTransport: _stringValue(decoded?['preferredIpcTransport']),
+        fallbackTransport: _stringValue(decoded?['fallbackIpcTransport']),
+        preferredAttemptStatus: preferredAttemptStatus,
+        preferredAttemptErrorCode: preferredAttemptErrorCode,
+      ),
       responseCode: responseCode,
       success: success,
     );
@@ -97,5 +121,33 @@ class MacosComputerUseAuditLog {
 
   String? _stringValue(Object? value) {
     return value is String && value.isNotEmpty ? value : null;
+  }
+
+  Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  String? _fallbackReason({
+    required String? transport,
+    required String? preferredTransport,
+    required String? fallbackTransport,
+    required String? preferredAttemptStatus,
+    required String? preferredAttemptErrorCode,
+  }) {
+    if (transport == null ||
+        preferredTransport == null ||
+        fallbackTransport == null ||
+        preferredTransport == fallbackTransport ||
+        transport != fallbackTransport ||
+        preferredAttemptStatus == null) {
+      return null;
+    }
+    if (preferredAttemptErrorCode == null) {
+      return preferredAttemptStatus;
+    }
+    return '$preferredAttemptStatus ($preferredAttemptErrorCode)';
   }
 }

@@ -183,7 +183,14 @@ fileprivate enum MacosComputerUseHelperCommand: String {
 
   var supportsPreferredXpcTransport: Bool {
     switch self {
-    case .ping, .permissionStatus, .openSettings, .stopAll, .screenshot, .listWindows:
+    case .ping,
+      .permissionStatus,
+      .openSettings,
+      .stopAll,
+      .screenshot,
+      .listWindows,
+      .focusWindow,
+      .screenshotWindow:
       return true
     default:
       return false
@@ -204,6 +211,8 @@ fileprivate enum MacosComputerUseIpcSchema {
     "stopAll",
     "screenshot",
     "listWindows",
+    "focusWindow",
+    "screenshotWindow",
   ]
   static let xpcReady = true
   static let xpcProductionReady = false
@@ -217,10 +226,10 @@ fileprivate enum MacosComputerUseIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
-  static let xpcNextParityCommands = ["focusWindow", "screenshotWindow"]
+  static let xpcNextParityCommands = ["moveMouse", "click"]
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_match_dnc",
+    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -996,13 +1005,13 @@ final class MacosComputerUseChannel {
     case "helperPermissionStatus":
       helperClient.sendPreferred(command: .permissionStatus, result: result)
     case "helperOpenSystemSettings":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .openSettings,
         arguments: call.arguments as? [String: Any] ?? [:],
         result: result
       )
     case "helperStopAll":
-      helperClient.send(command: .stopAll, timeout: 8, result: result)
+      helperClient.sendPreferred(command: .stopAll, timeout: 8, result: result)
     case "getPermissions":
       result(permissionSnapshot())
     case "requestAccessibility":
@@ -1012,28 +1021,28 @@ final class MacosComputerUseChannel {
     case "openSystemSettings":
       openSystemSettings(call, result: result)
     case "listWindows":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .listWindows,
         arguments: helperArguments(call),
         timeout: 3,
         result: result
       )
     case "focusWindow":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .focusWindow,
         arguments: helperArguments(call),
         timeout: 3,
         result: result
       )
     case "screenshot":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .screenshot,
         arguments: helperArguments(call),
         timeout: 8,
         result: result
       )
     case "screenshotWindow":
-      helperClient.send(
+      helperClient.sendPreferred(
         command: .screenshotWindow,
         arguments: helperArguments(call),
         timeout: 8,

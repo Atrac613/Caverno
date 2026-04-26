@@ -74,17 +74,18 @@ The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
 `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-`listWindows`; when the named service is unavailable, the app records the
-preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
-not be treated as production-ready until the named service and all migrated
-commands pass parity smoke checks.
+`listWindows`, `focusWindow`, and `screenshotWindow`; when the named service is
+unavailable, the app records the preferred attempt and falls back to
+`DistributedNotificationCenter`. XPC should not be treated as production-ready
+until the named service and all migrated commands pass parity smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-  `listWindows` match the active distributed-notification behavior. The next
-  parity commands are `focusWindow` and `screenshotWindow`.
+  `listWindows`, `focusWindow`, and `screenshotWindow` match the active
+  distributed-notification behavior. The next parity commands are `moveMouse`
+  and `click`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate
@@ -97,6 +98,10 @@ Initial commands:
   capability flags.
 - `openSettings`: open the requested privacy pane.
 - `stopAll`: stop active recording and cancel queued input work.
+- `screenshot`: capture the main display.
+- `listWindows`: list visible windows.
+- `focusWindow`: focus a selected window.
+- `screenshotWindow`: capture a selected window.
 
 Migrated commands:
 

@@ -150,7 +150,14 @@ void main() {
     expect(find.text('OS action owner: helper'), findsOneWidget);
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
-      find.text('Next XPC parity: focusWindow, screenshotWindow'),
+      find.text(
+        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Next XPC parity: moveMouse, click'), findsOneWidget);
+    expect(
+      find.text('Fallback reason: xpc_error (helper_xpc_unavailable)'),
       findsOneWidget,
     );
   });
@@ -164,7 +171,7 @@ void main() {
       approvalResult: 'approved',
       success: true,
       result:
-          '{"selectedIpcTransport":"xpc_service","code":"ok","x":40,"y":40}',
+          '{"selectedIpcTransport":"distributed_notification_center","preferredIpcTransport":"xpc_service","fallbackIpcTransport":"distributed_notification_center","preferredIpcAttempt":{"status":"xpc_error","errorCode":"helper_xpc_unavailable"},"code":"ok","x":40,"y":40}',
     );
     MacosComputerUseAuditLog.instance.record(
       toolName: 'computer_start_system_audio_recording',
@@ -184,7 +191,14 @@ void main() {
     expect(find.text('approved • input'), findsOneWidget);
     expect(find.text('computer_start_system_audio_recording'), findsOneWidget);
     expect(find.text('denied • sensitive'), findsOneWidget);
-    expect(find.text('Transport: xpc_service • Response: ok'), findsOneWidget);
+    expect(
+      find.text('Transport: distributed_notification_center • Response: ok'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Fallback: xpc_error (helper_xpc_unavailable)'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -448,11 +462,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'stopAll',
         'screenshot',
         'listWindows',
+        'focusWindow',
+        'screenshotWindow',
       ],
-      'xpcNextParityCommands': ['focusWindow', 'screenshotWindow'],
+      'xpcNextParityCommands': ['moveMouse', 'click'],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

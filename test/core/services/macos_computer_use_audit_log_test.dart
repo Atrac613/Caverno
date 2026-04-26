@@ -47,4 +47,24 @@ void main() {
     expect(entries.first['toolName'], 'computer_click');
     expect(entries.last['riskCategory'], 'sensitive');
   });
+
+  test('records preferred XPC fallback metadata without payloads', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_screenshot',
+      policy: MacosComputerUseToolPolicy.decision('computer_screenshot'),
+      approvalResult: 'not_required',
+      success: true,
+      result:
+          '{"ok":true,"selectedIpcTransport":"distributed_notification_center","preferredIpcTransport":"xpc_service","fallbackIpcTransport":"distributed_notification_center","preferredIpcAttempt":{"status":"xpc_timeout","errorCode":"helper_xpc_timeout"},"imageBase64":"secret"}',
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    expect(entry['transport'], 'distributed_notification_center');
+    expect(entry['preferredAttemptStatus'], 'xpc_timeout');
+    expect(entry['preferredAttemptErrorCode'], 'helper_xpc_timeout');
+    expect(entry['fallbackReason'], 'xpc_timeout (helper_xpc_timeout)');
+    expect(entry.containsKey('imageBase64'), isFalse);
+  });
 }
