@@ -7,10 +7,13 @@ enum MacosComputerUseToolCategory {
   audio,
 }
 
+enum MacosComputerUseRiskCategory { setup, observe, input, sensitive, recovery }
+
 class MacosComputerUseToolPolicyDecision {
   const MacosComputerUseToolPolicyDecision({
     required this.toolName,
     required this.category,
+    required this.riskCategory,
     required this.requiresUserApproval,
     required this.requiresSmokeArming,
     required this.allowedInPlanning,
@@ -21,6 +24,7 @@ class MacosComputerUseToolPolicyDecision {
 
   final String toolName;
   final MacosComputerUseToolCategory category;
+  final MacosComputerUseRiskCategory riskCategory;
   final bool requiresUserApproval;
   final bool requiresSmokeArming;
   final bool allowedInPlanning;
@@ -32,6 +36,7 @@ class MacosComputerUseToolPolicyDecision {
     return {
       'toolName': toolName,
       'category': category.name,
+      'riskCategory': riskCategory.name,
       'requiresUserApproval': requiresUserApproval,
       'requiresSmokeArming': requiresSmokeArming,
       'allowedInPlanning': allowedInPlanning,
@@ -139,10 +144,31 @@ class MacosComputerUseToolPolicy {
         MacosComputerUseToolCategory.audio,
       _ => MacosComputerUseToolCategory.setup,
     };
+    final riskCategory = switch (toolName) {
+      'computer_get_permissions' ||
+      'computer_request_permissions' ||
+      'computer_open_system_settings' => MacosComputerUseRiskCategory.setup,
+      'computer_list_windows' ||
+      'computer_screenshot' ||
+      'computer_screenshot_window' => MacosComputerUseRiskCategory.observe,
+      'computer_focus_window' ||
+      'computer_move_mouse' ||
+      'computer_click' ||
+      'computer_drag' ||
+      'computer_scroll' ||
+      'computer_type_text' ||
+      'computer_press_key' => MacosComputerUseRiskCategory.input,
+      'computer_start_system_audio_recording' =>
+        MacosComputerUseRiskCategory.sensitive,
+      'computer_stop_system_audio_recording' =>
+        MacosComputerUseRiskCategory.recovery,
+      _ => MacosComputerUseRiskCategory.setup,
+    };
 
     return MacosComputerUseToolPolicyDecision(
       toolName: toolName,
       category: category,
+      riskCategory: riskCategory,
       requiresUserApproval: requiresUserApproval(toolName),
       requiresSmokeArming: requiresSmokeArming(toolName),
       allowedInPlanning: isAllowedInPlanning(toolName),

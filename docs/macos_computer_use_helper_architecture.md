@@ -72,17 +72,18 @@ iteration.
 
 The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
-XPC is exposed as an experimental preferred transport for `ping` and
-`permissionStatus`; when the named service is unavailable, the app records the
-preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
-not be treated as production-ready until the named service and all migrated
-commands pass parity smoke checks.
+XPC is exposed as an experimental preferred transport for `ping`,
+`permissionStatus`, `openSettings`, and `stopAll`; when the named service is
+unavailable, the app records the preferred attempt and falls back to
+`DistributedNotificationCenter`. XPC should not be treated as production-ready
+until the named service and all migrated commands pass parity smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, and `stopAll` match the active
-  distributed-notification behavior.
+  distributed-notification behavior. The next parity commands are `screenshot`
+  and `listWindows`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate
@@ -180,6 +181,12 @@ reachable and the required macOS permissions are granted.
   raw shell, script, or model text.
 - Input and audio commands require an app-level approval decision before the
   helper receives the command.
+- Approval decisions include a risk category: `observe`, `input`, `sensitive`,
+  or `recovery`.
+- The app records a redacted audit entry for each approval-gated computer-use
+  command with timestamp, tool name, risk category, approval result, transport,
+  response code, and success state. Screenshot payloads, audio payloads, and
+  typed text bodies must not be stored in the audit log.
 - Debug smoke checks for input and system audio require an explicit arming
   toggle; the live smoke harness only runs those actions when
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED=1` or `--unsafe-armed` is set.

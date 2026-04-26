@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/services/local_diagnostics_exporter.dart';
+import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 import '../providers/settings_notifier.dart';
@@ -924,6 +925,7 @@ class _ComputerUseOnboardingCardState
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
       helperIpcRuntime: _helperIpcRuntime(),
+      auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,

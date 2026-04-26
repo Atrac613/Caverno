@@ -6,8 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/services/ble_service.dart';
-import '../../../../core/services/notification_providers.dart';
+import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_tool_policy.dart';
+import '../../../../core/services/notification_providers.dart';
 import '../../../../core/services/ssh_credentials_manager.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/voice_providers.dart';
@@ -7662,6 +7663,9 @@ class ChatNotifier extends Notifier<ChatState> {
     if (MacosComputerUseToolPolicy.requiresUserApproval(toolCall.name)) {
       return _handleComputerUseAction(toolCall);
     }
+    if (MacosComputerUseToolPolicy.isComputerUseTool(toolCall.name)) {
+      return _handleComputerUseActionWithoutApproval(toolCall);
+    }
 
     switch (toolCall.name) {
       case 'list_directory':
@@ -8126,6 +8130,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final details = [
       if (policy != null) ...[
         'Policy: ${policy.policyLabel}',
+        'Risk category: ${policy.riskCategory.name}',
         'Requires approval: ${policy.requiresUserApproval}',
         'Requires smoke arming: ${policy.requiresSmokeArming}',
         'Requires post-action observation: ${policy.requiresPostActionObservation}',
@@ -8142,6 +8147,13 @@ class ChatNotifier extends Notifier<ChatState> {
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!approved) {
+      MacosComputerUseAuditLog.instance.record(
+        toolName: toolCall.name,
+        policy: policy,
+        approvalResult: 'denied',
+        success: false,
+        errorCode: 'approval_denied',
+      );
       return _rememberToolApprovalResult(
         toolCall.name,
         toolCall.arguments,
@@ -8158,11 +8170,38 @@ class ChatNotifier extends Notifier<ChatState> {
       name: toolCall.name,
       arguments: toolCall.arguments,
     );
+    MacosComputerUseAuditLog.instance.record(
+      toolName: toolCall.name,
+      policy: policy,
+      approvalResult: 'approved',
+      success: result.isSuccess,
+      result: result.result,
+      errorCode: result.errorMessage,
+    );
     return _rememberToolApprovalResult(
       toolCall.name,
       toolCall.arguments,
       result,
     );
+  }
+
+  Future<McpToolResult> _handleComputerUseActionWithoutApproval(
+    ToolCallInfo toolCall,
+  ) async {
+    final policy = MacosComputerUseToolPolicy.decision(toolCall.name);
+    final result = await _mcpToolService!.executeTool(
+      name: toolCall.name,
+      arguments: toolCall.arguments,
+    );
+    MacosComputerUseAuditLog.instance.record(
+      toolName: toolCall.name,
+      policy: policy,
+      approvalResult: 'not_required',
+      success: result.isSuccess,
+      result: result.result,
+      errorCode: result.errorMessage,
+    );
+    return result;
   }
 
   Future<bool> requestComputerUseAction({

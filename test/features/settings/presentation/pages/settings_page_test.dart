@@ -62,6 +62,7 @@ void main() {
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"helperIpcRuntime"'));
+    expect(text, contains('"auditLog"'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
     expect(text, contains('"xpcNextParityCommands"'));
@@ -142,7 +143,10 @@ void main() {
     expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
     expect(find.text('OS action owner: helper'), findsOneWidget);
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
-    expect(find.text('Next XPC parity: openSettings, stopAll'), findsOneWidget);
+    expect(
+      find.text('Next XPC parity: screenshot, listWindows'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -399,7 +403,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcProductionReady': false,
       'mainAppUnsafeOsActionsAllowed': false,
       'helperOwnsUnsafeOsActions': true,
-      'xpcNextParityCommands': ['openSettings', 'stopAll'],
+      'xpcNextParityCommands': ['screenshot', 'listWindows'],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
         'ping_permission_status_open_settings_stop_all_match_dnc',

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 
 import '../../../../core/services/local_diagnostics_exporter.dart';
+import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
 
@@ -1306,6 +1307,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       windowScreenshot: _imageSummary(_windowScreenshot),
       lastAction: _lastAction,
       lastResult: _lastResultForDiagnostics,
+      auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();

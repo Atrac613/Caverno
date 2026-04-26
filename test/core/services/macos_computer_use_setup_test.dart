@@ -43,7 +43,12 @@ void main() {
     expect(info['errorCodes'], contains('helper_unreachable'));
     expect(info['errorCodes'], contains('helper_xpc_timeout'));
     expect(info['xpcServiceName'], 'com.noguwo.apps.caverno.computer-use.xpc');
-    expect(info['xpcSupportedCommands'], ['ping', 'permissionStatus']);
+    expect(info['xpcSupportedCommands'], [
+      'ping',
+      'permissionStatus',
+      'openSettings',
+      'stopAll',
+    ]);
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
     expect(info['xpcStatus'], 'experimental_fallback');
@@ -54,7 +59,7 @@ void main() {
       info['helperOwnedActionCategories'],
       contains('system_audio_recording'),
     );
-    expect(info['xpcNextParityCommands'], ['openSettings', 'stopAll']);
+    expect(info['xpcNextParityCommands'], ['screenshot', 'listWindows']);
     expect(
       info['xpcProductionReadinessCriteria'],
       contains('ping_permission_status_open_settings_stop_all_match_dnc'),
@@ -133,8 +138,9 @@ void main() {
     );
     expect(
       diagnostics['helperIpcProtocol'],
-      containsPair('xpcNextParityCommands', ['openSettings', 'stopAll']),
+      containsPair('xpcNextParityCommands', ['screenshot', 'listWindows']),
     );
+    expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
     expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));

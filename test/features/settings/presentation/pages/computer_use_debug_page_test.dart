@@ -255,6 +255,7 @@ void main() {
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
     expect(text, contains('"helperStatusPersistence"'));
+    expect(text, contains('"auditLog"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));

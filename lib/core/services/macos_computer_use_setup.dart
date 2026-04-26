@@ -144,7 +144,12 @@ class MacosComputerUseIpc {
   static const preferredTransport = 'xpc_service';
   static const fallbackTransport = transport;
   static const xpcServiceName = 'com.noguwo.apps.caverno.computer-use.xpc';
-  static const xpcSupportedCommands = ['ping', 'permissionStatus'];
+  static const xpcSupportedCommands = [
+    'ping',
+    'permissionStatus',
+    'openSettings',
+    'stopAll',
+  ];
   static const xpcProductionReady = false;
   static const xpcStatus = 'experimental_fallback';
   static const mainAppUnsafeOsActionsAllowed = false;
@@ -156,7 +161,7 @@ class MacosComputerUseIpc {
     'system_audio_recording',
     'emergency_stop',
   ];
-  static const xpcNextParityCommands = ['openSettings', 'stopAll'];
+  static const xpcNextParityCommands = ['screenshot', 'listWindows'];
   static const xpcProductionReadinessCriteria = [
     'named_service_connects_from_signed_main_app',
     'ping_permission_status_open_settings_stop_all_match_dnc',
@@ -258,6 +263,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.windowScreenshot,
     this.lastAction,
     this.lastResult,
+    this.auditLog = const [],
     this.lastLiveSmokeReport,
     this.lastDiagnosticExportPath,
   });
@@ -291,6 +297,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Map<String, dynamic>? windowScreenshot;
   final String? lastAction;
   final Object? lastResult;
+  final List<Map<String, dynamic>> auditLog;
   final Map<String, dynamic>? lastLiveSmokeReport;
   final String? lastDiagnosticExportPath;
 
@@ -324,6 +331,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'windowScreenshot': windowScreenshot,
       'lastAction': lastAction,
       'lastResult': lastResult,
+      'auditLog': auditLog,
       'lastLiveSmokeReport': lastLiveSmokeReport,
       if (lastDiagnosticExportPath != null)
         'lastDiagnosticExportPath': lastDiagnosticExportPath,

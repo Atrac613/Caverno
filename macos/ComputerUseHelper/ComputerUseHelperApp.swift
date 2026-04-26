@@ -436,7 +436,7 @@ private enum ComputerUseHelperIpcSchema {
   static let preferredTransport = "xpc_service"
   static let fallbackTransport = activeTransport
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
-  static let xpcSupportedCommands = ["ping", "permissionStatus"]
+  static let xpcSupportedCommands = ["ping", "permissionStatus", "openSettings", "stopAll"]
   static let xpcReady = true
   static let xpcProductionReady = false
   static let xpcStatus = "experimental_fallback"
@@ -449,7 +449,7 @@ private enum ComputerUseHelperIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
-  static let xpcNextParityCommands = ["openSettings", "stopAll"]
+  static let xpcNextParityCommands = ["screenshot", "listWindows"]
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
     "ping_permission_status_open_settings_stop_all_match_dnc",
@@ -813,7 +813,7 @@ private final class ComputerUseHelperIpc: NSObject {
       return
     }
 
-    guard request.command == .ping || request.command == .permissionStatus else {
+    guard ComputerUseHelperIpcSchema.xpcSupportedCommands.contains(request.command.rawValue) else {
       recordRequestDiagnostic(request: request, status: "xpc_unsupported_command")
       completion(
         errorResponse(

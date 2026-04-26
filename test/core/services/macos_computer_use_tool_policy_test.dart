@@ -7,6 +7,7 @@ void main() {
 
     expect(decision, isNotNull);
     expect(decision!.category, MacosComputerUseToolCategory.pointerInput);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.input);
     expect(decision.requiresUserApproval, isTrue);
     expect(decision.requiresSmokeArming, isTrue);
     expect(decision.allowedInPlanning, isFalse);
@@ -18,6 +19,7 @@ void main() {
 
     expect(decision, isNotNull);
     expect(decision!.category, MacosComputerUseToolCategory.observation);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.observe);
     expect(decision.requiresUserApproval, isFalse);
     expect(decision.requiresSmokeArming, isFalse);
     expect(decision.allowedInPlanning, isTrue);
@@ -31,6 +33,7 @@ void main() {
 
     expect(decision, isNotNull);
     expect(decision!.category, MacosComputerUseToolCategory.setup);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.setup);
     expect(decision.requiresUserApproval, isFalse);
     expect(decision.requiresSmokeArming, isFalse);
     expect(decision.allowedInPlanning, isFalse);
@@ -43,6 +46,7 @@ void main() {
 
     expect(decision, isNotNull);
     expect(decision!.category, MacosComputerUseToolCategory.audio);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.recovery);
     expect(decision.requiresUserApproval, isFalse);
     expect(decision.requiresSmokeArming, isFalse);
     expect(decision.allowedInPlanning, isFalse);
@@ -63,6 +67,11 @@ void main() {
 
       expect(decision, isNotNull, reason: toolName);
       expect(decision!.requiresUserApproval, isTrue, reason: toolName);
+      expect(
+        decision.riskCategory,
+        MacosComputerUseRiskCategory.input,
+        reason: toolName,
+      );
       expect(decision.requiresSmokeArming, isTrue, reason: toolName);
       expect(decision.requiresPostActionObservation, isTrue, reason: toolName);
       expect(decision.allowedInPlanning, isFalse, reason: toolName);
@@ -76,6 +85,7 @@ void main() {
 
     expect(decision, isNotNull);
     expect(decision!.category, MacosComputerUseToolCategory.audio);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.sensitive);
     expect(decision.requiresUserApproval, isTrue);
     expect(decision.requiresSmokeArming, isTrue);
     expect(decision.requiresPostActionObservation, isTrue);
