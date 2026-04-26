@@ -340,6 +340,7 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _lastStopResult;
   Map<String, dynamic>? _lastPermissionSettingsResult;
   Map<String, dynamic>? _lastLiveSmokeReport;
+  String? _lastPrimaryActionLabel;
   String? _lastDiagnosticExportPath;
 
   @override
@@ -390,6 +391,19 @@ class _ComputerUseOnboardingCardState
     final helperInstalled = _permissionValue('helperInstalled') == true;
     final helperRunning = _permissionValue('helperRunning') == true;
     final helperIpcReady = _permissionValue('helperReachable') == true;
+    final accessibilityGranted =
+        _permissionValue('accessibilityGranted') == true;
+    final screenCaptureGranted =
+        _permissionValue('screenCaptureGranted') == true;
+    final primaryAction = _primaryAction(
+      helperInstalled: helperInstalled,
+      helperRunning: helperRunning,
+      helperIpcReady: helperIpcReady,
+      accessibilityGranted: accessibilityGranted,
+      screenCaptureGranted: screenCaptureGranted,
+      verificationOk: verificationOk,
+    );
+    final helperIpcRuntime = _helperIpcRuntime();
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -462,17 +476,17 @@ class _ComputerUseOnboardingCardState
                 ),
                 _StatusChip(
                   label: 'Accessibility',
-                  value: _permissionValue('accessibilityGranted') == true,
+                  value: accessibilityGranted,
                 ),
                 _StatusChip(
                   label: 'Screen & System Audio',
-                  value: _permissionValue('screenCaptureGranted') == true,
+                  value: screenCaptureGranted,
                 ),
                 _StatusChip(
-                  label: MacosComputerUseIpc.current.preferredTransport,
+                  label: 'XPC Attempt',
                   value: MacosComputerUseIpc.current.xpcReady,
-                  trueText: 'XPC ready',
-                  falseText: 'DNC bridge',
+                  trueText: 'Enabled',
+                  falseText: 'Disabled',
                 ),
                 _StatusChip(
                   label: 'Verify',
@@ -496,10 +510,17 @@ class _ComputerUseOnboardingCardState
               const SizedBox(height: 8),
               _PersistenceSummary(persistence: helperStatusPersistence),
             ],
+            const SizedBox(height: 8),
+            _IpcRuntimeSummary(runtime: helperIpcRuntime),
             if (_lastLiveSmokeReport != null) ...[
               const SizedBox(height: 8),
               _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
             ],
+            const SizedBox(height: 12),
+            Text(
+              'Next action: ${primaryAction.detail}',
+              style: Theme.of(context).textTheme.bodySmall,
+            ),
             if (showAccessibilityCta || showScreenRecordingCta) ...[
               const SizedBox(height: 12),
               Wrap(
@@ -537,11 +558,12 @@ class _ComputerUseOnboardingCardState
               runSpacing: 8,
               children: [
                 FilledButton.icon(
-                  onPressed: _isLoading ? null : _launchHelper,
-                  icon: const Icon(Icons.rocket_launch_outlined),
-                  label: Text(
-                    ready ? 'Open Computer Use' : 'Enable Computer Use',
-                  ),
+                  key: const ValueKey('computer-use-settings-primary-action'),
+                  onPressed: _isLoading
+                      ? null
+                      : () => _runPrimaryAction(primaryAction),
+                  icon: Icon(primaryAction.icon),
+                  label: Text(primaryAction.label),
                 ),
                 OutlinedButton.icon(
                   onPressed: _openSmokeTest,
@@ -597,6 +619,79 @@ class _ComputerUseOnboardingCardState
     );
   }
 
+  _ComputerUsePrimaryAction _primaryAction({
+    required bool helperInstalled,
+    required bool helperRunning,
+    required bool helperIpcReady,
+    required bool accessibilityGranted,
+    required bool screenCaptureGranted,
+    required bool verificationOk,
+  }) {
+    if (!helperInstalled || !helperRunning) {
+      return const _ComputerUsePrimaryAction(
+        kind: _ComputerUsePrimaryActionKind.launch,
+        label: 'Launch Computer Use',
+        detail: 'Launch the helper app so macOS can attach permissions to it.',
+        icon: Icons.rocket_launch_outlined,
+      );
+    }
+    if (!helperIpcReady) {
+      return const _ComputerUsePrimaryAction(
+        kind: _ComputerUsePrimaryActionKind.restart,
+        label: 'Restart Helper',
+        detail: 'Restart the helper and wait for IPC readiness.',
+        icon: Icons.restart_alt,
+      );
+    }
+    if (!accessibilityGranted) {
+      return const _ComputerUsePrimaryAction(
+        kind: _ComputerUsePrimaryActionKind.openAccessibility,
+        label: 'Open Accessibility',
+        detail: 'Grant Accessibility to Caverno Computer Use.',
+        icon: Icons.accessibility_new_outlined,
+      );
+    }
+    if (!screenCaptureGranted) {
+      return const _ComputerUsePrimaryAction(
+        kind: _ComputerUsePrimaryActionKind.openScreenRecording,
+        label: 'Open Screen Recording',
+        detail:
+            'Grant Screen & System Audio Recording to Caverno Computer Use.',
+        icon: Icons.screenshot_monitor_outlined,
+      );
+    }
+    if (!verificationOk) {
+      return const _ComputerUsePrimaryAction(
+        kind: _ComputerUsePrimaryActionKind.openSmokeTest,
+        label: 'Run Smoke Check',
+        detail: 'Run screenshot, window, input, and audio smoke checks.',
+        icon: Icons.fact_check_outlined,
+      );
+    }
+    return const _ComputerUsePrimaryAction(
+      kind: _ComputerUsePrimaryActionKind.launch,
+      label: 'Open Computer Use',
+      detail: 'Open the helper when you want to review permissions.',
+      icon: Icons.open_in_new,
+    );
+  }
+
+  Future<void> _runPrimaryAction(_ComputerUsePrimaryAction action) async {
+    setState(() => _lastPrimaryActionLabel = action.label);
+    switch (action.kind) {
+      case _ComputerUsePrimaryActionKind.launch:
+        await _launchHelper();
+      case _ComputerUsePrimaryActionKind.restart:
+        await _restartHelper();
+      case _ComputerUsePrimaryActionKind.openAccessibility:
+        await _openPermissionSettings('accessibility');
+      case _ComputerUsePrimaryActionKind.openScreenRecording:
+        await _openPermissionSettings('screen_recording');
+      case _ComputerUsePrimaryActionKind.openSmokeTest:
+        _openSmokeTest();
+    }
+  }
+
   Future<void> _launchHelper() async {
     setState(() => _isLoading = true);
     try {
@@ -631,6 +726,36 @@ class _ComputerUseOnboardingCardState
     }
   }
 
+  Future<void> _restartHelper() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final helper = _decodeMap(await service.restartHelper());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (helper != null) {
+          _helperStatus = {...?_helperStatus, ...helper};
+        }
+      });
+      final readiness = _decodeMap(await service.waitForHelperIpcReady());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (readiness != null) {
+          _helperStatus = {...?_helperStatus, ...readiness};
+        }
+      });
+      await _refresh(force: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
   Future<void> _stopHelperWork() async {
     setState(() => _isLoading = true);
     try {
@@ -640,6 +765,7 @@ class _ComputerUseOnboardingCardState
         return;
       }
       setState(() {
+        _lastPrimaryActionLabel = null;
         _lastStopResult = result ?? {'ok': false, 'error': 'Invalid response'};
       });
       await _refresh(force: true);
@@ -661,6 +787,7 @@ class _ComputerUseOnboardingCardState
         return;
       }
       setState(() {
+        _lastPrimaryActionLabel = null;
         _lastPermissionSettingsResult =
             result ??
             {'ok': false, 'section': section, 'error': 'Invalid response'};
@@ -777,11 +904,13 @@ class _ComputerUseOnboardingCardState
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
+      helperIpcRuntime: _helperIpcRuntime(),
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,
         'helperStatusPersistence': _helperStatusPersistence(),
         'permissions': _permissions,
+        'helperIpcRuntime': _helperIpcRuntime(),
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastStopResult': _lastStopResult,
@@ -816,6 +945,11 @@ class _ComputerUseOnboardingCardState
         'label':
             'Grant Screen & System Audio Recording to Caverno Computer Use',
         'complete': _permissionValue('screenCaptureGranted') == true,
+      },
+      {
+        'id': 'run_live_smoke',
+        'label': 'Run helper smoke checks',
+        'complete': _lastLiveSmokeReport?['ok'] == true,
       },
     ];
   }
@@ -895,6 +1029,64 @@ class _ComputerUseOnboardingCardState
     return null;
   }
 
+  Map<String, dynamic> _helperIpcRuntime() {
+    final snapshot = <String, dynamic>{};
+    if (_permissions != null) {
+      snapshot.addAll(_permissions!);
+    }
+    if (_helperStatus != null) {
+      snapshot.addAll(_helperStatus!);
+    }
+    final preferredAttempt =
+        _mapValue(snapshot['preferredIpcAttempt']) ??
+        _mapValue(snapshot['lastPreferredIpcAttempt']);
+    final selectedTransport =
+        _stringValue(snapshot['selectedIpcTransport']) ??
+        _stringValue(snapshot['ipcTransport']) ??
+        MacosComputerUseIpc.current.transport;
+    final preferredTransport =
+        _stringValue(snapshot['preferredIpcTransport']) ??
+        MacosComputerUseIpc.current.preferredTransport;
+    final fallbackTransport =
+        _stringValue(snapshot['fallbackIpcTransport']) ??
+        MacosComputerUseIpc.current.fallbackTransport;
+    final preferredAttemptStatus = _stringValue(preferredAttempt?['status']);
+    final preferredAttemptErrorCode = _stringValue(
+      preferredAttempt?['errorCode'],
+    );
+    final runtime = <String, dynamic>{
+      'selectedIpcTransport': selectedTransport,
+      'preferredIpcTransport': preferredTransport,
+      'fallbackIpcTransport': fallbackTransport,
+      'xpcReady': snapshot['xpcReady'] ?? MacosComputerUseIpc.current.xpcReady,
+      'xpcServiceName':
+          snapshot['xpcServiceName'] ??
+          MacosComputerUseIpc.current.xpcServiceName,
+      'preferredFallbackActive':
+          selectedTransport == fallbackTransport &&
+          preferredAttempt != null &&
+          preferredTransport != fallbackTransport,
+    };
+    if (preferredAttemptStatus != null) {
+      runtime['preferredAttemptStatus'] = preferredAttemptStatus;
+    }
+    if (preferredAttemptErrorCode != null) {
+      runtime['preferredAttemptErrorCode'] = preferredAttemptErrorCode;
+    }
+    return runtime;
+  }
+
+  Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  String? _stringValue(Object? value) {
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
   String _resultSummary(Map<String, dynamic> result) {
     final ok = result['ok'] == true;
     final code = result['code'];
@@ -921,6 +1113,9 @@ class _ComputerUseOnboardingCardState
   }
 
   String _lastActionLabel() {
+    if (_lastPrimaryActionLabel != null) {
+      return 'Settings primary action: $_lastPrimaryActionLabel';
+    }
     if (_lastStopResult != null) {
       return 'Settings stop helper work';
     }
@@ -941,6 +1136,28 @@ class _ComputerUseOnboardingCardState
       return null;
     }
   }
+}
+
+enum _ComputerUsePrimaryActionKind {
+  launch,
+  restart,
+  openAccessibility,
+  openScreenRecording,
+  openSmokeTest,
+}
+
+class _ComputerUsePrimaryAction {
+  const _ComputerUsePrimaryAction({
+    required this.kind,
+    required this.label,
+    required this.detail,
+    required this.icon,
+  });
+
+  final _ComputerUsePrimaryActionKind kind;
+  final String label;
+  final String detail;
+  final IconData icon;
 }
 
 class _StatusChip extends StatelessWidget {
@@ -967,6 +1184,70 @@ class _StatusChip extends StatelessWidget {
         color: color,
       ),
       label: Text('$label: ${value ? trueText : falseText}'),
+    );
+  }
+}
+
+class _InfoChip extends StatelessWidget {
+  const _InfoChip({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return Chip(
+      avatar: Icon(Icons.info_outline, size: 18, color: colorScheme.primary),
+      label: Text('$label: $value'),
+    );
+  }
+}
+
+class _IpcRuntimeSummary extends StatelessWidget {
+  const _IpcRuntimeSummary({required this.runtime});
+
+  final Map<String, dynamic> runtime;
+
+  @override
+  Widget build(BuildContext context) {
+    final selected = '${runtime['selectedIpcTransport']}';
+    final preferred = '${runtime['preferredIpcTransport']}';
+    final fallback = '${runtime['fallbackIpcTransport']}';
+    final preferredAttemptStatus = runtime['preferredAttemptStatus'];
+    final preferredAttemptErrorCode = runtime['preferredAttemptErrorCode'];
+    final fallbackActive = runtime['preferredFallbackActive'] == true;
+    final status = fallbackActive
+        ? 'preferred XPC fell back to $fallback'
+        : 'using $selected';
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'IPC runtime: $status',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _InfoChip(label: 'Active IPC', value: selected),
+            _InfoChip(label: 'Preferred IPC', value: preferred),
+            if (preferredAttemptStatus is String)
+              _InfoChip(
+                label: 'Preferred attempt',
+                value: preferredAttemptStatus,
+              ),
+            if (preferredAttemptErrorCode is String)
+              _InfoChip(
+                label: 'Preferred error',
+                value: preferredAttemptErrorCode,
+              ),
+          ],
+        ),
+      ],
     );
   }
 }

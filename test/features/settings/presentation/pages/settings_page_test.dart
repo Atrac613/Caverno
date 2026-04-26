@@ -61,6 +61,7 @@ void main() {
     expect(text, contains('"onboardingVerification"'));
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
+    expect(text, contains('"helperIpcRuntime"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(
@@ -130,6 +131,23 @@ void main() {
     expect(find.text('Helper App: Installed'), findsOneWidget);
     expect(find.text('Helper Process: Running'), findsOneWidget);
     expect(find.text('IPC Ready: Timeout'), findsOneWidget);
+    expect(find.text('Restart Helper'), findsOneWidget);
+    expect(
+      find.textContaining('IPC runtime:', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
+
+  testWidgets('runs the restart primary action when IPC is unreachable', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(helperReachable: false);
+    await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-settings-primary-action');
+
+    expect(service.restartHelperCallCount, 1);
+    expect(find.text('IPC Ready: Reachable'), findsOneWidget);
   });
 
   testWidgets('stops helper work from the Settings card', (tester) async {
@@ -278,6 +296,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
+  int restartHelperCallCount = 0;
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
@@ -285,7 +304,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   bool _helperWorkActive;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
-  final bool _helperReachable;
+  bool _helperReachable;
 
   @override
   bool get isAvailable => true;
@@ -319,6 +338,19 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   }
 
   @override
+  Future<String> restartHelper() async {
+    restartHelperCallCount += 1;
+    _helperReachable = true;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperInstalled': true,
+      'helperRunning': true,
+      'restarted': true,
+    });
+  }
+
+  @override
   Future<String> getPermissions() async {
     getPermissionsCallCount += 1;
     return _json({
@@ -345,6 +377,14 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'ok': _helperReachable,
       'backend': 'helper',
       'helperReachable': _helperReachable,
+      'selectedIpcTransport': 'distributed_notification_center',
+      'preferredIpcTransport': 'xpc_service',
+      'fallbackIpcTransport': 'distributed_notification_center',
+      if (!_helperReachable)
+        'preferredIpcAttempt': {
+          'status': 'xpc_error',
+          'errorCode': 'helper_xpc_unavailable',
+        },
       if (!_helperReachable) 'code': 'helper_unreachable',
       'message': 'pong',
       'audioRecordingActive': _helperWorkActive,

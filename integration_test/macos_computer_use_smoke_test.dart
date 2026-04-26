@@ -51,6 +51,22 @@ void main() {
       service.launchHelper,
     );
     await tester.pump(const Duration(milliseconds: 500));
+    final restart = await _runStep(
+      steps,
+      'restart_helper',
+      'Restart Caverno Computer Use',
+      service.restartHelper,
+    );
+    await tester.pump(const Duration(milliseconds: 800));
+    final readiness = await _runStep(
+      steps,
+      'wait_helper_ipc_ready',
+      'Wait for helper IPC readiness',
+      () => service.waitForHelperIpcReady(
+        attempts: 4,
+        delay: const Duration(milliseconds: 500),
+      ),
+    );
     final ping = await _runStep(
       steps,
       'ping_helper',
@@ -108,6 +124,8 @@ void main() {
     final coreOk =
         _stepPassed(helperStatus) &&
         _stepPassed(launch) &&
+        _stepPassed(restart) &&
+        _stepPassed(readiness) &&
         _stepPassed(ping) &&
         _stepPassed(permissions) &&
         _stepPassed(stop);
@@ -120,11 +138,24 @@ void main() {
     report['ok'] = _strict ? coreOk && captureOk : coreOk;
     report['coreOk'] = coreOk;
     report['captureOk'] = captureOk;
+    report['restartOk'] = _stepPassed(restart);
+    report['ipcReadyOk'] = _stepPassed(readiness);
     report['permissionSummary'] = {
       'accessibilityGranted': permissions?['accessibilityGranted'],
       'screenCaptureGranted': permissions?['screenCaptureGranted'],
       'systemAudioRecordingSupported':
           permissions?['systemAudioRecordingSupported'],
+    };
+    report['permissionGate'] = {
+      'captureExpected': permissions?['screenCaptureGranted'] == true,
+      'inputExpected': permissions?['accessibilityGranted'] == true,
+      'audioExpected':
+          permissions?['screenCaptureGranted'] == true &&
+          permissions?['systemAudioRecordingSupported'] == true,
+      'blockedByPermissions': [
+        if (permissions?['screenCaptureGranted'] != true) 'screen_capture',
+        if (permissions?['accessibilityGranted'] != true) 'accessibility',
+      ],
     };
     _printReport(report);
 

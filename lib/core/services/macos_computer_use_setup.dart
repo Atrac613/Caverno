@@ -190,6 +190,7 @@ class MacosComputerUseOnboardingDiagnostics {
     required this.setupChecklist,
     required this.onboardingSmokeChecklist,
     required this.helperIpcProtocol,
+    this.helperIpcRuntime,
     this.onboardingVerification,
     this.helperStatus,
     this.helperStatusPersistence,
@@ -222,6 +223,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final MacosComputerUseSetupChecklist setupChecklist;
   final List<Map<String, dynamic>> onboardingSmokeChecklist;
   final Map<String, dynamic> helperIpcProtocol;
+  final Map<String, dynamic>? helperIpcRuntime;
   final Map<String, dynamic>? onboardingVerification;
   final Map<String, dynamic>? helperStatus;
   final Map<String, dynamic>? helperStatusPersistence;
@@ -257,6 +259,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'helperStatus': helperStatus,
       'helperStatusPersistence': helperStatusPersistence,
       'permissions': permissions,
+      'helperIpcRuntime': helperIpcRuntime,
       'audioRecording': audioRecording,
       'inputActionsArmed': inputActionsArmed,
       'inputSmokeCompleted': inputSmokeCompleted,
