@@ -29,6 +29,13 @@ void main() {
               'helperRunning': true,
               'launched': true,
             },
+            'restartHelper' => {
+              'ok': true,
+              'backend': 'helper',
+              'helperInstalled': true,
+              'helperRunning': true,
+              'restarted': true,
+            },
             'helperPing' => {
               'ok': true,
               'backend': 'helper',
@@ -70,6 +77,8 @@ void main() {
           jsonDecode(await transport.helperStatus()) as Map<String, dynamic>;
       final launch =
           jsonDecode(await transport.launchHelper()) as Map<String, dynamic>;
+      final restart =
+          jsonDecode(await transport.restartHelper()) as Map<String, dynamic>;
       final ping = jsonDecode(await transport.ping()) as Map<String, dynamic>;
       final permissions =
           jsonDecode(await transport.getPermissions()) as Map<String, dynamic>;
@@ -84,6 +93,7 @@ void main() {
       expect(calls.map((call) => call.method), [
         'helperStatus',
         'launchHelper',
+        'restartHelper',
         'helperPing',
         'helperPermissionStatus',
         'helperOpenSystemSettings',
@@ -92,6 +102,7 @@ void main() {
       expect(status, containsPair('helperInstalled', true));
       expect(status, containsPair('helperRunning', false));
       expect(launch, containsPair('helperRunning', true));
+      expect(restart, containsPair('restarted', true));
       expect(ping, containsPair('helperReachable', true));
       expect(permissions, containsPair('accessibilityGranted', true));
       expect(permissions, containsPair('screenCaptureGranted', false));

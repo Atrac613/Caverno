@@ -43,6 +43,10 @@ class MacosComputerUseService {
     return _invokeTransportJson(_permissionTransport.launchHelper);
   }
 
+  Future<String> restartHelper() async {
+    return _invokeTransportJson(_permissionTransport.restartHelper);
+  }
+
   Future<String> pingHelper() async {
     return _invokeTransportJson(_permissionTransport.ping);
   }

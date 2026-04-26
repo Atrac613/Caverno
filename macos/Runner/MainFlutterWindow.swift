@@ -247,6 +247,10 @@ fileprivate enum MacosComputerUseHelperSharedDiagnostics {
     }
     return decoded
   }
+
+  static func remove() {
+    try? FileManager.default.removeItem(atPath: path)
+  }
 }
 
 fileprivate struct MacosComputerUseHelperRequest {
@@ -362,6 +366,60 @@ final class MacosComputerUseHelperClient: NSObject {
   }
 
   func launch(result: @escaping FlutterResult) {
+    launch(extra: [:], result: result)
+  }
+
+  func restart(result: @escaping FlutterResult) {
+    let runningApplications = NSRunningApplication.runningApplications(
+      withBundleIdentifier: helperBundleIdentifier
+    ).filter { !$0.isTerminated }
+    let processIdentifiers = runningApplications.map { Int($0.processIdentifier) }
+    for application in runningApplications {
+      application.terminate()
+    }
+
+    func launchAfterTermination(timedOut: Bool = false) {
+      MacosComputerUseHelperSharedDiagnostics.remove()
+      var extra: [String: Any] = [
+        "restarted": true,
+        "terminatedHelperProcessIdentifiers": processIdentifiers,
+      ]
+      if timedOut {
+        extra["helperTerminationTimedOut"] = true
+      }
+      if processIdentifiers.isEmpty {
+        extra["noExistingHelperProcess"] = true
+      }
+      launch(extra: extra, result: result)
+    }
+
+    guard !runningApplications.isEmpty else {
+      launchAfterTermination()
+      return
+    }
+
+    let startedAt = Date()
+    func waitForTermination() {
+      let stillRunning = NSRunningApplication.runningApplications(
+        withBundleIdentifier: helperBundleIdentifier
+      ).contains { !$0.isTerminated }
+      if !stillRunning {
+        launchAfterTermination()
+        return
+      }
+      if Date().timeIntervalSince(startedAt) >= 2 {
+        launchAfterTermination(timedOut: true)
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        waitForTermination()
+      }
+    }
+
+    waitForTermination()
+  }
+
+  private func launch(extra: [String: Any], result: @escaping FlutterResult) {
     let helperURL = embeddedHelperURL()
     guard FileManager.default.fileExists(atPath: helperURL.path) else {
       result(
@@ -380,10 +438,14 @@ final class MacosComputerUseHelperClient: NSObject {
       runningApplication.activate(options: [.activateIgnoringOtherApps])
       var response = status()
       response["alreadyRunning"] = true
+      for (key, value) in extra {
+        response[key] = value
+      }
       result(response)
       return
     }
 
+    MacosComputerUseHelperSharedDiagnostics.remove()
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
     NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) {
@@ -406,6 +468,9 @@ final class MacosComputerUseHelperClient: NSObject {
       response["launched"] = true
       if let processIdentifier = application?.processIdentifier {
         response["helperProcessIdentifier"] = Int(processIdentifier)
+      }
+      for (key, value) in extra {
+        response[key] = value
       }
       result(response)
     }
@@ -878,6 +943,8 @@ final class MacosComputerUseChannel {
       result(helperClient.status())
     case "launchHelper":
       helperClient.launch(result: result)
+    case "restartHelper":
+      helperClient.restart(result: result)
     case "helperPing":
       helperClient.sendPreferred(command: .ping, result: result)
     case "helperPermissionStatus":

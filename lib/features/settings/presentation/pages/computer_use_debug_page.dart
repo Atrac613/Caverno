@@ -200,6 +200,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   onPressed: _launchHelper,
                 ),
                 _actionButton(
+                  key: const ValueKey('computer-use-restart-helper'),
+                  icon: Icons.restart_alt,
+                  label: 'Restart Helper',
+                  onPressed: _restartHelper,
+                ),
+                _actionButton(
                   key: const ValueKey('computer-use-ping-helper'),
                   icon: Icons.sensors_outlined,
                   label: 'Ping Helper',
@@ -792,6 +798,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     await _run(
       'Launch helper',
       (service) => service.launchHelper(),
+      onResult: _storeHelperStatus,
+    );
+    await _run(
+      'Wait for helper IPC readiness',
+      (service) => service.waitForHelperIpcReady(),
+      onResult: _storeHelperStatus,
+    );
+    await _refreshHelperStatus(refreshPermissions: true);
+  }
+
+  Future<void> _restartHelper() async {
+    await _run(
+      'Restart helper',
+      (service) => service.restartHelper(),
       onResult: _storeHelperStatus,
     );
     await _run(

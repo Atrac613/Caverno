@@ -83,6 +83,18 @@ void main() {
     expect(service.getPermissionsCallCount, 1);
   });
 
+  testWidgets('restarts helper and waits for IPC readiness', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapButton(tester, 'Restart Helper');
+
+    expect(service.restartHelperCallCount, 1);
+    expect(service.helperStatusCallCount, 2);
+    expect(service.pingHelperCallCount, 3);
+    expect(service.getPermissionsCallCount, 1);
+  });
+
   testWidgets('opens macOS permission settings shortcuts', (tester) async {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
@@ -323,6 +335,7 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 class _FakeMacosComputerUseService extends MacosComputerUseService {
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
+  int restartHelperCallCount = 0;
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
@@ -363,6 +376,18 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'helperInstalled': true,
       'helperRunning': true,
       'launched': true,
+    });
+  }
+
+  @override
+  Future<String> restartHelper() async {
+    restartHelperCallCount += 1;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'helperInstalled': true,
+      'helperRunning': true,
+      'restarted': true,
     });
   }
 

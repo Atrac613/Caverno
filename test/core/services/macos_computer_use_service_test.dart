@@ -180,6 +180,12 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   }
 
   @override
+  Future<String> restartHelper() async {
+    calledMethods.add('restartHelper');
+    return jsonEncode({'ok': true, 'helperRunning': true, 'restarted': true});
+  }
+
+  @override
   Future<String> getPermissions() async {
     calledMethods.add('getPermissions');
     return jsonEncode(permissions);

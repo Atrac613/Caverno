@@ -151,7 +151,7 @@ Future<Map<String, dynamic>?> _runStep(
       'label': label,
       'ok': ok,
       'elapsedMs': DateTime.now().difference(startedAt).inMilliseconds,
-      'result': decoded ?? raw,
+      'result': _compactReportValue(decoded ?? raw),
     };
     steps.add(step);
     return decoded;
@@ -225,7 +225,7 @@ void _printReport(Map<String, dynamic> report) {
   if (_reportPath.isNotEmpty) {
     report['reportPath'] = _reportPath;
   }
-  final encoded = encoder.convert(report);
+  final encoded = encoder.convert(_compactReportValue(report));
   if (_reportPath.isNotEmpty) {
     final file = File(_reportPath);
     file.parent.createSync(recursive: true);
@@ -234,4 +234,25 @@ void _printReport(Map<String, dynamic> report) {
   // The marker makes it easy to extract the report from compact test logs.
   // ignore: avoid_print
   print('CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON=$encoded');
+}
+
+Object? _compactReportValue(Object? value) {
+  if (value is Map) {
+    final compacted = <String, dynamic>{};
+    for (final entry in value.entries) {
+      final key = entry.key.toString();
+      if (key == 'imageBase64' && entry.value is String) {
+        final imageBase64 = entry.value as String;
+        compacted['imageBase64Omitted'] = true;
+        compacted['imageBase64Length'] = imageBase64.length;
+        continue;
+      }
+      compacted[key] = _compactReportValue(entry.value);
+    }
+    return compacted;
+  }
+  if (value is List) {
+    return value.map(_compactReportValue).toList(growable: false);
+  }
+  return value;
 }

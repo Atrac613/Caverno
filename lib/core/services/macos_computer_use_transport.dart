@@ -15,6 +15,8 @@ abstract class MacosComputerUsePermissionTransport {
 
   Future<String> launchHelper();
 
+  Future<String> restartHelper();
+
   Future<String> ping();
 
   Future<String> getPermissions();
@@ -48,6 +50,11 @@ class HelperMacosComputerUseTransport
   @override
   Future<String> launchHelper() {
     return _invokeJson('launchHelper');
+  }
+
+  @override
+  Future<String> restartHelper() {
+    return _invokeJson('restartHelper');
   }
 
   @override
@@ -145,6 +152,16 @@ class InProcessMacosComputerUseTransport
       'backend': 'in_process',
       'code': 'helper_not_used',
       'error': 'The in-process backend does not launch a helper app.',
+    });
+  }
+
+  @override
+  Future<String> restartHelper() async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'code': 'helper_not_used',
+      'error': 'The in-process backend does not restart a helper app.',
     });
   }
 
