@@ -78,6 +78,16 @@ preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
 not be treated as production-ready until the named service and all migrated
 commands pass parity smoke checks.
 
+Production readiness requires:
+
+- The named XPC service connects from the signed main app.
+- `ping`, `permissionStatus`, `openSettings`, and `stopAll` match the active
+  distributed-notification behavior.
+- Capture, input, and audio commands have parity smoke coverage before they move
+  to XPC.
+- Fallback behavior is observable in diagnostics and does not execute duplicate
+  unsafe OS actions.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.
@@ -142,6 +152,27 @@ Use the Computer Use smoke-test panel to verify a local build:
 11. Export diagnostics and verify `onboardingSmokeChecklist` contains the
     completed launch, IPC, permission, observation, input, and audio steps.
 
+## Manual Unsafe Smoke
+
+Unsafe smoke checks are local-only and should be run only after the helper is
+reachable and the required macOS permissions are granted.
+
+1. Run the normal smoke first:
+   `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact`.
+2. Confirm the report shows `coreOk=true`, `helperOwnsUnsafeOsActions=true`,
+   `mainAppUnsafeOsActionsAllowed=false`, and `stop_helper_work` succeeds.
+3. Grant Accessibility and Screen & System Audio Recording to
+   `Caverno Computer Use`.
+4. Run input and audio checks without clicks:
+   `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed`.
+5. Run the click check only when the pointer target is safe:
+   `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-click-armed`.
+6. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
+   operations must be listed explicitly; skipped operations must include a
+   reason.
+7. Run **Stop Helper Work** from Settings if any audio or input work remains
+   active.
+
 ## Safety Invariants
 
 - The main app is the only component that may talk to the LLM.
@@ -158,6 +189,8 @@ Use the Computer Use smoke-test panel to verify a local build:
 - Helper IPC diagnostics include `mainAppUnsafeOsActionsAllowed=false`,
   `helperOwnsUnsafeOsActions=true`, and helper-owned action categories so the
   boundary is visible in exported reports.
+- Live smoke reports include `unsafeOperationSummary` so manual runs can verify
+  which unsafe operations executed and which were skipped.
 - The helper returns structured errors with `code`, `error`, and `nextAction`
   when the user must grant a macOS permission.
 - Screenshot and audio payloads must be redacted from diagnostics unless the

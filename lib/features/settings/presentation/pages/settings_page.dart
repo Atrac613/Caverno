@@ -511,6 +511,17 @@ class _ComputerUseOnboardingCardState
               _PersistenceSummary(persistence: helperStatusPersistence),
             ],
             const SizedBox(height: 8),
+            _PermissionFlowSummary(
+              accessibilityGranted: accessibilityGranted,
+              screenCaptureGranted: screenCaptureGranted,
+              isLoading: _isLoading,
+              onOpenAccessibility: () =>
+                  _openPermissionSettings('accessibility'),
+              onOpenScreenRecording: () =>
+                  _openPermissionSettings('screen_recording'),
+              onRecheck: () => _refresh(force: true),
+            ),
+            const SizedBox(height: 8),
             _IpcRuntimeSummary(runtime: helperIpcRuntime),
             if (_lastLiveSmokeReport != null) ...[
               const SizedBox(height: 8),
@@ -1081,6 +1092,12 @@ class _ComputerUseOnboardingCardState
       'helperOwnedActionCategories':
           snapshot['helperOwnedActionCategories'] ??
           MacosComputerUseIpc.current.helperOwnedActionCategories,
+      'xpcNextParityCommands':
+          snapshot['xpcNextParityCommands'] ??
+          MacosComputerUseIpc.current.xpcNextParityCommands,
+      'xpcProductionReadinessCriteria':
+          snapshot['xpcProductionReadinessCriteria'] ??
+          MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
       'xpcServiceName':
           snapshot['xpcServiceName'] ??
           MacosComputerUseIpc.current.xpcServiceName,
@@ -1226,6 +1243,122 @@ class _InfoChip extends StatelessWidget {
   }
 }
 
+class _PermissionFlowSummary extends StatelessWidget {
+  const _PermissionFlowSummary({
+    required this.accessibilityGranted,
+    required this.screenCaptureGranted,
+    required this.isLoading,
+    required this.onOpenAccessibility,
+    required this.onOpenScreenRecording,
+    required this.onRecheck,
+  });
+
+  final bool accessibilityGranted;
+  final bool screenCaptureGranted;
+  final bool isLoading;
+  final VoidCallback onOpenAccessibility;
+  final VoidCallback onOpenScreenRecording;
+  final VoidCallback onRecheck;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Permission flow', style: textTheme.labelLarge),
+        const SizedBox(height: 6),
+        _PermissionFlowRow(
+          label: 'Accessibility',
+          granted: accessibilityGranted,
+          blockedText: 'Grant Caverno Computer Use, then recheck.',
+          openLabel: 'Open Accessibility',
+          onOpen: onOpenAccessibility,
+          onRecheck: onRecheck,
+          isLoading: isLoading,
+        ),
+        const SizedBox(height: 6),
+        _PermissionFlowRow(
+          label: 'Screen & System Audio Recording',
+          granted: screenCaptureGranted,
+          blockedText: 'Grant Caverno Computer Use, then recheck.',
+          openLabel: 'Open Screen Recording',
+          onOpen: onOpenScreenRecording,
+          onRecheck: onRecheck,
+          isLoading: isLoading,
+        ),
+      ],
+    );
+  }
+}
+
+class _PermissionFlowRow extends StatelessWidget {
+  const _PermissionFlowRow({
+    required this.label,
+    required this.granted,
+    required this.blockedText,
+    required this.openLabel,
+    required this.onOpen,
+    required this.onRecheck,
+    required this.isLoading,
+  });
+
+  final String label;
+  final bool granted;
+  final String blockedText;
+  final String openLabel;
+  final VoidCallback onOpen;
+  final VoidCallback onRecheck;
+  final bool isLoading;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusColor = granted ? colorScheme.primary : colorScheme.error;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(10),
+        child: Row(
+          children: [
+            Icon(
+              granted ? Icons.check_circle_outline : Icons.error_outline,
+              color: statusColor,
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(label, style: Theme.of(context).textTheme.bodyMedium),
+                  const SizedBox(height: 2),
+                  Text(
+                    granted ? 'Granted to Caverno Computer Use.' : blockedText,
+                    style: Theme.of(context).textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            if (!granted)
+              TextButton(
+                onPressed: isLoading ? null : onOpen,
+                child: Text(openLabel),
+              ),
+            TextButton(
+              onPressed: isLoading ? null : onRecheck,
+              child: const Text('Recheck'),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _IpcRuntimeSummary extends StatelessWidget {
   const _IpcRuntimeSummary({required this.runtime});
 
@@ -1246,6 +1379,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final status = fallbackActive
         ? 'preferred XPC fell back to $fallback'
         : 'using $selected';
+    final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1280,10 +1414,25 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Preferred error',
                 value: preferredAttemptErrorCode,
               ),
+            if (nextParityCommands.isNotEmpty)
+              _InfoChip(
+                label: 'Next XPC parity',
+                value: nextParityCommands.join(', '),
+              ),
           ],
         ),
       ],
     );
+  }
+
+  List<String> _stringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => '$item')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
   }
 }
 

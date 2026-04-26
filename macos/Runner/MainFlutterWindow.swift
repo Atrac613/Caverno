@@ -210,6 +210,13 @@ fileprivate enum MacosComputerUseIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
+  static let xpcNextParityCommands = ["openSettings", "stopAll"]
+  static let xpcProductionReadinessCriteria = [
+    "named_service_connects_from_signed_main_app",
+    "ping_permission_status_open_settings_stop_all_match_dnc",
+    "capture_input_audio_commands_have_parity_smoke_coverage",
+    "fallback_path_is_observable_and_non_destructive",
+  ]
   static let xpcFallbackTimeout = 0.7
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
@@ -352,6 +359,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
+      "xpcNextParityCommands": MacosComputerUseIpcSchema.xpcNextParityCommands,
+      "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
       "pendingHelperIpcRequestCount": pendingRequests.count,
     ]
     if let lastHelperIpcAttempt {
@@ -573,6 +582,8 @@ final class MacosComputerUseHelperClient: NSObject {
         "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
         "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
         "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
+        "xpcNextParityCommands": MacosComputerUseIpcSchema.xpcNextParityCommands,
+        "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
       ]
       if let attemptedTransport = pendingRequest.attemptedTransport {
         details["attemptedIpcTransport"] = attemptedTransport
@@ -919,6 +930,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
+      "xpcNextParityCommands": MacosComputerUseIpcSchema.xpcNextParityCommands,
+      "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
     ]
     if let attemptedTransport {
       diagnostic["attemptedIpcTransport"] = attemptedTransport

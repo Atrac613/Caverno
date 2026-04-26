@@ -54,6 +54,11 @@ void main() {
       info['helperOwnedActionCategories'],
       contains('system_audio_recording'),
     );
+    expect(info['xpcNextParityCommands'], ['openSettings', 'stopAll']);
+    expect(
+      info['xpcProductionReadinessCriteria'],
+      contains('ping_permission_status_open_settings_stop_all_match_dnc'),
+    );
   });
 
   test('builds the onboarding diagnostics schema', () {
@@ -125,6 +130,10 @@ void main() {
     expect(
       diagnostics['helperIpcProtocol'],
       containsPair('helperOwnsUnsafeOsActions', true),
+    );
+    expect(
+      diagnostics['helperIpcProtocol'],
+      containsPair('xpcNextParityCommands', ['openSettings', 'stopAll']),
     );
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

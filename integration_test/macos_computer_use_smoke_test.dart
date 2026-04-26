@@ -231,6 +231,7 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
+    report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
       steps,
       permissions: permissions,
@@ -303,6 +304,67 @@ void _skipStep(
     'skipped': true,
     'reason': reason,
   });
+}
+
+Map<String, dynamic> _unsafeOperationSummary(List<Map<String, dynamic>> steps) {
+  final operations = [
+    _unsafeOperation(
+      steps,
+      id: 'input_move_pointer',
+      category: 'input',
+      requiresArming: 'unsafe',
+    ),
+    _unsafeOperation(
+      steps,
+      id: 'input_click',
+      category: 'input',
+      requiresArming: 'unsafe_click',
+    ),
+    _unsafeOperation(
+      steps,
+      id: 'system_audio_recording',
+      category: 'audio',
+      requiresArming: 'unsafe',
+    ),
+  ];
+  return {
+    'executedCount': operations
+        .where((operation) => operation['executed'] == true)
+        .length,
+    'skippedCount': operations
+        .where((operation) => operation['skipped'] == true)
+        .length,
+    'failedCount': operations
+        .where(
+          (operation) =>
+              operation['executed'] == true && operation['passed'] != true,
+        )
+        .length,
+    'operations': operations,
+  };
+}
+
+Map<String, dynamic> _unsafeOperation(
+  List<Map<String, dynamic>> steps, {
+  required String id,
+  required String category,
+  required String requiresArming,
+}) {
+  final step = steps.cast<Map<String, dynamic>?>().firstWhere(
+    (step) => step?['id'] == id,
+    orElse: () => null,
+  );
+  final skipped = step?['skipped'] == true;
+  return {
+    'id': id,
+    'category': category,
+    'requiresArming': requiresArming,
+    'executed': step != null && !skipped,
+    'skipped': skipped,
+    'passed': step?['ok'] == true && !skipped,
+    if (step?['reason'] != null) 'reason': step?['reason'],
+    if (step?['error'] != null) 'error': step?['error'],
+  };
 }
 
 Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {

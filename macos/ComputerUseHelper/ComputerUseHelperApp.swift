@@ -449,6 +449,13 @@ private enum ComputerUseHelperIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
+  static let xpcNextParityCommands = ["openSettings", "stopAll"]
+  static let xpcProductionReadinessCriteria = [
+    "named_service_connects_from_signed_main_app",
+    "ping_permission_status_open_settings_stop_all_match_dnc",
+    "capture_input_audio_commands_have_parity_smoke_coverage",
+    "fallback_path_is_observable_and_non_destructive",
+  ]
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let requestEnvelope = [
@@ -1402,6 +1409,8 @@ private final class ComputerUseHelperIpc: NSObject {
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,
+      "xpcNextParityCommands": ComputerUseHelperIpcSchema.xpcNextParityCommands,
+      "xpcProductionReadinessCriteria": ComputerUseHelperIpcSchema.xpcProductionReadinessCriteria,
       "xpcListenerStarted": xpcListenerStarted,
       "audioRecordingActive": audioRecordingActive,
       "activeWork": activeWork,
@@ -1555,6 +1564,8 @@ private final class ComputerUseHelperIpc: NSObject {
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,
+      "xpcNextParityCommands": ComputerUseHelperIpcSchema.xpcNextParityCommands,
+      "xpcProductionReadinessCriteria": ComputerUseHelperIpcSchema.xpcProductionReadinessCriteria,
       "xpcListenerStarted": xpcListenerStarted,
       "helperIpcEventCount": helperIpcEventCount,
     ]

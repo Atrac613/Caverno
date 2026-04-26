@@ -64,6 +64,7 @@ void main() {
     expect(text, contains('"helperIpcRuntime"'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
+    expect(text, contains('"xpcNextParityCommands"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(
@@ -141,6 +142,7 @@ void main() {
     expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
     expect(find.text('OS action owner: helper'), findsOneWidget);
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
+    expect(find.text('Next XPC parity: openSettings, stopAll'), findsOneWidget);
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -182,6 +184,9 @@ void main() {
 
     expect(find.text('Open Accessibility Settings'), findsOneWidget);
     expect(find.text('Open Screen Recording Settings'), findsOneWidget);
+    expect(find.text('Permission flow'), findsOneWidget);
+    expect(find.text('Open Accessibility'), findsAtLeastNWidgets(1));
+    expect(find.text('Open Screen Recording'), findsOneWidget);
 
     await _tapByKey(
       tester,
@@ -394,6 +399,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcProductionReady': false,
       'mainAppUnsafeOsActionsAllowed': false,
       'helperOwnsUnsafeOsActions': true,
+      'xpcNextParityCommands': ['openSettings', 'stopAll'],
+      'xpcProductionReadinessCriteria': [
+        'named_service_connects_from_signed_main_app',
+        'ping_permission_status_open_settings_stop_all_match_dnc',
+        'capture_input_audio_commands_have_parity_smoke_coverage',
+        'fallback_path_is_observable_and_non_destructive',
+      ],
       'helperOwnedActionCategories': [
         'accessibility',
         'screen_capture',

@@ -81,6 +81,8 @@ class MacosComputerUseIpcInfo {
     required this.mainAppUnsafeOsActionsAllowed,
     required this.helperOwnsUnsafeOsActions,
     required this.helperOwnedActionCategories,
+    required this.xpcNextParityCommands,
+    required this.xpcProductionReadinessCriteria,
   });
 
   final int version;
@@ -103,6 +105,8 @@ class MacosComputerUseIpcInfo {
   final bool mainAppUnsafeOsActionsAllowed;
   final bool helperOwnsUnsafeOsActions;
   final List<String> helperOwnedActionCategories;
+  final List<String> xpcNextParityCommands;
+  final List<String> xpcProductionReadinessCriteria;
 
   Map<String, dynamic> toJson() {
     return {
@@ -126,6 +130,8 @@ class MacosComputerUseIpcInfo {
       'mainAppUnsafeOsActionsAllowed': mainAppUnsafeOsActionsAllowed,
       'helperOwnsUnsafeOsActions': helperOwnsUnsafeOsActions,
       'helperOwnedActionCategories': helperOwnedActionCategories,
+      'xpcNextParityCommands': xpcNextParityCommands,
+      'xpcProductionReadinessCriteria': xpcProductionReadinessCriteria,
     };
   }
 }
@@ -149,6 +155,13 @@ class MacosComputerUseIpc {
     'input_events',
     'system_audio_recording',
     'emergency_stop',
+  ];
+  static const xpcNextParityCommands = ['openSettings', 'stopAll'];
+  static const xpcProductionReadinessCriteria = [
+    'named_service_connects_from_signed_main_app',
+    'ping_permission_status_open_settings_stop_all_match_dnc',
+    'capture_input_audio_commands_have_parity_smoke_coverage',
+    'fallback_path_is_observable_and_non_destructive',
   ];
   static const requestNotificationName =
       'com.caverno.computer_use.helper.request';
@@ -212,6 +225,8 @@ class MacosComputerUseIpc {
     mainAppUnsafeOsActionsAllowed: mainAppUnsafeOsActionsAllowed,
     helperOwnsUnsafeOsActions: helperOwnsUnsafeOsActions,
     helperOwnedActionCategories: helperOwnedActionCategories,
+    xpcNextParityCommands: xpcNextParityCommands,
+    xpcProductionReadinessCriteria: xpcProductionReadinessCriteria,
   );
 }
 
