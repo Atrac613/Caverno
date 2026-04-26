@@ -47,6 +47,56 @@ class MacosComputerUseService {
     return _invokeTransportJson(_permissionTransport.ping);
   }
 
+  Future<String> waitForHelperIpcReady({
+    int attempts = 2,
+    Duration delay = const Duration(milliseconds: 400),
+  }) async {
+    final safeAttempts = attempts < 1 ? 1 : attempts;
+    final startedAt = DateTime.now();
+    final results = <Object>[];
+
+    for (var index = 0; index < safeAttempts; index += 1) {
+      final raw = await pingHelper();
+      final decoded = _decodeMap(raw);
+      results.add(decoded ?? raw);
+      if (decoded != null &&
+          decoded['ok'] != false &&
+          decoded['helperReachable'] != false) {
+        return jsonEncode({
+          ...decoded,
+          'ok': true,
+          'helperReachable': true,
+          'ipcReady': true,
+          'attempts': index + 1,
+          'waitedMs': DateTime.now().difference(startedAt).inMilliseconds,
+        });
+      }
+      if (index < safeAttempts - 1) {
+        await Future<void>.delayed(delay);
+      }
+    }
+
+    Map<String, dynamic>? last;
+    for (final result in results) {
+      if (result is Map) {
+        last = Map<String, dynamic>.from(result);
+      }
+    }
+    final failed = <String, dynamic>{
+      if (last != null) ...last,
+      'ok': false,
+      'helperReachable': false,
+      'ipcReady': false,
+      'code': last?['code'] ?? 'helper_unreachable',
+      'error':
+          last?['error'] ?? 'Caverno Computer Use IPC did not become ready.',
+      'attempts': safeAttempts,
+      'waitedMs': DateTime.now().difference(startedAt).inMilliseconds,
+      'results': results,
+    };
+    return jsonEncode(_withNextAction(failed));
+  }
+
   Future<String> getPermissions() async {
     return _invokeTransportJson(_permissionTransport.getPermissions);
   }
@@ -325,18 +375,17 @@ class MacosComputerUseService {
     if (code is! String || result.containsKey('nextAction')) {
       return result;
     }
-    final nextAction = _nextActionForCode(code);
+    final nextAction = _nextActionForCode(code, result);
     if (nextAction == null) {
       return result;
     }
     return {...result, 'nextAction': nextAction};
   }
 
-  String? _nextActionForCode(String code) {
+  String? _nextActionForCode(String code, Map<String, dynamic> result) {
     final permissionOwner = permissionBackendInfo.permissionOwnerName;
     return switch (code) {
-      'helper_unreachable' =>
-        'Launch ${MacosComputerUseBackends.helperDisplayName}, then refresh permissions.',
+      'helper_unreachable' => _helperUnreachableNextAction(result),
       'helper_not_installed' =>
         'Build Caverno with the bundled Caverno Computer Use helper, then launch it from the permissions panel.',
       'accessibility_denied' =>
@@ -345,5 +394,25 @@ class MacosComputerUseService {
         'Open System Settings > Privacy & Security > Screen & System Audio Recording, grant $permissionOwner, then refresh permissions.',
       _ => null,
     };
+  }
+
+  String _helperUnreachableNextAction(Map<String, dynamic> result) {
+    final details = result['details'];
+    final helperRunning =
+        result['helperRunning'] == true ||
+        (details is Map && details['helperRunning'] == true);
+    final helperDiagnostics = details is Map
+        ? details['helperSharedDiagnostics']
+        : result['helperSharedDiagnostics'];
+    if (helperRunning &&
+        helperDiagnostics is Map &&
+        helperDiagnostics['listenerStarted'] == true &&
+        helperDiagnostics['lastHelperIpcRequest'] == null) {
+      return 'Caverno Computer Use is running and its listener is started, but no DNC request was recorded. Restart Caverno Computer Use, then retry IPC readiness.';
+    }
+    if (helperRunning) {
+      return 'Caverno Computer Use is running, but IPC did not respond. Restart Caverno Computer Use, then retry IPC readiness.';
+    }
+    return 'Launch ${MacosComputerUseBackends.helperDisplayName}, then refresh permissions.';
   }
 }

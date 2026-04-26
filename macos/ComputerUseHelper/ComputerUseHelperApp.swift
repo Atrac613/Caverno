@@ -449,6 +449,22 @@ private enum ComputerUseHelperIpcSchema {
   }
 }
 
+private enum ComputerUseHelperSharedDiagnostics {
+  static let path = "/tmp/caverno-computer-use-helper-diagnostics.json"
+
+  static func write(_ diagnostics: [String: Any]) {
+    guard JSONSerialization.isValidJSONObject(diagnostics) else {
+      return
+    }
+    do {
+      let data = try JSONSerialization.data(withJSONObject: diagnostics, options: [.prettyPrinted, .sortedKeys])
+      try data.write(to: URL(fileURLWithPath: path), options: [.atomic])
+    } catch {
+      NSLog("CavernoComputerUseHelperIPC shared diagnostics write failed: %@", error.localizedDescription)
+    }
+  }
+}
+
 private struct ComputerUseHelperRequest {
   static let protocolVersion = ComputerUseHelperIpcSchema.protocolVersion
   static let mainAppBundleIdentifier = ComputerUseHelperIpcSchema.mainAppBundleIdentifier
@@ -541,11 +557,13 @@ private final class ComputerUseHelperIpc: NSObject {
       suspensionBehavior: .deliverImmediately
     )
     center.suspended = false
+    writeSharedDiagnostics(event: "listener_started")
   }
 
   func recordOnboardingVerification(_ verification: [String: Any]) {
     lastOnboardingVerification = verification
     statusStore.saveVerification(verification)
+    writeSharedDiagnostics(event: "onboarding_verification_saved")
   }
 
   @objc private func handleRequest(_ notification: Notification) {
@@ -1207,6 +1225,7 @@ private final class ComputerUseHelperIpc: NSObject {
       "activeWork": activeWork,
       "helperStatusPersistence": persistedStatus,
       "helperIpcEventCount": helperIpcEventCount,
+      "helperSharedDiagnosticsPath": ComputerUseHelperSharedDiagnostics.path,
     ]
     if let lastHelperIpcRequest {
       response["lastHelperIpcRequest"] = lastHelperIpcRequest
@@ -1330,7 +1349,34 @@ private final class ComputerUseHelperIpc: NSObject {
       diagnostic["errorCode"] = errorCode
     }
     lastHelperIpcRequest = diagnostic
+    writeSharedDiagnostics(event: "ipc_event")
     return diagnostic
+  }
+
+  private func writeSharedDiagnostics(event: String) {
+    var diagnostics: [String: Any] = [
+      "schemaName": "caverno_computer_use_helper_diagnostics",
+      "schemaVersion": 1,
+      "event": event,
+      "generatedAt": ISO8601DateFormatter().string(from: Date()),
+      "helperBundleIdentifier": helperBundleIdentifier,
+      "helperProcessIdentifier": Int(ProcessInfo.processInfo.processIdentifier),
+      "listenerStarted": true,
+      "requestNotificationName": requestName.rawValue,
+      "responseNotificationName": responseName.rawValue,
+      "ipcTransport": ComputerUseHelperIpcSchema.activeTransport,
+      "preferredIpcTransport": ComputerUseHelperIpcSchema.preferredTransport,
+      "fallbackIpcTransport": ComputerUseHelperIpcSchema.fallbackTransport,
+      "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
+      "helperIpcEventCount": helperIpcEventCount,
+    ]
+    if let lastHelperIpcRequest {
+      diagnostics["lastHelperIpcRequest"] = lastHelperIpcRequest
+    }
+    if let lastOnboardingVerification {
+      diagnostics["onboardingVerification"] = lastOnboardingVerification
+    }
+    ComputerUseHelperSharedDiagnostics.write(diagnostics)
   }
 }
 

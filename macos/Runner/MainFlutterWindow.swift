@@ -226,6 +226,21 @@ fileprivate enum MacosComputerUseIpcSchema {
   }
 }
 
+fileprivate enum MacosComputerUseHelperSharedDiagnostics {
+  static let path = "/tmp/caverno-computer-use-helper-diagnostics.json"
+
+  static func read() -> [String: Any]? {
+    let url = URL(fileURLWithPath: path)
+    guard let data = try? Data(contentsOf: url) else {
+      return nil
+    }
+    guard let decoded = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+      return nil
+    }
+    return decoded
+  }
+}
+
 fileprivate struct MacosComputerUseHelperRequest {
   static let protocolVersion = MacosComputerUseIpcSchema.protocolVersion
 
@@ -311,6 +326,16 @@ final class MacosComputerUseHelperClient: NSObject {
     ]
     if let lastHelperIpcAttempt {
       response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
+    }
+    response["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
+    if let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() {
+      response["helperSharedDiagnostics"] = helperSharedDiagnostics
+      if let diagnosticProcessIdentifier =
+        helperSharedDiagnostics["helperProcessIdentifier"] as? Int,
+        let runningProcessIdentifier = runningApplication?.processIdentifier {
+        response["helperSharedDiagnosticsMatchesRunningHelper"] =
+          diagnosticProcessIdentifier == Int(runningProcessIdentifier)
+      }
     }
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
@@ -436,6 +461,7 @@ final class MacosComputerUseHelperClient: NSObject {
       var details: [String: Any] = [
         "command": pendingRequest.command.rawValue,
         "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
+        "helperRunning": self.runningHelperApplication() != nil,
         "ipcTransport": pendingRequest.selectedTransport,
         "selectedIpcTransport": pendingRequest.selectedTransport,
         "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
@@ -444,6 +470,13 @@ final class MacosComputerUseHelperClient: NSObject {
       ]
       if let attemptedTransport = pendingRequest.attemptedTransport {
         details["attemptedIpcTransport"] = attemptedTransport
+      }
+      if let runningProcessIdentifier = self.runningHelperApplication()?.processIdentifier {
+        details["helperProcessIdentifier"] = Int(runningProcessIdentifier)
+      }
+      details["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
+      if let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() {
+        details["helperSharedDiagnostics"] = helperSharedDiagnostics
       }
       if let lastHelperIpcAttempt = self.lastHelperIpcAttempt {
         details["lastHelperIpcAttempt"] = lastHelperIpcAttempt
@@ -658,6 +691,12 @@ final class MacosComputerUseHelperClient: NSObject {
       .appendingPathComponent("Contents", isDirectory: true)
       .appendingPathComponent("Helpers", isDirectory: true)
       .appendingPathComponent("\(helperDisplayName).app", isDirectory: true)
+  }
+
+  private func runningHelperApplication() -> NSRunningApplication? {
+    NSRunningApplication.runningApplications(
+      withBundleIdentifier: helperBundleIdentifier
+    ).first { !$0.isTerminated }
   }
 }
 

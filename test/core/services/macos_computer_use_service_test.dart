@@ -58,6 +58,69 @@ void main() {
     },
   );
 
+  test(
+    'adds a restart next action when a running helper misses IPC requests',
+    () async {
+      final service = MacosComputerUseService(
+        permissionTransport: _FakePermissionTransport(
+          permissions: {
+            'ok': false,
+            'backend': 'helper',
+            'helperReachable': false,
+            'code': 'helper_unreachable',
+            'error': 'Caverno Computer Use did not respond.',
+            'details': {
+              'helperRunning': true,
+              'helperSharedDiagnostics': {
+                'listenerStarted': true,
+                'helperIpcEventCount': 0,
+              },
+            },
+          },
+        ),
+      );
+
+      final permissions =
+          jsonDecode(await service.getPermissions()) as Map<String, dynamic>;
+
+      expect(permissions, containsPair('code', 'helper_unreachable'));
+      expect(
+        permissions,
+        containsPair(
+          'nextAction',
+          'Caverno Computer Use is running and its listener is started, but no DNC request was recorded. Restart Caverno Computer Use, then retry IPC readiness.',
+        ),
+      );
+    },
+  );
+
+  test('waits for helper IPC readiness with retry metadata', () async {
+    final transport = _FakePermissionTransport(
+      permissions: {
+        'ok': true,
+        'backend': 'helper',
+        'helperReachable': true,
+        'accessibilityGranted': true,
+        'screenCaptureGranted': true,
+        'systemAudioRecordingSupported': true,
+      },
+    );
+    final service = MacosComputerUseService(permissionTransport: transport);
+
+    final result =
+        jsonDecode(
+              await service.waitForHelperIpcReady(
+                attempts: 1,
+                delay: Duration.zero,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(result, containsPair('ipcReady', true));
+    expect(result, containsPair('attempts', 1));
+    expect(transport.calledMethods, ['ping']);
+  });
+
   test('launches the helper before guiding permission requests', () async {
     final transport = _FakePermissionTransport(
       permissions: {

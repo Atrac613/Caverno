@@ -794,6 +794,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       (service) => service.launchHelper(),
       onResult: _storeHelperStatus,
     );
+    await _run(
+      'Wait for helper IPC readiness',
+      (service) => service.waitForHelperIpcReady(),
+      onResult: _storeHelperStatus,
+    );
     await _refreshHelperStatus(refreshPermissions: true);
   }
 

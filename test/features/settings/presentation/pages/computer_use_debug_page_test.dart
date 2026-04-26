@@ -79,7 +79,7 @@ void main() {
 
     expect(service.launchHelperCallCount, 1);
     expect(service.helperStatusCallCount, 2);
-    expect(service.pingHelperCallCount, 2);
+    expect(service.pingHelperCallCount, 3);
     expect(service.getPermissionsCallCount, 1);
   });
 

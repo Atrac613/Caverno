@@ -610,6 +610,15 @@ class _ComputerUseOnboardingCardState
           _helperStatus = {...?_helperStatus, ...helper};
         }
       });
+      final readiness = _decodeMap(await service.waitForHelperIpcReady());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        if (readiness != null) {
+          _helperStatus = {...?_helperStatus, ...readiness};
+        }
+      });
       await _refresh(force: true);
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) {
