@@ -438,6 +438,8 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = ["ping", "permissionStatus"]
   static let xpcReady = true
+  static let xpcProductionReady = false
+  static let xpcStatus = "experimental_fallback"
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let requestEnvelope = [
@@ -1386,6 +1388,8 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcServiceName": ComputerUseHelperIpcSchema.xpcServiceName,
       "xpcSupportedCommands": ComputerUseHelperIpcSchema.xpcSupportedCommands,
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
+      "xpcProductionReady": ComputerUseHelperIpcSchema.xpcProductionReady,
+      "xpcStatus": ComputerUseHelperIpcSchema.xpcStatus,
       "xpcListenerStarted": xpcListenerStarted,
       "audioRecordingActive": audioRecordingActive,
       "activeWork": activeWork,
@@ -1534,6 +1538,8 @@ private final class ComputerUseHelperIpc: NSObject {
       "preferredIpcTransport": ComputerUseHelperIpcSchema.preferredTransport,
       "fallbackIpcTransport": ComputerUseHelperIpcSchema.fallbackTransport,
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
+      "xpcProductionReady": ComputerUseHelperIpcSchema.xpcProductionReady,
+      "xpcStatus": ComputerUseHelperIpcSchema.xpcStatus,
       "xpcListenerStarted": xpcListenerStarted,
       "helperIpcEventCount": helperIpcEventCount,
     ]

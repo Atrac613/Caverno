@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 const _strict = bool.fromEnvironment('CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT');
+const _unsafeArmed = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED',
+);
 const _reportPath = String.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
 );
@@ -22,6 +25,7 @@ void main() {
       'schemaVersion': 1,
       'generatedAt': DateTime.now().toIso8601String(),
       'strict': _strict,
+      'unsafeArmed': _unsafeArmed,
       'platform': Platform.operatingSystem,
       'steps': <Map<String, dynamic>>[],
     };
@@ -114,6 +118,55 @@ void main() {
         }),
       );
     }
+    if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
+      final inputArguments = <String, dynamic>{
+        'x': 1.0,
+        'y': 1.0,
+        'reason': 'Live smoke was explicitly armed for input verification.',
+      };
+      final sourceWidth = _intValue(displayScreenshot?['width']);
+      final sourceHeight = _intValue(displayScreenshot?['height']);
+      if (sourceWidth != null) {
+        inputArguments['source_width'] = sourceWidth;
+      }
+      if (sourceHeight != null) {
+        inputArguments['source_height'] = sourceHeight;
+      }
+      await _runStep(
+        steps,
+        'input_move_pointer',
+        'Move pointer after explicit smoke arming',
+        () => service.moveMouse(inputArguments),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_move_pointer',
+        'Move pointer after explicit smoke arming',
+        _unsafeArmed
+            ? 'Accessibility permission is not granted.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
+    if (_unsafeArmed &&
+        permissions?['screenCaptureGranted'] == true &&
+        permissions?['systemAudioRecordingSupported'] == true) {
+      await _runStep(
+        steps,
+        'system_audio_recording',
+        'Start and stop system audio after explicit smoke arming',
+        () => _startAndStopSystemAudio(service),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'system_audio_recording',
+        'Start and stop system audio after explicit smoke arming',
+        _unsafeArmed
+            ? 'Screen & System Audio Recording permission is not granted or audio is unsupported.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
     final stop = await _runStep(
       steps,
       'stop_helper_work',
@@ -157,11 +210,29 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
+    final positiveSmokeGates = _positiveSmokeGates(
+      steps,
+      permissions: permissions,
+      unsafeArmed: _unsafeArmed,
+    );
+    final requiredPositiveSmokeOk = positiveSmokeGates
+        .where((gate) => gate['required'] == true)
+        .every((gate) => gate['passed'] == true);
+    report['positiveSmokeGates'] = positiveSmokeGates;
+    report['requiredPositiveSmokeOk'] = requiredPositiveSmokeOk;
+    if (_strict && !requiredPositiveSmokeOk) {
+      report['ok'] = false;
+    }
     _printReport(report);
 
     if (_strict) {
       expect(coreOk, isTrue, reason: 'Core helper smoke steps must pass.');
       expect(captureOk, isTrue, reason: 'Capture smoke steps must pass.');
+      expect(
+        requiredPositiveSmokeOk,
+        isTrue,
+        reason: 'Required positive smoke gates must pass.',
+      );
     }
   });
 }
@@ -198,6 +269,40 @@ Future<Map<String, dynamic>?> _runStep(
   }
 }
 
+void _skipStep(
+  List<Map<String, dynamic>> steps,
+  String id,
+  String label,
+  String reason,
+) {
+  steps.add({
+    'id': id,
+    'label': label,
+    'ok': true,
+    'skipped': true,
+    'reason': reason,
+  });
+}
+
+Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {
+  final startRaw = await service.startSystemAudioRecording({
+    'exclude_current_process_audio': true,
+    'reason': 'Live smoke was explicitly armed for system audio verification.',
+  });
+  final start = _decodeMap(startRaw);
+  if (start?['ok'] != true) {
+    return jsonEncode({'ok': false, 'start': start ?? startRaw});
+  }
+  await Future<void>.delayed(const Duration(milliseconds: 250));
+  final stopRaw = await service.stopSystemAudioRecording();
+  final stop = _decodeMap(stopRaw);
+  return jsonEncode({
+    'ok': stop?['ok'] == true,
+    'start': start,
+    'stop': stop ?? stopRaw,
+  });
+}
+
 Map<String, dynamic>? _decodeMap(String raw) {
   try {
     final decoded = jsonDecode(raw);
@@ -229,6 +334,90 @@ bool _responseLooksSuccessful(Map<String, dynamic> response) {
 
 bool _stepPassed(Map<String, dynamic>? response) {
   return response != null && _responseLooksSuccessful(response);
+}
+
+List<Map<String, dynamic>> _positiveSmokeGates(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? permissions,
+  required bool unsafeArmed,
+}) {
+  final screenGranted = permissions?['screenCaptureGranted'] == true;
+  final accessibilityGranted = permissions?['accessibilityGranted'] == true;
+  final audioSupported = permissions?['systemAudioRecordingSupported'] == true;
+  return [
+    _positiveSmokeGate(
+      steps,
+      id: 'display_screenshot',
+      label: 'Display screenshot',
+      required: screenGranted,
+      blockedBy: screenGranted ? null : 'screen_capture',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'window_capture',
+      label: 'Window screenshot',
+      required: screenGranted,
+      blockedBy: screenGranted ? null : 'screen_capture',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_move_pointer',
+      label: 'Armed pointer movement',
+      required: unsafeArmed && accessibilityGranted,
+      blockedBy: unsafeArmed
+          ? accessibilityGranted
+                ? null
+                : 'accessibility'
+          : 'unsafe_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'system_audio_recording',
+      label: 'Armed system audio recording',
+      required: unsafeArmed && screenGranted && audioSupported,
+      blockedBy: unsafeArmed
+          ? screenGranted && audioSupported
+                ? null
+                : 'screen_capture_or_audio_support'
+          : 'unsafe_smoke_not_armed',
+    ),
+  ];
+}
+
+Map<String, dynamic> _positiveSmokeGate(
+  List<Map<String, dynamic>> steps, {
+  required String id,
+  required String label,
+  required bool required,
+  required String? blockedBy,
+}) {
+  final step = steps.cast<Map<String, dynamic>?>().firstWhere(
+    (step) => step?['id'] == id,
+    orElse: () => null,
+  );
+  final passed = step?['ok'] == true && step?['skipped'] != true;
+  final gate = <String, dynamic>{
+    'id': id,
+    'label': label,
+    'required': required,
+    'passed': passed,
+    'skipped': step?['skipped'] == true,
+    if (step?['reason'] != null) 'reason': step?['reason'],
+  };
+  if (blockedBy != null) {
+    gate['blockedBy'] = blockedBy;
+  }
+  return gate;
+}
+
+int? _intValue(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return null;
 }
 
 int? _firstWindowId(Map<String, dynamic>? response) {

@@ -175,6 +175,17 @@ void main() {
     expect(service.lastMoveArguments, isNull);
     expect(service.startAudioCallCount, 0);
     expect(service.stopAudioCallCount, 0);
+    expect(
+      find.textContaining('Input events were not armed.', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'System audio recording was not armed.',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('runs armed input and audio during smoke sequence', (
@@ -238,6 +249,8 @@ void main() {
     expect(text, contains('"helperIpcProtocol"'));
     expect(text, contains('"preferredTransport": "xpc_service"'));
     expect(text, contains('"xpcReady": true'));
+    expect(text, contains('"xpcProductionReady": false'));
+    expect(text, contains('"xpcStatus": "experimental_fallback"'));
     expect(text, contains('"migratedCommands"'));
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));

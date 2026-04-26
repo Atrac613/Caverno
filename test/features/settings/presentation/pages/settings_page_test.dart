@@ -136,6 +136,7 @@ void main() {
       find.textContaining('IPC runtime:', skipOffstage: false),
       findsOneWidget,
     );
+    expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -380,6 +381,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'selectedIpcTransport': 'distributed_notification_center',
       'preferredIpcTransport': 'xpc_service',
       'fallbackIpcTransport': 'distributed_notification_center',
+      'xpcStatus': 'experimental_fallback',
+      'xpcProductionReady': false,
       if (!_helperReachable)
         'preferredIpcAttempt': {
           'status': 'xpc_error',

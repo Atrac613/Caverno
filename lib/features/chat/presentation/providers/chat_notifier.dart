@@ -8126,7 +8126,10 @@ class ChatNotifier extends Notifier<ChatState> {
     final details = [
       if (policy != null) ...[
         'Policy: ${policy.policyLabel}',
+        'Requires approval: ${policy.requiresUserApproval}',
+        'Requires smoke arming: ${policy.requiresSmokeArming}',
         'Requires post-action observation: ${policy.requiresPostActionObservation}',
+        if (policy.emergencyStop) 'Emergency stop: true',
       ],
       ..._computerUseActionDetails(toolCall),
     ];

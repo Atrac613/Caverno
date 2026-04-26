@@ -199,6 +199,8 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = ["ping", "permissionStatus"]
   static let xpcReady = true
+  static let xpcProductionReady = false
+  static let xpcStatus = "experimental_fallback"
   static let xpcFallbackTimeout = 0.7
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
@@ -336,6 +338,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcServiceName": MacosComputerUseIpcSchema.xpcServiceName,
       "xpcSupportedCommands": MacosComputerUseIpcSchema.xpcSupportedCommands,
       "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+      "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
+      "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
       "pendingHelperIpcRequestCount": pendingRequests.count,
     ]
     if let lastHelperIpcAttempt {
@@ -552,6 +556,8 @@ final class MacosComputerUseHelperClient: NSObject {
         "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
         "fallbackIpcTransport": MacosComputerUseIpcSchema.fallbackTransport,
         "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+        "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
+        "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
       ]
       if let attemptedTransport = pendingRequest.attemptedTransport {
         details["attemptedIpcTransport"] = attemptedTransport
@@ -893,6 +899,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
       "fallbackIpcTransport": MacosComputerUseIpcSchema.fallbackTransport,
       "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+      "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
+      "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
     ]
     if let attemptedTransport {
       diagnostic["attemptedIpcTransport"] = attemptedTransport

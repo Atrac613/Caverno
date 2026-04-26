@@ -1059,6 +1059,11 @@ class _ComputerUseOnboardingCardState
       'preferredIpcTransport': preferredTransport,
       'fallbackIpcTransport': fallbackTransport,
       'xpcReady': snapshot['xpcReady'] ?? MacosComputerUseIpc.current.xpcReady,
+      'xpcProductionReady':
+          snapshot['xpcProductionReady'] ??
+          MacosComputerUseIpc.current.xpcProductionReady,
+      'xpcStatus':
+          snapshot['xpcStatus'] ?? MacosComputerUseIpc.current.xpcStatus,
       'xpcServiceName':
           snapshot['xpcServiceName'] ??
           MacosComputerUseIpc.current.xpcServiceName,
@@ -1235,6 +1240,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
           children: [
             _InfoChip(label: 'Active IPC', value: selected),
             _InfoChip(label: 'Preferred IPC', value: preferred),
+            _InfoChip(label: 'XPC status', value: '${runtime['xpcStatus']}'),
             if (preferredAttemptStatus is String)
               _InfoChip(
                 label: 'Preferred attempt',

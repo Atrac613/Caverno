@@ -12,16 +12,20 @@ class MacosComputerUseToolPolicyDecision {
     required this.toolName,
     required this.category,
     required this.requiresUserApproval,
+    required this.requiresSmokeArming,
     required this.allowedInPlanning,
     required this.requiresPostActionObservation,
+    required this.emergencyStop,
     required this.policyLabel,
   });
 
   final String toolName;
   final MacosComputerUseToolCategory category;
   final bool requiresUserApproval;
+  final bool requiresSmokeArming;
   final bool allowedInPlanning;
   final bool requiresPostActionObservation;
+  final bool emergencyStop;
   final String policyLabel;
 
   Map<String, dynamic> toJson() {
@@ -29,8 +33,10 @@ class MacosComputerUseToolPolicyDecision {
       'toolName': toolName,
       'category': category.name,
       'requiresUserApproval': requiresUserApproval,
+      'requiresSmokeArming': requiresSmokeArming,
       'allowedInPlanning': allowedInPlanning,
       'requiresPostActionObservation': requiresPostActionObservation,
+      'emergencyStop': emergencyStop,
       'policyLabel': policyLabel,
     };
   }
@@ -75,6 +81,20 @@ class MacosComputerUseToolPolicy {
     'computer_start_system_audio_recording',
   };
 
+  static const smokeArmingRequiredToolNames = {
+    'computer_move_mouse',
+    'computer_click',
+    'computer_drag',
+    'computer_scroll',
+    'computer_type_text',
+    'computer_press_key',
+    'computer_start_system_audio_recording',
+  };
+
+  static const emergencyStopToolNames = {
+    'computer_stop_system_audio_recording',
+  };
+
   static bool isComputerUseTool(String toolName) {
     return allToolNames.contains(toolName);
   }
@@ -85,6 +105,14 @@ class MacosComputerUseToolPolicy {
 
   static bool requiresUserApproval(String toolName) {
     return approvalRequiredToolNames.contains(toolName);
+  }
+
+  static bool requiresSmokeArming(String toolName) {
+    return smokeArmingRequiredToolNames.contains(toolName);
+  }
+
+  static bool isEmergencyStop(String toolName) {
+    return emergencyStopToolNames.contains(toolName);
   }
 
   static MacosComputerUseToolPolicyDecision? decision(String toolName) {
@@ -116,6 +144,7 @@ class MacosComputerUseToolPolicy {
       toolName: toolName,
       category: category,
       requiresUserApproval: requiresUserApproval(toolName),
+      requiresSmokeArming: requiresSmokeArming(toolName),
       allowedInPlanning: isAllowedInPlanning(toolName),
       requiresPostActionObservation: switch (toolName) {
         'computer_focus_window' ||
@@ -129,6 +158,7 @@ class MacosComputerUseToolPolicy {
         'computer_stop_system_audio_recording' => true,
         _ => false,
       },
+      emergencyStop: isEmergencyStop(toolName),
       policyLabel: switch (category) {
         MacosComputerUseToolCategory.setup => 'setup',
         MacosComputerUseToolCategory.observation => 'observation',

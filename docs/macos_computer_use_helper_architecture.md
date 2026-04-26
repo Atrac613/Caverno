@@ -69,10 +69,13 @@ be constrained to the bundled helper. A Unix domain socket or localhost HTTP
 transport can be used as a temporary development transport if it accelerates
 iteration.
 
-The current helper milestone uses `DistributedNotificationCenter` as a
+The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
-XPC remains the preferred production transport once the remaining privileged
-commands move into the helper.
+XPC is exposed as an experimental preferred transport for `ping` and
+`permissionStatus`; when the named service is unavailable, the app records the
+preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
+not be treated as production-ready until the named service and all migrated
+commands pass parity smoke checks.
 
 Initial commands:
 
@@ -145,6 +148,9 @@ Use the Computer Use smoke-test panel to verify a local build:
   raw shell, script, or model text.
 - Input and audio commands require an app-level approval decision before the
   helper receives the command.
+- Debug smoke checks for input and system audio require an explicit arming
+  toggle; the live smoke harness only runs those actions when
+  `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED=1` or `--unsafe-armed` is set.
 - The helper returns structured errors with `code`, `error`, and `nextAction`
   when the user must grant a macOS permission.
 - Screenshot and audio payloads must be redacted from diagnostics unless the
