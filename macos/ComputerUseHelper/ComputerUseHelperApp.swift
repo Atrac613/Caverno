@@ -524,6 +524,8 @@ private final class ComputerUseHelperIpc: NSObject {
   private let statusStore = ComputerUseHelperStatusStore()
   private var audioRecorder: Any?
   private var lastOnboardingVerification: [String: Any]?
+  private var helperIpcEventCount = 0
+  private var lastHelperIpcRequest: [String: Any]?
 
   override init() {
     super.init()
@@ -551,10 +553,24 @@ private final class ComputerUseHelperIpc: NSObject {
       let userInfo = notification.userInfo,
       let requestId = userInfo[ComputerUseHelperIpcSchema.Field.requestId] as? String
     else {
+      recordRequestDiagnostic(
+        requestId: nil,
+        commandName: nil,
+        senderBundleIdentifier: nil,
+        senderProcessIdentifier: nil,
+        status: "invalid_notification"
+      )
       return
     }
 
     guard let request = ComputerUseHelperRequest(userInfo: userInfo) else {
+      recordRequestDiagnostic(
+        requestId: requestId,
+        commandName: userInfo[ComputerUseHelperIpcSchema.Field.command] as? String,
+        senderBundleIdentifier: userInfo[ComputerUseHelperIpcSchema.Field.senderBundleIdentifier] as? String,
+        senderProcessIdentifier: intValue(userInfo[ComputerUseHelperIpcSchema.Field.senderProcessIdentifier]),
+        status: "invalid_request"
+      )
       postResponse(
         requestId: requestId,
         response: errorResponse(
@@ -566,7 +582,17 @@ private final class ComputerUseHelperIpc: NSObject {
       return
     }
 
+    recordRequestDiagnostic(request: request, status: "received")
+    NSLog(
+      "CavernoComputerUseHelperIPC request received requestId=%@ command=%@ sender=%@ pid=%d",
+      request.requestId,
+      request.command.rawValue,
+      request.senderBundleIdentifier,
+      request.senderProcessIdentifier
+    )
+
     guard request.isSupportedProtocolVersion else {
+      recordRequestDiagnostic(request: request, status: "unsupported_protocol")
       postResponse(
         requestId: request.requestId,
         command: request.command,
@@ -580,6 +606,7 @@ private final class ComputerUseHelperIpc: NSObject {
     }
 
     guard request.hasTrustedSender else {
+      recordRequestDiagnostic(request: request, status: "untrusted_sender")
       postResponse(
         requestId: request.requestId,
         command: request.command,
@@ -596,10 +623,21 @@ private final class ComputerUseHelperIpc: NSObject {
     }
 
     handle(request: request) { [weak self] response in
-      self?.postResponse(
+      guard let self else {
+        return
+      }
+      let diagnostic = self.recordRequestDiagnostic(
+        request: request,
+        status: response["ok"] as? Bool == false ? "response_error" : "response",
+        errorCode: response["code"] as? String
+      )
+      var responseWithDiagnostics = response
+      responseWithDiagnostics["helperIpcEventCount"] = self.helperIpcEventCount
+      responseWithDiagnostics["lastHelperIpcRequest"] = diagnostic
+      self.postResponse(
         requestId: requestId,
         command: request.command,
-        response: response
+        response: responseWithDiagnostics
       )
     }
   }
@@ -1168,7 +1206,11 @@ private final class ComputerUseHelperIpc: NSObject {
       "audioRecordingActive": audioRecordingActive,
       "activeWork": activeWork,
       "helperStatusPersistence": persistedStatus,
+      "helperIpcEventCount": helperIpcEventCount,
     ]
+    if let lastHelperIpcRequest {
+      response["lastHelperIpcRequest"] = lastHelperIpcRequest
+    }
     if let lastOnboardingVerification {
       response["onboardingVerification"] = lastOnboardingVerification
     }
@@ -1231,6 +1273,64 @@ private final class ComputerUseHelperIpc: NSObject {
       userInfo: userInfo,
       deliverImmediately: true
     )
+    NSLog(
+      "CavernoComputerUseHelperIPC response posted requestId=%@ command=%@",
+      requestId,
+      command?.rawValue ?? "unknown"
+    )
+  }
+
+  @discardableResult
+  private func recordRequestDiagnostic(
+    request: ComputerUseHelperRequest,
+    status: String,
+    errorCode: String? = nil
+  ) -> [String: Any] {
+    return recordRequestDiagnostic(
+      requestId: request.requestId,
+      commandName: request.command.rawValue,
+      senderBundleIdentifier: request.senderBundleIdentifier,
+      senderProcessIdentifier: request.senderProcessIdentifier,
+      status: status,
+      errorCode: errorCode
+    )
+  }
+
+  @discardableResult
+  private func recordRequestDiagnostic(
+    requestId: String?,
+    commandName: String?,
+    senderBundleIdentifier: String?,
+    senderProcessIdentifier: Int?,
+    status: String,
+    errorCode: String? = nil
+  ) -> [String: Any] {
+    helperIpcEventCount += 1
+    var diagnostic: [String: Any] = [
+      "sequence": helperIpcEventCount,
+      "status": status,
+      "receivedAt": ISO8601DateFormatter().string(from: Date()),
+      "expectedSenderBundleIdentifier": mainAppBundleIdentifier,
+      "helperBundleIdentifier": helperBundleIdentifier,
+      "ipcTransport": ComputerUseHelperIpcSchema.activeTransport,
+    ]
+    if let requestId {
+      diagnostic["requestId"] = requestId
+    }
+    if let commandName {
+      diagnostic["command"] = commandName
+    }
+    if let senderBundleIdentifier {
+      diagnostic["senderBundleIdentifier"] = senderBundleIdentifier
+    }
+    if let senderProcessIdentifier {
+      diagnostic["senderProcessIdentifier"] = senderProcessIdentifier
+    }
+    if let errorCode {
+      diagnostic["errorCode"] = errorCode
+    }
+    lastHelperIpcRequest = diagnostic
+    return diagnostic
   }
 }
 

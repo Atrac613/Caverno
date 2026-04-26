@@ -246,9 +246,13 @@ fileprivate struct MacosComputerUseHelperRequest {
 }
 
 fileprivate struct PendingMacosComputerUseHelperRequest {
+  let sequence: Int
+  let requestId: String
   let command: MacosComputerUseHelperCommand
   let selectedTransport: String
   let attemptedTransport: String?
+  let sentAt: Date
+  let timeout: TimeInterval
   let result: FlutterResult
 }
 
@@ -259,6 +263,8 @@ final class MacosComputerUseHelperClient: NSObject {
   private let responseName = MacosComputerUseIpcSchema.responseName
   private let center = DistributedNotificationCenter.default()
   private var pendingRequests: [String: PendingMacosComputerUseHelperRequest] = [:]
+  private var helperIpcSequence = 0
+  private var lastHelperIpcAttempt: [String: Any]?
 
   override init() {
     super.init()
@@ -301,7 +307,11 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcServiceName": MacosComputerUseIpcSchema.xpcServiceName,
       "xpcSupportedCommands": MacosComputerUseIpcSchema.xpcSupportedCommands,
       "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+      "pendingHelperIpcRequestCount": pendingRequests.count,
     ]
+    if let lastHelperIpcAttempt {
+      response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
+    }
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
     }
@@ -367,16 +377,39 @@ final class MacosComputerUseHelperClient: NSObject {
     result: @escaping FlutterResult
   ) {
     let requestId = UUID().uuidString
+    let sentAt = Date()
+    helperIpcSequence += 1
+    let sequence = helperIpcSequence
     let request = MacosComputerUseHelperRequest(
       requestId: requestId,
       command: command,
       arguments: arguments
     )
     pendingRequests[requestId] = PendingMacosComputerUseHelperRequest(
+      sequence: sequence,
+      requestId: requestId,
       command: command,
       selectedTransport: selectedTransport,
       attemptedTransport: attemptedTransport,
+      sentAt: sentAt,
+      timeout: timeout,
       result: result
+    )
+    lastHelperIpcAttempt = helperIpcDiagnostic(
+      sequence: sequence,
+      requestId: requestId,
+      command: command,
+      selectedTransport: selectedTransport,
+      attemptedTransport: attemptedTransport,
+      sentAt: sentAt,
+      timeout: timeout,
+      status: "sent"
+    )
+    NSLog(
+      "CavernoComputerUseIPC request sent requestId=%@ command=%@ transport=%@",
+      requestId,
+      command.rawValue,
+      selectedTransport
     )
     center.postNotificationName(
       requestName,
@@ -386,9 +419,20 @@ final class MacosComputerUseHelperClient: NSObject {
     )
 
     DispatchQueue.main.asyncAfter(deadline: .now() + timeout) { [weak self] in
-      guard let pendingRequest = self?.pendingRequests.removeValue(forKey: requestId) else {
+      guard let self, let pendingRequest = self.pendingRequests.removeValue(forKey: requestId) else {
         return
       }
+      self.lastHelperIpcAttempt = self.helperIpcDiagnostic(
+        pendingRequest: pendingRequest,
+        status: "timeout",
+        completedAt: Date(),
+        errorCode: MacosComputerUseIpcSchema.helperUnreachable
+      )
+      NSLog(
+        "CavernoComputerUseIPC request timeout requestId=%@ command=%@",
+        pendingRequest.requestId,
+        pendingRequest.command.rawValue
+      )
       var details: [String: Any] = [
         "command": pendingRequest.command.rawValue,
         "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
@@ -400,6 +444,9 @@ final class MacosComputerUseHelperClient: NSObject {
       ]
       if let attemptedTransport = pendingRequest.attemptedTransport {
         details["attemptedIpcTransport"] = attemptedTransport
+      }
+      if let lastHelperIpcAttempt = self.lastHelperIpcAttempt {
+        details["lastHelperIpcAttempt"] = lastHelperIpcAttempt
       }
       pendingRequest.result(
         FlutterError(
@@ -466,6 +513,12 @@ final class MacosComputerUseHelperClient: NSObject {
 
     let protocolVersion = userInfo[MacosComputerUseIpcSchema.Field.protocolVersion] as? Int ?? 0
     guard protocolVersion == MacosComputerUseHelperRequest.protocolVersion else {
+      lastHelperIpcAttempt = helperIpcDiagnostic(
+        pendingRequest: pendingRequest,
+        status: "unsupported_protocol",
+        completedAt: Date(),
+        errorCode: MacosComputerUseIpcSchema.unsupportedProtocol
+      )
       pendingRequest.result(
         FlutterError(
           code: MacosComputerUseIpcSchema.unsupportedProtocol,
@@ -481,6 +534,12 @@ final class MacosComputerUseHelperClient: NSObject {
 
     let commandName = userInfo[MacosComputerUseIpcSchema.Field.command] as? String ?? ""
     guard commandName == pendingRequest.command.rawValue else {
+      lastHelperIpcAttempt = helperIpcDiagnostic(
+        pendingRequest: pendingRequest,
+        status: "response_mismatch",
+        completedAt: Date(),
+        errorCode: MacosComputerUseIpcSchema.responseMismatch
+      )
       pendingRequest.result(
         FlutterError(
           code: MacosComputerUseIpcSchema.responseMismatch,
@@ -495,6 +554,12 @@ final class MacosComputerUseHelperClient: NSObject {
     }
 
     guard let response = userInfo[MacosComputerUseIpcSchema.Field.response] as? [String: Any] else {
+      lastHelperIpcAttempt = helperIpcDiagnostic(
+        pendingRequest: pendingRequest,
+        status: "invalid_response",
+        completedAt: Date(),
+        errorCode: MacosComputerUseIpcSchema.invalidResponse
+      )
       pendingRequest.result(
         FlutterError(
           code: MacosComputerUseIpcSchema.invalidResponse,
@@ -511,7 +576,81 @@ final class MacosComputerUseHelperClient: NSObject {
     if let attemptedTransport = pendingRequest.attemptedTransport {
       responseWithTransport["attemptedIpcTransport"] = attemptedTransport
     }
+    lastHelperIpcAttempt = helperIpcDiagnostic(
+      pendingRequest: pendingRequest,
+      status: response["ok"] as? Bool == false ? "response_error" : "response",
+      completedAt: Date(),
+      errorCode: response["code"] as? String
+    )
+    NSLog(
+      "CavernoComputerUseIPC response received requestId=%@ command=%@",
+      pendingRequest.requestId,
+      pendingRequest.command.rawValue
+    )
     pendingRequest.result(responseWithTransport)
+  }
+
+  private func helperIpcDiagnostic(
+    pendingRequest: PendingMacosComputerUseHelperRequest,
+    status: String,
+    completedAt: Date? = nil,
+    errorCode: String? = nil
+  ) -> [String: Any] {
+    helperIpcDiagnostic(
+      sequence: pendingRequest.sequence,
+      requestId: pendingRequest.requestId,
+      command: pendingRequest.command,
+      selectedTransport: pendingRequest.selectedTransport,
+      attemptedTransport: pendingRequest.attemptedTransport,
+      sentAt: pendingRequest.sentAt,
+      timeout: pendingRequest.timeout,
+      status: status,
+      completedAt: completedAt,
+      errorCode: errorCode
+    )
+  }
+
+  private func helperIpcDiagnostic(
+    sequence: Int,
+    requestId: String,
+    command: MacosComputerUseHelperCommand,
+    selectedTransport: String,
+    attemptedTransport: String?,
+    sentAt: Date,
+    timeout: TimeInterval,
+    status: String,
+    completedAt: Date? = nil,
+    errorCode: String? = nil
+  ) -> [String: Any] {
+    var diagnostic: [String: Any] = [
+      "sequence": sequence,
+      "requestId": requestId,
+      "command": command.rawValue,
+      "status": status,
+      "sentAt": isoString(sentAt),
+      "timeoutMs": Int(timeout * 1000),
+      "senderBundleIdentifier": Bundle.main.bundleIdentifier ?? "",
+      "senderProcessIdentifier": Int(ProcessInfo.processInfo.processIdentifier),
+      "selectedIpcTransport": selectedTransport,
+      "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
+      "fallbackIpcTransport": MacosComputerUseIpcSchema.fallbackTransport,
+      "xpcReady": MacosComputerUseIpcSchema.xpcReady,
+    ]
+    if let attemptedTransport {
+      diagnostic["attemptedIpcTransport"] = attemptedTransport
+    }
+    if let completedAt {
+      diagnostic["completedAt"] = isoString(completedAt)
+      diagnostic["elapsedMs"] = Int(completedAt.timeIntervalSince(sentAt) * 1000)
+    }
+    if let errorCode {
+      diagnostic["errorCode"] = errorCode
+    }
+    return diagnostic
+  }
+
+  private func isoString(_ date: Date) -> String {
+    ISO8601DateFormatter().string(from: date)
   }
 
   private func embeddedHelperURL() -> URL {

@@ -83,6 +83,11 @@ void main() {
       migratedCommands: const [
         {'command': 'ping', 'owner': 'helper'},
       ],
+      lastLiveSmokeReport: const {
+        'ok': true,
+        'path': '/tmp/caverno-macos-computer-use-smoke.json',
+        'report': {'coreOk': true, 'captureOk': false},
+      },
       lastAction: 'Run smoke sequence',
     ).toJson();
 
@@ -101,6 +106,7 @@ void main() {
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', false));
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
+    expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));
   });
 
   test('reports missing permissions before a snapshot is loaded', () {

@@ -60,10 +60,15 @@ void main() {
     expect(text, contains('"schemaName": "macos_computer_use_onboarding"'));
     expect(text, contains('"onboardingVerification"'));
     expect(text, contains('"helperStatusPersistence"'));
+    expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(
       find.textContaining('Helper status saved:', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Last live smoke:', skipOffstage: false),
       findsOneWidget,
     );
 
@@ -114,6 +119,17 @@ void main() {
     expect(service.helperStatusCallCount, helperStatusBeforeReturn + 1);
     expect(service.pingHelperCallCount, pingBeforeReturn + 1);
     expect(service.getPermissionsCallCount, permissionsBeforeReturn + 1);
+  });
+
+  testWidgets('separates helper process state from IPC readiness', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(helperReachable: false);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Helper App: Installed'), findsOneWidget);
+    expect(find.text('Helper Process: Running'), findsOneWidget);
+    expect(find.text('IPC Ready: Timeout'), findsOneWidget);
   });
 
   testWidgets('stops helper work from the Settings card', (tester) async {
@@ -254,9 +270,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool helperWorkActive = false,
     bool accessibilityGranted = true,
     bool screenCaptureGranted = true,
+    bool helperReachable = true,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
-       _screenCaptureGranted = screenCaptureGranted;
+       _screenCaptureGranted = screenCaptureGranted,
+       _helperReachable = helperReachable;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -267,6 +285,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   bool _helperWorkActive;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
+  final bool _helperReachable;
 
   @override
   bool get isAvailable => true;
@@ -304,7 +323,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     getPermissionsCallCount += 1;
     return _json({
       'backend': 'helper',
-      'helperReachable': true,
+      'helperReachable': _helperReachable,
       'accessibilityGranted': _accessibilityGranted,
       'screenCaptureGranted': _screenCaptureGranted,
       'systemAudioRecordingSupported': true,
@@ -323,9 +342,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   Future<String> pingHelper() async {
     pingHelperCallCount += 1;
     return _json({
-      'ok': true,
+      'ok': _helperReachable,
       'backend': 'helper',
-      'helperReachable': true,
+      'helperReachable': _helperReachable,
+      if (!_helperReachable) 'code': 'helper_unreachable',
       'message': 'pong',
       'audioRecordingActive': _helperWorkActive,
       'activeWork': {'systemAudioRecording': _helperWorkActive},
@@ -345,6 +365,20 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'cancelledInputEvents': true,
       'audioRecordingActive': false,
       'helperStatusPersistence': _persistence,
+    });
+  }
+
+  @override
+  Future<String> getLastLiveSmokeReport() async {
+    return _json({
+      'ok': true,
+      'path': '/tmp/caverno-macos-computer-use-smoke.json',
+      'report': {
+        'ok': false,
+        'coreOk': false,
+        'captureOk': false,
+        'generatedAt': '2026-04-25T12:01:00Z',
+      },
     });
   }
 

@@ -38,6 +38,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   List<Map<String, dynamic>> _manualSmokeSteps = const [];
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
+  Map<String, dynamic>? _lastLiveSmokeReport;
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
   _CoordinateTarget? _coordinateTarget;
@@ -809,6 +810,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final service = ref.read(macosComputerUseServiceProvider);
     final nextHelperStatus = <String, dynamic>{...?_helperStatus};
     Map<String, dynamic>? nextPermissions;
+    Map<String, dynamic>? nextLiveSmokeReport;
 
     try {
       for (final raw in [
@@ -823,6 +825,9 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       if (refreshPermissions) {
         nextPermissions = _decodeMap(await service.getPermissions());
       }
+      nextLiveSmokeReport = _liveSmokeReportFrom(
+        _decodeMap(await service.getLastLiveSmokeReport()),
+      );
     } catch (error) {
       nextHelperStatus.addAll({'ok': false, 'error': error.toString()});
     }
@@ -837,6 +842,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       if (nextPermissions != null) {
         _storePermissions(nextPermissions);
       }
+      _lastLiveSmokeReport = nextLiveSmokeReport;
     });
   }
 
@@ -1275,6 +1281,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       windowScreenshot: _imageSummary(_windowScreenshot),
       lastAction: _lastAction,
       lastResult: _lastResultForDiagnostics,
+      lastLiveSmokeReport: _lastLiveSmokeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
   }
@@ -1356,6 +1363,19 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         _permissions?['helperStatusPersistence'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _liveSmokeReportFrom(Map<String, dynamic>? decoded) {
+    if (decoded == null) {
+      return null;
+    }
+    if (decoded['ok'] == true) {
+      return decoded;
+    }
+    if (decoded['report'] is Map) {
+      return decoded;
     }
     return null;
   }

@@ -23,6 +23,10 @@ class MacosComputerUseService {
   static const MethodChannel _channel = MethodChannel(
     'com.caverno/macos_computer_use',
   );
+  static const liveSmokeReportPath = String.fromEnvironment(
+    'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
+    defaultValue: '/tmp/caverno-macos-computer-use-smoke.json',
+  );
 
   final MacosComputerUsePermissionTransport _permissionTransport;
 
@@ -111,6 +115,55 @@ class MacosComputerUseService {
 
   Future<String> stopHelperWork() async {
     return _invokeTransportJson(_permissionTransport.stopAll);
+  }
+
+  Future<String> getLastLiveSmokeReport() async {
+    if (!Platform.isMacOS) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'unsupported_platform',
+        'error':
+            'macOS computer use live smoke reports are only available on macOS.',
+        'path': liveSmokeReportPath,
+      });
+    }
+
+    final file = File(liveSmokeReportPath);
+    try {
+      if (!await file.exists()) {
+        return jsonEncode({
+          'ok': false,
+          'code': 'live_smoke_report_missing',
+          'error':
+              'No macOS computer use live smoke report has been written yet.',
+          'path': liveSmokeReportPath,
+        });
+      }
+
+      final raw = await file.readAsString();
+      final decoded = jsonDecode(raw);
+      if (decoded is Map) {
+        return jsonEncode({
+          'ok': true,
+          'path': liveSmokeReportPath,
+          'report': Map<String, dynamic>.from(decoded),
+        });
+      }
+      return jsonEncode({
+        'ok': false,
+        'code': 'live_smoke_report_invalid',
+        'error':
+            'The macOS computer use live smoke report is not a JSON object.',
+        'path': liveSmokeReportPath,
+      });
+    } catch (error) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'live_smoke_report_read_failed',
+        'error': error.toString(),
+        'path': liveSmokeReportPath,
+      });
+    }
   }
 
   Future<String> screenshot(Map<String, dynamic> arguments) async {

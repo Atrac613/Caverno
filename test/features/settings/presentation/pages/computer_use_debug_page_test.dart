@@ -230,6 +230,7 @@ void main() {
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
     expect(text, contains('"helperStatusPersistence"'));
+    expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
     expect(text, isNot(contains(_png1x1Base64)));
@@ -403,6 +404,20 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'ok': true,
       'backend': 'helper',
       'helperStatusPersistence': _persistence,
+    });
+  }
+
+  @override
+  Future<String> getLastLiveSmokeReport() async {
+    return _json({
+      'ok': true,
+      'path': '/tmp/caverno-macos-computer-use-smoke.json',
+      'report': {
+        'ok': true,
+        'coreOk': true,
+        'captureOk': false,
+        'generatedAt': '2026-04-25T12:01:00Z',
+      },
     });
   }
 

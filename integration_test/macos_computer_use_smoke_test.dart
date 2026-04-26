@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 const _strict = bool.fromEnvironment('CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT');
+const _reportPath = String.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
+);
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -219,7 +222,16 @@ int? _firstWindowId(Map<String, dynamic>? response) {
 
 void _printReport(Map<String, dynamic> report) {
   const encoder = JsonEncoder.withIndent('  ');
+  if (_reportPath.isNotEmpty) {
+    report['reportPath'] = _reportPath;
+  }
+  final encoded = encoder.convert(report);
+  if (_reportPath.isNotEmpty) {
+    final file = File(_reportPath);
+    file.parent.createSync(recursive: true);
+    file.writeAsStringSync(encoded);
+  }
   // The marker makes it easy to extract the report from compact test logs.
   // ignore: avoid_print
-  print('CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON=${encoder.convert(report)}');
+  print('CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON=$encoded');
 }

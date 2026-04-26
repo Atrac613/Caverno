@@ -209,6 +209,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.windowScreenshot,
     this.lastAction,
     this.lastResult,
+    this.lastLiveSmokeReport,
     this.lastDiagnosticExportPath,
   });
 
@@ -240,6 +241,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Map<String, dynamic>? windowScreenshot;
   final String? lastAction;
   final Object? lastResult;
+  final Map<String, dynamic>? lastLiveSmokeReport;
   final String? lastDiagnosticExportPath;
 
   Map<String, dynamic> toJson() {
@@ -271,6 +273,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'windowScreenshot': windowScreenshot,
       'lastAction': lastAction,
       'lastResult': lastResult,
+      'lastLiveSmokeReport': lastLiveSmokeReport,
       if (lastDiagnosticExportPath != null)
         'lastDiagnosticExportPath': lastDiagnosticExportPath,
     };

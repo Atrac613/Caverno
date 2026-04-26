@@ -339,6 +339,7 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _permissions;
   Map<String, dynamic>? _lastStopResult;
   Map<String, dynamic>? _lastPermissionSettingsResult;
+  Map<String, dynamic>? _lastLiveSmokeReport;
   String? _lastDiagnosticExportPath;
 
   @override
@@ -386,10 +387,9 @@ class _ComputerUseOnboardingCardState
     final showScreenRecordingCta =
         hasPermissionSnapshot &&
         _permissionValue('screenCaptureGranted') != true;
-    final helperReady =
-        _permissionValue('helperReachable') == true ||
-        (_permissionValue('helperInstalled') == true &&
-            _permissionValue('helperRunning') == true);
+    final helperInstalled = _permissionValue('helperInstalled') == true;
+    final helperRunning = _permissionValue('helperRunning') == true;
+    final helperIpcReady = _permissionValue('helperReachable') == true;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -442,7 +442,24 @@ class _ComputerUseOnboardingCardState
               spacing: 8,
               runSpacing: 8,
               children: [
-                _StatusChip(label: 'Helper', value: helperReady),
+                _StatusChip(
+                  label: 'Helper App',
+                  value: helperInstalled,
+                  trueText: 'Installed',
+                  falseText: 'Missing',
+                ),
+                _StatusChip(
+                  label: 'Helper Process',
+                  value: helperRunning,
+                  trueText: 'Running',
+                  falseText: helperInstalled ? 'Stopped' : 'Missing',
+                ),
+                _StatusChip(
+                  label: 'IPC Ready',
+                  value: helperIpcReady,
+                  trueText: 'Reachable',
+                  falseText: helperRunning ? 'Timeout' : 'Not ready',
+                ),
                 _StatusChip(
                   label: 'Accessibility',
                   value: _permissionValue('accessibilityGranted') == true,
@@ -478,6 +495,10 @@ class _ComputerUseOnboardingCardState
             if (helperStatusPersistence != null) ...[
               const SizedBox(height: 8),
               _PersistenceSummary(persistence: helperStatusPersistence),
+            ],
+            if (_lastLiveSmokeReport != null) ...[
+              const SizedBox(height: 8),
+              _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
             ],
             if (showAccessibilityCta || showScreenRecordingCta) ...[
               const SizedBox(height: 12),
@@ -664,6 +685,9 @@ class _ComputerUseOnboardingCardState
         }
       }
       final nextPermissions = _decodeMap(await service.getPermissions());
+      final nextLiveSmokeReport = _liveSmokeReportFrom(
+        _decodeMap(await service.getLastLiveSmokeReport()),
+      );
       if (!mounted) {
         return;
       }
@@ -672,6 +696,7 @@ class _ComputerUseOnboardingCardState
         if (nextPermissions != null) {
           _permissions = nextPermissions;
         }
+        _lastLiveSmokeReport = nextLiveSmokeReport;
       });
     } finally {
       if (mounted) {
@@ -749,9 +774,11 @@ class _ComputerUseOnboardingCardState
         'helperStatusPersistence': _helperStatusPersistence(),
         'permissions': _permissions,
         'onboardingVerification': _onboardingVerification(),
+        'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastStopResult': _lastStopResult,
         'lastPermissionSettingsResult': _lastPermissionSettingsResult,
       },
+      lastLiveSmokeReport: _lastLiveSmokeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
   }
@@ -842,6 +869,19 @@ class _ComputerUseOnboardingCardState
         _permissions?['helperStatusPersistence'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  Map<String, dynamic>? _liveSmokeReportFrom(Map<String, dynamic>? decoded) {
+    if (decoded == null) {
+      return null;
+    }
+    if (decoded['ok'] == true) {
+      return decoded;
+    }
+    if (decoded['report'] is Map) {
+      return decoded;
     }
     return null;
   }
@@ -1017,5 +1057,67 @@ class _PersistenceSummary extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _LiveSmokeSummary extends StatelessWidget {
+  const _LiveSmokeSummary({required this.reportEnvelope});
+
+  final Map<String, dynamic> reportEnvelope;
+
+  @override
+  Widget build(BuildContext context) {
+    final report = _report();
+    final generatedAt = report['generatedAt'];
+    final path = reportEnvelope['path'] ?? report['reportPath'];
+    final ok = report['ok'] == true;
+    final coreOk = report['coreOk'] == true;
+    final captureOk = report['captureOk'] == true;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          generatedAt is String
+              ? 'Last live smoke: ${ok ? 'passed' : 'needs attention'} at $generatedAt'
+              : 'Last live smoke: ${ok ? 'passed' : 'needs attention'}',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _StatusChip(
+              label: 'Live Core',
+              value: coreOk,
+              trueText: 'Passed',
+              falseText: 'Needs attention',
+            ),
+            _StatusChip(
+              label: 'Live Capture',
+              value: captureOk,
+              trueText: 'Passed',
+              falseText: 'Needs attention',
+            ),
+          ],
+        ),
+        if (path is String && path.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Live smoke report: $path',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+      ],
+    );
+  }
+
+  Map<String, dynamic> _report() {
+    final report = reportEnvelope['report'];
+    if (report is Map) {
+      return Map<String, dynamic>.from(report);
+    }
+    return reportEnvelope;
   }
 }
