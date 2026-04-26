@@ -66,6 +66,12 @@ class MacosComputerUseIpcInfo {
     required this.preferredTransport,
     required this.requestObject,
     required this.responseObject,
+    required this.requestNotificationName,
+    required this.responseNotificationName,
+    required this.requestEnvelope,
+    required this.responseEnvelope,
+    required this.timeoutsMs,
+    required this.errorCodes,
     required this.xpcReady,
   });
 
@@ -74,6 +80,12 @@ class MacosComputerUseIpcInfo {
   final String preferredTransport;
   final String requestObject;
   final String responseObject;
+  final String requestNotificationName;
+  final String responseNotificationName;
+  final List<String> requestEnvelope;
+  final List<String> responseEnvelope;
+  final Map<String, int> timeoutsMs;
+  final List<String> errorCodes;
   final bool xpcReady;
 
   Map<String, dynamic> toJson() {
@@ -83,6 +95,12 @@ class MacosComputerUseIpcInfo {
       'preferredTransport': preferredTransport,
       'requestObject': requestObject,
       'responseObject': responseObject,
+      'requestNotificationName': requestNotificationName,
+      'responseNotificationName': responseNotificationName,
+      'requestEnvelope': requestEnvelope,
+      'responseEnvelope': responseEnvelope,
+      'timeoutsMs': timeoutsMs,
+      'errorCodes': errorCodes,
       'xpcReady': xpcReady,
     };
   }
@@ -91,12 +109,60 @@ class MacosComputerUseIpcInfo {
 class MacosComputerUseIpc {
   const MacosComputerUseIpc._();
 
+  static const protocolVersion = 1;
+  static const transport = 'distributed_notification_center';
+  static const preferredTransport = 'xpc_service';
+  static const requestNotificationName =
+      'com.caverno.computer_use.helper.request';
+  static const responseNotificationName =
+      'com.caverno.computer_use.helper.response';
+  static const requestEnvelope = [
+    'protocolVersion',
+    'requestId',
+    'command',
+    'senderBundleIdentifier',
+    'senderProcessIdentifier',
+    'arguments',
+  ];
+  static const responseEnvelope = [
+    'protocolVersion',
+    'requestId',
+    'command',
+    'response',
+  ];
+  static const timeoutsMs = {
+    'default': 1500,
+    'focusWindow': 3000,
+    'screenshot': 8000,
+    'screenshotWindow': 8000,
+    'input': 3000,
+    'drag': 6000,
+    'typeText': 5000,
+    'systemAudioRecording': 8000,
+    'stopAll': 8000,
+  };
+  static const errorCodes = [
+    'helper_unreachable',
+    'helper_unsupported_protocol',
+    'helper_response_mismatch',
+    'helper_invalid_response',
+    'invalid_request',
+    'unsupported_protocol',
+    'untrusted_sender',
+  ];
+
   static const current = MacosComputerUseIpcInfo(
-    version: 1,
-    transport: 'distributed_notification_center',
-    preferredTransport: 'xpc_service',
+    version: protocolVersion,
+    transport: transport,
+    preferredTransport: preferredTransport,
     requestObject: MacosComputerUseBackends.mainAppBundleIdentifier,
     responseObject: MacosComputerUseBackends.helperBundleIdentifier,
+    requestNotificationName: requestNotificationName,
+    responseNotificationName: responseNotificationName,
+    requestEnvelope: requestEnvelope,
+    responseEnvelope: responseEnvelope,
+    timeoutsMs: timeoutsMs,
+    errorCodes: errorCodes,
     xpcReady: false,
   );
 }

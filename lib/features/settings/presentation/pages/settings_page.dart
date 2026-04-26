@@ -338,6 +338,7 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
   Map<String, dynamic>? _lastStopResult;
+  Map<String, dynamic>? _lastPermissionSettingsResult;
   String? _lastDiagnosticExportPath;
 
   @override
@@ -377,6 +378,13 @@ class _ComputerUseOnboardingCardState
     final verificationOk = onboardingVerification?['ok'] == true;
     final verificationRan = onboardingVerification != null;
     final helperWorkActive = _helperWorkActive() == true;
+    final hasPermissionSnapshot = _permissions != null || _helperStatus != null;
+    final showAccessibilityCta =
+        hasPermissionSnapshot &&
+        _permissionValue('accessibilityGranted') != true;
+    final showScreenRecordingCta =
+        hasPermissionSnapshot &&
+        _permissionValue('screenCaptureGranted') != true;
     final helperReady =
         _permissionValue('helperReachable') == true ||
         (_permissionValue('helperInstalled') == true &&
@@ -466,6 +474,37 @@ class _ComputerUseOnboardingCardState
               const SizedBox(height: 8),
               _VerificationSummary(verification: onboardingVerification),
             ],
+            if (showAccessibilityCta || showScreenRecordingCta) ...[
+              const SizedBox(height: 12),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: [
+                  if (showAccessibilityCta)
+                    OutlinedButton.icon(
+                      key: const ValueKey(
+                        'computer-use-settings-open-accessibility',
+                      ),
+                      onPressed: _isLoading
+                          ? null
+                          : () => _openPermissionSettings('accessibility'),
+                      icon: const Icon(Icons.accessibility_new_outlined),
+                      label: const Text('Open Accessibility Settings'),
+                    ),
+                  if (showScreenRecordingCta)
+                    OutlinedButton.icon(
+                      key: const ValueKey(
+                        'computer-use-settings-open-screen-recording',
+                      ),
+                      onPressed: _isLoading
+                          ? null
+                          : () => _openPermissionSettings('screen_recording'),
+                      icon: const Icon(Icons.screenshot_monitor_outlined),
+                      label: const Text('Open Screen Recording Settings'),
+                    ),
+                ],
+              ),
+            ],
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
@@ -509,6 +548,13 @@ class _ComputerUseOnboardingCardState
               const SizedBox(height: 8),
               SelectableText(
                 'Last stop: ${_resultSummary(_lastStopResult!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
+            if (_lastPermissionSettingsResult != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last permission action: ${_permissionActionSummary(_lastPermissionSettingsResult!)}',
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
@@ -562,6 +608,32 @@ class _ComputerUseOnboardingCardState
         _lastStopResult = result ?? {'ok': false, 'error': 'Invalid response'};
       });
       await _refresh(force: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _openPermissionSettings(String section) async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final result = _decodeMap(
+        await service.openSystemSettings(section: section),
+      );
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastPermissionSettingsResult =
+            result ??
+            {'ok': false, 'section': section, 'error': 'Invalid response'};
+      });
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      if (mounted) {
+        await _refresh(force: true);
+      }
     } finally {
       if (mounted) {
         setState(() => _isLoading = false);
@@ -665,14 +737,13 @@ class _ComputerUseOnboardingCardState
       helperStatus: _helperStatus,
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
-      lastAction: _lastStopResult == null
-          ? 'Settings onboarding status'
-          : 'Settings stop helper work',
+      lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,
         'permissions': _permissions,
         'onboardingVerification': _onboardingVerification(),
         'lastStopResult': _lastStopResult,
+        'lastPermissionSettingsResult': _lastPermissionSettingsResult,
       },
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
@@ -761,6 +832,26 @@ class _ComputerUseOnboardingCardState
       return '${code ?? 'failed'}: ${error ?? 'Unknown error'}';
     }
     return ok ? 'ok' : 'failed';
+  }
+
+  String _permissionActionSummary(Map<String, dynamic> result) {
+    final section = result['section'] ?? 'unknown';
+    final ok = result['ok'] == true;
+    final error = result['error'];
+    if (ok) {
+      return 'opened $section';
+    }
+    return 'failed to open $section${error == null ? '' : ': $error'}';
+  }
+
+  String _lastActionLabel() {
+    if (_lastStopResult != null) {
+      return 'Settings stop helper work';
+    }
+    if (_lastPermissionSettingsResult != null) {
+      return 'Settings open permission pane';
+    }
+    return 'Settings onboarding status';
   }
 
   Map<String, dynamic>? _decodeMap(String raw) {

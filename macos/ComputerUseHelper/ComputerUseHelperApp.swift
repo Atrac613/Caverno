@@ -411,9 +411,43 @@ private enum ComputerUseHelperCommand: String {
   case stopSystemAudioRecording
 }
 
-private struct ComputerUseHelperRequest {
+private enum ComputerUseHelperIpcSchema {
   static let protocolVersion = 1
   static let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
+  static let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
+  static let activeTransport = "distributed_notification_center"
+  static let preferredTransport = "xpc_service"
+  static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
+  static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  static let requestEnvelope = [
+    Field.protocolVersion,
+    Field.requestId,
+    Field.command,
+    Field.senderBundleIdentifier,
+    Field.senderProcessIdentifier,
+    Field.arguments,
+  ]
+  static let responseEnvelope = [
+    Field.protocolVersion,
+    Field.requestId,
+    Field.command,
+    Field.response,
+  ]
+
+  enum Field {
+    static let protocolVersion = "protocolVersion"
+    static let requestId = "requestId"
+    static let command = "command"
+    static let senderBundleIdentifier = "senderBundleIdentifier"
+    static let senderProcessIdentifier = "senderProcessIdentifier"
+    static let arguments = "arguments"
+    static let response = "response"
+  }
+}
+
+private struct ComputerUseHelperRequest {
+  static let protocolVersion = ComputerUseHelperIpcSchema.protocolVersion
+  static let mainAppBundleIdentifier = ComputerUseHelperIpcSchema.mainAppBundleIdentifier
 
   let protocolVersion: Int
   let requestId: String
@@ -424,19 +458,21 @@ private struct ComputerUseHelperRequest {
 
   init?(userInfo: [AnyHashable: Any]) {
     guard
-      let requestId = userInfo["requestId"] as? String,
-      let commandName = userInfo["command"] as? String,
+      let requestId = userInfo[ComputerUseHelperIpcSchema.Field.requestId] as? String,
+      let commandName = userInfo[ComputerUseHelperIpcSchema.Field.command] as? String,
       let command = ComputerUseHelperCommand(rawValue: commandName)
     else {
       return nil
     }
 
-    self.protocolVersion = userInfo["protocolVersion"] as? Int ?? 0
+    self.protocolVersion = userInfo[ComputerUseHelperIpcSchema.Field.protocolVersion] as? Int ?? 0
     self.requestId = requestId
     self.command = command
-    self.senderBundleIdentifier = userInfo["senderBundleIdentifier"] as? String ?? ""
-    self.senderProcessIdentifier = intValue(userInfo["senderProcessIdentifier"]) ?? 0
-    self.arguments = userInfo["arguments"] as? [String: Any] ?? [:]
+    self.senderBundleIdentifier =
+      userInfo[ComputerUseHelperIpcSchema.Field.senderBundleIdentifier] as? String ?? ""
+    self.senderProcessIdentifier =
+      intValue(userInfo[ComputerUseHelperIpcSchema.Field.senderProcessIdentifier]) ?? 0
+    self.arguments = userInfo[ComputerUseHelperIpcSchema.Field.arguments] as? [String: Any] ?? [:]
   }
 
   var isSupportedProtocolVersion: Bool {
@@ -457,14 +493,38 @@ private struct ComputerUseHelperRequest {
   }
 }
 
+private final class ComputerUseHelperStatusStore {
+  private let verificationKey = "lastOnboardingVerification"
+  private let statusKey = "lastHelperStatus"
+  private let defaults = UserDefaults.standard
+
+  func loadVerification() -> [String: Any]? {
+    defaults.dictionary(forKey: verificationKey)
+  }
+
+  func saveVerification(_ verification: [String: Any]) {
+    defaults.set(verification, forKey: verificationKey)
+  }
+
+  func saveStatus(_ status: [String: Any]) {
+    defaults.set(status, forKey: statusKey)
+  }
+}
+
 private final class ComputerUseHelperIpc: NSObject {
-  private let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
-  private let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
-  private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
-  private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  private let mainAppBundleIdentifier = ComputerUseHelperIpcSchema.mainAppBundleIdentifier
+  private let helperBundleIdentifier = ComputerUseHelperIpcSchema.helperBundleIdentifier
+  private let requestName = ComputerUseHelperIpcSchema.requestName
+  private let responseName = ComputerUseHelperIpcSchema.responseName
   private let center = DistributedNotificationCenter.default()
+  private let statusStore = ComputerUseHelperStatusStore()
   private var audioRecorder: Any?
   private var lastOnboardingVerification: [String: Any]?
+
+  override init() {
+    super.init()
+    lastOnboardingVerification = statusStore.loadVerification()
+  }
 
   func start() {
     center.addObserver(
@@ -478,12 +538,13 @@ private final class ComputerUseHelperIpc: NSObject {
 
   func recordOnboardingVerification(_ verification: [String: Any]) {
     lastOnboardingVerification = verification
+    statusStore.saveVerification(verification)
   }
 
   @objc private func handleRequest(_ notification: Notification) {
     guard
       let userInfo = notification.userInfo,
-      let requestId = userInfo["requestId"] as? String
+      let requestId = userInfo[ComputerUseHelperIpcSchema.Field.requestId] as? String
     else {
       return
     }
@@ -1075,21 +1136,29 @@ private final class ComputerUseHelperIpc: NSObject {
 
   private func baseResponse(ok: Bool = true, extra: [String: Any] = [:]) -> [String: Any] {
     let audioRecordingActive = audioRecorder != nil
+    let activeWork = [
+      "systemAudioRecording": audioRecordingActive,
+    ]
+    let persistedStatus = persistedStatusSnapshot(activeWork: activeWork)
+    statusStore.saveStatus(persistedStatus)
     var response: [String: Any] = [
       "ok": ok,
       "backend": "helper",
-      "protocolVersion": 1,
+      "protocolVersion": ComputerUseHelperIpcSchema.protocolVersion,
       "helperDisplayName": "Caverno Computer Use",
-      "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
-      "ipcTransport": "distributed_notification_center",
-      "preferredIpcTransport": "xpc_service",
-      "requestObject": "com.noguwo.apps.caverno",
-      "responseObject": "com.noguwo.apps.caverno.computer-use",
+      "helperBundleIdentifier": ComputerUseHelperIpcSchema.helperBundleIdentifier,
+      "ipcTransport": ComputerUseHelperIpcSchema.activeTransport,
+      "preferredIpcTransport": ComputerUseHelperIpcSchema.preferredTransport,
+      "requestObject": ComputerUseHelperIpcSchema.mainAppBundleIdentifier,
+      "responseObject": ComputerUseHelperIpcSchema.helperBundleIdentifier,
+      "requestNotificationName": ComputerUseHelperIpcSchema.requestName.rawValue,
+      "responseNotificationName": ComputerUseHelperIpcSchema.responseName.rawValue,
+      "requestEnvelope": ComputerUseHelperIpcSchema.requestEnvelope,
+      "responseEnvelope": ComputerUseHelperIpcSchema.responseEnvelope,
       "xpcReady": false,
       "audioRecordingActive": audioRecordingActive,
-      "activeWork": [
-        "systemAudioRecording": audioRecordingActive,
-      ],
+      "activeWork": activeWork,
+      "helperStatusPersistence": persistedStatus,
     ]
     if let lastOnboardingVerification {
       response["onboardingVerification"] = lastOnboardingVerification
@@ -1098,6 +1167,18 @@ private final class ComputerUseHelperIpc: NSObject {
       response[key] = value
     }
     return response
+  }
+
+  private func persistedStatusSnapshot(activeWork: [String: Bool]) -> [String: Any] {
+    let formatter = ISO8601DateFormatter()
+    var status: [String: Any] = [
+      "updatedAt": formatter.string(from: Date()),
+      "activeWork": activeWork,
+    ]
+    if let lastOnboardingVerification {
+      status["onboardingVerification"] = lastOnboardingVerification
+    }
+    return status
   }
 
   private func errorResponse(
@@ -1127,12 +1208,12 @@ private final class ComputerUseHelperIpc: NSObject {
     response: [String: Any]
   ) {
     var userInfo: [String: Any] = [
-      "protocolVersion": ComputerUseHelperRequest.protocolVersion,
-      "requestId": requestId,
-      "response": response,
+      ComputerUseHelperIpcSchema.Field.protocolVersion: ComputerUseHelperRequest.protocolVersion,
+      ComputerUseHelperIpcSchema.Field.requestId: requestId,
+      ComputerUseHelperIpcSchema.Field.response: response,
     ]
     if let command {
-      userInfo["command"] = command.rawValue
+      userInfo[ComputerUseHelperIpcSchema.Field.command] = command.rawValue
     }
 
     center.postNotificationName(

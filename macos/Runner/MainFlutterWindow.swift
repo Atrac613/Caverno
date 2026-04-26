@@ -177,8 +177,44 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   case stopSystemAudioRecording
 }
 
-fileprivate struct MacosComputerUseHelperRequest {
+fileprivate enum MacosComputerUseIpcSchema {
   static let protocolVersion = 1
+  static let activeTransport = "distributed_notification_center"
+  static let preferredTransport = "xpc_service"
+  static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
+  static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  static let helperUnreachable = "helper_unreachable"
+  static let unsupportedProtocol = "helper_unsupported_protocol"
+  static let responseMismatch = "helper_response_mismatch"
+  static let invalidResponse = "helper_invalid_response"
+  static let requestEnvelope = [
+    Field.protocolVersion,
+    Field.requestId,
+    Field.command,
+    Field.senderBundleIdentifier,
+    Field.senderProcessIdentifier,
+    Field.arguments,
+  ]
+  static let responseEnvelope = [
+    Field.protocolVersion,
+    Field.requestId,
+    Field.command,
+    Field.response,
+  ]
+
+  enum Field {
+    static let protocolVersion = "protocolVersion"
+    static let requestId = "requestId"
+    static let command = "command"
+    static let senderBundleIdentifier = "senderBundleIdentifier"
+    static let senderProcessIdentifier = "senderProcessIdentifier"
+    static let arguments = "arguments"
+    static let response = "response"
+  }
+}
+
+fileprivate struct MacosComputerUseHelperRequest {
+  static let protocolVersion = MacosComputerUseIpcSchema.protocolVersion
 
   let requestId: String
   let command: MacosComputerUseHelperCommand
@@ -186,12 +222,12 @@ fileprivate struct MacosComputerUseHelperRequest {
 
   var userInfo: [String: Any] {
     [
-      "protocolVersion": Self.protocolVersion,
-      "requestId": requestId,
-      "command": command.rawValue,
-      "senderBundleIdentifier": Bundle.main.bundleIdentifier ?? "",
-      "senderProcessIdentifier": Int(ProcessInfo.processInfo.processIdentifier),
-      "arguments": arguments,
+      MacosComputerUseIpcSchema.Field.protocolVersion: Self.protocolVersion,
+      MacosComputerUseIpcSchema.Field.requestId: requestId,
+      MacosComputerUseIpcSchema.Field.command: command.rawValue,
+      MacosComputerUseIpcSchema.Field.senderBundleIdentifier: Bundle.main.bundleIdentifier ?? "",
+      MacosComputerUseIpcSchema.Field.senderProcessIdentifier: Int(ProcessInfo.processInfo.processIdentifier),
+      MacosComputerUseIpcSchema.Field.arguments: arguments,
     ]
   }
 }
@@ -204,8 +240,8 @@ fileprivate struct PendingMacosComputerUseHelperRequest {
 final class MacosComputerUseHelperClient: NSObject {
   private let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
   private let helperDisplayName = "Caverno Computer Use"
-  private let requestName = Notification.Name("com.caverno.computer_use.helper.request")
-  private let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+  private let requestName = MacosComputerUseIpcSchema.requestName
+  private let responseName = MacosComputerUseIpcSchema.responseName
   private let center = DistributedNotificationCenter.default()
   private var pendingRequests: [String: PendingMacosComputerUseHelperRequest] = [:]
 
@@ -237,10 +273,14 @@ final class MacosComputerUseHelperClient: NSObject {
       "helperRunning": runningApplication != nil,
       "helperPath": helperURL.path,
       "protocolVersion": MacosComputerUseHelperRequest.protocolVersion,
-      "ipcTransport": "distributed_notification_center",
-      "preferredIpcTransport": "xpc_service",
+      "ipcTransport": MacosComputerUseIpcSchema.activeTransport,
+      "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
       "requestObject": Bundle.main.bundleIdentifier ?? "",
       "responseObject": helperBundleIdentifier,
+      "requestNotificationName": MacosComputerUseIpcSchema.requestName.rawValue,
+      "responseNotificationName": MacosComputerUseIpcSchema.responseName.rawValue,
+      "requestEnvelope": MacosComputerUseIpcSchema.requestEnvelope,
+      "responseEnvelope": MacosComputerUseIpcSchema.responseEnvelope,
       "xpcReady": false,
     ]
     if let processIdentifier = runningApplication?.processIdentifier {
@@ -328,13 +368,13 @@ final class MacosComputerUseHelperClient: NSObject {
       }
       pendingRequest.result(
         FlutterError(
-          code: "helper_unreachable",
+          code: MacosComputerUseIpcSchema.helperUnreachable,
           message: "Caverno Computer Use did not respond to \(pendingRequest.command.rawValue).",
           details: [
             "command": pendingRequest.command.rawValue,
             "helperBundleIdentifier": "com.noguwo.apps.caverno.computer-use",
-            "ipcTransport": "distributed_notification_center",
-            "preferredIpcTransport": "xpc_service",
+            "ipcTransport": MacosComputerUseIpcSchema.activeTransport,
+            "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
             "xpcReady": false,
           ]
         )
@@ -345,17 +385,17 @@ final class MacosComputerUseHelperClient: NSObject {
   @objc private func handleResponse(_ notification: Notification) {
     guard
       let userInfo = notification.userInfo,
-      let requestId = userInfo["requestId"] as? String,
+      let requestId = userInfo[MacosComputerUseIpcSchema.Field.requestId] as? String,
       let pendingRequest = pendingRequests.removeValue(forKey: requestId)
     else {
       return
     }
 
-    let protocolVersion = userInfo["protocolVersion"] as? Int ?? 0
+    let protocolVersion = userInfo[MacosComputerUseIpcSchema.Field.protocolVersion] as? Int ?? 0
     guard protocolVersion == MacosComputerUseHelperRequest.protocolVersion else {
       pendingRequest.result(
         FlutterError(
-          code: "helper_unsupported_protocol",
+          code: MacosComputerUseIpcSchema.unsupportedProtocol,
           message: "Caverno Computer Use returned an unsupported protocol version.",
           details: [
             "protocolVersion": protocolVersion,
@@ -366,11 +406,11 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
-    let commandName = userInfo["command"] as? String ?? ""
+    let commandName = userInfo[MacosComputerUseIpcSchema.Field.command] as? String ?? ""
     guard commandName == pendingRequest.command.rawValue else {
       pendingRequest.result(
         FlutterError(
-          code: "helper_response_mismatch",
+          code: MacosComputerUseIpcSchema.responseMismatch,
           message: "Caverno Computer Use returned a response for a different command.",
           details: [
             "expectedCommand": pendingRequest.command.rawValue,
@@ -381,10 +421,10 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
-    guard let response = userInfo["response"] as? [String: Any] else {
+    guard let response = userInfo[MacosComputerUseIpcSchema.Field.response] as? [String: Any] else {
       pendingRequest.result(
         FlutterError(
-          code: "helper_invalid_response",
+          code: MacosComputerUseIpcSchema.invalidResponse,
           message: "Caverno Computer Use returned an invalid response.",
           details: nil
         )

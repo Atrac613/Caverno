@@ -28,6 +28,18 @@ void main() {
     expect(info['preferredTransport'], 'xpc_service');
     expect(info['requestObject'], 'com.noguwo.apps.caverno');
     expect(info['responseObject'], 'com.noguwo.apps.caverno.computer-use');
+    expect(
+      info['requestNotificationName'],
+      'com.caverno.computer_use.helper.request',
+    );
+    expect(
+      info['responseNotificationName'],
+      'com.caverno.computer_use.helper.response',
+    );
+    expect(info['requestEnvelope'], contains('senderProcessIdentifier'));
+    expect(info['responseEnvelope'], contains('response'));
+    expect(info['timeoutsMs'], containsPair('stopAll', 8000));
+    expect(info['errorCodes'], contains('helper_unreachable'));
     expect(info['xpcReady'], isFalse);
   });
 

@@ -126,6 +126,40 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('opens targeted permission panes for missing permissions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      accessibilityGranted: false,
+      screenCaptureGranted: false,
+    );
+    await _pumpPage(tester, service);
+
+    expect(find.text('Open Accessibility Settings'), findsOneWidget);
+    expect(find.text('Open Screen Recording Settings'), findsOneWidget);
+
+    await _tapByKey(
+      tester,
+      'computer-use-settings-open-accessibility',
+      wait: const Duration(milliseconds: 700),
+    );
+    await _tapByKey(
+      tester,
+      'computer-use-settings-open-screen-recording',
+      wait: const Duration(milliseconds: 700),
+    );
+
+    expect(service.openedSettingsSections, [
+      'accessibility',
+      'screen_recording',
+    ]);
+    expect(service.getPermissionsCallCount, greaterThanOrEqualTo(3));
+    expect(
+      find.textContaining('Last permission action:', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
 }
 
 Future<void> _pumpPage(
@@ -211,15 +245,23 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
-  _FakeMacosComputerUseService({bool helperWorkActive = false})
-    : _helperWorkActive = helperWorkActive;
+  _FakeMacosComputerUseService({
+    bool helperWorkActive = false,
+    bool accessibilityGranted = true,
+    bool screenCaptureGranted = true,
+  }) : _helperWorkActive = helperWorkActive,
+       _accessibilityGranted = accessibilityGranted,
+       _screenCaptureGranted = screenCaptureGranted;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
+  final List<String> openedSettingsSections = [];
   bool _helperWorkActive;
+  final bool _accessibilityGranted;
+  final bool _screenCaptureGranted;
 
   @override
   bool get isAvailable => true;
@@ -257,11 +299,17 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     return _json({
       'backend': 'helper',
       'helperReachable': true,
-      'accessibilityGranted': true,
-      'screenCaptureGranted': true,
+      'accessibilityGranted': _accessibilityGranted,
+      'screenCaptureGranted': _screenCaptureGranted,
       'systemAudioRecordingSupported': true,
       'onboardingVerification': _verification,
     });
+  }
+
+  @override
+  Future<String> openSystemSettings({required String section}) async {
+    openedSettingsSections.add(section);
+    return _json({'ok': true, 'backend': 'helper', 'section': section});
   }
 
   @override
