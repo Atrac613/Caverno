@@ -78,6 +78,9 @@ class MacosComputerUseIpcInfo {
     required this.xpcReady,
     required this.xpcProductionReady,
     required this.xpcStatus,
+    required this.mainAppUnsafeOsActionsAllowed,
+    required this.helperOwnsUnsafeOsActions,
+    required this.helperOwnedActionCategories,
   });
 
   final int version;
@@ -97,6 +100,9 @@ class MacosComputerUseIpcInfo {
   final bool xpcReady;
   final bool xpcProductionReady;
   final String xpcStatus;
+  final bool mainAppUnsafeOsActionsAllowed;
+  final bool helperOwnsUnsafeOsActions;
+  final List<String> helperOwnedActionCategories;
 
   Map<String, dynamic> toJson() {
     return {
@@ -117,6 +123,9 @@ class MacosComputerUseIpcInfo {
       'xpcReady': xpcReady,
       'xpcProductionReady': xpcProductionReady,
       'xpcStatus': xpcStatus,
+      'mainAppUnsafeOsActionsAllowed': mainAppUnsafeOsActionsAllowed,
+      'helperOwnsUnsafeOsActions': helperOwnsUnsafeOsActions,
+      'helperOwnedActionCategories': helperOwnedActionCategories,
     };
   }
 }
@@ -132,6 +141,15 @@ class MacosComputerUseIpc {
   static const xpcSupportedCommands = ['ping', 'permissionStatus'];
   static const xpcProductionReady = false;
   static const xpcStatus = 'experimental_fallback';
+  static const mainAppUnsafeOsActionsAllowed = false;
+  static const helperOwnsUnsafeOsActions = true;
+  static const helperOwnedActionCategories = [
+    'accessibility',
+    'screen_capture',
+    'input_events',
+    'system_audio_recording',
+    'emergency_stop',
+  ];
   static const requestNotificationName =
       'com.caverno.computer_use.helper.request';
   static const responseNotificationName =
@@ -191,6 +209,9 @@ class MacosComputerUseIpc {
     xpcReady: true,
     xpcProductionReady: xpcProductionReady,
     xpcStatus: xpcStatus,
+    mainAppUnsafeOsActionsAllowed: mainAppUnsafeOsActionsAllowed,
+    helperOwnsUnsafeOsActions: helperOwnsUnsafeOsActions,
+    helperOwnedActionCategories: helperOwnedActionCategories,
   );
 }
 

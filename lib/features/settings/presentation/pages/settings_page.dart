@@ -571,6 +571,14 @@ class _ComputerUseOnboardingCardState
                   label: const Text('Open Smoke Test'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey(
+                    'computer-use-settings-recheck-permissions',
+                  ),
+                  onPressed: _isLoading ? null : () => _refresh(force: true),
+                  icon: const Icon(Icons.sync_outlined),
+                  label: const Text('Recheck Permissions'),
+                ),
+                OutlinedButton.icon(
                   key: const ValueKey('computer-use-settings-stop-helper-work'),
                   onPressed: _isLoading ? null : _stopHelperWork,
                   icon: const Icon(Icons.stop_circle_outlined),
@@ -1064,6 +1072,15 @@ class _ComputerUseOnboardingCardState
           MacosComputerUseIpc.current.xpcProductionReady,
       'xpcStatus':
           snapshot['xpcStatus'] ?? MacosComputerUseIpc.current.xpcStatus,
+      'mainAppUnsafeOsActionsAllowed':
+          snapshot['mainAppUnsafeOsActionsAllowed'] ??
+          MacosComputerUseIpc.current.mainAppUnsafeOsActionsAllowed,
+      'helperOwnsUnsafeOsActions':
+          snapshot['helperOwnsUnsafeOsActions'] ??
+          MacosComputerUseIpc.current.helperOwnsUnsafeOsActions,
+      'helperOwnedActionCategories':
+          snapshot['helperOwnedActionCategories'] ??
+          MacosComputerUseIpc.current.helperOwnedActionCategories,
       'xpcServiceName':
           snapshot['xpcServiceName'] ??
           MacosComputerUseIpc.current.xpcServiceName,
@@ -1221,6 +1238,10 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final fallback = '${runtime['fallbackIpcTransport']}';
     final preferredAttemptStatus = runtime['preferredAttemptStatus'];
     final preferredAttemptErrorCode = runtime['preferredAttemptErrorCode'];
+    final helperOwnsUnsafeOsActions =
+        runtime['helperOwnsUnsafeOsActions'] == true;
+    final mainAppUnsafeOsActionsAllowed =
+        runtime['mainAppUnsafeOsActionsAllowed'] == true;
     final fallbackActive = runtime['preferredFallbackActive'] == true;
     final status = fallbackActive
         ? 'preferred XPC fell back to $fallback'
@@ -1241,6 +1262,14 @@ class _IpcRuntimeSummary extends StatelessWidget {
             _InfoChip(label: 'Active IPC', value: selected),
             _InfoChip(label: 'Preferred IPC', value: preferred),
             _InfoChip(label: 'XPC status', value: '${runtime['xpcStatus']}'),
+            _InfoChip(
+              label: 'OS action owner',
+              value: helperOwnsUnsafeOsActions ? 'helper' : 'main app',
+            ),
+            _InfoChip(
+              label: 'Main app OS actions',
+              value: mainAppUnsafeOsActionsAllowed ? 'allowed' : 'blocked',
+            ),
             if (preferredAttemptStatus is String)
               _InfoChip(
                 label: 'Preferred attempt',

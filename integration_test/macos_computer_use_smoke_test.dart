@@ -9,6 +9,9 @@ const _strict = bool.fromEnvironment('CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT');
 const _unsafeArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED',
 );
+const _unsafeClickArmed = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED',
+);
 const _reportPath = String.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
 );
@@ -26,6 +29,12 @@ void main() {
       'generatedAt': DateTime.now().toIso8601String(),
       'strict': _strict,
       'unsafeArmed': _unsafeArmed,
+      'unsafeClickArmed': _unsafeClickArmed,
+      'unsafeSafety': {
+        'inputClickRequiresExtraArm': true,
+        'audioMaxDurationMs': 250,
+        'audioStopAlwaysAttempted': true,
+      },
       'platform': Platform.operatingSystem,
       'steps': <Map<String, dynamic>>[],
     };
@@ -119,19 +128,7 @@ void main() {
       );
     }
     if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
-      final inputArguments = <String, dynamic>{
-        'x': 1.0,
-        'y': 1.0,
-        'reason': 'Live smoke was explicitly armed for input verification.',
-      };
-      final sourceWidth = _intValue(displayScreenshot?['width']);
-      final sourceHeight = _intValue(displayScreenshot?['height']);
-      if (sourceWidth != null) {
-        inputArguments['source_width'] = sourceWidth;
-      }
-      if (sourceHeight != null) {
-        inputArguments['source_height'] = sourceHeight;
-      }
+      final inputArguments = _smokeInputArguments(displayScreenshot);
       await _runStep(
         steps,
         'input_move_pointer',
@@ -146,6 +143,30 @@ void main() {
         _unsafeArmed
             ? 'Accessibility permission is not granted.'
             : 'Unsafe smoke actions are not armed.',
+      );
+    }
+    if (_unsafeArmed &&
+        _unsafeClickArmed &&
+        permissions?['accessibilityGranted'] == true &&
+        permissions?['screenCaptureGranted'] == true) {
+      await _runStep(
+        steps,
+        'input_click',
+        'Click once after explicit click smoke arming',
+        () => service.click({
+          ..._smokeInputArguments(displayScreenshot),
+          'button': 'left',
+          'click_count': 1,
+        }),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_click',
+        'Click once after explicit click smoke arming',
+        _unsafeClickArmed
+            ? 'Accessibility or Screen Recording permission is not granted.'
+            : 'Click smoke actions require unsafe click arming.',
       );
     }
     if (_unsafeArmed &&
@@ -285,22 +306,64 @@ void _skipStep(
 }
 
 Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {
-  final startRaw = await service.startSystemAudioRecording({
-    'exclude_current_process_audio': true,
-    'reason': 'Live smoke was explicitly armed for system audio verification.',
-  });
-  final start = _decodeMap(startRaw);
-  if (start?['ok'] != true) {
-    return jsonEncode({'ok': false, 'start': start ?? startRaw});
+  Map<String, dynamic>? start;
+  Object? startError;
+  Map<String, dynamic>? stop;
+  Object? stopError;
+  var started = false;
+
+  try {
+    final startRaw = await service.startSystemAudioRecording({
+      'exclude_current_process_audio': true,
+      'reason':
+          'Live smoke was explicitly armed for system audio verification.',
+    });
+    start = _decodeMap(startRaw);
+    started = start?['ok'] == true;
+    if (!started) {
+      return jsonEncode({'ok': false, 'start': start ?? startRaw});
+    }
+    await Future<void>.delayed(const Duration(milliseconds: 250));
+  } catch (error) {
+    startError = error;
+  } finally {
+    if (started) {
+      try {
+        final stopRaw = await service.stopSystemAudioRecording();
+        stop = _decodeMap(stopRaw) ?? {'raw': stopRaw};
+      } catch (error) {
+        stopError = error;
+      }
+    }
   }
-  await Future<void>.delayed(const Duration(milliseconds: 250));
-  final stopRaw = await service.stopSystemAudioRecording();
-  final stop = _decodeMap(stopRaw);
+
   return jsonEncode({
-    'ok': stop?['ok'] == true,
+    'ok': started && stop?['ok'] == true,
     'start': start,
-    'stop': stop ?? stopRaw,
+    if (startError != null) 'startError': startError.toString(),
+    'stop': stop,
+    if (stopError != null) 'stopError': stopError.toString(),
+    'stopAttempted': started,
   });
+}
+
+Map<String, dynamic> _smokeInputArguments(Map<String, dynamic>? screenshot) {
+  final sourceWidth = _intValue(screenshot?['width']);
+  final sourceHeight = _intValue(screenshot?['height']);
+  final x = sourceWidth == null ? 8.0 : (sourceWidth * 0.05).clamp(8, 48);
+  final y = sourceHeight == null ? 8.0 : (sourceHeight * 0.05).clamp(8, 48);
+  final arguments = <String, dynamic>{
+    'x': x.toDouble(),
+    'y': y.toDouble(),
+    'reason': 'Live smoke was explicitly armed for input verification.',
+  };
+  if (sourceWidth != null) {
+    arguments['source_width'] = sourceWidth;
+  }
+  if (sourceHeight != null) {
+    arguments['source_height'] = sourceHeight;
+  }
+  return arguments;
 }
 
 Map<String, dynamic>? _decodeMap(String raw) {
@@ -369,6 +432,21 @@ List<Map<String, dynamic>> _positiveSmokeGates(
                 ? null
                 : 'accessibility'
           : 'unsafe_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_click',
+      label: 'Armed pointer click',
+      required:
+          unsafeArmed &&
+          _unsafeClickArmed &&
+          accessibilityGranted &&
+          screenGranted,
+      blockedBy: unsafeArmed && _unsafeClickArmed
+          ? accessibilityGranted && screenGranted
+                ? null
+                : 'accessibility_or_screen_capture'
+          : 'unsafe_click_smoke_not_armed',
     ),
     _positiveSmokeGate(
       steps,

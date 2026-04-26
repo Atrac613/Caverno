@@ -47,6 +47,13 @@ void main() {
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
     expect(info['xpcStatus'], 'experimental_fallback');
+    expect(info['mainAppUnsafeOsActionsAllowed'], isFalse);
+    expect(info['helperOwnsUnsafeOsActions'], isTrue);
+    expect(info['helperOwnedActionCategories'], contains('input_events'));
+    expect(
+      info['helperOwnedActionCategories'],
+      contains('system_audio_recording'),
+    );
   });
 
   test('builds the onboarding diagnostics schema', () {
@@ -110,6 +117,14 @@ void main() {
     expect(
       diagnostics['helperIpcProtocol'],
       containsPair('xpcStatus', 'experimental_fallback'),
+    );
+    expect(
+      diagnostics['helperIpcProtocol'],
+      containsPair('mainAppUnsafeOsActionsAllowed', false),
+    );
+    expect(
+      diagnostics['helperIpcProtocol'],
+      containsPair('helperOwnsUnsafeOsActions', true),
     );
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

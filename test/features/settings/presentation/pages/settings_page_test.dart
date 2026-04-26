@@ -62,6 +62,8 @@ void main() {
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"helperIpcRuntime"'));
+    expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
+    expect(text, contains('"helperOwnsUnsafeOsActions": true'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(
@@ -137,6 +139,8 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
+    expect(find.text('OS action owner: helper'), findsOneWidget);
+    expect(find.text('Main app OS actions: blocked'), findsOneWidget);
   });
 
   testWidgets('runs the restart primary action when IPC is unreachable', (
@@ -195,6 +199,11 @@ void main() {
       'screen_recording',
     ]);
     expect(service.getPermissionsCallCount, greaterThanOrEqualTo(3));
+
+    final permissionsBeforeRecheck = service.getPermissionsCallCount;
+    await _tapByKey(tester, 'computer-use-settings-recheck-permissions');
+
+    expect(service.getPermissionsCallCount, permissionsBeforeRecheck + 1);
     expect(
       find.textContaining('Last permission action:', skipOffstage: false),
       findsOneWidget,
@@ -383,6 +392,15 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'fallbackIpcTransport': 'distributed_notification_center',
       'xpcStatus': 'experimental_fallback',
       'xpcProductionReady': false,
+      'mainAppUnsafeOsActionsAllowed': false,
+      'helperOwnsUnsafeOsActions': true,
+      'helperOwnedActionCategories': [
+        'accessibility',
+        'screen_capture',
+        'input_events',
+        'system_audio_recording',
+        'emergency_stop',
+      ],
       if (!_helperReachable)
         'preferredIpcAttempt': {
           'status': 'xpc_error',

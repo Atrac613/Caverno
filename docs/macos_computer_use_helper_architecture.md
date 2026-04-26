@@ -45,6 +45,7 @@ recording.
 | Input event posting | Does not perform directly | Owns |
 | Diagnostics export | Owns redacted app diagnostics | Returns redacted helper diagnostics |
 | Emergency stop | Sends stop command and updates UI | Stops active capture/input work immediately |
+| Unsafe OS actions | Blocks direct execution in target state | Owns input, capture, audio, and stop |
 
 ## Permission Ownership
 
@@ -151,6 +152,12 @@ Use the Computer Use smoke-test panel to verify a local build:
 - Debug smoke checks for input and system audio require an explicit arming
   toggle; the live smoke harness only runs those actions when
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED=1` or `--unsafe-armed` is set.
+- Live click smoke checks require the additional
+  `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED=1` or
+  `--unsafe-click-armed` gate because they can change foreground app state.
+- Helper IPC diagnostics include `mainAppUnsafeOsActionsAllowed=false`,
+  `helperOwnsUnsafeOsActions=true`, and helper-owned action categories so the
+  boundary is visible in exported reports.
 - The helper returns structured errors with `code`, `error`, and `nextAction`
   when the user must grant a macOS permission.
 - Screenshot and audio payloads must be redacted from diagnostics unless the
