@@ -454,6 +454,17 @@ class _ComputerUseOnboardingCardState
               ],
             ),
             const SizedBox(height: 12),
+            _PermissionFlowSummary(
+              accessibilityGranted: accessibilityGranted,
+              screenCaptureGranted: screenCaptureGranted,
+              isLoading: _isLoading,
+              onOpenAccessibility: () =>
+                  _openPermissionSettings('accessibility'),
+              onOpenScreenRecording: () =>
+                  _openPermissionSettings('screen_recording'),
+              onRecheck: () => _refresh(force: true),
+            ),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
@@ -512,17 +523,6 @@ class _ComputerUseOnboardingCardState
               const SizedBox(height: 8),
               _PersistenceSummary(persistence: helperStatusPersistence),
             ],
-            const SizedBox(height: 8),
-            _PermissionFlowSummary(
-              accessibilityGranted: accessibilityGranted,
-              screenCaptureGranted: screenCaptureGranted,
-              isLoading: _isLoading,
-              onOpenAccessibility: () =>
-                  _openPermissionSettings('accessibility'),
-              onOpenScreenRecording: () =>
-                  _openPermissionSettings('screen_recording'),
-              onRecheck: () => _refresh(force: true),
-            ),
             const SizedBox(height: 8),
             _IpcRuntimeSummary(runtime: helperIpcRuntime),
             if (_lastLiveSmokeReport != null) ...[
@@ -1408,37 +1408,62 @@ class _PermissionFlowSummary extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Permission flow', style: textTheme.labelLarge),
-        const SizedBox(height: 6),
-        _PermissionFlowRow(
-          label: 'Accessibility',
-          granted: accessibilityGranted,
-          blockedText: 'Grant Caverno Computer Use, then recheck.',
-          openLabel: 'Open Accessibility',
-          onOpen: onOpenAccessibility,
-          onRecheck: onRecheck,
-          isLoading: isLoading,
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surfaceContainerHighest,
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Permission flow', style: textTheme.labelLarge),
+            const SizedBox(height: 2),
+            Text(
+              'Caverno Computer Use',
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+            const SizedBox(height: 10),
+            _PermissionFlowRow(
+              actionKey: const ValueKey(
+                'computer-use-permission-flow-accessibility',
+              ),
+              label: 'Accessibility',
+              granted: accessibilityGranted,
+              blockedText: 'Grant Caverno Computer Use, then recheck.',
+              openLabel: 'Open Accessibility',
+              onOpen: onOpenAccessibility,
+              onRecheck: onRecheck,
+              isLoading: isLoading,
+            ),
+            const SizedBox(height: 8),
+            _PermissionFlowRow(
+              actionKey: const ValueKey(
+                'computer-use-permission-flow-screen-recording',
+              ),
+              label: 'Screen & System Audio Recording',
+              granted: screenCaptureGranted,
+              blockedText: 'Grant Caverno Computer Use, then recheck.',
+              openLabel: 'Open Screen Recording',
+              onOpen: onOpenScreenRecording,
+              onRecheck: onRecheck,
+              isLoading: isLoading,
+            ),
+          ],
         ),
-        const SizedBox(height: 6),
-        _PermissionFlowRow(
-          label: 'Screen & System Audio Recording',
-          granted: screenCaptureGranted,
-          blockedText: 'Grant Caverno Computer Use, then recheck.',
-          openLabel: 'Open Screen Recording',
-          onOpen: onOpenScreenRecording,
-          onRecheck: onRecheck,
-          isLoading: isLoading,
-        ),
-      ],
+      ),
     );
   }
 }
 
 class _PermissionFlowRow extends StatelessWidget {
   const _PermissionFlowRow({
+    required this.actionKey,
     required this.label,
     required this.granted,
     required this.blockedText,
@@ -1448,6 +1473,7 @@ class _PermissionFlowRow extends StatelessWidget {
     required this.isLoading,
   });
 
+  final Key actionKey;
   final String label;
   final bool granted;
   final String blockedText;
@@ -1462,7 +1488,10 @@ class _PermissionFlowRow extends StatelessWidget {
     final statusColor = granted ? colorScheme.primary : colorScheme.error;
     return DecoratedBox(
       decoration: BoxDecoration(
-        border: Border.all(color: colorScheme.outlineVariant),
+        color: colorScheme.surface,
+        border: Border.all(
+          color: granted ? colorScheme.outlineVariant : colorScheme.error,
+        ),
         borderRadius: BorderRadius.circular(8),
       ),
       child: Padding(
@@ -1489,9 +1518,19 @@ class _PermissionFlowRow extends StatelessWidget {
             ),
             const SizedBox(width: 8),
             if (!granted)
-              TextButton(
+              OutlinedButton(
+                key: actionKey,
                 onPressed: isLoading ? null : onOpen,
                 child: Text(openLabel),
+              )
+            else
+              Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text('Done', style: TextStyle(color: statusColor)),
+                  const SizedBox(width: 4),
+                  Icon(Icons.check, size: 18, color: statusColor),
+                ],
               ),
             TextButton(
               onPressed: isLoading ? null : onRecheck,
