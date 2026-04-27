@@ -1091,6 +1091,18 @@ class _ComputerUseOnboardingCardState
           MacosComputerUseIpc.current.xpcProductionReady,
       'xpcStatus':
           snapshot['xpcStatus'] ?? MacosComputerUseIpc.current.xpcStatus,
+      'xpcConnectionMode':
+          snapshot['xpcConnectionMode'] ??
+          MacosComputerUseIpc.current.xpcConnectionMode,
+      'xpcRegistrationRequirement':
+          snapshot['xpcRegistrationRequirement'] ??
+          MacosComputerUseIpc.current.xpcRegistrationRequirement,
+      'xpcProductionBlockers':
+          snapshot['xpcProductionBlockers'] ??
+          MacosComputerUseIpc.current.xpcProductionBlockers,
+      'xpcProductionNextAction':
+          snapshot['xpcProductionNextAction'] ??
+          MacosComputerUseIpc.current.xpcProductionNextAction,
       'mainAppUnsafeOsActionsAllowed':
           snapshot['mainAppUnsafeOsActionsAllowed'] ??
           MacosComputerUseIpc.current.mainAppUnsafeOsActionsAllowed,
@@ -1399,6 +1411,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final fallbackReason = runtime['preferredFallbackReason'];
     final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
+    final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1420,6 +1433,23 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 value: supportedCommands.join(', '),
               ),
             _InfoChip(label: 'XPC status', value: '${runtime['xpcStatus']}'),
+            _InfoChip(
+              label: 'XPC connection',
+              value: '${runtime['xpcConnectionMode']}',
+            ),
+            _InfoChip(
+              label: 'XPC registration',
+              value: '${runtime['xpcRegistrationRequirement']}',
+            ),
+            if (productionBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'XPC blockers',
+                value: productionBlockers.join(', '),
+              ),
+            _InfoChip(
+              label: 'XPC next action',
+              value: '${runtime['xpcProductionNextAction']}',
+            ),
             _InfoChip(
               label: 'OS action owner',
               value: helperOwnsUnsafeOsActions ? 'helper' : 'main app',

@@ -94,6 +94,13 @@ Production readiness requires:
 - Fallback behavior is observable in diagnostics and does not execute duplicate
   unsafe OS actions.
 
+The current named XPC attempt uses an external helper-app Mach service name.
+That service is expected to fall back until `Caverno Computer Use` is registered
+with launchd as a Mach service. Diagnostics expose
+`xpcRegistrationRequirement`, `xpcProductionBlockers`, and
+`xpcProductionNextAction` so onboarding can distinguish a running helper process
+from production-ready XPC reachability.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.

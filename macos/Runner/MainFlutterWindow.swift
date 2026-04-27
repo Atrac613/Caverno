@@ -233,6 +233,10 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcReady = true
   static let xpcProductionReady = false
   static let xpcStatus = "experimental_fallback"
+  static let xpcConnectionMode = "external_helper_mach_service"
+  static let xpcRegistrationRequirement = "launchd_mach_service_registration"
+  static let xpcProductionBlockers = ["launchd_mach_service_registration_missing"]
+  static let xpcProductionNextAction = "Register Caverno Computer Use as a launchd Mach service before marking XPC production ready."
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
   static let helperOwnedActionCategories = [
@@ -388,6 +392,10 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcReady": MacosComputerUseIpcSchema.xpcReady,
       "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
       "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
+      "xpcConnectionMode": MacosComputerUseIpcSchema.xpcConnectionMode,
+      "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
+      "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
+      "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
@@ -611,6 +619,10 @@ final class MacosComputerUseHelperClient: NSObject {
         "xpcReady": MacosComputerUseIpcSchema.xpcReady,
         "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
         "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
+        "xpcConnectionMode": MacosComputerUseIpcSchema.xpcConnectionMode,
+        "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
+        "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
+        "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
         "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
         "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
         "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
@@ -959,6 +971,10 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcReady": MacosComputerUseIpcSchema.xpcReady,
       "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
       "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
+      "xpcConnectionMode": MacosComputerUseIpcSchema.xpcConnectionMode,
+      "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
+      "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
+      "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,

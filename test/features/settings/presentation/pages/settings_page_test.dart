@@ -147,6 +147,18 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
+    expect(
+      find.text('XPC connection: external_helper_mach_service'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('XPC registration: launchd_mach_service_registration'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('XPC blockers: launchd_mach_service_registration_missing'),
+      findsOneWidget,
+    );
     expect(find.text('OS action owner: helper'), findsOneWidget);
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
@@ -462,6 +474,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'fallbackIpcTransport': 'distributed_notification_center',
       'xpcStatus': 'experimental_fallback',
       'xpcProductionReady': false,
+      'xpcConnectionMode': 'external_helper_mach_service',
+      'xpcRegistrationRequirement': 'launchd_mach_service_registration',
+      'xpcProductionBlockers': ['launchd_mach_service_registration_missing'],
+      'xpcProductionNextAction':
+          'Register Caverno Computer Use as a launchd Mach service before marking XPC production ready.',
       'mainAppUnsafeOsActionsAllowed': false,
       'helperOwnsUnsafeOsActions': true,
       'xpcSupportedCommands': [

@@ -64,6 +64,18 @@ void main() {
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
     expect(info['xpcStatus'], 'experimental_fallback');
+    expect(info['xpcConnectionMode'], 'external_helper_mach_service');
+    expect(
+      info['xpcRegistrationRequirement'],
+      'launchd_mach_service_registration',
+    );
+    expect(info['xpcProductionBlockers'], [
+      'launchd_mach_service_registration_missing',
+    ]);
+    expect(
+      info['xpcProductionNextAction'],
+      contains('Register Caverno Computer Use as a launchd Mach service'),
+    );
     expect(info['mainAppUnsafeOsActionsAllowed'], isFalse);
     expect(info['helperOwnsUnsafeOsActions'], isTrue);
     expect(info['helperOwnedActionCategories'], contains('input_events'));

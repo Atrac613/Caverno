@@ -457,6 +457,10 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcReady = true
   static let xpcProductionReady = false
   static let xpcStatus = "experimental_fallback"
+  static let xpcConnectionMode = "external_helper_mach_service"
+  static let xpcRegistrationRequirement = "launchd_mach_service_registration"
+  static let xpcProductionBlockers = ["launchd_mach_service_registration_missing"]
+  static let xpcProductionNextAction = "Register Caverno Computer Use as a launchd Mach service before marking XPC production ready."
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
   static let helperOwnedActionCategories = [
@@ -1423,6 +1427,10 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
       "xpcProductionReady": ComputerUseHelperIpcSchema.xpcProductionReady,
       "xpcStatus": ComputerUseHelperIpcSchema.xpcStatus,
+      "xpcConnectionMode": ComputerUseHelperIpcSchema.xpcConnectionMode,
+      "xpcRegistrationRequirement": ComputerUseHelperIpcSchema.xpcRegistrationRequirement,
+      "xpcProductionBlockers": ComputerUseHelperIpcSchema.xpcProductionBlockers,
+      "xpcProductionNextAction": ComputerUseHelperIpcSchema.xpcProductionNextAction,
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,
@@ -1578,6 +1586,10 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcReady": ComputerUseHelperIpcSchema.xpcReady,
       "xpcProductionReady": ComputerUseHelperIpcSchema.xpcProductionReady,
       "xpcStatus": ComputerUseHelperIpcSchema.xpcStatus,
+      "xpcConnectionMode": ComputerUseHelperIpcSchema.xpcConnectionMode,
+      "xpcRegistrationRequirement": ComputerUseHelperIpcSchema.xpcRegistrationRequirement,
+      "xpcProductionBlockers": ComputerUseHelperIpcSchema.xpcProductionBlockers,
+      "xpcProductionNextAction": ComputerUseHelperIpcSchema.xpcProductionNextAction,
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,

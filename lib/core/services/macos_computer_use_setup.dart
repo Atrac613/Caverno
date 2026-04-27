@@ -78,6 +78,10 @@ class MacosComputerUseIpcInfo {
     required this.xpcReady,
     required this.xpcProductionReady,
     required this.xpcStatus,
+    required this.xpcConnectionMode,
+    required this.xpcRegistrationRequirement,
+    required this.xpcProductionBlockers,
+    required this.xpcProductionNextAction,
     required this.mainAppUnsafeOsActionsAllowed,
     required this.helperOwnsUnsafeOsActions,
     required this.helperOwnedActionCategories,
@@ -102,6 +106,10 @@ class MacosComputerUseIpcInfo {
   final bool xpcReady;
   final bool xpcProductionReady;
   final String xpcStatus;
+  final String xpcConnectionMode;
+  final String xpcRegistrationRequirement;
+  final List<String> xpcProductionBlockers;
+  final String xpcProductionNextAction;
   final bool mainAppUnsafeOsActionsAllowed;
   final bool helperOwnsUnsafeOsActions;
   final List<String> helperOwnedActionCategories;
@@ -127,6 +135,10 @@ class MacosComputerUseIpcInfo {
       'xpcReady': xpcReady,
       'xpcProductionReady': xpcProductionReady,
       'xpcStatus': xpcStatus,
+      'xpcConnectionMode': xpcConnectionMode,
+      'xpcRegistrationRequirement': xpcRegistrationRequirement,
+      'xpcProductionBlockers': xpcProductionBlockers,
+      'xpcProductionNextAction': xpcProductionNextAction,
       'mainAppUnsafeOsActionsAllowed': mainAppUnsafeOsActionsAllowed,
       'helperOwnsUnsafeOsActions': helperOwnsUnsafeOsActions,
       'helperOwnedActionCategories': helperOwnedActionCategories,
@@ -164,6 +176,13 @@ class MacosComputerUseIpc {
   ];
   static const xpcProductionReady = false;
   static const xpcStatus = 'experimental_fallback';
+  static const xpcConnectionMode = 'external_helper_mach_service';
+  static const xpcRegistrationRequirement = 'launchd_mach_service_registration';
+  static const xpcProductionBlockers = [
+    'launchd_mach_service_registration_missing',
+  ];
+  static const xpcProductionNextAction =
+      'Register Caverno Computer Use as a launchd Mach service before marking XPC production ready.';
   static const mainAppUnsafeOsActionsAllowed = false;
   static const helperOwnsUnsafeOsActions = true;
   static const helperOwnedActionCategories = [
@@ -239,6 +258,10 @@ class MacosComputerUseIpc {
     xpcReady: true,
     xpcProductionReady: xpcProductionReady,
     xpcStatus: xpcStatus,
+    xpcConnectionMode: xpcConnectionMode,
+    xpcRegistrationRequirement: xpcRegistrationRequirement,
+    xpcProductionBlockers: xpcProductionBlockers,
+    xpcProductionNextAction: xpcProductionNextAction,
     mainAppUnsafeOsActionsAllowed: mainAppUnsafeOsActionsAllowed,
     helperOwnsUnsafeOsActions: helperOwnsUnsafeOsActions,
     helperOwnedActionCategories: helperOwnedActionCategories,
