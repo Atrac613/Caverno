@@ -250,6 +250,17 @@ void main() {
     );
   });
 
+  testWidgets('registers and unregisters the XPC LaunchAgent', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-settings-register-xpc-agent');
+    await _tapByKey(tester, 'computer-use-settings-unregister-xpc-agent');
+
+    expect(service.registerXpcLaunchAgentCallCount, 1);
+    expect(service.unregisterXpcLaunchAgentCallCount, 1);
+  });
+
   testWidgets('opens targeted permission panes for missing permissions', (
     tester,
   ) async {
@@ -389,6 +400,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
   int restartHelperCallCount = 0;
+  int registerXpcLaunchAgentCallCount = 0;
+  int unregisterXpcLaunchAgentCallCount = 0;
   int pingHelperCallCount = 0;
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
@@ -443,6 +456,28 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   }
 
   @override
+  Future<String> registerXpcLaunchAgent() async {
+    registerXpcLaunchAgentCallCount += 1;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'xpcLaunchAgentStatus': 'enabled',
+      'xpcLaunchAgentEnabled': true,
+    });
+  }
+
+  @override
+  Future<String> unregisterXpcLaunchAgent() async {
+    unregisterXpcLaunchAgentCallCount += 1;
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'xpcLaunchAgentStatus': 'not_registered',
+      'xpcLaunchAgentEnabled': false,
+    });
+  }
+
+  @override
   Future<String> getPermissions() async {
     getPermissionsCallCount += 1;
     return _json({
@@ -475,6 +510,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcStatus': 'experimental_fallback',
       'xpcProductionReady': false,
       'xpcConnectionMode': 'external_helper_mach_service',
+      'xpcLaunchAgentPlistName': 'com.noguwo.apps.caverno.computer-use.plist',
+      'xpcLaunchAgentRelativePath':
+          'Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
+      'xpcLaunchAgentPlistInstalled': true,
+      'xpcLaunchAgentStatus': 'not_registered',
       'xpcRegistrationRequirement': 'launchd_mach_service_registration',
       'xpcProductionBlockers': ['launchd_mach_service_registration_missing'],
       'xpcProductionNextAction':

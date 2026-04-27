@@ -95,8 +95,13 @@ Production readiness requires:
   unsafe OS actions.
 
 The current named XPC attempt uses an external helper-app Mach service name.
-That service is expected to fall back until `Caverno Computer Use` is registered
-with launchd as a Mach service. Diagnostics expose
+`Caverno.app` now embeds a `SMAppService` LaunchAgent plist at
+`Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist`.
+The plist uses `BundleProgram` to point at
+`Contents/Helpers/Caverno Computer Use.app/Contents/MacOS/Caverno Computer Use`
+and declares the `com.noguwo.apps.caverno.computer-use.xpc` Mach service. The
+named service is expected to fall back until that LaunchAgent is registered and
+approved by macOS. Diagnostics expose
 `xpcRegistrationRequirement`, `xpcProductionBlockers`, and
 `xpcProductionNextAction` so onboarding can distinguish a running helper process
 from production-ready XPC reachability.

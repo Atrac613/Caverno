@@ -36,6 +36,16 @@ void main() {
               'helperRunning': true,
               'restarted': true,
             },
+            'registerXpcLaunchAgent' => {
+              'ok': true,
+              'backend': 'helper',
+              'xpcLaunchAgentStatus': 'enabled',
+            },
+            'unregisterXpcLaunchAgent' => {
+              'ok': true,
+              'backend': 'helper',
+              'xpcLaunchAgentStatus': 'not_registered',
+            },
             'helperPing' => {
               'ok': true,
               'backend': 'helper',
@@ -79,6 +89,12 @@ void main() {
           jsonDecode(await transport.launchHelper()) as Map<String, dynamic>;
       final restart =
           jsonDecode(await transport.restartHelper()) as Map<String, dynamic>;
+      final register =
+          jsonDecode(await transport.registerXpcLaunchAgent())
+              as Map<String, dynamic>;
+      final unregister =
+          jsonDecode(await transport.unregisterXpcLaunchAgent())
+              as Map<String, dynamic>;
       final ping = jsonDecode(await transport.ping()) as Map<String, dynamic>;
       final permissions =
           jsonDecode(await transport.getPermissions()) as Map<String, dynamic>;
@@ -94,6 +110,8 @@ void main() {
         'helperStatus',
         'launchHelper',
         'restartHelper',
+        'registerXpcLaunchAgent',
+        'unregisterXpcLaunchAgent',
         'helperPing',
         'helperPermissionStatus',
         'helperOpenSystemSettings',
@@ -103,6 +121,11 @@ void main() {
       expect(status, containsPair('helperRunning', false));
       expect(launch, containsPair('helperRunning', true));
       expect(restart, containsPair('restarted', true));
+      expect(register, containsPair('xpcLaunchAgentStatus', 'enabled'));
+      expect(
+        unregister,
+        containsPair('xpcLaunchAgentStatus', 'not_registered'),
+      );
       expect(ping, containsPair('helperReachable', true));
       expect(permissions, containsPair('accessibilityGranted', true));
       expect(permissions, containsPair('screenCaptureGranted', false));

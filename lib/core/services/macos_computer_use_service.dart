@@ -47,6 +47,14 @@ class MacosComputerUseService {
     return _invokeTransportJson(_permissionTransport.restartHelper);
   }
 
+  Future<String> registerXpcLaunchAgent() async {
+    return _invokeTransportJson(_permissionTransport.registerXpcLaunchAgent);
+  }
+
+  Future<String> unregisterXpcLaunchAgent() async {
+    return _invokeTransportJson(_permissionTransport.unregisterXpcLaunchAgent);
+  }
+
   Future<String> pingHelper() async {
     return _invokeTransportJson(_permissionTransport.ping);
   }

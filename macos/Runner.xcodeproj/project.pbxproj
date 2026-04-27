@@ -411,16 +411,18 @@
 			);
 			inputPaths = (
 				"$(BUILT_PRODUCTS_DIR)/Caverno Computer Use.app",
+				"$(PROJECT_DIR)/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist",
 			);
 			name = "Embed Computer Use Helper";
 			outputFileListPaths = (
 			);
 			outputPaths = (
 				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Helpers/Caverno Computer Use.app",
+				"$(TARGET_BUILD_DIR)/$(CONTENTS_FOLDER_PATH)/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist",
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
-			shellScript = "set -eu\nHELPER_APP=\"${BUILT_PRODUCTS_DIR}/Caverno Computer Use.app\"\nDESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nif [ ! -d \"$HELPER_APP\" ]; then\n  echo \"error: Missing built Caverno Computer Use helper at $HELPER_APP\" >&2\n  exit 1\nfi\nmkdir -p \"$DESTINATION\"\nrm -rf \"$DESTINATION/Caverno Computer Use.app\"\nditto \"$HELPER_APP\" \"$DESTINATION/Caverno Computer Use.app\"\n";
+			shellScript = "set -eu\nHELPER_APP=\"${BUILT_PRODUCTS_DIR}/Caverno Computer Use.app\"\nDESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Helpers\"\nLAUNCH_AGENT_SOURCE=\"${PROJECT_DIR}/Runner/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist\"\nLAUNCH_AGENT_DESTINATION=\"${TARGET_BUILD_DIR}/${CONTENTS_FOLDER_PATH}/Library/LaunchAgents\"\nif [ ! -d \"$HELPER_APP\" ]; then\n  echo \"error: Missing built Caverno Computer Use helper at $HELPER_APP\" >&2\n  exit 1\nfi\nif [ ! -f \"$LAUNCH_AGENT_SOURCE\" ]; then\n  echo \"error: Missing Caverno Computer Use launch agent at $LAUNCH_AGENT_SOURCE\" >&2\n  exit 1\nfi\nmkdir -p \"$DESTINATION\"\nrm -rf \"$DESTINATION/Caverno Computer Use.app\"\nditto \"$HELPER_APP\" \"$DESTINATION/Caverno Computer Use.app\"\nmkdir -p \"$LAUNCH_AGENT_DESTINATION\"\nditto \"$LAUNCH_AGENT_SOURCE\" \"$LAUNCH_AGENT_DESTINATION/com.noguwo.apps.caverno.computer-use.plist\"\n";
 		};
 		33CC111E2044C6BF0003C045 /* ShellScript */ = {
 			isa = PBXShellScriptBuildPhase;

@@ -66,6 +66,14 @@ void main() {
     expect(info['xpcStatus'], 'experimental_fallback');
     expect(info['xpcConnectionMode'], 'external_helper_mach_service');
     expect(
+      info['xpcLaunchAgentPlistName'],
+      'com.noguwo.apps.caverno.computer-use.plist',
+    );
+    expect(
+      info['xpcLaunchAgentRelativePath'],
+      'Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
+    );
+    expect(
       info['xpcRegistrationRequirement'],
       'launchd_mach_service_registration',
     );

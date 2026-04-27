@@ -597,6 +597,22 @@ class _ComputerUseOnboardingCardState
                   label: const Text('Recheck Permissions'),
                 ),
                 OutlinedButton.icon(
+                  key: const ValueKey(
+                    'computer-use-settings-register-xpc-agent',
+                  ),
+                  onPressed: _isLoading ? null : _registerXpcLaunchAgent,
+                  icon: const Icon(Icons.route_outlined),
+                  label: const Text('Register XPC Agent'),
+                ),
+                OutlinedButton.icon(
+                  key: const ValueKey(
+                    'computer-use-settings-unregister-xpc-agent',
+                  ),
+                  onPressed: _isLoading ? null : _unregisterXpcLaunchAgent,
+                  icon: const Icon(Icons.link_off_outlined),
+                  label: const Text('Unregister XPC Agent'),
+                ),
+                OutlinedButton.icon(
                   key: const ValueKey('computer-use-settings-stop-helper-work'),
                   onPressed: _isLoading ? null : _stopHelperWork,
                   icon: const Icon(Icons.stop_circle_outlined),
@@ -793,6 +809,50 @@ class _ComputerUseOnboardingCardState
       setState(() {
         _lastPrimaryActionLabel = null;
         _lastStopResult = result ?? {'ok': false, 'error': 'Invalid response'};
+      });
+      await _refresh(force: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _registerXpcLaunchAgent() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final result = _decodeMap(await service.registerXpcLaunchAgent());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastPrimaryActionLabel = null;
+        if (result != null) {
+          _helperStatus = {...?_helperStatus, ...result};
+        }
+      });
+      await _refresh(force: true);
+    } finally {
+      if (mounted) {
+        setState(() => _isLoading = false);
+      }
+    }
+  }
+
+  Future<void> _unregisterXpcLaunchAgent() async {
+    setState(() => _isLoading = true);
+    try {
+      final service = ref.read(macosComputerUseServiceProvider);
+      final result = _decodeMap(await service.unregisterXpcLaunchAgent());
+      if (!mounted) {
+        return;
+      }
+      setState(() {
+        _lastPrimaryActionLabel = null;
+        if (result != null) {
+          _helperStatus = {...?_helperStatus, ...result};
+        }
       });
       await _refresh(force: true);
     } finally {
@@ -1094,6 +1154,18 @@ class _ComputerUseOnboardingCardState
       'xpcConnectionMode':
           snapshot['xpcConnectionMode'] ??
           MacosComputerUseIpc.current.xpcConnectionMode,
+      'xpcLaunchAgentPlistName':
+          snapshot['xpcLaunchAgentPlistName'] ??
+          MacosComputerUseIpc.current.xpcLaunchAgentPlistName,
+      'xpcLaunchAgentRelativePath':
+          snapshot['xpcLaunchAgentRelativePath'] ??
+          MacosComputerUseIpc.current.xpcLaunchAgentRelativePath,
+      'xpcLaunchAgentPlistInstalled': snapshot['xpcLaunchAgentPlistInstalled'],
+      'xpcLaunchAgentSupported': snapshot['xpcLaunchAgentSupported'],
+      'xpcLaunchAgentStatus': snapshot['xpcLaunchAgentStatus'],
+      'xpcLaunchAgentEnabled': snapshot['xpcLaunchAgentEnabled'],
+      'xpcLaunchAgentRequiresApproval':
+          snapshot['xpcLaunchAgentRequiresApproval'],
       'xpcRegistrationRequirement':
           snapshot['xpcRegistrationRequirement'] ??
           MacosComputerUseIpc.current.xpcRegistrationRequirement,
@@ -1412,6 +1484,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
     final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
+    final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
+    final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1441,6 +1515,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
               label: 'XPC registration',
               value: '${runtime['xpcRegistrationRequirement']}',
             ),
+            if (launchAgentStatus != null)
+              _InfoChip(label: 'LaunchAgent', value: '$launchAgentStatus'),
+            if (launchAgentPlistInstalled is bool)
+              _InfoChip(
+                label: 'LaunchAgent plist',
+                value: launchAgentPlistInstalled ? 'installed' : 'missing',
+              ),
             if (productionBlockers.isNotEmpty)
               _InfoChip(
                 label: 'XPC blockers',

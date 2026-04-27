@@ -151,6 +151,33 @@ void main() {
     expect(result, containsPair('helper', isA<Map<String, dynamic>>()));
     expect(result, containsPair('current', isA<Map<String, dynamic>>()));
   });
+
+  test(
+    'routes LaunchAgent registration through the helper transport',
+    () async {
+      final transport = _FakePermissionTransport(
+        permissions: const <String, dynamic>{'ok': true},
+      );
+      final service = MacosComputerUseService(permissionTransport: transport);
+
+      final registered =
+          jsonDecode(await service.registerXpcLaunchAgent())
+              as Map<String, dynamic>;
+      final unregistered =
+          jsonDecode(await service.unregisterXpcLaunchAgent())
+              as Map<String, dynamic>;
+
+      expect(transport.calledMethods, [
+        'registerXpcLaunchAgent',
+        'unregisterXpcLaunchAgent',
+      ]);
+      expect(registered, containsPair('xpcLaunchAgentStatus', 'enabled'));
+      expect(
+        unregistered,
+        containsPair('xpcLaunchAgentStatus', 'not_registered'),
+      );
+    },
+  );
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
@@ -183,6 +210,18 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   Future<String> restartHelper() async {
     calledMethods.add('restartHelper');
     return jsonEncode({'ok': true, 'helperRunning': true, 'restarted': true});
+  }
+
+  @override
+  Future<String> registerXpcLaunchAgent() async {
+    calledMethods.add('registerXpcLaunchAgent');
+    return jsonEncode({'ok': true, 'xpcLaunchAgentStatus': 'enabled'});
+  }
+
+  @override
+  Future<String> unregisterXpcLaunchAgent() async {
+    calledMethods.add('unregisterXpcLaunchAgent');
+    return jsonEncode({'ok': true, 'xpcLaunchAgentStatus': 'not_registered'});
   }
 
   @override

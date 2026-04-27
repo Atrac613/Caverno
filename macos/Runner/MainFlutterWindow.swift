@@ -1,6 +1,7 @@
 import Cocoa
 import CoreGraphics
 import FlutterMacOS
+import ServiceManagement
 
 @objc(CavernoComputerUseXpcProtocol)
 protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
@@ -214,6 +215,8 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcProductionReady = false
   static let xpcStatus = "experimental_fallback"
   static let xpcConnectionMode = "external_helper_mach_service"
+  static let xpcLaunchAgentPlistName = "com.noguwo.apps.caverno.computer-use.plist"
+  static let xpcLaunchAgentRelativePath = "Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist"
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
   static let xpcProductionBlockers = ["launchd_mach_service_registration_missing"]
   static let xpcProductionNextAction = "Register Caverno Computer Use as a launchd Mach service before marking XPC production ready."
@@ -373,6 +376,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcProductionReady": MacosComputerUseIpcSchema.xpcProductionReady,
       "xpcStatus": MacosComputerUseIpcSchema.xpcStatus,
       "xpcConnectionMode": MacosComputerUseIpcSchema.xpcConnectionMode,
+      "xpcLaunchAgentPlistName": MacosComputerUseIpcSchema.xpcLaunchAgentPlistName,
+      "xpcLaunchAgentRelativePath": MacosComputerUseIpcSchema.xpcLaunchAgentRelativePath,
       "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
       "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
       "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
@@ -383,6 +388,7 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
       "pendingHelperIpcRequestCount": pendingRequests.count,
     ]
+    response.merge(xpcLaunchAgentStatus()) { _, new in new }
     if let lastHelperIpcAttempt {
       response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
     }
@@ -407,6 +413,101 @@ final class MacosComputerUseHelperClient: NSObject {
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
     }
+    return response
+  }
+
+  func registerXpcLaunchAgent(result: @escaping FlutterResult) {
+    guard #available(macOS 13.0, *) else {
+      result(xpcLaunchAgentUnsupportedResponse(action: "register"))
+      return
+    }
+
+    do {
+      try SMAppService.agent(plistName: MacosComputerUseIpcSchema.xpcLaunchAgentPlistName).register()
+      var response = status()
+      response["ok"] = true
+      response["xpcLaunchAgentRegistrationAction"] = "register"
+      result(response)
+    } catch {
+      var response = status()
+      response["ok"] = false
+      response["code"] = "xpc_launch_agent_register_failed"
+      response["error"] = error.localizedDescription
+      response["xpcLaunchAgentRegistrationAction"] = "register"
+      result(response)
+    }
+  }
+
+  func unregisterXpcLaunchAgent(result: @escaping FlutterResult) {
+    guard #available(macOS 13.0, *) else {
+      result(xpcLaunchAgentUnsupportedResponse(action: "unregister"))
+      return
+    }
+
+    do {
+      try SMAppService.agent(plistName: MacosComputerUseIpcSchema.xpcLaunchAgentPlistName).unregister()
+      var response = status()
+      response["ok"] = true
+      response["xpcLaunchAgentRegistrationAction"] = "unregister"
+      result(response)
+    } catch {
+      var response = status()
+      response["ok"] = false
+      response["code"] = "xpc_launch_agent_unregister_failed"
+      response["error"] = error.localizedDescription
+      response["xpcLaunchAgentRegistrationAction"] = "unregister"
+      result(response)
+    }
+  }
+
+  private func xpcLaunchAgentStatus() -> [String: Any] {
+    let plistURL = Bundle.main.bundleURL
+      .appendingPathComponent(MacosComputerUseIpcSchema.xpcLaunchAgentRelativePath)
+    var response: [String: Any] = [
+      "xpcLaunchAgentPlistName": MacosComputerUseIpcSchema.xpcLaunchAgentPlistName,
+      "xpcLaunchAgentRelativePath": MacosComputerUseIpcSchema.xpcLaunchAgentRelativePath,
+      "xpcLaunchAgentPlistPath": plistURL.path,
+      "xpcLaunchAgentPlistInstalled": FileManager.default.fileExists(atPath: plistURL.path),
+    ]
+
+    guard #available(macOS 13.0, *) else {
+      response["xpcLaunchAgentSupported"] = false
+      response["xpcLaunchAgentStatus"] = "unsupported_macos"
+      return response
+    }
+
+    let service = SMAppService.agent(plistName: MacosComputerUseIpcSchema.xpcLaunchAgentPlistName)
+    let status = service.status
+    response["xpcLaunchAgentSupported"] = true
+    response["xpcLaunchAgentStatus"] = xpcLaunchAgentStatusName(status)
+    response["xpcLaunchAgentEnabled"] = status == .enabled
+    response["xpcLaunchAgentRequiresApproval"] = status == .requiresApproval
+    response["xpcLaunchAgentRegistered"] = status == .enabled || status == .requiresApproval
+    return response
+  }
+
+  @available(macOS 13.0, *)
+  private func xpcLaunchAgentStatusName(_ status: SMAppService.Status) -> String {
+    switch status {
+    case .notRegistered:
+      return "not_registered"
+    case .enabled:
+      return "enabled"
+    case .requiresApproval:
+      return "requires_approval"
+    case .notFound:
+      return "not_found"
+    @unknown default:
+      return "unknown"
+    }
+  }
+
+  private func xpcLaunchAgentUnsupportedResponse(action: String) -> [String: Any] {
+    var response = status()
+    response["ok"] = false
+    response["code"] = "xpc_launch_agent_unsupported"
+    response["error"] = "SMAppService LaunchAgent registration requires macOS 13.0 or later."
+    response["xpcLaunchAgentRegistrationAction"] = action
     return response
   }
 
@@ -1012,6 +1113,10 @@ final class MacosComputerUseChannel {
       helperClient.launch(result: result)
     case "restartHelper":
       helperClient.restart(result: result)
+    case "registerXpcLaunchAgent":
+      helperClient.registerXpcLaunchAgent(result: result)
+    case "unregisterXpcLaunchAgent":
+      helperClient.unregisterXpcLaunchAgent(result: result)
     case "helperPing":
       helperClient.sendPreferred(command: .ping, result: result)
     case "helperPermissionStatus":

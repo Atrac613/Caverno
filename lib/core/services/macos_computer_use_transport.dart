@@ -17,6 +17,10 @@ abstract class MacosComputerUsePermissionTransport {
 
   Future<String> restartHelper();
 
+  Future<String> registerXpcLaunchAgent();
+
+  Future<String> unregisterXpcLaunchAgent();
+
   Future<String> ping();
 
   Future<String> getPermissions();
@@ -55,6 +59,16 @@ class HelperMacosComputerUseTransport
   @override
   Future<String> restartHelper() {
     return _invokeJson('restartHelper');
+  }
+
+  @override
+  Future<String> registerXpcLaunchAgent() {
+    return _invokeJson('registerXpcLaunchAgent');
+  }
+
+  @override
+  Future<String> unregisterXpcLaunchAgent() {
+    return _invokeJson('unregisterXpcLaunchAgent');
   }
 
   @override
@@ -162,6 +176,27 @@ class InProcessMacosComputerUseTransport
       'backend': 'in_process',
       'code': 'helper_not_used',
       'error': 'The in-process backend does not restart a helper app.',
+    });
+  }
+
+  @override
+  Future<String> registerXpcLaunchAgent() async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'code': 'helper_not_used',
+      'error': 'The in-process backend does not register a helper LaunchAgent.',
+    });
+  }
+
+  @override
+  Future<String> unregisterXpcLaunchAgent() async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'code': 'helper_not_used',
+      'error':
+          'The in-process backend does not unregister a helper LaunchAgent.',
     });
   }
 

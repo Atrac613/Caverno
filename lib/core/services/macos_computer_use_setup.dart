@@ -79,6 +79,8 @@ class MacosComputerUseIpcInfo {
     required this.xpcProductionReady,
     required this.xpcStatus,
     required this.xpcConnectionMode,
+    required this.xpcLaunchAgentPlistName,
+    required this.xpcLaunchAgentRelativePath,
     required this.xpcRegistrationRequirement,
     required this.xpcProductionBlockers,
     required this.xpcProductionNextAction,
@@ -107,6 +109,8 @@ class MacosComputerUseIpcInfo {
   final bool xpcProductionReady;
   final String xpcStatus;
   final String xpcConnectionMode;
+  final String xpcLaunchAgentPlistName;
+  final String xpcLaunchAgentRelativePath;
   final String xpcRegistrationRequirement;
   final List<String> xpcProductionBlockers;
   final String xpcProductionNextAction;
@@ -136,6 +140,8 @@ class MacosComputerUseIpcInfo {
       'xpcProductionReady': xpcProductionReady,
       'xpcStatus': xpcStatus,
       'xpcConnectionMode': xpcConnectionMode,
+      'xpcLaunchAgentPlistName': xpcLaunchAgentPlistName,
+      'xpcLaunchAgentRelativePath': xpcLaunchAgentRelativePath,
       'xpcRegistrationRequirement': xpcRegistrationRequirement,
       'xpcProductionBlockers': xpcProductionBlockers,
       'xpcProductionNextAction': xpcProductionNextAction,
@@ -177,6 +183,10 @@ class MacosComputerUseIpc {
   static const xpcProductionReady = false;
   static const xpcStatus = 'experimental_fallback';
   static const xpcConnectionMode = 'external_helper_mach_service';
+  static const xpcLaunchAgentPlistName =
+      'com.noguwo.apps.caverno.computer-use.plist';
+  static const xpcLaunchAgentRelativePath =
+      'Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist';
   static const xpcRegistrationRequirement = 'launchd_mach_service_registration';
   static const xpcProductionBlockers = [
     'launchd_mach_service_registration_missing',
@@ -259,6 +269,8 @@ class MacosComputerUseIpc {
     xpcProductionReady: xpcProductionReady,
     xpcStatus: xpcStatus,
     xpcConnectionMode: xpcConnectionMode,
+    xpcLaunchAgentPlistName: xpcLaunchAgentPlistName,
+    xpcLaunchAgentRelativePath: xpcLaunchAgentRelativePath,
     xpcRegistrationRequirement: xpcRegistrationRequirement,
     xpcProductionBlockers: xpcProductionBlockers,
     xpcProductionNextAction: xpcProductionNextAction,
