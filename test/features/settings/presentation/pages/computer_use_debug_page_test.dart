@@ -36,6 +36,35 @@ void main() {
     expect(service.pingHelperCallCount, 1);
   });
 
+  testWidgets('shows onboarding checklist progress and XPC blockers', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Computer Use Onboarding'), findsOneWidget);
+    expect(find.text('2 of 10 complete'), findsOneWidget);
+    expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
+    expect(
+      find.text(
+        'Grant Screen & System Audio Recording to Caverno Computer Use',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('XPC Production Blocker'), findsOneWidget);
+    expect(
+      find.text('launchd_mach_service_registration_missing'),
+      findsOneWidget,
+    );
+    expect(find.text('XPC Next Action'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Register Caverno Computer Use as a launchd Mach service',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('refreshes permission and audio recording state', (tester) async {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
@@ -181,6 +210,7 @@ void main() {
     expect(service.lastMoveArguments, isNull);
     expect(service.startAudioCallCount, 0);
     expect(service.stopAudioCallCount, 0);
+    await _scrollUntilVisible(tester, find.text('Last Native Result'));
     expect(
       find.textContaining('Input events were not armed.', skipOffstage: false),
       findsOneWidget,
@@ -230,6 +260,7 @@ void main() {
 
     expect(service.startAudioCallCount, 1);
     expect(service.stopAudioCallCount, 1);
+    await _scrollUntilVisible(tester, find.text('Last Native Result'));
     expect(
       find.textContaining('"stopAttempted": true', skipOffstage: false),
       findsOneWidget,

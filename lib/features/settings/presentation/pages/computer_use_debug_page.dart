@@ -89,6 +89,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           ],
           _buildPermissionsCard(service.permissionBackendInfo),
           const SizedBox(height: 12),
+          _buildOnboardingChecklistCard(),
+          const SizedBox(height: 12),
           _buildDisplayScreenshotCard(),
           const SizedBox(height: 12),
           _buildWindowCard(),
@@ -334,6 +336,58 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 ),
                 onPointSelected: (point) =>
                     _selectImagePoint(_CoordinateTarget.display, point),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildOnboardingChecklistCard() {
+    final steps = _onboardingSmokeChecklist();
+    final completed = steps.where((step) => step['complete'] == true).length;
+    final total = steps.length;
+    final nextStep = steps.cast<Map<String, dynamic>?>().firstWhere(
+      (step) => step?['complete'] != true,
+      orElse: () => null,
+    );
+    final runtime = _helperIpcProtocol();
+    final blockers = _stringList(runtime['xpcProductionBlockers']);
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            _SectionTitle(
+              icon: Icons.fact_check_outlined,
+              title: 'Computer Use Onboarding',
+              subtitle: nextStep == null
+                  ? 'All onboarding checks are complete.'
+                  : 'Next: ${nextStep['label']}',
+            ),
+            const SizedBox(height: 12),
+            _OnboardingProgressRow(completed: completed, total: total),
+            const SizedBox(height: 12),
+            for (final step in steps)
+              _OnboardingStepRow(
+                label: '${step['label']}',
+                complete: step['complete'] == true,
+              ),
+            if (blockers.isNotEmpty) ...[
+              const SizedBox(height: 12),
+              _OnboardingNote(
+                icon: Icons.route_outlined,
+                title: 'XPC Production Blocker',
+                body: blockers.join(', '),
+              ),
+              const SizedBox(height: 8),
+              _OnboardingNote(
+                icon: Icons.next_plan_outlined,
+                title: 'XPC Next Action',
+                body: '${runtime['xpcProductionNextAction']}',
               ),
             ],
           ],
@@ -1438,6 +1492,16 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return MacosComputerUseIpc.current.toJson();
   }
 
+  List<String> _stringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => '$item')
+          .where((item) => item.isNotEmpty)
+          .toList();
+    }
+    return const [];
+  }
+
   List<Map<String, String>> _migratedCommands() {
     return const [
       {'command': 'ping', 'owner': 'helper'},
@@ -1858,6 +1922,112 @@ class _BoundaryValueRow extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _OnboardingProgressRow extends StatelessWidget {
+  const _OnboardingProgressRow({required this.completed, required this.total});
+
+  final int completed;
+  final int total;
+
+  @override
+  Widget build(BuildContext context) {
+    final progress = total == 0 ? 0.0 : completed / total;
+    return Row(
+      children: [
+        Expanded(
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(value: progress, minHeight: 8),
+          ),
+        ),
+        const SizedBox(width: 12),
+        Text(
+          '$completed of $total complete',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+      ],
+    );
+  }
+}
+
+class _OnboardingStepRow extends StatelessWidget {
+  const _OnboardingStepRow({required this.label, required this.complete});
+
+  final String label;
+  final bool complete;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final color = complete ? colorScheme.primary : colorScheme.outline;
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 4),
+      child: Row(
+        children: [
+          Icon(
+            complete
+                ? Icons.check_circle_outline
+                : Icons.radio_button_unchecked,
+            color: color,
+            size: 20,
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(label)),
+          Text(
+            complete ? 'Done' : 'Pending',
+            style: Theme.of(context).textTheme.bodySmall?.copyWith(
+              color: color,
+              fontWeight: complete ? FontWeight.w600 : FontWeight.normal,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _OnboardingNote extends StatelessWidget {
+  const _OnboardingNote({
+    required this.icon,
+    required this.title,
+    required this.body,
+  });
+
+  final IconData icon;
+  final String title;
+  final String body;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: colorScheme.outlineVariant),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(icon, color: colorScheme.primary, size: 20),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(title, style: Theme.of(context).textTheme.titleSmall),
+                  const SizedBox(height: 2),
+                  Text(body, style: Theme.of(context).textTheme.bodySmall),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
