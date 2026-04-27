@@ -414,6 +414,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
   bool _helperReachable;
+  bool _xpcLaunchAgentEnabled = false;
 
   @override
   bool get isAvailable => true;
@@ -462,6 +463,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> registerXpcLaunchAgent() async {
     registerXpcLaunchAgentCallCount += 1;
+    _xpcLaunchAgentEnabled = true;
     return _json({
       'ok': true,
       'backend': 'helper',
@@ -473,6 +475,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> unregisterXpcLaunchAgent() async {
     unregisterXpcLaunchAgentCallCount += 1;
+    _xpcLaunchAgentEnabled = false;
     return _json({
       'ok': true,
       'backend': 'helper',
@@ -518,7 +521,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcLaunchAgentRelativePath':
           'Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist',
       'xpcLaunchAgentPlistInstalled': true,
-      'xpcLaunchAgentStatus': 'not_registered',
+      'xpcLaunchAgentStatus': _xpcLaunchAgentEnabled
+          ? 'enabled'
+          : 'not_registered',
+      'xpcLaunchAgentEnabled': _xpcLaunchAgentEnabled,
       'xpcRegistrationRequirement': 'launchd_mach_service_registration',
       'xpcProductionBlockers': ['launchd_mach_service_registration_missing'],
       'xpcProductionNextAction':

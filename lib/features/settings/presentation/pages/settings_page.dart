@@ -406,6 +406,10 @@ class _ComputerUseOnboardingCardState
       verificationOk: verificationOk,
     );
     final helperIpcRuntime = _helperIpcRuntime();
+    final xpcLaunchAgentRegistered =
+        helperIpcRuntime['xpcLaunchAgentRegistered'] == true;
+    final xpcLaunchAgentSupported =
+        helperIpcRuntime['xpcLaunchAgentSupported'] != false;
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -596,22 +600,35 @@ class _ComputerUseOnboardingCardState
                   icon: const Icon(Icons.sync_outlined),
                   label: const Text('Recheck Permissions'),
                 ),
-                OutlinedButton.icon(
-                  key: const ValueKey(
-                    'computer-use-settings-register-xpc-agent',
+                if (helperIpcRuntime['xpcLaunchAgentStatus'] != null &&
+                    helperIpcRuntime['xpcLaunchAgentPlistInstalled'] == true &&
+                    (xpcLaunchAgentRegistered ||
+                        helperIpcRuntime['xpcNamedServiceConnected'] != true) &&
+                    helperIpcRuntime['xpcLaunchAgentRequiresApproval'] != true)
+                  OutlinedButton.icon(
+                    key: xpcLaunchAgentRegistered
+                        ? const ValueKey(
+                            'computer-use-settings-unregister-xpc-agent',
+                          )
+                        : const ValueKey(
+                            'computer-use-settings-register-xpc-agent',
+                          ),
+                    onPressed: _isLoading || !xpcLaunchAgentSupported
+                        ? null
+                        : xpcLaunchAgentRegistered
+                        ? _unregisterXpcLaunchAgent
+                        : _registerXpcLaunchAgent,
+                    icon: Icon(
+                      xpcLaunchAgentRegistered
+                          ? Icons.link_off_outlined
+                          : Icons.route_outlined,
+                    ),
+                    label: Text(
+                      xpcLaunchAgentRegistered
+                          ? 'Unregister XPC Agent'
+                          : 'Register XPC Agent',
+                    ),
                   ),
-                  onPressed: _isLoading ? null : _registerXpcLaunchAgent,
-                  icon: const Icon(Icons.route_outlined),
-                  label: const Text('Register XPC Agent'),
-                ),
-                OutlinedButton.icon(
-                  key: const ValueKey(
-                    'computer-use-settings-unregister-xpc-agent',
-                  ),
-                  onPressed: _isLoading ? null : _unregisterXpcLaunchAgent,
-                  icon: const Icon(Icons.link_off_outlined),
-                  label: const Text('Unregister XPC Agent'),
-                ),
                 OutlinedButton.icon(
                   key: const ValueKey('computer-use-settings-stop-helper-work'),
                   onPressed: _isLoading ? null : _stopHelperWork,
