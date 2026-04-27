@@ -155,8 +155,12 @@ void main() {
       find.text('XPC registration: launchd_mach_service_registration'),
       findsOneWidget,
     );
+    expect(find.text('XPC gate: blockers'), findsOneWidget);
+    expect(find.text('Named XPC: fallback'), findsOneWidget);
     expect(
-      find.text('XPC blockers: launchd_mach_service_registration_missing'),
+      find.text(
+        'XPC blockers: launchd_mach_service_registration_missing, named_xpc_service_not_connected',
+      ),
       findsOneWidget,
     );
     expect(find.text('OS action owner: helper'), findsOneWidget);

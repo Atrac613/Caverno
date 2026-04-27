@@ -1141,14 +1141,52 @@ class _ComputerUseOnboardingCardState
     final preferredAttemptErrorCode = _stringValue(
       preferredAttempt?['errorCode'],
     );
+    final nextParityCommands = _stringListValue(
+      snapshot['xpcNextParityCommands'] ??
+          MacosComputerUseIpc.current.xpcNextParityCommands,
+    );
+    final launchAgentStatus = _stringValue(snapshot['xpcLaunchAgentStatus']);
+    final launchAgentPlistInstalled =
+        snapshot['xpcLaunchAgentPlistInstalled'] == true;
+    final launchAgentRegistered =
+        snapshot['xpcLaunchAgentEnabled'] == true ||
+        snapshot['xpcLaunchAgentRegistered'] == true ||
+        launchAgentStatus == 'enabled';
+    final namedServiceConnected =
+        preferredAttemptStatus == 'xpc_response' ||
+        selectedTransport == MacosComputerUseIpc.current.preferredTransport;
+    final productionBlockers = [
+      if (snapshot['xpcLaunchAgentPlistInstalled'] == false)
+        'launch_agent_plist_missing',
+      if (!launchAgentRegistered) 'launchd_mach_service_registration_missing',
+      if (!namedServiceConnected) 'named_xpc_service_not_connected',
+      if (nextParityCommands.isNotEmpty) 'command_parity_pending',
+    ];
+    final measuredProductionReady = productionBlockers.isEmpty;
+    final productionNextAction = measuredProductionReady
+        ? 'XPC is production ready.'
+        : 'Resolve XPC production blockers before marking production ready.';
+    final productionGate = <String, dynamic>{
+      'productionReady': measuredProductionReady,
+      'namedServiceConnected': namedServiceConnected,
+      'launchAgentPlistInstalled': launchAgentPlistInstalled,
+      'launchAgentRegistered': launchAgentRegistered,
+      'commandParityComplete': nextParityCommands.isEmpty,
+      'nextParityCommands': nextParityCommands,
+      'blockers': productionBlockers,
+      'nextAction': productionNextAction,
+    };
+    if (launchAgentStatus != null) {
+      productionGate['launchAgentStatus'] = launchAgentStatus;
+    }
     final runtime = <String, dynamic>{
       'selectedIpcTransport': selectedTransport,
       'preferredIpcTransport': preferredTransport,
       'fallbackIpcTransport': fallbackTransport,
       'xpcReady': snapshot['xpcReady'] ?? MacosComputerUseIpc.current.xpcReady,
-      'xpcProductionReady':
-          snapshot['xpcProductionReady'] ??
-          MacosComputerUseIpc.current.xpcProductionReady,
+      'xpcProductionReady': measuredProductionReady,
+      'xpcProductionReadyMeasured': measuredProductionReady,
+      'xpcNamedServiceConnected': namedServiceConnected,
       'xpcStatus':
           snapshot['xpcStatus'] ?? MacosComputerUseIpc.current.xpcStatus,
       'xpcConnectionMode':
@@ -1164,17 +1202,14 @@ class _ComputerUseOnboardingCardState
       'xpcLaunchAgentSupported': snapshot['xpcLaunchAgentSupported'],
       'xpcLaunchAgentStatus': snapshot['xpcLaunchAgentStatus'],
       'xpcLaunchAgentEnabled': snapshot['xpcLaunchAgentEnabled'],
+      'xpcLaunchAgentRegistered': launchAgentRegistered,
       'xpcLaunchAgentRequiresApproval':
           snapshot['xpcLaunchAgentRequiresApproval'],
       'xpcRegistrationRequirement':
           snapshot['xpcRegistrationRequirement'] ??
           MacosComputerUseIpc.current.xpcRegistrationRequirement,
-      'xpcProductionBlockers':
-          snapshot['xpcProductionBlockers'] ??
-          MacosComputerUseIpc.current.xpcProductionBlockers,
-      'xpcProductionNextAction':
-          snapshot['xpcProductionNextAction'] ??
-          MacosComputerUseIpc.current.xpcProductionNextAction,
+      'xpcProductionBlockers': productionBlockers,
+      'xpcProductionNextAction': productionNextAction,
       'mainAppUnsafeOsActionsAllowed':
           snapshot['mainAppUnsafeOsActionsAllowed'] ??
           MacosComputerUseIpc.current.mainAppUnsafeOsActionsAllowed,
@@ -1187,9 +1222,8 @@ class _ComputerUseOnboardingCardState
       'xpcSupportedCommands':
           snapshot['xpcSupportedCommands'] ??
           MacosComputerUseIpc.current.xpcSupportedCommands,
-      'xpcNextParityCommands':
-          snapshot['xpcNextParityCommands'] ??
-          MacosComputerUseIpc.current.xpcNextParityCommands,
+      'xpcNextParityCommands': nextParityCommands,
+      'xpcProductionGate': productionGate,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1214,6 +1248,16 @@ class _ComputerUseOnboardingCardState
           : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
     }
     return runtime;
+  }
+
+  List<String> _stringListValue(Object? value) {
+    if (value is! List) {
+      return const [];
+    }
+    return value
+        .map((item) => '$item')
+        .where((item) => item.isNotEmpty)
+        .toList(growable: false);
   }
 
   Map<String, dynamic>? _mapValue(Object? value) {
@@ -1486,6 +1530,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
+    final productionReady = runtime['xpcProductionReadyMeasured'] == true;
+    final namedServiceConnected = runtime['xpcNamedServiceConnected'] == true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1522,6 +1568,14 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'LaunchAgent plist',
                 value: launchAgentPlistInstalled ? 'installed' : 'missing',
               ),
+            _InfoChip(
+              label: 'XPC gate',
+              value: productionReady ? 'ready' : 'blockers',
+            ),
+            _InfoChip(
+              label: 'Named XPC',
+              value: namedServiceConnected ? 'connected' : 'fallback',
+            ),
             if (productionBlockers.isNotEmpty)
               _InfoChip(
                 label: 'XPC blockers',

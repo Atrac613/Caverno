@@ -320,6 +320,7 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
+    report['xpcProductionGate'] = _xpcProductionGate(steps);
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
       steps,
@@ -346,6 +347,89 @@ void main() {
       );
     }
   });
+}
+
+Map<String, dynamic> _xpcProductionGate(List<Map<String, dynamic>> steps) {
+  final results = steps
+      .map((step) => step['result'])
+      .whereType<Map>()
+      .map((result) => Map<String, dynamic>.from(result))
+      .toList();
+  final nextParityCommands = <String>{
+    for (final result in results)
+      for (final command in _stringList(result['xpcNextParityCommands']))
+        command,
+  }.toList();
+  final preferredStatuses = <String>{
+    for (final result in results)
+      if (_preferredAttemptStatus(result) != null)
+        _preferredAttemptStatus(result)!,
+  }.toList();
+  final namedServiceConnected = results.any(
+    (result) =>
+        result['selectedIpcTransport'] == 'xpc_service' &&
+        result['ok'] != false,
+  );
+  final launchAgentStatuses = results
+      .map((result) => result['xpcLaunchAgentStatus'])
+      .whereType<String>()
+      .toList(growable: false);
+  final launchAgentStatus = launchAgentStatuses.isEmpty
+      ? null
+      : launchAgentStatuses.last;
+  final launchAgentEnabled = results.any(
+    (result) =>
+        result['xpcLaunchAgentEnabled'] == true ||
+        result['xpcLaunchAgentRegistered'] == true ||
+        result['xpcLaunchAgentStatus'] == 'enabled',
+  );
+  final launchAgentPlistInstalled = results.any(
+    (result) => result['xpcLaunchAgentPlistInstalled'] == true,
+  );
+  final fallbackObservable = results.any(
+    (result) =>
+        result['preferredIpcTransport'] == 'xpc_service' &&
+        result['selectedIpcTransport'] == 'distributed_notification_center' &&
+        _preferredAttemptStatus(result)?.startsWith('xpc_') == true,
+  );
+  final blockers = [
+    if (!launchAgentPlistInstalled) 'launch_agent_plist_missing',
+    if (!launchAgentEnabled) 'launchd_mach_service_registration_missing',
+    if (!namedServiceConnected) 'named_xpc_service_not_connected',
+    if (nextParityCommands.isNotEmpty) 'command_parity_pending',
+  ];
+  final productionReady = blockers.isEmpty;
+  final gate = <String, dynamic>{
+    'productionReady': productionReady,
+    'namedServiceConnected': namedServiceConnected,
+    'launchAgentPlistInstalled': launchAgentPlistInstalled,
+    'launchAgentEnabled': launchAgentEnabled,
+    'commandParityComplete': nextParityCommands.isEmpty,
+    'fallbackObservable': fallbackObservable,
+    'nextParityCommands': nextParityCommands,
+    'preferredAttemptStatuses': preferredStatuses,
+    'blockers': blockers,
+    'nextAction': productionReady
+        ? 'XPC is production ready.'
+        : 'Resolve XPC production blockers before marking production ready.',
+  };
+  if (launchAgentStatus != null) {
+    gate['launchAgentStatus'] = launchAgentStatus;
+  }
+  return gate;
+}
+
+String? _preferredAttemptStatus(Map<String, dynamic> result) {
+  final status = _preferredAttempt(result)?['status'];
+  return status is String && status.isNotEmpty ? status : null;
+}
+
+Map<String, dynamic>? _preferredAttempt(Map<String, dynamic> result) {
+  final attempt = result['preferredIpcAttempt'];
+  if (attempt is Map) {
+    return Map<String, dynamic>.from(attempt);
+  }
+  return null;
 }
 
 Future<Map<String, dynamic>?> _runStep(
@@ -599,6 +683,16 @@ bool _responseLooksSuccessful(Map<String, dynamic> response) {
 
 bool _stepPassed(Map<String, dynamic>? response) {
   return response != null && _responseLooksSuccessful(response);
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) {
+    return const [];
+  }
+  return value
+      .map((item) => '$item')
+      .where((item) => item.isNotEmpty)
+      .toList(growable: false);
 }
 
 List<Map<String, dynamic>> _positiveSmokeGates(
