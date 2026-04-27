@@ -1440,11 +1440,12 @@ class _IpcRuntimeSummary extends StatelessWidget {
               ),
             if (fallbackReason is String)
               _InfoChip(label: 'Fallback reason', value: fallbackReason),
-            if (nextParityCommands.isNotEmpty)
-              _InfoChip(
-                label: 'Next XPC parity',
-                value: nextParityCommands.join(', '),
-              ),
+            _InfoChip(
+              label: 'Next XPC parity',
+              value: nextParityCommands.isEmpty
+                  ? 'none'
+                  : nextParityCommands.join(', '),
+            ),
           ],
         ),
       ],

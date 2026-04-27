@@ -58,6 +58,8 @@ void main() {
       'scroll',
       'typeText',
       'pressKey',
+      'startSystemAudioRecording',
+      'stopSystemAudioRecording',
     ]);
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
@@ -69,14 +71,11 @@ void main() {
       info['helperOwnedActionCategories'],
       contains('system_audio_recording'),
     );
-    expect(info['xpcNextParityCommands'], [
-      'startSystemAudioRecording',
-      'stopSystemAudioRecording',
-    ]);
+    expect(info['xpcNextParityCommands'], isEmpty);
     expect(
       info['xpcProductionReadinessCriteria'],
       contains(
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
       ),
     );
   });
@@ -151,13 +150,9 @@ void main() {
       diagnostics['helperIpcProtocol'],
       containsPair('helperOwnsUnsafeOsActions', true),
     );
-    expect(
-      diagnostics['helperIpcProtocol'],
-      containsPair('xpcNextParityCommands', [
-        'startSystemAudioRecording',
-        'stopSystemAudioRecording',
-      ]),
-    );
+    final helperIpcProtocol =
+        diagnostics['helperIpcProtocol'] as Map<String, dynamic>;
+    expect(helperIpcProtocol['xpcNextParityCommands'], isEmpty);
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

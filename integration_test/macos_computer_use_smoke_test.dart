@@ -486,6 +486,7 @@ Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {
   Map<String, dynamic>? stop;
   Object? stopError;
   var started = false;
+  var stopAttempted = false;
 
   try {
     final startRaw = await service.startSystemAudioRecording({
@@ -495,20 +496,18 @@ Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {
     });
     start = _decodeMap(startRaw);
     started = start?['ok'] == true;
-    if (!started) {
-      return jsonEncode({'ok': false, 'start': start ?? startRaw});
+    if (started) {
+      await Future<void>.delayed(const Duration(milliseconds: 250));
     }
-    await Future<void>.delayed(const Duration(milliseconds: 250));
   } catch (error) {
     startError = error;
   } finally {
-    if (started) {
-      try {
-        final stopRaw = await service.stopSystemAudioRecording();
-        stop = _decodeMap(stopRaw) ?? {'raw': stopRaw};
-      } catch (error) {
-        stopError = error;
-      }
+    try {
+      stopAttempted = true;
+      final stopRaw = await service.stopSystemAudioRecording();
+      stop = _decodeMap(stopRaw) ?? {'raw': stopRaw};
+    } catch (error) {
+      stopError = error;
     }
   }
 
@@ -518,7 +517,7 @@ Future<String> _startAndStopSystemAudio(MacosComputerUseService service) async {
     if (startError != null) 'startError': startError.toString(),
     'stop': stop,
     if (stopError != null) 'stopError': stopError.toString(),
-    'stopAttempted': started,
+    'stopAttempted': stopAttempted,
   });
 }
 

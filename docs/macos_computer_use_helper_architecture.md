@@ -75,8 +75,9 @@ request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
 `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
 `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`,
-`scroll`, `typeText`, and `pressKey`; when the named service is unavailable,
-the app records the preferred attempt and falls back to
+`scroll`, `typeText`, `pressKey`, `startSystemAudioRecording`, and
+`stopSystemAudioRecording`; when the named service is unavailable, the app
+records the preferred attempt and falls back to
 `DistributedNotificationCenter`. XPC should not be treated as production-ready
 until the named service and all migrated commands pass parity smoke checks.
 
@@ -85,9 +86,9 @@ Production readiness requires:
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
   `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`,
-  `drag`, `scroll`, `typeText`, and `pressKey` match the active
-  distributed-notification behavior. The next parity commands are
-  `startSystemAudioRecording` and `stopSystemAudioRecording`.
+  `drag`, `scroll`, `typeText`, `pressKey`, `startSystemAudioRecording`, and
+  `stopSystemAudioRecording` match the active distributed-notification
+  behavior. There are no remaining command-level parity migrations.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate

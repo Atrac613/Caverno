@@ -1168,23 +1168,44 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Future<String> _startAndStopSystemAudioForSmoke(
     MacosComputerUseService service,
   ) async {
-    final startRaw = await service.startSystemAudioRecording({
-      'exclude_current_process_audio': true,
-    });
-    final start = _decodeMap(startRaw);
-    if (start?['ok'] == true) {
-      _audioRecording = true;
-      await Future<void>.delayed(const Duration(milliseconds: 250));
-      final stopRaw = await service.stopSystemAudioRecording();
-      final stop = _decodeMap(stopRaw);
-      return jsonEncode({
-        'ok': stop?['ok'] == true,
-        'start': start ?? startRaw,
-        'stop': stop ?? stopRaw,
+    Map<String, dynamic>? start;
+    Object? startError;
+    Map<String, dynamic>? stop;
+    Object? stopError;
+    var started = false;
+    var stopAttempted = false;
+
+    try {
+      final startRaw = await service.startSystemAudioRecording({
+        'exclude_current_process_audio': true,
       });
+      start = _decodeMap(startRaw);
+      started = start?['ok'] == true;
+      if (started) {
+        _audioRecording = true;
+        await Future<void>.delayed(const Duration(milliseconds: 250));
+      }
+    } catch (error) {
+      startError = error;
+    } finally {
+      try {
+        stopAttempted = true;
+        final stopRaw = await service.stopSystemAudioRecording();
+        stop = _decodeMap(stopRaw) ?? {'raw': stopRaw};
+      } catch (error) {
+        stopError = error;
+      }
+      _audioRecording = false;
     }
-    _audioRecording = false;
-    return jsonEncode({'ok': false, 'start': start ?? startRaw});
+
+    return jsonEncode({
+      'ok': started && stop?['ok'] == true,
+      'start': start,
+      if (startError != null) 'startError': startError.toString(),
+      'stop': stop,
+      if (stopError != null) 'stopError': stopError.toString(),
+      'stopAttempted': stopAttempted,
+    });
   }
 
   void _disarmInputActions() {

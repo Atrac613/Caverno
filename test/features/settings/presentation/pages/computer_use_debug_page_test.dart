@@ -215,6 +215,27 @@ void main() {
     expect(service.stopAudioCallCount, 1);
   });
 
+  testWidgets('always attempts to stop audio during armed smoke sequence', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(startAudioSucceeds: false);
+    await _pumpPage(tester, service);
+
+    await _tapSwitch(tester, 'System Audio Armed');
+    await _tapByKey(
+      tester,
+      'computer-use-run-smoke-sequence',
+      wait: const Duration(milliseconds: 500),
+    );
+
+    expect(service.startAudioCallCount, 1);
+    expect(service.stopAudioCallCount, 1);
+    expect(
+      find.textContaining('"stopAttempted": true', skipOffstage: false),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('copies and exports redacted diagnostics', (tester) async {
     final service = _FakeMacosComputerUseService();
     final platformCalls = <MethodCall>[];
@@ -403,6 +424,10 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
+  _FakeMacosComputerUseService({this.startAudioSucceeds = true});
+
+  final bool startAudioSucceeds;
+
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
   int restartHelperCallCount = 0;
@@ -580,7 +605,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     Map<String, dynamic> arguments,
   ) async {
     startAudioCallCount += 1;
-    return _json({'ok': true, 'path': '/tmp/system-audio.caf'});
+    return _json({
+      'ok': startAudioSucceeds,
+      if (startAudioSucceeds) 'path': '/tmp/system-audio.caf',
+      if (!startAudioSucceeds) 'code': 'system_audio_permission_denied',
+    });
   }
 
   @override
