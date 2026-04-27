@@ -182,27 +182,7 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   case stopSystemAudioRecording
 
   var supportsPreferredXpcTransport: Bool {
-    switch self {
-    case .ping,
-      .permissionStatus,
-      .openSettings,
-      .stopAll,
-      .screenshot,
-      .listWindows,
-      .focusWindow,
-      .screenshotWindow,
-      .moveMouse,
-      .click,
-      .drag,
-      .scroll,
-      .typeText,
-      .pressKey,
-      .startSystemAudioRecording,
-      .stopSystemAudioRecording:
-      return true
-    default:
-      return false
-    }
+    true
   }
 }
 
