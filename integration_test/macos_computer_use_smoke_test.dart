@@ -12,6 +12,9 @@ const _unsafeArmed = bool.fromEnvironment(
 const _unsafeClickArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED',
 );
+const _unsafeTextArmed = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED',
+);
 const _reportPath = String.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
 );
@@ -30,8 +33,10 @@ void main() {
       'strict': _strict,
       'unsafeArmed': _unsafeArmed,
       'unsafeClickArmed': _unsafeClickArmed,
+      'unsafeTextArmed': _unsafeTextArmed,
       'unsafeSafety': {
         'inputClickRequiresExtraArm': true,
+        'inputTextRequiresExtraArm': true,
         'audioMaxDurationMs': 250,
         'audioStopAlwaysAttempted': true,
       },
@@ -179,6 +184,52 @@ void main() {
         'input_scroll',
         'Scroll after explicit smoke arming',
         _unsafeArmed
+            ? 'Accessibility permission is not granted.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
+    if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
+      await _runStep(
+        steps,
+        'input_press_key',
+        'Press Escape after explicit smoke arming',
+        () => service.pressKey({
+          'key': 'escape',
+          'reason':
+              'Live smoke was explicitly armed for key input verification.',
+        }),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_press_key',
+        'Press Escape after explicit smoke arming',
+        _unsafeArmed
+            ? 'Accessibility permission is not granted.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
+    if (_unsafeArmed &&
+        _unsafeTextArmed &&
+        permissions?['accessibilityGranted'] == true) {
+      await _runStep(
+        steps,
+        'input_type_text',
+        'Type text after explicit text smoke arming',
+        () => service.typeText({
+          'text': 'caverno-smoke',
+          'reason':
+              'Live smoke was explicitly armed for text input verification.',
+        }),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_type_text',
+        'Type text after explicit text smoke arming',
+        !_unsafeTextArmed
+            ? 'Text smoke actions require unsafe text arming.'
+            : _unsafeArmed
             ? 'Accessibility permission is not granted.'
             : 'Unsafe smoke actions are not armed.',
       );
@@ -369,6 +420,18 @@ Map<String, dynamic> _unsafeOperationSummary(List<Map<String, dynamic>> steps) {
       id: 'input_scroll',
       category: 'input',
       requiresArming: 'unsafe',
+    ),
+    _unsafeOperation(
+      steps,
+      id: 'input_press_key',
+      category: 'input',
+      requiresArming: 'unsafe',
+    ),
+    _unsafeOperation(
+      steps,
+      id: 'input_type_text',
+      category: 'input',
+      requiresArming: 'unsafe_text',
     ),
     _unsafeOperation(
       steps,
@@ -609,6 +672,30 @@ List<Map<String, dynamic>> _positiveSmokeGates(
                 ? null
                 : 'accessibility'
           : 'unsafe_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_press_key',
+      label: 'Armed key press',
+      required: unsafeArmed && accessibilityGranted,
+      blockedBy: unsafeArmed
+          ? accessibilityGranted
+                ? null
+                : 'accessibility'
+          : 'unsafe_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_type_text',
+      label: 'Armed text input',
+      required: unsafeArmed && _unsafeTextArmed && accessibilityGranted,
+      blockedBy: unsafeArmed && _unsafeTextArmed
+          ? accessibilityGranted
+                ? null
+                : 'accessibility'
+          : _unsafeTextArmed
+          ? 'unsafe_smoke_not_armed'
+          : 'unsafe_text_smoke_not_armed',
     ),
     _positiveSmokeGate(
       steps,

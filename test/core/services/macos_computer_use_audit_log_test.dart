@@ -93,4 +93,29 @@ void main() {
     expect(entry['postActionObservationTransport'], 'xpc_service');
     expect(entry.containsKey('imageBase64'), isFalse);
   });
+
+  test('does not store typed text bodies from input results', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_type_text',
+      policy: MacosComputerUseToolPolicy.decision('computer_type_text'),
+      approvalResult: 'approved',
+      success: true,
+      result:
+          '{"ok":true,"selectedIpcTransport":"xpc_service","characters":12,"text":"secret typed body"}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_screenshot',
+        success: false,
+        errorCode: 'screen_capture_denied',
+      ),
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    expect(entry['toolName'], 'computer_type_text');
+    expect(entry['transport'], 'xpc_service');
+    expect(entry['postActionObservationRequired'], isTrue);
+    expect(entry['postActionObservationResponseCode'], 'screen_capture_denied');
+    expect(entry.containsKey('text'), isFalse);
+  });
 }

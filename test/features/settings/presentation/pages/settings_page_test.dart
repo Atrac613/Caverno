@@ -151,11 +151,16 @@ void main() {
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
       find.text(
-        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click, drag, scroll',
+        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click, drag, scroll, typeText, pressKey',
       ),
       findsOneWidget,
     );
-    expect(find.text('Next XPC parity: typeText, pressKey'), findsOneWidget);
+    expect(
+      find.text(
+        'Next XPC parity: startSystemAudioRecording, stopSystemAudioRecording',
+      ),
+      findsOneWidget,
+    );
     expect(
       find.text('Fallback reason: xpc_error (helper_xpc_unavailable)'),
       findsOneWidget,
@@ -477,11 +482,16 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'click',
         'drag',
         'scroll',
+        'typeText',
+        'pressKey',
       ],
-      'xpcNextParityCommands': ['typeText', 'pressKey'],
+      'xpcNextParityCommands': [
+        'startSystemAudioRecording',
+        'stopSystemAudioRecording',
+      ],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

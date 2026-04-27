@@ -75,18 +75,19 @@ request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
 `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
 `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`,
-and `scroll`; when the named service is unavailable, the app records the
-preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
-not be treated as production-ready until the named service and all migrated
-commands pass parity smoke checks.
+`scroll`, `typeText`, and `pressKey`; when the named service is unavailable,
+the app records the preferred attempt and falls back to
+`DistributedNotificationCenter`. XPC should not be treated as production-ready
+until the named service and all migrated commands pass parity smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
   `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`,
-  `drag`, and `scroll` match the active distributed-notification behavior. The
-  next parity commands are `typeText` and `pressKey`.
+  `drag`, `scroll`, `typeText`, and `pressKey` match the active
+  distributed-notification behavior. The next parity commands are
+  `startSystemAudioRecording` and `stopSystemAudioRecording`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate
@@ -110,6 +111,10 @@ Initial commands:
 - `drag`: drag the pointer after app-level approval and explicit arming in
   smoke tests.
 - `scroll`: scroll after app-level approval and explicit arming in smoke tests.
+- `typeText`: type text after app-level approval and explicit text-input arming
+  in smoke tests.
+- `pressKey`: press a key after app-level approval and explicit arming in smoke
+  tests.
 
 Migrated commands:
 
@@ -182,10 +187,12 @@ reachable and the required macOS permissions are granted.
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed`.
 5. Run the click check only when the pointer target is safe:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-click-armed`.
-6. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
+6. Run the text input check only when the focused text target is safe:
+   `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-text-armed`.
+7. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
    operations must be listed explicitly; skipped operations must include a
    reason.
-7. Run **Stop Helper Work** from Settings if any audio or input work remains
+8. Run **Stop Helper Work** from Settings if any audio or input work remains
    active.
 
 ## Safety Invariants
@@ -207,8 +214,11 @@ reachable and the required macOS permissions are granted.
   only the observation tool name, success flag, transport, and response code are
   recorded.
 - Debug smoke checks for input and system audio require an explicit arming
-  toggle; the live smoke harness only runs those actions when
+  toggle; the live smoke harness only runs most of those actions when
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED=1` or `--unsafe-armed` is set.
+- Live text input smoke checks require the additional
+  `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED=1` or
+  `--unsafe-text-armed` gate because they can modify focused text fields.
 - Live click smoke checks require the additional
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED=1` or
   `--unsafe-click-armed` gate because they can change foreground app state.
