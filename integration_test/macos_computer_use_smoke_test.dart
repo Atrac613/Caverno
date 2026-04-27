@@ -145,6 +145,44 @@ void main() {
             : 'Unsafe smoke actions are not armed.',
       );
     }
+    if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
+      await _runStep(
+        steps,
+        'input_drag_pointer',
+        'Drag pointer after explicit smoke arming',
+        () => service.drag(_smokeDragArguments(displayScreenshot)),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_drag_pointer',
+        'Drag pointer after explicit smoke arming',
+        _unsafeArmed
+            ? 'Accessibility permission is not granted.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
+    if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
+      await _runStep(
+        steps,
+        'input_scroll',
+        'Scroll after explicit smoke arming',
+        () => service.scroll({
+          ..._smokeInputArguments(displayScreenshot),
+          'delta_x': 0,
+          'delta_y': 0,
+        }),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'input_scroll',
+        'Scroll after explicit smoke arming',
+        _unsafeArmed
+            ? 'Accessibility permission is not granted.'
+            : 'Unsafe smoke actions are not armed.',
+      );
+    }
     if (_unsafeArmed &&
         _unsafeClickArmed &&
         permissions?['accessibilityGranted'] == true &&
@@ -322,6 +360,18 @@ Map<String, dynamic> _unsafeOperationSummary(List<Map<String, dynamic>> steps) {
     ),
     _unsafeOperation(
       steps,
+      id: 'input_drag_pointer',
+      category: 'input',
+      requiresArming: 'unsafe',
+    ),
+    _unsafeOperation(
+      steps,
+      id: 'input_scroll',
+      category: 'input',
+      requiresArming: 'unsafe',
+    ),
+    _unsafeOperation(
+      steps,
       id: 'system_audio_recording',
       category: 'audio',
       requiresArming: 'unsafe',
@@ -428,6 +478,34 @@ Map<String, dynamic> _smokeInputArguments(Map<String, dynamic>? screenshot) {
   return arguments;
 }
 
+Map<String, dynamic> _smokeDragArguments(Map<String, dynamic>? screenshot) {
+  final sourceWidth = _intValue(screenshot?['width']);
+  final sourceHeight = _intValue(screenshot?['height']);
+  final fromX = sourceWidth == null ? 8.0 : (sourceWidth * 0.05).clamp(8, 48);
+  final fromY = sourceHeight == null ? 8.0 : (sourceHeight * 0.05).clamp(8, 48);
+  final toX = sourceWidth == null
+      ? fromX + 1
+      : (fromX + sourceWidth * 0.01).clamp(fromX + 1, sourceWidth - 1);
+  final toY = sourceHeight == null
+      ? fromY + 1
+      : (fromY + sourceHeight * 0.01).clamp(fromY + 1, sourceHeight - 1);
+  final arguments = <String, dynamic>{
+    'from_x': fromX.toDouble(),
+    'from_y': fromY.toDouble(),
+    'to_x': toX.toDouble(),
+    'to_y': toY.toDouble(),
+    'duration_ms': 50,
+    'reason': 'Live smoke was explicitly armed for input drag verification.',
+  };
+  if (sourceWidth != null) {
+    arguments['source_width'] = sourceWidth;
+  }
+  if (sourceHeight != null) {
+    arguments['source_height'] = sourceHeight;
+  }
+  return arguments;
+}
+
 Map<String, dynamic>? _decodeMap(String raw) {
   try {
     final decoded = jsonDecode(raw);
@@ -509,6 +587,28 @@ List<Map<String, dynamic>> _positiveSmokeGates(
                 ? null
                 : 'accessibility_or_screen_capture'
           : 'unsafe_click_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_drag_pointer',
+      label: 'Armed pointer drag',
+      required: unsafeArmed && accessibilityGranted,
+      blockedBy: unsafeArmed
+          ? accessibilityGranted
+                ? null
+                : 'accessibility'
+          : 'unsafe_smoke_not_armed',
+    ),
+    _positiveSmokeGate(
+      steps,
+      id: 'input_scroll',
+      label: 'Armed pointer scroll',
+      required: unsafeArmed && accessibilityGranted,
+      blockedBy: unsafeArmed
+          ? accessibilityGranted
+                ? null
+                : 'accessibility'
+          : 'unsafe_smoke_not_armed',
     ),
     _positiveSmokeGate(
       steps,

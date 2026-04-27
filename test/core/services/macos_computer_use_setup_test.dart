@@ -54,6 +54,8 @@ void main() {
       'screenshotWindow',
       'moveMouse',
       'click',
+      'drag',
+      'scroll',
     ]);
     expect(info['xpcReady'], isTrue);
     expect(info['xpcProductionReady'], isFalse);
@@ -65,11 +67,11 @@ void main() {
       info['helperOwnedActionCategories'],
       contains('system_audio_recording'),
     );
-    expect(info['xpcNextParityCommands'], ['drag', 'scroll']);
+    expect(info['xpcNextParityCommands'], ['typeText', 'pressKey']);
     expect(
       info['xpcProductionReadinessCriteria'],
       contains(
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_match_dnc',
+        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_match_dnc',
       ),
     );
   });
@@ -146,7 +148,7 @@ void main() {
     );
     expect(
       diagnostics['helperIpcProtocol'],
-      containsPair('xpcNextParityCommands', ['drag', 'scroll']),
+      containsPair('xpcNextParityCommands', ['typeText', 'pressKey']),
     );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());

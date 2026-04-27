@@ -74,19 +74,19 @@ The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
 `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-`listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, and `click`;
-when the named service is unavailable, the app records the preferred attempt
-and falls back to `DistributedNotificationCenter`. XPC should not be treated as
-production-ready until the named service and all migrated commands pass parity
-smoke checks.
+`listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`,
+and `scroll`; when the named service is unavailable, the app records the
+preferred attempt and falls back to `DistributedNotificationCenter`. XPC should
+not be treated as production-ready until the named service and all migrated
+commands pass parity smoke checks.
 
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
 - `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-  `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, and `click`
-  match the active distributed-notification behavior. The next parity commands
-  are `drag` and `scroll`.
+  `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`,
+  `drag`, and `scroll` match the active distributed-notification behavior. The
+  next parity commands are `typeText` and `pressKey`.
 - Capture, input, and audio commands have parity smoke coverage before they move
   to XPC.
 - Fallback behavior is observable in diagnostics and does not execute duplicate
@@ -107,6 +107,9 @@ Initial commands:
   smoke tests.
 - `click`: click the pointer after app-level approval and the extra click
   arming gate in smoke tests.
+- `drag`: drag the pointer after app-level approval and explicit arming in
+  smoke tests.
+- `scroll`: scroll after app-level approval and explicit arming in smoke tests.
 
 Migrated commands:
 

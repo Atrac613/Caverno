@@ -447,6 +447,8 @@ private enum ComputerUseHelperIpcSchema {
     "screenshotWindow",
     "moveMouse",
     "click",
+    "drag",
+    "scroll",
   ]
   static let xpcReady = true
   static let xpcProductionReady = false
@@ -460,10 +462,10 @@ private enum ComputerUseHelperIpcSchema {
     "system_audio_recording",
     "emergency_stop",
   ]
-  static let xpcNextParityCommands = ["drag", "scroll"]
+  static let xpcNextParityCommands = ["typeText", "pressKey"]
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_match_dnc",
+    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]

@@ -8,6 +8,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -1501,6 +1502,100 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'approved drag and scroll actions record post-action observations',
+    () async {
+      for (final caseData in const [
+        (
+          toolName: 'computer_drag',
+          arguments: {'from_x': 10, 'from_y': 20, 'to_x': 30, 'to_y': 40},
+        ),
+        (
+          toolName: 'computer_scroll',
+          arguments: {'x': 20, 'y': 30, 'delta_y': -5},
+        ),
+      ]) {
+        MacosComputerUseAuditLog.instance.clear();
+        final toolDataSource = _ToolBatchChatDataSource(
+          initialToolCalls: [
+            ToolCallInfo(
+              id: 'tool-${caseData.toolName}',
+              name: caseData.toolName,
+              arguments: Map<String, dynamic>.from(caseData.arguments),
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          results: {
+            caseData.toolName:
+                '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+            'computer_screenshot':
+                '{"selectedIpcTransport":"xpc_service","code":"ok","imageBase64":"secret"}',
+          },
+        );
+        final appLifecycleService = _MockAppLifecycleService();
+        when(() => appLifecycleService.isInBackground).thenReturn(false);
+        final toolContainer = ProviderContainer(
+          overrides: [
+            settingsNotifierProvider.overrideWith(
+              _ToolEnabledSettingsNotifier.new,
+            ),
+            conversationsNotifierProvider.overrideWith(
+              _TestConversationsNotifier.new,
+            ),
+            chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+            sessionMemoryServiceProvider.overrideWithValue(
+              _TestSessionMemoryService(),
+            ),
+            mcpToolServiceProvider.overrideWithValue(toolService),
+            appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+            backgroundTaskServiceProvider.overrideWithValue(
+              _TestBackgroundTaskService(),
+            ),
+          ],
+        );
+
+        try {
+          final toolNotifier = toolContainer.read(
+            chatNotifierProvider.notifier,
+          );
+          final sendFuture = toolNotifier.sendMessage(
+            'Use ${caseData.toolName}',
+          );
+
+          PendingComputerUseAction? pending;
+          for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+            await Future<void>.delayed(Duration.zero);
+            pending = toolNotifier.state.pendingComputerUseAction;
+          }
+          expect(pending, isNotNull, reason: caseData.toolName);
+          toolNotifier.resolveComputerUseAction(
+            id: pending!.id,
+            approved: true,
+          );
+
+          await sendFuture;
+
+          expect(toolService.executedToolNames, [
+            caseData.toolName,
+            'computer_screenshot',
+          ]);
+          final entry =
+              MacosComputerUseAuditLog.instance.redactedEntries.single;
+          expect(entry['toolName'], caseData.toolName);
+          expect(entry['postActionObservationRequired'], isTrue);
+          expect(entry['postActionObservationToolName'], 'computer_screenshot');
+          expect(entry['postActionObservationSuccess'], isTrue);
+          expect(entry['postActionObservationTransport'], 'xpc_service');
+          expect(entry.containsKey('imageBase64'), isFalse);
+        } finally {
+          toolContainer.dispose();
+          MacosComputerUseAuditLog.instance.clear();
+        }
+      }
+    },
+  );
 
   test(
     'sendMessage carries computer-use screenshots into final vision prompt',
