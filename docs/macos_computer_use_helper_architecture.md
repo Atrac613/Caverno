@@ -106,6 +106,15 @@ approved by macOS. Diagnostics expose
 `xpcProductionNextAction` so onboarding can distinguish a running helper process
 from production-ready XPC reachability.
 
+Use the opt-in live smoke registration path to measure the launchd gate:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent`
+
+The report includes `register_xpc_launch_agent`, `xpc_production_probe`, and
+`xpcProductionGate`. A production-ready result requires the LaunchAgent to be
+registered, the named XPC probe to connect without fallback, and
+`xpcNextParityCommands` to stay empty.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.
@@ -194,18 +203,20 @@ reachable and the required macOS permissions are granted.
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact`.
 2. Confirm the report shows `coreOk=true`, `helperOwnsUnsafeOsActions=true`,
    `mainAppUnsafeOsActionsAllowed=false`, and `stop_helper_work` succeeds.
-3. Grant Accessibility and Screen & System Audio Recording to
+3. Measure LaunchAgent registration and named XPC reachability:
+   `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent`.
+4. Grant Accessibility and Screen & System Audio Recording to
    `Caverno Computer Use`.
-4. Run input and audio checks without clicks:
+5. Run input and audio checks without clicks:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed`.
-5. Run the click check only when the pointer target is safe:
+6. Run the click check only when the pointer target is safe:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-click-armed`.
-6. Run the text input check only when the focused text target is safe:
+7. Run the text input check only when the focused text target is safe:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-text-armed`.
-7. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
+8. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
    operations must be listed explicitly; skipped operations must include a
    reason.
-8. Run **Stop Helper Work** from Settings if any audio or input work remains
+9. Run **Stop Helper Work** from Settings if any audio or input work remains
    active.
 
 ## Safety Invariants

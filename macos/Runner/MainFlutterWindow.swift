@@ -802,7 +802,7 @@ final class MacosComputerUseHelperClient: NSObject {
     connection.remoteObjectInterface = NSXPCInterface(with: CavernoComputerUseXpcProtocol.self)
     var completed = false
 
-    func fallback(status: String, errorCode: String) {
+    func fallback(status: String, errorCode: String, errorDescription: String? = nil) {
       guard !completed else {
         return
       }
@@ -818,7 +818,8 @@ final class MacosComputerUseHelperClient: NSObject {
         timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
         status: status,
         completedAt: Date(),
-        errorCode: errorCode
+        errorCode: errorCode,
+        errorDescription: errorDescription
       )
       lastHelperIpcAttempt = diagnostic
       lastPreferredIpcAttempt = diagnostic
@@ -862,7 +863,11 @@ final class MacosComputerUseHelperClient: NSObject {
           command.rawValue,
           error.localizedDescription
         )
-        fallback(status: "xpc_error", errorCode: MacosComputerUseIpcSchema.xpcUnavailable)
+        fallback(
+          status: "xpc_error",
+          errorCode: MacosComputerUseIpcSchema.xpcUnavailable,
+          errorDescription: error.localizedDescription
+        )
       }
     } as? CavernoComputerUseXpcProtocol
 
@@ -1035,7 +1040,8 @@ final class MacosComputerUseHelperClient: NSObject {
     timeout: TimeInterval,
     status: String,
     completedAt: Date? = nil,
-    errorCode: String? = nil
+    errorCode: String? = nil,
+    errorDescription: String? = nil
   ) -> [String: Any] {
     var diagnostic: [String: Any] = [
       "sequence": sequence,
@@ -1062,6 +1068,7 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcNextParityCommands": MacosComputerUseIpcSchema.xpcNextParityCommands,
       "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
     ]
+    diagnostic.merge(xpcLaunchAgentStatus()) { _, new in new }
     if let attemptedTransport {
       diagnostic["attemptedIpcTransport"] = attemptedTransport
     }
@@ -1071,6 +1078,9 @@ final class MacosComputerUseHelperClient: NSObject {
     }
     if let errorCode {
       diagnostic["errorCode"] = errorCode
+    }
+    if let errorDescription {
+      diagnostic["errorDescription"] = errorDescription
     }
     return diagnostic
   }

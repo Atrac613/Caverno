@@ -15,6 +15,9 @@ const _unsafeClickArmed = bool.fromEnvironment(
 const _unsafeTextArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED',
 );
+const _registerXpcAgent = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
+);
 const _reportPath = String.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
 );
@@ -34,6 +37,7 @@ void main() {
       'unsafeArmed': _unsafeArmed,
       'unsafeClickArmed': _unsafeClickArmed,
       'unsafeTextArmed': _unsafeTextArmed,
+      'registerXpcAgent': _registerXpcAgent,
       'unsafeSafety': {
         'inputClickRequiresExtraArm': true,
         'inputTextRequiresExtraArm': true,
@@ -62,6 +66,23 @@ void main() {
       'Read bundled helper status',
       service.getHelperStatus,
     );
+    Map<String, dynamic>? xpcAgentRegistration;
+    if (_registerXpcAgent) {
+      xpcAgentRegistration = await _runStep(
+        steps,
+        'register_xpc_launch_agent',
+        'Register the XPC LaunchAgent',
+        service.registerXpcLaunchAgent,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+    } else {
+      _skipStep(
+        steps,
+        'register_xpc_launch_agent',
+        'Register the XPC LaunchAgent',
+        'XPC LaunchAgent registration is opt-in for live smoke.',
+      );
+    }
     final launch = await _runStep(
       steps,
       'launch_helper',
@@ -91,6 +112,22 @@ void main() {
       'Ping Caverno Computer Use',
       service.pingHelper,
     );
+    Map<String, dynamic>? xpcProductionProbe;
+    if (_registerXpcAgent) {
+      xpcProductionProbe = await _runStep(
+        steps,
+        'xpc_production_probe',
+        'Probe named XPC after LaunchAgent registration',
+        service.pingHelper,
+      );
+    } else {
+      _skipStep(
+        steps,
+        'xpc_production_probe',
+        'Probe named XPC after LaunchAgent registration',
+        'XPC LaunchAgent registration is opt-in for live smoke.',
+      );
+    }
     final permissions = await _runStep(
       steps,
       'permission_status',
@@ -303,6 +340,12 @@ void main() {
     report['captureOk'] = captureOk;
     report['restartOk'] = _stepPassed(restart);
     report['ipcReadyOk'] = _stepPassed(readiness);
+    report['xpcAgentRegistrationOk'] = _registerXpcAgent
+        ? _stepPassed(xpcAgentRegistration)
+        : null;
+    report['xpcProductionProbeOk'] = _registerXpcAgent
+        ? _namedXpcConnected(xpcProductionProbe)
+        : null;
     report['permissionSummary'] = {
       'accessibilityGranted': permissions?['accessibilityGranted'],
       'screenCaptureGranted': permissions?['screenCaptureGranted'],
@@ -683,6 +726,12 @@ bool _responseLooksSuccessful(Map<String, dynamic> response) {
 
 bool _stepPassed(Map<String, dynamic>? response) {
   return response != null && _responseLooksSuccessful(response);
+}
+
+bool _namedXpcConnected(Map<String, dynamic>? response) {
+  return response != null &&
+      response['selectedIpcTransport'] == 'xpc_service' &&
+      response['ok'] != false;
 }
 
 List<String> _stringList(Object? value) {
