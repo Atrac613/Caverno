@@ -259,6 +259,47 @@ private func runStep(
   return response
 }
 
+private func runRetriedStep(
+  _ steps: inout [[String: Any]],
+  id: String,
+  label: String,
+  attempts: Int,
+  delay: TimeInterval,
+  operation: (_ attempt: Int) -> [String: Any]
+) -> [String: Any] {
+  let startedAt = Date()
+  var attemptReports: [[String: Any]] = []
+  var finalResponse: [String: Any] = [:]
+  for attempt in 1...max(1, attempts) {
+    let attemptStartedAt = Date()
+    let response = operation(attempt)
+    finalResponse = response
+    attemptReports.append([
+      "attempt": attempt,
+      "ok": response["ok"] as? Bool ?? false,
+      "code": jsonValue(response["code"] as? String),
+      "elapsedMs": Int(Date().timeIntervalSince(attemptStartedAt) * 1000),
+    ])
+    if response["ok"] as? Bool ?? false {
+      break
+    }
+    if attempt < attempts {
+      Thread.sleep(forTimeInterval: delay)
+    }
+  }
+  let ok = finalResponse["ok"] as? Bool ?? false
+  let step: [String: Any] = [
+    "id": id,
+    "label": label,
+    "ok": ok,
+    "elapsedMs": Int(Date().timeIntervalSince(startedAt) * 1000),
+    "attempts": attemptReports,
+    "response": finalResponse,
+  ]
+  steps.append(step)
+  return finalResponse
+}
+
 private func firstWindowId(_ response: [String: Any]) -> Int? {
   guard let windows = response["windows"] as? [[String: Any]] else {
     return nil
@@ -385,16 +426,18 @@ var windowCapture: [String: Any] = [
 ]
 
 if let appProcessIdentifier {
-  permissionStatus = runStep(
+  permissionStatus = runRetriedStep(
     &steps,
     id: "permission_status",
-    label: "Read helper-owned permission status"
-  ) {
+    label: "Read helper-owned permission status",
+    attempts: 3,
+    delay: 0.5
+  ) { _ in
     client.send(
       command: "permissionStatus",
       arguments: [:],
       senderProcessIdentifier: appProcessIdentifier,
-      timeout: 3
+      timeout: 6
     )
   }
   displayScreenshot = runStep(
@@ -462,6 +505,18 @@ let inputReady = accessibilityGranted
 let audioResolved = !audioSupported || screenCaptureGranted
 let helperPathMatchesExpected = runningHelperPath == nil ||
   runningHelperPath == configuredHelperPath
+let helperPathMismatchInvalidatesSignoff = !helperPathMatchesExpected &&
+  (captureReady || inputReady || audioResolved)
+let nextAction: String
+if !helperPathMatchesExpected {
+  nextAction = "Stop the standalone helper and rerun the probe with --replace-helper before using these results for embedded-helper sign-off."
+} else if !screenCaptureGranted {
+  nextAction = "Grant Screen & System Audio Recording to the expected embedded helper path, then rerun this probe with --require-capture."
+} else if !inputReady {
+  nextAction = "Grant Accessibility to the expected embedded helper path, then rerun this probe with --require-input."
+} else {
+  nextAction = "Embedded helper sign-off gates are ready for the requested checks."
+}
 let requiredChecks: [[String: Any]] = [
   [
     "id": "capture_ready",
@@ -504,6 +559,8 @@ let report: [String: Any] = [
   "inputReady": inputReady,
   "audioResolved": audioResolved,
   "helperPathMatchesExpected": helperPathMatchesExpected,
+  "helperPathMismatchInvalidatesSignoff": helperPathMismatchInvalidatesSignoff,
+  "nextAction": nextAction,
   "requiredChecks": requiredChecks,
   "failedRequiredChecks": failedRequiredChecks,
   "app": [

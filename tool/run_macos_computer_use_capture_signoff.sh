@@ -90,12 +90,19 @@ helper = report.get("helper") or {}
 permissions = report.get("permissionSummary") or {}
 summary = {
     "ok": bool(report.get("ok")),
+    "coreOk": bool(report.get("coreOk")),
     "captureReady": bool(report.get("captureReady")),
     "inputReady": bool(report.get("inputReady")),
+    "audioResolved": bool(report.get("audioResolved")),
     "helperPathMatchesExpected": bool(report.get("helperPathMatchesExpected")),
+    "helperPathMismatchInvalidatesSignoff": bool(report.get("helperPathMismatchInvalidatesSignoff")),
     "screenCaptureGranted": bool(permissions.get("screenCaptureGranted")),
+    "accessibilityGranted": bool(permissions.get("accessibilityGranted")),
+    "systemAudioRecordingSupported": bool(permissions.get("systemAudioRecordingSupported")),
     "expectedHelperPath": helper.get("expectedPath") or "",
     "runningHelperPath": helper.get("runningPath") or "",
+    "failedRequiredChecks": report.get("failedRequiredChecks") or [],
+    "nextAction": report.get("nextAction") or "",
     "reportPath": sys.argv[1],
 }
 print(json.dumps(summary, ensure_ascii=True))
@@ -117,18 +124,29 @@ import json
 import sys
 
 summary = json.loads(sys.argv[1])
+print(f"  Core ready: {summary['coreOk']}")
 print(f"  Helper path matches expected: {summary['helperPathMatchesExpected']}")
+print(f"  Accessibility granted: {summary['accessibilityGranted']}")
 print(f"  Screen Recording granted: {summary['screenCaptureGranted']}")
+print(f"  System audio supported: {summary['systemAudioRecordingSupported']}")
 print(f"  Capture ready: {summary['captureReady']}")
 print(f"  Input ready: {summary['inputReady']}")
+print(f"  Audio resolved: {summary['audioResolved']}")
 print(f"  Expected helper path: {summary['expectedHelperPath']}")
 print(f"  Running helper path: {summary['runningHelperPath']}")
 print(f"  Report: {summary['reportPath']}")
-if not summary["captureReady"]:
+if summary["failedRequiredChecks"]:
+    print(f"  Failed required checks: {', '.join(summary['failedRequiredChecks'])}")
+if summary["helperPathMismatchInvalidatesSignoff"]:
+    print("")
+    print("Sign-off warning:")
+    print("  The running helper is not the embedded helper. Any passing capture,")
+    print("  input, or audio result belongs to the standalone helper and is not")
+    print("  valid for embedded-helper sign-off.")
+if summary["nextAction"]:
     print("")
     print("Next action:")
-    print("  Grant Screen & System Audio Recording to the expected helper path,")
-    print("  then rerun this script with --require-capture.")
+    print(f"  {summary['nextAction']}")
 PY
 
 if [[ "${REVEAL_HELPER}" == "1" && -n "${EXPECTED_HELPER_PATH}" ]]; then

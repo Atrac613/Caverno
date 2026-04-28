@@ -214,6 +214,9 @@ Drag/drop sign-off runbook:
   `bash tool/run_macos_computer_use_capture_signoff.sh --reveal-helper --open-settings`.
   This does not change macOS privacy settings; it only reveals the helper path,
   opens the Screen Recording pane, and prints the current capture status.
+- Use `bash tool/run_macos_computer_use_capture_signoff.sh --replace-helper --require-capture`
+  for embedded-helper sign-off. A passing standalone helper result is not a
+  valid embedded-helper sign-off, even when the bundle identifier matches.
 - Run `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` to
   show both overlays and confirm `draggableTileReady` is true.
 - Drag the overlay tile into Accessibility and Screen & System Audio Recording.
@@ -277,6 +280,10 @@ M2 live sign-off notes:
   `Caverno.app/Contents/Helpers/Caverno Computer Use.app` location, but capture
   remains blocked there until macOS grants Screen & System Audio Recording to
   that exact helper bundle.
+- 2026-04-29: the existing-helper probe now retries the initial
+  `permissionStatus` request after helper replacement and reports
+  `helperPathMismatchInvalidatesSignoff` when a standalone helper produced
+  otherwise passing capture, input, or audio results.
 
 ## App Responsibilities
 
