@@ -113,7 +113,19 @@ Use the opt-in live smoke registration path to measure the launchd gate:
 The report includes `register_xpc_launch_agent`, `xpc_production_probe`, and
 `xpcProductionGate`. A production-ready result requires the LaunchAgent to be
 registered, the named XPC probe to connect without fallback, and
-`xpcNextParityCommands` to stay empty.
+`xpcNextParityCommands` to stay empty. Add `--strict` to fail the smoke when
+the registered LaunchAgent does not reach production-ready named XPC. Add
+`--cleanup-xpc-agent` when a run should unregister the LaunchAgent after the
+production gate has been measured.
+
+Release builds should use the same embedded helper and LaunchAgent layout as
+debug builds. Before notarization work, run:
+
+`flutter build macos --release`
+
+Then verify `Caverno.app` still contains
+`Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist` and
+`Contents/Helpers/Caverno Computer Use.app`.
 
 Initial commands:
 
@@ -205,18 +217,20 @@ reachable and the required macOS permissions are granted.
    `mainAppUnsafeOsActionsAllowed=false`, and `stop_helper_work` succeeds.
 3. Measure LaunchAgent registration and named XPC reachability:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent`.
-4. Grant Accessibility and Screen & System Audio Recording to
+4. For a strict production gate, add `--strict`; for a temporary registration,
+   add `--cleanup-xpc-agent`.
+5. Grant Accessibility and Screen & System Audio Recording to
    `Caverno Computer Use`.
-5. Run input and audio checks without clicks:
+6. Run input and audio checks without clicks:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed`.
-6. Run the click check only when the pointer target is safe:
+7. Run the click check only when the pointer target is safe:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-click-armed`.
-7. Run the text input check only when the focused text target is safe:
+8. Run the text input check only when the focused text target is safe:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-text-armed`.
-8. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
+9. Inspect `unsafeOperationSummary` and `positiveSmokeGates`. Executed unsafe
    operations must be listed explicitly; skipped operations must include a
    reason.
-9. Run **Stop Helper Work** from Settings if any audio or input work remains
+10. Run **Stop Helper Work** from Settings if any audio or input work remains
    active.
 
 ## Safety Invariants

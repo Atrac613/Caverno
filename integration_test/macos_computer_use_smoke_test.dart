@@ -18,6 +18,9 @@ const _unsafeTextArmed = bool.fromEnvironment(
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
+const _cleanupXpcAgent = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT',
+);
 const _reportPath = String.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
 );
@@ -38,6 +41,7 @@ void main() {
       'unsafeClickArmed': _unsafeClickArmed,
       'unsafeTextArmed': _unsafeTextArmed,
       'registerXpcAgent': _registerXpcAgent,
+      'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
         'inputClickRequiresExtraArm': true,
         'inputTextRequiresExtraArm': true,
@@ -320,6 +324,22 @@ void main() {
       'Stop helper work',
       service.stopHelperWork,
     );
+    Map<String, dynamic>? xpcAgentCleanup;
+    if (_cleanupXpcAgent) {
+      xpcAgentCleanup = await _runStep(
+        steps,
+        'unregister_xpc_launch_agent',
+        'Unregister the XPC LaunchAgent',
+        service.unregisterXpcLaunchAgent,
+      );
+    } else {
+      _skipStep(
+        steps,
+        'unregister_xpc_launch_agent',
+        'Unregister the XPC LaunchAgent',
+        'XPC LaunchAgent cleanup is opt-in for live smoke.',
+      );
+    }
 
     final coreOk =
         _stepPassed(helperStatus) &&
@@ -335,6 +355,11 @@ void main() {
         steps.any(
           (step) => step['id'] == 'window_capture' && step['ok'] == true,
         );
+    final xpcProductionGate = _xpcProductionGate(steps);
+    final xpcProductionOk =
+        xpcProductionGate['productionReady'] == true &&
+        (_registerXpcAgent ? _stepPassed(xpcAgentRegistration) : true) &&
+        (_registerXpcAgent ? _namedXpcConnected(xpcProductionProbe) : true);
     report['ok'] = _strict ? coreOk && captureOk : coreOk;
     report['coreOk'] = coreOk;
     report['captureOk'] = captureOk;
@@ -346,6 +371,10 @@ void main() {
     report['xpcProductionProbeOk'] = _registerXpcAgent
         ? _namedXpcConnected(xpcProductionProbe)
         : null;
+    report['xpcAgentCleanupOk'] = _cleanupXpcAgent
+        ? _stepPassed(xpcAgentCleanup)
+        : null;
+    report['xpcProductionOk'] = xpcProductionOk;
     report['permissionSummary'] = {
       'accessibilityGranted': permissions?['accessibilityGranted'],
       'screenCaptureGranted': permissions?['screenCaptureGranted'],
@@ -363,7 +392,7 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
-    report['xpcProductionGate'] = _xpcProductionGate(steps);
+    report['xpcProductionGate'] = xpcProductionGate;
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
       steps,
@@ -378,6 +407,9 @@ void main() {
     if (_strict && !requiredPositiveSmokeOk) {
       report['ok'] = false;
     }
+    if (_strict && _registerXpcAgent && !xpcProductionOk) {
+      report['ok'] = false;
+    }
     _printReport(report);
 
     if (_strict) {
@@ -388,12 +420,21 @@ void main() {
         isTrue,
         reason: 'Required positive smoke gates must pass.',
       );
+      if (_registerXpcAgent) {
+        expect(
+          xpcProductionOk,
+          isTrue,
+          reason:
+              'Registered LaunchAgent smoke runs must reach production-ready named XPC.',
+        );
+      }
     }
   });
 }
 
 Map<String, dynamic> _xpcProductionGate(List<Map<String, dynamic>> steps) {
   final results = steps
+      .where((step) => step['id'] != 'unregister_xpc_launch_agent')
       .map((step) => step['result'])
       .whereType<Map>()
       .map((result) => Map<String, dynamic>.from(result))
