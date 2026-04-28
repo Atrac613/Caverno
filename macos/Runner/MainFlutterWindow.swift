@@ -355,13 +355,20 @@ final class MacosComputerUseHelperClient: NSObject {
     let runningApplication = NSRunningApplication.runningApplications(
       withBundleIdentifier: helperBundleIdentifier
     ).first { !$0.isTerminated }
+    let helperPath = helperURL.standardizedFileURL.path
+    let runningHelperPath = runningApplication?.bundleURL?.standardizedFileURL.path
+    let helperPathMatchesRunningHelper =
+      runningHelperPath == nil || runningHelperPath == helperPath
     var response: [String: Any] = [
       "ok": true,
       "helperDisplayName": helperDisplayName,
       "helperBundleIdentifier": helperBundleIdentifier,
       "helperInstalled": FileManager.default.fileExists(atPath: helperURL.path),
       "helperRunning": runningApplication != nil,
-      "helperPath": helperURL.path,
+      "helperPath": helperPath,
+      "embeddedHelperPath": helperPath,
+      "helperLaunchPath": helperPath,
+      "helperPathMatchesRunningHelper": helperPathMatchesRunningHelper,
       "protocolVersion": MacosComputerUseHelperRequest.protocolVersion,
       "ipcTransport": MacosComputerUseIpcSchema.activeTransport,
       "preferredIpcTransport": MacosComputerUseIpcSchema.preferredTransport,
@@ -390,6 +397,17 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcProductionReadinessCriteria": MacosComputerUseIpcSchema.xpcProductionReadinessCriteria,
       "pendingHelperIpcRequestCount": pendingRequests.count,
     ]
+    if let runningHelperPath {
+      response["runningHelperPath"] = runningHelperPath
+    }
+    if !helperPathMatchesRunningHelper {
+      response["helperPathMismatch"] = true
+      response["helperPathMismatchDetails"] = [
+        "expectedHelperPath": helperPath,
+        "runningHelperPath": runningHelperPath ?? "",
+        "nextAction": "Restart Caverno Computer Use from Caverno before validating granted permissions.",
+      ]
+    }
     response.merge(xpcLaunchAgentStatus()) { _, new in new }
     if let lastHelperIpcAttempt {
       response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
@@ -636,6 +654,9 @@ final class MacosComputerUseHelperClient: NSObject {
       runningApplication.activate(options: [.activateIgnoringOtherApps])
       var response = status()
       response["alreadyRunning"] = true
+      if response["helperPathMismatch"] as? Bool == true {
+        response["alreadyRunningPathMismatch"] = true
+      }
       for (key, value) in extra {
         response[key] = value
       }

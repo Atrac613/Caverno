@@ -89,6 +89,10 @@ M1 overlay readiness gate:
 - The smoke report's `overlaySmoke` section records `overlayPlacement`,
   `overlayMode`, `helperBundlePath`, and `dragPasteboardTypes` so hands-on drag
   failures can be diagnosed without rerunning the full unsafe input sequence.
+- Main-app helper diagnostics now include `embeddedHelperPath`,
+  `runningHelperPath`, and `helperPathMismatch` so debug builds can detect when
+  macOS relaunched a different `Caverno Computer Use.app` path than the one
+  Caverno is configured to open.
 - Hands-on sign-off still requires dragging the tile into both macOS privacy
   lists because macOS does not expose a supported API for granting or fully
   simulating TCC list drops.
@@ -104,6 +108,12 @@ M1 sign-off checklist:
   after Screen & System Audio Recording is granted.
 - `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
   passes after Accessibility is granted.
+- `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-capture`
+  can be used after a successful grant to verify the existing built helper
+  without triggering another Flutter rebuild.
+- Add `--require-helper-path-match` to the existing-helper probe when the
+  sign-off must prove that the currently running helper is the same bundle path
+  Caverno will launch.
 
 The drag/drop sign-off is intentionally manual. Adding the helper to macOS
 privacy lists changes system privacy settings, so it must only happen after an
