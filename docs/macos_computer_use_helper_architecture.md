@@ -31,6 +31,46 @@ recording.
 - The helper milestone does not need to replace the temporary IPC transport.
   XPC can replace distributed notifications after the helper boundary is stable.
 
+## Roadmap
+
+### M1: Permission-First Onboarding
+
+The main task for M1 is the helper-owned permission overlay. `Caverno.app`
+opens the onboarding flow and requests the overlay through helper IPC, but
+`Caverno Computer Use.app` owns the foreground guide because it is the bundle
+that receives macOS privacy grants.
+
+The overlay is a floating helper window, not injected UI inside System Settings.
+It should guide the user after the relevant Privacy & Security pane is opened,
+show the exact permission owner, and provide a draggable app tile for
+`Caverno Computer Use.app` when macOS requires drag-and-drop into a privacy
+list.
+
+M1 acceptance criteria:
+
+- Accessibility and Screen & System Audio Recording actions open the targeted
+  System Settings panes and show the helper-owned overlay above them.
+- The overlay contains a draggable `Caverno Computer Use.app` tile backed by
+  the helper app bundle URL.
+- The overlay includes `Done`, `Recheck`, and `Back` controls so the user can
+  return to Caverno's setup flow after granting permissions.
+- The overlay clearly states that macOS permissions are granted to
+  `Caverno Computer Use.app`, not to `Caverno.app`.
+- The flow never attempts to modify TCC databases or automatically grant
+  permissions.
+- After the user grants permissions, `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`
+  and `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
+  are the M1 readiness checks.
+
+Follow-on milestones:
+
+- M2: Complete capture, input, and optional system-audio readiness using the
+  live smoke gates.
+- M3: Harden unsafe action audit, arming, and emergency-stop behavior.
+- M4: Promote named XPC and LaunchAgent registration to the production IPC
+  path.
+- M5: Connect the vision LLM loop to the approved helper tool surface.
+
 ## App Responsibilities
 
 | Area | `Caverno.app` | `Caverno Computer Use.app` |
@@ -330,8 +370,8 @@ The product UI should model the helper setup as a checklist:
 Each missing state should have one primary action:
 
 - Launch helper.
-- Open Accessibility settings.
-- Open Screen & System Audio Recording settings.
+- Open Accessibility settings with the helper-owned overlay.
+- Open Screen & System Audio Recording settings with the helper-owned overlay.
 - Refresh status.
 - Run a focused smoke check.
 
@@ -347,7 +387,9 @@ Each missing state should have one primary action:
 7. Move screenshot, window listing, window focusing, and window screenshots.
 8. Move input events behind the existing approval and arming flow.
 9. Move system audio recording behind the existing approval and arming flow.
-10. Remove or disable privileged computer-use APIs from the main app once parity
+10. Add the helper-owned permission overlay for Accessibility and Screen &
+    System Audio Recording onboarding.
+11. Remove or disable privileged computer-use APIs from the main app once parity
     is verified.
 
 ## Verification Gates
