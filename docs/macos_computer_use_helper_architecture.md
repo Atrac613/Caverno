@@ -104,6 +104,10 @@ M1 sign-off checklist:
 - `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
   passes after Accessibility is granted.
 
+The drag/drop sign-off is intentionally manual. Adding the helper to macOS
+privacy lists changes system privacy settings, so it must only happen after an
+explicit action-time confirmation from the person operating the Mac.
+
 Follow-on milestones:
 
 - M2: Complete capture, input, and optional system-audio readiness using the

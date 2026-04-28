@@ -152,14 +152,14 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       title: "Accessibility",
       subtitle: "Allows Caverno Computer Use to access app interfaces.",
       buttonTitle: "Open",
-      action: { openSettingsPane(.accessibility) }
+      action: { _ = ComputerUseHelperApp.showPermissionOverlay(pane: .accessibility) }
     )
     let screenRecordingRow = PermissionRowView(
       symbolName: "camera.viewfinder",
       title: "Screen & System Audio Recording",
       subtitle: "Allows screenshots and system audio capture after approval.",
       buttonTitle: "Open",
-      action: { openSettingsPane(.screenRecording) }
+      action: { _ = ComputerUseHelperApp.showPermissionOverlay(pane: .screenRecording) }
     )
     self.helperReachableRow = helperReachableRow
     self.accessibilityRow = accessibilityRow
