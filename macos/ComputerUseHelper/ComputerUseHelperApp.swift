@@ -3,6 +3,7 @@ import ApplicationServices
 import AVFoundation
 import CoreGraphics
 import CoreMedia
+import QuartzCore
 import ScreenCaptureKit
 
 @objc(CavernoComputerUseXpcProtocol)
@@ -90,6 +91,83 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     )
   }
 
+  private func startPermissionFlow(pane: SettingsPane, row: PermissionRowView) {
+    let snapshot = row.snapshotImage()
+    let sourceFrame = row.screenFrame()
+    row.setPendingSystemSettings(true)
+    openSettingsPane(pane)
+    _ = presentPermissionOverlay(pane: pane)
+    animatePermissionRowOverflow(
+      snapshot: snapshot,
+      sourceFrame: sourceFrame,
+      targetWindow: permissionOverlayWindowController?.window
+    )
+  }
+
+  private func animatePermissionRowOverflow(
+    snapshot: NSImage?,
+    sourceFrame: NSRect?,
+    targetWindow: NSWindow?
+  ) {
+    guard
+      let snapshot,
+      let sourceFrame,
+      let screen = NSScreen.screens.first(where: { $0.frame.intersects(sourceFrame) }) ?? NSScreen.main
+    else {
+      return
+    }
+
+    let imageView = NSImageView(frame: NSRect(origin: .zero, size: sourceFrame.size))
+    imageView.image = snapshot
+    imageView.imageScaling = .scaleAxesIndependently
+    imageView.wantsLayer = true
+    imageView.layer?.cornerRadius = 18
+    imageView.layer?.masksToBounds = true
+
+    let panel = NSPanel(
+      contentRect: sourceFrame,
+      styleMask: [.borderless, .nonactivatingPanel],
+      backing: .buffered,
+      defer: false
+    )
+    panel.contentView = imageView
+    panel.backgroundColor = .clear
+    panel.isOpaque = false
+    panel.hasShadow = true
+    panel.level = .floating
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    panel.orderFrontRegardless()
+
+    let fallbackTarget = NSRect(
+      x: screen.visibleFrame.midX - sourceFrame.width / 2,
+      y: screen.visibleFrame.minY + min(132, screen.visibleFrame.height * 0.16),
+      width: sourceFrame.width,
+      height: sourceFrame.height
+    )
+    let targetFrame: NSRect
+    if let targetWindow {
+      let windowFrame = targetWindow.frame
+      targetFrame = NSRect(
+        x: windowFrame.minX + 36,
+        y: windowFrame.midY - sourceFrame.height / 2,
+        width: min(sourceFrame.width, windowFrame.width - 72),
+        height: sourceFrame.height
+      )
+    } else {
+      targetFrame = fallbackTarget
+    }
+
+    panel.alphaValue = 0.98
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.34
+      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      panel.animator().setFrame(targetFrame, display: true)
+      panel.animator().alphaValue = 0.18
+    } completionHandler: {
+      panel.close()
+    }
+  }
+
   private func makeContentView() -> NSView {
     let root = NSView()
     root.wantsLayer = true
@@ -140,32 +218,27 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     rows.spacing = 12
     rows.translatesAutoresizingMaskIntoConstraints = false
 
-    let helperReachableRow = PermissionRowView(
-      symbolName: "bolt.horizontal.circle",
-      title: "Helper Reachable",
-      subtitle: "Confirms Caverno can reach this helper over the current IPC bridge.",
-      buttonTitle: "Refresh",
-      action: { [weak self] in self?.refreshPermissionRows() }
-    )
     let accessibilityRow = PermissionRowView(
       symbolName: "figure.stand",
       title: "Accessibility",
       subtitle: "Allows Caverno Computer Use to access app interfaces.",
-      buttonTitle: "Open",
-      action: { _ = ComputerUseHelperApp.showPermissionOverlay(pane: .accessibility) }
+      buttonTitle: "Allow",
+      action: { [weak self] row in
+        self?.startPermissionFlow(pane: .accessibility, row: row)
+      }
     )
     let screenRecordingRow = PermissionRowView(
       symbolName: "camera.viewfinder",
-      title: "Screen & System Audio Recording",
-      subtitle: "Allows screenshots and system audio capture after approval.",
-      buttonTitle: "Open",
-      action: { _ = ComputerUseHelperApp.showPermissionOverlay(pane: .screenRecording) }
+      title: "Screenshots",
+      subtitle: "Caverno uses screenshots to know where to click.",
+      buttonTitle: "Allow",
+      action: { [weak self] row in
+        self?.startPermissionFlow(pane: .screenRecording, row: row)
+      }
     )
-    self.helperReachableRow = helperReachableRow
     self.accessibilityRow = accessibilityRow
     self.screenRecordingRow = screenRecordingRow
 
-    rows.addArrangedSubview(helperReachableRow)
     rows.addArrangedSubview(accessibilityRow)
     rows.addArrangedSubview(screenRecordingRow)
 
@@ -257,6 +330,12 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     helperReachableRow?.setGranted(true)
     accessibilityRow?.setGranted(permissions.accessibilityGranted)
     screenRecordingRow?.setGranted(permissions.screenCaptureGranted)
+    if permissions.accessibilityGranted {
+      accessibilityRow?.setPendingSystemSettings(false)
+    }
+    if permissions.screenCaptureGranted {
+      screenRecordingRow?.setPendingSystemSettings(false)
+    }
     permissionSmokeRow?.setStatus(
       permissions.accessibilityGranted && permissions.screenCaptureGranted ? .done : .waiting,
       detail: permissions.accessibilityGranted && permissions.screenCaptureGranted
@@ -2783,23 +2862,34 @@ private final class SystemAudioRecorder: NSObject, SCStreamOutput {
 }
 
 private final class PermissionRowView: NSView {
+  private let contentStack: NSStackView
+  private let placeholderLabel = NSTextField(labelWithString: "COMPLETE IN SYSTEM SETTINGS")
   private let statusLabel = NSTextField(labelWithString: "Unknown")
   private let actionButton: NSButton
-  private let action: () -> Void
+  private let pendingBorderLayer = CAShapeLayer()
+  private let action: (PermissionRowView) -> Void
+  private var isPendingSystemSettings = false
 
   init(
     symbolName: String,
     title: String,
     subtitle: String,
     buttonTitle: String,
-    action: @escaping () -> Void
+    action: @escaping (PermissionRowView) -> Void
   ) {
     self.action = action
     self.actionButton = NSButton(title: buttonTitle, target: nil, action: nil)
+    self.contentStack = NSStackView()
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = 10
     layer?.backgroundColor = NSColor.controlBackgroundColor.cgColor
+    pendingBorderLayer.fillColor = NSColor.clear.cgColor
+    pendingBorderLayer.strokeColor = NSColor.separatorColor.withAlphaComponent(0.55).cgColor
+    pendingBorderLayer.lineWidth = 1
+    pendingBorderLayer.lineDashPattern = [6, 6]
+    pendingBorderLayer.isHidden = true
+    layer?.addSublayer(pendingBorderLayer)
 
     let icon = NSImageView()
     icon.symbolConfiguration = .init(pointSize: 26, weight: .medium)
@@ -2830,20 +2920,30 @@ private final class PermissionRowView: NSView {
     trailingStack.alignment = .centerY
     trailingStack.spacing = 10
 
-    let rowStack = NSStackView(views: [icon, textStack, trailingStack])
-    rowStack.orientation = .horizontal
-    rowStack.alignment = .centerY
-    rowStack.spacing = 14
-    rowStack.translatesAutoresizingMaskIntoConstraints = false
-    addSubview(rowStack)
+    contentStack.setViews([icon, textStack, trailingStack], in: .leading)
+    contentStack.orientation = .horizontal
+    contentStack.alignment = .centerY
+    contentStack.spacing = 14
+    contentStack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(contentStack)
+
+    placeholderLabel.font = .systemFont(ofSize: 12, weight: .bold)
+    placeholderLabel.textColor = .tertiaryLabelColor
+    placeholderLabel.alignment = .center
+    placeholderLabel.isHidden = true
+    placeholderLabel.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(placeholderLabel)
 
     NSLayoutConstraint.activate([
       heightAnchor.constraint(greaterThanOrEqualToConstant: 78),
       icon.widthAnchor.constraint(equalToConstant: 36),
-      rowStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-      rowStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
-      rowStack.topAnchor.constraint(equalTo: topAnchor, constant: 14),
-      rowStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
+      contentStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+      contentStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+      contentStack.topAnchor.constraint(equalTo: topAnchor, constant: 14),
+      contentStack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -14),
+      placeholderLabel.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 18),
+      placeholderLabel.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -18),
+      placeholderLabel.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
   }
 
@@ -2851,14 +2951,63 @@ private final class PermissionRowView: NSView {
     nil
   }
 
+  override func layout() {
+    super.layout()
+    updatePendingBorder()
+  }
+
   func setGranted(_ granted: Bool) {
     statusLabel.stringValue = granted ? "Done" : "Missing"
     statusLabel.textColor = granted ? .systemGreen : .secondaryLabelColor
     actionButton.isHidden = granted
+    if granted {
+      setPendingSystemSettings(false)
+    }
+  }
+
+  func setPendingSystemSettings(_ pending: Bool) {
+    isPendingSystemSettings = pending
+    contentStack.isHidden = pending
+    placeholderLabel.isHidden = !pending
+    layer?.backgroundColor = pending
+      ? NSColor.windowBackgroundColor.withAlphaComponent(0.3).cgColor
+      : NSColor.controlBackgroundColor.cgColor
+    pendingBorderLayer.isHidden = !pending
+    updatePendingBorder()
+  }
+
+  private func updatePendingBorder() {
+    pendingBorderLayer.frame = bounds
+    pendingBorderLayer.path = CGPath(
+      roundedRect: bounds.insetBy(dx: 0.5, dy: 0.5),
+      cornerWidth: 10,
+      cornerHeight: 10,
+      transform: nil
+    )
+  }
+
+  func snapshotImage() -> NSImage? {
+    guard bounds.width > 0, bounds.height > 0 else {
+      return nil
+    }
+    guard let representation = bitmapImageRepForCachingDisplay(in: bounds) else {
+      return nil
+    }
+    cacheDisplay(in: bounds, to: representation)
+    let image = NSImage(size: bounds.size)
+    image.addRepresentation(representation)
+    return image
+  }
+
+  func screenFrame() -> NSRect? {
+    guard let window else {
+      return nil
+    }
+    return window.convertToScreen(convert(bounds, to: nil))
   }
 
   @objc private func runAction() {
-    action()
+    action(self)
   }
 }
 

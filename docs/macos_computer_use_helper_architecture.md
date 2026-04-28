@@ -73,6 +73,9 @@ Current M1 implementation status:
 - The overlay rechecks the relevant permission locally and reports placement
   diagnostics such as `overlayPlacement`, `overlayShown`, and
   `draggableTileReady`.
+- The helper onboarding `Allow` buttons open the matching System Settings pane,
+  replace the selected permission row with a `COMPLETE IN SYSTEM SETTINGS`
+  placeholder, and animate a snapshot of that row toward the floating overlay.
 - Overlay readiness is covered by the live smoke gate. Remaining M1 validation
   is hands-on macOS UX smoke: confirm the tile can be dropped into both privacy
   lists and that the overlay placement feels stable across single-display and
