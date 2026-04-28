@@ -1879,6 +1879,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final inputGate = _mapValue(runtime['inputGate']);
     final audioGate = _mapValue(runtime['audioGate']);
     final overlaySmoke = _mapValue(runtime['overlaySmoke']);
+    final accessibilityOverlay = _mapValue(overlaySmoke?['accessibility']);
+    final screenRecordingOverlay = _mapValue(overlaySmoke?['screenRecording']);
     final unsafeActionGate = _mapValue(runtime['unsafeActionGate']);
     final positiveSmokeGateSummary = _mapValue(
       runtime['positiveSmokeGateSummary'],
@@ -1895,6 +1897,22 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final inputBlockers = _stringList(inputGate?['blockers']);
     final audioBlockers = _stringList(audioGate?['blockers']);
     final overlayBlockers = _stringList(overlaySmoke?['blockers']);
+    final overlayPlacements = _uniqueStrings([
+      _stringValue(accessibilityOverlay?['overlayPlacement']),
+      _stringValue(screenRecordingOverlay?['overlayPlacement']),
+    ]);
+    final overlayModes = _uniqueStrings([
+      _stringValue(accessibilityOverlay?['overlayMode']),
+      _stringValue(screenRecordingOverlay?['overlayMode']),
+    ]);
+    final overlayPasteboardTypes = _uniqueStrings([
+      ..._stringList(accessibilityOverlay?['dragPasteboardTypes']),
+      ..._stringList(screenRecordingOverlay?['dragPasteboardTypes']),
+    ]);
+    final overlayHelperPaths = _uniqueStrings([
+      _stringValue(accessibilityOverlay?['helperBundlePath']),
+      _stringValue(screenRecordingOverlay?['helperBundlePath']),
+    ]).map(_shortPath).toList(growable: false);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
@@ -2027,6 +2045,23 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Overlay smoke',
                 value: '${overlaySmoke['status']}',
               ),
+            if (overlayPlacements.isNotEmpty)
+              _InfoChip(
+                label: 'Overlay placement',
+                value: overlayPlacements.join(', '),
+              ),
+            if (overlayModes.isNotEmpty)
+              _InfoChip(label: 'Overlay mode', value: overlayModes.join(', ')),
+            if (overlayPasteboardTypes.isNotEmpty)
+              _InfoChip(
+                label: 'Overlay pasteboard',
+                value: overlayPasteboardTypes.join(', '),
+              ),
+            if (overlayHelperPaths.isNotEmpty)
+              _InfoChip(
+                label: 'Overlay helper',
+                value: overlayHelperPaths.join(', '),
+              ),
             if (overlayBlockers.isNotEmpty)
               _InfoChip(
                 label: 'Overlay blockers',
@@ -2108,6 +2143,29 @@ class _IpcRuntimeSummary extends StatelessWidget {
           .toList();
     }
     return const [];
+  }
+
+  String? _stringValue(Object? value) {
+    return value is String && value.isNotEmpty ? value : null;
+  }
+
+  List<String> _uniqueStrings(Iterable<String?> values) {
+    final result = <String>[];
+    for (final value in values) {
+      if (value == null || value.isEmpty || result.contains(value)) {
+        continue;
+      }
+      result.add(value);
+    }
+    return result;
+  }
+
+  String _shortPath(String path) {
+    final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+    if (parts.length <= 4) {
+      return path;
+    }
+    return '.../${parts.sublist(parts.length - 4).join('/')}';
   }
 
   Map<String, dynamic>? _mapValue(Object? value) {

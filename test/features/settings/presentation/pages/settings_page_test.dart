@@ -150,7 +150,7 @@ void main() {
     expect(find.text('Capture smoke: blocked'), findsOneWidget);
     expect(find.text('Input smoke: not_armed'), findsOneWidget);
     expect(find.text('System audio smoke: not_armed'), findsOneWidget);
-    expect(find.text('Overlay smoke: not_run'), findsAtLeastNWidgets(1));
+    expect(find.text('Overlay smoke: ready'), findsAtLeastNWidgets(1));
     expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
@@ -206,7 +206,24 @@ void main() {
     expect(find.text('Input blockers: unsafe_smoke_not_armed'), findsOneWidget);
     expect(find.text('Audio gate: not_armed'), findsOneWidget);
     expect(find.text('Audio blockers: unsafe_smoke_not_armed'), findsOneWidget);
-    expect(find.text('Overlay smoke: not_run'), findsAtLeastNWidgets(1));
+    expect(find.text('Overlay smoke: ready'), findsAtLeastNWidgets(1));
+    expect(
+      find.text('Overlay placement: system_settings_window'),
+      findsOneWidget,
+    );
+    expect(find.text('Overlay mode: floating_helper_panel'), findsOneWidget);
+    expect(
+      find.text(
+        'Overlay pasteboard: public.file-url, public.url, public.utf8-plain-text, NSURLPboardType',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Overlay helper: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Unsafe action gate: not_armed'), findsOneWidget);
     expect(
       find.text(
@@ -688,11 +705,49 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
               'Rerun smoke with unsafe arming for system audio checks.',
         },
         'overlaySmoke': {
-          'status': 'not_run',
-          'required': false,
+          'status': 'ready',
+          'required': true,
+          'accessibility': {
+            'permission': 'accessibility',
+            'status': 'ready',
+            'settingsOpened': true,
+            'overlayShown': true,
+            'draggableTileReady': true,
+            'reportedPermission': 'accessibility',
+            'overlayPlacement': 'system_settings_window',
+            'overlayMode': 'floating_helper_panel',
+            'helperBundlePath':
+                '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'dragPasteboardTypes': [
+              'public.file-url',
+              'public.url',
+              'public.utf8-plain-text',
+              'NSURLPboardType',
+            ],
+            'blockers': <String>[],
+          },
+          'screenRecording': {
+            'permission': 'screenRecording',
+            'status': 'ready',
+            'settingsOpened': true,
+            'overlayShown': true,
+            'draggableTileReady': true,
+            'reportedPermission': 'screenRecording',
+            'overlayPlacement': 'system_settings_window',
+            'overlayMode': 'floating_helper_panel',
+            'helperBundlePath':
+                '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'dragPasteboardTypes': [
+              'public.file-url',
+              'public.url',
+              'public.utf8-plain-text',
+              'NSURLPboardType',
+            ],
+            'blockers': <String>[],
+          },
           'blockers': <String>[],
           'nextAction':
-              'Rerun smoke with --overlay-smoke or --require-overlay to validate the permission overlay.',
+              'Permission overlays are ready for hands-on drag validation.',
         },
         'unsafeActionGate': {
           'status': 'not_armed',

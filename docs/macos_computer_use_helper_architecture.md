@@ -92,6 +92,18 @@ M1 overlay readiness gate:
   lists because macOS does not expose a supported API for granting or fully
   simulating TCC list drops.
 
+M1 sign-off checklist:
+
+- `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` passes.
+- Accessibility overlay drop is accepted by macOS when dragged into the
+  privacy list.
+- Screen & System Audio Recording overlay drop is accepted by macOS when
+  dragged into the privacy list.
+- `bash tool/run_macos_computer_use_smoke_test.sh --require-capture` passes
+  after Screen & System Audio Recording is granted.
+- `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
+  passes after Accessibility is granted.
+
 Follow-on milestones:
 
 - M2: Complete capture, input, and optional system-audio readiness using the
