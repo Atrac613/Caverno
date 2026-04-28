@@ -176,6 +176,17 @@ void main() {
       find.text('Fallback reason: xpc_error (helper_xpc_unavailable)'),
       findsOneWidget,
     );
+    expect(find.text('Signing gate: accepted'), findsOneWidget);
+    expect(find.text('XPC runtime: ready'), findsOneWidget);
+    expect(find.text('XPC listener: started'), findsOneWidget);
+    expect(find.text('Permission gate: blocked'), findsOneWidget);
+    expect(
+      find.text('Permission blockers: screen_capture, accessibility'),
+      findsOneWidget,
+    );
+    expect(find.text('Live Signing: Accepted'), findsOneWidget);
+    expect(find.text('Live XPC Runtime: Ready'), findsOneWidget);
+    expect(find.text('Live Permissions: Blocked'), findsOneWidget);
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -601,6 +612,18 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'coreOk': false,
         'captureOk': false,
         'generatedAt': '2026-04-25T12:01:00Z',
+        'permissionGate': {
+          'blockedByPermissions': ['screen_capture', 'accessibility'],
+        },
+        'signingDiagnostics': {
+          'launchConstraintLikelyAccepted': true,
+          'launchConstraintBlockers': <String>[],
+        },
+        'xpcRuntimeDiagnostics': {
+          'xpcListenerStarted': true,
+          'xpcListenerStartAttempted': true,
+          'blockers': <String>[],
+        },
       },
     });
   }

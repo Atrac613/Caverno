@@ -1141,6 +1141,14 @@ class _ComputerUseOnboardingCardState
     if (_helperStatus != null) {
       snapshot.addAll(_helperStatus!);
     }
+    final liveSmokeReport = _liveSmokeReportBody(_lastLiveSmokeReport);
+    final signingDiagnostics = _mapValue(
+      liveSmokeReport?['signingDiagnostics'],
+    );
+    final xpcRuntimeDiagnostics = _mapValue(
+      liveSmokeReport?['xpcRuntimeDiagnostics'],
+    );
+    final permissionGate = _mapValue(liveSmokeReport?['permissionGate']);
     final preferredAttempt =
         _mapValue(snapshot['preferredIpcAttempt']) ??
         _mapValue(snapshot['lastPreferredIpcAttempt']);
@@ -1241,6 +1249,9 @@ class _ComputerUseOnboardingCardState
           MacosComputerUseIpc.current.xpcSupportedCommands,
       'xpcNextParityCommands': nextParityCommands,
       'xpcProductionGate': productionGate,
+      'signingDiagnostics': signingDiagnostics,
+      'xpcRuntimeDiagnostics': xpcRuntimeDiagnostics,
+      'permissionGate': permissionGate,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1265,6 +1276,17 @@ class _ComputerUseOnboardingCardState
           : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
     }
     return runtime;
+  }
+
+  Map<String, dynamic>? _liveSmokeReportBody(Map<String, dynamic>? envelope) {
+    if (envelope == null) {
+      return null;
+    }
+    final report = envelope['report'];
+    if (report is Map) {
+      return Map<String, dynamic>.from(report);
+    }
+    return envelope;
   }
 
   List<String> _stringListValue(Object? value) {
@@ -1584,10 +1606,26 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
     final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
+    final signingDiagnostics = _mapValue(runtime['signingDiagnostics']);
+    final xpcRuntimeDiagnostics = _mapValue(runtime['xpcRuntimeDiagnostics']);
+    final permissionGate = _mapValue(runtime['permissionGate']);
+    final signingBlockers = _stringList(
+      signingDiagnostics?['launchConstraintBlockers'],
+    );
+    final xpcRuntimeBlockers = _stringList(xpcRuntimeDiagnostics?['blockers']);
+    final permissionBlockers = _stringList(
+      permissionGate?['blockedByPermissions'],
+    );
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
     final namedServiceConnected = runtime['xpcNamedServiceConnected'] == true;
+    final xpcListenerStarted =
+        xpcRuntimeDiagnostics?['xpcListenerStarted'] == true;
+    final xpcListenerStartAttempted =
+        xpcRuntimeDiagnostics?['xpcListenerStartAttempted'] == true;
+    final signingLooksAccepted =
+        signingDiagnostics?['launchConstraintLikelyAccepted'] == true;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1637,6 +1675,45 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'XPC blockers',
                 value: productionBlockers.join(', '),
               ),
+            if (signingDiagnostics != null)
+              _InfoChip(
+                label: 'Signing gate',
+                value: signingLooksAccepted ? 'accepted' : 'blockers',
+              ),
+            if (signingBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Signing blockers',
+                value: signingBlockers.join(', '),
+              ),
+            if (xpcRuntimeDiagnostics != null)
+              _InfoChip(
+                label: 'XPC runtime',
+                value: xpcRuntimeBlockers.isEmpty ? 'ready' : 'blockers',
+              ),
+            if (xpcRuntimeDiagnostics != null)
+              _InfoChip(
+                label: 'XPC listener',
+                value: xpcListenerStarted
+                    ? 'started'
+                    : xpcListenerStartAttempted
+                    ? 'attempted'
+                    : 'not started',
+              ),
+            if (xpcRuntimeBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Runtime blockers',
+                value: xpcRuntimeBlockers.join(', '),
+              ),
+            if (permissionGate != null)
+              _InfoChip(
+                label: 'Permission gate',
+                value: permissionBlockers.isEmpty ? 'clear' : 'blocked',
+              ),
+            if (permissionBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Permission blockers',
+                value: permissionBlockers.join(', '),
+              ),
             _InfoChip(
               label: 'XPC next action',
               value: '${runtime['xpcProductionNextAction']}',
@@ -1681,6 +1758,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
           .toList();
     }
     return const [];
+  }
+
+  Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
   }
 }
 
@@ -1795,6 +1879,16 @@ class _LiveSmokeSummary extends StatelessWidget {
     final ok = report['ok'] == true;
     final coreOk = report['coreOk'] == true;
     final captureOk = report['captureOk'] == true;
+    final signingDiagnostics = _mapValue(report['signingDiagnostics']);
+    final xpcRuntimeDiagnostics = _mapValue(report['xpcRuntimeDiagnostics']);
+    final permissionGate = _mapValue(report['permissionGate']);
+    final signingBlockers = _stringList(
+      signingDiagnostics?['launchConstraintBlockers'],
+    );
+    final runtimeBlockers = _stringList(xpcRuntimeDiagnostics?['blockers']);
+    final permissionBlockers = _stringList(
+      permissionGate?['blockedByPermissions'],
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1822,8 +1916,45 @@ class _LiveSmokeSummary extends StatelessWidget {
               trueText: 'Passed',
               falseText: 'Needs attention',
             ),
+            if (signingDiagnostics != null)
+              _StatusChip(
+                label: 'Live Signing',
+                value: signingBlockers.isEmpty,
+                trueText: 'Accepted',
+                falseText: 'Blocked',
+              ),
+            if (xpcRuntimeDiagnostics != null)
+              _StatusChip(
+                label: 'Live XPC Runtime',
+                value: runtimeBlockers.isEmpty,
+                trueText: 'Ready',
+                falseText: 'Blocked',
+              ),
+            if (permissionGate != null)
+              _StatusChip(
+                label: 'Live Permissions',
+                value: permissionBlockers.isEmpty,
+                trueText: 'Clear',
+                falseText: 'Blocked',
+              ),
           ],
         ),
+        if (signingBlockers.isNotEmpty ||
+            runtimeBlockers.isNotEmpty ||
+            permissionBlockers.isNotEmpty) ...[
+          const SizedBox(height: 4),
+          Text(
+            [
+              if (signingBlockers.isNotEmpty)
+                'signing: ${signingBlockers.join(', ')}',
+              if (runtimeBlockers.isNotEmpty)
+                'runtime: ${runtimeBlockers.join(', ')}',
+              if (permissionBlockers.isNotEmpty)
+                'permissions: ${permissionBlockers.join(', ')}',
+            ].join(' | '),
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         if (path is String && path.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
@@ -1841,5 +1972,22 @@ class _LiveSmokeSummary extends StatelessWidget {
       return Map<String, dynamic>.from(report);
     }
     return reportEnvelope;
+  }
+
+  Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  List<String> _stringList(Object? value) {
+    if (value is List) {
+      return value
+          .map((item) => '$item')
+          .where((item) => item.isNotEmpty)
+          .toList(growable: false);
+    }
+    return const [];
   }
 }
