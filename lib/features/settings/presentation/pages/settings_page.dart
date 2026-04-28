@@ -406,6 +406,9 @@ class _ComputerUseOnboardingCardState
       verificationOk: verificationOk,
     );
     final helperIpcRuntime = _helperIpcRuntime();
+    final captureGate = _mapValue(helperIpcRuntime['captureGate']);
+    final inputGate = _mapValue(helperIpcRuntime['inputGate']);
+    final unsafeActionGate = _mapValue(helperIpcRuntime['unsafeActionGate']);
     final xpcLaunchAgentRegistered =
         helperIpcRuntime['xpcLaunchAgentRegistered'] == true;
     final xpcLaunchAgentSupported =
@@ -467,6 +470,18 @@ class _ComputerUseOnboardingCardState
               onOpenScreenRecording: () =>
                   _openPermissionSettings('screen_recording'),
               onRecheck: () => _refresh(force: true),
+            ),
+            const SizedBox(height: 12),
+            _ComputerUseGatePlan(
+              helperInstalled: helperInstalled,
+              helperRunning: helperRunning,
+              helperIpcReady: helperIpcReady,
+              accessibilityGranted: accessibilityGranted,
+              screenCaptureGranted: screenCaptureGranted,
+              captureGate: captureGate,
+              inputGate: inputGate,
+              unsafeActionGate: unsafeActionGate,
+              hasLiveSmokeReport: _lastLiveSmokeReport != null,
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -1152,6 +1167,9 @@ class _ComputerUseOnboardingCardState
     final captureGate = _mapValue(liveSmokeReport?['captureGate']);
     final inputGate = _mapValue(liveSmokeReport?['inputGate']);
     final unsafeActionGate = _mapValue(liveSmokeReport?['unsafeActionGate']);
+    final positiveSmokeGateSummary = _mapValue(
+      liveSmokeReport?['positiveSmokeGateSummary'],
+    );
     final preferredAttempt =
         _mapValue(snapshot['preferredIpcAttempt']) ??
         _mapValue(snapshot['lastPreferredIpcAttempt']);
@@ -1258,6 +1276,7 @@ class _ComputerUseOnboardingCardState
       'captureGate': captureGate,
       'inputGate': inputGate,
       'unsafeActionGate': unsafeActionGate,
+      'positiveSmokeGateSummary': positiveSmokeGateSummary,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1429,6 +1448,166 @@ class _InfoChip extends StatelessWidget {
     return Chip(
       avatar: Icon(Icons.info_outline, size: 18, color: colorScheme.primary),
       label: Text('$label: $value'),
+    );
+  }
+}
+
+class _ComputerUseGatePlan extends StatelessWidget {
+  const _ComputerUseGatePlan({
+    required this.helperInstalled,
+    required this.helperRunning,
+    required this.helperIpcReady,
+    required this.accessibilityGranted,
+    required this.screenCaptureGranted,
+    required this.captureGate,
+    required this.inputGate,
+    required this.unsafeActionGate,
+    required this.hasLiveSmokeReport,
+  });
+
+  final bool helperInstalled;
+  final bool helperRunning;
+  final bool helperIpcReady;
+  final bool accessibilityGranted;
+  final bool screenCaptureGranted;
+  final Map<String, dynamic>? captureGate;
+  final Map<String, dynamic>? inputGate;
+  final Map<String, dynamic>? unsafeActionGate;
+  final bool hasLiveSmokeReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final captureStatus = _status(captureGate);
+    final inputStatus = _status(inputGate);
+    final unsafeStatus = _status(unsafeActionGate);
+    final helperReady = helperInstalled && helperRunning && helperIpcReady;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Computer Use action plan', style: textTheme.labelLarge),
+            const SizedBox(height: 8),
+            _GatePlanRow(
+              label: 'Helper boundary',
+              status: helperReady
+                  ? 'ready'
+                  : !helperInstalled || !helperRunning
+                  ? 'needs launch'
+                  : 'needs IPC',
+              ok: helperReady,
+              detail:
+                  'Caverno.app stays the chat client; Caverno Computer Use owns macOS permissions and OS actions.',
+            ),
+            _GatePlanRow(
+              label: 'Accessibility permission',
+              status: accessibilityGranted ? 'granted' : 'blocked',
+              ok: accessibilityGranted,
+              detail: accessibilityGranted
+                  ? 'Input inspection and UI control can be verified.'
+                  : 'Grant Accessibility to Caverno Computer Use.',
+            ),
+            _GatePlanRow(
+              label: 'Screen recording permission',
+              status: screenCaptureGranted ? 'granted' : 'blocked',
+              ok: screenCaptureGranted,
+              detail: screenCaptureGranted
+                  ? 'Display and window capture can be verified.'
+                  : 'Grant Screen & System Audio Recording to Caverno Computer Use.',
+            ),
+            _GatePlanRow(
+              label: 'Capture smoke',
+              status: captureStatus,
+              ok: captureStatus == 'ready',
+              detail: hasLiveSmokeReport
+                  ? _nextAction(captureGate)
+                  : 'Run live smoke after permissions are granted.',
+            ),
+            _GatePlanRow(
+              label: 'Input smoke',
+              status: inputStatus,
+              ok: inputStatus == 'ready',
+              detail: hasLiveSmokeReport
+                  ? _nextAction(inputGate)
+                  : 'Arm non-destructive input smoke only when ready to test.',
+            ),
+            _GatePlanRow(
+              label: 'Unsafe arms',
+              status: unsafeStatus,
+              ok: unsafeStatus == 'armed',
+              detail: hasLiveSmokeReport
+                  ? _nextAction(unsafeActionGate)
+                  : 'Click and text input remain separately armed.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _status(Map<String, dynamic>? gate) {
+    final status = gate?['status'];
+    return status is String ? status : 'not run';
+  }
+
+  String _nextAction(Map<String, dynamic>? gate) {
+    final nextAction = gate?['nextAction'];
+    if (nextAction is String && nextAction.isNotEmpty) {
+      return nextAction;
+    }
+    return 'Review the latest live smoke report.';
+  }
+}
+
+class _GatePlanRow extends StatelessWidget {
+  const _GatePlanRow({
+    required this.label,
+    required this.status,
+    required this.ok,
+    required this.detail,
+  });
+
+  final String label;
+  final String status;
+  final bool ok;
+  final String detail;
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    final color = ok ? colorScheme.primary : colorScheme.outline;
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Icon(
+            ok ? Icons.check_circle_outline : Icons.radio_button_unchecked,
+            size: 18,
+            color: color,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text('$label: $status', style: textTheme.bodyMedium),
+                const SizedBox(height: 2),
+                Text(detail, style: textTheme.bodySmall),
+              ],
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
@@ -1618,6 +1797,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final captureGate = _mapValue(runtime['captureGate']);
     final inputGate = _mapValue(runtime['inputGate']);
     final unsafeActionGate = _mapValue(runtime['unsafeActionGate']);
+    final positiveSmokeGateSummary = _mapValue(
+      runtime['positiveSmokeGateSummary'],
+    );
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1628,6 +1810,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final captureBlockers = _stringList(captureGate?['blockers']);
     final inputBlockers = _stringList(inputGate?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
+    final positiveSmokeBlockers = _stringList(
+      positiveSmokeGateSummary?['blockedBy'],
+    );
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
@@ -1752,6 +1937,16 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Unsafe blockers',
                 value: unsafeBlockers.join(', '),
+              ),
+            if (positiveSmokeGateSummary != null)
+              _InfoChip(
+                label: 'Positive smoke gate',
+                value: '${positiveSmokeGateSummary['status']}',
+              ),
+            if (positiveSmokeBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Positive smoke blockers',
+                value: positiveSmokeBlockers.join(', '),
               ),
             _InfoChip(
               label: 'XPC next action',
@@ -1924,6 +2119,9 @@ class _LiveSmokeSummary extends StatelessWidget {
     final captureGate = _mapValue(report['captureGate']);
     final inputGate = _mapValue(report['inputGate']);
     final unsafeActionGate = _mapValue(report['unsafeActionGate']);
+    final positiveSmokeGateSummary = _mapValue(
+      report['positiveSmokeGateSummary'],
+    );
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1934,6 +2132,9 @@ class _LiveSmokeSummary extends StatelessWidget {
     final captureBlockers = _stringList(captureGate?['blockers']);
     final inputBlockers = _stringList(inputGate?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
+    final positiveSmokeBlockers = _stringList(
+      positiveSmokeGateSummary?['blockedBy'],
+    );
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2003,6 +2204,13 @@ class _LiveSmokeSummary extends StatelessWidget {
                 trueText: 'Armed',
                 falseText: 'Not armed',
               ),
+            if (positiveSmokeGateSummary != null)
+              _StatusChip(
+                label: 'Live Positive Smoke',
+                value: positiveSmokeGateSummary['status'] == 'ready',
+                trueText: 'Ready',
+                falseText: '${positiveSmokeGateSummary['status']}',
+              ),
           ],
         ),
         if (signingBlockers.isNotEmpty ||
@@ -2010,7 +2218,8 @@ class _LiveSmokeSummary extends StatelessWidget {
             permissionBlockers.isNotEmpty ||
             captureBlockers.isNotEmpty ||
             inputBlockers.isNotEmpty ||
-            unsafeBlockers.isNotEmpty) ...[
+            unsafeBlockers.isNotEmpty ||
+            positiveSmokeBlockers.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             [
@@ -2026,6 +2235,8 @@ class _LiveSmokeSummary extends StatelessWidget {
                 'input: ${inputBlockers.join(', ')}',
               if (unsafeBlockers.isNotEmpty)
                 'unsafe: ${unsafeBlockers.join(', ')}',
+              if (positiveSmokeBlockers.isNotEmpty)
+                'positive smoke: ${positiveSmokeBlockers.join(', ')}',
             ].join(' | '),
             style: Theme.of(context).textTheme.bodySmall,
           ),

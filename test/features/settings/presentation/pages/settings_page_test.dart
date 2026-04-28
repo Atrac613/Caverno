@@ -142,6 +142,13 @@ void main() {
     expect(find.text('Helper Process: Running'), findsOneWidget);
     expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(find.text('Restart Helper'), findsOneWidget);
+    expect(find.text('Computer Use action plan'), findsOneWidget);
+    expect(find.text('Helper boundary: needs IPC'), findsOneWidget);
+    expect(find.text('Accessibility permission: granted'), findsOneWidget);
+    expect(find.text('Screen recording permission: granted'), findsOneWidget);
+    expect(find.text('Capture smoke: blocked'), findsOneWidget);
+    expect(find.text('Input smoke: not_armed'), findsOneWidget);
+    expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
       findsOneWidget,
@@ -204,6 +211,12 @@ void main() {
     expect(find.text('Live Capture Gate: blocked'), findsOneWidget);
     expect(find.text('Live Input Gate: not_armed'), findsOneWidget);
     expect(find.text('Live Unsafe Gate: Not armed'), findsOneWidget);
+    expect(find.text('Positive smoke gate: blocked'), findsOneWidget);
+    expect(
+      find.text('Positive smoke blockers: screen_capture'),
+      findsOneWidget,
+    );
+    expect(find.text('Live Positive Smoke: blocked'), findsOneWidget);
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -643,11 +656,21 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'unsafeActionGate': {
           'status': 'not_armed',
           'unsafeArmed': false,
+          'nextAction':
+              'Rerun smoke with only the explicit unsafe arms needed for the next check.',
           'blockers': [
             'unsafe_smoke_not_armed',
             'unsafe_click_smoke_not_armed',
             'unsafe_text_smoke_not_armed',
           ],
+        },
+        'positiveSmokeGateSummary': {
+          'status': 'blocked',
+          'blockedBy': ['screen_capture'],
+          'requiredCount': 2,
+          'passedRequiredCount': 0,
+          'failedRequiredCount': 2,
+          'failedRequiredGateIds': ['display_screenshot', 'window_capture'],
         },
         'signingDiagnostics': {
           'launchConstraintLikelyAccepted': true,

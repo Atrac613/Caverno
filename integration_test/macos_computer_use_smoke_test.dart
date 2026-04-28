@@ -466,6 +466,9 @@ void main() {
         .where((gate) => gate['required'] == true)
         .every((gate) => gate['passed'] == true);
     report['positiveSmokeGates'] = positiveSmokeGates;
+    report['positiveSmokeGateSummary'] = _positiveSmokeGateSummary(
+      positiveSmokeGates,
+    );
     report['requiredPositiveSmokeOk'] = requiredPositiveSmokeOk;
     if (_strict && !requiredPositiveSmokeOk) {
       report['ok'] = false;
@@ -901,6 +904,7 @@ Map<String, dynamic> _inputGate(
   final actionResults = {
     for (final id in actionIds) id: _stepPassedById(steps, id),
   };
+  final actions = {for (final id in actionIds) id: _stepStatusById(steps, id)};
   final allActionsPassed = actionResults.values.every((passed) => passed);
   final blockers = <String>[
     if (!unsafeArmed) 'unsafe_smoke_not_armed',
@@ -920,6 +924,7 @@ Map<String, dynamic> _inputGate(
     'unsafeArmed': unsafeArmed,
     'accessibilityGranted': accessibilityGranted,
     'nonDestructiveActions': actionResults,
+    'nonDestructiveActionStatus': actions,
     'blockers': blockers,
     'nextAction': blockers.isEmpty
         ? 'Input smoke is ready.'
@@ -936,6 +941,31 @@ Map<String, dynamic> _unsafeActionGate({
   required bool unsafeClickArmed,
   required bool unsafeTextArmed,
 }) {
+  final arming = [
+    {
+      'id': 'non_destructive_input',
+      'label': 'Non-destructive input smoke',
+      'requiredArm': 'unsafe',
+      'status': unsafeArmed ? 'armed' : 'not_armed',
+    },
+    {
+      'id': 'click',
+      'label': 'Click smoke',
+      'requiredArm': 'unsafe_click',
+      'status': unsafeClickArmed ? 'armed' : 'not_armed',
+    },
+    {
+      'id': 'text',
+      'label': 'Text input smoke',
+      'requiredArm': 'unsafe_text',
+      'status': unsafeTextArmed ? 'armed' : 'not_armed',
+    },
+  ];
+  final blockers = [
+    if (!unsafeArmed) 'unsafe_smoke_not_armed',
+    if (!unsafeClickArmed) 'unsafe_click_smoke_not_armed',
+    if (!unsafeTextArmed) 'unsafe_text_smoke_not_armed',
+  ];
   return {
     'status': unsafeArmed ? 'armed' : 'not_armed',
     'unsafeArmed': unsafeArmed,
@@ -944,11 +974,11 @@ Map<String, dynamic> _unsafeActionGate({
     'nonDestructiveInputArmed': unsafeArmed,
     'clickRequiresExtraArm': true,
     'textRequiresExtraArm': true,
-    'blockers': [
-      if (!unsafeArmed) 'unsafe_smoke_not_armed',
-      if (!unsafeClickArmed) 'unsafe_click_smoke_not_armed',
-      if (!unsafeTextArmed) 'unsafe_text_smoke_not_armed',
-    ],
+    'arming': arming,
+    'blockers': blockers,
+    'nextAction': blockers.isEmpty
+        ? 'All unsafe smoke arms are enabled for this run.'
+        : 'Rerun smoke with only the explicit unsafe arms needed for the next check.',
   };
 }
 
@@ -958,6 +988,32 @@ bool _stepPassedById(List<Map<String, dynamic>> steps, String id) {
     orElse: () => null,
   );
   return step?['ok'] == true && step?['skipped'] != true;
+}
+
+Map<String, dynamic> _stepStatusById(
+  List<Map<String, dynamic>> steps,
+  String id,
+) {
+  final step = steps.cast<Map<String, dynamic>?>().firstWhere(
+    (step) => step?['id'] == id,
+    orElse: () => null,
+  );
+  if (step == null) {
+    return {'status': 'missing'};
+  }
+  final skipped = step['skipped'] == true;
+  final passed = step['ok'] == true && !skipped;
+  return {
+    'status': skipped
+        ? 'skipped'
+        : passed
+        ? 'passed'
+        : 'failed',
+    'passed': passed,
+    'skipped': skipped,
+    if (step['reason'] != null) 'reason': step['reason'],
+    if (step['error'] != null) 'error': step['error'],
+  };
 }
 
 Map<String, dynamic> _latestHelperSharedDiagnostics(
@@ -1487,6 +1543,57 @@ Map<String, dynamic> _positiveSmokeGate(
     gate['blockedBy'] = blockedBy;
   }
   return gate;
+}
+
+Map<String, dynamic> _positiveSmokeGateSummary(
+  List<Map<String, dynamic>> gates,
+) {
+  final requiredGates = gates
+      .where((gate) => gate['required'] == true)
+      .toList(growable: false);
+  final failedRequired = requiredGates
+      .where((gate) => gate['passed'] != true)
+      .toList(growable: false);
+  final failedRequiredBlockers = failedRequired
+      .map((gate) => gate['blockedBy'])
+      .whereType<String>()
+      .toSet()
+      .toList(growable: false);
+  final readinessBlockers = gates
+      .map((gate) => gate['blockedBy'])
+      .whereType<String>()
+      .where(_positiveSmokeReadinessBlocker)
+      .toSet()
+      .toList(growable: false);
+  final blockedBy = {
+    ...failedRequiredBlockers,
+    if (requiredGates.isEmpty) ...readinessBlockers,
+  }.toList(growable: false);
+  final failedGateIds = failedRequired
+      .map((gate) => gate['id'])
+      .whereType<String>()
+      .toList(growable: false);
+  final blocked = failedRequired.isNotEmpty || blockedBy.isNotEmpty;
+  return {
+    'status': blocked ? 'blocked' : 'ready',
+    'requiredCount': requiredGates.length,
+    'passedRequiredCount': requiredGates.length - failedRequired.length,
+    'failedRequiredCount': failedRequired.length,
+    'failedRequiredGateIds': failedGateIds,
+    'blockedBy': blockedBy,
+    'nextAction': !blocked
+        ? 'Positive smoke gates are ready.'
+        : blockedBy.isNotEmpty
+        ? 'Resolve positive smoke blockers, then rerun live smoke.'
+        : 'Inspect failed required live smoke steps.',
+  };
+}
+
+bool _positiveSmokeReadinessBlocker(String blockedBy) {
+  return blockedBy == 'screen_capture' ||
+      blockedBy == 'accessibility' ||
+      blockedBy == 'screen_capture_or_audio_support' ||
+      blockedBy == 'accessibility_or_screen_capture';
 }
 
 int? _intValue(Object? value) {
