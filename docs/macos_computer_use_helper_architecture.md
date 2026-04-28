@@ -73,9 +73,10 @@ Current M1 implementation status:
 - The overlay rechecks the relevant permission locally and reports placement
   diagnostics such as `overlayPlacement`, `overlayShown`, and
   `draggableTileReady`.
-- Remaining M1 validation is hands-on macOS UX smoke: confirm the tile can be
-  dropped into both privacy lists and that the overlay placement feels stable
-  across single-display and multi-display setups.
+- Overlay readiness is covered by the live smoke gate. Remaining M1 validation
+  is hands-on macOS UX smoke: confirm the tile can be dropped into both privacy
+  lists and that the overlay placement feels stable across single-display and
+  multi-display setups.
 
 M1 overlay readiness gate:
 
@@ -107,6 +108,22 @@ M1 sign-off checklist:
 The drag/drop sign-off is intentionally manual. Adding the helper to macOS
 privacy lists changes system privacy settings, so it must only happen after an
 explicit action-time confirmation from the person operating the Mac.
+
+Manual sign-off notes:
+
+- 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay`
+  passed with both permission overlays reporting `overlayShown` and
+  `draggableTileReady`.
+- 2026-04-28: System Settings accepted `Caverno Computer Use.app` through the
+  standard Add flow for Accessibility and Screen & System Audio Recording.
+  After restarting the helper, the helper onboarding UI reported both
+  permissions as `Done`.
+- 2026-04-28: The helper onboarding UI **Verify** action completed display and
+  window observation checks: display screenshot `3600 x 2338 px` and window
+  capture `Codex #203679`.
+- Drag/drop tile acceptance remains a separate hands-on check. The successful
+  permission grant above used the macOS Add flow because the running debug
+  helper path must match the exact helper bundle that macOS records in TCC.
 
 Follow-on milestones:
 
