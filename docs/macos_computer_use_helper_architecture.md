@@ -102,6 +102,9 @@ M1 overlay readiness gate:
   failures can be diagnosed without rerunning the full unsafe input sequence.
 - The floating overlay includes an upward drag cue and aligns the onboarding
   transition target with the actual draggable helper tile.
+- The floating overlay is borderless so it does not show macOS traffic-light
+  window controls. Its left-side arrow animates the overlay back to the main
+  onboarding window and refreshes permission rows.
 - After pressing an onboarding `Allow` button, run
   `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
   before restarting the helper. This opt-in gate skips the helper restart so the

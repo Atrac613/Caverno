@@ -89,7 +89,11 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let helperBundleURL = Bundle.main.bundleURL
     let controller = PermissionOverlayWindowController(
       pane: pane,
-      helperBundleURL: helperBundleURL
+      helperBundleURL: helperBundleURL,
+      returnWindow: window,
+      onReturnToOnboarding: { [weak self] in
+        self?.refreshPermissionRows()
+      }
     )
     permissionOverlayWindowController = controller
     controller.showOverlay()
@@ -582,23 +586,29 @@ fileprivate struct OnboardingTransitionDiagnostic {
 private final class PermissionOverlayWindowController: NSWindowController {
   private let pane: SettingsPane
   private let helperBundleURL: URL
-  private var statusLabel: NSTextField?
+  private weak var returnWindow: NSWindow?
+  private let onReturnToOnboarding: () -> Void
   private var dragTile: HelperBundleDragTileView?
   private(set) var overlayPlacement = "screen_fallback"
 
-  init(pane: SettingsPane, helperBundleURL: URL) {
+  init(
+    pane: SettingsPane,
+    helperBundleURL: URL,
+    returnWindow: NSWindow?,
+    onReturnToOnboarding: @escaping () -> Void
+  ) {
     self.pane = pane
     self.helperBundleURL = helperBundleURL
+    self.returnWindow = returnWindow
+    self.onReturnToOnboarding = onReturnToOnboarding
 
     let panel = NSPanel(
       contentRect: NSRect(x: 0, y: 0, width: 760, height: 192),
-      styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+      styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
     )
     panel.title = "Caverno Computer Use Permission Overlay"
-    panel.titleVisibility = .hidden
-    panel.titlebarAppearsTransparent = true
     panel.isMovableByWindowBackground = true
     panel.isFloatingPanel = true
     panel.hidesOnDeactivate = false
@@ -606,6 +616,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
     panel.backgroundColor = .clear
     panel.isOpaque = false
+    panel.hasShadow = true
 
     super.init(window: panel)
     panel.contentView = makeContentView()
@@ -620,7 +631,6 @@ private final class PermissionOverlayWindowController: NSWindowController {
     guard let window else {
       return
     }
-    refreshPermissionStatus()
     positionNearSettings(window)
     window.orderFrontRegardless()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self, weak window] in
@@ -651,10 +661,10 @@ private final class PermissionOverlayWindowController: NSWindowController {
     let backButton = NSButton(
       image: NSImage(
         systemSymbolName: "chevron.left",
-        accessibilityDescription: "Close"
+        accessibilityDescription: "Return to onboarding"
       ) ?? NSImage(),
       target: self,
-      action: #selector(closeOverlay)
+      action: #selector(returnToOnboarding)
     )
     backButton.bezelStyle = .circular
     backButton.translatesAutoresizingMaskIntoConstraints = false
@@ -692,35 +702,8 @@ private final class PermissionOverlayWindowController: NSWindowController {
     tile.heightAnchor.constraint(equalToConstant: 52).isActive = true
     dragTile = tile
 
-    let statusLabel = NSTextField(labelWithString: "")
-    statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
-    statusLabel.textColor = .secondaryLabelColor
-    statusLabel.maximumNumberOfLines = 2
-    self.statusLabel = statusLabel
-
-    let controls = NSStackView()
-    controls.orientation = .horizontal
-    controls.alignment = .centerY
-    controls.spacing = 8
-
-    let doneButton = NSButton(title: "Done", target: self, action: #selector(done))
-    doneButton.bezelStyle = .rounded
-    doneButton.keyEquivalent = "\r"
-
-    let recheckButton = NSButton(title: "Recheck", target: self, action: #selector(recheck))
-    recheckButton.bezelStyle = .rounded
-
-    let backTextButton = NSButton(title: "Back", target: self, action: #selector(closeOverlay))
-    backTextButton.bezelStyle = .rounded
-
-    controls.addArrangedSubview(doneButton)
-    controls.addArrangedSubview(recheckButton)
-    controls.addArrangedSubview(backTextButton)
-
     content.addArrangedSubview(instructionRow)
     content.addArrangedSubview(tile)
-    content.addArrangedSubview(statusLabel)
-    content.addArrangedSubview(controls)
 
     stack.addArrangedSubview(backButton)
     stack.addArrangedSubview(content)
@@ -877,35 +860,45 @@ private final class PermissionOverlayWindowController: NSWindowController {
     Swift.max(minimum, Swift.min(value, maximum))
   }
 
-  private func refreshPermissionStatus() {
-    let permissions = computerUsePermissionSnapshot()
-    let granted: Bool
-    switch pane {
-    case .privacy:
-      granted = permissions.accessibilityGranted && permissions.screenCaptureGranted
-    case .accessibility:
-      granted = permissions.accessibilityGranted
-    case .screenRecording:
-      granted = permissions.screenCaptureGranted
+  @objc private func returnToOnboarding() {
+    guard let window else {
+      showReturnWindow()
+      return
     }
-
-    statusLabel?.stringValue = granted
-      ? "\(pane.permissionLabel) is allowed. Return to Caverno and recheck."
-      : "\(pane.permissionLabel) is not allowed yet."
-    statusLabel?.textColor = granted ? .systemGreen : .secondaryLabelColor
+    let targetFrame = returnAnimationFrame(from: window.frame)
+    NSAnimationContext.runAnimationGroup { context in
+      context.duration = 0.24
+      context.timingFunction = CAMediaTimingFunction(name: .easeInEaseOut)
+      window.animator().setFrame(targetFrame, display: true)
+      window.animator().alphaValue = 0.08
+    } completionHandler: { [weak self] in
+      window.close()
+      self?.showReturnWindow()
+    }
   }
 
-  @objc private func done() {
-    refreshPermissionStatus()
+  private func returnAnimationFrame(from overlayFrame: NSRect) -> NSRect {
+    guard let returnWindow else {
+      return overlayFrame.insetBy(dx: overlayFrame.width * 0.28, dy: overlayFrame.height * 0.28)
+    }
+    let targetSize = NSSize(
+      width: max(220, overlayFrame.width * 0.42),
+      height: max(72, overlayFrame.height * 0.42)
+    )
+    return NSRect(
+      x: returnWindow.frame.midX - targetSize.width / 2,
+      y: returnWindow.frame.midY - targetSize.height / 2,
+      width: targetSize.width,
+      height: targetSize.height
+    )
+  }
+
+  private func showReturnWindow() {
     close()
-  }
-
-  @objc private func recheck() {
-    refreshPermissionStatus()
-  }
-
-  @objc private func closeOverlay() {
-    close()
+    onReturnToOnboarding()
+    returnWindow?.deminiaturize(nil)
+    returnWindow?.makeKeyAndOrderFront(nil)
+    NSApp.activate(ignoringOtherApps: true)
   }
 }
 
