@@ -285,6 +285,14 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.text('Policy: pointer_input • Requires: approval, arming'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Policy: system_audio • Requires: approval, arming'),
+      findsOneWidget,
+    );
+    expect(
       find.text('Fallback: xpc_error (helper_xpc_unavailable)'),
       findsOneWidget,
     );

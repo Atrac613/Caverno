@@ -52,6 +52,10 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
     final theme = Theme.of(context);
     final status = _status(entry);
     final riskCategory = '${entry['riskCategory'] ?? 'unknown'}';
+    final policyLabel = _optionalText(entry['policyLabel']);
+    final requiresUserApproval = entry['requiresUserApproval'] == true;
+    final requiresSmokeArming = entry['requiresSmokeArming'] == true;
+    final emergencyStop = entry['emergencyStop'] == true;
     final toolName = '${entry['toolName'] ?? 'unknown_tool'}';
     final approvalResult = '${entry['approvalResult'] ?? 'unknown'}';
     final transport = _optionalText(entry['transport']) ?? 'transport unknown';
@@ -119,6 +123,20 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
                         : 'Transport: $transport • Response: $responseCode',
                     style: theme.textTheme.bodySmall,
                   ),
+                  if (policyLabel != null) ...[
+                    const SizedBox(height: 2),
+                    Text(
+                      _policyText(
+                        policyLabel: policyLabel,
+                        requiresUserApproval: requiresUserApproval,
+                        requiresSmokeArming: requiresSmokeArming,
+                        emergencyStop: emergencyStop,
+                      ),
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onSurfaceVariant,
+                      ),
+                    ),
+                  ],
                   if (fallbackReason != null) ...[
                     const SizedBox(height: 2),
                     Text(
@@ -164,6 +182,23 @@ class _ComputerUseAuditEntryRow extends StatelessWidget {
 
   String? _optionalText(Object? value) {
     return value is String && value.trim().isNotEmpty ? value.trim() : null;
+  }
+
+  String _policyText({
+    required String policyLabel,
+    required bool requiresUserApproval,
+    required bool requiresSmokeArming,
+    required bool emergencyStop,
+  }) {
+    final flags = [
+      if (requiresUserApproval) 'approval',
+      if (requiresSmokeArming) 'arming',
+      if (emergencyStop) 'emergency stop',
+    ];
+    if (flags.isEmpty) {
+      return 'Policy: $policyLabel';
+    }
+    return 'Policy: $policyLabel • Requires: ${flags.join(', ')}';
   }
 
   _ComputerUseAuditStatus _status(Map<String, dynamic> entry) {

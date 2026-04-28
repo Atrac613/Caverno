@@ -6,7 +6,12 @@ class MacosComputerUseAuditEntry {
   const MacosComputerUseAuditEntry({
     required this.timestamp,
     required this.toolName,
+    required this.toolCategory,
     required this.riskCategory,
+    required this.policyLabel,
+    required this.requiresUserApproval,
+    required this.requiresSmokeArming,
+    required this.emergencyStop,
     required this.approvalResult,
     required this.transport,
     required this.preferredAttemptStatus,
@@ -23,7 +28,12 @@ class MacosComputerUseAuditEntry {
 
   final DateTime timestamp;
   final String toolName;
+  final String toolCategory;
   final String riskCategory;
+  final String policyLabel;
+  final bool requiresUserApproval;
+  final bool requiresSmokeArming;
+  final bool emergencyStop;
   final String approvalResult;
   final String? transport;
   final String? preferredAttemptStatus;
@@ -41,7 +51,12 @@ class MacosComputerUseAuditEntry {
     return {
       'timestamp': timestamp.toIso8601String(),
       'toolName': toolName,
+      'toolCategory': toolCategory,
       'riskCategory': riskCategory,
+      'policyLabel': policyLabel,
+      'requiresUserApproval': requiresUserApproval,
+      'requiresSmokeArming': requiresSmokeArming,
+      'emergencyStop': emergencyStop,
       'approvalResult': approvalResult,
       'transport': transport,
       'preferredAttemptStatus': preferredAttemptStatus,
@@ -114,7 +129,12 @@ class MacosComputerUseAuditLog {
     final entry = MacosComputerUseAuditEntry(
       timestamp: DateTime.now(),
       toolName: toolName,
+      toolCategory: policy?.category.name ?? 'unknown',
       riskCategory: policy?.riskCategory.name ?? 'unknown',
+      policyLabel: policy?.policyLabel ?? 'unknown',
+      requiresUserApproval: policy?.requiresUserApproval ?? false,
+      requiresSmokeArming: policy?.requiresSmokeArming ?? false,
+      emergencyStop: policy?.emergencyStop ?? false,
       approvalResult: approvalResult,
       transport: transport,
       preferredAttemptStatus: preferredAttemptStatus,

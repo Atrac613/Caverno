@@ -366,6 +366,11 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(find.text('Policy: observation'), findsOneWidget);
+    expect(
+      find.text('Policy: pointer_input • Requires: approval, arming'),
+      findsOneWidget,
+    );
     expect(
       find.text('Fallback: xpc_timeout (helper_xpc_timeout)'),
       findsOneWidget,

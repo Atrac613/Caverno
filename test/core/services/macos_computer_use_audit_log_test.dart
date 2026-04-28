@@ -19,7 +19,12 @@ void main() {
     final entries = auditLog.redactedEntries;
     expect(entries, hasLength(1));
     expect(entries.single['toolName'], 'computer_click');
+    expect(entries.single['toolCategory'], 'pointerInput');
     expect(entries.single['riskCategory'], 'input');
+    expect(entries.single['policyLabel'], 'pointer_input');
+    expect(entries.single['requiresUserApproval'], isTrue);
+    expect(entries.single['requiresSmokeArming'], isTrue);
+    expect(entries.single['emergencyStop'], isFalse);
     expect(entries.single['approvalResult'], 'approved');
     expect(entries.single['transport'], 'xpc_service');
     expect(entries.single['postActionObservationRequired'], isTrue);
@@ -47,6 +52,29 @@ void main() {
     expect(entries, hasLength(2));
     expect(entries.first['toolName'], 'computer_click');
     expect(entries.last['riskCategory'], 'sensitive');
+    expect(entries.last['requiresSmokeArming'], isTrue);
+  });
+
+  test('records recovery policy metadata for emergency stop tools', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_stop_system_audio_recording',
+      policy: MacosComputerUseToolPolicy.decision(
+        'computer_stop_system_audio_recording',
+      ),
+      approvalResult: 'not_required',
+      success: true,
+      result: '{"ok":true,"ipcTransport":"distributed_notification_center"}',
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    expect(entry['toolCategory'], 'audio');
+    expect(entry['riskCategory'], 'recovery');
+    expect(entry['policyLabel'], 'system_audio');
+    expect(entry['requiresUserApproval'], isFalse);
+    expect(entry['requiresSmokeArming'], isFalse);
+    expect(entry['emergencyStop'], isTrue);
   });
 
   test('records preferred XPC fallback metadata without payloads', () {
