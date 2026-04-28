@@ -254,6 +254,30 @@ Current M2 implementation status:
   especially Screen & System Audio Recording TCC and optional system-audio
   capture.
 
+M2 live sign-off notes:
+
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact`
+  passed the baseline helper smoke with `coreOk: true`,
+  `ipcReadyOk: true`, `helperOwnsUnsafeOsActions: true`, and
+  `mainAppUnsafeOsActionsAllowed: false`.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed --require-input`
+  passed non-destructive input readiness. Pointer movement, pointer drag,
+  scroll, and key press all passed; click and text input remained skipped
+  behind their separate arming gates.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed --require-audio`
+  failed only the required audio readiness expectation because
+  `screen_capture_permission_missing` still blocks Screen & System Audio
+  Recording for the exact embedded helper path.
+- 2026-04-29: `bash tool/run_macos_computer_use_capture_signoff.sh --require-capture --verbose-probe`
+  showed capture, input, and audio readiness for the standalone debug helper at
+  `build/macos/Build/Products/Debug/Caverno Computer Use.app`, but failed the
+  required helper path match.
+- 2026-04-29: `bash tool/run_macos_computer_use_capture_signoff.sh --replace-helper --require-capture --verbose-probe`
+  confirmed the embedded helper path matches the expected
+  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` location, but capture
+  remains blocked there until macOS grants Screen & System Audio Recording to
+  that exact helper bundle.
+
 ## App Responsibilities
 
 | Area | `Caverno.app` | `Caverno Computer Use.app` |
