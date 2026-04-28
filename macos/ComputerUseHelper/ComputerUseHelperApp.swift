@@ -483,6 +483,17 @@ fileprivate enum SettingsPane {
     }
   }
 
+  var overlayInstructionLabel: String {
+    switch self {
+    case .privacy:
+      return "Privacy"
+    case .accessibility:
+      return "Accessibility"
+    case .screenRecording:
+      return "Screenshots"
+    }
+  }
+
   var url: URL? {
     switch self {
     case .privacy:
@@ -604,7 +615,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     self.onReturnToOnboarding = onReturnToOnboarding
 
     let panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 420, height: 184),
+      contentRect: NSRect(x: 0, y: 0, width: 600, height: 96),
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
@@ -656,7 +667,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     let stack = NSStackView()
     stack.orientation = .horizontal
     stack.alignment = .centerY
-    stack.spacing = 14
+    stack.spacing = 12
     stack.translatesAutoresizingMaskIntoConstraints = false
     root.addSubview(stack)
 
@@ -676,10 +687,10 @@ private final class PermissionOverlayWindowController: NSWindowController {
     let content = NSStackView()
     content.orientation = .vertical
     content.alignment = .width
-    content.spacing = 9
+    content.spacing = 4
 
     let arrow = NSImageView()
-    arrow.symbolConfiguration = .init(pointSize: 34, weight: .bold)
+    arrow.symbolConfiguration = .init(pointSize: 28, weight: .bold)
     arrow.image = NSImage(
       systemSymbolName: "arrow.up",
       accessibilityDescription: "Drag up"
@@ -687,14 +698,15 @@ private final class PermissionOverlayWindowController: NSWindowController {
     arrow.contentTintColor = .controlAccentColor
     arrow.translatesAutoresizingMaskIntoConstraints = false
     arrow.wantsLayer = true
-    arrow.widthAnchor.constraint(equalToConstant: 36).isActive = true
-    arrow.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    arrow.widthAnchor.constraint(equalToConstant: 32).isActive = true
+    arrow.heightAnchor.constraint(equalToConstant: 28).isActive = true
     dragCueArrow = arrow
 
     let instruction = NSTextField(wrappingLabelWithString: instructionText)
-    instruction.font = .systemFont(ofSize: 14, weight: .semibold)
+    instruction.font = .systemFont(ofSize: 13, weight: .semibold)
     instruction.textColor = .labelColor
-    instruction.maximumNumberOfLines = 2
+    instruction.maximumNumberOfLines = 1
+    instruction.lineBreakMode = .byTruncatingTail
 
     let instructionRow = NSStackView(views: [arrow, instruction])
     instructionRow.orientation = .horizontal
@@ -703,7 +715,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
 
     let tile = HelperBundleDragTileView(helperBundleURL: helperBundleURL)
     tile.translatesAutoresizingMaskIntoConstraints = false
-    tile.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    tile.heightAnchor.constraint(equalToConstant: 36).isActive = true
     dragTile = tile
 
     content.addArrangedSubview(instructionRow)
@@ -713,17 +725,17 @@ private final class PermissionOverlayWindowController: NSWindowController {
     stack.addArrangedSubview(content)
 
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
-      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
-      stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
-      stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
+      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 12),
+      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -12),
+      stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 10),
+      stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -10),
     ])
 
     return root
   }
 
   private var instructionText: String {
-    "Drag Caverno Computer Use to the list above to allow \(pane.permissionLabel)"
+    "Drag Caverno Computer Use to the list above to allow \(pane.overlayInstructionLabel)"
   }
 
   func animationTargetFrame(matching sourceSize: NSSize?) -> NSRect? {
@@ -999,26 +1011,26 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
     let stack = NSStackView()
     stack.orientation = .horizontal
     stack.alignment = .centerY
-    stack.spacing = 10
+    stack.spacing = 8
     stack.translatesAutoresizingMaskIntoConstraints = false
     addSubview(stack)
 
     let icon = NSImageView()
     icon.image = NSWorkspace.shared.icon(forFile: helperBundleURL.path)
     icon.translatesAutoresizingMaskIntoConstraints = false
-    icon.widthAnchor.constraint(equalToConstant: 30).isActive = true
-    icon.heightAnchor.constraint(equalToConstant: 30).isActive = true
+    icon.widthAnchor.constraint(equalToConstant: 24).isActive = true
+    icon.heightAnchor.constraint(equalToConstant: 24).isActive = true
 
     let label = NSTextField(labelWithString: "Caverno Computer Use")
-    label.font = .systemFont(ofSize: 14, weight: .semibold)
+    label.font = .systemFont(ofSize: 13, weight: .semibold)
     label.textColor = .labelColor
 
     stack.addArrangedSubview(icon)
     stack.addArrangedSubview(label)
 
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
-      stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 10),
+      stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -10),
       stack.centerYAnchor.constraint(equalTo: centerYAnchor),
     ])
   }
