@@ -52,8 +52,8 @@ M1 acceptance criteria:
   System Settings panes and show the helper-owned overlay above them.
 - The overlay contains a draggable `Caverno Computer Use.app` tile backed by
   the helper app bundle URL.
-- The overlay includes `Done`, `Recheck`, and `Back` controls so the user can
-  return to Caverno's setup flow after granting permissions.
+- The overlay is borderless, uses a compact permission-list panel, and includes
+  a left-side return arrow that animates the user back to Caverno's setup flow.
 - The overlay clearly states that macOS permissions are granted to
   `Caverno Computer Use.app`, not to `Caverno.app`.
 - The flow never attempts to modify TCC databases or automatically grant
@@ -132,6 +132,9 @@ M1 sign-off checklist:
   after Screen & System Audio Recording is granted.
 - `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
   passes after Accessibility is granted.
+- `bash tool/run_macos_computer_use_smoke_test.sh --require-capture` remains
+  blocked until Screen Recording is granted to the exact helper bundle path
+  reported in the smoke diagnostics.
 - `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-capture`
   can be used after a successful grant to verify the existing built helper
   without triggering another Flutter rebuild.
@@ -151,12 +154,22 @@ Manual sign-off notes:
   passed after the tile-target transition update. Both Accessibility and Screen
   & System Audio Recording overlays reported `overlayShown`,
   `draggableTileReady`, and matching permission identifiers. The current debug
-  helper path still needs Screen Recording before capture readiness can pass,
-  and the onboarding transition gate still requires an action-time `Allow`
-  click.
+  helper path still needs Screen Recording before capture readiness can pass.
 - 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay`
   passed with both permission overlays reporting `overlayShown` and
   `draggableTileReady`.
+- 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
+  passed by invoking the helper-owned `startOnboardingPermissionFlow` command.
+  The smoke report recorded `transitionPlaceholderShown: true`,
+  `transitionAnimationTarget: permission_overlay_window`, and
+  `transitionOverlayPlacement: system_settings_permission_list`.
+- 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
+  passed the required non-destructive input checks: pointer movement, pointer
+  drag, scroll, and key press.
+- 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`
+  failed as expected with `screen_capture_permission_missing`; rerun it after
+  granting Screen Recording to the exact `Caverno Computer Use.app` helper path
+  shown in the smoke report.
 - 2026-04-28: System Settings accepted `Caverno Computer Use.app` through the
   standard Add flow for Accessibility and Screen & System Audio Recording.
   After restarting the helper, the helper onboarding UI reported both
