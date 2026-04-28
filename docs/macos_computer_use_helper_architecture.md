@@ -144,6 +144,19 @@ M1 sign-off checklist:
 - Add `--replace-helper` when the probe should terminate a running helper from
   a different path and launch the configured helper path before checking.
 
+Current M1 status:
+
+- Overlay readiness, onboarding transition readiness, and Accessibility-backed
+  non-destructive input readiness are signed off for the current debug helper.
+- The current helper path matches the helper bundle embedded in the debug
+  `Caverno.app` build, so the remaining capture blocker is not a path mismatch.
+- Screen capture readiness is still blocked by macOS TCC for the current helper
+  bundle. Grant Screen & System Audio Recording to the exact
+  `Caverno Computer Use.app` path reported by the smoke diagnostics, then rerun
+  `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`.
+- M1 should remain open until `--require-capture` passes for the current helper
+  bundle or the release/debug sign-off target is explicitly changed.
+
 The drag/drop sign-off is intentionally manual. Adding the helper to macOS
 privacy lists changes system privacy settings, so it must only happen after an
 explicit action-time confirmation from the person operating the Mac.
@@ -170,6 +183,12 @@ Manual sign-off notes:
   failed as expected with `screen_capture_permission_missing`; rerun it after
   granting Screen Recording to the exact `Caverno Computer Use.app` helper path
   shown in the smoke report.
+- 2026-04-28: `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-helper-path-match --require-capture`
+  confirmed `helperPathMatchesExpected: true`, `inputReady: true`, and
+  `captureReady: false`. The probe failed only because the required capture
+  gate is still blocked by `screenCaptureGranted: false`; it also confirmed
+  display screenshots still work while window capture requires Screen
+  Recording.
 - 2026-04-28: System Settings accepted `Caverno Computer Use.app` through the
   standard Add flow for Accessibility and Screen & System Audio Recording.
   After restarting the helper, the helper onboarding UI reported both
@@ -193,6 +212,13 @@ Drag/drop sign-off runbook:
 - Drag the overlay tile into Accessibility and Screen & System Audio Recording.
   Record whether macOS accepts the drop, requests Quit & Reopen, or requires the
   standard Add flow fallback.
+- If the drag/drop target refuses the overlay tile, use the `+` button in the
+  matching privacy list and select the same helper bundle path reported by
+  `helper.expectedPath` in the existing-helper probe.
+- After either drag/drop or the Add flow, quit and reopen the helper if macOS
+  requests it, then rerun
+  `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-helper-path-match --require-capture`
+  before marking Screen Recording complete.
 
 Follow-on milestones:
 
