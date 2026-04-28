@@ -73,6 +73,28 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     return presentation
   }
 
+  fileprivate static func startOnboardingPermissionFlow(pane: SettingsPane) -> [String: Any] {
+    if Thread.isMainThread {
+      return delegateInstance?.startOnboardingPermissionFlow(pane: pane)
+        ?? [
+          "ok": false,
+          "code": "delegate_unavailable",
+          "error": "Caverno Computer Use onboarding is not available.",
+        ]
+    }
+
+    var response: [String: Any] = [
+      "ok": false,
+      "code": "delegate_unavailable",
+      "error": "Caverno Computer Use onboarding is not available.",
+    ]
+    DispatchQueue.main.sync {
+      response = delegateInstance?.startOnboardingPermissionFlow(pane: pane)
+        ?? response
+    }
+    return response
+  }
+
   fileprivate static func currentOnboardingTransitionMap() -> [String: Any]? {
     if Thread.isMainThread {
       return delegateInstance?.lastOnboardingTransition?.toMap()
@@ -108,11 +130,48 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     )
   }
 
-  private func startPermissionFlow(pane: SettingsPane, row: PermissionRowView) {
+  private func startOnboardingPermissionFlow(pane: SettingsPane) -> [String: Any] {
+    let row: PermissionRowView?
+    switch pane {
+    case .accessibility:
+      row = accessibilityRow
+    case .screenRecording:
+      row = screenRecordingRow
+    case .privacy:
+      row = nil
+    }
+    guard let row else {
+      return [
+        "ok": false,
+        "code": "unsupported_onboarding_permission",
+        "error": "Onboarding permission flow supports accessibility or screenRecording.",
+        "permission": pane.overlayPermission,
+      ]
+    }
+
+    let result = startPermissionFlow(pane: pane, row: row)
+    return [
+      "ok": true,
+      "permission": pane.overlayPermission,
+      "section": pane.responseSection,
+      "settingsOpened": result.settingsOpened,
+      "onboardingFlowRequested": true,
+      "overlayRequested": true,
+      "overlayMode": "floating_helper_panel",
+      "lastOnboardingTransition": result.transition.toMap(),
+      "nextAction": "Drag Caverno Computer Use into the permission list, then recheck.",
+    ]
+  }
+
+  @discardableResult
+  private func startPermissionFlow(
+    pane: SettingsPane,
+    row: PermissionRowView
+  ) -> (settingsOpened: Bool, transition: OnboardingTransitionDiagnostic) {
     let snapshot = row.snapshotImage()
     let sourceFrame = row.screenFrame()
     row.setPendingSystemSettings(true)
-    openSettingsPane(pane)
+    let settingsOpened = openSettingsPane(pane)
     _ = presentPermissionOverlay(pane: pane)
     let animationResult = animatePermissionRowOverflow(
       snapshot: snapshot,
@@ -122,7 +181,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
         matching: sourceFrame?.size
       )
     )
-    lastOnboardingTransition = OnboardingTransitionDiagnostic(
+    let transition = OnboardingTransitionDiagnostic(
       permission: pane.overlayPermission,
       placeholderShown: row.pendingSystemSettingsShown,
       animationTarget: animationResult.target,
@@ -130,6 +189,8 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       targetFrame: animationResult.frame,
       overlayPlacement: permissionOverlayWindowController?.overlayPlacement
     )
+    lastOnboardingTransition = transition
+    return (settingsOpened, transition)
   }
 
   @discardableResult
@@ -510,11 +571,12 @@ fileprivate enum SettingsPane {
   }
 }
 
-private func openSettingsPane(_ pane: SettingsPane) {
+@discardableResult
+private func openSettingsPane(_ pane: SettingsPane) -> Bool {
   guard let url = pane.url else {
-    return
+    return false
   }
-  NSWorkspace.shared.open(url)
+  return NSWorkspace.shared.open(url)
 }
 
 fileprivate struct PermissionOverlayPresentation {
@@ -1135,6 +1197,7 @@ private enum ComputerUseHelperCommand: String {
   case permissionStatus
   case openSettings
   case showPermissionOverlay
+  case startOnboardingPermissionFlow
   case stopAll
   case screenshot
   case listWindows
@@ -1163,6 +1226,7 @@ private enum ComputerUseHelperIpcSchema {
     "permissionStatus",
     "openSettings",
     "showPermissionOverlay",
+    "startOnboardingPermissionFlow",
     "stopAll",
     "screenshot",
     "listWindows",
@@ -1196,7 +1260,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_show_permission_overlay_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -1625,6 +1689,8 @@ private final class ComputerUseHelperIpc: NSObject {
       completion(openSettings(arguments: request.arguments))
     case .showPermissionOverlay:
       completion(showPermissionOverlay(arguments: request.arguments))
+    case .startOnboardingPermissionFlow:
+      completion(startOnboardingPermissionFlow(arguments: request.arguments))
     case .stopAll:
       stopAll(completion: completion)
     case .screenshot:
@@ -1712,6 +1778,24 @@ private final class ComputerUseHelperIpc: NSObject {
       ok: opened,
       extra: overlay
     )
+  }
+
+  private func startOnboardingPermissionFlow(arguments: [String: Any]) -> [String: Any] {
+    let permission = (arguments["permission"] as? String)
+      ?? (arguments["section"] as? String)
+      ?? "screenRecording"
+    guard let pane = SettingsPane(permissionOverlayPermission: permission) else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "permission must be accessibility or screenRecording",
+        details: permission
+      )
+    }
+
+    var flow = ComputerUseHelperApp.startOnboardingPermissionFlow(pane: pane)
+    let ok = flow["ok"] as? Bool ?? true
+    flow.removeValue(forKey: "ok")
+    return baseResponse(ok: ok, extra: flow)
   }
 
   private func stopAll(completion: @escaping ([String: Any]) -> Void) {

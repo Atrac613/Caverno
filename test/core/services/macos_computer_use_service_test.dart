@@ -198,6 +198,31 @@ void main() {
     expect(result, containsPair('overlayRequested', true));
     expect(result, containsPair('draggableTileReady', true));
   });
+
+  test(
+    'routes onboarding permission flows through the helper transport',
+    () async {
+      final transport = _FakePermissionTransport(
+        permissions: const <String, dynamic>{'ok': true},
+      );
+      final service = MacosComputerUseService(permissionTransport: transport);
+
+      final result =
+          jsonDecode(
+                await service.startOnboardingPermissionFlow(
+                  permission: 'screenRecording',
+                ),
+              )
+              as Map<String, dynamic>;
+
+      expect(transport.calledMethods, [
+        'startOnboardingPermissionFlow:screenRecording',
+      ]);
+      expect(result, containsPair('permission', 'screenRecording'));
+      expect(result, containsPair('onboardingFlowRequested', true));
+      expect(result, containsPair('lastOnboardingTransition', isA<Map>()));
+    },
+  );
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
@@ -276,6 +301,24 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
       'overlayRequested': true,
       'overlayShown': false,
       'draggableTileReady': true,
+    });
+  }
+
+  @override
+  Future<String> startOnboardingPermissionFlow({
+    required String permission,
+  }) async {
+    calledMethods.add('startOnboardingPermissionFlow:$permission');
+    return jsonEncode({
+      'ok': true,
+      'permission': permission,
+      'onboardingFlowRequested': true,
+      'lastOnboardingTransition': {
+        'onboardingTransitionStarted': true,
+        'transitionSourcePermission': permission,
+        'transitionPlaceholderShown': true,
+        'transitionAnimationTarget': 'permission_overlay_window',
+      },
     });
   }
 

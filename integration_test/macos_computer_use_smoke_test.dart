@@ -204,6 +204,25 @@ void main() {
         'XPC LaunchAgent registration is opt-in for live smoke.',
       );
     }
+    Map<String, dynamic>? onboardingTransitionFlow;
+    if (_requireOnboardingTransition) {
+      onboardingTransitionFlow = await _runStep(
+        steps,
+        'onboarding_permission_flow_screen_recording',
+        'Run Screenshots onboarding permission flow',
+        () => service.startOnboardingPermissionFlow(
+          permission: 'screenRecording',
+        ),
+      );
+      await tester.pump(const Duration(milliseconds: 600));
+    } else {
+      _skipStep(
+        steps,
+        'onboarding_permission_flow_screen_recording',
+        'Run Screenshots onboarding permission flow',
+        'Onboarding transition smoke is opt-in. Rerun with --require-onboarding-transition.',
+      );
+    }
     final permissions = await _runStep(
       steps,
       'permission_status',
@@ -504,6 +523,7 @@ void main() {
     report['onboardingTransitionGate'] = _onboardingTransitionGate(
       helperStatus: helperStatus,
       permissions: permissions,
+      onboardingTransitionFlow: onboardingTransitionFlow,
       accessibilityOverlay: accessibilityOverlay,
       screenRecordingOverlay: screenRecordingOverlay,
       runOverlaySmoke: _runOverlaySmoke,
@@ -1057,6 +1077,7 @@ Map<String, dynamic> _overlaySmokeEntry(
 Map<String, dynamic> _onboardingTransitionGate({
   required Map<String, dynamic>? helperStatus,
   required Map<String, dynamic>? permissions,
+  required Map<String, dynamic>? onboardingTransitionFlow,
   required Map<String, dynamic>? accessibilityOverlay,
   required Map<String, dynamic>? screenRecordingOverlay,
   required bool runOverlaySmoke,
@@ -1067,11 +1088,12 @@ Map<String, dynamic> _onboardingTransitionGate({
       'required': _requireOnboardingTransition,
       'blockers': [if (_requireOnboardingTransition) 'overlay_smoke_not_run'],
       'nextAction':
-          'Rerun smoke with --require-onboarding-transition after pressing an Allow button in the onboarding window.',
+          'Rerun smoke with --require-onboarding-transition to run the onboarding Allow transition flow.',
     };
   }
 
   final candidates = [
+    _mapValue(onboardingTransitionFlow?['lastOnboardingTransition']),
     _mapValue(screenRecordingOverlay?['lastOnboardingTransition']),
     _mapValue(accessibilityOverlay?['lastOnboardingTransition']),
     _mapValue(permissions?['lastOnboardingTransition']),
@@ -1112,7 +1134,7 @@ Map<String, dynamic> _onboardingTransitionGate({
     'blockers': blockers,
     'nextAction': ready
         ? 'Onboarding Allow transition reached the permission overlay target.'
-        : 'Open onboarding, press Allow, then rerun smoke with --require-onboarding-transition before restarting the helper.',
+        : 'Rerun smoke with --require-onboarding-transition and inspect the onboarding permission flow response.',
   };
 }
 

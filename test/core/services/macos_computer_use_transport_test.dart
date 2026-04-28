@@ -80,6 +80,14 @@ void main() {
               'overlayShown': false,
               'draggableTileReady': true,
             },
+            'helperStartOnboardingPermissionFlow' => {
+              'ok': true,
+              'backend': 'helper',
+              'permission':
+                  (call.arguments as Map<Object?, Object?>)['permission'],
+              'onboardingFlowRequested': true,
+              'lastOnboardingTransition': {'onboardingTransitionStarted': true},
+            },
             'helperStopAll' => {
               'ok': true,
               'backend': 'helper',
@@ -130,6 +138,13 @@ void main() {
                 ),
               )
               as Map<String, dynamic>;
+      final onboardingFlow =
+          jsonDecode(
+                await transport.startOnboardingPermissionFlow(
+                  permission: 'screenRecording',
+                ),
+              )
+              as Map<String, dynamic>;
       final stopAll =
           jsonDecode(await transport.stopAll()) as Map<String, dynamic>;
 
@@ -144,6 +159,7 @@ void main() {
         'helperPermissionStatus',
         'helperOpenSystemSettings',
         'helperShowPermissionOverlay',
+        'helperStartOnboardingPermissionFlow',
         'helperStopAll',
       ]);
       expect(status, containsPair('helperInstalled', true));
@@ -162,6 +178,7 @@ void main() {
       expect(settings, containsPair('section', 'accessibility'));
       expect(overlay, containsPair('permission', 'accessibility'));
       expect(overlay, containsPair('draggableTileReady', true));
+      expect(onboardingFlow, containsPair('permission', 'screenRecording'));
       expect(stopAll, containsPair('cancelledInputEvents', true));
     },
   );

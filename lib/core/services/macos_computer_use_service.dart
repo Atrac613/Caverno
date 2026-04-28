@@ -191,6 +191,16 @@ class MacosComputerUseService {
     );
   }
 
+  Future<String> startOnboardingPermissionFlow({
+    required String permission,
+  }) async {
+    return _invokeTransportJson(
+      () => _permissionTransport.startOnboardingPermissionFlow(
+        permission: permission,
+      ),
+    );
+  }
+
   Future<String> stopHelperWork() async {
     return _invokeTransportJson(_permissionTransport.stopAll);
   }

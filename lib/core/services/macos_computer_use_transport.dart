@@ -31,6 +31,8 @@ abstract class MacosComputerUsePermissionTransport {
 
   Future<String> showPermissionOverlay({required String permission});
 
+  Future<String> startOnboardingPermissionFlow({required String permission});
+
   Future<String> stopAll();
 }
 
@@ -98,6 +100,13 @@ class HelperMacosComputerUseTransport
   @override
   Future<String> showPermissionOverlay({required String permission}) {
     return _invokeJson('helperShowPermissionOverlay', {
+      'permission': permission,
+    });
+  }
+
+  @override
+  Future<String> startOnboardingPermissionFlow({required String permission}) {
+    return _invokeJson('helperStartOnboardingPermissionFlow', {
       'permission': permission,
     });
   }
@@ -255,6 +264,22 @@ class InProcessMacosComputerUseTransport
       'error': 'Permission overlays are owned by Caverno Computer Use.',
       'nextAction':
           'Launch Caverno Computer Use to show the permission overlay.',
+    });
+  }
+
+  @override
+  Future<String> startOnboardingPermissionFlow({
+    required String permission,
+  }) async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'permission': permission,
+      'onboardingFlowRequested': true,
+      'code': 'helper_onboarding_unavailable',
+      'error': 'Onboarding permission flows are owned by Caverno Computer Use.',
+      'nextAction':
+          'Launch Caverno Computer Use to run the onboarding permission flow.',
     });
   }
 

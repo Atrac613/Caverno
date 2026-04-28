@@ -64,12 +64,12 @@ M1 acceptance criteria:
 
 Current M1 implementation status:
 
-- `showPermissionOverlay` is available over helper IPC and is advertised in the
-  XPC parity command list.
+- `showPermissionOverlay` and `startOnboardingPermissionFlow` are available
+  over helper IPC and are advertised in the XPC parity command list.
 - The helper opens the targeted System Settings pane and presents a floating
   AppKit panel owned by `Caverno Computer Use.app`.
-- The overlay contains a draggable helper app bundle tile plus `Done`,
-  `Recheck`, and `Back` controls.
+- The overlay contains a draggable helper app bundle tile and a left-side return
+  arrow.
 - The overlay rechecks the relevant permission locally and reports placement
   diagnostics such as `overlayPlacement`, `overlayShown`, and
   `draggableTileReady`.
@@ -107,10 +107,8 @@ M1 overlay readiness gate:
   onboarding window and refreshes permission rows.
 - The overlay uses a wide, short panel with a looping upward pull cue on the
   drag arrow.
-- After pressing an onboarding `Allow` button, run
-  `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
-  before restarting the helper. This opt-in gate skips the helper restart so the
-  in-memory `lastOnboardingTransition` diagnostic can prove that the row
+- Run `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
+  to invoke the helper-owned onboarding permission flow and prove that the row
   placeholder was shown and the animation targeted the permission overlay
   window.
 - Main-app helper diagnostics now include `embeddedHelperPath`,
@@ -125,7 +123,7 @@ M1 sign-off checklist:
 
 - `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` passes.
 - `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
-  passes immediately after pressing an onboarding `Allow` button.
+  passes by invoking the helper-owned onboarding permission flow.
 - Accessibility overlay drop is accepted by macOS when dragged into the
   privacy list.
 - Screen & System Audio Recording overlay drop is accepted by macOS when
@@ -234,9 +232,10 @@ iteration.
 The current helper milestone uses `DistributedNotificationCenter` as the active
 request/response transport so the separate bundled app can prove the boundary.
 XPC is exposed as an experimental preferred transport for `ping`,
-`permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-`listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`,
-`scroll`, `typeText`, `pressKey`, `startSystemAudioRecording`, and
+`permissionStatus`, `openSettings`, `showPermissionOverlay`,
+`startOnboardingPermissionFlow`, `stopAll`, `screenshot`, `listWindows`,
+`focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`, `scroll`,
+`typeText`, `pressKey`, `startSystemAudioRecording`, and
 `stopSystemAudioRecording`; when the named service is unavailable, the app
 records the preferred attempt and falls back to
 `DistributedNotificationCenter`. XPC should not be treated as production-ready
@@ -245,9 +244,10 @@ until the named service and all migrated commands pass parity smoke checks.
 Production readiness requires:
 
 - The named XPC service connects from the signed main app.
-- `ping`, `permissionStatus`, `openSettings`, `stopAll`, `screenshot`, and
-  `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`, `click`,
-  `drag`, `scroll`, `typeText`, `pressKey`, `startSystemAudioRecording`, and
+- `ping`, `permissionStatus`, `openSettings`, `showPermissionOverlay`,
+  `startOnboardingPermissionFlow`, `stopAll`, `screenshot`, `listWindows`,
+  `focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`, `scroll`,
+  `typeText`, `pressKey`, `startSystemAudioRecording`, and
   `stopSystemAudioRecording` match the active distributed-notification
   behavior. There are no remaining command-level parity migrations.
 - Capture, input, and audio commands have parity smoke coverage before they move
@@ -339,6 +339,9 @@ Initial commands:
 - `permissionStatus`: return Accessibility, screen capture, and system audio
   capability flags.
 - `openSettings`: open the requested privacy pane.
+- `showPermissionOverlay`: show the floating helper-owned permission overlay.
+- `startOnboardingPermissionFlow`: run the same helper-owned transition that an
+  onboarding `Allow` button starts.
 - `stopAll`: stop active recording and cancel queued input work.
 - `screenshot`: capture the main display.
 - `listWindows`: list visible windows.
