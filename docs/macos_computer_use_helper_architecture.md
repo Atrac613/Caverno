@@ -135,6 +135,9 @@ M1 sign-off checklist:
 - `bash tool/run_macos_computer_use_smoke_test.sh --require-capture` remains
   blocked until Screen Recording is granted to the exact helper bundle path
   reported in the smoke diagnostics.
+- `bash tool/run_macos_computer_use_capture_signoff.sh --reveal-helper --open-settings`
+  opens the current helper bundle in Finder, opens the Screen Recording privacy
+  pane, and prints the expected helper path before the manual grant.
 - `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-capture`
   can be used after a successful grant to verify the existing built helper
   without triggering another Flutter rebuild.
@@ -207,6 +210,10 @@ Drag/drop sign-off runbook:
   sign-off.
 - If the path check passes but permissions are missing, grant that exact helper
   bundle in System Settings before continuing.
+- For a guided capture grant, run
+  `bash tool/run_macos_computer_use_capture_signoff.sh --reveal-helper --open-settings`.
+  This does not change macOS privacy settings; it only reveals the helper path,
+  opens the Screen Recording pane, and prints the current capture status.
 - Run `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` to
   show both overlays and confirm `draggableTileReady` is true.
 - Drag the overlay tile into Accessibility and Screen & System Audio Recording.
@@ -217,7 +224,7 @@ Drag/drop sign-off runbook:
   `helper.expectedPath` in the existing-helper probe.
 - After either drag/drop or the Add flow, quit and reopen the helper if macOS
   requests it, then rerun
-  `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-helper-path-match --require-capture`
+  `bash tool/run_macos_computer_use_capture_signoff.sh --require-capture`
   before marking Screen Recording complete.
 
 Follow-on milestones:
