@@ -6,7 +6,9 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 
 DEVICE="${CAVERNO_MACOS_COMPUTER_USE_DEVICE:-macos}"
 REPORTER="${CAVERNO_MACOS_COMPUTER_USE_REPORTER:-compact}"
+BUILD_MODE="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_BUILD_MODE:-debug}"
 STRICT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT:-0}"
+STRICT_XPC="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC:-0}"
 UNSAFE_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED:-0}"
 UNSAFE_CLICK_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED:-0}"
 UNSAFE_TEXT_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED:-0}"
@@ -29,6 +31,15 @@ while [[ $# -gt 0 ]]; do
   case "$1" in
     --strict)
       STRICT=1
+      shift
+      ;;
+    --strict-xpc)
+      STRICT_XPC=1
+      REGISTER_XPC_AGENT=1
+      shift
+      ;;
+    --debug|--profile|--release)
+      BUILD_MODE="${1#--}"
       shift
       ;;
     --unsafe-armed)
@@ -71,7 +82,9 @@ done
 echo "Running macOS computer-use live smoke"
 echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
+echo "  Build mode: ${BUILD_MODE}"
 echo "  Strict: ${STRICT}"
+echo "  Strict XPC: ${STRICT_XPC}"
 echo "  Unsafe armed: ${UNSAFE_ARMED}"
 echo "  Unsafe click armed: ${UNSAFE_CLICK_ARMED}"
 echo "  Unsafe text armed: ${UNSAFE_TEXT_ARMED}"
@@ -80,6 +93,7 @@ echo "  Cleanup XPC agent: ${CLEANUP_XPC_AGENT}"
 echo "  Report: ${REPORT_PATH}"
 
 STRICT_DART="$(dart_bool_define "${STRICT}")"
+STRICT_XPC_DART="$(dart_bool_define "${STRICT_XPC}")"
 UNSAFE_ARMED_DART="$(dart_bool_define "${UNSAFE_ARMED}")"
 UNSAFE_CLICK_ARMED_DART="$(dart_bool_define "${UNSAFE_CLICK_ARMED}")"
 UNSAFE_TEXT_ARMED_DART="$(dart_bool_define "${UNSAFE_TEXT_ARMED}")"
@@ -88,13 +102,49 @@ CLEANUP_XPC_AGENT_DART="$(dart_bool_define "${CLEANUP_XPC_AGENT}")"
 
 cd "${ROOT_DIR}"
 
-flutter test integration_test/macos_computer_use_smoke_test.dart \
-  -d "${DEVICE}" \
-  -r "${REPORTER}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT="${STRICT_DART}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED="${UNSAFE_ARMED_DART}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED="${UNSAFE_CLICK_ARMED_DART}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED="${UNSAFE_TEXT_ARMED_DART}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT="${REGISTER_XPC_AGENT_DART}" \
-  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT="${CLEANUP_XPC_AGENT_DART}" \
+COMMON_DART_DEFINES=(
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT="${STRICT_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC="${STRICT_XPC_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED="${UNSAFE_ARMED_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED="${UNSAFE_CLICK_ARMED_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED="${UNSAFE_TEXT_ARMED_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT="${REGISTER_XPC_AGENT_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT="${CLEANUP_XPC_AGENT_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH="${REPORT_PATH}"
+)
+
+case "${BUILD_MODE}" in
+  debug)
+    flutter test integration_test/macos_computer_use_smoke_test.dart \
+      -d "${DEVICE}" \
+      -r "${REPORTER}" \
+      "${COMMON_DART_DEFINES[@]}"
+    ;;
+  profile)
+    flutter drive \
+      --driver=test_driver/integration_test.dart \
+      --target=integration_test/macos_computer_use_smoke_test.dart \
+      --"${BUILD_MODE}" \
+      -d "${DEVICE}" \
+      "${COMMON_DART_DEFINES[@]}"
+    ;;
+  release)
+    flutter build macos --release "${COMMON_DART_DEFINES[@]}"
+    RELEASE_APP="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
+    RELEASE_HELPER="${RELEASE_APP}/Contents/Helpers/Caverno Computer Use.app"
+    RELEASE_AGENT="${RELEASE_APP}/Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist"
+    test -d "${RELEASE_APP}"
+    test -d "${RELEASE_HELPER}"
+    test -f "${RELEASE_AGENT}"
+    /usr/bin/plutil -lint "${RELEASE_AGENT}"
+    /usr/libexec/PlistBuddy \
+      -c "Print :MachServices:com.noguwo.apps.caverno.computer-use.xpc" \
+      "${RELEASE_AGENT}"
+    /usr/bin/codesign --verify --deep --strict "${RELEASE_APP}"
+    echo "Release bundle XPC artifacts verified"
+    ;;
+  *)
+    echo "Unknown build mode: ${BUILD_MODE}"
+    exit 2
+    ;;
+esac

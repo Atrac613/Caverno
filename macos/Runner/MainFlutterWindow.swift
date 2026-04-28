@@ -236,7 +236,7 @@ fileprivate enum MacosComputerUseIpcSchema {
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
-  static let xpcFallbackTimeout = 0.7
+  static let xpcFallbackTimeout = 2.0
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let helperUnreachable = "helper_unreachable"
@@ -555,6 +555,56 @@ final class MacosComputerUseHelperClient: NSObject {
       }
       if Date().timeIntervalSince(startedAt) >= 2 {
         launchAfterTermination(timedOut: true)
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        waitForTermination()
+      }
+    }
+
+    waitForTermination()
+  }
+
+  func terminateForXpcLaunchAgent(result: @escaping FlutterResult) {
+    let runningApplications = NSRunningApplication.runningApplications(
+      withBundleIdentifier: helperBundleIdentifier
+    ).filter { !$0.isTerminated }
+    let processIdentifiers = runningApplications.map { Int($0.processIdentifier) }
+    for application in runningApplications {
+      application.terminate()
+    }
+
+    func finish(timedOut: Bool = false) {
+      MacosComputerUseHelperSharedDiagnostics.remove()
+      var response = status()
+      response["ok"] = true
+      response["terminatedHelperProcessIdentifiers"] = processIdentifiers
+      response["terminatedForXpcLaunchAgent"] = true
+      if processIdentifiers.isEmpty {
+        response["noExistingHelperProcess"] = true
+      }
+      if timedOut {
+        response["helperTerminationTimedOut"] = true
+      }
+      result(response)
+    }
+
+    guard !runningApplications.isEmpty else {
+      finish()
+      return
+    }
+
+    let startedAt = Date()
+    func waitForTermination() {
+      let stillRunning = NSRunningApplication.runningApplications(
+        withBundleIdentifier: helperBundleIdentifier
+      ).contains { !$0.isTerminated }
+      if !stillRunning {
+        finish()
+        return
+      }
+      if Date().timeIntervalSince(startedAt) >= 2 {
+        finish(timedOut: true)
         return
       }
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -1123,6 +1173,8 @@ final class MacosComputerUseChannel {
       helperClient.launch(result: result)
     case "restartHelper":
       helperClient.restart(result: result)
+    case "terminateHelperForXpcLaunchAgent":
+      helperClient.terminateForXpcLaunchAgent(result: result)
     case "registerXpcLaunchAgent":
       helperClient.registerXpcLaunchAgent(result: result)
     case "unregisterXpcLaunchAgent":

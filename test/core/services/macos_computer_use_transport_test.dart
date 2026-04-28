@@ -36,6 +36,13 @@ void main() {
               'helperRunning': true,
               'restarted': true,
             },
+            'terminateHelperForXpcLaunchAgent' => {
+              'ok': true,
+              'backend': 'helper',
+              'helperInstalled': true,
+              'helperRunning': false,
+              'terminatedForXpcLaunchAgent': true,
+            },
             'registerXpcLaunchAgent' => {
               'ok': true,
               'backend': 'helper',
@@ -89,6 +96,9 @@ void main() {
           jsonDecode(await transport.launchHelper()) as Map<String, dynamic>;
       final restart =
           jsonDecode(await transport.restartHelper()) as Map<String, dynamic>;
+      final terminated =
+          jsonDecode(await transport.terminateHelperForXpcLaunchAgent())
+              as Map<String, dynamic>;
       final register =
           jsonDecode(await transport.registerXpcLaunchAgent())
               as Map<String, dynamic>;
@@ -110,6 +120,7 @@ void main() {
         'helperStatus',
         'launchHelper',
         'restartHelper',
+        'terminateHelperForXpcLaunchAgent',
         'registerXpcLaunchAgent',
         'unregisterXpcLaunchAgent',
         'helperPing',
@@ -121,6 +132,7 @@ void main() {
       expect(status, containsPair('helperRunning', false));
       expect(launch, containsPair('helperRunning', true));
       expect(restart, containsPair('restarted', true));
+      expect(terminated, containsPair('terminatedForXpcLaunchAgent', true));
       expect(register, containsPair('xpcLaunchAgentStatus', 'enabled'));
       expect(
         unregister,

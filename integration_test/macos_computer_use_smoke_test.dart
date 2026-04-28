@@ -6,6 +6,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
 const _strict = bool.fromEnvironment('CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT');
+const _strictXpc = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC',
+);
 const _unsafeArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED',
 );
@@ -37,6 +40,7 @@ void main() {
       'schemaVersion': 1,
       'generatedAt': DateTime.now().toIso8601String(),
       'strict': _strict,
+      'strictXpc': _strictXpc,
       'unsafeArmed': _unsafeArmed,
       'unsafeClickArmed': _unsafeClickArmed,
       'unsafeTextArmed': _unsafeTextArmed,
@@ -87,20 +91,57 @@ void main() {
         'XPC LaunchAgent registration is opt-in for live smoke.',
       );
     }
-    final launch = await _runStep(
-      steps,
-      'launch_helper',
-      'Launch Caverno Computer Use',
-      service.launchHelper,
-    );
-    await tester.pump(const Duration(milliseconds: 500));
-    final restart = await _runStep(
-      steps,
-      'restart_helper',
-      'Restart Caverno Computer Use',
-      service.restartHelper,
-    );
-    await tester.pump(const Duration(milliseconds: 800));
+    Map<String, dynamic>? xpcAgentLaunchReset;
+    if (_strictXpc && _registerXpcAgent) {
+      xpcAgentLaunchReset = await _runStep(
+        steps,
+        'terminate_helper_for_xpc_launch_agent',
+        'Terminate helper before LaunchAgent XPC probe',
+        service.terminateHelperForXpcLaunchAgent,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+    } else {
+      _skipStep(
+        steps,
+        'terminate_helper_for_xpc_launch_agent',
+        'Terminate helper before LaunchAgent XPC probe',
+        'Strict XPC smoke is not enabled.',
+      );
+    }
+    Map<String, dynamic>? launch;
+    if (_strictXpc && _registerXpcAgent) {
+      _skipStep(
+        steps,
+        'launch_helper',
+        'Launch Caverno Computer Use',
+        'LaunchAgent owns helper startup for strict XPC smoke.',
+      );
+    } else {
+      launch = await _runStep(
+        steps,
+        'launch_helper',
+        'Launch Caverno Computer Use',
+        service.launchHelper,
+      );
+      await tester.pump(const Duration(milliseconds: 500));
+    }
+    Map<String, dynamic>? restart;
+    if (_strictXpc && _registerXpcAgent) {
+      _skipStep(
+        steps,
+        'restart_helper',
+        'Restart Caverno Computer Use',
+        'LaunchAgent owns helper startup for strict XPC smoke.',
+      );
+    } else {
+      restart = await _runStep(
+        steps,
+        'restart_helper',
+        'Restart Caverno Computer Use',
+        service.restartHelper,
+      );
+      await tester.pump(const Duration(milliseconds: 800));
+    }
     final readiness = await _runStep(
       steps,
       'wait_helper_ipc_ready',
@@ -343,8 +384,11 @@ void main() {
 
     final coreOk =
         _stepPassed(helperStatus) &&
-        _stepPassed(launch) &&
-        _stepPassed(restart) &&
+        (_strictXpc && _registerXpcAgent ? true : _stepPassed(launch)) &&
+        (_strictXpc && _registerXpcAgent ? true : _stepPassed(restart)) &&
+        (_strictXpc && _registerXpcAgent
+            ? _stepPassed(xpcAgentLaunchReset)
+            : true) &&
         _stepPassed(readiness) &&
         _stepPassed(ping) &&
         _stepPassed(permissions) &&
@@ -363,7 +407,12 @@ void main() {
     report['ok'] = _strict ? coreOk && captureOk : coreOk;
     report['coreOk'] = coreOk;
     report['captureOk'] = captureOk;
-    report['restartOk'] = _stepPassed(restart);
+    report['restartOk'] = _strictXpc && _registerXpcAgent
+        ? null
+        : _stepPassed(restart);
+    report['xpcAgentLaunchResetOk'] = _strictXpc && _registerXpcAgent
+        ? _stepPassed(xpcAgentLaunchReset)
+        : null;
     report['ipcReadyOk'] = _stepPassed(readiness);
     report['xpcAgentRegistrationOk'] = _registerXpcAgent
         ? _stepPassed(xpcAgentRegistration)
@@ -372,7 +421,11 @@ void main() {
         ? _namedXpcConnected(xpcProductionProbe)
         : null;
     report['xpcAgentCleanupOk'] = _cleanupXpcAgent
-        ? _stepPassed(xpcAgentCleanup)
+        ? _stepPassed(xpcAgentCleanup) &&
+              _xpcLaunchAgentNotRegistered(xpcAgentCleanup)
+        : null;
+    report['xpcAgentCleanupVerified'] = _cleanupXpcAgent
+        ? _xpcLaunchAgentNotRegistered(xpcAgentCleanup)
         : null;
     report['xpcProductionOk'] = xpcProductionOk;
     report['permissionSummary'] = {
@@ -410,6 +463,13 @@ void main() {
     if (_strict && _registerXpcAgent && !xpcProductionOk) {
       report['ok'] = false;
     }
+    if (_strictXpc) {
+      report['ok'] =
+          report['ok'] == true &&
+          _registerXpcAgent &&
+          xpcProductionOk &&
+          (!_cleanupXpcAgent || _xpcLaunchAgentNotRegistered(xpcAgentCleanup));
+    }
     _printReport(report);
 
     if (_strict) {
@@ -426,6 +486,25 @@ void main() {
           isTrue,
           reason:
               'Registered LaunchAgent smoke runs must reach production-ready named XPC.',
+        );
+      }
+    }
+    if (_strictXpc) {
+      expect(
+        _registerXpcAgent,
+        isTrue,
+        reason: 'Strict XPC smoke requires LaunchAgent registration.',
+      );
+      expect(
+        xpcProductionOk,
+        isTrue,
+        reason: 'Strict XPC smoke must reach production-ready named XPC.',
+      );
+      if (_cleanupXpcAgent) {
+        expect(
+          _xpcLaunchAgentNotRegistered(xpcAgentCleanup),
+          isTrue,
+          reason: 'Strict XPC cleanup must leave the LaunchAgent unregistered.',
         );
       }
     }
@@ -773,6 +852,13 @@ bool _namedXpcConnected(Map<String, dynamic>? response) {
   return response != null &&
       response['selectedIpcTransport'] == 'xpc_service' &&
       response['ok'] != false;
+}
+
+bool _xpcLaunchAgentNotRegistered(Map<String, dynamic>? response) {
+  return response != null &&
+      response['xpcLaunchAgentRegistered'] != true &&
+      response['xpcLaunchAgentEnabled'] != true &&
+      response['xpcLaunchAgentStatus'] == 'not_registered';
 }
 
 List<String> _stringList(Object? value) {

@@ -213,6 +213,16 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   }
 
   @override
+  Future<String> terminateHelperForXpcLaunchAgent() async {
+    calledMethods.add('terminateHelperForXpcLaunchAgent');
+    return jsonEncode({
+      'ok': true,
+      'helperRunning': false,
+      'terminatedForXpcLaunchAgent': true,
+    });
+  }
+
+  @override
   Future<String> registerXpcLaunchAgent() async {
     calledMethods.add('registerXpcLaunchAgent');
     return jsonEncode({'ok': true, 'xpcLaunchAgentStatus': 'enabled'});

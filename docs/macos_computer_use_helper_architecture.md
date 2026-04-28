@@ -113,10 +113,14 @@ Use the opt-in live smoke registration path to measure the launchd gate:
 The report includes `register_xpc_launch_agent`, `xpc_production_probe`, and
 `xpcProductionGate`. A production-ready result requires the LaunchAgent to be
 registered, the named XPC probe to connect without fallback, and
-`xpcNextParityCommands` to stay empty. Add `--strict` to fail the smoke when
-the registered LaunchAgent does not reach production-ready named XPC. Add
+`xpcNextParityCommands` to stay empty. Add `--strict-xpc` to fail the smoke
+when the registered LaunchAgent does not reach production-ready named XPC while
+leaving screenshot and unsafe-operation gates permission-aware. Add
 `--cleanup-xpc-agent` when a run should unregister the LaunchAgent after the
-production gate has been measured.
+production gate has been measured. Add `--release` to run the same gate through
+the release bundle artifact checks. Flutter Driver does not support release-mode
+desktop correctness runs, so runtime named-XPC smoke should use debug or
+profile mode.
 
 Release builds should use the same embedded helper and LaunchAgent layout as
 debug builds. Before notarization work, run:
@@ -125,7 +129,15 @@ debug builds. Before notarization work, run:
 
 Then verify `Caverno.app` still contains
 `Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist` and
-`Contents/Helpers/Caverno Computer Use.app`.
+`Contents/Helpers/Caverno Computer Use.app`. To verify the release app carries
+the helper, LaunchAgent plist, Mach service declaration, and valid signature,
+run:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --release --strict-xpc --cleanup-xpc-agent`
+
+To exercise named XPC with a built app runtime, run:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --profile --strict-xpc --cleanup-xpc-agent`
 
 Initial commands:
 
@@ -217,8 +229,8 @@ reachable and the required macOS permissions are granted.
    `mainAppUnsafeOsActionsAllowed=false`, and `stop_helper_work` succeeds.
 3. Measure LaunchAgent registration and named XPC reachability:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent`.
-4. For a strict production gate, add `--strict`; for a temporary registration,
-   add `--cleanup-xpc-agent`.
+4. For an XPC-only strict production gate, add `--strict-xpc`; for a temporary
+   registration, add `--cleanup-xpc-agent`.
 5. Grant Accessibility and Screen & System Audio Recording to
    `Caverno Computer Use`.
 6. Run input and audio checks without clicks:
