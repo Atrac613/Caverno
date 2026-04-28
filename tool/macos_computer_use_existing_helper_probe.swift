@@ -30,6 +30,7 @@ private struct Config {
   var requireInputReady = false
   var requireAudioResolved = false
   var requireHelperPathMatch = false
+  var replaceMismatchedHelper = false
 }
 
 private final class HelperProbeClient: NSObject {
@@ -170,6 +171,8 @@ private func parseConfig(arguments: [String]) -> Config {
       config.requireAudioResolved = true
     case "--require-helper-path-match":
       config.requireHelperPathMatch = true
+    case "--replace-helper":
+      config.replaceMismatchedHelper = true
     default:
       fatalError("Unknown option: \(arguments[index])")
     }
@@ -220,6 +223,20 @@ private func waitForRunningApplication(
     RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
   }
   return runningApplication(bundleIdentifier: bundleIdentifier)
+}
+
+private func waitForNoRunningApplication(
+  bundleIdentifier: String,
+  timeout: TimeInterval
+) -> Bool {
+  let deadline = Date().addingTimeInterval(timeout)
+  while Date() < deadline {
+    if runningApplication(bundleIdentifier: bundleIdentifier) == nil {
+      return true
+    }
+    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+  }
+  return runningApplication(bundleIdentifier: bundleIdentifier) == nil
 }
 
 private func runStep(
@@ -299,7 +316,28 @@ private let config = parseConfig(arguments: Array(CommandLine.arguments.dropFirs
 let fileManager = FileManager.default
 let appExists = fileManager.fileExists(atPath: config.appPath)
 let helperExists = fileManager.fileExists(atPath: config.helperPath)
+let configuredHelperPath = URL(fileURLWithPath: config.helperPath).standardizedFileURL.path
 var launchEvents: [[String: Any]] = []
+
+if config.replaceMismatchedHelper,
+  let helper = runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier) {
+  let runningPath = helper.bundleURL?.standardizedFileURL.path
+  if runningPath != configuredHelperPath {
+    let terminated = helper.terminate()
+    let stopped = waitForNoRunningApplication(
+      bundleIdentifier: Ipc.helperBundleIdentifier,
+      timeout: 4
+    )
+    launchEvents.append([
+      "role": "helper_replace",
+      "terminated": terminated,
+      "stopped": stopped,
+      "previousPath": jsonValue(runningPath),
+      "expectedPath": configuredHelperPath,
+      "previousProcessIdentifier": Int(helper.processIdentifier),
+    ])
+  }
+}
 
 if config.launchMissingApps && appExists &&
   runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier) == nil {
@@ -422,9 +460,8 @@ let captureReady = (displayScreenshot["ok"] as? Bool ?? false) &&
   (windowCapture["ok"] as? Bool ?? false)
 let inputReady = accessibilityGranted
 let audioResolved = !audioSupported || screenCaptureGranted
-let expectedHelperPath = URL(fileURLWithPath: config.helperPath).standardizedFileURL.path
 let helperPathMatchesExpected = runningHelperPath == nil ||
-  runningHelperPath == expectedHelperPath
+  runningHelperPath == configuredHelperPath
 let requiredChecks: [[String: Any]] = [
   [
     "id": "capture_ready",
@@ -460,6 +497,7 @@ let report: [String: Any] = [
   "schemaVersion": 1,
   "generatedAt": ISO8601DateFormatter().string(from: Date()),
   "noRebuild": true,
+  "replaceMismatchedHelper": config.replaceMismatchedHelper,
   "ok": ok,
   "coreOk": coreOk,
   "captureReady": captureReady,
@@ -477,7 +515,7 @@ let report: [String: Any] = [
   ],
   "helper": [
     "bundleIdentifier": Ipc.helperBundleIdentifier,
-    "expectedPath": expectedHelperPath,
+    "expectedPath": configuredHelperPath,
     "exists": helperExists,
     "running": helperProcessIdentifier != nil,
     "processIdentifier": jsonValue(helperProcessIdentifier),

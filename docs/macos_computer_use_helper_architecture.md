@@ -114,6 +114,8 @@ M1 sign-off checklist:
 - Add `--require-helper-path-match` to the existing-helper probe when the
   sign-off must prove that the currently running helper is the same bundle path
   Caverno will launch.
+- Add `--replace-helper` when the probe should terminate a running helper from
+  a different path and launch the configured helper path before checking.
 
 The drag/drop sign-off is intentionally manual. Adding the helper to macOS
 privacy lists changes system privacy settings, so it must only happen after an
@@ -134,6 +136,19 @@ Manual sign-off notes:
 - Drag/drop tile acceptance remains a separate hands-on check. The successful
   permission grant above used the macOS Add flow because the running debug
   helper path must match the exact helper bundle that macOS records in TCC.
+
+Drag/drop sign-off runbook:
+
+- Run `bash tool/run_macos_computer_use_existing_helper_probe.sh --replace-helper --require-helper-path-match`
+  and confirm the running helper path is the helper bundle intended for
+  sign-off.
+- If the path check passes but permissions are missing, grant that exact helper
+  bundle in System Settings before continuing.
+- Run `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` to
+  show both overlays and confirm `draggableTileReady` is true.
+- Drag the overlay tile into Accessibility and Screen & System Audio Recording.
+  Record whether macOS accepts the drop, requests Quit & Reopen, or requires the
+  standard Add flow fallback.
 
 Follow-on milestones:
 

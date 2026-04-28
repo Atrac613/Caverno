@@ -572,6 +572,29 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     });
   }
 
+  @override
+  Future<String> getLastExistingHelperProbeReport() async {
+    return _json({
+      'ok': true,
+      'path': '/tmp/caverno-macos-computer-use-existing-helper-probe.json',
+      'report': {
+        'ok': true,
+        'noRebuild': true,
+        'captureReady': true,
+        'inputReady': true,
+        'helperPathMatchesExpected': true,
+        'failedRequiredChecks': <String>[],
+        'helper': {
+          'expectedPath':
+              '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+          'runningPath':
+              '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+          'pathMatchesExpected': true,
+        },
+      },
+    });
+  }
+
   Map<String, dynamic> get _persistence => {
     'updatedAt': '2026-04-25T12:00:30Z',
     'activeWork': {'systemAudioRecording': false},

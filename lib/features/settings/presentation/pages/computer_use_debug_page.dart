@@ -41,6 +41,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
   Map<String, dynamic>? _lastLiveSmokeReport;
+  Map<String, dynamic>? _lastExistingHelperProbeReport;
   List<Map<String, dynamic>> _windows = const [];
   int? _selectedWindowId;
   _CoordinateTarget? _coordinateTarget;
@@ -170,6 +171,23 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               falseLabel: 'Unreachable',
               unknownLabel: 'Unknown',
             ),
+            if (_helperStatus?['helperPathMismatch'] == true) ...[
+              const SizedBox(height: 8),
+              _OnboardingNote(
+                icon: Icons.route_outlined,
+                title: 'Helper Path Mismatch',
+                body:
+                    'Running: ${_shortPath('${_helperStatus?['runningHelperPath']}')} | Expected: ${_shortPath('${_helperStatus?['embeddedHelperPath'] ?? _helperStatus?['helperPath']}')}',
+              ),
+            ],
+            if (_existingHelperProbeSummary() != null) ...[
+              const SizedBox(height: 8),
+              _OnboardingNote(
+                icon: Icons.fact_check_outlined,
+                title: 'Existing Helper Probe',
+                body: _existingHelperProbeSummary()!,
+              ),
+            ],
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -897,6 +915,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final nextHelperStatus = <String, dynamic>{...?_helperStatus};
     Map<String, dynamic>? nextPermissions;
     Map<String, dynamic>? nextLiveSmokeReport;
+    Map<String, dynamic>? nextExistingHelperProbeReport;
 
     try {
       for (final raw in [
@@ -914,6 +933,9 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       nextLiveSmokeReport = _liveSmokeReportFrom(
         _decodeMap(await service.getLastLiveSmokeReport()),
       );
+      nextExistingHelperProbeReport = _liveSmokeReportFrom(
+        _decodeMap(await service.getLastExistingHelperProbeReport()),
+      );
     } catch (error) {
       nextHelperStatus.addAll({'ok': false, 'error': error.toString()});
     }
@@ -929,6 +951,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         _storePermissions(nextPermissions);
       }
       _lastLiveSmokeReport = nextLiveSmokeReport;
+      _lastExistingHelperProbeReport = nextExistingHelperProbeReport;
     });
   }
 
@@ -1390,6 +1413,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastResult: _lastResultForDiagnostics,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       lastLiveSmokeReport: _lastLiveSmokeReport,
+      lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
   }
@@ -1500,6 +1524,48 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           .toList();
     }
     return const [];
+  }
+
+  String _shortPath(String path) {
+    final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+    if (parts.length <= 4) {
+      return path;
+    }
+    return '.../${parts.sublist(parts.length - 4).join('/')}';
+  }
+
+  Map<String, dynamic>? _reportBody(Map<String, dynamic>? envelope) {
+    if (envelope == null) {
+      return null;
+    }
+    final report = envelope['report'];
+    if (report is Map) {
+      return Map<String, dynamic>.from(report);
+    }
+    return envelope;
+  }
+
+  String? _existingHelperProbeSummary() {
+    final report = _reportBody(_lastExistingHelperProbeReport);
+    if (report == null) {
+      return null;
+    }
+    final helper = report['helper'];
+    final helperMap = helper is Map ? Map<String, dynamic>.from(helper) : null;
+    final ok = report['ok'] == true;
+    final captureReady = report['captureReady'] == true;
+    final pathMatches =
+        report['helperPathMatchesExpected'] == true ||
+        helperMap?['pathMatchesExpected'] == true;
+    final failedChecks = _stringList(report['failedRequiredChecks']);
+    final path = _lastExistingHelperProbeReport?['path'];
+    return [
+      ok ? 'passed' : 'failed',
+      'capture ${captureReady ? 'ready' : 'blocked'}',
+      'path ${pathMatches ? 'matched' : 'mismatch'}',
+      if (failedChecks.isNotEmpty) 'failed ${failedChecks.join(', ')}',
+      if (path is String) _shortPath(path),
+    ].join(' | ');
   }
 
   List<Map<String, String>> _migratedCommands() {

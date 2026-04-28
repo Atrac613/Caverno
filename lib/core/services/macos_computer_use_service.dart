@@ -27,6 +27,10 @@ class MacosComputerUseService {
     'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH',
     defaultValue: '/tmp/caverno-macos-computer-use-smoke.json',
   );
+  static const existingHelperProbeReportPath = String.fromEnvironment(
+    'CAVERNO_MACOS_COMPUTER_USE_EXISTING_HELPER_REPORT_PATH',
+    defaultValue: '/tmp/caverno-macos-computer-use-existing-helper-probe.json',
+  );
 
   final MacosComputerUsePermissionTransport _permissionTransport;
 
@@ -192,25 +196,61 @@ class MacosComputerUseService {
   }
 
   Future<String> getLastLiveSmokeReport() async {
+    return _readJsonReport(
+      path: liveSmokeReportPath,
+      unsupportedError:
+          'macOS computer use live smoke reports are only available on macOS.',
+      missingCode: 'live_smoke_report_missing',
+      missingError:
+          'No macOS computer use live smoke report has been written yet.',
+      invalidCode: 'live_smoke_report_invalid',
+      invalidError:
+          'The macOS computer use live smoke report is not a JSON object.',
+      readFailedCode: 'live_smoke_report_read_failed',
+    );
+  }
+
+  Future<String> getLastExistingHelperProbeReport() async {
+    return _readJsonReport(
+      path: existingHelperProbeReportPath,
+      unsupportedError:
+          'macOS computer use existing-helper probe reports are only available on macOS.',
+      missingCode: 'existing_helper_probe_report_missing',
+      missingError:
+          'No macOS computer use existing-helper probe report has been written yet.',
+      invalidCode: 'existing_helper_probe_report_invalid',
+      invalidError:
+          'The macOS computer use existing-helper probe report is not a JSON object.',
+      readFailedCode: 'existing_helper_probe_report_read_failed',
+    );
+  }
+
+  Future<String> _readJsonReport({
+    required String path,
+    required String unsupportedError,
+    required String missingCode,
+    required String missingError,
+    required String invalidCode,
+    required String invalidError,
+    required String readFailedCode,
+  }) async {
     if (!Platform.isMacOS) {
       return jsonEncode({
         'ok': false,
         'code': 'unsupported_platform',
-        'error':
-            'macOS computer use live smoke reports are only available on macOS.',
-        'path': liveSmokeReportPath,
+        'error': unsupportedError,
+        'path': path,
       });
     }
 
-    final file = File(liveSmokeReportPath);
+    final file = File(path);
     try {
       if (!await file.exists()) {
         return jsonEncode({
           'ok': false,
-          'code': 'live_smoke_report_missing',
-          'error':
-              'No macOS computer use live smoke report has been written yet.',
-          'path': liveSmokeReportPath,
+          'code': missingCode,
+          'error': missingError,
+          'path': path,
         });
       }
 
@@ -219,23 +259,22 @@ class MacosComputerUseService {
       if (decoded is Map) {
         return jsonEncode({
           'ok': true,
-          'path': liveSmokeReportPath,
+          'path': path,
           'report': Map<String, dynamic>.from(decoded),
         });
       }
       return jsonEncode({
         'ok': false,
-        'code': 'live_smoke_report_invalid',
-        'error':
-            'The macOS computer use live smoke report is not a JSON object.',
-        'path': liveSmokeReportPath,
+        'code': invalidCode,
+        'error': invalidError,
+        'path': path,
       });
     } catch (error) {
       return jsonEncode({
         'ok': false,
-        'code': 'live_smoke_report_read_failed',
+        'code': readFailedCode,
         'error': error.toString(),
-        'path': liveSmokeReportPath,
+        'path': path,
       });
     }
   }

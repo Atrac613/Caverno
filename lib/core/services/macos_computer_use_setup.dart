@@ -313,6 +313,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.lastResult,
     this.auditLog = const [],
     this.lastLiveSmokeReport,
+    this.lastExistingHelperProbeReport,
     this.lastDiagnosticExportPath,
   });
 
@@ -347,6 +348,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Object? lastResult;
   final List<Map<String, dynamic>> auditLog;
   final Map<String, dynamic>? lastLiveSmokeReport;
+  final Map<String, dynamic>? lastExistingHelperProbeReport;
   final String? lastDiagnosticExportPath;
 
   Map<String, dynamic> toJson() {
@@ -381,6 +383,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'lastResult': lastResult,
       'auditLog': auditLog,
       'lastLiveSmokeReport': lastLiveSmokeReport,
+      'lastExistingHelperProbeReport': lastExistingHelperProbeReport,
       if (lastDiagnosticExportPath != null)
         'lastDiagnosticExportPath': lastDiagnosticExportPath,
     };

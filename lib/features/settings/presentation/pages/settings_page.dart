@@ -343,6 +343,7 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _lastPermissionSettingsResult;
   Map<String, dynamic>? _lastPermissionOverlayResult;
   Map<String, dynamic>? _lastLiveSmokeReport;
+  Map<String, dynamic>? _lastExistingHelperProbeReport;
   String? _lastPrimaryActionLabel;
   String? _lastDiagnosticExportPath;
 
@@ -961,6 +962,9 @@ class _ComputerUseOnboardingCardState
       final nextLiveSmokeReport = _liveSmokeReportFrom(
         _decodeMap(await service.getLastLiveSmokeReport()),
       );
+      final nextExistingHelperProbeReport = _liveSmokeReportFrom(
+        _decodeMap(await service.getLastExistingHelperProbeReport()),
+      );
       if (!mounted) {
         return;
       }
@@ -970,6 +974,7 @@ class _ComputerUseOnboardingCardState
           _permissions = nextPermissions;
         }
         _lastLiveSmokeReport = nextLiveSmokeReport;
+        _lastExistingHelperProbeReport = nextExistingHelperProbeReport;
       });
     } finally {
       if (mounted) {
@@ -1051,11 +1056,13 @@ class _ComputerUseOnboardingCardState
         'helperIpcRuntime': _helperIpcRuntime(),
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
+        'lastExistingHelperProbeReport': _lastExistingHelperProbeReport,
         'lastStopResult': _lastStopResult,
         'lastPermissionSettingsResult': _lastPermissionSettingsResult,
         'lastPermissionOverlayResult': _lastPermissionOverlayResult,
       },
       lastLiveSmokeReport: _lastLiveSmokeReport,
+      lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
   }
@@ -1177,6 +1184,9 @@ class _ComputerUseOnboardingCardState
       snapshot.addAll(_helperStatus!);
     }
     final liveSmokeReport = _liveSmokeReportBody(_lastLiveSmokeReport);
+    final existingHelperProbeReport = _liveSmokeReportBody(
+      _lastExistingHelperProbeReport,
+    );
     final signingDiagnostics = _mapValue(
       liveSmokeReport?['signingDiagnostics'],
     );
@@ -1315,6 +1325,40 @@ class _ComputerUseOnboardingCardState
           preferredAttempt != null &&
           preferredTransport != fallbackTransport,
     };
+    for (final key in const [
+      'embeddedHelperPath',
+      'helperLaunchPath',
+      'helperPath',
+      'runningHelperPath',
+      'helperPathMatchesRunningHelper',
+      'helperPathMismatch',
+      'helperPathMismatchDetails',
+      'alreadyRunningPathMismatch',
+    ]) {
+      if (snapshot.containsKey(key)) {
+        runtime[key] = snapshot[key];
+      }
+    }
+    if (existingHelperProbeReport != null) {
+      final helper = _mapValue(existingHelperProbeReport['helper']);
+      runtime['existingHelperProbe'] = existingHelperProbeReport;
+      runtime['existingHelperProbeOk'] = existingHelperProbeReport['ok'];
+      runtime['existingHelperProbePath'] =
+          _lastExistingHelperProbeReport?['path'];
+      runtime['existingHelperProbeCaptureReady'] =
+          existingHelperProbeReport['captureReady'];
+      runtime['existingHelperProbeInputReady'] =
+          existingHelperProbeReport['inputReady'];
+      runtime['existingHelperProbeHelperPathMatchesExpected'] =
+          existingHelperProbeReport['helperPathMatchesExpected'] ??
+          helper?['pathMatchesExpected'];
+      runtime['existingHelperProbeExpectedHelperPath'] =
+          helper?['expectedPath'];
+      runtime['existingHelperProbeRunningHelperPath'] = helper?['runningPath'];
+      runtime['existingHelperProbeFailedRequiredChecks'] = _stringListValue(
+        existingHelperProbeReport['failedRequiredChecks'],
+      );
+    }
     if (preferredAttemptStatus != null) {
       runtime['preferredAttemptStatus'] = preferredAttemptStatus;
     }
@@ -1922,6 +1966,23 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
     final namedServiceConnected = runtime['xpcNamedServiceConnected'] == true;
+    final helperPathMismatch = runtime['helperPathMismatch'] == true;
+    final helperPathMatchesRunning =
+        runtime['helperPathMatchesRunningHelper'] == true;
+    final embeddedHelperPath = _stringValue(runtime['embeddedHelperPath']);
+    final runningHelperPath = _stringValue(runtime['runningHelperPath']);
+    final existingProbeOk = runtime['existingHelperProbeOk'];
+    final existingProbePathMatch =
+        runtime['existingHelperProbeHelperPathMatchesExpected'];
+    final existingProbeFailedChecks = _stringList(
+      runtime['existingHelperProbeFailedRequiredChecks'],
+    );
+    final existingProbeExpectedPath = _stringValue(
+      runtime['existingHelperProbeExpectedHelperPath'],
+    );
+    final existingProbeRunningPath = _stringValue(
+      runtime['existingHelperProbeRunningHelperPath'],
+    );
     final xpcListenerStarted =
         xpcRuntimeDiagnostics?['xpcListenerStarted'] == true;
     final xpcListenerStartAttempted =
@@ -2005,6 +2066,50 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Runtime blockers',
                 value: xpcRuntimeBlockers.join(', '),
+              ),
+            if (runtime.containsKey('helperPathMatchesRunningHelper'))
+              _InfoChip(
+                label: 'Helper path',
+                value: helperPathMismatch
+                    ? 'mismatch'
+                    : helperPathMatchesRunning
+                    ? 'matched'
+                    : 'unknown',
+              ),
+            if (embeddedHelperPath != null)
+              _InfoChip(
+                label: 'Embedded helper',
+                value: _shortPath(embeddedHelperPath),
+              ),
+            if (runningHelperPath != null)
+              _InfoChip(
+                label: 'Running helper',
+                value: _shortPath(runningHelperPath),
+              ),
+            if (existingProbeOk is bool)
+              _InfoChip(
+                label: 'Existing probe',
+                value: existingProbeOk ? 'passed' : 'failed',
+              ),
+            if (existingProbePathMatch is bool)
+              _InfoChip(
+                label: 'Probe helper path',
+                value: existingProbePathMatch ? 'matched' : 'mismatch',
+              ),
+            if (existingProbeExpectedPath != null)
+              _InfoChip(
+                label: 'Probe expected helper',
+                value: _shortPath(existingProbeExpectedPath),
+              ),
+            if (existingProbeRunningPath != null)
+              _InfoChip(
+                label: 'Probe running helper',
+                value: _shortPath(existingProbeRunningPath),
+              ),
+            if (existingProbeFailedChecks.isNotEmpty)
+              _InfoChip(
+                label: 'Probe failed checks',
+                value: existingProbeFailedChecks.join(', '),
               ),
             if (permissionGate != null)
               _InfoChip(
