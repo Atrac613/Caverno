@@ -144,6 +144,13 @@ explicit action-time confirmation from the person operating the Mac.
 
 Manual sign-off notes:
 
+- 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --overlay-smoke`
+  passed after the tile-target transition update. Both Accessibility and Screen
+  & System Audio Recording overlays reported `overlayShown`,
+  `draggableTileReady`, and matching permission identifiers. The current debug
+  helper path still needs Screen Recording before capture readiness can pass,
+  and the onboarding transition gate still requires an action-time `Allow`
+  click.
 - 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay`
   passed with both permission overlays reporting `overlayShown` and
   `draggableTileReady`.
