@@ -85,7 +85,8 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       overlayWindowLevel: controller.window?.level.rawValue,
       overlayPlacement: controller.overlayPlacement,
       helperBundlePath: helperBundleURL.path,
-      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path)
+      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
+      dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
     )
   }
 
@@ -396,6 +397,7 @@ fileprivate struct PermissionOverlayPresentation {
   let overlayPlacement: String
   let helperBundlePath: String
   let draggableTileReady: Bool
+  let dragPasteboardTypes: [String]
 
   static func missingDelegate() -> PermissionOverlayPresentation {
     let helperBundleURL = Bundle.main.bundleURL
@@ -405,7 +407,8 @@ fileprivate struct PermissionOverlayPresentation {
       overlayWindowLevel: nil,
       overlayPlacement: "delegate_unavailable",
       helperBundlePath: helperBundleURL.path,
-      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path)
+      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
+      dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
     )
   }
 
@@ -416,6 +419,7 @@ fileprivate struct PermissionOverlayPresentation {
       "overlayPlacement": overlayPlacement,
       "helperBundlePath": helperBundlePath,
       "draggableTileReady": draggableTileReady,
+      "dragPasteboardTypes": dragPasteboardTypes,
     ]
     if let overlayWindowLevel {
       map["overlayWindowLevel"] = overlayWindowLevel
@@ -692,6 +696,14 @@ private final class PermissionOverlayWindowController: NSWindowController {
 }
 
 private final class HelperBundleDragTileView: NSView, NSDraggingSource {
+  static let dragPasteboardTypes: [NSPasteboard.PasteboardType] = [
+    .fileURL,
+    .URL,
+    .string,
+    NSPasteboard.PasteboardType("NSURLPboardType"),
+  ]
+  static let dragPasteboardTypeNames = dragPasteboardTypes.map(\.rawValue)
+
   private let helperBundleURL: URL
 
   init(helperBundleURL: URL) {
@@ -711,7 +723,15 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
   }
 
   override func mouseDragged(with event: NSEvent) {
-    let draggingItem = NSDraggingItem(pasteboardWriter: helperBundleURL as NSURL)
+    let pasteboardItem = NSPasteboardItem()
+    pasteboardItem.setString(helperBundleURL.absoluteString, forType: .fileURL)
+    pasteboardItem.setString(helperBundleURL.absoluteString, forType: .URL)
+    pasteboardItem.setString(helperBundleURL.path, forType: .string)
+    pasteboardItem.setString(
+      helperBundleURL.absoluteString,
+      forType: NSPasteboard.PasteboardType("NSURLPboardType")
+    )
+    let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
     draggingItem.setDraggingFrame(bounds, contents: draggingImage())
     beginDraggingSession(with: [draggingItem], event: event, source: self)
   }

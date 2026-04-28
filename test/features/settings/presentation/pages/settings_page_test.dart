@@ -150,6 +150,7 @@ void main() {
     expect(find.text('Capture smoke: blocked'), findsOneWidget);
     expect(find.text('Input smoke: not_armed'), findsOneWidget);
     expect(find.text('System audio smoke: not_armed'), findsOneWidget);
+    expect(find.text('Overlay smoke: not_run'), findsAtLeastNWidgets(1));
     expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
@@ -205,6 +206,7 @@ void main() {
     expect(find.text('Input blockers: unsafe_smoke_not_armed'), findsOneWidget);
     expect(find.text('Audio gate: not_armed'), findsOneWidget);
     expect(find.text('Audio blockers: unsafe_smoke_not_armed'), findsOneWidget);
+    expect(find.text('Overlay smoke: not_run'), findsAtLeastNWidgets(1));
     expect(find.text('Unsafe action gate: not_armed'), findsOneWidget);
     expect(
       find.text(
@@ -684,6 +686,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'blockers': ['unsafe_smoke_not_armed'],
           'nextAction':
               'Rerun smoke with unsafe arming for system audio checks.',
+        },
+        'overlaySmoke': {
+          'status': 'not_run',
+          'required': false,
+          'blockers': <String>[],
+          'nextAction':
+              'Rerun smoke with --overlay-smoke or --require-overlay to validate the permission overlay.',
         },
         'unsafeActionGate': {
           'status': 'not_armed',

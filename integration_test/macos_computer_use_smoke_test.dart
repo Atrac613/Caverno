@@ -27,6 +27,12 @@ const _requireInputReady = bool.fromEnvironment(
 const _requireAudioResolved = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_AUDIO_RESOLVED',
 );
+const _runOverlaySmoke = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_RUN_OVERLAY',
+);
+const _requireOverlayReady = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OVERLAY_READY',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -56,6 +62,8 @@ void main() {
       'requireCaptureReady': _requireCaptureReady,
       'requireInputReady': _requireInputReady,
       'requireAudioResolved': _requireAudioResolved,
+      'runOverlaySmoke': _runOverlaySmoke,
+      'requireOverlayReady': _requireOverlayReady,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -191,6 +199,37 @@ void main() {
       'Read helper-owned permission status',
       service.getPermissions,
     );
+    Map<String, dynamic>? accessibilityOverlay;
+    Map<String, dynamic>? screenRecordingOverlay;
+    if (_runOverlaySmoke) {
+      accessibilityOverlay = await _runStep(
+        steps,
+        'permission_overlay_accessibility',
+        'Show Accessibility permission overlay',
+        () => service.showPermissionOverlay(permission: 'accessibility'),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+      screenRecordingOverlay = await _runStep(
+        steps,
+        'permission_overlay_screen_recording',
+        'Show Screen & System Audio Recording permission overlay',
+        () => service.showPermissionOverlay(permission: 'screenRecording'),
+      );
+      await tester.pump(const Duration(milliseconds: 300));
+    } else {
+      _skipStep(
+        steps,
+        'permission_overlay_accessibility',
+        'Show Accessibility permission overlay',
+        'Overlay smoke is opt-in. Rerun with --overlay-smoke or --require-overlay.',
+      );
+      _skipStep(
+        steps,
+        'permission_overlay_screen_recording',
+        'Show Screen & System Audio Recording permission overlay',
+        'Overlay smoke is opt-in. Rerun with --overlay-smoke or --require-overlay.',
+      );
+    }
     final displayScreenshot = await _runStep(
       steps,
       'display_screenshot',
@@ -446,6 +485,11 @@ void main() {
       'systemAudioRecordingSupported':
           permissions?['systemAudioRecordingSupported'],
     };
+    report['overlaySmoke'] = _overlaySmokeSummary(
+      accessibilityOverlay: accessibilityOverlay,
+      screenRecordingOverlay: screenRecordingOverlay,
+      runOverlaySmoke: _runOverlaySmoke,
+    );
     report['permissionGate'] = _permissionGate(permissions);
     report['captureGate'] = _captureGate(steps, permissions: permissions);
     report['inputGate'] = _inputGate(
@@ -545,6 +589,14 @@ void main() {
         isTrue,
         reason:
             'Audio gate must be ready or unsupported when audio resolution is required.',
+      );
+    }
+    if (_requireOverlayReady) {
+      expect(
+        _gateReady(report['overlaySmoke']),
+        isTrue,
+        reason:
+            'Overlay smoke must show both permission overlays with a draggable helper tile.',
       );
     }
     if (_strictXpc) {
@@ -900,6 +952,78 @@ Map<String, dynamic> _permissionGateEntry({
     'granted': granted,
     'status': granted ? 'granted' : 'expected_block',
     if (!granted) 'blockedBy': blocker,
+  };
+}
+
+Map<String, dynamic> _overlaySmokeSummary({
+  required Map<String, dynamic>? accessibilityOverlay,
+  required Map<String, dynamic>? screenRecordingOverlay,
+  required bool runOverlaySmoke,
+}) {
+  if (!runOverlaySmoke) {
+    return {
+      'status': 'not_run',
+      'required': _requireOverlayReady,
+      'blockers': [if (_requireOverlayReady) 'overlay_smoke_not_run'],
+      'nextAction':
+          'Rerun smoke with --overlay-smoke or --require-overlay to validate the permission overlay.',
+    };
+  }
+
+  final accessibility = _overlaySmokeEntry(
+    'accessibility',
+    accessibilityOverlay,
+  );
+  final screenRecording = _overlaySmokeEntry(
+    'screenRecording',
+    screenRecordingOverlay,
+  );
+  final entries = [accessibility, screenRecording];
+  final blockers = <String>[
+    for (final entry in entries)
+      for (final blocker in _stringList(entry['blockers'])) blocker,
+  ];
+  final ready = blockers.isEmpty;
+  return {
+    'status': ready ? 'ready' : 'failed',
+    'required': _requireOverlayReady,
+    'accessibility': accessibility,
+    'screenRecording': screenRecording,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Permission overlays are ready for hands-on drag validation.'
+        : 'Inspect overlay response diagnostics and confirm the helper can present its floating panel.',
+  };
+}
+
+Map<String, dynamic> _overlaySmokeEntry(
+  String expectedPermission,
+  Map<String, dynamic>? response,
+) {
+  final shown = response?['overlayShown'] == true;
+  final tileReady = response?['draggableTileReady'] == true;
+  final settingsOpened = response?['settingsOpened'] == true;
+  final permission = response?['permission'];
+  final permissionMatches = permission == expectedPermission;
+  final blockers = <String>[
+    if (response == null) 'overlay_response_missing',
+    if (response != null && !settingsOpened) 'overlay_settings_not_opened',
+    if (response != null && !shown) 'overlay_window_not_shown',
+    if (response != null && !tileReady) 'overlay_tile_not_ready',
+    if (response != null && !permissionMatches) 'overlay_permission_mismatch',
+  ];
+  return {
+    'permission': expectedPermission,
+    'status': blockers.isEmpty ? 'ready' : 'failed',
+    'settingsOpened': settingsOpened,
+    'overlayShown': shown,
+    'draggableTileReady': tileReady,
+    'reportedPermission': permission,
+    'overlayPlacement': response?['overlayPlacement'],
+    'overlayMode': response?['overlayMode'],
+    'helperBundlePath': response?['helperBundlePath'],
+    'dragPasteboardTypes': _stringList(response?['dragPasteboardTypes']),
+    'blockers': blockers,
   };
 }
 
@@ -1689,6 +1813,7 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
   final captureReady = _gateReady(report['captureGate']);
   final inputReady = _gateReady(report['inputGate']);
   final audioResolved = _audioGateResolved(report['audioGate']);
+  final overlayReady = _gateReady(report['overlaySmoke']);
   final checks = [
     {
       'id': 'capture_ready',
@@ -1710,6 +1835,13 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
       'ok': !_requireAudioResolved || audioResolved,
       'status': _gateStatus(report['audioGate']),
       'nextAction': _gateNextAction(report['audioGate']),
+    },
+    {
+      'id': 'overlay_ready',
+      'required': _requireOverlayReady,
+      'ok': !_requireOverlayReady || overlayReady,
+      'status': _gateStatus(report['overlaySmoke']),
+      'nextAction': _gateNextAction(report['overlaySmoke']),
     },
   ];
   final failed = checks

@@ -410,6 +410,7 @@ class _ComputerUseOnboardingCardState
     final captureGate = _mapValue(helperIpcRuntime['captureGate']);
     final inputGate = _mapValue(helperIpcRuntime['inputGate']);
     final audioGate = _mapValue(helperIpcRuntime['audioGate']);
+    final overlaySmoke = _mapValue(helperIpcRuntime['overlaySmoke']);
     final unsafeActionGate = _mapValue(helperIpcRuntime['unsafeActionGate']);
     final xpcLaunchAgentRegistered =
         helperIpcRuntime['xpcLaunchAgentRegistered'] == true;
@@ -483,6 +484,7 @@ class _ComputerUseOnboardingCardState
               captureGate: captureGate,
               inputGate: inputGate,
               audioGate: audioGate,
+              overlaySmoke: overlaySmoke,
               unsafeActionGate: unsafeActionGate,
               hasLiveSmokeReport: _lastLiveSmokeReport != null,
             ),
@@ -1298,6 +1300,7 @@ class _ComputerUseOnboardingCardState
       'captureGate': captureGate,
       'inputGate': inputGate,
       'audioGate': audioGate,
+      'overlaySmoke': _mapValue(liveSmokeReport?['overlaySmoke']),
       'unsafeActionGate': unsafeActionGate,
       'positiveSmokeGateSummary': positiveSmokeGateSummary,
       'readinessExpectations': readinessExpectations,
@@ -1518,6 +1521,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
     required this.captureGate,
     required this.inputGate,
     required this.audioGate,
+    required this.overlaySmoke,
     required this.unsafeActionGate,
     required this.hasLiveSmokeReport,
   });
@@ -1530,6 +1534,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
   final Map<String, dynamic>? captureGate;
   final Map<String, dynamic>? inputGate;
   final Map<String, dynamic>? audioGate;
+  final Map<String, dynamic>? overlaySmoke;
   final Map<String, dynamic>? unsafeActionGate;
   final bool hasLiveSmokeReport;
 
@@ -1540,6 +1545,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
     final captureStatus = _status(captureGate);
     final inputStatus = _status(inputGate);
     final audioStatus = _status(audioGate);
+    final overlayStatus = _status(overlaySmoke);
     final unsafeStatus = _status(unsafeActionGate);
     final helperReady = helperInstalled && helperRunning && helperIpcReady;
     return DecoratedBox(
@@ -1605,6 +1611,14 @@ class _ComputerUseGatePlan extends StatelessWidget {
               detail: hasLiveSmokeReport
                   ? _nextAction(audioGate)
                   : 'System audio is optional and uses Screen & System Audio Recording.',
+            ),
+            _GatePlanRow(
+              label: 'Overlay smoke',
+              status: overlayStatus,
+              ok: overlayStatus == 'ready',
+              detail: hasLiveSmokeReport
+                  ? _nextAction(overlaySmoke)
+                  : 'Run overlay smoke before marking M1 onboarding ready.',
             ),
             _GatePlanRow(
               label: 'Unsafe arms',
@@ -1864,6 +1878,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final captureGate = _mapValue(runtime['captureGate']);
     final inputGate = _mapValue(runtime['inputGate']);
     final audioGate = _mapValue(runtime['audioGate']);
+    final overlaySmoke = _mapValue(runtime['overlaySmoke']);
     final unsafeActionGate = _mapValue(runtime['unsafeActionGate']);
     final positiveSmokeGateSummary = _mapValue(
       runtime['positiveSmokeGateSummary'],
@@ -1879,6 +1894,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final captureBlockers = _stringList(captureGate?['blockers']);
     final inputBlockers = _stringList(inputGate?['blockers']);
     final audioBlockers = _stringList(audioGate?['blockers']);
+    final overlayBlockers = _stringList(overlaySmoke?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
@@ -2005,6 +2021,16 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Audio blockers',
                 value: audioBlockers.join(', '),
+              ),
+            if (overlaySmoke != null)
+              _InfoChip(
+                label: 'Overlay smoke',
+                value: '${overlaySmoke['status']}',
+              ),
+            if (overlayBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Overlay blockers',
+                value: overlayBlockers.join(', '),
               ),
             if (unsafeActionGate != null)
               _InfoChip(

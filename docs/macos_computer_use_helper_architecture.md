@@ -77,6 +77,21 @@ Current M1 implementation status:
   dropped into both privacy lists and that the overlay placement feels stable
   across single-display and multi-display setups.
 
+M1 overlay readiness gate:
+
+- Run `bash tool/run_macos_computer_use_smoke_test.sh --overlay-smoke` to
+  record non-strict overlay diagnostics in the live smoke report.
+- Run `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` when
+  marking M1 overlay readiness; this requires both Accessibility and Screen &
+  System Audio Recording overlays to report `overlayShown`,
+  `draggableTileReady`, and a matching permission identifier.
+- The smoke report's `overlaySmoke` section records `overlayPlacement`,
+  `overlayMode`, `helperBundlePath`, and `dragPasteboardTypes` so hands-on drag
+  failures can be diagnosed without rerunning the full unsafe input sequence.
+- Hands-on sign-off still requires dragging the tile into both macOS privacy
+  lists because macOS does not expose a supported API for granting or fully
+  simulating TCC list drops.
+
 Follow-on milestones:
 
 - M2: Complete capture, input, and optional system-audio readiness using the
