@@ -62,6 +62,21 @@ M1 acceptance criteria:
   and `bash tool/run_macos_computer_use_smoke_test.sh --unsafe-armed --require-input`
   are the M1 readiness checks.
 
+Current M1 implementation status:
+
+- `showPermissionOverlay` is available over helper IPC and is advertised in the
+  XPC parity command list.
+- The helper opens the targeted System Settings pane and presents a floating
+  AppKit panel owned by `Caverno Computer Use.app`.
+- The overlay contains a draggable helper app bundle tile plus `Done`,
+  `Recheck`, and `Back` controls.
+- The overlay rechecks the relevant permission locally and reports placement
+  diagnostics such as `overlayPlacement`, `overlayShown`, and
+  `draggableTileReady`.
+- Remaining M1 validation is hands-on macOS UX smoke: confirm the tile can be
+  dropped into both privacy lists and that the overlay placement feels stable
+  across single-display and multi-display setups.
+
 Follow-on milestones:
 
 - M2: Complete capture, input, and optional system-audio readiness using the
