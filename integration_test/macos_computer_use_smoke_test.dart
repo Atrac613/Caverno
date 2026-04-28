@@ -33,6 +33,9 @@ const _runOverlaySmoke = bool.fromEnvironment(
 const _requireOverlayReady = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OVERLAY_READY',
 );
+const _requireOnboardingTransition = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_ONBOARDING_TRANSITION',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -64,6 +67,7 @@ void main() {
       'requireAudioResolved': _requireAudioResolved,
       'runOverlaySmoke': _runOverlaySmoke,
       'requireOverlayReady': _requireOverlayReady,
+      'requireOnboardingTransition': _requireOnboardingTransition,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -152,6 +156,13 @@ void main() {
         'restart_helper',
         'Restart Caverno Computer Use',
         'LaunchAgent owns helper startup for strict XPC smoke.',
+      );
+    } else if (_requireOnboardingTransition) {
+      _skipStep(
+        steps,
+        'restart_helper',
+        'Restart Caverno Computer Use',
+        'Onboarding transition smoke preserves the current helper process diagnostics.',
       );
     } else {
       restart = await _runStep(
@@ -433,10 +444,12 @@ void main() {
       );
     }
 
+    final helperRestartSkipped =
+        (_strictXpc && _registerXpcAgent) || _requireOnboardingTransition;
     final coreOk =
         _stepPassed(helperStatus) &&
         (_strictXpc && _registerXpcAgent ? true : _stepPassed(launch)) &&
-        (_strictXpc && _registerXpcAgent ? true : _stepPassed(restart)) &&
+        (helperRestartSkipped ? true : _stepPassed(restart)) &&
         (_strictXpc && _registerXpcAgent
             ? _stepPassed(xpcAgentLaunchReset)
             : true) &&
@@ -458,9 +471,7 @@ void main() {
     report['ok'] = _strict ? coreOk && captureOk : coreOk;
     report['coreOk'] = coreOk;
     report['captureOk'] = captureOk;
-    report['restartOk'] = _strictXpc && _registerXpcAgent
-        ? null
-        : _stepPassed(restart);
+    report['restartOk'] = helperRestartSkipped ? null : _stepPassed(restart);
     report['xpcAgentLaunchResetOk'] = _strictXpc && _registerXpcAgent
         ? _stepPassed(xpcAgentLaunchReset)
         : null;
@@ -486,6 +497,13 @@ void main() {
           permissions?['systemAudioRecordingSupported'],
     };
     report['overlaySmoke'] = _overlaySmokeSummary(
+      accessibilityOverlay: accessibilityOverlay,
+      screenRecordingOverlay: screenRecordingOverlay,
+      runOverlaySmoke: _runOverlaySmoke,
+    );
+    report['onboardingTransitionGate'] = _onboardingTransitionGate(
+      helperStatus: helperStatus,
+      permissions: permissions,
       accessibilityOverlay: accessibilityOverlay,
       screenRecordingOverlay: screenRecordingOverlay,
       runOverlaySmoke: _runOverlaySmoke,
@@ -597,6 +615,14 @@ void main() {
         isTrue,
         reason:
             'Overlay smoke must show both permission overlays with a draggable helper tile.',
+      );
+    }
+    if (_requireOnboardingTransition) {
+      expect(
+        _gateReady(report['onboardingTransitionGate']),
+        isTrue,
+        reason:
+            'Onboarding transition smoke must observe the Allow row placeholder and overlay animation target.',
       );
     }
     if (_strictXpc) {
@@ -1025,6 +1051,68 @@ Map<String, dynamic> _overlaySmokeEntry(
     'dragPasteboardTypes': _stringList(response?['dragPasteboardTypes']),
     'onboardingTransition': response?['lastOnboardingTransition'],
     'blockers': blockers,
+  };
+}
+
+Map<String, dynamic> _onboardingTransitionGate({
+  required Map<String, dynamic>? helperStatus,
+  required Map<String, dynamic>? permissions,
+  required Map<String, dynamic>? accessibilityOverlay,
+  required Map<String, dynamic>? screenRecordingOverlay,
+  required bool runOverlaySmoke,
+}) {
+  if (!runOverlaySmoke) {
+    return {
+      'status': 'not_run',
+      'required': _requireOnboardingTransition,
+      'blockers': [if (_requireOnboardingTransition) 'overlay_smoke_not_run'],
+      'nextAction':
+          'Rerun smoke with --require-onboarding-transition after pressing an Allow button in the onboarding window.',
+    };
+  }
+
+  final candidates = [
+    _mapValue(screenRecordingOverlay?['lastOnboardingTransition']),
+    _mapValue(accessibilityOverlay?['lastOnboardingTransition']),
+    _mapValue(permissions?['lastOnboardingTransition']),
+    _mapValue(helperStatus?['lastOnboardingTransition']),
+  ].whereType<Map<String, dynamic>>().toList(growable: false);
+  final transition = candidates.cast<Map<String, dynamic>?>().firstWhere(
+    (candidate) => candidate?['onboardingTransitionStarted'] == true,
+    orElse: () => candidates.isNotEmpty ? candidates.first : null,
+  );
+  final sourcePermission = transition?['transitionSourcePermission'];
+  final placeholderShown = transition?['transitionPlaceholderShown'] == true;
+  final animationTarget = transition?['transitionAnimationTarget'];
+  final overlayPlacement = transition?['transitionOverlayPlacement'];
+  final sourcePermissionMatches =
+      sourcePermission == 'accessibility' ||
+      sourcePermission == 'screenRecording';
+  final animationTargetMatches = animationTarget == 'permission_overlay_window';
+  final blockers = <String>[
+    if (transition == null) 'onboarding_transition_missing',
+    if (transition != null && transition['onboardingTransitionStarted'] != true)
+      'onboarding_transition_not_started',
+    if (transition != null && !placeholderShown)
+      'onboarding_transition_placeholder_missing',
+    if (transition != null && !sourcePermissionMatches)
+      'onboarding_transition_permission_missing',
+    if (transition != null && !animationTargetMatches)
+      'onboarding_transition_target_not_overlay',
+  ];
+  final ready = blockers.isEmpty;
+  return {
+    'status': ready ? 'ready' : 'failed',
+    'required': _requireOnboardingTransition,
+    'sourcePermission': sourcePermission,
+    'placeholderShown': placeholderShown,
+    'animationTarget': animationTarget,
+    'overlayPlacement': overlayPlacement,
+    'transition': transition,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Onboarding Allow transition reached the permission overlay target.'
+        : 'Open onboarding, press Allow, then rerun smoke with --require-onboarding-transition before restarting the helper.',
   };
 }
 
@@ -1815,6 +1903,9 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
   final inputReady = _gateReady(report['inputGate']);
   final audioResolved = _audioGateResolved(report['audioGate']);
   final overlayReady = _gateReady(report['overlaySmoke']);
+  final onboardingTransitionReady = _gateReady(
+    report['onboardingTransitionGate'],
+  );
   final checks = [
     {
       'id': 'capture_ready',
@@ -1843,6 +1934,13 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
       'ok': !_requireOverlayReady || overlayReady,
       'status': _gateStatus(report['overlaySmoke']),
       'nextAction': _gateNextAction(report['overlaySmoke']),
+    },
+    {
+      'id': 'onboarding_transition_ready',
+      'required': _requireOnboardingTransition,
+      'ok': !_requireOnboardingTransition || onboardingTransitionReady,
+      'status': _gateStatus(report['onboardingTransitionGate']),
+      'nextAction': _gateNextAction(report['onboardingTransitionGate']),
     },
   ];
   final failed = checks

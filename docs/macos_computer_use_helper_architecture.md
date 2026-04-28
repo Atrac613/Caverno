@@ -99,6 +99,12 @@ M1 overlay readiness gate:
 - The smoke report's `overlaySmoke` section records `overlayPlacement`,
   `overlayMode`, `helperBundlePath`, and `dragPasteboardTypes` so hands-on drag
   failures can be diagnosed without rerunning the full unsafe input sequence.
+- After pressing an onboarding `Allow` button, run
+  `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
+  before restarting the helper. This opt-in gate skips the helper restart so the
+  in-memory `lastOnboardingTransition` diagnostic can prove that the row
+  placeholder was shown and the animation targeted the permission overlay
+  window.
 - Main-app helper diagnostics now include `embeddedHelperPath`,
   `runningHelperPath`, and `helperPathMismatch` so debug builds can detect when
   macOS relaunched a different `Caverno Computer Use.app` path than the one
@@ -110,6 +116,8 @@ M1 overlay readiness gate:
 M1 sign-off checklist:
 
 - `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` passes.
+- `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
+  passes immediately after pressing an onboarding `Allow` button.
 - Accessibility overlay drop is accepted by macOS when dragged into the
   privacy list.
 - Screen & System Audio Recording overlay drop is accepted by macOS when
