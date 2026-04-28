@@ -115,12 +115,14 @@ The report includes `register_xpc_launch_agent`, `xpc_production_probe`, and
 registered, the named XPC probe to connect without fallback, and
 `xpcNextParityCommands` to stay empty. Add `--strict-xpc` to fail the smoke
 when the registered LaunchAgent does not reach production-ready named XPC while
-leaving screenshot and unsafe-operation gates permission-aware. Add
-`--cleanup-xpc-agent` when a run should unregister the LaunchAgent after the
-production gate has been measured. Add `--release` to run the same gate through
-the release bundle artifact checks. Flutter Driver does not support release-mode
-desktop correctness runs, so runtime named-XPC smoke should use debug or
-profile mode.
+leaving screenshot and unsafe-operation gates permission-aware. The strict XPC
+probe retries the named service so launchd cold starts are recorded as attempts
+instead of hiding the final readiness result. Add `--cleanup-xpc-agent` when a
+run should unregister the LaunchAgent after the production gate has been
+measured. Add `--release` to run the release bundle artifact checks and emit the
+same JSON marker/report path as live smoke. Flutter Driver does not support
+release-mode desktop correctness runs, so runtime named-XPC smoke should use
+debug or profile mode.
 
 Release builds should use the same embedded helper and LaunchAgent layout as
 debug builds. Before notarization work, run:
@@ -138,6 +140,11 @@ run:
 To exercise named XPC with a built app runtime, run:
 
 `bash tool/run_macos_computer_use_smoke_test.sh --profile --strict-xpc --cleanup-xpc-agent`
+
+Profile LaunchAgent startup requires a signing chain accepted by launchd. If a
+profile helper is ad-hoc signed, macOS can reject it with a launch constraint
+violation before the helper process starts; use the report and system logs to
+distinguish that signing failure from a runtime IPC regression.
 
 Initial commands:
 

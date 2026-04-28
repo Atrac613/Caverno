@@ -163,7 +163,7 @@ void main() {
         steps,
         'xpc_production_probe',
         'Probe named XPC after LaunchAgent registration',
-        service.pingHelper,
+        () => _waitForNamedXpc(service),
       );
     } else {
       _skipStep(
@@ -509,6 +509,75 @@ void main() {
       }
     }
   });
+}
+
+Future<String> _waitForNamedXpc(MacosComputerUseService service) async {
+  const maxAttempts = 5;
+  const delay = Duration(milliseconds: 750);
+  final startedAt = DateTime.now();
+  final attempts = <Map<String, dynamic>>[];
+  Map<String, dynamic>? lastResponse;
+  Object? lastError;
+
+  for (var index = 0; index < maxAttempts; index += 1) {
+    try {
+      final raw = await service.pingHelper();
+      final decoded = _decodeMap(raw);
+      lastResponse = decoded ?? {'raw': raw};
+      final namedXpcConnected = _namedXpcConnected(decoded);
+      attempts.add(_namedXpcAttempt(index + 1, decoded, namedXpcConnected));
+      if (namedXpcConnected) {
+        return jsonEncode({
+          ...decoded!,
+          'ok': decoded['ok'] != false,
+          'xpcProbeReady': true,
+          'xpcProbeAttemptCount': index + 1,
+          'xpcProbeAttempts': attempts,
+          'waitedMs': DateTime.now().difference(startedAt).inMilliseconds,
+        });
+      }
+    } catch (error) {
+      lastError = error;
+      attempts.add({
+        'attempt': index + 1,
+        'ok': false,
+        'error': error.toString(),
+      });
+    }
+    if (index < maxAttempts - 1) {
+      await Future<void>.delayed(delay);
+    }
+  }
+
+  return jsonEncode({
+    ...?lastResponse,
+    'ok': false,
+    'code': lastResponse?['code'] ?? 'named_xpc_probe_unavailable',
+    'error': lastError?.toString() ?? 'Named XPC did not become ready.',
+    'xpcProbeReady': false,
+    'xpcProbeAttemptCount': attempts.length,
+    'xpcProbeAttempts': attempts,
+    'waitedMs': DateTime.now().difference(startedAt).inMilliseconds,
+  });
+}
+
+Map<String, dynamic> _namedXpcAttempt(
+  int attempt,
+  Map<String, dynamic>? response,
+  bool namedXpcConnected,
+) {
+  return {
+    'attempt': attempt,
+    'ok': namedXpcConnected,
+    'selectedIpcTransport': response?['selectedIpcTransport'],
+    'preferredAttemptStatus': response == null
+        ? null
+        : _preferredAttemptStatus(response),
+    'code': response?['code'],
+    'error': response?['error'],
+    'helperRunning': response?['helperRunning'],
+    'xpcLaunchAgentStatus': response?['xpcLaunchAgentStatus'],
+  };
 }
 
 Map<String, dynamic> _xpcProductionGate(List<Map<String, dynamic>> steps) {

@@ -141,6 +141,58 @@ case "${BUILD_MODE}" in
       -c "Print :MachServices:com.noguwo.apps.caverno.computer-use.xpc" \
       "${RELEASE_AGENT}"
     /usr/bin/codesign --verify --deep --strict "${RELEASE_APP}"
+    RELEASE_REPORT_PATH="${REPORT_PATH}" \
+    RELEASE_APP="${RELEASE_APP}" \
+    RELEASE_HELPER="${RELEASE_HELPER}" \
+    RELEASE_AGENT="${RELEASE_AGENT}" \
+    STRICT_DART="${STRICT_DART}" \
+    STRICT_XPC_DART="${STRICT_XPC_DART}" \
+    REGISTER_XPC_AGENT_DART="${REGISTER_XPC_AGENT_DART}" \
+    CLEANUP_XPC_AGENT_DART="${CLEANUP_XPC_AGENT_DART}" \
+      python3 - <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+
+report_path = os.environ["RELEASE_REPORT_PATH"]
+app = os.environ["RELEASE_APP"]
+helper = os.environ["RELEASE_HELPER"]
+agent = os.environ["RELEASE_AGENT"]
+report = {
+    "schemaName": "macos_computer_use_release_bundle_smoke",
+    "schemaVersion": 1,
+    "generatedAt": datetime.datetime.now(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+    "buildMode": "release",
+    "strict": os.environ["STRICT_DART"] == "true",
+    "strictXpc": os.environ["STRICT_XPC_DART"] == "true",
+    "registerXpcAgent": os.environ["REGISTER_XPC_AGENT_DART"] == "true",
+    "cleanupXpcAgent": os.environ["CLEANUP_XPC_AGENT_DART"] == "true",
+    "ok": True,
+    "releaseBundle": {
+        "appExists": os.path.isdir(app),
+        "helperExists": os.path.isdir(helper),
+        "launchAgentExists": os.path.isfile(agent),
+        "launchAgentPlistValid": True,
+        "machServiceDeclared": True,
+        "codesignVerified": True,
+        "appPath": app,
+        "helperPath": helper,
+        "launchAgentPath": agent,
+        "xpcServiceName": "com.noguwo.apps.caverno.computer-use.xpc",
+    },
+    "reportPath": report_path,
+}
+encoded = json.dumps(report, indent=2)
+if report_path:
+    path = Path(report_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(encoded)
+print(f"CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON={encoded}")
+PY
     echo "Release bundle XPC artifacts verified"
     ;;
   *)
