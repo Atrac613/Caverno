@@ -445,7 +445,15 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
-    report['signingDiagnostics'] = await _signingDiagnostics(helperStatus);
+    final signingDiagnostics = await _signingDiagnostics(helperStatus);
+    report['signingDiagnostics'] = signingDiagnostics;
+    report['xpcRuntimeDiagnostics'] = _xpcRuntimeDiagnostics(
+      helperStatus: helperStatus,
+      steps: steps,
+      signingDiagnostics: signingDiagnostics,
+      xpcProductionProbe: xpcProductionProbe,
+      xpcProductionGate: xpcProductionGate,
+    );
     report['xpcProductionGate'] = xpcProductionGate;
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
@@ -728,6 +736,95 @@ Map<String, dynamic> _parseCodesignDetails(String output) {
         (codeDirectoryFlags?.contains('runtime') ?? false),
     'adHoc': adHoc,
   };
+}
+
+Map<String, dynamic> _xpcRuntimeDiagnostics({
+  required Map<String, dynamic>? helperStatus,
+  required List<Map<String, dynamic>> steps,
+  required Map<String, dynamic> signingDiagnostics,
+  required Map<String, dynamic>? xpcProductionProbe,
+  required Map<String, dynamic> xpcProductionGate,
+}) {
+  final latestDiagnostics = _latestHelperSharedDiagnostics(
+    steps,
+    fallback: helperStatus,
+  );
+  final helperSharedDiagnostics = _mapValue(latestDiagnostics['diagnostics']);
+  final signingLooksAccepted =
+      signingDiagnostics['launchConstraintLikelyAccepted'] == true;
+  final launchAgentEnabled = xpcProductionGate['launchAgentEnabled'] == true;
+  final namedServiceConnected =
+      xpcProductionGate['namedServiceConnected'] == true ||
+      _namedXpcConnected(xpcProductionProbe);
+  final helperDiagnosticsObserved = helperSharedDiagnostics != null;
+  final helperDiagnosticsStale = latestDiagnostics['stale'] == true;
+  final xpcListenerStarted =
+      helperSharedDiagnostics?['xpcListenerStarted'] == true;
+  final xpcListenerStartAttempted =
+      helperSharedDiagnostics?['xpcListenerStartAttempted'] == true;
+  final helperRunning =
+      helperStatus?['helperRunning'] == true ||
+      (helperDiagnosticsObserved && !helperDiagnosticsStale);
+  final blockers = <String>[
+    if (launchAgentEnabled &&
+        signingLooksAccepted &&
+        (!helperDiagnosticsObserved || helperDiagnosticsStale))
+      'launchd_helper_not_started',
+    if (helperDiagnosticsObserved &&
+        !helperDiagnosticsStale &&
+        !xpcListenerStarted)
+      'xpc_listener_not_started',
+    if (launchAgentEnabled && signingLooksAccepted && !namedServiceConnected)
+      'launchd_mach_service_not_responding',
+  ];
+  return {
+    'launchAgentEnabled': launchAgentEnabled,
+    'signingLooksAccepted': signingLooksAccepted,
+    'helperRunning': helperRunning,
+    'helperDiagnosticsObserved': helperDiagnosticsObserved,
+    'helperDiagnosticsStale': helperDiagnosticsStale,
+    'xpcListenerStarted': xpcListenerStarted,
+    'xpcListenerStartAttempted': xpcListenerStartAttempted,
+    'namedServiceConnected': namedServiceConnected,
+    'blockers': blockers,
+    'nextAction': blockers.isEmpty
+        ? 'Named XPC runtime is ready or not enough launchd evidence was collected.'
+        : 'Inspect helper startup diagnostics and launchd Mach service ownership.',
+  };
+}
+
+Map<String, dynamic> _latestHelperSharedDiagnostics(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? fallback,
+}) {
+  Map<String, dynamic>? diagnostics = _mapValue(
+    fallback?['helperSharedDiagnostics'],
+  );
+  var stale = fallback?['helperSharedDiagnosticsStale'] == true;
+  for (final step in steps) {
+    final result = _mapValue(step['result']);
+    final direct = _mapValue(result?['helperSharedDiagnostics']);
+    final details = _mapValue(result?['details']);
+    final nested = _mapValue(details?['helperSharedDiagnostics']);
+    final candidate = nested ?? direct;
+    if (candidate != null) {
+      diagnostics = candidate;
+      stale =
+          result?['helperSharedDiagnosticsStale'] == true ||
+          details?['helperSharedDiagnosticsStale'] == true;
+    }
+  }
+  return {'diagnostics': diagnostics, 'stale': stale};
+}
+
+Map<String, dynamic>? _mapValue(Object? value) {
+  if (value is Map<String, dynamic>) {
+    return value;
+  }
+  if (value is Map) {
+    return Map<String, dynamic>.from(value);
+  }
+  return null;
 }
 
 Map<String, dynamic> _xpcProductionGate(List<Map<String, dynamic>> steps) {

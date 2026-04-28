@@ -15,6 +15,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private static var delegateInstance: ComputerUseHelperApp?
 
   static func main() {
+    ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "process_main_entered")
     let application = NSApplication.shared
     let delegate = ComputerUseHelperApp()
     delegateInstance = delegate
@@ -34,6 +35,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private var windowCaptureSmokeRow: SmokeStepRowView?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
+    ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "application_did_finish_launching")
     ipc.start()
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 760, height: 700),
@@ -508,6 +510,29 @@ private enum ComputerUseHelperIpcSchema {
 private enum ComputerUseHelperSharedDiagnostics {
   static let path = "/tmp/caverno-computer-use-helper-diagnostics.json"
 
+  static func writeBootstrap(event: String) {
+    let bundle = Bundle.main
+    let processInfo = ProcessInfo.processInfo
+    let diagnostics: [String: Any] = [
+      "schemaName": "caverno_computer_use_helper_diagnostics",
+      "schemaVersion": 1,
+      "event": event,
+      "generatedAt": ISO8601DateFormatter().string(from: Date()),
+      "helperBundleIdentifier": bundle.bundleIdentifier ?? "",
+      "helperBundlePath": bundle.bundlePath,
+      "helperExecutablePath": bundle.executablePath ?? "",
+      "helperProcessIdentifier": Int(processInfo.processIdentifier),
+      "processName": processInfo.processName,
+      "arguments": processInfo.arguments,
+      "environmentKeys": processInfo.environment.keys.sorted(),
+      "listenerStarted": false,
+      "xpcListenerStarted": false,
+      "xpcListenerStartAttempted": false,
+      "launchMode": "unknown",
+    ]
+    write(diagnostics)
+  }
+
   static func write(_ diagnostics: [String: Any]) {
     guard JSONSerialization.isValidJSONObject(diagnostics) else {
       return
@@ -635,6 +660,7 @@ private final class ComputerUseHelperIpc: NSObject {
   private var xpcListener: NSXPCListener?
   private var xpcListenerDelegate: ComputerUseHelperXpcListenerDelegate?
   private var xpcListenerStarted = false
+  private var xpcListenerStartAttempted = false
 
   override init() {
     super.init()
@@ -663,6 +689,7 @@ private final class ComputerUseHelperIpc: NSObject {
     guard xpcListener == nil else {
       return
     }
+    xpcListenerStartAttempted = true
     let listener = NSXPCListener(machServiceName: ComputerUseHelperIpcSchema.xpcServiceName)
     let delegate = ComputerUseHelperXpcListenerDelegate(ipc: self)
     listener.delegate = delegate
@@ -1576,8 +1603,12 @@ private final class ComputerUseHelperIpc: NSObject {
       "event": event,
       "generatedAt": ISO8601DateFormatter().string(from: Date()),
       "helperBundleIdentifier": helperBundleIdentifier,
+      "helperBundlePath": Bundle.main.bundlePath,
+      "helperExecutablePath": Bundle.main.executablePath ?? "",
       "helperProcessIdentifier": Int(ProcessInfo.processInfo.processIdentifier),
-      "listenerStarted": true,
+      "processName": ProcessInfo.processInfo.processName,
+      "arguments": ProcessInfo.processInfo.arguments,
+      "listenerStarted": started,
       "requestNotificationName": requestName.rawValue,
       "responseNotificationName": responseName.rawValue,
       "ipcTransport": ComputerUseHelperIpcSchema.activeTransport,
@@ -1596,6 +1627,8 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcNextParityCommands": ComputerUseHelperIpcSchema.xpcNextParityCommands,
       "xpcProductionReadinessCriteria": ComputerUseHelperIpcSchema.xpcProductionReadinessCriteria,
       "xpcListenerStarted": xpcListenerStarted,
+      "xpcListenerStartAttempted": xpcListenerStartAttempted,
+      "xpcServiceName": ComputerUseHelperIpcSchema.xpcServiceName,
       "helperIpcEventCount": helperIpcEventCount,
     ]
     if let lastHelperIpcRequest {

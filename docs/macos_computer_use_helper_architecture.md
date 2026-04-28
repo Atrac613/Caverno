@@ -162,6 +162,16 @@ Use `launchConstraintBlockers` such as `ad_hoc_signature` or
 `team_identifier_missing` to distinguish signing setup failures from named XPC
 transport regressions.
 
+Profile strict XPC reports also include `xpcRuntimeDiagnostics`. Once signing
+blockers are clear, this section separates launchd runtime failures:
+`launchd_helper_not_started` means the helper did not write fresh startup
+diagnostics, `xpc_listener_not_started` means the process started without
+resuming its named listener, and `launchd_mach_service_not_responding` means
+the listener evidence exists but the named service still did not answer.
+Successful Developer ID profile runs should show fresh helper diagnostics with
+`xpcListenerStartAttempted`, `xpcListenerStarted`, and `namedServiceConnected`
+set to `true`.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.
