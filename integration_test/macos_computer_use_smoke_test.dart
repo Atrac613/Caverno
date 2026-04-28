@@ -1023,6 +1023,7 @@ Map<String, dynamic> _overlaySmokeEntry(
     'overlayMode': response?['overlayMode'],
     'helperBundlePath': response?['helperBundlePath'],
     'dragPasteboardTypes': _stringList(response?['dragPasteboardTypes']),
+    'onboardingTransition': response?['lastOnboardingTransition'],
     'blockers': blockers,
   };
 }

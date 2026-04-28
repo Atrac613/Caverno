@@ -35,6 +35,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private var displayScreenshotSmokeRow: SmokeStepRowView?
   private var windowCaptureSmokeRow: SmokeStepRowView?
   private var permissionOverlayWindowController: PermissionOverlayWindowController?
+  private var lastOnboardingTransition: OnboardingTransitionDiagnostic?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "application_did_finish_launching")
@@ -72,6 +73,18 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     return presentation
   }
 
+  fileprivate static func currentOnboardingTransitionMap() -> [String: Any]? {
+    if Thread.isMainThread {
+      return delegateInstance?.lastOnboardingTransition?.toMap()
+    }
+
+    var transition: [String: Any]?
+    DispatchQueue.main.sync {
+      transition = delegateInstance?.lastOnboardingTransition?.toMap()
+    }
+    return transition
+  }
+
   private func presentPermissionOverlay(pane: SettingsPane) -> PermissionOverlayPresentation {
     let helperBundleURL = Bundle.main.bundleURL
     let controller = PermissionOverlayWindowController(
@@ -97,24 +110,33 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     row.setPendingSystemSettings(true)
     openSettingsPane(pane)
     _ = presentPermissionOverlay(pane: pane)
-    animatePermissionRowOverflow(
+    let animationResult = animatePermissionRowOverflow(
       snapshot: snapshot,
       sourceFrame: sourceFrame,
       targetWindow: permissionOverlayWindowController?.window
     )
+    lastOnboardingTransition = OnboardingTransitionDiagnostic(
+      permission: pane.overlayPermission,
+      placeholderShown: row.pendingSystemSettingsShown,
+      animationTarget: animationResult.target,
+      sourceFrame: sourceFrame,
+      targetFrame: animationResult.frame,
+      overlayPlacement: permissionOverlayWindowController?.overlayPlacement
+    )
   }
 
+  @discardableResult
   private func animatePermissionRowOverflow(
     snapshot: NSImage?,
     sourceFrame: NSRect?,
     targetWindow: NSWindow?
-  ) {
+  ) -> (target: String, frame: NSRect?) {
     guard
       let snapshot,
       let sourceFrame,
       let screen = NSScreen.screens.first(where: { $0.frame.intersects(sourceFrame) }) ?? NSScreen.main
     else {
-      return
+      return ("not_available", nil)
     }
 
     let imageView = NSImageView(frame: NSRect(origin: .zero, size: sourceFrame.size))
@@ -145,6 +167,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       height: sourceFrame.height
     )
     let targetFrame: NSRect
+    let targetName: String
     if let targetWindow {
       let windowFrame = targetWindow.frame
       targetFrame = NSRect(
@@ -153,8 +176,10 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
         width: min(sourceFrame.width, windowFrame.width - 72),
         height: sourceFrame.height
       )
+      targetName = "permission_overlay_window"
     } else {
       targetFrame = fallbackTarget
+      targetName = "screen_fallback"
     }
 
     panel.alphaValue = 0.98
@@ -166,6 +191,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     } completionHandler: {
       panel.close()
     }
+    return (targetName, targetFrame)
   }
 
   private func makeContentView() -> NSView {
@@ -507,6 +533,45 @@ fileprivate struct PermissionOverlayPresentation {
   }
 }
 
+fileprivate struct OnboardingTransitionDiagnostic {
+  let permission: String
+  let placeholderShown: Bool
+  let animationTarget: String
+  let sourceFrame: NSRect?
+  let targetFrame: NSRect?
+  let overlayPlacement: String?
+  let startedAt = ISO8601DateFormatter().string(from: Date())
+
+  func toMap() -> [String: Any] {
+    var map: [String: Any] = [
+      "onboardingTransitionStarted": true,
+      "transitionSourcePermission": permission,
+      "transitionPlaceholderShown": placeholderShown,
+      "transitionAnimationTarget": animationTarget,
+      "transitionStartedAt": startedAt,
+    ]
+    if let sourceFrame {
+      map["transitionSourceFrame"] = frameMap(sourceFrame)
+    }
+    if let targetFrame {
+      map["transitionTargetFrame"] = frameMap(targetFrame)
+    }
+    if let overlayPlacement {
+      map["transitionOverlayPlacement"] = overlayPlacement
+    }
+    return map
+  }
+
+  private func frameMap(_ frame: NSRect) -> [String: Double] {
+    [
+      "x": Double(frame.minX),
+      "y": Double(frame.minY),
+      "width": Double(frame.width),
+      "height": Double(frame.height),
+    ]
+  }
+}
+
 private final class PermissionOverlayWindowController: NSWindowController {
   private let pane: SettingsPane
   private let helperBundleURL: URL
@@ -658,8 +723,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
       let settingsFrame = systemSettingsWindowFrame(),
       let targetScreen = screenContaining(settingsFrame)
     {
-      overlayPlacement = "system_settings_window"
-      position(window, near: settingsFrame, on: targetScreen)
+      overlayPlacement = position(window, near: settingsFrame, on: targetScreen)
       return
     }
 
@@ -673,7 +737,11 @@ private final class PermissionOverlayWindowController: NSWindowController {
     window.setFrameOrigin(origin)
   }
 
-  private func position(_ window: NSWindow, near settingsFrame: NSRect, on screen: NSScreen) {
+  private func position(
+    _ window: NSWindow,
+    near settingsFrame: NSRect,
+    on screen: NSScreen
+  ) -> String {
     let frame = screen.visibleFrame
     let size = window.frame.size
     let x = clamped(
@@ -681,10 +749,26 @@ private final class PermissionOverlayWindowController: NSWindowController {
       min: frame.minX + 16,
       max: frame.maxX - size.width - 16
     )
+    let lowerListY = clamped(
+      settingsFrame.minY + 18,
+      min: frame.minY + 16,
+      max: frame.maxY - size.height - 16
+    )
     let belowY = settingsFrame.minY - size.height - 16
-    let fallbackY = frame.minY + min(96, frame.height * 0.12)
-    let y = belowY >= frame.minY + 16 ? belowY : fallbackY
+    let y: CGFloat
+    let placement: String
+    if settingsFrame.height >= size.height + 120 {
+      y = lowerListY
+      placement = "system_settings_permission_list"
+    } else if belowY >= frame.minY + 16 {
+      y = belowY
+      placement = "system_settings_window"
+    } else {
+      y = frame.minY + min(96, frame.height * 0.12)
+      placement = "screen_fallback"
+    }
     window.setFrameOrigin(NSPoint(x: x, y: y))
+    return placement
   }
 
   private func systemSettingsWindowFrame() -> NSRect? {
@@ -2054,6 +2138,9 @@ private final class ComputerUseHelperIpc: NSObject {
     if let lastOnboardingVerification {
       response["onboardingVerification"] = lastOnboardingVerification
     }
+    if let lastOnboardingTransition = ComputerUseHelperApp.currentOnboardingTransitionMap() {
+      response["lastOnboardingTransition"] = lastOnboardingTransition
+    }
     for (key, value) in extra {
       response[key] = value
     }
@@ -2068,6 +2155,9 @@ private final class ComputerUseHelperIpc: NSObject {
     ]
     if let lastOnboardingVerification {
       status["onboardingVerification"] = lastOnboardingVerification
+    }
+    if let lastOnboardingTransition = ComputerUseHelperApp.currentOnboardingTransitionMap() {
+      status["lastOnboardingTransition"] = lastOnboardingTransition
     }
     return status
   }
@@ -2214,6 +2304,9 @@ private final class ComputerUseHelperIpc: NSObject {
     }
     if let lastOnboardingVerification {
       diagnostics["onboardingVerification"] = lastOnboardingVerification
+    }
+    if let lastOnboardingTransition = ComputerUseHelperApp.currentOnboardingTransitionMap() {
+      diagnostics["lastOnboardingTransition"] = lastOnboardingTransition
     }
     ComputerUseHelperSharedDiagnostics.write(diagnostics)
   }
@@ -2974,6 +3067,10 @@ private final class PermissionRowView: NSView {
       : NSColor.controlBackgroundColor.cgColor
     pendingBorderLayer.isHidden = !pending
     updatePendingBorder()
+  }
+
+  var pendingSystemSettingsShown: Bool {
+    isPendingSystemSettings && !placeholderLabel.isHidden
   }
 
   private func updatePendingBorder() {

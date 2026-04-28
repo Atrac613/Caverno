@@ -76,6 +76,13 @@ Current M1 implementation status:
 - The helper onboarding `Allow` buttons open the matching System Settings pane,
   replace the selected permission row with a `COMPLETE IN SYSTEM SETTINGS`
   placeholder, and animate a snapshot of that row toward the floating overlay.
+- The helper reports the most recent Allow transition as
+  `lastOnboardingTransition`, including `transitionSourcePermission`,
+  `transitionPlaceholderShown`, `transitionAnimationTarget`, and the source /
+  target frames used by the animation.
+- When System Settings is visible, the floating overlay prefers the lower
+  permission-list area and reports `overlayPlacement` as
+  `system_settings_permission_list`.
 - Overlay readiness is covered by the live smoke gate. Remaining M1 validation
   is hands-on macOS UX smoke: confirm the tile can be dropped into both privacy
   lists and that the overlay placement feels stable across single-display and
