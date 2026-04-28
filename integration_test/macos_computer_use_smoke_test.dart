@@ -434,17 +434,18 @@ void main() {
       'systemAudioRecordingSupported':
           permissions?['systemAudioRecordingSupported'],
     };
-    report['permissionGate'] = {
-      'captureExpected': permissions?['screenCaptureGranted'] == true,
-      'inputExpected': permissions?['accessibilityGranted'] == true,
-      'audioExpected':
-          permissions?['screenCaptureGranted'] == true &&
-          permissions?['systemAudioRecordingSupported'] == true,
-      'blockedByPermissions': [
-        if (permissions?['screenCaptureGranted'] != true) 'screen_capture',
-        if (permissions?['accessibilityGranted'] != true) 'accessibility',
-      ],
-    };
+    report['permissionGate'] = _permissionGate(permissions);
+    report['captureGate'] = _captureGate(steps, permissions: permissions);
+    report['inputGate'] = _inputGate(
+      steps,
+      permissions: permissions,
+      unsafeArmed: _unsafeArmed,
+    );
+    report['unsafeActionGate'] = _unsafeActionGate(
+      unsafeArmed: _unsafeArmed,
+      unsafeClickArmed: _unsafeClickArmed,
+      unsafeTextArmed: _unsafeTextArmed,
+    );
     final signingDiagnostics = await _signingDiagnostics(helperStatus);
     report['signingDiagnostics'] = signingDiagnostics;
     report['xpcRuntimeDiagnostics'] = _xpcRuntimeDiagnostics(
@@ -791,6 +792,172 @@ Map<String, dynamic> _xpcRuntimeDiagnostics({
         ? 'Named XPC runtime is ready or not enough launchd evidence was collected.'
         : 'Inspect helper startup diagnostics and launchd Mach service ownership.',
   };
+}
+
+Map<String, dynamic> _permissionGate(Map<String, dynamic>? permissions) {
+  final accessibilityGranted = permissions?['accessibilityGranted'] == true;
+  final screenCaptureGranted = permissions?['screenCaptureGranted'] == true;
+  final systemAudioSupported =
+      permissions?['systemAudioRecordingSupported'] == true;
+  final gates = [
+    _permissionGateEntry(
+      id: 'accessibility',
+      label: 'Accessibility',
+      granted: accessibilityGranted,
+      blocker: 'accessibility_permission_missing',
+    ),
+    _permissionGateEntry(
+      id: 'screen_capture',
+      label: 'Screen Recording',
+      granted: screenCaptureGranted,
+      blocker: 'screen_capture_permission_missing',
+    ),
+    {
+      'id': 'system_audio_recording',
+      'label': 'System Audio Recording',
+      'supported': systemAudioSupported,
+      'status': systemAudioSupported ? 'supported' : 'unsupported',
+      if (!systemAudioSupported) 'blockedBy': 'system_audio_unsupported',
+    },
+  ];
+  return {
+    'captureExpected': screenCaptureGranted,
+    'inputExpected': accessibilityGranted,
+    'audioExpected': screenCaptureGranted && systemAudioSupported,
+    'status': accessibilityGranted && screenCaptureGranted
+        ? 'clear'
+        : 'blocked',
+    'blockedByPermissions': [
+      if (!screenCaptureGranted) 'screen_capture',
+      if (!accessibilityGranted) 'accessibility',
+    ],
+    'blockers': [
+      if (!screenCaptureGranted) 'screen_capture_permission_missing',
+      if (!accessibilityGranted) 'accessibility_permission_missing',
+      if (!systemAudioSupported) 'system_audio_unsupported',
+    ],
+    'gates': gates,
+  };
+}
+
+Map<String, dynamic> _permissionGateEntry({
+  required String id,
+  required String label,
+  required bool granted,
+  required String blocker,
+}) {
+  return {
+    'id': id,
+    'label': label,
+    'granted': granted,
+    'status': granted ? 'granted' : 'expected_block',
+    if (!granted) 'blockedBy': blocker,
+  };
+}
+
+Map<String, dynamic> _captureGate(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? permissions,
+}) {
+  final screenCaptureGranted = permissions?['screenCaptureGranted'] == true;
+  final displayPassed = _stepPassedById(steps, 'display_screenshot');
+  final windowPassed = _stepPassedById(steps, 'window_capture');
+  final blockers = <String>[
+    if (!screenCaptureGranted) 'screen_capture_permission_missing',
+    if (screenCaptureGranted && !displayPassed)
+      'display_capture_runtime_failed',
+    if (screenCaptureGranted && !windowPassed) 'window_capture_runtime_failed',
+  ];
+  return {
+    'status': !screenCaptureGranted
+        ? 'blocked'
+        : blockers.isEmpty
+        ? 'ready'
+        : 'failed',
+    'screenCaptureGranted': screenCaptureGranted,
+    'displayScreenshotPassed': displayPassed,
+    'windowCapturePassed': windowPassed,
+    'blockers': blockers,
+    'nextAction': blockers.isEmpty
+        ? 'Capture smoke is ready.'
+        : !screenCaptureGranted
+        ? 'Grant Screen Recording to Caverno Computer Use, then rerun smoke.'
+        : 'Inspect capture runtime failures after permissions are granted.',
+  };
+}
+
+Map<String, dynamic> _inputGate(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? permissions,
+  required bool unsafeArmed,
+}) {
+  final accessibilityGranted = permissions?['accessibilityGranted'] == true;
+  const actionIds = [
+    'input_move_pointer',
+    'input_drag_pointer',
+    'input_scroll',
+    'input_press_key',
+  ];
+  final actionResults = {
+    for (final id in actionIds) id: _stepPassedById(steps, id),
+  };
+  final allActionsPassed = actionResults.values.every((passed) => passed);
+  final blockers = <String>[
+    if (!unsafeArmed) 'unsafe_smoke_not_armed',
+    if (unsafeArmed && !accessibilityGranted)
+      'accessibility_permission_missing',
+    if (unsafeArmed && accessibilityGranted && !allActionsPassed)
+      'input_runtime_failed',
+  ];
+  return {
+    'status': !unsafeArmed
+        ? 'not_armed'
+        : !accessibilityGranted
+        ? 'blocked'
+        : allActionsPassed
+        ? 'ready'
+        : 'failed',
+    'unsafeArmed': unsafeArmed,
+    'accessibilityGranted': accessibilityGranted,
+    'nonDestructiveActions': actionResults,
+    'blockers': blockers,
+    'nextAction': blockers.isEmpty
+        ? 'Input smoke is ready.'
+        : !unsafeArmed
+        ? 'Rerun smoke with unsafe arming for non-destructive input checks.'
+        : !accessibilityGranted
+        ? 'Grant Accessibility to Caverno Computer Use, then rerun smoke.'
+        : 'Inspect input runtime failures after Accessibility is granted.',
+  };
+}
+
+Map<String, dynamic> _unsafeActionGate({
+  required bool unsafeArmed,
+  required bool unsafeClickArmed,
+  required bool unsafeTextArmed,
+}) {
+  return {
+    'status': unsafeArmed ? 'armed' : 'not_armed',
+    'unsafeArmed': unsafeArmed,
+    'unsafeClickArmed': unsafeClickArmed,
+    'unsafeTextArmed': unsafeTextArmed,
+    'nonDestructiveInputArmed': unsafeArmed,
+    'clickRequiresExtraArm': true,
+    'textRequiresExtraArm': true,
+    'blockers': [
+      if (!unsafeArmed) 'unsafe_smoke_not_armed',
+      if (!unsafeClickArmed) 'unsafe_click_smoke_not_armed',
+      if (!unsafeTextArmed) 'unsafe_text_smoke_not_armed',
+    ],
+  };
+}
+
+bool _stepPassedById(List<Map<String, dynamic>> steps, String id) {
+  final step = steps.cast<Map<String, dynamic>?>().firstWhere(
+    (step) => step?['id'] == id,
+    orElse: () => null,
+  );
+  return step?['ok'] == true && step?['skipped'] != true;
 }
 
 Map<String, dynamic> _latestHelperSharedDiagnostics(

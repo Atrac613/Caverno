@@ -187,6 +187,23 @@ void main() {
     expect(find.text('Live Signing: Accepted'), findsOneWidget);
     expect(find.text('Live XPC Runtime: Ready'), findsOneWidget);
     expect(find.text('Live Permissions: Blocked'), findsOneWidget);
+    expect(find.text('Capture gate: blocked'), findsOneWidget);
+    expect(
+      find.text('Capture blockers: screen_capture_permission_missing'),
+      findsOneWidget,
+    );
+    expect(find.text('Input gate: not_armed'), findsOneWidget);
+    expect(find.text('Input blockers: unsafe_smoke_not_armed'), findsOneWidget);
+    expect(find.text('Unsafe action gate: not_armed'), findsOneWidget);
+    expect(
+      find.text(
+        'Unsafe blockers: unsafe_smoke_not_armed, unsafe_click_smoke_not_armed, unsafe_text_smoke_not_armed',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Live Capture Gate: blocked'), findsOneWidget);
+    expect(find.text('Live Input Gate: not_armed'), findsOneWidget);
+    expect(find.text('Live Unsafe Gate: Not armed'), findsOneWidget);
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -614,6 +631,23 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'generatedAt': '2026-04-25T12:01:00Z',
         'permissionGate': {
           'blockedByPermissions': ['screen_capture', 'accessibility'],
+        },
+        'captureGate': {
+          'status': 'blocked',
+          'blockers': ['screen_capture_permission_missing'],
+        },
+        'inputGate': {
+          'status': 'not_armed',
+          'blockers': ['unsafe_smoke_not_armed'],
+        },
+        'unsafeActionGate': {
+          'status': 'not_armed',
+          'unsafeArmed': false,
+          'blockers': [
+            'unsafe_smoke_not_armed',
+            'unsafe_click_smoke_not_armed',
+            'unsafe_text_smoke_not_armed',
+          ],
         },
         'signingDiagnostics': {
           'launchConstraintLikelyAccepted': true,

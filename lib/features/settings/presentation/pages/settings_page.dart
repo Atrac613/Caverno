@@ -1149,6 +1149,9 @@ class _ComputerUseOnboardingCardState
       liveSmokeReport?['xpcRuntimeDiagnostics'],
     );
     final permissionGate = _mapValue(liveSmokeReport?['permissionGate']);
+    final captureGate = _mapValue(liveSmokeReport?['captureGate']);
+    final inputGate = _mapValue(liveSmokeReport?['inputGate']);
+    final unsafeActionGate = _mapValue(liveSmokeReport?['unsafeActionGate']);
     final preferredAttempt =
         _mapValue(snapshot['preferredIpcAttempt']) ??
         _mapValue(snapshot['lastPreferredIpcAttempt']);
@@ -1252,6 +1255,9 @@ class _ComputerUseOnboardingCardState
       'signingDiagnostics': signingDiagnostics,
       'xpcRuntimeDiagnostics': xpcRuntimeDiagnostics,
       'permissionGate': permissionGate,
+      'captureGate': captureGate,
+      'inputGate': inputGate,
+      'unsafeActionGate': unsafeActionGate,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1609,6 +1615,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final signingDiagnostics = _mapValue(runtime['signingDiagnostics']);
     final xpcRuntimeDiagnostics = _mapValue(runtime['xpcRuntimeDiagnostics']);
     final permissionGate = _mapValue(runtime['permissionGate']);
+    final captureGate = _mapValue(runtime['captureGate']);
+    final inputGate = _mapValue(runtime['inputGate']);
+    final unsafeActionGate = _mapValue(runtime['unsafeActionGate']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1616,6 +1625,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final permissionBlockers = _stringList(
       permissionGate?['blockedByPermissions'],
     );
+    final captureBlockers = _stringList(captureGate?['blockers']);
+    final inputBlockers = _stringList(inputGate?['blockers']);
+    final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
@@ -1713,6 +1725,33 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Permission blockers',
                 value: permissionBlockers.join(', '),
+              ),
+            if (captureGate != null)
+              _InfoChip(
+                label: 'Capture gate',
+                value: '${captureGate['status']}',
+              ),
+            if (captureBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Capture blockers',
+                value: captureBlockers.join(', '),
+              ),
+            if (inputGate != null)
+              _InfoChip(label: 'Input gate', value: '${inputGate['status']}'),
+            if (inputBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Input blockers',
+                value: inputBlockers.join(', '),
+              ),
+            if (unsafeActionGate != null)
+              _InfoChip(
+                label: 'Unsafe action gate',
+                value: '${unsafeActionGate['status']}',
+              ),
+            if (unsafeBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Unsafe blockers',
+                value: unsafeBlockers.join(', '),
               ),
             _InfoChip(
               label: 'XPC next action',
@@ -1882,6 +1921,9 @@ class _LiveSmokeSummary extends StatelessWidget {
     final signingDiagnostics = _mapValue(report['signingDiagnostics']);
     final xpcRuntimeDiagnostics = _mapValue(report['xpcRuntimeDiagnostics']);
     final permissionGate = _mapValue(report['permissionGate']);
+    final captureGate = _mapValue(report['captureGate']);
+    final inputGate = _mapValue(report['inputGate']);
+    final unsafeActionGate = _mapValue(report['unsafeActionGate']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1889,6 +1931,9 @@ class _LiveSmokeSummary extends StatelessWidget {
     final permissionBlockers = _stringList(
       permissionGate?['blockedByPermissions'],
     );
+    final captureBlockers = _stringList(captureGate?['blockers']);
+    final inputBlockers = _stringList(inputGate?['blockers']);
+    final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -1937,11 +1982,35 @@ class _LiveSmokeSummary extends StatelessWidget {
                 trueText: 'Clear',
                 falseText: 'Blocked',
               ),
+            if (captureGate != null)
+              _StatusChip(
+                label: 'Live Capture Gate',
+                value: captureBlockers.isEmpty,
+                trueText: 'Ready',
+                falseText: '${captureGate['status']}',
+              ),
+            if (inputGate != null)
+              _StatusChip(
+                label: 'Live Input Gate',
+                value: inputBlockers.isEmpty,
+                trueText: 'Ready',
+                falseText: '${inputGate['status']}',
+              ),
+            if (unsafeActionGate != null)
+              _StatusChip(
+                label: 'Live Unsafe Gate',
+                value: unsafeActionGate['unsafeArmed'] == true,
+                trueText: 'Armed',
+                falseText: 'Not armed',
+              ),
           ],
         ),
         if (signingBlockers.isNotEmpty ||
             runtimeBlockers.isNotEmpty ||
-            permissionBlockers.isNotEmpty) ...[
+            permissionBlockers.isNotEmpty ||
+            captureBlockers.isNotEmpty ||
+            inputBlockers.isNotEmpty ||
+            unsafeBlockers.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             [
@@ -1951,6 +2020,12 @@ class _LiveSmokeSummary extends StatelessWidget {
                 'runtime: ${runtimeBlockers.join(', ')}',
               if (permissionBlockers.isNotEmpty)
                 'permissions: ${permissionBlockers.join(', ')}',
+              if (captureBlockers.isNotEmpty)
+                'capture: ${captureBlockers.join(', ')}',
+              if (inputBlockers.isNotEmpty)
+                'input: ${inputBlockers.join(', ')}',
+              if (unsafeBlockers.isNotEmpty)
+                'unsafe: ${unsafeBlockers.join(', ')}',
             ].join(' | '),
             style: Theme.of(context).textTheme.bodySmall,
           ),
