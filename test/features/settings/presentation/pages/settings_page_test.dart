@@ -220,7 +220,10 @@ void main() {
       find.text('Positive smoke blockers: screen_capture'),
       findsOneWidget,
     );
+    expect(find.text('Readiness expectations: failed'), findsOneWidget);
+    expect(find.text('Failed expectations: capture_ready'), findsOneWidget);
     expect(find.text('Live Positive Smoke: blocked'), findsOneWidget);
+    expect(find.text('Live Expectations: Failed'), findsOneWidget);
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -682,6 +685,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'passedRequiredCount': 0,
           'failedRequiredCount': 2,
           'failedRequiredGateIds': ['display_screenshot', 'window_capture'],
+        },
+        'readinessExpectations': {
+          'ok': false,
+          'failed': ['capture_ready'],
         },
         'signingDiagnostics': {
           'launchConstraintLikelyAccepted': true,

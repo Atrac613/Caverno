@@ -1173,6 +1173,9 @@ class _ComputerUseOnboardingCardState
     final positiveSmokeGateSummary = _mapValue(
       liveSmokeReport?['positiveSmokeGateSummary'],
     );
+    final readinessExpectations = _mapValue(
+      liveSmokeReport?['readinessExpectations'],
+    );
     final preferredAttempt =
         _mapValue(snapshot['preferredIpcAttempt']) ??
         _mapValue(snapshot['lastPreferredIpcAttempt']);
@@ -1281,6 +1284,7 @@ class _ComputerUseOnboardingCardState
       'audioGate': audioGate,
       'unsafeActionGate': unsafeActionGate,
       'positiveSmokeGateSummary': positiveSmokeGateSummary,
+      'readinessExpectations': readinessExpectations,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1816,6 +1820,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final positiveSmokeGateSummary = _mapValue(
       runtime['positiveSmokeGateSummary'],
     );
+    final readinessExpectations = _mapValue(runtime['readinessExpectations']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1830,6 +1835,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
     );
+    final failedExpectations = _stringList(readinessExpectations?['failed']);
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
@@ -1971,6 +1977,18 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Positive smoke blockers',
                 value: positiveSmokeBlockers.join(', '),
+              ),
+            if (readinessExpectations != null)
+              _InfoChip(
+                label: 'Readiness expectations',
+                value: readinessExpectations['ok'] == true
+                    ? 'passed'
+                    : 'failed',
+              ),
+            if (failedExpectations.isNotEmpty)
+              _InfoChip(
+                label: 'Failed expectations',
+                value: failedExpectations.join(', '),
               ),
             _InfoChip(
               label: 'XPC next action',
@@ -2147,6 +2165,7 @@ class _LiveSmokeSummary extends StatelessWidget {
     final positiveSmokeGateSummary = _mapValue(
       report['positiveSmokeGateSummary'],
     );
+    final readinessExpectations = _mapValue(report['readinessExpectations']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -2161,6 +2180,7 @@ class _LiveSmokeSummary extends StatelessWidget {
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
     );
+    final failedExpectations = _stringList(readinessExpectations?['failed']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2248,6 +2268,13 @@ class _LiveSmokeSummary extends StatelessWidget {
                 trueText: 'Ready',
                 falseText: '${positiveSmokeGateSummary['status']}',
               ),
+            if (readinessExpectations != null)
+              _StatusChip(
+                label: 'Live Expectations',
+                value: readinessExpectations['ok'] == true,
+                trueText: 'Passed',
+                falseText: 'Failed',
+              ),
           ],
         ),
         if (signingBlockers.isNotEmpty ||
@@ -2257,7 +2284,8 @@ class _LiveSmokeSummary extends StatelessWidget {
             inputBlockers.isNotEmpty ||
             audioBlockers.isNotEmpty ||
             unsafeBlockers.isNotEmpty ||
-            positiveSmokeBlockers.isNotEmpty) ...[
+            positiveSmokeBlockers.isNotEmpty ||
+            failedExpectations.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
             [
@@ -2277,6 +2305,8 @@ class _LiveSmokeSummary extends StatelessWidget {
                 'unsafe: ${unsafeBlockers.join(', ')}',
               if (positiveSmokeBlockers.isNotEmpty)
                 'positive smoke: ${positiveSmokeBlockers.join(', ')}',
+              if (failedExpectations.isNotEmpty)
+                'expectations: ${failedExpectations.join(', ')}',
             ].join(' | '),
             style: Theme.of(context).textTheme.bodySmall,
           ),

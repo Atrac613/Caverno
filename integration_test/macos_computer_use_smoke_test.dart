@@ -18,6 +18,15 @@ const _unsafeClickArmed = bool.fromEnvironment(
 const _unsafeTextArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED',
 );
+const _requireCaptureReady = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_CAPTURE_READY',
+);
+const _requireInputReady = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_INPUT_READY',
+);
+const _requireAudioResolved = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_AUDIO_RESOLVED',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -44,6 +53,9 @@ void main() {
       'unsafeArmed': _unsafeArmed,
       'unsafeClickArmed': _unsafeClickArmed,
       'unsafeTextArmed': _unsafeTextArmed,
+      'requireCaptureReady': _requireCaptureReady,
+      'requireInputReady': _requireInputReady,
+      'requireAudioResolved': _requireAudioResolved,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -475,7 +487,12 @@ void main() {
       positiveSmokeGates,
     );
     report['requiredPositiveSmokeOk'] = requiredPositiveSmokeOk;
+    final readinessExpectations = _readinessExpectations(report);
+    report['readinessExpectations'] = readinessExpectations;
     if (_strict && !requiredPositiveSmokeOk) {
+      report['ok'] = false;
+    }
+    if (readinessExpectations['ok'] == false) {
       report['ok'] = false;
     }
     if (_strict && _registerXpcAgent && !xpcProductionOk) {
@@ -506,6 +523,29 @@ void main() {
               'Registered LaunchAgent smoke runs must reach production-ready named XPC.',
         );
       }
+    }
+    if (_requireCaptureReady) {
+      expect(
+        _gateReady(report['captureGate']),
+        isTrue,
+        reason:
+            'Capture gate must be ready when capture readiness is required.',
+      );
+    }
+    if (_requireInputReady) {
+      expect(
+        _gateReady(report['inputGate']),
+        isTrue,
+        reason: 'Input gate must be ready when input readiness is required.',
+      );
+    }
+    if (_requireAudioResolved) {
+      expect(
+        _audioGateResolved(report['audioGate']),
+        isTrue,
+        reason:
+            'Audio gate must be ready or unsupported when audio resolution is required.',
+      );
     }
     if (_strictXpc) {
       expect(
@@ -1643,6 +1683,64 @@ bool _positiveSmokeReadinessBlocker(String blockedBy) {
   return blockedBy == 'screen_capture' ||
       blockedBy == 'accessibility' ||
       blockedBy == 'accessibility_or_screen_capture';
+}
+
+Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
+  final captureReady = _gateReady(report['captureGate']);
+  final inputReady = _gateReady(report['inputGate']);
+  final audioResolved = _audioGateResolved(report['audioGate']);
+  final checks = [
+    {
+      'id': 'capture_ready',
+      'required': _requireCaptureReady,
+      'ok': !_requireCaptureReady || captureReady,
+      'status': _gateStatus(report['captureGate']),
+      'nextAction': _gateNextAction(report['captureGate']),
+    },
+    {
+      'id': 'input_ready',
+      'required': _requireInputReady,
+      'ok': !_requireInputReady || inputReady,
+      'status': _gateStatus(report['inputGate']),
+      'nextAction': _gateNextAction(report['inputGate']),
+    },
+    {
+      'id': 'audio_resolved',
+      'required': _requireAudioResolved,
+      'ok': !_requireAudioResolved || audioResolved,
+      'status': _gateStatus(report['audioGate']),
+      'nextAction': _gateNextAction(report['audioGate']),
+    },
+  ];
+  final failed = checks
+      .where((check) => check['required'] == true && check['ok'] != true)
+      .map((check) => check['id'])
+      .whereType<String>()
+      .toList(growable: false);
+  return {'ok': failed.isEmpty, 'failed': failed, 'checks': checks};
+}
+
+bool _gateReady(Object? gate) {
+  return gate is Map && gate['status'] == 'ready';
+}
+
+bool _audioGateResolved(Object? gate) {
+  return gate is Map &&
+      (gate['status'] == 'ready' || gate['status'] == 'unsupported');
+}
+
+String _gateStatus(Object? gate) {
+  if (gate is Map && gate['status'] is String) {
+    return gate['status'] as String;
+  }
+  return 'missing';
+}
+
+String? _gateNextAction(Object? gate) {
+  if (gate is Map && gate['nextAction'] is String) {
+    return gate['nextAction'] as String;
+  }
+  return null;
 }
 
 int? _intValue(Object? value) {
