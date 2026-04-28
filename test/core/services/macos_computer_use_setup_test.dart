@@ -47,6 +47,7 @@ void main() {
       'ping',
       'permissionStatus',
       'openSettings',
+      'showPermissionOverlay',
       'stopAll',
       'screenshot',
       'listWindows',
@@ -95,7 +96,7 @@ void main() {
     expect(
       info['xpcProductionReadinessCriteria'],
       contains(
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+        'ping_permission_status_open_settings_show_permission_overlay_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
       ),
     );
   });

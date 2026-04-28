@@ -134,8 +134,8 @@ class MacosComputerUseService {
         responses['accessibility'] =
             _decodeMap(
               await _invokeTransportJson(
-                () => _permissionTransport.openSystemSettings(
-                  section: 'accessibility',
+                () => _permissionTransport.showPermissionOverlay(
+                  permission: 'accessibility',
                 ),
               ),
             ) ??
@@ -145,8 +145,8 @@ class MacosComputerUseService {
         responses['screenCapture'] =
             _decodeMap(
               await _invokeTransportJson(
-                () => _permissionTransport.openSystemSettings(
-                  section: 'screen_recording',
+                () => _permissionTransport.showPermissionOverlay(
+                  permission: 'screenRecording',
                 ),
               ),
             ) ??
@@ -178,6 +178,12 @@ class MacosComputerUseService {
   Future<String> openSystemSettings({required String section}) async {
     return _invokeTransportJson(
       () => _permissionTransport.openSystemSettings(section: section),
+    );
+  }
+
+  Future<String> showPermissionOverlay({required String permission}) async {
+    return _invokeTransportJson(
+      () => _permissionTransport.showPermissionOverlay(permission: permission),
     );
   }
 

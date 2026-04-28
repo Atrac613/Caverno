@@ -33,6 +33,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private var permissionSmokeRow: SmokeStepRowView?
   private var displayScreenshotSmokeRow: SmokeStepRowView?
   private var windowCaptureSmokeRow: SmokeStepRowView?
+  private var permissionOverlayWindowController: PermissionOverlayWindowController?
 
   func applicationDidFinishLaunching(_ notification: Notification) {
     ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "application_did_finish_launching")
@@ -54,6 +55,37 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   func applicationDidBecomeActive(_ notification: Notification) {
     ipc.start()
     refreshPermissionRows()
+  }
+
+  fileprivate static func showPermissionOverlay(pane: SettingsPane) -> PermissionOverlayPresentation {
+    if Thread.isMainThread {
+      return delegateInstance?.presentPermissionOverlay(pane: pane)
+        ?? PermissionOverlayPresentation.missingDelegate()
+    }
+
+    var presentation = PermissionOverlayPresentation.missingDelegate()
+    DispatchQueue.main.sync {
+      presentation = delegateInstance?.presentPermissionOverlay(pane: pane)
+        ?? PermissionOverlayPresentation.missingDelegate()
+    }
+    return presentation
+  }
+
+  private func presentPermissionOverlay(pane: SettingsPane) -> PermissionOverlayPresentation {
+    let helperBundleURL = Bundle.main.bundleURL
+    let controller = PermissionOverlayWindowController(
+      pane: pane,
+      helperBundleURL: helperBundleURL
+    )
+    permissionOverlayWindowController = controller
+    controller.showOverlay()
+    return PermissionOverlayPresentation(
+      overlayShown: controller.window?.isVisible == true,
+      overlayWindowTitle: controller.window?.title ?? "Caverno Computer Use Permission Overlay",
+      overlayWindowLevel: controller.window?.level.rawValue,
+      helperBundlePath: helperBundleURL.path,
+      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path)
+    )
   }
 
   private func makeContentView() -> NSView {
@@ -271,7 +303,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   }
 }
 
-private enum SettingsPane {
+fileprivate enum SettingsPane {
   case privacy
   case accessibility
   case screenRecording
@@ -289,6 +321,17 @@ private enum SettingsPane {
     }
   }
 
+  init?(permissionOverlayPermission permission: String) {
+    switch permission.lowercased() {
+    case "accessibility":
+      self = .accessibility
+    case "screen_capture", "screencapture", "screen_recording", "screenrecording":
+      self = .screenRecording
+    default:
+      return nil
+    }
+  }
+
   var responseSection: String {
     switch self {
     case .privacy:
@@ -297,6 +340,28 @@ private enum SettingsPane {
       return "accessibility"
     case .screenRecording:
       return "screenRecording"
+    }
+  }
+
+  var overlayPermission: String {
+    switch self {
+    case .privacy:
+      return "privacy"
+    case .accessibility:
+      return "accessibility"
+    case .screenRecording:
+      return "screenRecording"
+    }
+  }
+
+  var permissionLabel: String {
+    switch self {
+    case .privacy:
+      return "Privacy"
+    case .accessibility:
+      return "Accessibility"
+    case .screenRecording:
+      return "Screen & System Audio Recording"
     }
   }
 
@@ -321,6 +386,238 @@ private func openSettingsPane(_ pane: SettingsPane) {
     return
   }
   NSWorkspace.shared.open(url)
+}
+
+fileprivate struct PermissionOverlayPresentation {
+  let overlayShown: Bool
+  let overlayWindowTitle: String
+  let overlayWindowLevel: Int?
+  let helperBundlePath: String
+  let draggableTileReady: Bool
+
+  static func missingDelegate() -> PermissionOverlayPresentation {
+    let helperBundleURL = Bundle.main.bundleURL
+    return PermissionOverlayPresentation(
+      overlayShown: false,
+      overlayWindowTitle: "Caverno Computer Use Permission Overlay",
+      overlayWindowLevel: nil,
+      helperBundlePath: helperBundleURL.path,
+      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path)
+    )
+  }
+
+  func toMap() -> [String: Any] {
+    var map: [String: Any] = [
+      "overlayShown": overlayShown,
+      "overlayWindowTitle": overlayWindowTitle,
+      "helperBundlePath": helperBundlePath,
+      "draggableTileReady": draggableTileReady,
+    ]
+    if let overlayWindowLevel {
+      map["overlayWindowLevel"] = overlayWindowLevel
+    }
+    return map
+  }
+}
+
+private final class PermissionOverlayWindowController: NSWindowController {
+  private let pane: SettingsPane
+  private let helperBundleURL: URL
+
+  init(pane: SettingsPane, helperBundleURL: URL) {
+    self.pane = pane
+    self.helperBundleURL = helperBundleURL
+
+    let panel = NSPanel(
+      contentRect: NSRect(x: 0, y: 0, width: 720, height: 138),
+      styleMask: [.titled, .closable, .fullSizeContentView, .nonactivatingPanel],
+      backing: .buffered,
+      defer: false
+    )
+    panel.title = "Caverno Computer Use Permission Overlay"
+    panel.titleVisibility = .hidden
+    panel.titlebarAppearsTransparent = true
+    panel.isMovableByWindowBackground = true
+    panel.isFloatingPanel = true
+    panel.hidesOnDeactivate = false
+    panel.level = .floating
+    panel.collectionBehavior = [.canJoinAllSpaces, .fullScreenAuxiliary, .transient]
+    panel.backgroundColor = .clear
+    panel.isOpaque = false
+
+    super.init(window: panel)
+    panel.contentView = makeContentView()
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  func showOverlay() {
+    guard let window else {
+      return
+    }
+    positionNearSettings(window)
+    window.orderFrontRegardless()
+  }
+
+  private func makeContentView() -> NSView {
+    let root = NSVisualEffectView()
+    root.material = .hudWindow
+    root.blendingMode = .behindWindow
+    root.state = .active
+    root.wantsLayer = true
+    root.layer?.cornerRadius = 18
+    root.layer?.borderWidth = 1
+    root.layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.45).cgColor
+
+    let stack = NSStackView()
+    stack.orientation = .horizontal
+    stack.alignment = .centerY
+    stack.spacing = 14
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(stack)
+
+    let backButton = NSButton(
+      image: NSImage(
+        systemSymbolName: "chevron.left",
+        accessibilityDescription: "Close"
+      ) ?? NSImage(),
+      target: self,
+      action: #selector(closeOverlay)
+    )
+    backButton.bezelStyle = .circular
+    backButton.translatesAutoresizingMaskIntoConstraints = false
+    backButton.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    backButton.heightAnchor.constraint(equalToConstant: 42).isActive = true
+
+    let content = NSStackView()
+    content.orientation = .vertical
+    content.alignment = .width
+    content.spacing = 10
+
+    let instruction = NSTextField(labelWithString: instructionText)
+    instruction.font = .systemFont(ofSize: 15, weight: .semibold)
+    instruction.textColor = .labelColor
+    instruction.maximumNumberOfLines = 2
+
+    let tile = HelperBundleDragTileView(helperBundleURL: helperBundleURL)
+    tile.translatesAutoresizingMaskIntoConstraints = false
+    tile.heightAnchor.constraint(equalToConstant: 52).isActive = true
+
+    content.addArrangedSubview(instruction)
+    content.addArrangedSubview(tile)
+
+    stack.addArrangedSubview(backButton)
+    stack.addArrangedSubview(content)
+
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
+      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -18),
+      stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
+      stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -18),
+    ])
+
+    return root
+  }
+
+  private var instructionText: String {
+    "Drag Caverno Computer Use to the list above to allow \(pane.permissionLabel)"
+  }
+
+  private func positionNearSettings(_ window: NSWindow) {
+    guard let screen = NSScreen.main else {
+      window.center()
+      return
+    }
+    let frame = screen.visibleFrame
+    let size = window.frame.size
+    let origin = NSPoint(
+      x: frame.midX - size.width / 2,
+      y: frame.minY + min(96, frame.height * 0.12)
+    )
+    window.setFrameOrigin(origin)
+  }
+
+  @objc private func closeOverlay() {
+    close()
+  }
+}
+
+private final class HelperBundleDragTileView: NSView, NSDraggingSource {
+  private let helperBundleURL: URL
+
+  init(helperBundleURL: URL) {
+    self.helperBundleURL = helperBundleURL
+    super.init(frame: .zero)
+    wantsLayer = true
+    layer?.cornerRadius = 10
+    layer?.borderWidth = 1
+    layer?.borderColor = NSColor.separatorColor.withAlphaComponent(0.35).cgColor
+    layer?.backgroundColor = NSColor.controlBackgroundColor.withAlphaComponent(0.55).cgColor
+    buildSubviews()
+  }
+
+  @available(*, unavailable)
+  required init?(coder: NSCoder) {
+    nil
+  }
+
+  override func mouseDragged(with event: NSEvent) {
+    let draggingItem = NSDraggingItem(pasteboardWriter: helperBundleURL as NSURL)
+    draggingItem.setDraggingFrame(bounds, contents: draggingImage())
+    beginDraggingSession(with: [draggingItem], event: event, source: self)
+  }
+
+  override func resetCursorRects() {
+    addCursorRect(bounds, cursor: .openHand)
+  }
+
+  func draggingSession(
+    _ session: NSDraggingSession,
+    sourceOperationMaskFor context: NSDraggingContext
+  ) -> NSDragOperation {
+    .copy
+  }
+
+  func ignoreModifierKeys(for session: NSDraggingSession) -> Bool {
+    true
+  }
+
+  private func buildSubviews() {
+    let stack = NSStackView()
+    stack.orientation = .horizontal
+    stack.alignment = .centerY
+    stack.spacing = 10
+    stack.translatesAutoresizingMaskIntoConstraints = false
+    addSubview(stack)
+
+    let icon = NSImageView()
+    icon.image = NSWorkspace.shared.icon(forFile: helperBundleURL.path)
+    icon.translatesAutoresizingMaskIntoConstraints = false
+    icon.widthAnchor.constraint(equalToConstant: 30).isActive = true
+    icon.heightAnchor.constraint(equalToConstant: 30).isActive = true
+
+    let label = NSTextField(labelWithString: "Caverno Computer Use")
+    label.font = .systemFont(ofSize: 14, weight: .semibold)
+    label.textColor = .labelColor
+
+    stack.addArrangedSubview(icon)
+    stack.addArrangedSubview(label)
+
+    NSLayoutConstraint.activate([
+      stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 12),
+      stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -12),
+      stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+    ])
+  }
+
+  private func draggingImage() -> NSImage {
+    let image = NSWorkspace.shared.icon(forFile: helperBundleURL.path)
+    image.size = NSSize(width: 48, height: 48)
+    return image
+  }
 }
 
 private struct PermissionSnapshot {
@@ -415,6 +712,7 @@ private enum ComputerUseHelperCommand: String {
   case ping
   case permissionStatus
   case openSettings
+  case showPermissionOverlay
   case stopAll
   case screenshot
   case listWindows
@@ -442,6 +740,7 @@ private enum ComputerUseHelperIpcSchema {
     "ping",
     "permissionStatus",
     "openSettings",
+    "showPermissionOverlay",
     "stopAll",
     "screenshot",
     "listWindows",
@@ -475,7 +774,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_permission_status_open_settings_show_permission_overlay_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -902,6 +1201,8 @@ private final class ComputerUseHelperIpc: NSObject {
       completion(permissionStatus())
     case .openSettings:
       completion(openSettings(arguments: request.arguments))
+    case .showPermissionOverlay:
+      completion(showPermissionOverlay(arguments: request.arguments))
     case .stopAll:
       stopAll(completion: completion)
     case .screenshot:
@@ -956,6 +1257,38 @@ private final class ComputerUseHelperIpc: NSObject {
         "section": pane.responseSection,
         "url": url.absoluteString,
       ]
+    )
+  }
+
+  private func showPermissionOverlay(arguments: [String: Any]) -> [String: Any] {
+    let permission = (arguments["permission"] as? String)
+      ?? (arguments["section"] as? String)
+      ?? "accessibility"
+    guard
+      let pane = SettingsPane(permissionOverlayPermission: permission),
+      let url = pane.url
+    else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "permission must be accessibility or screenRecording",
+        details: permission
+      )
+    }
+
+    let opened = NSWorkspace.shared.open(url)
+    let presentation = ComputerUseHelperApp.showPermissionOverlay(pane: pane)
+    var overlay = presentation.toMap()
+    overlay["permission"] = pane.overlayPermission
+    overlay["section"] = pane.responseSection
+    overlay["url"] = url.absoluteString
+    overlay["settingsOpened"] = opened
+    overlay["overlayRequested"] = true
+    overlay["overlayMode"] = "floating_helper_panel"
+    overlay["nextAction"] =
+      "Drag Caverno Computer Use into the permission list, then recheck."
+    return baseResponse(
+      ok: opened,
+      extra: overlay
     )
   }
 

@@ -70,6 +70,16 @@ void main() {
               'backend': 'helper',
               'section': (call.arguments as Map<Object?, Object?>)['section'],
             },
+            'helperShowPermissionOverlay' => {
+              'ok': true,
+              'backend': 'helper',
+              'permission':
+                  (call.arguments as Map<Object?, Object?>)['permission'],
+              'settingsOpened': true,
+              'overlayRequested': true,
+              'overlayShown': false,
+              'draggableTileReady': true,
+            },
             'helperStopAll' => {
               'ok': true,
               'backend': 'helper',
@@ -113,6 +123,13 @@ void main() {
                 await transport.openSystemSettings(section: 'accessibility'),
               )
               as Map<String, dynamic>;
+      final overlay =
+          jsonDecode(
+                await transport.showPermissionOverlay(
+                  permission: 'accessibility',
+                ),
+              )
+              as Map<String, dynamic>;
       final stopAll =
           jsonDecode(await transport.stopAll()) as Map<String, dynamic>;
 
@@ -126,6 +143,7 @@ void main() {
         'helperPing',
         'helperPermissionStatus',
         'helperOpenSystemSettings',
+        'helperShowPermissionOverlay',
         'helperStopAll',
       ]);
       expect(status, containsPair('helperInstalled', true));
@@ -142,6 +160,8 @@ void main() {
       expect(permissions, containsPair('accessibilityGranted', true));
       expect(permissions, containsPair('screenCaptureGranted', false));
       expect(settings, containsPair('section', 'accessibility'));
+      expect(overlay, containsPair('permission', 'accessibility'));
+      expect(overlay, containsPair('draggableTileReady', true));
       expect(stopAll, containsPair('cancelledInputEvents', true));
     },
   );

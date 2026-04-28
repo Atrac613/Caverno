@@ -341,6 +341,7 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _permissions;
   Map<String, dynamic>? _lastStopResult;
   Map<String, dynamic>? _lastPermissionSettingsResult;
+  Map<String, dynamic>? _lastPermissionOverlayResult;
   Map<String, dynamic>? _lastLiveSmokeReport;
   String? _lastPrimaryActionLabel;
   String? _lastDiagnosticExportPath;
@@ -682,6 +683,13 @@ class _ComputerUseOnboardingCardState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
+            if (_lastPermissionOverlayResult != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last permission overlay: ${_permissionOverlaySummary(_lastPermissionOverlayResult!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (_lastDiagnosticExportPath != null) ...[
               const SizedBox(height: 8),
               SelectableText(
@@ -901,16 +909,23 @@ class _ComputerUseOnboardingCardState
     try {
       final service = ref.read(macosComputerUseServiceProvider);
       final result = _decodeMap(
-        await service.openSystemSettings(section: section),
+        await service.showPermissionOverlay(
+          permission: _permissionOverlayPermission(section),
+        ),
       );
       if (!mounted) {
         return;
       }
       setState(() {
         _lastPrimaryActionLabel = null;
-        _lastPermissionSettingsResult =
+        _lastPermissionOverlayResult =
             result ??
-            {'ok': false, 'section': section, 'error': 'Invalid response'};
+            {
+              'ok': false,
+              'section': section,
+              'permission': _permissionOverlayPermission(section),
+              'error': 'Invalid response',
+            };
       });
       await Future<void>.delayed(const Duration(milliseconds: 500));
       if (mounted) {
@@ -1036,6 +1051,7 @@ class _ComputerUseOnboardingCardState
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastStopResult': _lastStopResult,
         'lastPermissionSettingsResult': _lastPermissionSettingsResult,
+        'lastPermissionOverlayResult': _lastPermissionOverlayResult,
       },
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
@@ -1368,6 +1384,35 @@ class _ComputerUseOnboardingCardState
     return 'failed to open $section${error == null ? '' : ': $error'}';
   }
 
+  String _permissionOverlaySummary(Map<String, dynamic> result) {
+    final permission = result['permission'] ?? result['section'] ?? 'unknown';
+    final shown = result['overlayShown'] == true;
+    final opened = result['settingsOpened'] == true || result['ok'] == true;
+    final ready = result['draggableTileReady'] == true;
+    final error = result['error'];
+    if (shown) {
+      return ready
+          ? 'shown for $permission'
+          : 'shown without tile for $permission';
+    }
+    if (opened) {
+      return ready
+          ? 'opened $permission with tile ready'
+          : 'opened $permission';
+    }
+    return 'failed to show $permission${error == null ? '' : ': $error'}';
+  }
+
+  String _permissionOverlayPermission(String section) {
+    return switch (section) {
+      'screen_capture' ||
+      'screencapture' ||
+      'screen_recording' ||
+      'screenrecording' => 'screenRecording',
+      _ => 'accessibility',
+    };
+  }
+
   String _lastActionLabel() {
     if (_lastPrimaryActionLabel != null) {
       return 'Settings primary action: $_lastPrimaryActionLabel';
@@ -1377,6 +1422,9 @@ class _ComputerUseOnboardingCardState
     }
     if (_lastPermissionSettingsResult != null) {
       return 'Settings open permission pane';
+    }
+    if (_lastPermissionOverlayResult != null) {
+      return 'Settings show permission overlay';
     }
     return 'Settings onboarding status';
   }

@@ -74,6 +74,7 @@ void main() {
     expect(text, contains('"xpcNextParityCommands"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
+    expect(text, contains('"lastPermissionOverlayResult"'));
     expect(
       find.textContaining('Helper status saved:', skipOffstage: false),
       findsOneWidget,
@@ -175,7 +176,7 @@ void main() {
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
       find.text(
-        'XPC commands: ping, permissionStatus, openSettings, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click, drag, scroll, typeText, pressKey, startSystemAudioRecording, stopSystemAudioRecording',
+        'XPC commands: ping, permissionStatus, openSettings, showPermissionOverlay, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click, drag, scroll, typeText, pressKey, startSystemAudioRecording, stopSystemAudioRecording',
       ),
       findsOneWidget,
     );
@@ -339,10 +340,7 @@ void main() {
       wait: const Duration(milliseconds: 700),
     );
 
-    expect(service.openedSettingsSections, [
-      'accessibility',
-      'screen_recording',
-    ]);
+    expect(service.permissionOverlays, ['accessibility', 'screenRecording']);
     expect(service.getPermissionsCallCount, greaterThanOrEqualTo(3));
 
     final permissionsBeforeRecheck = service.getPermissionsCallCount;
@@ -350,7 +348,7 @@ void main() {
 
     expect(service.getPermissionsCallCount, permissionsBeforeRecheck + 1);
     expect(
-      find.textContaining('Last permission action:', skipOffstage: false),
+      find.textContaining('Last permission overlay:', skipOffstage: false),
       findsOneWidget,
     );
   });
@@ -458,6 +456,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   int stopHelperWorkCallCount = 0;
   int getPermissionsCallCount = 0;
   final List<String> openedSettingsSections = [];
+  final List<String> permissionOverlays = [];
   bool _helperWorkActive;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
@@ -553,6 +552,24 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   }
 
   @override
+  Future<String> showPermissionOverlay({required String permission}) async {
+    permissionOverlays.add(permission);
+    return _json({
+      'ok': true,
+      'backend': 'helper',
+      'permission': permission,
+      'settingsOpened': true,
+      'overlayRequested': true,
+      'overlayShown': false,
+      'draggableTileReady': true,
+      'helperBundlePath':
+          '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'nextAction':
+          'Drag Caverno Computer Use into the permission list, then recheck.',
+    });
+  }
+
+  @override
   Future<String> pingHelper() async {
     pingHelperCallCount += 1;
     return _json({
@@ -583,6 +600,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'ping',
         'permissionStatus',
         'openSettings',
+        'showPermissionOverlay',
         'stopAll',
         'screenshot',
         'listWindows',
@@ -600,7 +618,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcNextParityCommands': <String>[],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_permission_status_open_settings_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+        'ping_permission_status_open_settings_show_permission_overlay_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

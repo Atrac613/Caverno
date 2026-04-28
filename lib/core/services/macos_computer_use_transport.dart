@@ -29,6 +29,8 @@ abstract class MacosComputerUsePermissionTransport {
 
   Future<String> openSystemSettings({required String section});
 
+  Future<String> showPermissionOverlay({required String permission});
+
   Future<String> stopAll();
 }
 
@@ -91,6 +93,13 @@ class HelperMacosComputerUseTransport
   @override
   Future<String> openSystemSettings({required String section}) {
     return _invokeJson('helperOpenSystemSettings', {'section': section});
+  }
+
+  @override
+  Future<String> showPermissionOverlay({required String permission}) {
+    return _invokeJson('helperShowPermissionOverlay', {
+      'permission': permission,
+    });
   }
 
   @override
@@ -231,6 +240,22 @@ class InProcessMacosComputerUseTransport
   @override
   Future<String> openSystemSettings({required String section}) {
     return _invokeJson('openSystemSettings', {'section': section});
+  }
+
+  @override
+  Future<String> showPermissionOverlay({required String permission}) async {
+    return jsonEncode({
+      'ok': false,
+      'backend': 'in_process',
+      'permission': permission,
+      'overlayRequested': true,
+      'overlayShown': false,
+      'draggableTileReady': false,
+      'code': 'helper_overlay_unavailable',
+      'error': 'Permission overlays are owned by Caverno Computer Use.',
+      'nextAction':
+          'Launch Caverno Computer Use to show the permission overlay.',
+    });
   }
 
   @override

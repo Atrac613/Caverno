@@ -1507,6 +1507,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       {'command': 'ping', 'owner': 'helper'},
       {'command': 'permissionStatus', 'owner': 'helper'},
       {'command': 'openSettings', 'owner': 'helper'},
+      {'command': 'showPermissionOverlay', 'owner': 'helper'},
       {'command': 'stopAll', 'owner': 'helper'},
       {'command': 'screenshot', 'owner': 'helper'},
       {'command': 'listWindows', 'owner': 'helper'},

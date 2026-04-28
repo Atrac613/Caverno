@@ -145,7 +145,7 @@ void main() {
 
     expect(transport.calledMethods, [
       'launchHelper',
-      'openSystemSettings:accessibility',
+      'showPermissionOverlay:accessibility',
       'getPermissions',
     ]);
     expect(result, containsPair('helper', isA<Map<String, dynamic>>()));
@@ -178,6 +178,26 @@ void main() {
       );
     },
   );
+
+  test('routes permission overlays through the helper transport', () async {
+    final transport = _FakePermissionTransport(
+      permissions: const <String, dynamic>{'ok': true},
+    );
+    final service = MacosComputerUseService(permissionTransport: transport);
+
+    final result =
+        jsonDecode(
+              await service.showPermissionOverlay(
+                permission: 'screenRecording',
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(transport.calledMethods, ['showPermissionOverlay:screenRecording']);
+    expect(result, containsPair('permission', 'screenRecording'));
+    expect(result, containsPair('overlayRequested', true));
+    expect(result, containsPair('draggableTileReady', true));
+  });
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
@@ -244,6 +264,19 @@ class _FakePermissionTransport extends MacosComputerUsePermissionTransport {
   Future<String> openSystemSettings({required String section}) async {
     calledMethods.add('openSystemSettings:$section');
     return jsonEncode({'ok': true, 'section': section});
+  }
+
+  @override
+  Future<String> showPermissionOverlay({required String permission}) async {
+    calledMethods.add('showPermissionOverlay:$permission');
+    return jsonEncode({
+      'ok': true,
+      'permission': permission,
+      'settingsOpened': true,
+      'overlayRequested': true,
+      'overlayShown': false,
+      'draggableTileReady': true,
+    });
   }
 
   @override
