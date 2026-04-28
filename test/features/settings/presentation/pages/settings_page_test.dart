@@ -148,6 +148,7 @@ void main() {
     expect(find.text('Screen recording permission: granted'), findsOneWidget);
     expect(find.text('Capture smoke: blocked'), findsOneWidget);
     expect(find.text('Input smoke: not_armed'), findsOneWidget);
+    expect(find.text('System audio smoke: not_armed'), findsOneWidget);
     expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
@@ -201,6 +202,8 @@ void main() {
     );
     expect(find.text('Input gate: not_armed'), findsOneWidget);
     expect(find.text('Input blockers: unsafe_smoke_not_armed'), findsOneWidget);
+    expect(find.text('Audio gate: not_armed'), findsOneWidget);
+    expect(find.text('Audio blockers: unsafe_smoke_not_armed'), findsOneWidget);
     expect(find.text('Unsafe action gate: not_armed'), findsOneWidget);
     expect(
       find.text(
@@ -210,6 +213,7 @@ void main() {
     );
     expect(find.text('Live Capture Gate: blocked'), findsOneWidget);
     expect(find.text('Live Input Gate: not_armed'), findsOneWidget);
+    expect(find.text('Live Audio Gate: not_armed'), findsOneWidget);
     expect(find.text('Live Unsafe Gate: Not armed'), findsOneWidget);
     expect(find.text('Positive smoke gate: blocked'), findsOneWidget);
     expect(
@@ -652,6 +656,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'inputGate': {
           'status': 'not_armed',
           'blockers': ['unsafe_smoke_not_armed'],
+        },
+        'audioGate': {
+          'status': 'not_armed',
+          'optional': true,
+          'blockers': ['unsafe_smoke_not_armed'],
+          'nextAction':
+              'Rerun smoke with unsafe arming for system audio checks.',
         },
         'unsafeActionGate': {
           'status': 'not_armed',

@@ -408,6 +408,7 @@ class _ComputerUseOnboardingCardState
     final helperIpcRuntime = _helperIpcRuntime();
     final captureGate = _mapValue(helperIpcRuntime['captureGate']);
     final inputGate = _mapValue(helperIpcRuntime['inputGate']);
+    final audioGate = _mapValue(helperIpcRuntime['audioGate']);
     final unsafeActionGate = _mapValue(helperIpcRuntime['unsafeActionGate']);
     final xpcLaunchAgentRegistered =
         helperIpcRuntime['xpcLaunchAgentRegistered'] == true;
@@ -480,6 +481,7 @@ class _ComputerUseOnboardingCardState
               screenCaptureGranted: screenCaptureGranted,
               captureGate: captureGate,
               inputGate: inputGate,
+              audioGate: audioGate,
               unsafeActionGate: unsafeActionGate,
               hasLiveSmokeReport: _lastLiveSmokeReport != null,
             ),
@@ -1166,6 +1168,7 @@ class _ComputerUseOnboardingCardState
     final permissionGate = _mapValue(liveSmokeReport?['permissionGate']);
     final captureGate = _mapValue(liveSmokeReport?['captureGate']);
     final inputGate = _mapValue(liveSmokeReport?['inputGate']);
+    final audioGate = _mapValue(liveSmokeReport?['audioGate']);
     final unsafeActionGate = _mapValue(liveSmokeReport?['unsafeActionGate']);
     final positiveSmokeGateSummary = _mapValue(
       liveSmokeReport?['positiveSmokeGateSummary'],
@@ -1275,6 +1278,7 @@ class _ComputerUseOnboardingCardState
       'permissionGate': permissionGate,
       'captureGate': captureGate,
       'inputGate': inputGate,
+      'audioGate': audioGate,
       'unsafeActionGate': unsafeActionGate,
       'positiveSmokeGateSummary': positiveSmokeGateSummary,
       'xpcProductionReadinessCriteria':
@@ -1461,6 +1465,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
     required this.screenCaptureGranted,
     required this.captureGate,
     required this.inputGate,
+    required this.audioGate,
     required this.unsafeActionGate,
     required this.hasLiveSmokeReport,
   });
@@ -1472,6 +1477,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
   final bool screenCaptureGranted;
   final Map<String, dynamic>? captureGate;
   final Map<String, dynamic>? inputGate;
+  final Map<String, dynamic>? audioGate;
   final Map<String, dynamic>? unsafeActionGate;
   final bool hasLiveSmokeReport;
 
@@ -1481,6 +1487,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
     final colorScheme = Theme.of(context).colorScheme;
     final captureStatus = _status(captureGate);
     final inputStatus = _status(inputGate);
+    final audioStatus = _status(audioGate);
     final unsafeStatus = _status(unsafeActionGate);
     final helperReady = helperInstalled && helperRunning && helperIpcReady;
     return DecoratedBox(
@@ -1538,6 +1545,14 @@ class _ComputerUseGatePlan extends StatelessWidget {
               detail: hasLiveSmokeReport
                   ? _nextAction(inputGate)
                   : 'Arm non-destructive input smoke only when ready to test.',
+            ),
+            _GatePlanRow(
+              label: 'System audio smoke',
+              status: audioStatus,
+              ok: audioStatus == 'ready' || audioStatus == 'unsupported',
+              detail: hasLiveSmokeReport
+                  ? _nextAction(audioGate)
+                  : 'System audio is optional and uses Screen & System Audio Recording.',
             ),
             _GatePlanRow(
               label: 'Unsafe arms',
@@ -1796,6 +1811,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final permissionGate = _mapValue(runtime['permissionGate']);
     final captureGate = _mapValue(runtime['captureGate']);
     final inputGate = _mapValue(runtime['inputGate']);
+    final audioGate = _mapValue(runtime['audioGate']);
     final unsafeActionGate = _mapValue(runtime['unsafeActionGate']);
     final positiveSmokeGateSummary = _mapValue(
       runtime['positiveSmokeGateSummary'],
@@ -1809,6 +1825,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
     );
     final captureBlockers = _stringList(captureGate?['blockers']);
     final inputBlockers = _stringList(inputGate?['blockers']);
+    final audioBlockers = _stringList(audioGate?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
@@ -1927,6 +1944,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Input blockers',
                 value: inputBlockers.join(', '),
+              ),
+            if (audioGate != null)
+              _InfoChip(label: 'Audio gate', value: '${audioGate['status']}'),
+            if (audioBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Audio blockers',
+                value: audioBlockers.join(', '),
               ),
             if (unsafeActionGate != null)
               _InfoChip(
@@ -2118,6 +2142,7 @@ class _LiveSmokeSummary extends StatelessWidget {
     final permissionGate = _mapValue(report['permissionGate']);
     final captureGate = _mapValue(report['captureGate']);
     final inputGate = _mapValue(report['inputGate']);
+    final audioGate = _mapValue(report['audioGate']);
     final unsafeActionGate = _mapValue(report['unsafeActionGate']);
     final positiveSmokeGateSummary = _mapValue(
       report['positiveSmokeGateSummary'],
@@ -2131,6 +2156,7 @@ class _LiveSmokeSummary extends StatelessWidget {
     );
     final captureBlockers = _stringList(captureGate?['blockers']);
     final inputBlockers = _stringList(inputGate?['blockers']);
+    final audioBlockers = _stringList(audioGate?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
     final positiveSmokeBlockers = _stringList(
       positiveSmokeGateSummary?['blockedBy'],
@@ -2197,6 +2223,17 @@ class _LiveSmokeSummary extends StatelessWidget {
                 trueText: 'Ready',
                 falseText: '${inputGate['status']}',
               ),
+            if (audioGate != null)
+              _StatusChip(
+                label: 'Live Audio Gate',
+                value:
+                    audioBlockers.isEmpty ||
+                    audioGate['status'] == 'unsupported',
+                trueText: audioGate['status'] == 'unsupported'
+                    ? 'Unsupported'
+                    : 'Ready',
+                falseText: '${audioGate['status']}',
+              ),
             if (unsafeActionGate != null)
               _StatusChip(
                 label: 'Live Unsafe Gate',
@@ -2218,6 +2255,7 @@ class _LiveSmokeSummary extends StatelessWidget {
             permissionBlockers.isNotEmpty ||
             captureBlockers.isNotEmpty ||
             inputBlockers.isNotEmpty ||
+            audioBlockers.isNotEmpty ||
             unsafeBlockers.isNotEmpty ||
             positiveSmokeBlockers.isNotEmpty) ...[
           const SizedBox(height: 4),
@@ -2233,6 +2271,8 @@ class _LiveSmokeSummary extends StatelessWidget {
                 'capture: ${captureBlockers.join(', ')}',
               if (inputBlockers.isNotEmpty)
                 'input: ${inputBlockers.join(', ')}',
+              if (audioBlockers.isNotEmpty)
+                'audio: ${audioBlockers.join(', ')}',
               if (unsafeBlockers.isNotEmpty)
                 'unsafe: ${unsafeBlockers.join(', ')}',
               if (positiveSmokeBlockers.isNotEmpty)

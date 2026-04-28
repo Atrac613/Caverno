@@ -441,6 +441,11 @@ void main() {
       permissions: permissions,
       unsafeArmed: _unsafeArmed,
     );
+    report['audioGate'] = _audioGate(
+      steps,
+      permissions: permissions,
+      unsafeArmed: _unsafeArmed,
+    );
     report['unsafeActionGate'] = _unsafeActionGate(
       unsafeArmed: _unsafeArmed,
       unsafeClickArmed: _unsafeClickArmed,
@@ -837,8 +842,8 @@ Map<String, dynamic> _permissionGate(Map<String, dynamic>? permissions) {
     'blockers': [
       if (!screenCaptureGranted) 'screen_capture_permission_missing',
       if (!accessibilityGranted) 'accessibility_permission_missing',
-      if (!systemAudioSupported) 'system_audio_unsupported',
     ],
+    'optionalBlockers': [if (!systemAudioSupported) 'system_audio_unsupported'],
     'gates': gates,
   };
 }
@@ -933,6 +938,51 @@ Map<String, dynamic> _inputGate(
         : !accessibilityGranted
         ? 'Grant Accessibility to Caverno Computer Use, then rerun smoke.'
         : 'Inspect input runtime failures after Accessibility is granted.',
+  };
+}
+
+Map<String, dynamic> _audioGate(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? permissions,
+  required bool unsafeArmed,
+}) {
+  final screenCaptureGranted = permissions?['screenCaptureGranted'] == true;
+  final audioSupported = permissions?['systemAudioRecordingSupported'] == true;
+  final audioStatus = _stepStatusById(steps, 'system_audio_recording');
+  final audioPassed = audioStatus['passed'] == true;
+  final blockers = <String>[
+    if (!audioSupported) 'system_audio_unsupported',
+    if (audioSupported && !unsafeArmed) 'unsafe_smoke_not_armed',
+    if (audioSupported && unsafeArmed && !screenCaptureGranted)
+      'screen_capture_permission_missing',
+    if (audioSupported && unsafeArmed && screenCaptureGranted && !audioPassed)
+      'system_audio_runtime_failed',
+  ];
+  return {
+    'status': !audioSupported
+        ? 'unsupported'
+        : !unsafeArmed
+        ? 'not_armed'
+        : !screenCaptureGranted
+        ? 'blocked'
+        : audioPassed
+        ? 'ready'
+        : 'failed',
+    'optional': true,
+    'unsafeArmed': unsafeArmed,
+    'screenCaptureGranted': screenCaptureGranted,
+    'systemAudioRecordingSupported': audioSupported,
+    'systemAudioRecording': audioStatus,
+    'blockers': blockers,
+    'nextAction': blockers.isEmpty
+        ? 'System audio smoke is ready.'
+        : !audioSupported
+        ? 'System audio recording is unsupported on this macOS runtime.'
+        : !unsafeArmed
+        ? 'Rerun smoke with unsafe arming for system audio checks.'
+        : !screenCaptureGranted
+        ? 'Grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke.'
+        : 'Inspect system audio runtime failures after permissions are granted.',
   };
 }
 
@@ -1592,7 +1642,6 @@ Map<String, dynamic> _positiveSmokeGateSummary(
 bool _positiveSmokeReadinessBlocker(String blockedBy) {
   return blockedBy == 'screen_capture' ||
       blockedBy == 'accessibility' ||
-      blockedBy == 'screen_capture_or_audio_support' ||
       blockedBy == 'accessibility_or_screen_capture';
 }
 
