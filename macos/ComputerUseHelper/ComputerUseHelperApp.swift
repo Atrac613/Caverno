@@ -588,6 +588,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
   private let helperBundleURL: URL
   private weak var returnWindow: NSWindow?
   private let onReturnToOnboarding: () -> Void
+  private var dragCueArrow: NSImageView?
   private var dragTile: HelperBundleDragTileView?
   private(set) var overlayPlacement = "screen_fallback"
 
@@ -603,7 +604,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     self.onReturnToOnboarding = onReturnToOnboarding
 
     let panel = NSPanel(
-      contentRect: NSRect(x: 0, y: 0, width: 760, height: 192),
+      contentRect: NSRect(x: 0, y: 0, width: 420, height: 184),
       styleMask: [.borderless, .nonactivatingPanel],
       backing: .buffered,
       defer: false
@@ -633,6 +634,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     }
     positionNearSettings(window)
     window.orderFrontRegardless()
+    startDragCueAnimation()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self, weak window] in
       guard let self, let window else {
         return
@@ -684,18 +686,20 @@ private final class PermissionOverlayWindowController: NSWindowController {
     )
     arrow.contentTintColor = .controlAccentColor
     arrow.translatesAutoresizingMaskIntoConstraints = false
-    arrow.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    arrow.wantsLayer = true
+    arrow.widthAnchor.constraint(equalToConstant: 36).isActive = true
     arrow.heightAnchor.constraint(equalToConstant: 42).isActive = true
+    dragCueArrow = arrow
 
-    let instruction = NSTextField(labelWithString: instructionText)
-    instruction.font = .systemFont(ofSize: 15, weight: .semibold)
+    let instruction = NSTextField(wrappingLabelWithString: instructionText)
+    instruction.font = .systemFont(ofSize: 14, weight: .semibold)
     instruction.textColor = .labelColor
     instruction.maximumNumberOfLines = 2
 
     let instructionRow = NSStackView(views: [arrow, instruction])
     instructionRow.orientation = .horizontal
     instructionRow.alignment = .centerY
-    instructionRow.spacing = 12
+    instructionRow.spacing = 8
 
     let tile = HelperBundleDragTileView(helperBundleURL: helperBundleURL)
     tile.translatesAutoresizingMaskIntoConstraints = false
@@ -709,10 +713,10 @@ private final class PermissionOverlayWindowController: NSWindowController {
     stack.addArrangedSubview(content)
 
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 18),
-      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -18),
-      stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 18),
-      stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -18),
+      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 16),
+      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -16),
+      stack.topAnchor.constraint(equalTo: root.topAnchor, constant: 16),
+      stack.bottomAnchor.constraint(equalTo: root.bottomAnchor, constant: -16),
     ])
 
     return root
@@ -843,6 +847,39 @@ private final class PermissionOverlayWindowController: NSWindowController {
   private func screenContaining(_ frame: NSRect) -> NSScreen? {
     let center = NSPoint(x: frame.midX, y: frame.midY)
     return NSScreen.screens.first { NSMouseInRect(center, $0.frame, false) } ?? NSScreen.main
+  }
+
+  private func startDragCueAnimation() {
+    guard let layer = dragCueArrow?.layer else {
+      return
+    }
+    layer.removeAnimation(forKey: "pullCue")
+
+    let pull = CAKeyframeAnimation(keyPath: "transform.translation.y")
+    pull.values = [0, -10, -4, -14, 0]
+    pull.keyTimes = [0, 0.22, 0.42, 0.62, 1]
+    pull.duration = 1.15
+    pull.timingFunctions = [
+      CAMediaTimingFunction(name: .easeOut),
+      CAMediaTimingFunction(name: .easeInEaseOut),
+      CAMediaTimingFunction(name: .easeOut),
+      CAMediaTimingFunction(name: .easeIn),
+    ]
+    pull.repeatCount = .infinity
+
+    let scale = CAKeyframeAnimation(keyPath: "transform.scale")
+    scale.values = [1, 1.08, 1.02, 1.12, 1]
+    scale.keyTimes = pull.keyTimes
+    scale.duration = pull.duration
+    scale.timingFunctions = pull.timingFunctions
+    scale.repeatCount = .infinity
+
+    let group = CAAnimationGroup()
+    group.animations = [pull, scale]
+    group.duration = pull.duration
+    group.repeatCount = .infinity
+    group.isRemovedOnCompletion = false
+    layer.add(group, forKey: "pullCue")
   }
 
   private func dragTileScreenFrame() -> NSRect? {

@@ -105,6 +105,8 @@ M1 overlay readiness gate:
 - The floating overlay is borderless so it does not show macOS traffic-light
   window controls. Its left-side arrow animates the overlay back to the main
   onboarding window and refreshes permission rows.
+- The overlay uses a compact half-width panel and a looping upward pull cue on
+  the drag arrow.
 - After pressing an onboarding `Allow` button, run
   `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
   before restarting the helper. This opt-in gate skips the helper restart so the
