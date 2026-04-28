@@ -75,7 +75,8 @@ Current M1 implementation status:
   `draggableTileReady`.
 - The helper onboarding `Allow` buttons open the matching System Settings pane,
   replace the selected permission row with a `COMPLETE IN SYSTEM SETTINGS`
-  placeholder, and animate a snapshot of that row toward the floating overlay.
+  placeholder, and animate a snapshot of that row toward the floating overlay's
+  draggable helper tile.
 - The helper reports the most recent Allow transition as
   `lastOnboardingTransition`, including `transitionSourcePermission`,
   `transitionPlaceholderShown`, `transitionAnimationTarget`, and the source /
@@ -99,6 +100,8 @@ M1 overlay readiness gate:
 - The smoke report's `overlaySmoke` section records `overlayPlacement`,
   `overlayMode`, `helperBundlePath`, and `dragPasteboardTypes` so hands-on drag
   failures can be diagnosed without rerunning the full unsafe input sequence.
+- The floating overlay includes an upward drag cue and aligns the onboarding
+  transition target with the actual draggable helper tile.
 - After pressing an onboarding `Allow` button, run
   `bash tool/run_macos_computer_use_smoke_test.sh --require-onboarding-transition`
   before restarting the helper. This opt-in gate skips the helper restart so the

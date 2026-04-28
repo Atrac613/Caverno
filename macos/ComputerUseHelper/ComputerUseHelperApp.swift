@@ -113,7 +113,10 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let animationResult = animatePermissionRowOverflow(
       snapshot: snapshot,
       sourceFrame: sourceFrame,
-      targetWindow: permissionOverlayWindowController?.window
+      targetWindow: permissionOverlayWindowController?.window,
+      targetFrame: permissionOverlayWindowController?.animationTargetFrame(
+        matching: sourceFrame?.size
+      )
     )
     lastOnboardingTransition = OnboardingTransitionDiagnostic(
       permission: pane.overlayPermission,
@@ -129,7 +132,8 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private func animatePermissionRowOverflow(
     snapshot: NSImage?,
     sourceFrame: NSRect?,
-    targetWindow: NSWindow?
+    targetWindow: NSWindow?,
+    targetFrame explicitTargetFrame: NSRect?
   ) -> (target: String, frame: NSRect?) {
     guard
       let snapshot,
@@ -168,7 +172,10 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     )
     let targetFrame: NSRect
     let targetName: String
-    if let targetWindow {
+    if let explicitTargetFrame {
+      targetFrame = explicitTargetFrame
+      targetName = "permission_overlay_window"
+    } else if let targetWindow {
       let windowFrame = targetWindow.frame
       targetFrame = NSRect(
         x: windowFrame.minX + 36,
@@ -576,6 +583,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
   private let pane: SettingsPane
   private let helperBundleURL: URL
   private var statusLabel: NSTextField?
+  private var dragTile: HelperBundleDragTileView?
   private(set) var overlayPlacement = "screen_fallback"
 
   init(pane: SettingsPane, helperBundleURL: URL) {
@@ -658,14 +666,31 @@ private final class PermissionOverlayWindowController: NSWindowController {
     content.alignment = .width
     content.spacing = 9
 
+    let arrow = NSImageView()
+    arrow.symbolConfiguration = .init(pointSize: 34, weight: .bold)
+    arrow.image = NSImage(
+      systemSymbolName: "arrow.up",
+      accessibilityDescription: "Drag up"
+    )
+    arrow.contentTintColor = .controlAccentColor
+    arrow.translatesAutoresizingMaskIntoConstraints = false
+    arrow.widthAnchor.constraint(equalToConstant: 42).isActive = true
+    arrow.heightAnchor.constraint(equalToConstant: 42).isActive = true
+
     let instruction = NSTextField(labelWithString: instructionText)
     instruction.font = .systemFont(ofSize: 15, weight: .semibold)
     instruction.textColor = .labelColor
     instruction.maximumNumberOfLines = 2
 
+    let instructionRow = NSStackView(views: [arrow, instruction])
+    instructionRow.orientation = .horizontal
+    instructionRow.alignment = .centerY
+    instructionRow.spacing = 12
+
     let tile = HelperBundleDragTileView(helperBundleURL: helperBundleURL)
     tile.translatesAutoresizingMaskIntoConstraints = false
     tile.heightAnchor.constraint(equalToConstant: 52).isActive = true
+    dragTile = tile
 
     let statusLabel = NSTextField(labelWithString: "")
     statusLabel.font = .systemFont(ofSize: 12, weight: .medium)
@@ -692,7 +717,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     controls.addArrangedSubview(recheckButton)
     controls.addArrangedSubview(backTextButton)
 
-    content.addArrangedSubview(instruction)
+    content.addArrangedSubview(instructionRow)
     content.addArrangedSubview(tile)
     content.addArrangedSubview(statusLabel)
     content.addArrangedSubview(controls)
@@ -712,6 +737,21 @@ private final class PermissionOverlayWindowController: NSWindowController {
 
   private var instructionText: String {
     "Drag Caverno Computer Use to the list above to allow \(pane.permissionLabel)"
+  }
+
+  func animationTargetFrame(matching sourceSize: NSSize?) -> NSRect? {
+    guard
+      let sourceSize,
+      let tileFrame = dragTileScreenFrame()
+    else {
+      return nil
+    }
+    return NSRect(
+      x: tileFrame.minX,
+      y: tileFrame.midY - sourceSize.height / 2,
+      width: min(sourceSize.width, tileFrame.width),
+      height: sourceSize.height
+    )
   }
 
   private func positionNearSettings(_ window: NSWindow) {
@@ -820,6 +860,17 @@ private final class PermissionOverlayWindowController: NSWindowController {
   private func screenContaining(_ frame: NSRect) -> NSScreen? {
     let center = NSPoint(x: frame.midX, y: frame.midY)
     return NSScreen.screens.first { NSMouseInRect(center, $0.frame, false) } ?? NSScreen.main
+  }
+
+  private func dragTileScreenFrame() -> NSRect? {
+    guard
+      let dragTile,
+      let window = dragTile.window
+    else {
+      return nil
+    }
+    dragTile.superview?.layoutSubtreeIfNeeded()
+    return window.convertToScreen(dragTile.convert(dragTile.bounds, to: nil))
   }
 
   private func clamped(_ value: CGFloat, min minimum: CGFloat, max maximum: CGFloat) -> CGFloat {
