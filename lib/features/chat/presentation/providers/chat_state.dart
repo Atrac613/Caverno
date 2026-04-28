@@ -107,6 +107,19 @@ class PendingLocalCommand {
   final Completer<bool> completer;
 }
 
+/// Decision for a macOS computer-use action approval request.
+class ComputerUseActionApprovalDecision {
+  const ComputerUseActionApprovalDecision({
+    required this.approved,
+    required this.armed,
+    this.blockerCode,
+  });
+
+  final bool approved;
+  final bool armed;
+  final String? blockerCode;
+}
+
 /// Pending macOS computer-use action awaiting user approval.
 class PendingComputerUseAction {
   PendingComputerUseAction({
@@ -117,6 +130,9 @@ class PendingComputerUseAction {
     required this.riskLabel,
     required this.warningMessage,
     required this.approveLabel,
+    required this.requiresUserApproval,
+    required this.requiresSmokeArming,
+    required this.emergencyStop,
     required this.summary,
     required this.details,
     required this.reason,
@@ -130,10 +146,13 @@ class PendingComputerUseAction {
   final String riskLabel;
   final String warningMessage;
   final String approveLabel;
+  final bool requiresUserApproval;
+  final bool requiresSmokeArming;
+  final bool emergencyStop;
   final String summary;
   final List<String> details;
   final String? reason;
-  final Completer<bool> completer;
+  final Completer<ComputerUseActionApprovalDecision> completer;
 }
 
 /// Pending local file operation awaiting user approval.

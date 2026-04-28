@@ -8144,33 +8144,44 @@ class ChatNotifier extends Notifier<ChatState> {
       ..._computerUseActionDetails(toolCall),
     ];
 
-    final approved = await requestComputerUseAction(
+    final decision = await requestComputerUseAction(
       toolName: toolCall.name,
       title: approvalCopy.title,
       riskCategory: policy?.riskCategory.name ?? 'unknown',
       riskLabel: approvalCopy.riskLabel,
       warningMessage: approvalCopy.warningMessage,
       approveLabel: approvalCopy.approveLabel,
+      requiresUserApproval: policy?.requiresUserApproval ?? false,
+      requiresSmokeArming: policy?.requiresSmokeArming ?? false,
+      emergencyStop: policy?.emergencyStop ?? false,
       summary: _describeComputerUseAction(toolCall),
       details: details,
       reason: toolCall.arguments['reason'] as String?,
     );
-    if (!approved) {
+    if (!decision.approved) {
+      final blockerCode = decision.blockerCode ?? 'approval_denied';
       MacosComputerUseAuditLog.instance.record(
         toolName: toolCall.name,
         policy: policy,
-        approvalResult: 'denied',
+        approvalResult: blockerCode == 'arming_missing'
+            ? 'arming_missing'
+            : 'denied',
         success: false,
-        errorCode: 'approval_denied',
+        errorCode: blockerCode,
+      );
+      final blockedResult = _computerUseBlockedResult(
+        toolCall: toolCall,
+        policy: policy,
+        code: blockerCode,
       );
       return _rememberToolApprovalResult(
         toolCall.name,
         toolCall.arguments,
         McpToolResult(
           toolName: toolCall.name,
-          result: '',
+          result: blockedResult,
           isSuccess: false,
-          errorMessage: 'User denied macOS computer use action',
+          errorMessage: _computerUseBlockedErrorMessage(blockerCode),
         ),
       );
     }
@@ -8259,18 +8270,54 @@ class ChatNotifier extends Notifier<ChatState> {
     }
   }
 
-  Future<bool> requestComputerUseAction({
+  String _computerUseBlockedResult({
+    required ToolCallInfo toolCall,
+    required MacosComputerUseToolPolicyDecision? policy,
+    required String code,
+  }) {
+    return jsonEncode({
+      'ok': false,
+      'toolName': toolCall.name,
+      'code': code,
+      'error': _computerUseBlockedErrorMessage(code),
+      'policy': policy?.toJson(),
+      'requiresUserApproval': policy?.requiresUserApproval ?? false,
+      'requiresSmokeArming': policy?.requiresSmokeArming ?? false,
+      'emergencyStop': policy?.emergencyStop ?? false,
+      'nextAction': switch (code) {
+        'arming_missing' =>
+          'Ask the user to explicitly arm the pending Computer Use action before retrying.',
+        'approval_denied' =>
+          'Ask the user for explicit approval before retrying this Computer Use action.',
+        _ => 'Inspect the Computer Use approval state before retrying.',
+      },
+    });
+  }
+
+  String _computerUseBlockedErrorMessage(String code) {
+    return switch (code) {
+      'arming_missing' =>
+        'Computer Use action blocked because the unsafe arming confirmation was not enabled.',
+      'approval_denied' => 'User denied macOS computer use action.',
+      _ => 'macOS computer use action was blocked.',
+    };
+  }
+
+  Future<ComputerUseActionApprovalDecision> requestComputerUseAction({
     required String toolName,
     required String title,
     required String riskCategory,
     required String riskLabel,
     required String warningMessage,
     required String approveLabel,
+    required bool requiresUserApproval,
+    required bool requiresSmokeArming,
+    required bool emergencyStop,
     required String summary,
     required List<String> details,
     String? reason,
   }) {
-    final completer = Completer<bool>();
+    final completer = Completer<ComputerUseActionApprovalDecision>();
     state = state.copyWith(
       pendingComputerUseAction: PendingComputerUseAction(
         id: const Uuid().v4(),
@@ -8280,6 +8327,9 @@ class ChatNotifier extends Notifier<ChatState> {
         riskLabel: riskLabel,
         warningMessage: warningMessage,
         approveLabel: approveLabel,
+        requiresUserApproval: requiresUserApproval,
+        requiresSmokeArming: requiresSmokeArming,
+        emergencyStop: emergencyStop,
         summary: summary,
         details: details,
         reason: reason,
@@ -8289,11 +8339,25 @@ class ChatNotifier extends Notifier<ChatState> {
     return completer.future;
   }
 
-  void resolveComputerUseAction({required String id, required bool approved}) {
+  void resolveComputerUseAction({
+    required String id,
+    required bool approved,
+    bool armed = false,
+  }) {
     final pending = state.pendingComputerUseAction;
     if (pending == null || pending.id != id) return;
     if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
+      pending.completer.complete(
+        ComputerUseActionApprovalDecision(
+          approved: approved && (!pending.requiresSmokeArming || armed),
+          armed: armed,
+          blockerCode: approved && pending.requiresSmokeArming && !armed
+              ? 'arming_missing'
+              : approved
+              ? null
+              : 'approval_denied',
+        ),
+      );
     }
     state = state.copyWith(pendingComputerUseAction: null);
   }

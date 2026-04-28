@@ -1576,7 +1576,12 @@ void main() {
           pending = toolNotifier.state.pendingComputerUseAction;
         }
         expect(pending, isNotNull, reason: caseData.toolName);
-        toolNotifier.resolveComputerUseAction(id: pending!.id, approved: true);
+        expect(pending!.requiresSmokeArming, isTrue);
+        toolNotifier.resolveComputerUseAction(
+          id: pending.id,
+          approved: true,
+          armed: true,
+        );
 
         await sendFuture;
 
@@ -1596,6 +1601,75 @@ void main() {
         toolContainer.dispose();
         MacosComputerUseAuditLog.instance.clear();
       }
+    }
+  });
+
+  test('unsafe computer-use actions require explicit arming', () async {
+    MacosComputerUseAuditLog.instance.clear();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-click',
+          name: 'computer_click',
+          arguments: const {'x': 10, 'y': 20},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'computer_click': '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = toolNotifier.sendMessage('Click without arming');
+
+      PendingComputerUseAction? pending;
+      for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+        await Future<void>.delayed(Duration.zero);
+        pending = toolNotifier.state.pendingComputerUseAction;
+      }
+      expect(pending, isNotNull);
+      expect(pending!.requiresUserApproval, isTrue);
+      expect(pending.requiresSmokeArming, isTrue);
+      toolNotifier.resolveComputerUseAction(id: pending.id, approved: true);
+
+      await sendFuture;
+
+      expect(toolService.executedToolNames, isEmpty);
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.name, 'computer_click');
+      expect(result.result, contains('"code":"arming_missing"'));
+
+      final entry = MacosComputerUseAuditLog.instance.redactedEntries.single;
+      expect(entry['toolName'], 'computer_click');
+      expect(entry['approvalResult'], 'arming_missing');
+      expect(entry['requiresSmokeArming'], isTrue);
+      expect(entry['success'], isFalse);
+      expect(entry['responseCode'], 'arming_missing');
+    } finally {
+      toolContainer.dispose();
+      MacosComputerUseAuditLog.instance.clear();
     }
   });
 

@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
@@ -7712,7 +7713,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final approved = await showModalBottomSheet<bool>(
       context: context,
       isDismissible: false,
-      enableDrag: true,
+      enableDrag: false,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
@@ -8309,6 +8310,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
     BuildContext context,
     PendingComputerUseAction pending,
   ) async {
+    var unsafeArmed = !pending.requiresSmokeArming;
+    var stopInProgress = false;
+    String? stopStatus;
     final approved = await showModalBottomSheet<bool>(
       context: context,
       isDismissible: false,
@@ -8322,79 +8326,134 @@ class _ChatPageState extends ConsumerState<ChatPage>
           pending.riskCategory,
           pending.toolName,
         );
-        return Container(
-          decoration: BoxDecoration(
-            color: theme.colorScheme.surface,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
-          ),
-          child: SafeArea(
-            top: false,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: 12, bottom: 4),
-                  child: Container(
-                    width: 36,
-                    height: 4,
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.onSurfaceVariant.withValues(
-                        alpha: 0.4,
-                      ),
-                      borderRadius: BorderRadius.circular(2),
-                    ),
-                  ),
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
                 ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
-                  child: Row(
-                    children: [
-                      Container(
-                        padding: const EdgeInsets.all(10),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 4),
+                      child: Container(
+                        width: 36,
+                        height: 4,
                         decoration: BoxDecoration(
-                          color: riskStyle.containerColor.withValues(
-                            alpha: 0.6,
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.4,
                           ),
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Icon(
-                          riskStyle.icon,
-                          color: riskStyle.iconColor,
-                          size: 22,
+                          borderRadius: BorderRadius.circular(2),
                         ),
                       ),
-                      const SizedBox(width: 14),
-                      Expanded(
-                        child: Column(
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: riskStyle.containerColor.withValues(
+                                alpha: 0.6,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              riskStyle.icon,
+                              color: riskStyle.iconColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pending.title,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  pending.toolName,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontFamily: 'monospace',
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 6),
+                                Chip(
+                                  avatar: Icon(
+                                    riskStyle.icon,
+                                    size: 16,
+                                    color: riskStyle.accentColor,
+                                  ),
+                                  label: Text(pending.riskLabel),
+                                  visualDensity: VisualDensity.compact,
+                                  side: BorderSide(
+                                    color: riskStyle.accentColor.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            riskStyle.warningIcon,
+                            size: 20,
+                            color: riskStyle.accentColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pending.warningMessage,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (pending.reason != null &&
+                        pending.reason!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              pending.title,
-                              style: theme.textTheme.titleMedium?.copyWith(
-                                fontWeight: FontWeight.bold,
-                              ),
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                              color: theme.colorScheme.onSurfaceVariant,
                             ),
-                            Text(
-                              pending.toolName,
-                              style: theme.textTheme.bodySmall?.copyWith(
-                                color: theme.colorScheme.onSurfaceVariant,
-                                fontFamily: 'monospace',
-                              ),
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                            ),
-                            const SizedBox(height: 6),
-                            Chip(
-                              avatar: Icon(
-                                riskStyle.icon,
-                                size: 16,
-                                color: riskStyle.accentColor,
-                              ),
-                              label: Text(pending.riskLabel),
-                              visualDensity: VisualDensity.compact,
-                              side: BorderSide(
-                                color: riskStyle.accentColor.withValues(
-                                  alpha: 0.2,
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                pending.reason!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
                                 ),
                               ),
                             ),
@@ -8402,162 +8461,220 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ),
                       ),
                     ],
-                  ),
-                ),
-                const Divider(height: 24),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Icon(
-                        riskStyle.warningIcon,
-                        size: 20,
-                        color: riskStyle.accentColor,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          pending.warningMessage,
-                          style: theme.textTheme.bodyMedium?.copyWith(
-                            color: theme.colorScheme.onSurfaceVariant,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                if (pending.reason != null && pending.reason!.isNotEmpty) ...[
-                  const SizedBox(height: 16),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 24),
-                    child: Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Icon(
-                          Icons.info_outline_rounded,
-                          size: 18,
-                          color: theme.colorScheme.onSurfaceVariant,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            pending.reason!,
-                            style: theme.textTheme.bodyMedium?.copyWith(
-                              color: theme.colorScheme.onSurfaceVariant,
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.colorScheme.outline.withValues(
+                              alpha: 0.15,
                             ),
                           ),
                         ),
-                      ],
-                    ),
-                  ),
-                ],
-                const SizedBox(height: 16),
-                Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 24),
-                  child: Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(16),
-                    decoration: BoxDecoration(
-                      color: theme.colorScheme.surfaceContainerHighest
-                          .withValues(alpha: 0.6),
-                      borderRadius: BorderRadius.circular(12),
-                      border: Border.all(
-                        color: theme.colorScheme.outline.withValues(
-                          alpha: 0.15,
-                        ),
-                      ),
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        SelectableText(
-                          pending.summary,
-                          style: TextStyle(
-                            fontFamily: 'monospace',
-                            fontSize: 14,
-                            height: 1.5,
-                            color: theme.colorScheme.onSurface,
-                          ),
-                        ),
-                        if (pending.details.isNotEmpty) ...[
-                          const SizedBox(height: 12),
-                          for (final detail in pending.details)
-                            Padding(
-                              padding: const EdgeInsets.only(top: 4),
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    '• ',
-                                    style: TextStyle(
-                                      color: theme.colorScheme.onSurfaceVariant,
-                                      height: 1.4,
-                                    ),
-                                  ),
-                                  Expanded(
-                                    child: SelectableText(
-                                      detail,
-                                      style: TextStyle(
-                                        fontFamily: 'monospace',
-                                        fontSize: 12,
-                                        height: 1.4,
-                                        color:
-                                            theme.colorScheme.onSurfaceVariant,
-                                      ),
-                                    ),
-                                  ),
-                                ],
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SelectableText(
+                              pending.summary,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 14,
+                                height: 1.5,
+                                color: theme.colorScheme.onSurface,
                               ),
                             ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Padding(
-                  padding: EdgeInsets.fromLTRB(
-                    24,
-                    0,
-                    24,
-                    16 + MediaQuery.of(sheetContext).padding.bottom,
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, false),
-                          icon: const Icon(Icons.block_rounded, size: 18),
-                          label: const Text('Deny'),
+                            if (pending.details.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              for (final detail in pending.details)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '• ',
+                                        style: TextStyle(
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: SelectableText(
+                                          detail,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 12,
+                                            height: 1.4,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ],
                         ),
                       ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        flex: 2,
-                        child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, true),
-                          icon: Icon(riskStyle.approveIcon, size: 20),
-                          label: Text(pending.approveLabel),
-                          style: FilledButton.styleFrom(
-                            backgroundColor: riskStyle.buttonColor,
-                            foregroundColor: riskStyle.buttonForegroundColor,
+                    ),
+                    if (pending.requiresSmokeArming) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: CheckboxListTile(
+                          value: unsafeArmed,
+                          onChanged: (value) {
+                            setSheetState(() {
+                              unsafeArmed = value ?? false;
+                            });
+                          },
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Arm this Computer Use action'),
+                          subtitle: const Text(
+                            'I understand this can control the Mac and should run now.',
                           ),
                         ),
                       ),
                     ],
-                  ),
+                    if (!pending.emergencyStop) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: stopInProgress
+                                ? null
+                                : () async {
+                                    setSheetState(() {
+                                      stopInProgress = true;
+                                      stopStatus = null;
+                                    });
+                                    try {
+                                      final result = await ref
+                                          .read(macosComputerUseServiceProvider)
+                                          .stopHelperWork();
+                                      final decoded = jsonDecode(result);
+                                      final ok =
+                                          decoded is Map &&
+                                          decoded['ok'] != false;
+                                      if (!sheetContext.mounted) return;
+                                      setSheetState(() {
+                                        stopStatus = ok
+                                            ? 'Emergency stop sent.'
+                                            : 'Emergency stop returned an error.';
+                                      });
+                                    } catch (error) {
+                                      if (!sheetContext.mounted) return;
+                                      setSheetState(() {
+                                        stopStatus = 'Emergency stop failed.';
+                                      });
+                                    } finally {
+                                      if (sheetContext.mounted) {
+                                        setSheetState(() {
+                                          stopInProgress = false;
+                                        });
+                                      }
+                                    }
+                                  },
+                            icon: stopInProgress
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.stop_circle_outlined,
+                                    size: 18,
+                                  ),
+                            label: const Text('Stop Computer Use'),
+                          ),
+                        ),
+                      ),
+                      if (stopStatus != null) ...[
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              stopStatus!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        0,
+                        24,
+                        16 + MediaQuery.of(sheetContext).padding.bottom,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: stopInProgress
+                                  ? null
+                                  : () => Navigator.pop(sheetContext, false),
+                              icon: const Icon(Icons.block_rounded, size: 18),
+                              label: const Text('Deny'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: unsafeArmed && !stopInProgress
+                                  ? () => Navigator.pop(sheetContext, true)
+                                  : null,
+                              icon: Icon(riskStyle.approveIcon, size: 20),
+                              label: Text(pending.approveLabel),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: riskStyle.buttonColor,
+                                foregroundColor:
+                                    riskStyle.buttonForegroundColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
-              ],
-            ),
-          ),
+              ),
+            );
+          },
         );
       },
     );
 
     ref
         .read(chatNotifierProvider.notifier)
-        .resolveComputerUseAction(id: pending.id, approved: approved ?? false);
+        .resolveComputerUseAction(
+          id: pending.id,
+          approved: approved ?? false,
+          armed: unsafeArmed,
+        );
   }
 
   _ComputerUseRiskStyle _computerUseRiskStyle(

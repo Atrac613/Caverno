@@ -229,12 +229,30 @@ Drag/drop sign-off runbook:
 
 Follow-on milestones:
 
-- M2: Complete capture, input, and optional system-audio readiness using the
-  live smoke gates.
-- M3: Harden unsafe action audit, arming, and emergency-stop behavior.
-- M4: Promote named XPC and LaunchAgent registration to the production IPC
+- M2: Complete capture, input, optional system-audio readiness, and unsafe
+  action hardening using the live smoke gates and chat approval flow.
+- M3: Promote named XPC and LaunchAgent registration to the production IPC
   path.
-- M5: Connect the vision LLM loop to the approved helper tool surface.
+- M4: Connect the vision LLM loop to the approved helper tool surface.
+
+Current M2 implementation status:
+
+- Read-only observation tools, window focus, pointer input, text input, key
+  presses, and system-audio commands are routed through the helper boundary.
+- Unsafe input and sensitive commands require a user-facing chat approval
+  decision before the helper receives the command.
+- Approval alone is not enough for input and sensitive commands; the user must
+  also explicitly arm the pending action in the approval sheet.
+- Attempts to approve an unsafe action without arming are blocked before helper
+  execution and returned to the model as structured JSON with
+  `code: "arming_missing"` and a concrete `nextAction`.
+- Approval-gated actions record redacted audit metadata for policy, approval,
+  arming, transport, response code, success, and post-action observation.
+- The pending Computer Use approval sheet exposes **Stop Computer Use** so a
+  user can send an emergency stop command while an action is awaiting approval.
+- Remaining M2 sign-off is live macOS smoke for the exact helper bundle path,
+  especially Screen & System Audio Recording TCC and optional system-audio
+  capture.
 
 ## App Responsibilities
 
@@ -495,13 +513,16 @@ reachable and the required macOS permissions are granted.
   raw shell, script, or model text.
 - Input and audio commands require an app-level approval decision before the
   helper receives the command.
+- Input and sensitive commands require explicit action-time arming in the chat
+  approval sheet; a positive approval without arming returns a blocked
+  `arming_missing` result and does not call the helper.
 - Approval decisions include a risk category: `observe`, `input`, `sensitive`,
   or `recovery`.
 - The app records a redacted audit entry for each approval-gated computer-use
   command with timestamp, tool name, risk category, approval result, transport,
-  response code, fallback reason, success state, and post-action observation
-  metadata. Screenshot payloads, audio payloads, and typed text bodies must not
-  be stored in the audit log.
+  response code, fallback reason, arming requirement, emergency-stop flag,
+  success state, and post-action observation metadata. Screenshot payloads,
+  audio payloads, and typed text bodies must not be stored in the audit log.
 - Input and sensitive commands that require post-action observation run a
   bounded screenshot or status observation after a successful approved action;
   only the observation tool name, success flag, transport, and response code are
