@@ -445,6 +445,7 @@ void main() {
         if (permissions?['accessibilityGranted'] != true) 'accessibility',
       ],
     };
+    report['signingDiagnostics'] = await _signingDiagnostics(helperStatus);
     report['xpcProductionGate'] = xpcProductionGate;
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
@@ -577,6 +578,155 @@ Map<String, dynamic> _namedXpcAttempt(
     'error': response?['error'],
     'helperRunning': response?['helperRunning'],
     'xpcLaunchAgentStatus': response?['xpcLaunchAgentStatus'],
+  };
+}
+
+Future<Map<String, dynamic>> _signingDiagnostics(
+  Map<String, dynamic>? helperStatus,
+) async {
+  final helperPath = helperStatus?['helperPath'];
+  final appPath = helperPath is String
+      ? _appPathFromHelperPath(helperPath)
+      : null;
+  final launchAgentPath = helperStatus?['xpcLaunchAgentPlistPath'];
+  final app = await _codesignDiagnostics(appPath, role: 'app');
+  final helper = await _codesignDiagnostics(
+    helperPath is String ? helperPath : null,
+    role: 'helper',
+  );
+  final blockers = <String>[
+    for (final blocker in _stringList(app['launchConstraintBlockers']))
+      'app:$blocker',
+    for (final blocker in _stringList(helper['launchConstraintBlockers']))
+      'helper:$blocker',
+  ];
+  return {
+    'app': app,
+    'helper': helper,
+    'launchAgent': {
+      'path': launchAgentPath,
+      'exists': launchAgentPath is String
+          ? File(launchAgentPath).existsSync()
+          : false,
+    },
+    'launchConstraintLikelyAccepted': blockers.isEmpty,
+    'launchConstraintBlockers': blockers,
+  };
+}
+
+String? _appPathFromHelperPath(String helperPath) {
+  const marker = '/Contents/Helpers/';
+  final index = helperPath.indexOf(marker);
+  if (index < 0) {
+    return null;
+  }
+  return helperPath.substring(0, index);
+}
+
+Future<Map<String, dynamic>> _codesignDiagnostics(
+  String? path, {
+  required String role,
+}) async {
+  if (path == null || path.isEmpty) {
+    return {
+      'role': role,
+      'path': path,
+      'exists': false,
+      'verifyExitCode': null,
+      'launchConstraintLikelyAccepted': false,
+      'launchConstraintBlockers': ['bundle_missing'],
+    };
+  }
+  final exists =
+      FileSystemEntity.typeSync(path) != FileSystemEntityType.notFound;
+  final verify = exists
+      ? await _runCommand('/usr/bin/codesign', ['--verify', '--strict', path])
+      : null;
+  final details = exists
+      ? await _runCommand('/usr/bin/codesign', ['-dv', '--verbose=4', path])
+      : null;
+  final parsed = _parseCodesignDetails(details?['stderr'] as String? ?? '');
+  final teamIdentifier = parsed['teamIdentifier'];
+  final blockers = <String>[
+    if (!exists) 'bundle_missing',
+    if (verify == null || verify['exitCode'] != 0) 'codesign_verify_failed',
+    if (parsed['adHoc'] == true) 'ad_hoc_signature',
+    if (teamIdentifier == null ||
+        teamIdentifier == '' ||
+        teamIdentifier == 'not set')
+      'team_identifier_missing',
+  ];
+  return {
+    'role': role,
+    'path': path,
+    'exists': exists,
+    'verifyExitCode': verify?['exitCode'],
+    'verifyStderr': verify?['stderr'],
+    'launchConstraintLikelyAccepted': blockers.isEmpty,
+    'launchConstraintBlockers': blockers,
+    ...parsed,
+  };
+}
+
+Future<Map<String, dynamic>> _runCommand(
+  String executable,
+  List<String> arguments,
+) async {
+  try {
+    final result = await Process.run(executable, arguments);
+    return {
+      'exitCode': result.exitCode,
+      'stdout': '${result.stdout}'.trim(),
+      'stderr': '${result.stderr}'.trim(),
+    };
+  } catch (error) {
+    return {'exitCode': -1, 'stdout': '', 'stderr': error.toString()};
+  }
+}
+
+Map<String, dynamic> _parseCodesignDetails(String output) {
+  final values = <String, String>{};
+  final authorities = <String>[];
+  String? codeDirectoryFlags;
+  for (final line in const LineSplitter().convert(output)) {
+    final trimmed = line.trim();
+    if (trimmed.startsWith('Authority=')) {
+      authorities.add(trimmed.substring('Authority='.length));
+      continue;
+    }
+    final separator = trimmed.indexOf('=');
+    if (separator > 0) {
+      values[trimmed.substring(0, separator)] = trimmed.substring(
+        separator + 1,
+      );
+    }
+    final flagsIndex = trimmed.indexOf(' flags=');
+    if (flagsIndex >= 0) {
+      codeDirectoryFlags = trimmed
+          .substring(flagsIndex + ' flags='.length)
+          .split(' ')
+          .first;
+    }
+  }
+  final teamIdentifier = values['TeamIdentifier'];
+  final signature = values['Signature'];
+  final adHoc =
+      signature == 'adhoc' ||
+      ((teamIdentifier == null ||
+              teamIdentifier.isEmpty ||
+              teamIdentifier == 'not set') &&
+          authorities.isEmpty);
+  return {
+    'identifier': values['Identifier'],
+    'format': values['Format'],
+    'signature': signature,
+    'teamIdentifier': teamIdentifier,
+    'authorities': authorities,
+    'codeDirectoryFlags': codeDirectoryFlags,
+    'hardenedRuntime':
+        values.containsKey('Runtime Version') ||
+        (codeDirectoryFlags?.contains('runtime') ?? false),
+    'adHoc': adHoc,
   };
 }
 

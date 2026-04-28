@@ -1,0 +1,11 @@
+// Shared macOS signing defaults.
+//
+// Keep repository defaults identity-free. Developers can create
+// Signing.local.xcconfig next to this file to provide DEVELOPMENT_TEAM,
+// CODE_SIGN_IDENTITY, or provisioning profile overrides for LaunchAgent
+// runtime smoke tests.
+
+CODE_SIGN_STYLE = Automatic
+PROVISIONING_PROFILE_SPECIFIER =
+
+#include? "Signing.local.xcconfig"

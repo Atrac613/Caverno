@@ -153,12 +153,92 @@ case "${BUILD_MODE}" in
 import datetime
 import json
 import os
+import subprocess
 from pathlib import Path
+
+
+def run_command(args):
+    completed = subprocess.run(args, capture_output=True, text=True, check=False)
+    return {
+        "exitCode": completed.returncode,
+        "stdout": completed.stdout.strip(),
+        "stderr": completed.stderr.strip(),
+    }
+
+
+def parse_codesign_details(output):
+    values = {}
+    authorities = []
+    code_directory_flags = None
+    for raw_line in output.splitlines():
+        line = raw_line.strip()
+        if line.startswith("Authority="):
+            authorities.append(line.split("=", 1)[1])
+            continue
+        if "=" in line:
+            key, value = line.split("=", 1)
+            values[key] = value
+        if " flags=" in line:
+            flags = line.split(" flags=", 1)[1].split(" ", 1)[0]
+            code_directory_flags = flags
+    team_identifier = values.get("TeamIdentifier")
+    signature = values.get("Signature")
+    ad_hoc = signature == "adhoc" or (
+        team_identifier in (None, "", "not set") and not authorities
+    )
+    hardened_runtime = "Runtime Version" in values or (
+        code_directory_flags is not None and "runtime" in code_directory_flags
+    )
+    return {
+        "identifier": values.get("Identifier"),
+        "format": values.get("Format"),
+        "signature": signature,
+        "teamIdentifier": team_identifier,
+        "authorities": authorities,
+        "codeDirectoryFlags": code_directory_flags,
+        "hardenedRuntime": hardened_runtime,
+        "adHoc": ad_hoc,
+    }
+
+
+def codesign_diagnostics(path, role):
+    exists = os.path.exists(path)
+    verify = run_command(["/usr/bin/codesign", "--verify", "--strict", path]) if exists else None
+    details = run_command(["/usr/bin/codesign", "-dv", "--verbose=4", path]) if exists else None
+    parsed = parse_codesign_details(details["stderr"] if details else "")
+    team_identifier = parsed.get("teamIdentifier")
+    blockers = []
+    if not exists:
+        blockers.append("bundle_missing")
+    if verify is None or verify["exitCode"] != 0:
+        blockers.append("codesign_verify_failed")
+    if parsed.get("adHoc"):
+        blockers.append("ad_hoc_signature")
+    if team_identifier in (None, "", "not set"):
+        blockers.append("team_identifier_missing")
+    return {
+        "role": role,
+        "path": path,
+        "exists": exists,
+        "verifyExitCode": None if verify is None else verify["exitCode"],
+        "verifyStderr": None if verify is None else verify["stderr"],
+        "launchConstraintLikelyAccepted": len(blockers) == 0,
+        "launchConstraintBlockers": blockers,
+        **parsed,
+    }
+
 
 report_path = os.environ["RELEASE_REPORT_PATH"]
 app = os.environ["RELEASE_APP"]
 helper = os.environ["RELEASE_HELPER"]
 agent = os.environ["RELEASE_AGENT"]
+app_signing = codesign_diagnostics(app, "app")
+helper_signing = codesign_diagnostics(helper, "helper")
+signing_blockers = [
+    f"app:{blocker}" for blocker in app_signing["launchConstraintBlockers"]
+] + [
+    f"helper:{blocker}" for blocker in helper_signing["launchConstraintBlockers"]
+]
 report = {
     "schemaName": "macos_computer_use_release_bundle_smoke",
     "schemaVersion": 1,
@@ -183,6 +263,16 @@ report = {
         "helperPath": helper,
         "launchAgentPath": agent,
         "xpcServiceName": "com.noguwo.apps.caverno.computer-use.xpc",
+    },
+    "signingDiagnostics": {
+        "app": app_signing,
+        "helper": helper_signing,
+        "launchAgent": {
+            "path": agent,
+            "exists": os.path.isfile(agent),
+        },
+        "launchConstraintLikelyAccepted": len(signing_blockers) == 0,
+        "launchConstraintBlockers": signing_blockers,
     },
     "reportPath": report_path,
 }

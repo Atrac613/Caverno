@@ -146,6 +146,22 @@ profile helper is ad-hoc signed, macOS can reject it with a launch constraint
 violation before the helper process starts; use the report and system logs to
 distinguish that signing failure from a runtime IPC regression.
 
+Signing is configured through `macos/Runner/Configs/Signing.xcconfig`. The
+checked-in defaults intentionally avoid a team or certificate identity so local
+and CI environments can choose their own signing chain. To run strict
+LaunchAgent smoke against a developer-signed build, create the ignored
+`macos/Runner/Configs/Signing.local.xcconfig` with local values such as:
+
+```xcconfig
+DEVELOPMENT_TEAM = YOURTEAMID
+CODE_SIGN_IDENTITY = Apple Development
+```
+
+The smoke report includes `signingDiagnostics` for the app and helper bundles.
+Use `launchConstraintBlockers` such as `ad_hoc_signature` or
+`team_identifier_missing` to distinguish signing setup failures from named XPC
+transport regressions.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.
