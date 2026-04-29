@@ -180,6 +180,8 @@ void main() {
       architectureDoc,
       contains('dart run tool/macos_computer_use_release_readiness.dart'),
     );
+    expect(architectureDoc, contains('--refresh-safe-inputs'));
+    expect(architectureDoc, contains('--exit-policy ci'));
     expect(architectureDoc, contains('manual_required'));
     expect(
       architectureDoc,

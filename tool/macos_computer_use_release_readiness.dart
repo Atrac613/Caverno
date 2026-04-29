@@ -6,6 +6,8 @@ import '../integration_test/test_support/macos_computer_use_release_readiness.da
 Future<void> main(List<String> args) async {
   var reportRootPath = 'build/integration_test_reports';
   var historyLimit = 10;
+  var refreshSafeInputs = false;
+  var exitPolicy = 'strict';
   String? releaseReportPath;
   String? computerUseHistoryPath;
   String? manualTccReportPath;
@@ -55,6 +57,17 @@ Future<void> main(List<String> args) async {
         if (historyLimit < 1) {
           return _usageError('--history-limit must be a positive integer.');
         }
+      case '--refresh-safe-inputs':
+        refreshSafeInputs = true;
+      case '--exit-policy':
+        index += 1;
+        if (index >= args.length) {
+          return _usageError('--exit-policy requires a value.');
+        }
+        exitPolicy = args[index];
+        if (exitPolicy != 'strict' && exitPolicy != 'ci') {
+          return _usageError('--exit-policy must be strict or ci.');
+        }
       case '--output-json':
         index += 1;
         if (index >= args.length) {
@@ -80,6 +93,14 @@ Future<void> main(List<String> args) async {
     stderr.writeln('Report root not found: ${reportRoot.path}');
     exitCode = 66;
     return;
+  }
+
+  if (refreshSafeInputs) {
+    final refreshExitCode = await _refreshSafeInputs(reportRoot);
+    if (refreshExitCode != 0) {
+      exitCode = refreshExitCode;
+      return;
+    }
   }
 
   final inputs = readReleaseReadinessInputs(
@@ -108,7 +129,7 @@ Future<void> main(List<String> args) async {
   stdout.writeln('Release readiness written to ${outputJson.path}');
   stdout.writeln(summary.toMarkdown());
 
-  if (!summary.ready) {
+  if (_shouldExitFailure(summary, exitPolicy)) {
     exitCode = 1;
   }
 }
@@ -118,7 +139,8 @@ void _printUsage() {
     'Usage: dart run tool/macos_computer_use_release_readiness.dart '
     '[--root path] [--release-report path] [--computer-use-history path] '
     '[--manual-tcc-report path] [--llm-canary-summary path] '
-    '[--history-limit count] [--output-json path] [--output-md path]',
+    '[--history-limit count] [--refresh-safe-inputs] [--exit-policy strict|ci] '
+    '[--output-json path] [--output-md path]',
   );
 }
 
@@ -126,4 +148,57 @@ void _usageError(String message) {
   stderr.writeln(message);
   _printUsage();
   exitCode = 64;
+}
+
+Future<int> _refreshSafeInputs(Directory reportRoot) async {
+  reportRoot.createSync(recursive: true);
+  final releaseReportPath =
+      '${reportRoot.path}/macos_computer_use_release_artifact_signoff.json';
+  stdout.writeln('Refreshing safe release readiness inputs');
+  stdout.writeln('  M7 release artifact report: $releaseReportPath');
+  final m7Result = await Process.run(
+    'bash',
+    <String>['tool/run_macos_computer_use_smoke_test.sh', '--m7-signoff'],
+    environment: <String, String>{
+      'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH': releaseReportPath,
+    },
+  );
+  stdout.write(m7Result.stdout);
+  stderr.write(m7Result.stderr);
+  if (m7Result.exitCode != 0) {
+    stderr.writeln('Safe refresh failed while generating the M7 report.');
+    return m7Result.exitCode;
+  }
+
+  final historyResult = await Process.run('dart', <String>[
+    'run',
+    'tool/macos_computer_use_canary_history.dart',
+    '--root',
+    reportRoot.path,
+  ]);
+  stdout.write(historyResult.stdout);
+  stderr.write(historyResult.stderr);
+  if (historyResult.exitCode != 0) {
+    stderr.writeln(
+      'Safe refresh failed while generating Computer Use history.',
+    );
+    return historyResult.exitCode;
+  }
+
+  stdout.writeln(
+    'Safe refresh complete. Manual TCC evidence remains user-operated.',
+  );
+  return 0;
+}
+
+bool _shouldExitFailure(ReleaseReadinessSummary summary, String exitPolicy) {
+  if (summary.ready) {
+    return false;
+  }
+  if (exitPolicy == 'ci') {
+    return summary.blockedGates.any((gate) {
+      return gate.id != 'manual_tcc' || gate.status != 'manual_required';
+    });
+  }
+  return true;
 }

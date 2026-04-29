@@ -333,6 +333,18 @@ one release decision:
 dart run tool/macos_computer_use_release_readiness.dart
 ```
 
+To refresh only non-TCC inputs before producing the readiness report, run:
+
+```bash
+dart run tool/macos_computer_use_release_readiness.dart --refresh-safe-inputs
+```
+
+Safe refresh generates the M7 release artifact report and the Computer Use
+canary history. It does not run M8, launch System Settings, grant permissions,
+or perform any TCC-gated runtime verification. The LLM canary is discovered from
+existing summaries; run that canary separately when fresh LLM evidence is
+needed.
+
 The gate evaluates:
 
 - M7 release artifact sign-off through `releaseSignoffGate`.
@@ -354,6 +366,11 @@ or pass it explicitly:
 dart run tool/macos_computer_use_release_readiness.dart \
   --manual-tcc-report <user-produced-m8-report.json>
 ```
+
+Use `--exit-policy ci` when CI should accept a missing manual TCC report as a
+blocked-but-expected manual step. Other blocked gates still exit non-zero.
+Use the default `--exit-policy strict` for release sign-off, where any blocked
+gate exits non-zero.
 
 Current M5 implementation status:
 

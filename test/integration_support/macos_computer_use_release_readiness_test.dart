@@ -111,6 +111,26 @@ void main() {
       expect(summary.ready, isTrue);
     });
 
+    test('prefers ready manual TCC evidence over newer blocked evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_readiness_manual_priority_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final readyReport = File('${root.path}/m8_ready/report.json');
+      final blockedReport = File('${root.path}/m8_blocked/report.json');
+      _writeJson(readyReport, _runtimeReport(status: 'ready'));
+      _writeJson(blockedReport, _runtimeReport(status: 'blocked'));
+      readyReport.setLastModifiedSync(DateTime(2026, 4, 29, 10));
+      blockedReport.setLastModifiedSync(DateTime(2026, 4, 29, 11));
+
+      final discovered = discoverLatestManualTccReport(root);
+
+      expect(discovered?.path, readyReport.path);
+    });
+
     test('surfaces blocked LLM canary as a release blocker', () {
       final summary = buildReleaseReadinessSummary(
         ReleaseReadinessInputs(
@@ -132,6 +152,22 @@ void main() {
       expect(llmGate.status, 'blocked');
       expect(llmGate.nextAction, contains('LLM canary failure classes'));
     });
+
+    test(
+      'CLI exposes safe refresh and CI exit policy without TCC automation',
+      () {
+        final cli = File(
+          'tool/macos_computer_use_release_readiness.dart',
+        ).readAsStringSync();
+
+        expect(cli, contains('--refresh-safe-inputs'));
+        expect(cli, contains('--exit-policy strict|ci'));
+        expect(cli, contains('--m7-signoff'));
+        expect(cli, contains('tool/macos_computer_use_canary_history.dart'));
+        expect(cli, contains('Manual TCC evidence remains user-operated'));
+        expect(cli, isNot(contains('--m8-runtime-signoff')));
+      },
+    );
   });
 }
 

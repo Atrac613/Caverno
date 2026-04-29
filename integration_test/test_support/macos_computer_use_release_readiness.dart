@@ -47,6 +47,9 @@ class ReleaseReadinessSummary {
   final bool ready;
   final List<ReleaseReadinessGate> gates;
 
+  List<ReleaseReadinessGate> get blockedGates =>
+      gates.where((gate) => !gate.ready).toList(growable: false);
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schemaName': 'macos_computer_use_release_readiness',
@@ -54,6 +57,9 @@ class ReleaseReadinessSummary {
       'automationBoundary': 'read_reports_only',
       'status': status,
       'ready': ready,
+      'blockedGateIds': blockedGates
+          .map((gate) => gate.id)
+          .toList(growable: false),
       'gates': gates.map((gate) => gate.toJson()).toList(growable: false),
     };
   }
@@ -65,6 +71,9 @@ class ReleaseReadinessSummary {
       ..writeln('- Automation boundary: read reports only')
       ..writeln('- Status: $status')
       ..writeln('- Ready: $ready')
+      ..writeln(
+        '- Blocked gates: ${blockedGates.isEmpty ? 'none' : blockedGates.map((gate) => gate.id).join(', ')}',
+      )
       ..writeln()
       ..writeln('| Gate | Status | Ready | Next Action | Artifact |')
       ..writeln('| --- | --- | --- | --- | --- |');
@@ -167,9 +176,30 @@ File? discoverLatestReleaseReport(Directory reportRoot) {
 }
 
 File? discoverLatestManualTccReport(Directory reportRoot) {
-  return _latestJsonMatching(reportRoot, (json) {
-    return json.containsKey('releaseRuntimeSignoffGate');
+  final candidates = <_ManualTccCandidate>[];
+  for (final file in _jsonFiles(reportRoot)) {
+    final summary = _readManualTccSummaryOrReport(file);
+    if (summary != null) {
+      candidates.add(
+        _ManualTccCandidate(
+          file: file,
+          ready: summary.ready,
+          modifiedAt: file.statSync().modified,
+        ),
+      );
+    }
+  }
+  candidates.sort((left, right) {
+    if (left.ready != right.ready) {
+      return left.ready ? 1 : -1;
+    }
+    final modifiedCompare = left.modifiedAt.compareTo(right.modifiedAt);
+    if (modifiedCompare != 0) {
+      return modifiedCompare;
+    }
+    return left.file.path.compareTo(right.file.path);
   });
+  return candidates.isEmpty ? null : candidates.last.file;
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
@@ -430,6 +460,18 @@ File? _latestJsonMatching(
     return left.path.compareTo(right.path);
   });
   return candidates.isEmpty ? null : candidates.last;
+}
+
+class _ManualTccCandidate {
+  const _ManualTccCandidate({
+    required this.file,
+    required this.ready,
+    required this.modifiedAt,
+  });
+
+  final File file;
+  final bool ready;
+  final DateTime modifiedAt;
 }
 
 List<File> _jsonFiles(Directory root) {
