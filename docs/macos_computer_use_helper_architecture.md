@@ -248,24 +248,29 @@ Follow-on milestones:
   path.
 - M4: Complete embedded-helper Screen & System Audio Recording, overlay, and
   onboarding sign-off with one strict live smoke gate.
-- M5: Connect the vision LLM loop to the approved helper tool surface. M5 is
-  the next active milestone after the 2026-04-29 M4 debug sign-off.
+- M5: Connect the vision LLM loop to the approved helper tool surface.
+- M6: Harden the observe-action-observe loop so multimodal desktop tasks can
+  safely propose, approve, execute, and verify one step at a time. M6 is the
+  next active milestone after the 2026-04-29 M5 debug sign-off.
 
-Current M5 implementation target:
+Current M5 implementation status:
 
-- Add a high-level `computer_vision_observe` tool that packages permission
+- M5 is complete for the current debug embedded helper.
+- The app now advertises a high-level `computer_vision_observe` tool when
+  macOS Computer Use is available.
+- `computer_vision_observe` packages permission
   status, optional visible-window metadata, the chosen display or window
   screenshot, coordinate guidance, and the approved next tool surface into one
   observation payload.
-- Feed the observation screenshot back to multimodal models as image content so
-  the next LLM turn can decide whether to answer, observe again, or request a
-  desktop action.
-- Keep the observation tool read-only and planning-safe. Any proposed focus,
+- The observation screenshot is fed back to multimodal models as image content
+  so the next LLM turn can decide whether to answer, observe again, or request
+  a desktop action.
+- The observation tool remains read-only and planning-safe. Any proposed focus,
   pointer, keyboard, or audio action must still go through the existing
   approval, arming, emergency-stop, and audit-log gates.
-- Prefer `computer_vision_observe` at the start of visual desktop tasks and
-  after every approved desktop action. Raw screenshot and window tools remain
-  available for focused follow-up checks.
+- The system prompt now prefers `computer_vision_observe` at the start of
+  visual desktop tasks and after every approved desktop action. Raw screenshot
+  and window tools remain available for focused follow-up checks.
 
 M5 acceptance criteria:
 
@@ -281,6 +286,44 @@ M5 acceptance criteria:
 - Input, text, focus, and system-audio actions proposed after a vision
   observation continue to require the existing Caverno approval and arming
   flow.
+
+M5 live sign-off notes:
+
+- 2026-04-29: `flutter analyze` passed after adding the vision observation
+  surface.
+- 2026-04-29: targeted unit tests passed for the Computer Use service, tool
+  policy, MCP tool catalog, and system prompt guidance.
+- 2026-04-29:
+  `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff --require-vision-observe`
+  passed with `visionObservationGate.status: ready`,
+  `readinessExpectations.ok: true`, and `m4SignoffGate.status: ready`.
+
+Current M6 implementation target:
+
+- Add test coverage for an LLM-style observe-action-observe sequence:
+  `computer_vision_observe`, one approved desktop action, then another
+  `computer_vision_observe`.
+- Strengthen post-action guidance so desktop actions are verified with a fresh
+  observation before the model proposes another action.
+- Surface vision-observation context in the Computer Use approval UI, including
+  the target coordinate space, target window when available, and the immediate
+  reason for the proposed action.
+- Keep click, text input, focus, keyboard, and system-audio actions behind the
+  existing approval and arming gates, even when they are proposed from a vision
+  observation.
+- Add live smoke reporting for the first complete observe-action-observe loop
+  without requiring unsafe click or text arming by default.
+
+M6 acceptance criteria:
+
+- A representative multimodal desktop task can observe the screen, request one
+  approved non-destructive action, and observe again before continuing.
+- The approval UI clearly identifies that the action was proposed from the most
+  recent vision observation.
+- Action results include enough redacted audit metadata to connect the
+  observation, approval decision, helper command, and post-action observation.
+- The live smoke report includes a ready gate for the observe-action-observe
+  loop while preserving the existing M4 and M5 gates.
 
 Current M2 implementation status:
 
