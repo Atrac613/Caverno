@@ -137,7 +137,8 @@ void main() {
     () {
       const task = ConversationWorkflowTask(
         id: 'task-ping-cli',
-        title: 'Implement the ping logic in ping_cli.py using the subprocess module',
+        title:
+            'Implement the ping logic in ping_cli.py using the subprocess module',
         status: ConversationWorkflowTaskStatus.inProgress,
         validationCommand: 'python3 ping_cli.py 127.0.0.1',
       );
@@ -160,32 +161,29 @@ void main() {
     },
   );
 
-  test(
-    'treats explicit current-task was-completed narration as completed',
-    () {
-      const task = ConversationWorkflowTask(
-        id: 'task-init',
-        title: 'Initialize project structure',
-        status: ConversationWorkflowTaskStatus.blocked,
-        validationCommand: 'ls -a',
-      );
+  test('treats explicit current-task was-completed narration as completed', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-init',
+      title: 'Initialize project structure',
+      status: ConversationWorkflowTaskStatus.blocked,
+      validationCommand: 'ls -a',
+    );
 
-      final result = ConversationExecutionProgressInference.infer(
-        assistantResponse:
-            'Task 1 (Initialize project structure) was completed and all target files are present. The next task is "Implement ping CLI script with argparse".',
-        task: task,
-        isValidationRun: false,
-      );
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'Task 1 (Initialize project structure) was completed and all target files are present. The next task is "Implement ping CLI script with argparse".',
+      task: task,
+      isValidationRun: false,
+    );
 
-      expect(result.status, ConversationWorkflowTaskStatus.completed);
-      expect(
-        result.summary,
-        startsWith(
-          'Task 1 (Initialize project structure) was completed and all target files are present.',
-        ),
-      );
-    },
-  );
+    expect(result.status, ConversationWorkflowTaskStatus.completed);
+    expect(
+      result.summary,
+      startsWith(
+        'Task 1 (Initialize project structure) was completed and all target files are present.',
+      ),
+    );
+  });
 
   test(
     'prefers fallback completion evidence over a generic follow-up summary',
@@ -248,32 +246,59 @@ void main() {
   );
 
   test(
-    'treats recoverable missing-target narratives as in-progress recovery',
+    'treats successful validation result before next-task prompt as completed',
     () {
       const task = ConversationWorkflowTask(
-        id: 'task-ping-cli',
-        title: 'Implement core ping logic in ping_cli.py using subprocess',
-        status: ConversationWorkflowTaskStatus.blocked,
-        validationCommand: 'python3 ping_cli.py 127.0.0.1',
+        id: 'task-main-py',
+        title: 'Create main.py with subprocess-based ping implementation',
+        status: ConversationWorkflowTaskStatus.inProgress,
+        validationCommand: 'python3 main.py --help',
       );
 
       final result = ConversationExecutionProgressInference.infer(
         assistantResponse:
-            'The validation command was attempted before the target file existed. '
-            'The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess". '
-            'Plan: 1. Create `ping_cli.py` with the core ping logic using subprocess.',
+            'I have completed the first task: **Create `main.py` with subprocess-based ping implementation**.\n\n'
+            '### Validation Result\n'
+            '- Command: `python3 main.py --help`\n'
+            '- Result: **Success** (Exit code 0)\n\n'
+            'The `main.py` file is now created and ready for the next task.\n\n'
+            'Would you like me to proceed to the next task?',
         task: task,
         isValidationRun: false,
       );
 
-      expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+      expect(result.status, ConversationWorkflowTaskStatus.completed);
       expect(
         result.summary,
-        startsWith(
-          'The validation command was attempted before the target file existed. The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess".',
-        ),
+        'I have completed the first task: **Create `main.py` with subprocess-based ping implementation**.',
       );
-      expect(result.blockedReason, isNull);
     },
   );
+
+  test('treats recoverable missing-target narratives as in-progress recovery', () {
+    const task = ConversationWorkflowTask(
+      id: 'task-ping-cli',
+      title: 'Implement core ping logic in ping_cli.py using subprocess',
+      status: ConversationWorkflowTaskStatus.blocked,
+      validationCommand: 'python3 ping_cli.py 127.0.0.1',
+    );
+
+    final result = ConversationExecutionProgressInference.infer(
+      assistantResponse:
+          'The validation command was attempted before the target file existed. '
+          'The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess". '
+          'Plan: 1. Create `ping_cli.py` with the core ping logic using subprocess.',
+      task: task,
+      isValidationRun: false,
+    );
+
+    expect(result.status, ConversationWorkflowTaskStatus.inProgress);
+    expect(
+      result.summary,
+      startsWith(
+        'The validation command was attempted before the target file existed. The goal now is to implement the task "Implement core ping logic in ping_cli.py using subprocess".',
+      ),
+    );
+    expect(result.blockedReason, isNull);
+  });
 }

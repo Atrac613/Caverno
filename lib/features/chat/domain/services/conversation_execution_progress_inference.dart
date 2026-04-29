@@ -128,16 +128,14 @@ class ConversationExecutionProgressInference {
     final taskTitleIndex = normalizedTaskTitle.isEmpty
         ? -1
         : lowercaseResponse.indexOf(normalizedTaskTitle);
-    final mentionsExplicitTaskCompletion = taskTitleIndex >= 0 &&
-        _containsAny(
-          lowercaseResponse.substring(taskTitleIndex),
-          const [
-            'has been completed',
-            'is complete',
-            'is completed',
-            'was completed',
-          ],
-        );
+    final mentionsExplicitTaskCompletion =
+        taskTitleIndex >= 0 &&
+        _containsAny(lowercaseResponse.substring(taskTitleIndex), const [
+          'has been completed',
+          'is complete',
+          'is completed',
+          'was completed',
+        ]);
 
     if (isValidationRun) {
       if (hasBlockedSignal) {
@@ -274,13 +272,21 @@ class ConversationExecutionProgressInference {
   }
 
   static bool _looksLikeValidationSuccessNarrative(String value) {
-    if (!value.contains('validation command')) {
+    final mentionsValidation =
+        value.contains('validation command') ||
+        value.contains('validation result') ||
+        value.contains('validation:') ||
+        value.contains('validation step');
+    if (!mentionsValidation) {
       return false;
     }
     return value.contains('was successful') ||
         value.contains('succeeded') ||
         value.contains('ran successfully') ||
-        value.contains('working as expected');
+        value.contains('working as expected') ||
+        value.contains('result: success') ||
+        value.contains('exit code 0') ||
+        value.contains('exit_code: 0');
   }
 
   static bool _looksLikeRecoverableMissingTargetNarrative(String value) {
