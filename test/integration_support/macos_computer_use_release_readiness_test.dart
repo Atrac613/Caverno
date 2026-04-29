@@ -130,6 +130,12 @@ void main() {
         _llmSummary(failedCount: 0),
       );
       _writeJson(
+        File(
+          '${root.path}/macos_computer_use_llm_decision_canary_300/canary_summary.json',
+        ),
+        _computerUseLlmDecisionSummary(failedCount: 0),
+      );
+      _writeJson(
         File('${root.path}/m8_old/report.json'),
         _runtimeReport(status: 'blocked'),
       );
@@ -178,7 +184,9 @@ void main() {
       expect(inputs.manualTccReportPath, endsWith('m8_new/report.json'));
       expect(
         inputs.llmCanarySummaryPath,
-        endsWith('plan_mode_ping_cli_canary_200/canary_summary.json'),
+        endsWith(
+          'macos_computer_use_llm_decision_canary_300/canary_summary.json',
+        ),
       );
       expect(
         inputs.desktopActionCanarySummaryPath,
@@ -231,6 +239,43 @@ void main() {
       expect(summary.ready, isFalse);
       expect(llmGate.status, 'blocked');
       expect(llmGate.nextAction, contains('LLM canary failure classes'));
+    });
+
+    test('surfaces Computer Use LLM decision evidence', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _computerUseLlmDecisionSummary(failedCount: 0),
+          llmCanarySummaryPath: '/tmp/llm_decision.json',
+        ),
+      );
+
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(summary.ready, isTrue);
+      expect(llmGate.label, 'Computer Use LLM decision canary');
+      expect(llmGate.status, 'passed');
+      expect(
+        llmGate.details,
+        containsPair('purpose', 'computer_use_llm_vision_decision'),
+      );
+      expect(llmGate.details, containsPair('requiresUserClick', true));
+      expect(
+        llmGate.details['visionDecision'],
+        contains('empty document body'),
+      );
+      expect(
+        llmGate.details['safeTargetReasoning'],
+        contains('visible harmless target'),
+      );
     });
 
     test('surfaces blocked desktop action canary as a release blocker', () {
@@ -305,6 +350,10 @@ void main() {
           contains(r'macos_computer_use_release_readiness_${PRESET}.md'),
         );
         expect(wrapper, contains('--refresh-llm-canary'));
+        expect(
+          wrapper,
+          contains('tool/run_macos_computer_use_llm_decision_canary.sh'),
+        );
         expect(
           wrapper,
           contains('tool/macos_computer_use_readiness_artifact_index.dart'),
@@ -468,6 +517,31 @@ Map<String, dynamic> _llmSummary({required int failedCount}) {
     'failureClassCounts': failedCount == 0
         ? <String, int>{'passed': 1}
         : <String, int>{'tool_loop_blocked': 1},
+  };
+}
+
+Map<String, dynamic> _computerUseLlmDecisionSummary({
+  required int failedCount,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_llm_decision_canary_summary',
+    'purpose': 'computer_use_llm_vision_decision',
+    'desktopActionBoundary': 'no_desktop_action',
+    'runCount': 1,
+    'passedCount': failedCount == 0 ? 1 : 0,
+    'failedCount': failedCount,
+    'passRate': failedCount == 0 ? 1 : 0,
+    'failureClassCounts': failedCount == 0
+        ? <String, int>{'passed': 1}
+        : <String, int>{'requires_user_click_missing': 1},
+    'visionDecision': 'Choose the empty document body.',
+    'safeTargetReasoning':
+        'The empty document body is a visible harmless target.',
+    'requiresUserClick': true,
+    'selectedTarget': <String, Object?>{
+      'label': 'Empty document body',
+      'risk': 'low',
+    },
   };
 }
 

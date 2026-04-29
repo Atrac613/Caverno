@@ -257,18 +257,31 @@ File? discoverLatestDesktopActionCanarySummary(Directory reportRoot) {
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
-  final candidates =
+  final computerUseCandidates =
+      _jsonFiles(reportRoot)
+          .where((file) {
+            final parent = _basename(file.parent.path);
+            return _basename(file.path) == 'canary_summary.json' &&
+                parent.startsWith('macos_computer_use_llm_decision_canary_');
+          })
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  if (computerUseCandidates.isNotEmpty) {
+    return computerUseCandidates.last;
+  }
+
+  final legacyCandidates =
       _jsonFiles(reportRoot)
           .where(
             (file) =>
+                _basename(file.path) == 'canary_summary.json' &&
                 _basename(
                   file.parent.path,
-                ).startsWith('plan_mode_ping_cli_canary_') &&
-                _basename(file.path) == 'canary_summary.json',
+                ).startsWith('plan_mode_ping_cli_canary_'),
           )
           .toList(growable: false)
         ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
-  return candidates.isEmpty ? null : candidates.last;
+  return legacyCandidates.isEmpty ? null : legacyCandidates.last;
 }
 
 ReleaseReadinessGate _releaseArtifactGate(
@@ -427,30 +440,40 @@ ReleaseReadinessGate _llmCanaryGate(
   if (llmSummary == null) {
     return const ReleaseReadinessGate(
       id: 'llm_canary',
-      label: 'LLM tool-loop canary',
+      label: 'Computer Use LLM decision canary',
       status: 'missing',
       ready: false,
-      nextAction: 'Run the LLM live canary and provide its summary.',
+      nextAction:
+          'Run the Computer Use LLM decision canary and provide its summary.',
     );
   }
 
+  final purpose = llmSummary['purpose'] as String?;
   final runCount = _intValue(llmSummary['runCount']);
   final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
   final ready = runCount > 0 && failed == 0;
   return ReleaseReadinessGate(
     id: 'llm_canary',
-    label: 'LLM tool-loop canary',
+    label: purpose == 'computer_use_llm_vision_decision'
+        ? 'Computer Use LLM decision canary'
+        : 'LLM tool-loop canary',
     status: ready ? 'passed' : 'blocked',
     ready: ready,
     nextAction: ready
-        ? 'LLM tool-loop canary is passing.'
+        ? 'Computer Use LLM decision canary is passing.'
         : 'Inspect the LLM canary failure classes and rerun after fixes.',
     artifactPath: summaryPath,
     details: <String, Object?>{
+      'purpose': purpose,
       'runCount': runCount,
       'failed': failed,
       'failureClassCounts':
           llmSummary['failureClassCounts'] ?? llmSummary['failureClasses'],
+      'visionDecision': llmSummary['visionDecision'],
+      'safeTargetReasoning': llmSummary['safeTargetReasoning'],
+      'requiresUserClick': llmSummary['requiresUserClick'],
+      'selectedTarget': llmSummary['selectedTarget'],
+      'desktopActionBoundary': llmSummary['desktopActionBoundary'],
     },
   );
 }

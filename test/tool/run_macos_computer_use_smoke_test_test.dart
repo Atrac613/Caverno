@@ -13,6 +13,7 @@ void main() {
   late String manualTccSignoffScript;
   late String mvpSignoffScript;
   late String desktopActionCanaryScript;
+  late String llmDecisionCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -47,6 +48,9 @@ void main() {
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
+    ).readAsStringSync();
+    llmDecisionCanaryScript = File(
+      'tool/run_macos_computer_use_llm_decision_canary.sh',
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
@@ -358,10 +362,84 @@ void main() {
     expect(architectureDoc, contains('permissions_missing'));
     expect(architectureDoc, contains('--refresh-safe-inputs'));
     expect(architectureDoc, contains('--exit-policy ci'));
+    expect(
+      architectureDoc,
+      contains('tool/run_macos_computer_use_llm_decision_canary.sh'),
+    );
+    expect(architectureDoc, contains('visionDecision'));
+    expect(architectureDoc, contains('safeTargetReasoning'));
     expect(architectureDoc, contains('Manual TCC intake uses this handoff'));
     expect(architectureDoc, contains('manual_required'));
     expect(architectureDoc, contains('desktop_action_canary'));
     expect(architectureDoc, contains('Passing any one canary'));
+  });
+
+  test('Computer Use LLM decision canary avoids desktop actions', () async {
+    expect(
+      llmDecisionCanaryScript,
+      contains('macos_computer_use_llm_decision_canary_'),
+    );
+    expect(
+      llmDecisionCanaryScript,
+      contains('macos_computer_use_llm_decision_canary_summary'),
+    );
+    expect(
+      llmDecisionCanaryScript,
+      contains('computer_use_llm_vision_decision'),
+    );
+    expect(llmDecisionCanaryScript, contains('visionDecision'));
+    expect(llmDecisionCanaryScript, contains('safeTargetReasoning'));
+    expect(llmDecisionCanaryScript, contains('requiresUserClick'));
+    expect(llmDecisionCanaryScript, contains('no_desktop_action'));
+    expect(llmDecisionCanaryScript, contains('llm_env_missing'));
+    expect(llmDecisionCanaryScript, contains('computer_click'));
+    expect(llmDecisionCanaryScript, contains('CAVERNO_LLM_BASE_URL'));
+    expect(llmDecisionCanaryScript, contains('--fixture-response PATH'));
+
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_llm_decision_canary_test_',
+    );
+    try {
+      final fixture = File('${root.path}/fixture_response.json')
+        ..writeAsStringSync('''
+{
+  "visionDecision": "Choose the empty document body.",
+  "safeTargetReasoning": "The empty document body is a visible harmless target.",
+  "requiresUserClick": true,
+  "selectedTarget": {
+    "label": "Empty document body",
+    "risk": "low"
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_llm_decision_canary.sh',
+        '--root',
+        root.path,
+        '--fixture-response',
+        fixture.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect('${result.stdout}', contains('Requires user click: true'));
+
+      final summaryDir = Directory(
+        root.path,
+      ).listSync().whereType<Directory>().single;
+      final summaryFile = File('${summaryDir.path}/canary_summary.json');
+      final summary = summaryFile.readAsStringSync();
+      expect(
+        summary,
+        contains('macos_computer_use_llm_decision_canary_summary'),
+      );
+      expect(summary, contains('computer_use_llm_vision_decision'));
+      expect(summary, contains('"requiresUserClick": true'));
+      expect(summary, contains('"failedCount": 0'));
+      expect(summary, contains('"desktopActionBoundary": "no_desktop_action"'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
   });
 
   test('MVP sign-off wrapper keeps user-operated boundaries explicit', () {

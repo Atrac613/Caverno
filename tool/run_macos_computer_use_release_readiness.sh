@@ -9,7 +9,7 @@ MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
 DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
 REFRESH_SAFE_INPUTS=1
 REFRESH_LLM_CANARY=0
-LLM_CANARY_PROMPT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_PROMPT:-Create a Python CLI script that pings a specific host.}"
+LEGACY_LLM_CANARY_PROMPT=""
 OUTPUT_JSON=""
 OUTPUT_MD=""
 EXTRA_ARGS=()
@@ -26,7 +26,7 @@ Options:
   --desktop-action-canary-summary PATH User-produced desktop action canary summary.
   --no-refresh             Do not refresh M7 or Computer Use canary history.
   --refresh-llm-canary     Run the LLM canary only when CAVERNO_LLM_* is set.
-  --llm-canary-prompt TEXT Override the LLM canary prompt.
+  --llm-canary-prompt TEXT Legacy option accepted for compatibility.
   --output-json PATH       Override readiness JSON output path.
   --output-md PATH         Override readiness Markdown output path.
   --                       Pass remaining args to the Dart readiness CLI.
@@ -82,7 +82,7 @@ while [[ $# -gt 0 ]]; do
         echo "--llm-canary-prompt requires a value." >&2
         exit 64
       fi
-      LLM_CANARY_PROMPT="$2"
+      LEGACY_LLM_CANARY_PROMPT="$2"
       shift 2
       ;;
     --output-json)
@@ -167,6 +167,9 @@ echo "  Preset: ${PRESET}"
 echo "  Report root: ${REPORT_ROOT}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
+if [[ -n "${LEGACY_LLM_CANARY_PROMPT}" ]]; then
+  echo "  Legacy LLM prompt override: ignored by Computer Use decision canary"
+fi
 echo "  Exit policy: ${EXIT_POLICY}"
 echo "  Output JSON: ${OUTPUT_JSON}"
 echo "  Output Markdown: ${OUTPUT_MD}"
@@ -186,9 +189,8 @@ cd "${ROOT_DIR}"
 
 if [[ "${REFRESH_LLM_CANARY}" == "1" ]]; then
   if [[ -n "${CAVERNO_LLM_BASE_URL:-}" && -n "${CAVERNO_LLM_API_KEY:-}" && -n "${CAVERNO_LLM_MODEL:-}" ]]; then
-    echo "Refreshing LLM canary"
-    CAVERNO_PLAN_MODE_REPEAT_COUNT="${CAVERNO_PLAN_MODE_REPEAT_COUNT:-1}" \
-      bash tool/run_plan_mode_ping_cli_live_canary.sh "${LLM_CANARY_PROMPT}"
+    echo "Refreshing Computer Use LLM decision canary"
+    bash tool/run_macos_computer_use_llm_decision_canary.sh
   else
     echo "Skipping LLM canary refresh because CAVERNO_LLM_BASE_URL, CAVERNO_LLM_API_KEY, or CAVERNO_LLM_MODEL is not set."
     echo "Existing LLM canary summaries will be discovered instead."

@@ -364,8 +364,17 @@ change is tracked only when the runtime report includes explicit change
 evidence.
 
 The LLM live canaries and the Computer Use live canary cover different risks.
-`tool/run_plan_mode_ping_cli_live_canary.sh` validates the live LLM,
-tool-calling, saved-task recovery, and coding workflow behavior.
+`tool/run_macos_computer_use_llm_decision_canary.sh` validates the live LLM
+decision layer for Computer Use by asking the configured `CAVERNO_LLM_*`
+endpoint to choose a safe click target from a canned
+`computer_vision_observe`-style payload. It does not grant TCC, move the
+pointer, click, type, or operate System Settings. Its summary schema is
+`macos_computer_use_llm_decision_canary_summary` and promotes
+`visionDecision`, `safeTargetReasoning`, and `requiresUserClick` so MVP
+readiness can prove the LLM understood the observation while leaving execution
+user-approved. `tool/run_plan_mode_ping_cli_live_canary.sh` still validates the
+coding-agent LLM, tool-calling, saved-task recovery, and coding workflow
+behavior.
 `tool/run_macos_computer_use_live_canary.sh` validates the macOS Computer Use
 helper runtime. `tool/run_macos_computer_use_desktop_action_canary.sh`
 validates manual TCC-gated desktop action execution. Passing any one canary
@@ -427,7 +436,7 @@ bash tool/run_macos_computer_use_release_readiness.sh --signoff
 ```
 
 Add `--refresh-llm-canary` only when live LLM environment variables are set and
-fresh LLM/tool-loop evidence is needed:
+fresh Computer Use LLM decision evidence is needed:
 
 ```bash
 CAVERNO_LLM_BASE_URL=... \
@@ -463,7 +472,9 @@ The gate evaluates:
   `macos_computer_use_desktop_action_canary_summary`.
 - Manual TCC sign-off through the user-produced M8 runtime report or
   `manual_tcc_report_summary.json`.
-- LLM/tool-loop readiness through the latest Plan Mode ping CLI canary summary.
+- LLM decision readiness through the latest Computer Use LLM decision canary
+  summary, with legacy Plan Mode ping CLI summaries still accepted as fallback
+  evidence.
 
 The output files are
 `build/integration_test_reports/macos_computer_use_release_readiness.json` and
