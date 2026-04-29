@@ -4,6 +4,20 @@ Use this checklist only after building a local macOS app. The steps are
 user-operated because they inspect Dock state, foreground overlay behavior, and
 macOS TCC surfaces.
 
+## Commands
+
+Manual runtime sign-off command:
+
+```bash
+bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff
+```
+
+Report parser command for automation after the user provides the report:
+
+```bash
+dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>
+```
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

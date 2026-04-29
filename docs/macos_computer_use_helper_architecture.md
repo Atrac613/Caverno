@@ -295,15 +295,32 @@ Stability run:
 bash tool/run_macos_computer_use_live_canary.sh --stability
 ```
 
+Opt-in overlay foreground run:
+
+```bash
+bash tool/run_macos_computer_use_live_canary.sh --overlay
+```
+
+The overlay run opens System Settings and validates the helper overlay's
+foreground diagnostics without granting TCC. It requires `overlaySmoke.status`
+to be `ready`, including `overlayForegroundPolicy:
+accessory_overlay_front`, `overlayIsFloatingPanel: true`, and
+`overlayHidesOnDeactivate: false`.
+
 The summary is written under
 `build/integration_test_reports/macos_computer_use_live_canary_<timestamp>/`.
 The summary schema is `macos_computer_use_live_canary_summary`. Each run
 contains a `computerUseLiveCanaryGate`, a granular `failureClass`, and the
-summary-level `failureClasses` count. A passing canary means the helper core
-runtime is available for Computer Use flows; it does not prove Accessibility,
-Screen & System Audio Recording, screenshot capture, or live desktop actions.
-Those TCC checks remain user-operated manual sign-off steps after the user
-grants permissions.
+summary-level `failureClasses` count. Summaries also promote
+`helperProcessPolicy` path-mismatch fields such as
+`helperPathMismatch`, `helperPathMatchesRunningHelper`,
+`replacedMismatchedHelperPath`, and `helperPathMismatchTerminationTimedOut`.
+A passing canary means the helper core runtime is available for Computer Use
+flows; it does not prove Accessibility, Screen & System Audio Recording,
+screenshot capture, or live desktop actions. Those TCC checks remain
+user-operated manual sign-off steps after the user grants permissions. Each
+summary includes a `manualTccHandoff` object with the command the user should
+run and the parser command automation may run against the user-produced report.
 
 ## Desktop Action Canary
 

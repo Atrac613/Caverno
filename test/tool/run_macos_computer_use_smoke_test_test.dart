@@ -164,6 +164,10 @@ void main() {
     expect(smokeTest, contains('helper_process_policy'));
     expect(smokeTest, contains('single_instance_lock_not_acquired'));
     expect(smokeTest, contains('helper_path_mismatch'));
+    expect(smokeTest, contains('helper_path_mismatch_termination_timed_out'));
+    expect(smokeTest, contains('terminatedMismatchedHelperPaths'));
+    expect(smokeTest, contains('helperPathMatchesRunningHelper'));
+    expect(smokeTest, contains('manualTccHandoff'));
     expect(smokeTest, contains('duplicate_helper_processes'));
     expect(smokeTest, contains('dock_policy_not_hidden'));
     expect(smokeTest, contains('overlay_foreground_policy_missing'));
@@ -195,9 +199,14 @@ void main() {
     expect(script, contains('REQUIRE_AUDIO_RESOLVED=0'));
     expect(script, contains('REQUIRE_VISION_OBSERVE=0'));
     expect(script, contains('UNSAFE_ARMED=0'));
-    expect(liveCanaryScript, isNot(contains('--m8-runtime-signoff')));
+    expect(liveCanaryScript, contains('Manual TCC follow-up'));
     expect(liveCanaryScript, isNot(contains('--require-capture')));
     expect(liveCanaryScript, isNot(contains('--require-vision-observe')));
+    expect(liveCanaryScript, contains('--overlay|--overlay-canary'));
+    expect(liveCanaryScript, contains('RUN_OVERLAY_CANARY'));
+    expect(liveCanaryScript, contains('overlay_foreground_failed'));
+    expect(liveCanaryScript, contains('helperPathMismatchTerminationTimedOut'));
+    expect(liveCanaryScript, contains('Manual TCC command'));
   });
 
   test('desktop action canary requires a user-operated click loop', () {
@@ -247,6 +256,7 @@ void main() {
     expect(liveCanaryScript, contains('--ci'));
     expect(liveCanaryScript, contains('--stability'));
     expect(liveCanaryScript, contains('--manual|--local'));
+    expect(liveCanaryScript, contains('--overlay|--overlay-canary'));
     expect(liveCanaryScript, contains('--repeat'));
     expect(liveCanaryScript, contains('Manual TCC follow-up'));
     expect(liveCanaryScript, contains('classify_failure'));
@@ -273,6 +283,12 @@ void main() {
       architectureDoc,
       contains('bash tool/run_macos_computer_use_live_canary.sh --stability'),
     );
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_live_canary.sh --overlay'),
+    );
+    expect(architectureDoc, contains('manualTccHandoff'));
+    expect(architectureDoc, contains('helperPathMismatchTerminationTimedOut'));
     expect(
       architectureDoc,
       contains('dart run tool/macos_computer_use_canary_history.dart'),

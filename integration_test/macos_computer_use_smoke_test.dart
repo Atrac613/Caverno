@@ -675,6 +675,10 @@ void main() {
       permissions: permissions,
       stop: stop,
     );
+    report['manualTccHandoff'] = _manualTccHandoff(
+      helperStatus: helperStatus,
+      reportPath: _reportPath,
+    );
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
       steps,
@@ -1383,6 +1387,26 @@ Map<String, dynamic> _helperProcessPolicyGate(
     (snapshot) => snapshot['helperDockPolicy'] == 'agent_hidden_from_dock',
   );
   final helperPathMismatch = latestObserved?['helperPathMismatch'] == true;
+  final helperPathMismatchTerminationTimedOut = snapshots.any(
+    (snapshot) => snapshot['helperPathMismatchTerminationTimedOut'] == true,
+  );
+  final replacedMismatchedHelperPath = snapshots.any(
+    (snapshot) => snapshot['replacedMismatchedHelperPath'] == true,
+  );
+  final terminatedMismatchedHelperPaths = <String>{
+    for (final snapshot in snapshots)
+      for (final path in _stringList(
+        snapshot['terminatedMismatchedHelperPaths'],
+      ))
+        path,
+  }.toList(growable: false);
+  final terminatedMismatchedHelperProcessIdentifiers = <int>{
+    for (final snapshot in snapshots)
+      for (final identifier in _intList(
+        snapshot['terminatedMismatchedHelperProcessIdentifiers'],
+      ))
+        identifier,
+  }.toList(growable: false);
   final singleProcess = maxProcessCount != null && maxProcessCount <= 1;
   final ready =
       observed.isNotEmpty &&
@@ -1392,7 +1416,8 @@ Map<String, dynamic> _helperProcessPolicyGate(
       hiddenDockPolicy &&
       singleProcess &&
       duplicateProcessIdentifiers.isEmpty &&
-      !helperPathMismatch;
+      !helperPathMismatch &&
+      !helperPathMismatchTerminationTimedOut;
   final blockers = <String>[
     if (observed.isEmpty) 'helper_process_policy_missing',
     if (observed.isNotEmpty && !singleInstanceExpected)
@@ -1403,6 +1428,8 @@ Map<String, dynamic> _helperProcessPolicyGate(
       'single_instance_lock_not_acquired',
     if (observed.isNotEmpty && !hiddenDockPolicy) 'dock_policy_not_hidden',
     if (helperPathMismatch) 'helper_path_mismatch',
+    if (helperPathMismatchTerminationTimedOut)
+      'helper_path_mismatch_termination_timed_out',
     if (maxProcessCount == null) 'helper_process_count_missing',
     if (maxProcessCount != null && maxProcessCount > 1)
       'duplicate_helper_processes',
@@ -1421,7 +1448,17 @@ Map<String, dynamic> _helperProcessPolicyGate(
         latestSharedDiagnostics['singleInstanceLockPath'],
     'helperDockPolicy': hiddenDockPolicy ? 'agent_hidden_from_dock' : 'unknown',
     'maxHelperRunningProcessCount': maxProcessCount,
+    'embeddedHelperPath': latestObserved?['embeddedHelperPath'],
+    'runningHelperPath': latestObserved?['runningHelperPath'],
+    'helperPathMatchesRunningHelper':
+        latestObserved?['helperPathMatchesRunningHelper'],
     'helperPathMismatch': helperPathMismatch,
+    'replacedMismatchedHelperPath': replacedMismatchedHelperPath,
+    'terminatedMismatchedHelperPaths': terminatedMismatchedHelperPaths,
+    'terminatedMismatchedHelperProcessIdentifiers':
+        terminatedMismatchedHelperProcessIdentifiers,
+    'helperPathMismatchTerminationTimedOut':
+        helperPathMismatchTerminationTimedOut,
     'observedSnapshotCount': observed.length,
     'duplicateProcessIdentifiers': duplicateProcessIdentifiers,
     'blockers': blockers,
@@ -1930,6 +1967,13 @@ Map<String, dynamic> _computerUseLiveCanaryGate({
       'ok': _gateReady(report['helperProcessPolicyGate']),
       'status': _gateStatus(report['helperProcessPolicyGate']),
     },
+    if (_runOverlaySmoke)
+      {
+        'id': 'permission_overlay_foreground',
+        'label': 'Permission overlay foreground readiness',
+        'ok': _gateReady(report['overlaySmoke']),
+        'status': _gateStatus(report['overlaySmoke']),
+      },
     {
       'id': 'stop_helper_work',
       'label': 'Stop helper work',
@@ -1947,15 +1991,48 @@ Map<String, dynamic> _computerUseLiveCanaryGate({
     'purpose': 'computer_use_helper_runtime_canary',
     'tccBoundary': 'manual_user_operated',
     'tccGatedChecksSkipped': true,
+    'overlayForegroundCanary': _runOverlaySmoke,
+    'overlaySmokeStatus': _gateStatus(report['overlaySmoke']),
     'checks': checks,
     'blockers': blockers,
     'helperPath': helperStatus?['helperPath'],
+    'helperProcessPolicy': report['helperProcessPolicyGate'],
+    'overlaySmoke': _runOverlaySmoke ? report['overlaySmoke'] : null,
     'selectedIpcTransport':
         ping?['selectedIpcTransport'] ?? readiness?['selectedIpcTransport'],
     'permissionSummary': report['permissionSummary'],
     'nextAction': blockers.isEmpty
-        ? 'Computer Use helper core runtime is ready for non-TCC live canary coverage.'
+        ? _runOverlaySmoke
+              ? 'Computer Use helper and permission overlay foreground readiness are ready without granting TCC.'
+              : 'Computer Use helper core runtime is ready for non-TCC live canary coverage.'
         : 'Fix the blocked helper runtime checks, then rerun the Computer Use live canary.',
+  };
+}
+
+Map<String, dynamic> _manualTccHandoff({
+  required Map<String, dynamic>? helperStatus,
+  required String reportPath,
+}) {
+  final helperPath =
+      _stringValue(helperStatus?['embeddedHelperPath']) ??
+      _stringValue(helperStatus?['helperPath']);
+  return {
+    'status': 'manual_required',
+    'automationBoundary': 'user_operated_tcc_only',
+    'runbook': 'docs/macos_computer_use_manual_process_checklist.md',
+    'manualCommand':
+        'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
+    'summaryCommand':
+        'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
+    'expectedReportPath': reportPath.isEmpty ? null : reportPath,
+    'helperPath': helperPath,
+    'passCriteria': const [
+      'releaseRuntimeSignoffGate.status == ready',
+      'releaseRuntimeSignoffGate.blockers is empty',
+      'releaseRuntimeReadiness.status == ready',
+    ],
+    'nextAction':
+        'Ask the user to run the manual TCC command from Terminal after granting macOS permissions.',
   };
 }
 

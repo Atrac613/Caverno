@@ -11,6 +11,7 @@ DEVICE="${CAVERNO_MACOS_COMPUTER_USE_DEVICE:-macos}"
 PRESET="${CAVERNO_MACOS_COMPUTER_USE_CANARY_PRESET:-local}"
 STABILITY_MODE=0
 REPEAT_COUNT_EXPLICIT=0
+RUN_OVERLAY_CANARY="${CAVERNO_MACOS_COMPUTER_USE_CANARY_OVERLAY:-0}"
 RUN_ID="$(date +%s)"
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_live_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
@@ -59,6 +60,10 @@ while [[ $# -gt 0 ]]; do
       PRESET="local"
       shift
       ;;
+    --overlay|--overlay-canary|--permission-overlay)
+      RUN_OVERLAY_CANARY=1
+      shift
+      ;;
     *)
       echo "Unknown option: $1"
       exit 2
@@ -103,9 +108,14 @@ echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  Preset: ${PRESET}"
 echo "  Stability mode: ${STABILITY_MODE}"
+echo "  Overlay foreground canary: ${RUN_OVERLAY_CANARY}"
 echo "  Report dir: ${RUN_DIR}"
 if [[ "${PRESET}" == "local" ]]; then
-  echo "  Manual TCC follow-up: use docs/macos_computer_use_helper_architecture.md after the user grants permissions."
+  echo "  Manual TCC follow-up: ask the user to run bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff"
+  echo "  Manual TCC parser: dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>"
+fi
+if [[ "${RUN_OVERLAY_CANARY}" == "1" ]]; then
+  echo "  Overlay scope: opens System Settings and validates overlay foreground diagnostics without granting TCC."
 fi
 
 status=0
@@ -113,13 +123,19 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   run_name="$(printf "run_%02d" "${index}")"
   run_report="${RUN_DIR}/${run_name}.json"
   run_log="${RUN_DIR}/${run_name}.log"
+  smoke_args=(
+    --computer-use-live-canary
+    --device "${DEVICE}"
+    --reporter "${REPORTER}"
+  )
+  if [[ "${RUN_OVERLAY_CANARY}" == "1" ]]; then
+    smoke_args+=(--overlay-smoke --require-overlay)
+  fi
   echo "Running ${run_name}/${REPEAT_COUNT}"
   set +e
   CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH="${run_report}" \
     bash "${ROOT_DIR}/tool/run_macos_computer_use_smoke_test.sh" \
-      --computer-use-live-canary \
-      --device "${DEVICE}" \
-      --reporter "${REPORTER}" \
+      "${smoke_args[@]}" \
       >"${run_log}" 2>&1
   exit_code=$?
   set -e
@@ -128,7 +144,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" PRESET="${PRESET}" STABILITY_MODE="${STABILITY_MODE}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" PRESET="${PRESET}" STABILITY_MODE="${STABILITY_MODE}" RUN_OVERLAY_CANARY="${RUN_OVERLAY_CANARY}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -137,6 +153,7 @@ from pathlib import Path
 run_dir = Path(os.environ["RUN_DIR"])
 preset = os.environ["PRESET"]
 stability_mode = os.environ["STABILITY_MODE"] == "1"
+overlay_canary = os.environ["RUN_OVERLAY_CANARY"] == "1"
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 runs = []
@@ -152,6 +169,7 @@ def classify_failure(gate, blockers):
         "helper_ping": "helper_ping_failed",
         "permission_status": "permission_status_failed",
         "helper_process_policy": "helper_process_policy_failed",
+        "permission_overlay_foreground": "overlay_foreground_failed",
         "stop_helper_work": "cleanup_failed",
     }
     for blocker in blocker_classes:
@@ -178,6 +196,12 @@ for report_path in sorted(run_dir.glob("run_*.json")):
 
     raw_gate = report.get("computerUseLiveCanaryGate")
     gate = raw_gate if isinstance(raw_gate, dict) else {}
+    raw_helper_policy = report.get("helperProcessPolicyGate")
+    helper_policy = raw_helper_policy if isinstance(raw_helper_policy, dict) else {}
+    raw_overlay_smoke = report.get("overlaySmoke")
+    overlay_smoke = raw_overlay_smoke if isinstance(raw_overlay_smoke, dict) else {}
+    raw_manual_handoff = report.get("manualTccHandoff")
+    manual_handoff = raw_manual_handoff if isinstance(raw_manual_handoff, dict) else {}
     blockers = gate.get("blockers")
     blockers = blockers if isinstance(blockers, list) else []
     passed = report.get("ok") is True and gate.get("status") == "ready"
@@ -189,6 +213,20 @@ for report_path in sorted(run_dir.glob("run_*.json")):
         "gateStatus": gate.get("status", "missing"),
         "blockers": blockers,
         "helperPath": gate.get("helperPath"),
+        "helperProcessPolicy": {
+            "status": helper_policy.get("status", "missing"),
+            "maxHelperRunningProcessCount": helper_policy.get("maxHelperRunningProcessCount"),
+            "helperPathMismatch": helper_policy.get("helperPathMismatch"),
+            "helperPathMatchesRunningHelper": helper_policy.get("helperPathMatchesRunningHelper"),
+            "replacedMismatchedHelperPath": helper_policy.get("replacedMismatchedHelperPath"),
+            "terminatedMismatchedHelperPaths": helper_policy.get("terminatedMismatchedHelperPaths") or [],
+            "helperPathMismatchTerminationTimedOut": helper_policy.get("helperPathMismatchTerminationTimedOut"),
+            "singleInstanceLockStatus": helper_policy.get("singleInstanceLockStatus"),
+            "helperDockPolicy": helper_policy.get("helperDockPolicy"),
+        },
+        "overlayForegroundCanary": bool(gate.get("overlayForegroundCanary")),
+        "overlaySmokeStatus": overlay_smoke.get("status", "not_run"),
+        "manualTccHandoff": manual_handoff,
         "selectedIpcTransport": gate.get("selectedIpcTransport"),
         "report": str(report_path),
         "log": str(log_path),
@@ -205,6 +243,7 @@ summary = {
     "schemaVersion": 1,
     "purpose": "computer_use_helper_runtime_canary",
     "tccBoundary": "manual_user_operated",
+    "overlayForegroundCanary": overlay_canary,
     "preset": preset,
     "stabilityMode": stability_mode,
     "stable": failed_count == 0,
@@ -213,6 +252,12 @@ summary = {
     "failed": failed_count,
     "passRate": 0 if not runs else passed_count / len(runs),
     "failureClasses": failure_classes,
+    "manualTccHandoff": next((run.get("manualTccHandoff") for run in runs if run.get("manualTccHandoff")), {
+        "status": "manual_required",
+        "automationBoundary": "user_operated_tcc_only",
+        "manualCommand": "bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff",
+        "summaryCommand": "dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>",
+    }),
     "runs": runs,
 }
 summary_json.write_text(json.dumps(summary, indent=2) + "\n")
@@ -222,6 +267,7 @@ lines = [
     "",
     "- Purpose: helper launch, IPC, ping, permission reporting, and cleanup",
     "- TCC boundary: user-operated manual verification only",
+    f"- Overlay foreground canary: {str(overlay_canary).lower()}",
     f"- Preset: {preset}",
     f"- Stability mode: {str(stability_mode).lower()}",
     f"- Stable: {str(summary['stable']).lower()}",
@@ -229,20 +275,46 @@ lines = [
     f"- Passed: {passed_count}",
     f"- Failed: {failed_count}",
     f"- Pass rate: {summary['passRate'] * 100:.1f}%",
-    "",
-    "| Run | Status | Failure Class | Gate | Blockers | IPC | Artifacts |",
-    "| --- | --- | --- | --- | --- | --- | --- |",
 ]
+manual = summary["manualTccHandoff"]
+if manual:
+    lines.extend([
+        f"- Manual TCC command: `{manual.get('manualCommand', '-')}`",
+        f"- Manual TCC parser: `{manual.get('summaryCommand', '-')}`",
+    ])
+lines.extend([
+    "",
+    "| Run | Status | Failure Class | Gate | Blockers | Helper Policy | Overlay | IPC | Artifacts |",
+    "| --- | --- | --- | --- | --- | --- | --- | --- | --- |",
+])
 for run in runs:
     blockers = ", ".join(str(item) for item in run.get("blockers") or []) or "-"
+    helper_policy = run.get("helperProcessPolicy") or {}
+    helper_bits = [
+        f"status={helper_policy.get('status', '-')}",
+        f"count={helper_policy.get('maxHelperRunningProcessCount', '-')}",
+        f"pathMismatch={str(helper_policy.get('helperPathMismatch')).lower()}",
+        f"pathMatch={str(helper_policy.get('helperPathMatchesRunningHelper')).lower()}",
+        f"replaced={str(helper_policy.get('replacedMismatchedHelperPath')).lower()}",
+        f"lock={helper_policy.get('singleInstanceLockStatus', '-')}",
+        f"dock={helper_policy.get('helperDockPolicy', '-')}",
+    ]
+    if helper_policy.get("helperPathMismatchTerminationTimedOut"):
+        helper_bits.append("terminationTimedOut=true")
+    terminated_paths = helper_policy.get("terminatedMismatchedHelperPaths") or []
+    if terminated_paths:
+        helper_bits.append("terminatedPaths=" + ", ".join(str(item) for item in terminated_paths))
+    helper_summary = "<br>".join(helper_bits)
     artifacts = f"report: `{run['report']}`<br>log: `{run['log']}`"
     lines.append(
-        "| {name} | {status} | {failureClass} | {gateStatus} | {blockers} | {ipc} | {artifacts} |".format(
+        "| {name} | {status} | {failureClass} | {gateStatus} | {blockers} | {helper} | {overlay} | {ipc} | {artifacts} |".format(
             name=run["name"],
             status=run["status"],
             failureClass=run["failureClass"],
             gateStatus=run.get("gateStatus", "-"),
             blockers=blockers,
+            helper=helper_summary,
+            overlay=run.get("overlaySmokeStatus") or "-",
             ipc=run.get("selectedIpcTransport") or "-",
             artifacts=artifacts,
         )
