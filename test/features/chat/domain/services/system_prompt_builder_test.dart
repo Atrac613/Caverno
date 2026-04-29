@@ -180,6 +180,7 @@ void main() {
       assistantMode: AssistantMode.general,
       languageCode: 'en',
       toolNames: const [
+        'computer_vision_observe',
         'computer_list_windows',
         'computer_screenshot',
         'computer_screenshot_window',
@@ -189,17 +190,16 @@ void main() {
       ],
     );
 
+    expect(prompt, contains('start with computer_vision_observe'));
     expect(
       prompt,
       contains(
-        'prefer computer_list_windows and computer_screenshot_window when the task targets a specific app or window',
+        'observe again with computer_vision_observe before deciding the next desktop action',
       ),
     );
     expect(
       prompt,
-      contains(
-        'observe again with computer_screenshot_window for the target window or computer_screenshot for the display',
-      ),
+      contains('Use raw computer_list_windows, computer_screenshot'),
     );
     expect(
       prompt,

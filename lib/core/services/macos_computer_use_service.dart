@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../utils/logger.dart';
 import 'macos_computer_use_setup.dart';
+import 'macos_computer_use_tool_policy.dart';
 import 'macos_computer_use_transport.dart';
 
 final macosComputerUseServiceProvider = Provider<MacosComputerUseService>((
@@ -344,6 +345,123 @@ class MacosComputerUseService {
     return _invokeJson('stopSystemAudioRecording');
   }
 
+  Future<String> visionObserve(Map<String, dynamic> arguments) async {
+    final target = _stringValue(arguments['target']).isNotEmpty
+        ? _stringValue(arguments['target'])
+        : arguments['window_id'] != null || arguments['windowId'] != null
+        ? 'window'
+        : 'display';
+    final includeWindows =
+        arguments['include_windows'] != false &&
+        arguments['includeWindows'] != false;
+    final maxWidth = _intValue(
+      arguments['max_width'] ?? arguments['maxWidth'],
+    )?.clamp(200, 1600);
+    final requestedWindowId = _intValue(
+      arguments['window_id'] ?? arguments['windowId'],
+    );
+    final requestedDisplayId = _intValue(
+      arguments['display_id'] ?? arguments['displayId'],
+    );
+
+    final permissions = _decodeMap(await getPermissions());
+    Map<String, dynamic>? windowsResult;
+    if (includeWindows || target == 'front_window') {
+      windowsResult = _decodeMap(
+        await listWindows({
+          'include_current_app': false,
+          'max_windows': _intValue(arguments['max_windows']) ?? 20,
+        }),
+      );
+    }
+
+    final resolvedWindowId = target == 'front_window'
+        ? _firstWindowId(windowsResult)
+        : requestedWindowId;
+    final captureArguments = <String, dynamic>{};
+    if (maxWidth != null) {
+      captureArguments['max_width'] = maxWidth;
+    }
+    if (requestedDisplayId != null) {
+      captureArguments['display_id'] = requestedDisplayId;
+    }
+
+    final captureTarget = switch (target) {
+      'window' || 'front_window' when resolvedWindowId != null => 'window',
+      _ => 'display',
+    };
+    if (captureTarget == 'window') {
+      captureArguments['window_id'] = resolvedWindowId;
+    }
+
+    final captureRaw = captureTarget == 'window'
+        ? await screenshotWindow(captureArguments)
+        : await screenshot(captureArguments);
+    final capture =
+        _decodeMap(captureRaw) ??
+        {
+          'ok': false,
+          'code': 'invalid_capture_response',
+          'error':
+              'Computer vision observation did not receive JSON capture data.',
+          'raw': captureRaw,
+        };
+    final captureOk = capture['ok'] != false;
+    final imageBase64 = capture['imageBase64'];
+    final imageMimeType = capture['imageMimeType'] as String? ?? 'image/png';
+    final captureMetadata = Map<String, dynamic>.from(capture)
+      ..remove('imageBase64');
+
+    final targetSummary = <String, dynamic>{
+      'requested': target,
+      'resolved': captureTarget,
+    };
+    if (resolvedWindowId != null) {
+      targetSummary['windowId'] = resolvedWindowId;
+    }
+    if (requestedDisplayId != null) {
+      targetSummary['displayId'] = requestedDisplayId;
+    }
+
+    final result = <String, dynamic>{
+      'ok': captureOk && imageBase64 is String && imageBase64.isNotEmpty,
+      'schemaName': 'macos_computer_use_vision_observation',
+      'schemaVersion': 1,
+      'target': targetSummary,
+      'coordinateSpace': capture['coordinateSpace'] ?? 'screenshot_pixels',
+      'coordinateGuidance': {
+        'useLatestObservation': true,
+        'includeSourceSize': true,
+        'sourceWidth': capture['width'],
+        'sourceHeight': capture['height'],
+        'windowId': capture['windowId'] ?? resolvedWindowId,
+        'displayId': capture['displayId'] ?? requestedDisplayId,
+      },
+      'permissions': permissions ?? const <String, dynamic>{},
+      if (windowsResult != null)
+        'windows': _redactedWindowsResult(windowsResult),
+      'observation': captureMetadata,
+      if (imageBase64 is String && imageBase64.isNotEmpty)
+        'imageBase64': imageBase64,
+      'imageMimeType': imageMimeType,
+      'allowedNextTools': _visionAllowedNextTools,
+      'approvalRequiredTools': _visionApprovalRequiredTools,
+      'armingRequiredTools': _visionArmingRequiredTools,
+      'nextAction': _visionNextAction(
+        captureOk: captureOk,
+        imageAttached: imageBase64 is String && imageBase64.isNotEmpty,
+        capture: capture,
+      ),
+    };
+
+    if (result['ok'] != true) {
+      result['code'] = capture['code'] ?? 'vision_observation_failed';
+      result['error'] =
+          capture['error'] ?? 'Computer vision observation failed.';
+    }
+    return jsonEncode(result);
+  }
+
   Map<String, dynamic> _normalizeCoordinateArguments(
     Map<String, dynamic> arguments,
   ) {
@@ -376,6 +494,83 @@ class MacosComputerUseService {
     }
     return normalized;
   }
+
+  String _stringValue(Object? value) {
+    return value is String ? value.trim() : '';
+  }
+
+  int? _intValue(Object? value) {
+    if (value is int) return value;
+    if (value is num) return value.toInt();
+    if (value is String) return int.tryParse(value.trim());
+    return null;
+  }
+
+  int? _firstWindowId(Map<String, dynamic>? windowsResult) {
+    final windows = windowsResult?['windows'];
+    if (windows is! List) return null;
+    for (final window in windows) {
+      if (window is! Map) continue;
+      final id = _intValue(window['windowId'] ?? window['window_id']);
+      if (id != null) return id;
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _redactedWindowsResult(Map<String, dynamic> result) {
+    final redacted = Map<String, dynamic>.from(result);
+    final windows = redacted['windows'];
+    if (windows is List) {
+      redacted['windows'] = windows
+          .whereType<Map>()
+          .map((window) => Map<String, dynamic>.from(window))
+          .toList(growable: false);
+    }
+    return redacted;
+  }
+
+  String _visionNextAction({
+    required bool captureOk,
+    required bool imageAttached,
+    required Map<String, dynamic> capture,
+  }) {
+    final captureNextAction = capture['nextAction'];
+    if (!captureOk || !imageAttached) {
+      if (captureNextAction is String && captureNextAction.isNotEmpty) {
+        return captureNextAction;
+      }
+      return 'Resolve the observation failure, then run computer_vision_observe again.';
+    }
+    return 'Use the attached screenshot to decide whether to answer, observe again, or request an approved computer-use action.';
+  }
+
+  static final List<String> _visionAllowedNextTools = List.unmodifiable([
+    'computer_vision_observe',
+    'computer_list_windows',
+    'computer_screenshot',
+    'computer_screenshot_window',
+    'computer_focus_window',
+    'computer_move_mouse',
+    'computer_click',
+    'computer_drag',
+    'computer_scroll',
+    'computer_type_text',
+    'computer_press_key',
+    'computer_start_system_audio_recording',
+    'computer_stop_system_audio_recording',
+  ]);
+
+  static final List<String> _visionApprovalRequiredTools = List.unmodifiable(
+    _visionAllowedNextTools.where(
+      MacosComputerUseToolPolicy.requiresUserApproval,
+    ),
+  );
+
+  static final List<String> _visionArmingRequiredTools = List.unmodifiable(
+    _visionAllowedNextTools.where(
+      MacosComputerUseToolPolicy.requiresSmokeArming,
+    ),
+  );
 
   Future<String> _invokeJson(
     String method, [

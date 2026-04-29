@@ -223,6 +223,123 @@ void main() {
       expect(result, containsPair('lastOnboardingTransition', isA<Map>()));
     },
   );
+
+  test('packages display screenshots for vision observations', () async {
+    final service = _FakeVisionMacosComputerUseService();
+
+    final result =
+        jsonDecode(
+              await service.visionObserve(const {
+                'target': 'display',
+                'max_width': 640,
+              }),
+            )
+            as Map<String, dynamic>;
+
+    expect(service.calledMethods, [
+      'getPermissions',
+      'listWindows',
+      'screenshot',
+    ]);
+    expect(result, containsPair('ok', true));
+    expect(
+      result,
+      containsPair('schemaName', 'macos_computer_use_vision_observation'),
+    );
+    expect(result, containsPair('imageBase64', 'display-image'));
+    expect(result['allowedNextTools'], contains('computer_click'));
+    expect(result['approvalRequiredTools'], contains('computer_click'));
+    expect(result['armingRequiredTools'], contains('computer_type_text'));
+    expect(result['coordinateGuidance'], containsPair('sourceWidth', 640));
+  });
+
+  test(
+    'resolves the first visible window for front-window vision observations',
+    () async {
+      final service = _FakeVisionMacosComputerUseService();
+
+      final result =
+          jsonDecode(
+                await service.visionObserve(const {
+                  'target': 'front_window',
+                  'include_windows': true,
+                }),
+              )
+              as Map<String, dynamic>;
+
+      expect(service.calledMethods, [
+        'getPermissions',
+        'listWindows',
+        'screenshotWindow',
+      ]);
+      expect(result, containsPair('ok', true));
+      expect(result['imageBase64'], 'window-image');
+      expect(result['target'], containsPair('resolved', 'window'));
+      expect(result['target'], containsPair('windowId', 42));
+      expect(result['coordinateGuidance'], containsPair('windowId', 42));
+    },
+  );
+}
+
+class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
+  final List<String> calledMethods = [];
+
+  @override
+  Future<String> getPermissions() async {
+    calledMethods.add('getPermissions');
+    return jsonEncode({
+      'ok': true,
+      'accessibilityGranted': true,
+      'screenCaptureGranted': true,
+      'systemAudioRecordingSupported': true,
+    });
+  }
+
+  @override
+  Future<String> listWindows(Map<String, dynamic> arguments) async {
+    calledMethods.add('listWindows');
+    return jsonEncode({
+      'ok': true,
+      'windows': [
+        {
+          'windowId': 42,
+          'appName': 'Example',
+          'title': 'Example Window',
+          'bounds': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+        },
+      ],
+    });
+  }
+
+  @override
+  Future<String> screenshot(Map<String, dynamic> arguments) async {
+    calledMethods.add('screenshot');
+    return jsonEncode({
+      'ok': true,
+      'command': 'screenshot',
+      'coordinateSpace': 'screenshot_pixels',
+      'width': arguments['max_width'] ?? 900,
+      'height': 360,
+      'displayId': 1,
+      'imageBase64': 'display-image',
+      'imageMimeType': 'image/png',
+    });
+  }
+
+  @override
+  Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
+    calledMethods.add('screenshotWindow');
+    return jsonEncode({
+      'ok': true,
+      'command': 'screenshotWindow',
+      'coordinateSpace': 'window_pixels',
+      'width': 900,
+      'height': 600,
+      'windowId': arguments['window_id'],
+      'imageBase64': 'window-image',
+      'imageMimeType': 'image/png',
+    });
+  }
 }
 
 class _FakePermissionTransport extends MacosComputerUsePermissionTransport {

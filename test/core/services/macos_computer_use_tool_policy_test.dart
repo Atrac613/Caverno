@@ -26,6 +26,20 @@ void main() {
     expect(decision.requiresPostActionObservation, isFalse);
   });
 
+  test('allows vision observations during planning without approval', () {
+    final decision = MacosComputerUseToolPolicy.decision(
+      'computer_vision_observe',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.category, MacosComputerUseToolCategory.observation);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.observe);
+    expect(decision.requiresUserApproval, isFalse);
+    expect(decision.requiresSmokeArming, isFalse);
+    expect(decision.allowedInPlanning, isTrue);
+    expect(decision.requiresPostActionObservation, isFalse);
+  });
+
   test('blocks permission prompts during planning', () {
     final decision = MacosComputerUseToolPolicy.decision(
       'computer_request_permissions',

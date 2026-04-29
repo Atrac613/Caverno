@@ -90,6 +90,7 @@ class McpToolService {
     'computer_get_permissions',
     'computer_request_permissions',
     'computer_open_system_settings',
+    'computer_vision_observe',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -1670,6 +1671,7 @@ class McpToolService {
       'computer_open_system_settings' => service.openSystemSettings(
         section: arguments['section'] as String? ?? 'privacy',
       ),
+      'computer_vision_observe' => service.visionObserve(arguments),
       'computer_list_windows' => service.listWindows(arguments),
       'computer_focus_window' => service.focusWindow(arguments),
       'computer_screenshot' => service.screenshot(arguments),
@@ -1788,6 +1790,45 @@ class McpToolService {
             },
           },
           'required': ['section'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_vision_observe',
+        'description':
+            'Observe the macOS desktop for a vision LLM loop. Returns permission status, optional visible-window metadata, one display or window screenshot as image content, coordinate guidance, and the approved next computer-use tool surface. This tool is read-only.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'target': {
+              'type': 'string',
+              'enum': ['display', 'window', 'front_window'],
+              'description':
+                  'Observation target. Use window with window_id for a known window, front_window for the first visible non-Caverno window, or display for the full display.',
+            },
+            'window_id': {
+              'type': 'integer',
+              'description':
+                  'Window ID from computer_list_windows. Required when target is window.',
+            },
+            'display_id': {
+              'type': 'integer',
+              'description':
+                  'Optional CGDirectDisplayID. Used when target is display.',
+            },
+            'max_width': {
+              'type': 'integer',
+              'description':
+                  'Optional maximum PNG width to reduce tokens. Defaults to 900.',
+            },
+            'include_windows': {
+              'type': 'boolean',
+              'description':
+                  'Include visible-window metadata. Defaults to true.',
+            },
+          },
         },
       },
     },

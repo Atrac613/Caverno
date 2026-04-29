@@ -251,6 +251,37 @@ Follow-on milestones:
 - M5: Connect the vision LLM loop to the approved helper tool surface. M5 is
   the next active milestone after the 2026-04-29 M4 debug sign-off.
 
+Current M5 implementation target:
+
+- Add a high-level `computer_vision_observe` tool that packages permission
+  status, optional visible-window metadata, the chosen display or window
+  screenshot, coordinate guidance, and the approved next tool surface into one
+  observation payload.
+- Feed the observation screenshot back to multimodal models as image content so
+  the next LLM turn can decide whether to answer, observe again, or request a
+  desktop action.
+- Keep the observation tool read-only and planning-safe. Any proposed focus,
+  pointer, keyboard, or audio action must still go through the existing
+  approval, arming, emergency-stop, and audit-log gates.
+- Prefer `computer_vision_observe` at the start of visual desktop tasks and
+  after every approved desktop action. Raw screenshot and window tools remain
+  available for focused follow-up checks.
+
+M5 acceptance criteria:
+
+- `computer_vision_observe` is advertised in the built-in tool catalog when
+  macOS Computer Use is available.
+- `computer_vision_observe` can observe the full display, a specific
+  `window_id`, or the first visible front window.
+- The tool result includes the screenshot image, redacted metadata, coordinate
+  space, `allowedNextTools`, `approvalRequiredTools`, and concrete
+  `nextAction`.
+- Planning mode allows `computer_vision_observe` but continues to block
+  mutating Computer Use tools.
+- Input, text, focus, and system-audio actions proposed after a vision
+  observation continue to require the existing Caverno approval and arming
+  flow.
+
 Current M2 implementation status:
 
 - Read-only observation tools, window focus, pointer input, text input, key

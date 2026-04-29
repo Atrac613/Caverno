@@ -325,16 +325,20 @@ class SystemPromptBuilder {
       }
       if (hasComputerUseTools) {
         buffer.writeln(
-          'For macOS computer-use tasks, prefer computer_list_windows and '
-          'computer_screenshot_window when the task targets a specific app or '
-          'window; otherwise observe the full display with computer_screenshot.',
+          'For macOS computer-use tasks, start with computer_vision_observe. '
+          'Use target=window with a known window_id, target=front_window for '
+          'the first visible non-Caverno window, or target=display for the '
+          'full display.',
         );
         buffer.writeln(
           'After every click, drag, scroll, text input, key press, or system '
           'audio recording state change, observe again with '
-          'computer_screenshot_window for the target window or '
-          'computer_screenshot for the display before deciding the next '
-          'desktop action.',
+          'computer_vision_observe before deciding the next desktop action.',
+        );
+        buffer.writeln(
+          'Use raw computer_list_windows, computer_screenshot, and '
+          'computer_screenshot_window only for focused follow-up checks when '
+          'computer_vision_observe is too broad.',
         );
         buffer.writeln(
           'Use screenshot pixel coordinates from the latest observation. '

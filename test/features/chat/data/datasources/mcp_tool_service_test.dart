@@ -78,6 +78,7 @@ void main() {
 
       expect(functionNames, contains('computer_get_permissions'));
       expect(functionNames, contains('computer_open_system_settings'));
+      expect(functionNames, contains('computer_vision_observe'));
       expect(functionNames, contains('computer_list_windows'));
       expect(functionNames, contains('computer_focus_window'));
       expect(functionNames, contains('computer_screenshot'));
@@ -101,6 +102,25 @@ void main() {
         expect(result.isSuccess, isTrue);
         expect(computerUseService.calledMethods, ['click']);
         expect(jsonDecode(result.result), containsPair('ok', true));
+      },
+    );
+
+    test(
+      'executes macOS computer vision observation through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_vision_observe',
+          arguments: const {'target': 'front_window', 'max_width': 640},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['visionObserve']);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(decoded, containsPair('schemaName', 'test_vision_observation'));
+        expect(decoded, containsPair('imageBase64', 'abc123'));
       },
     );
 
@@ -316,6 +336,19 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   Future<String> openSystemSettings({required String section}) async {
     calledMethods.add('openSystemSettings');
     return jsonEncode({'ok': true, 'section': section});
+  }
+
+  @override
+  Future<String> visionObserve(Map<String, dynamic> arguments) async {
+    calledMethods.add('visionObserve');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'test_vision_observation',
+      'target': arguments['target'],
+      'maxWidth': arguments['max_width'],
+      'imageBase64': 'abc123',
+      'imageMimeType': 'image/png',
+    });
   }
 }
 

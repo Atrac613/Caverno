@@ -39,6 +39,9 @@ const _requireOverlayReady = bool.fromEnvironment(
 const _requireOnboardingTransition = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_ONBOARDING_TRANSITION',
 );
+const _requireVisionObserve = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_VISION_OBSERVE',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -72,6 +75,7 @@ void main() {
       'runOverlaySmoke': _runOverlaySmoke,
       'requireOverlayReady': _requireOverlayReady,
       'requireOnboardingTransition': _requireOnboardingTransition,
+      'requireVisionObserve': _requireVisionObserve,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -299,6 +303,16 @@ void main() {
         }),
       );
     }
+    await _runStep(
+      steps,
+      'vision_observe',
+      'Observe the desktop through the vision loop surface',
+      () => service.visionObserve(const {
+        'target': 'front_window',
+        'max_width': 400,
+        'include_windows': true,
+      }),
+    );
     if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
       final inputArguments = _smokeInputArguments(displayScreenshot);
       await _runStep(
@@ -534,6 +548,7 @@ void main() {
     );
     report['permissionGate'] = _permissionGate(permissions);
     report['captureGate'] = _captureGate(steps, permissions: permissions);
+    report['visionObservationGate'] = _visionObservationGate(steps);
     report['inputGate'] = _inputGate(
       steps,
       permissions: permissions,
@@ -655,6 +670,14 @@ void main() {
         isTrue,
         reason:
             'Onboarding transition smoke must observe the Allow row placeholder and overlay animation target.',
+      );
+    }
+    if (_requireVisionObserve) {
+      expect(
+        _gateReady(report['visionObservationGate']),
+        isTrue,
+        reason:
+            'Vision observation smoke must attach an image and expose the approved helper tool surface.',
       );
     }
     if (_m4Signoff) {
@@ -1204,6 +1227,47 @@ Map<String, dynamic> _captureGate(
   };
 }
 
+Map<String, dynamic> _visionObservationGate(List<Map<String, dynamic>> steps) {
+  final status = _stepStatusById(steps, 'vision_observe');
+  final result = _mapValue(status['result']) ?? const <String, dynamic>{};
+  final passed = status['passed'] == true && result['ok'] == true;
+  final imageAttached =
+      (result['imageBase64'] is String &&
+          (result['imageBase64'] as String).isNotEmpty) ||
+      ((result['imageBase64Length'] as num?)?.toInt() ?? 0) > 0;
+  final allowedNextTools = _stringList(result['allowedNextTools']);
+  final approvalRequiredTools = _stringList(result['approvalRequiredTools']);
+  final coordinateGuidance =
+      _mapValue(result['coordinateGuidance']) ?? const <String, dynamic>{};
+  final ready =
+      passed &&
+      imageAttached &&
+      allowedNextTools.contains('computer_click') &&
+      approvalRequiredTools.contains('computer_click') &&
+      coordinateGuidance['useLatestObservation'] == true;
+  final blockers = <String>[
+    if (!passed) 'vision_observe_runtime_failed',
+    if (passed && !imageAttached) 'vision_observe_image_missing',
+    if (passed && !allowedNextTools.contains('computer_click'))
+      'vision_allowed_actions_missing',
+    if (passed && !approvalRequiredTools.contains('computer_click'))
+      'vision_approval_surface_missing',
+    if (passed && coordinateGuidance['useLatestObservation'] != true)
+      'vision_coordinate_guidance_missing',
+  ];
+  return {
+    'status': ready ? 'ready' : 'blocked',
+    'imageAttached': imageAttached,
+    'allowedNextTools': allowedNextTools,
+    'approvalRequiredTools': approvalRequiredTools,
+    'coordinateGuidance': coordinateGuidance,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Vision observation is ready for the approved helper tool surface.'
+        : 'Inspect computer_vision_observe and rerun smoke with --require-vision-observe.',
+  };
+}
+
 Map<String, dynamic> _inputGate(
   List<Map<String, dynamic>> steps, {
   required Map<String, dynamic>? permissions,
@@ -1527,6 +1591,7 @@ Map<String, dynamic> _stepStatusById(
     'skipped': skipped,
     if (step['reason'] != null) 'reason': step['reason'],
     if (step['error'] != null) 'error': step['error'],
+    if (step['result'] != null) 'result': step['result'],
   };
 }
 
@@ -2142,6 +2207,7 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
   final inputReady = _gateReady(report['inputGate']);
   final audioResolved = _audioGateResolved(report['audioGate']);
   final overlayReady = _gateReady(report['overlaySmoke']);
+  final visionObserveReady = _gateReady(report['visionObservationGate']);
   final onboardingTransitionReady = _gateReady(
     report['onboardingTransitionGate'],
   );
@@ -2173,6 +2239,13 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
       'ok': !_requireOverlayReady || overlayReady,
       'status': _gateStatus(report['overlaySmoke']),
       'nextAction': _gateNextAction(report['overlaySmoke']),
+    },
+    {
+      'id': 'vision_observe_ready',
+      'required': _requireVisionObserve,
+      'ok': !_requireVisionObserve || visionObserveReady,
+      'status': _gateStatus(report['visionObservationGate']),
+      'nextAction': _gateNextAction(report['visionObservationGate']),
     },
     {
       'id': 'onboarding_transition_ready',
