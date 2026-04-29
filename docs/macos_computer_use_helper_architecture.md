@@ -149,16 +149,14 @@ M1 sign-off checklist:
 
 Current M1 status:
 
-- Overlay readiness, onboarding transition readiness, and Accessibility-backed
-  non-destructive input readiness are signed off for the current debug helper.
+- Overlay readiness, onboarding transition readiness, Accessibility-backed
+  non-destructive input readiness, and screen capture readiness are signed off
+  for the current debug embedded helper.
 - The current helper path matches the helper bundle embedded in the debug
-  `Caverno.app` build, so the remaining capture blocker is not a path mismatch.
-- Screen capture readiness is still blocked by macOS TCC for the current helper
-  bundle. Grant Screen & System Audio Recording to the exact
-  `Caverno Computer Use.app` path reported by the smoke diagnostics, then rerun
-  `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`.
-- M1 should remain open until `--require-capture` passes for the current helper
-  bundle or the release/debug sign-off target is explicitly changed.
+  `Caverno.app` build.
+- M1 is complete for the debug embedded helper after the 2026-04-29 M4 sign-off
+  run. Release builds still need their own TCC grant and smoke pass because
+  macOS records privacy grants per signed bundle path and identity.
 
 The drag/drop sign-off is intentionally manual. Adding the helper to macOS
 privacy lists changes system privacy settings, so it must only happen after an
@@ -189,7 +187,7 @@ Manual sign-off notes:
 - 2026-04-28: `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-helper-path-match --require-capture`
   confirmed `helperPathMatchesExpected: true`, `inputReady: true`, and
   `captureReady: false`. The probe failed only because the required capture
-  gate is still blocked by `screenCaptureGranted: false`; it also confirmed
+  gate was blocked by `screenCaptureGranted: false`; it also confirmed
   display screenshots still work while window capture requires Screen
   Recording.
 - 2026-04-28: System Settings accepted `Caverno Computer Use.app` through the
@@ -202,6 +200,15 @@ Manual sign-off notes:
 - 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent --strict-xpc`
   passed with `xpcProductionOk: true`, `namedServiceConnected: true`,
   `launchAgentEnabled: true`, and no `xpcRuntimeDiagnostics` blockers.
+- 2026-04-29: `bash tool/run_macos_computer_use_capture_signoff.sh --replace-helper --require-capture --verbose-probe`
+  passed for the debug embedded helper path after Screen & System Audio
+  Recording was granted. The probe reported `helperPathMatchesExpected: true`,
+  `captureReady: true`, and `inputReady: true`.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
+  passed the combined sign-off gate with `m4SignoffGate.status: ready`,
+  `blockers: []`, matching embedded and running helper paths, required capture,
+  required overlay readiness, required onboarding transition readiness, system
+  audio readiness, and LaunchAgent named XPC readiness.
 - Drag/drop tile acceptance remains a separate hands-on check. The successful
   permission grant above used the macOS Add flow because the running debug
   helper path must match the exact helper bundle that macOS records in TCC.
@@ -241,7 +248,8 @@ Follow-on milestones:
   path.
 - M4: Complete embedded-helper Screen & System Audio Recording, overlay, and
   onboarding sign-off with one strict live smoke gate.
-- M5: Connect the vision LLM loop to the approved helper tool surface.
+- M5: Connect the vision LLM loop to the approved helper tool surface. M5 is
+  the next active milestone after the 2026-04-29 M4 debug sign-off.
 
 Current M2 implementation status:
 
@@ -258,9 +266,9 @@ Current M2 implementation status:
   arming, transport, response code, success, and post-action observation.
 - The pending Computer Use approval sheet exposes **Stop Computer Use** so a
   user can send an emergency stop command while an action is awaiting approval.
-- Remaining M2 sign-off is live macOS smoke for the exact helper bundle path,
-  especially Screen & System Audio Recording TCC and optional system-audio
-  capture.
+- M2 is signed off for the current debug embedded helper through the M4 combined
+  smoke gate. Release builds still need a separate live smoke pass against the
+  release helper bundle identity.
 
 M2 live sign-off notes:
 
@@ -272,23 +280,30 @@ M2 live sign-off notes:
   passed non-destructive input readiness. Pointer movement, pointer drag,
   scroll, and key press all passed; click and text input remained skipped
   behind their separate arming gates.
-- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed --require-audio`
+- 2026-04-29: before the final debug helper grant,
+  `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed --require-audio`
   failed only the required audio readiness expectation because
-  `screen_capture_permission_missing` still blocks Screen & System Audio
-  Recording for the exact embedded helper path.
+  `screen_capture_permission_missing` blocked Screen & System Audio Recording
+  for the exact embedded helper path.
 - 2026-04-29: `bash tool/run_macos_computer_use_capture_signoff.sh --require-capture --verbose-probe`
   showed capture, input, and audio readiness for the standalone debug helper at
   `build/macos/Build/Products/Debug/Caverno Computer Use.app`, but failed the
   required helper path match.
 - 2026-04-29: `bash tool/run_macos_computer_use_capture_signoff.sh --replace-helper --require-capture --verbose-probe`
   confirmed the embedded helper path matches the expected
-  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` location, but capture
-  remains blocked there until macOS grants Screen & System Audio Recording to
-  that exact helper bundle.
+  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` location. Before the
+  final grant, capture was blocked there until macOS granted Screen & System
+  Audio Recording to that exact helper bundle.
 - 2026-04-29: the existing-helper probe now retries the initial
   `permissionStatus` request after helper replacement and reports
   `helperPathMismatchInvalidatesSignoff` when a standalone helper produced
   otherwise passing capture, input, or audio results.
+- 2026-04-29: after granting Screen & System Audio Recording and enabling the
+  parent `Caverno` row shown by macOS, the capture sign-off probe passed for
+  the debug embedded helper path with `captureReady: true`.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
+  passed with capture, non-destructive input, system audio, overlay,
+  onboarding transition, and LaunchAgent named XPC gates all ready.
 
 ## M4 Sign-Off Gate
 
@@ -327,11 +342,11 @@ command:
 M4 live sign-off notes:
 
 - 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
-  exercised the combined gate. Helper path, overlay readiness, onboarding
+  exercised the combined gate. Helper path, required macOS permissions,
+  display and window capture, system audio, overlay readiness, onboarding
   transition, non-destructive input, and LaunchAgent named XPC were ready.
-  `m4SignoffGate` remained `blocked` only by `permissions`, `capture`, and
-  `audio` because Screen & System Audio Recording is still not granted to the
-  embedded helper path.
+  `m4SignoffGate.status` was `ready`, `blockers` was empty, and the embedded
+  helper path matched the running helper path.
 
 ## App Responsibilities
 
