@@ -190,6 +190,11 @@ void main() {
         'bash tool/run_macos_computer_use_release_readiness.sh --signoff',
       ),
     );
+    expect(
+      architectureDoc,
+      contains('macos_computer_use_release_readiness_ci.json'),
+    );
+    expect(architectureDoc, contains('permissions_missing'));
     expect(architectureDoc, contains('--refresh-safe-inputs'));
     expect(architectureDoc, contains('--exit-policy ci'));
     expect(architectureDoc, contains('Manual TCC intake uses this handoff'));

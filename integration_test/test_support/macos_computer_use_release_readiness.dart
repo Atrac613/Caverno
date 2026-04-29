@@ -333,7 +333,15 @@ ReleaseReadinessGate _manualTccGate(
         : (manualTccReport.nextAction ??
               'Ask the user to complete the manual TCC sign-off steps.'),
     artifactPath: reportPath ?? manualTccReport.reportPath,
-    details: <String, Object?>{'blockers': manualTccReport.blockers},
+    details: <String, Object?>{
+      'blockers': manualTccReport.blockers,
+      'failureClasses': manualTccReport.failureClasses,
+      'failedChecks': manualTccReport.failedChecks
+          .map((check) => check.toJson())
+          .toList(growable: false),
+      'appPath': manualTccReport.appPath,
+      'helperPath': manualTccReport.helperPath,
+    },
   );
 }
 
@@ -456,6 +464,9 @@ ManualTccReportSummary _manualTccSummaryFromJson(
     status: json['status'] as String? ?? 'missing',
     ready: json['ready'] == true,
     blockers: List<String>.unmodifiable(_stringList(json['blockers'])),
+    failureClasses: List<String>.unmodifiable(
+      _stringList(json['failureClasses']),
+    ),
     appPath: json['appPath'] as String?,
     helperPath: json['helperPath'] as String?,
     nextAction: json['nextAction'] as String?,

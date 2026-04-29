@@ -103,6 +103,7 @@ void main() {
         summary.toJson()['automationBoundary'],
         'parse_user_produced_report_only',
       );
+      expect(summary.toJson()['failureClasses'], isEmpty);
       expect(summary.toMarkdown(), contains('Automation boundary'));
     });
 
@@ -126,6 +127,9 @@ void main() {
 
       expect(summary.ready, isFalse);
       expect(summary.blockers, contains('release_runtime_permissions_blocked'));
+      expect(summary.failureClasses, contains('permissions_missing'));
+      expect(summary.toJson()['failedChecks'], isNotEmpty);
+      expect(summary.toMarkdown(), contains('## Failed Checks'));
       expect(summary.toMarkdown(), contains('Grant permissions manually.'));
     });
   });

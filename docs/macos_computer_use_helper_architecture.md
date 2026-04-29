@@ -346,6 +346,13 @@ bash tool/run_macos_computer_use_release_readiness.sh --ci
 bash tool/run_macos_computer_use_release_readiness.sh --signoff
 ```
 
+The wrapper writes preset-specific readiness artifacts:
+
+- `macos_computer_use_release_readiness_ci.json`
+- `macos_computer_use_release_readiness_ci.md`
+- `macos_computer_use_release_readiness_signoff.json`
+- `macos_computer_use_release_readiness_signoff.md`
+
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,
 or perform any TCC-gated runtime verification. The LLM canary is discovered from
@@ -383,6 +390,10 @@ Manual TCC intake uses this handoff:
    M8 runtime report or `manual_tcc_report_summary.json`.
 3. Run
    `bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report <report.json>`.
+
+Blocked manual TCC reports surface concise failure classes such as
+`permissions_missing`, `app_path_mismatch`, `helper_path_mismatch`,
+`capture_blocked`, or `audio_blocked`, plus the failed checks and helper path.
 
 Use `--exit-policy ci` when CI should accept a missing manual TCC report as a
 blocked-but-expected manual step. Other blocked gates still exit non-zero.

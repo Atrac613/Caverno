@@ -33,6 +33,7 @@ class ManualTccReportSummary {
     required this.status,
     required this.ready,
     required this.blockers,
+    required this.failureClasses,
     required this.appPath,
     required this.helperPath,
     required this.nextAction,
@@ -43,10 +44,14 @@ class ManualTccReportSummary {
   final String status;
   final bool ready;
   final List<String> blockers;
+  final List<String> failureClasses;
   final String? appPath;
   final String? helperPath;
   final String? nextAction;
   final List<ManualTccCheckSummary> checks;
+
+  List<ManualTccCheckSummary> get failedChecks =>
+      checks.where((check) => !check.ok).toList(growable: false);
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -57,9 +62,13 @@ class ManualTccReportSummary {
       'status': status,
       'ready': ready,
       'blockers': blockers,
+      'failureClasses': failureClasses,
       'appPath': appPath,
       'helperPath': helperPath,
       'nextAction': nextAction,
+      'failedChecks': failedChecks
+          .map((check) => check.toJson())
+          .toList(growable: false),
       'checks': checks.map((check) => check.toJson()).toList(growable: false),
     };
   }
@@ -73,6 +82,9 @@ class ManualTccReportSummary {
       ..writeln('- Ready: $ready')
       ..writeln(
         '- Blockers: ${blockers.isEmpty ? 'none' : blockers.join(', ')}',
+      )
+      ..writeln(
+        '- Failure classes: ${failureClasses.isEmpty ? 'none' : failureClasses.join(', ')}',
       );
 
     if (appPath != null) {
@@ -85,7 +97,23 @@ class ManualTccReportSummary {
       buffer.writeln('- Next action: $nextAction');
     }
 
+    if (failedChecks.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## Failed Checks')
+        ..writeln()
+        ..writeln('| Check | Status | Next Action |')
+        ..writeln('| --- | --- | --- |');
+      for (final check in failedChecks) {
+        buffer.writeln(
+          '| ${_markdownCell(check.label)} | ${_markdownCell(check.status)} | ${_markdownCell(check.nextAction)} |',
+        );
+      }
+    }
+
     buffer
+      ..writeln()
+      ..writeln('## All Checks')
       ..writeln()
       ..writeln('| Check | Status | Result | Next Action |')
       ..writeln('| --- | --- | --- | --- |');
@@ -133,6 +161,9 @@ ManualTccReportSummary buildManualTccReportSummary(
     status: status,
     ready: status == 'ready' && blockers.isEmpty,
     blockers: List<String>.unmodifiable(blockers),
+    failureClasses: List<String>.unmodifiable(
+      _classifyManualTccFailures(blockers, checks),
+    ),
     appPath: gate['appPath'] as String?,
     helperPath: gate['helperPath'] as String?,
     nextAction: gate['nextAction'] as String?,
@@ -150,6 +181,62 @@ List<dynamic> _listValue(Object? value) {
 
 List<String> _stringList(Object? value) {
   return _listValue(value).map((item) => item.toString()).toList();
+}
+
+List<String> _classifyManualTccFailures(
+  List<String> blockers,
+  List<ManualTccCheckSummary> checks,
+) {
+  final classes = <String>{};
+  void add(String value) {
+    classes.add(value);
+  }
+
+  for (final blocker in blockers) {
+    switch (blocker) {
+      case 'release_artifact_gate_blocked':
+        add('release_artifact_blocked');
+      case 'release_runtime_app_path_mismatch':
+        add('app_path_mismatch');
+      case 'release_runtime_helper_path_mismatch':
+        add('helper_path_mismatch');
+      case 'release_runtime_permission_status_failed':
+        add('permission_status_failed');
+      case 'release_runtime_permissions_blocked':
+        add('permissions_missing');
+      case 'release_runtime_capture_blocked':
+        add('capture_blocked');
+      case 'release_runtime_input_blocked':
+        add('input_blocked');
+      case 'release_runtime_audio_blocked':
+        add('audio_blocked');
+      default:
+        add('manual_tcc_blocked');
+    }
+  }
+
+  for (final check in checks.where((check) => !check.ok)) {
+    switch (check.id) {
+      case 'release_app_path':
+        add('app_path_mismatch');
+      case 'release_helper_path':
+        add('helper_path_mismatch');
+      case 'permission_status':
+        add('permission_status_failed');
+      case 'accessibility':
+      case 'screen_capture':
+        add('permissions_missing');
+      case 'display_screenshot':
+      case 'window_capture':
+        add('capture_blocked');
+      case 'system_audio_resolved':
+        add('audio_blocked');
+      default:
+        add('manual_tcc_check_failed');
+    }
+  }
+
+  return classes.toList(growable: false)..sort();
 }
 
 String _markdownCell(Object? value) {

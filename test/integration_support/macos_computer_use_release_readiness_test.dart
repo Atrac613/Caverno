@@ -61,6 +61,35 @@ void main() {
       expect(summary.toMarkdown(), contains('## Blocked Gates'));
     });
 
+    test('surfaces manual TCC failure classes and failed checks', () {
+      final manualTcc = buildManualTccReportSummary(
+        _runtimeReport(status: 'blocked'),
+        reportPath: '/tmp/m8.json',
+      );
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          manualTccReport: manualTcc,
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _llmSummary(failedCount: 0),
+          llmCanarySummaryPath: '/tmp/llm.json',
+        ),
+      );
+
+      final manualGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'manual_tcc',
+      );
+      expect(
+        manualGate.details['failureClasses'],
+        contains('permissions_missing'),
+      );
+      expect(manualGate.details['failedChecks'], isNotEmpty);
+      expect(manualTcc.toMarkdown(), contains('## Failed Checks'));
+    });
+
     test('discovers latest manual TCC and LLM reports from report root', () {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_release_readiness_test_',
@@ -178,6 +207,14 @@ void main() {
         expect(wrapper, contains('--ci'));
         expect(wrapper, contains('--signoff'));
         expect(wrapper, contains('--manual-tcc-report'));
+        expect(
+          wrapper,
+          contains(r'macos_computer_use_release_readiness_${PRESET}.json'),
+        );
+        expect(
+          wrapper,
+          contains(r'macos_computer_use_release_readiness_${PRESET}.md'),
+        );
         expect(wrapper, contains('user-operated manual verification only'));
         expect(wrapper, isNot(contains('--m8-runtime-signoff')));
       },
@@ -215,6 +252,7 @@ Map<String, dynamic> _runtimeReport({required String status}) {
           'label': 'Permission status',
           'status': status,
           'ok': ready,
+          'nextAction': ready ? null : 'Grant permissions manually.',
         },
       ],
     },
@@ -255,6 +293,9 @@ ManualTccReportSummary _manualTccReport({required String status}) {
     blockers: ready
         ? const <String>[]
         : const <String>['release_runtime_permissions_blocked'],
+    failureClasses: ready
+        ? const <String>[]
+        : const <String>['permissions_missing'],
     appPath: '/tmp/Caverno.app',
     helperPath: '/tmp/Caverno Computer Use.app',
     nextAction: ready
