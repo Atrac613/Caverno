@@ -75,6 +75,21 @@ void main() {
     );
   });
 
+  testWidgets('shows overlay canary summary from the latest smoke report', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Overlay Canary'), findsOneWidget);
+    expect(
+      find.textContaining('foreground accessory_overlay_front'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('floating true'), findsOneWidget);
+    expect(find.textContaining('hides false'), findsOneWidget);
+  });
+
   testWidgets('refreshes permission and audio recording state', (tester) async {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
@@ -591,6 +606,22 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
               'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
           'helperPath':
               '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        },
+        'overlaySmoke': {
+          'status': 'ready',
+          'accessibility': {
+            'status': 'ready',
+            'overlayForegroundPolicy': 'accessory_overlay_front',
+            'overlayIsFloatingPanel': true,
+            'overlayHidesOnDeactivate': false,
+          },
+          'screenRecording': {
+            'status': 'ready',
+            'overlayForegroundPolicy': 'accessory_overlay_front',
+            'overlayIsFloatingPanel': true,
+            'overlayHidesOnDeactivate': false,
+          },
+          'blockers': <String>[],
         },
       },
     });

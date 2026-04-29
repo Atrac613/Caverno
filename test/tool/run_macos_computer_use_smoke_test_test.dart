@@ -5,10 +5,12 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late String script;
   late String smokeTest;
+  late String overlaySmokeSupport;
   late String helperSource;
   late String runnerSource;
   late String helperInfoPlist;
   late String liveCanaryScript;
+  late String manualTccSignoffScript;
   late String desktopActionCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
@@ -21,6 +23,9 @@ void main() {
     smokeTest = File(
       'integration_test/macos_computer_use_smoke_test.dart',
     ).readAsStringSync();
+    overlaySmokeSupport = File(
+      'integration_test/test_support/macos_computer_use_overlay_smoke.dart',
+    ).readAsStringSync();
     helperSource = File(
       'macos/ComputerUseHelper/ComputerUseHelperApp.swift',
     ).readAsStringSync();
@@ -32,6 +37,9 @@ void main() {
     ).readAsStringSync();
     liveCanaryScript = File(
       'tool/run_macos_computer_use_live_canary.sh',
+    ).readAsStringSync();
+    manualTccSignoffScript = File(
+      'tool/run_macos_computer_use_manual_tcc_signoff.sh',
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
@@ -138,6 +146,17 @@ void main() {
       architectureDoc,
       contains('dart run tool/macos_computer_use_manual_tcc_report.dart'),
     );
+    expect(manualTccSignoffScript, contains('--m8-runtime-signoff'));
+    expect(
+      manualTccSignoffScript,
+      contains('user-operated manual verification only'),
+    );
+    expect(manualTccSignoffScript, contains('does not grant permissions'));
+    expect(manualTccSignoffScript, contains('manual_tcc_report_summary.json'));
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+    );
   });
 
   test('Computer Use helper runs as a single hidden agent process', () {
@@ -170,8 +189,8 @@ void main() {
     expect(smokeTest, contains('manualTccHandoff'));
     expect(smokeTest, contains('duplicate_helper_processes'));
     expect(smokeTest, contains('dock_policy_not_hidden'));
-    expect(smokeTest, contains('overlay_foreground_policy_missing'));
-    expect(smokeTest, contains('overlayIsFloatingPanel'));
+    expect(overlaySmokeSupport, contains('overlay_foreground_policy_missing'));
+    expect(overlaySmokeSupport, contains('overlayIsFloatingPanel'));
     expect(architectureDoc, contains('## Helper Process Policy'));
     expect(
       architectureDoc,

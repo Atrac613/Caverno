@@ -9,6 +9,12 @@ macOS TCC surfaces.
 Manual runtime sign-off command:
 
 ```bash
+bash tool/run_macos_computer_use_manual_tcc_signoff.sh
+```
+
+Underlying smoke command:
+
+```bash
 bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff
 ```
 

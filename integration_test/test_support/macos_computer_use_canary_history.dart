@@ -111,13 +111,16 @@ class ComputerUseCanaryHistory {
       )
       ..writeln()
       ..writeln(
-        '| Run | Preset | Stability | Stable | Pass Rate | Passed | Failed | Failure Classes | Summary |',
+        '| Run | Preset | Stability | Stable | Overlay | Helper Path | Pass Rate | Passed | Failed | Failure Classes | Summary |',
       )
-      ..writeln('| --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |');
+      ..writeln(
+        '| --- | --- | --- | --- | --- | --- | ---: | ---: | ---: | --- | --- |',
+      );
 
     for (final entry in entries.reversed) {
+      final helperPolicy = entry.helperProcessPolicy;
       buffer.writeln(
-        '| ${_markdownCell(entry.name)} | ${_markdownCell(entry.preset)} | ${entry.stabilityMode} | ${entry.stable} | ${(entry.passRate * 100).toStringAsFixed(1)}% | ${entry.passed} | ${entry.failed} | ${_failureClassesCell(entry.failureClasses)} | `${_escapeMarkdownCode(entry.summaryPath)}` |',
+        '| ${_markdownCell(entry.name)} | ${_markdownCell(entry.preset)} | ${entry.stabilityMode} | ${entry.stable} | ${_markdownCell(entry.overlaySmokeStatus)} | ${_helperPathCell(helperPolicy)} | ${(entry.passRate * 100).toStringAsFixed(1)}% | ${entry.passed} | ${entry.failed} | ${_failureClassesCell(entry.failureClasses)} | `${_escapeMarkdownCode(entry.summaryPath)}` |',
       );
     }
 
@@ -304,6 +307,20 @@ String _failureClassesCell(Map<String, int> failureClasses) {
   return failureClasses.entries
       .map((entry) => '${_markdownCell(entry.key)}: ${entry.value}')
       .join('<br>');
+}
+
+String _helperPathCell(Map<String, Object?> helperPolicy) {
+  if (helperPolicy.isEmpty) {
+    return '-';
+  }
+  final mismatch = helperPolicy['helperPathMismatch'];
+  final matched = helperPolicy['helperPathMatchesRunningHelper'];
+  final replaced = helperPolicy['replacedMismatchedHelperPath'];
+  return [
+    'match: ${_markdownCell(matched)}',
+    'mismatch: ${_markdownCell(mismatch)}',
+    'replaced: ${_markdownCell(replaced)}',
+  ].join('<br>');
 }
 
 String _formatDelta(double? delta) {

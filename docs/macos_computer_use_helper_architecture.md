@@ -951,7 +951,12 @@ Automation may run these non-TCC checks:
 
 Only the user should run this TCC runtime command:
 
-`bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
+`bash tool/run_macos_computer_use_manual_tcc_signoff.sh`
+
+The wrapper runs the M8 runtime sign-off, writes a timestamped report under
+`build/integration_test_reports/`, and prints the parser command. It still only
+measures TCC state; it does not grant permissions, edit TCC, or operate System
+Settings.
 
 After the user runs the manual command, automation may parse the user-produced
 report without touching TCC:

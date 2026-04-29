@@ -196,6 +196,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 body: _manualTccHandoffSummary()!,
               ),
             ],
+            if (_overlayCanarySummary() != null) ...[
+              const SizedBox(height: 8),
+              _OnboardingNote(
+                icon: Icons.picture_in_picture_alt_outlined,
+                title: 'Overlay Canary',
+                body: _overlayCanarySummary()!,
+              ),
+            ],
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -1603,6 +1611,40 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       ?parser,
       if (helperPath != null) _shortPath(helperPath),
     ].join(' | ');
+  }
+
+  String? _overlayCanarySummary() {
+    final report = _reportBody(_lastLiveSmokeReport);
+    if (report == null) {
+      return null;
+    }
+    final overlaySmoke = report['overlaySmoke'];
+    if (overlaySmoke is! Map) {
+      return null;
+    }
+    final overlayMap = Map<String, dynamic>.from(overlaySmoke);
+    final status = overlayMap['status'] as String? ?? 'unknown';
+    final accessibility = _overlayEntrySummary(overlayMap['accessibility']);
+    final screenRecording = _overlayEntrySummary(overlayMap['screenRecording']);
+    final blockers = _stringList(overlayMap['blockers']);
+    return [
+      'status $status',
+      if (accessibility != null) 'accessibility $accessibility',
+      if (screenRecording != null) 'screenshots $screenRecording',
+      if (blockers.isNotEmpty) 'blockers ${blockers.join(', ')}',
+    ].join(' | ');
+  }
+
+  String? _overlayEntrySummary(Object? value) {
+    if (value is! Map) {
+      return null;
+    }
+    final entry = Map<String, dynamic>.from(value);
+    final status = entry['status'] as String? ?? 'unknown';
+    final foreground = entry['overlayForegroundPolicy'] as String? ?? 'missing';
+    final floating = entry['overlayIsFloatingPanel'] == true;
+    final hides = entry['overlayHidesOnDeactivate'] == true;
+    return '$status, foreground $foreground, floating $floating, hides $hides';
   }
 
   List<Map<String, String>> _migratedCommands() {
