@@ -4,10 +4,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_CANARY_REPEAT_COUNT:-1}"
+STABILITY_REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_CANARY_STABILITY_REPEAT_COUNT:-3}"
 REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 REPORTER="${CAVERNO_MACOS_COMPUTER_USE_REPORTER:-compact}"
 DEVICE="${CAVERNO_MACOS_COMPUTER_USE_DEVICE:-macos}"
 PRESET="${CAVERNO_MACOS_COMPUTER_USE_CANARY_PRESET:-local}"
+STABILITY_MODE=0
+REPEAT_COUNT_EXPLICIT=0
 RUN_ID="$(date +%s)"
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_live_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
@@ -25,6 +28,7 @@ while [[ $# -gt 0 ]]; do
     --repeat)
       require_value "$@"
       REPEAT_COUNT="$2"
+      REPEAT_COUNT_EXPLICIT=1
       shift 2
       ;;
     --report-root)
@@ -44,6 +48,11 @@ while [[ $# -gt 0 ]]; do
       ;;
     --ci)
       PRESET="ci"
+      shift
+      ;;
+    --stability)
+      PRESET="ci"
+      STABILITY_MODE=1
       shift
       ;;
     --manual|--local)
@@ -70,12 +79,21 @@ case "${PRESET}" in
     ;;
 esac
 
-mkdir -p "${RUN_DIR}"
+if [[ "${STABILITY_MODE}" == "1" && "${REPEAT_COUNT_EXPLICIT}" == "0" ]]; then
+  REPEAT_COUNT="${STABILITY_REPEAT_COUNT}"
+fi
+
+if ! [[ "${STABILITY_REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${STABILITY_REPEAT_COUNT}" -lt 1 ]]; then
+  echo "CAVERNO_MACOS_COMPUTER_USE_CANARY_STABILITY_REPEAT_COUNT must be a positive integer."
+  exit 2
+fi
 
 if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   echo "CAVERNO_MACOS_COMPUTER_USE_CANARY_REPEAT_COUNT must be a positive integer."
   exit 2
 fi
+
+mkdir -p "${RUN_DIR}"
 
 echo "Running macOS Computer Use live canary"
 echo "  Purpose: helper launch, IPC, ping, permission reporting, and cleanup"
@@ -84,6 +102,7 @@ echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  Preset: ${PRESET}"
+echo "  Stability mode: ${STABILITY_MODE}"
 echo "  Report dir: ${RUN_DIR}"
 if [[ "${PRESET}" == "local" ]]; then
   echo "  Manual TCC follow-up: use docs/macos_computer_use_helper_architecture.md after the user grants permissions."
@@ -109,7 +128,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" PRESET="${PRESET}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" PRESET="${PRESET}" STABILITY_MODE="${STABILITY_MODE}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -117,6 +136,7 @@ from pathlib import Path
 
 run_dir = Path(os.environ["RUN_DIR"])
 preset = os.environ["PRESET"]
+stability_mode = os.environ["STABILITY_MODE"] == "1"
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 runs = []
@@ -185,6 +205,8 @@ summary = {
     "purpose": "computer_use_helper_runtime_canary",
     "tccBoundary": "manual_user_operated",
     "preset": preset,
+    "stabilityMode": stability_mode,
+    "stable": failed_count == 0,
     "runCount": len(runs),
     "passed": passed_count,
     "failed": failed_count,
@@ -200,6 +222,8 @@ lines = [
     "- Purpose: helper launch, IPC, ping, permission reporting, and cleanup",
     "- TCC boundary: user-operated manual verification only",
     f"- Preset: {preset}",
+    f"- Stability mode: {str(stability_mode).lower()}",
+    f"- Stable: {str(summary['stable']).lower()}",
     f"- Run count: {len(runs)}",
     f"- Passed: {passed_count}",
     f"- Failed: {failed_count}",

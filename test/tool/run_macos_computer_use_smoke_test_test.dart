@@ -110,6 +110,10 @@ void main() {
       architectureDoc,
       contains('Only the user should run this TCC runtime command:'),
     );
+    expect(
+      architectureDoc,
+      contains('dart run tool/macos_computer_use_manual_tcc_report.dart'),
+    );
   });
 
   test('computer-use live canary avoids TCC-gated smoke checks', () {
@@ -140,6 +144,7 @@ void main() {
     );
     expect(liveCanaryScript, contains('--computer-use-live-canary'));
     expect(liveCanaryScript, contains('--ci'));
+    expect(liveCanaryScript, contains('--stability'));
     expect(liveCanaryScript, contains('--manual|--local'));
     expect(liveCanaryScript, contains('--repeat'));
     expect(liveCanaryScript, contains('Manual TCC follow-up'));
@@ -150,6 +155,7 @@ void main() {
     expect(liveCanaryScript, contains('permission_status_failed'));
     expect(liveCanaryScript, contains('cleanup_failed'));
     expect(liveCanaryScript, contains('"failureClasses": failure_classes'));
+    expect(liveCanaryScript, contains('"stabilityMode": stability_mode'));
     expect(architectureDoc, contains('## Computer Use Live Canary'));
     expect(
       architectureDoc,
@@ -160,6 +166,14 @@ void main() {
       contains(
         'bash tool/run_macos_computer_use_live_canary.sh --manual --repeat 3',
       ),
+    );
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_live_canary.sh --stability'),
+    );
+    expect(
+      architectureDoc,
+      contains('dart run tool/macos_computer_use_canary_history.dart'),
     );
     expect(
       architectureDoc,

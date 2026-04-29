@@ -289,6 +289,12 @@ Local/manual-prep run with repeat count:
 bash tool/run_macos_computer_use_live_canary.sh --manual --repeat 3
 ```
 
+Stability run:
+
+```bash
+bash tool/run_macos_computer_use_live_canary.sh --stability
+```
+
 The summary is written under
 `build/integration_test_reports/macos_computer_use_live_canary_<timestamp>/`.
 The summary schema is `macos_computer_use_live_canary_summary`. Each run
@@ -304,6 +310,17 @@ The LLM live canaries and the Computer Use live canary cover different risks.
 tool-calling, saved-task recovery, and coding workflow behavior.
 `tool/run_macos_computer_use_live_canary.sh` validates the macOS Computer Use
 helper runtime. Passing either canary does not replace the other.
+
+To compare recent Computer Use canary runs without launching the helper, run:
+
+```bash
+dart run tool/macos_computer_use_canary_history.dart
+```
+
+This writes `macos_computer_use_canary_history.json` and
+`macos_computer_use_canary_history.md` under
+`build/integration_test_reports/`. The history report shows the latest
+stability status, pass-rate delta, and failure-class distribution.
 
 Current M5 implementation status:
 
@@ -752,6 +769,17 @@ Automation may run these non-TCC checks:
 Only the user should run this TCC runtime command:
 
 `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
+
+After the user runs the manual command, automation may parse the user-produced
+report without touching TCC:
+
+```bash
+dart run tool/macos_computer_use_manual_tcc_report.dart <report.json>
+```
+
+The parser writes `manual_tcc_report_summary.json` and
+`manual_tcc_report_summary.md` next to the report. It only reads the existing
+report and exits non-zero when the runtime gate is still blocked.
 
 Manual steps for the user:
 
