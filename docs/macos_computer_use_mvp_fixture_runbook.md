@@ -31,7 +31,13 @@ Run the type-and-confirm planning scenario:
 bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
 ```
 
-Both commands require `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
+Or run both fixture planning scenarios and produce one aggregate summary:
+
+```bash
+bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
+```
+
+These commands require `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
 `CAVERNO_LLM_MODEL` when not using `--fixture-response`. They do not move the
 pointer, click, type, or operate System Settings.
 
@@ -65,9 +71,18 @@ fixture window, ask the user to run:
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
 ```
 
+To build and launch the fixture before the user-operated canary, ask the user to
+run:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --launch-fixture
+```
+
 The summary records `fixtureTarget`, `fixtureApp`, `safeTarget`, and
-`expectedOutcome` so release readiness can trace the desktop action evidence
-back to the deterministic fixture.
+`fixtureExpectedOutcomes` so release readiness can trace the desktop action
+evidence back to the deterministic fixture. The current evidence policy is
+`post_observe_image_only`; the user should inspect the post-click observation
+when confirming that the fixture status changed to `Clicked`.
 
 ## 5. Final MVP Readiness
 

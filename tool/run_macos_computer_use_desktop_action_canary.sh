@@ -13,6 +13,7 @@ SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 FIXTURE_TARGET=0
 FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
+LAUNCH_FIXTURE=0
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -47,6 +48,11 @@ while [[ $# -gt 0 ]]; do
       FIXTURE_TARGET=1
       shift
       ;;
+    --launch-fixture)
+      FIXTURE_TARGET=1
+      LAUNCH_FIXTURE=1
+      shift
+      ;;
     --fixture-app-path)
       require_value "$@"
       FIXTURE_APP_PATH="$2"
@@ -62,6 +68,7 @@ Options:
   --device DEVICE      Flutter device id.
   --reporter REPORTER  Flutter test reporter.
   --fixture-target     Mark the MVP fixture app as the intended safe target.
+  --launch-fixture     Build and launch the MVP fixture before the user-operated canary.
   --fixture-app-path PATH
                        Record an already built MVP fixture app path.
 
@@ -88,6 +95,13 @@ fi
 
 mkdir -p "${RUN_DIR}"
 
+if [[ "${LAUNCH_FIXTURE}" == "1" ]]; then
+  echo "Building and launching MVP fixture app"
+  fixture_output="$(bash "${ROOT_DIR}/tool/run_macos_computer_use_mvp_fixture.sh" --print-path --launch)"
+  echo "${fixture_output}"
+  FIXTURE_APP_PATH="$(printf '%s\n' "${fixture_output}" | awk '/\.app$/ { path = $0 } END { print path }')"
+fi
+
 echo "Running macOS Computer Use desktop action canary"
 echo "  Purpose: observe the screen, click once, and observe again"
 echo "  TCC boundary: user-operated manual verification only"
@@ -100,6 +114,8 @@ if [[ "${FIXTURE_TARGET}" == "1" ]]; then
   echo "  Fixture preparation: bash tool/run_macos_computer_use_mvp_fixture.sh --launch"
   echo "  Fixture safe target: Safe Click Target"
   echo "  Fixture expected outcome: status label changes to Clicked"
+  echo "  Fixture app path: ${FIXTURE_APP_PATH:-not recorded}"
+  echo "  Manual step: bring the fixture window forward and confirm Safe Click Target is the click target."
 fi
 echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
@@ -126,7 +142,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" LAUNCH_FIXTURE="${LAUNCH_FIXTURE}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -137,6 +153,7 @@ summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 fixture_target = os.environ["FIXTURE_TARGET"] == "1"
 fixture_app_path = os.environ.get("FIXTURE_APP_PATH", "")
+launch_fixture = os.environ["LAUNCH_FIXTURE"] == "1"
 runs = []
 
 
@@ -151,6 +168,12 @@ fixture_app = {
         "label": "Safe Click Target",
         "accessibilityIdentifier": "safeClickTargetButton",
         "expectedOutcome": "Status label changes to Clicked.",
+    },
+    "typeConfirmTarget": {
+        "label": "MVP Fixture Text Field",
+        "accessibilityIdentifier": "mvpInputField",
+        "confirmationButton": "Echo Text",
+        "expectedOutcome": "Echo label changes to Echo: caverno-mvp-canary.",
     },
     "refusedTargets": [
         {
@@ -266,8 +289,14 @@ summary = {
         "Keep the pointer target stable until the post-click observation completes.",
     ],
     "fixtureTarget": fixture_target,
+    "fixtureLaunchRequested": launch_fixture,
     "fixtureApp": fixture_app if fixture_target else None,
     "safeTarget": fixture_app["safeTarget"] if fixture_target else None,
+    "fixtureExpectedOutcomes": {
+        "safeClick": fixture_app["safeTarget"]["expectedOutcome"],
+        "typeConfirm": fixture_app["typeConfirmTarget"]["expectedOutcome"],
+        "evidencePolicy": "post_observe_image_only",
+    } if fixture_target else None,
     "expectedOutcome": fixture_app["safeTarget"]["expectedOutcome"] if fixture_target else None,
     "expectedPhases": [
         "pre_observe_image",
@@ -300,6 +329,7 @@ lines = [
     "- Avoid: destructive buttons, purchase flows, send buttons, system controls, and private data",
     "- Success phases: pre_observe_image, click_sent, post_observe_image",
     f"- MVP fixture target: {str(fixture_target).lower()}",
+    f"- Fixture launch requested: {str(launch_fixture).lower()}",
     f"- Stable: {str(summary['stable']).lower()}",
     f"- Run count: {len(runs)}",
     f"- Passed: {passed_count}",
@@ -312,6 +342,8 @@ if fixture_target:
         f"- Fixture launch command: `{fixture_app['manualLaunchCommand']}`",
         f"- Fixture safe target: {fixture_app['safeTarget']['label']}",
         f"- Fixture expected outcome: {fixture_app['safeTarget']['expectedOutcome']}",
+        f"- Fixture type outcome: {fixture_app['typeConfirmTarget']['expectedOutcome']}",
+        "- Fixture evidence policy: post_observe_image_only",
     ])
 lines.extend([
     "",

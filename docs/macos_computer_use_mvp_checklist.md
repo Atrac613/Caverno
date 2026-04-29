@@ -45,6 +45,12 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
    ```
 
+   To run both fixture LLM scenarios in one command:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
+   ```
+
 4. Ask the user to complete manual TCC runtime sign-off:
 
    ```bash
@@ -56,6 +62,13 @@ or run the user-operated desktop action on the user's behalf.
 
    ```bash
    bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
+   ```
+
+   If the user wants the canary runner to build and launch the fixture first,
+   use:
+
+   ```bash
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --launch-fixture
    ```
 
    Use a visible harmless target, such as an empty text field or test window.

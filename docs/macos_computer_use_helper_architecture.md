@@ -389,6 +389,13 @@ It also supports a fixture text scenario:
 bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
 ```
 
+Use the aggregate runner when both MVP fixture decisions should be refreshed
+together:
+
+```bash
+bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
+```
+
 The fixture app is built with:
 
 ```bash
