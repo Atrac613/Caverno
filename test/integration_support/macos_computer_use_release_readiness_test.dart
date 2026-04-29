@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
+import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
 import '../../integration_test/test_support/macos_computer_use_release_readiness.dart';
 
 void main() {
@@ -215,8 +216,54 @@ void main() {
           wrapper,
           contains(r'macos_computer_use_release_readiness_${PRESET}.md'),
         );
+        expect(wrapper, contains('--refresh-llm-canary'));
+        expect(
+          wrapper,
+          contains('tool/macos_computer_use_readiness_artifact_index.dart'),
+        );
         expect(wrapper, contains('user-operated manual verification only'));
         expect(wrapper, isNot(contains('--m8-runtime-signoff')));
+      },
+    );
+
+    test(
+      'artifact index lists fixed readiness artifacts and latest evidence',
+      () {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_artifact_index_test_',
+        );
+        addTearDown(() {
+          root.deleteSync(recursive: true);
+        });
+
+        _writeJson(
+          File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+          _releaseReport(status: 'ready'),
+        );
+        _writeJson(
+          File('${root.path}/manual/report.json'),
+          _runtimeReport(status: 'ready'),
+        );
+        _writeJson(
+          File(
+            '${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json',
+          ),
+          _llmSummary(failedCount: 0),
+        );
+
+        final index = buildReadinessArtifactIndex(root);
+        final entryIds = index.entries.map((entry) => entry.id).toSet();
+
+        expect(entryIds, contains('release_artifact'));
+        expect(entryIds, contains('manual_tcc'));
+        expect(entryIds, contains('llm_canary'));
+        expect(
+          index.entries
+              .singleWhere((entry) => entry.id == 'release_artifact')
+              .exists,
+          isTrue,
+        );
+        expect(index.toMarkdown(), contains('M7 release artifact report'));
       },
     );
   });

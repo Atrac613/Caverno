@@ -346,12 +346,27 @@ bash tool/run_macos_computer_use_release_readiness.sh --ci
 bash tool/run_macos_computer_use_release_readiness.sh --signoff
 ```
 
+Add `--refresh-llm-canary` only when live LLM environment variables are set and
+fresh LLM/tool-loop evidence is needed:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-llm-canary
+```
+
+If any `CAVERNO_LLM_*` value is missing, the wrapper skips the LLM refresh and
+falls back to discovering existing LLM canary summaries.
+
 The wrapper writes preset-specific readiness artifacts:
 
 - `macos_computer_use_release_readiness_ci.json`
 - `macos_computer_use_release_readiness_ci.md`
 - `macos_computer_use_release_readiness_signoff.json`
 - `macos_computer_use_release_readiness_signoff.md`
+- `macos_computer_use_readiness_artifact_index.json`
+- `macos_computer_use_readiness_artifact_index.md`
 
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,
@@ -399,6 +414,15 @@ Use `--exit-policy ci` when CI should accept a missing manual TCC report as a
 blocked-but-expected manual step. Other blocked gates still exit non-zero.
 Use the default `--exit-policy strict` for release sign-off, where any blocked
 gate exits non-zero.
+
+Before opening or merging a PR for this milestone, review the artifact index,
+the CI readiness Markdown, and the sign-off readiness Markdown. The expected
+pre-manual-TCC state is:
+
+- `release_artifact`: ready.
+- `computer_use_canary`: stable.
+- `llm_canary`: passed or explicitly refreshed and passed.
+- `manual_tcc`: `manual_required` until the user provides the M8 report.
 
 Current M5 implementation status:
 

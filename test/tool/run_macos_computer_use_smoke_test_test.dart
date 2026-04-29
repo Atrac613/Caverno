@@ -194,6 +194,11 @@ void main() {
       architectureDoc,
       contains('macos_computer_use_release_readiness_ci.json'),
     );
+    expect(
+      architectureDoc,
+      contains('macos_computer_use_readiness_artifact_index.json'),
+    );
+    expect(architectureDoc, contains('--refresh-llm-canary'));
     expect(architectureDoc, contains('permissions_missing'));
     expect(architectureDoc, contains('--refresh-safe-inputs'));
     expect(architectureDoc, contains('--exit-policy ci'));

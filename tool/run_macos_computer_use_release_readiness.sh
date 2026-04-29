@@ -7,6 +7,8 @@ PRESET="ci"
 REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_READINESS_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
 REFRESH_SAFE_INPUTS=1
+REFRESH_LLM_CANARY=0
+LLM_CANARY_PROMPT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_PROMPT:-Create a Python CLI script that pings a specific host.}"
 OUTPUT_JSON=""
 OUTPUT_MD=""
 EXTRA_ARGS=()
@@ -21,6 +23,8 @@ Options:
   --root PATH              Report root directory.
   --manual-tcc-report PATH User-produced M8 runtime report or summary.
   --no-refresh             Do not refresh M7 or Computer Use canary history.
+  --refresh-llm-canary     Run the LLM canary only when CAVERNO_LLM_* is set.
+  --llm-canary-prompt TEXT Override the LLM canary prompt.
   --output-json PATH       Override readiness JSON output path.
   --output-md PATH         Override readiness Markdown output path.
   --                       Pass remaining args to the Dart readiness CLI.
@@ -58,6 +62,18 @@ while [[ $# -gt 0 ]]; do
     --no-refresh)
       REFRESH_SAFE_INPUTS=0
       shift
+      ;;
+    --refresh-llm-canary)
+      REFRESH_LLM_CANARY=1
+      shift
+      ;;
+    --llm-canary-prompt)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--llm-canary-prompt requires a value." >&2
+        exit 64
+      fi
+      LLM_CANARY_PROMPT="$2"
+      shift 2
       ;;
     --output-json)
       if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -136,6 +152,7 @@ echo "Running macOS Computer Use release readiness"
 echo "  Preset: ${PRESET}"
 echo "  Report root: ${REPORT_ROOT}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
+echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Exit policy: ${EXIT_POLICY}"
 echo "  Output JSON: ${OUTPUT_JSON}"
 echo "  Output Markdown: ${OUTPUT_MD}"
@@ -147,4 +164,23 @@ fi
 echo "  TCC boundary: user-operated manual verification only"
 
 cd "${ROOT_DIR}"
+
+if [[ "${REFRESH_LLM_CANARY}" == "1" ]]; then
+  if [[ -n "${CAVERNO_LLM_BASE_URL:-}" && -n "${CAVERNO_LLM_API_KEY:-}" && -n "${CAVERNO_LLM_MODEL:-}" ]]; then
+    echo "Refreshing LLM canary"
+    CAVERNO_PLAN_MODE_REPEAT_COUNT="${CAVERNO_PLAN_MODE_REPEAT_COUNT:-1}" \
+      bash tool/run_plan_mode_ping_cli_live_canary.sh "${LLM_CANARY_PROMPT}"
+  else
+    echo "Skipping LLM canary refresh because CAVERNO_LLM_BASE_URL, CAVERNO_LLM_API_KEY, or CAVERNO_LLM_MODEL is not set."
+    echo "Existing LLM canary summaries will be discovered instead."
+  fi
+fi
+
+set +e
 "${COMMAND[@]}"
+readiness_exit=$?
+set -e
+
+dart run tool/macos_computer_use_readiness_artifact_index.dart --root "${REPORT_ROOT}"
+
+exit "${readiness_exit}"
