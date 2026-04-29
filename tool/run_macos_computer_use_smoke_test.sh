@@ -23,6 +23,110 @@ REGISTER_XPC_AGENT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT:-0}"
 CLEANUP_XPC_AGENT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT:-0}"
 REPORT_PATH="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH:-/tmp/caverno-macos-computer-use-smoke.json}"
 
+print_m4_signoff_summary() {
+  if [[ "${M4_SIGNOFF}" != "1" ]]; then
+    return 0
+  fi
+
+  echo
+  echo "M4 sign-off summary"
+
+  if [[ ! -f "${REPORT_PATH}" ]]; then
+    echo "  Status: report missing"
+    echo "  Report: ${REPORT_PATH}"
+    echo "  Next action: rerun --m4-signoff and inspect the Flutter test output."
+    return 0
+  fi
+
+  REPORT_PATH="${REPORT_PATH}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+def value_text(value, fallback="unknown"):
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value) if value else "none"
+    return str(value)
+
+
+def map_value(value):
+    return value if isinstance(value, dict) else {}
+
+
+def list_value(value):
+    return value if isinstance(value, list) else []
+
+
+path = Path(os.environ["REPORT_PATH"])
+try:
+    report = json.loads(path.read_text())
+except Exception as error:
+    print("  Status: report unreadable")
+    print(f"  Report: {path}")
+    print(f"  Error: {error}")
+    print("  Next action: rerun --m4-signoff and inspect the Flutter test output.")
+    raise SystemExit(0)
+
+gate = map_value(report.get("m4SignoffGate"))
+helper_path = map_value(gate.get("helperPath"))
+checks = [
+    map_value(item)
+    for item in list_value(gate.get("checks"))
+    if isinstance(item, dict)
+]
+failed = {
+    str(item)
+    for item in list_value(gate.get("failed")) + list_value(gate.get("blockers"))
+}
+
+print(f"  Status: {value_text(gate.get('status'))}")
+print(f"  Blockers: {value_text(gate.get('blockers'), 'none')}")
+if helper_path.get("embeddedHelperPath"):
+    print(f"  Embedded helper: {helper_path['embeddedHelperPath']}")
+if helper_path.get("runningHelperPath"):
+    print(f"  Running helper: {helper_path['runningHelperPath']}")
+
+next_action = gate.get("nextAction")
+if next_action:
+    print(f"  Next action: {next_action}")
+
+for check in checks:
+    check_id = str(check.get("id", ""))
+    if check.get("ok") is True and check_id not in failed:
+        continue
+    label = value_text(check.get("label"), check_id or "check")
+    status = value_text(check.get("status"))
+    action = check.get("nextAction")
+    if action:
+        print(f"  - {label}: {status}; {action}")
+    else:
+        print(f"  - {label}: {status}")
+
+print(
+    "  Grant helper: bash tool/run_macos_computer_use_capture_signoff.sh "
+    "--reveal-helper --open-settings"
+)
+print(
+    "  Rerun: bash tool/run_macos_computer_use_smoke_test.sh "
+    "--reporter compact --m4-signoff"
+)
+PY
+}
+
+finish() {
+  local exit_code=$?
+  set +e
+  print_m4_signoff_summary
+  exit "${exit_code}"
+}
+
+trap finish EXIT
+
 dart_bool_define() {
   case "$1" in
     1|true|TRUE|yes|YES)

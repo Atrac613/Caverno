@@ -1977,6 +1977,10 @@ class _IpcRuntimeSummary extends StatelessWidget {
     );
     final failedExpectations = _stringList(readinessExpectations?['failed']);
     final m4SignoffBlockers = _stringList(m4SignoffGate?['blockers']);
+    final m4SignoffHelperPath = _stringValue(
+      _mapValue(m4SignoffGate?['helperPath'])?['embeddedHelperPath'],
+    );
+    final m4SignoffNextAction = _stringValue(m4SignoffGate?['nextAction']);
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
@@ -2231,6 +2235,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'M4 blockers',
                 value: m4SignoffBlockers.join(', '),
               ),
+            if (m4SignoffHelperPath != null)
+              _InfoChip(
+                label: 'M4 helper',
+                value: _shortPath(m4SignoffHelperPath),
+              ),
+            if (m4SignoffNextAction != null)
+              _InfoChip(label: 'M4 next action', value: m4SignoffNextAction),
             if (failedExpectations.isNotEmpty)
               _InfoChip(
                 label: 'Failed expectations',
@@ -2452,6 +2463,10 @@ class _LiveSmokeSummary extends StatelessWidget {
     );
     final failedExpectations = _stringList(readinessExpectations?['failed']);
     final m4SignoffBlockers = _stringList(m4SignoffGate?['blockers']);
+    final m4SignoffHelperPath = _stringValue(
+      _mapValue(m4SignoffGate?['helperPath'])?['embeddedHelperPath'],
+    );
+    final m4SignoffNextAction = _stringValue(m4SignoffGate?['nextAction']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2592,6 +2607,20 @@ class _LiveSmokeSummary extends StatelessWidget {
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],
+        if (m4SignoffHelperPath != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Live M4 helper: ${_shortPath(m4SignoffHelperPath)}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (m4SignoffNextAction != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Live M4 next action: $m4SignoffNextAction',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
         if (path is String && path.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
@@ -2626,5 +2655,20 @@ class _LiveSmokeSummary extends StatelessWidget {
           .toList(growable: false);
     }
     return const [];
+  }
+
+  String? _stringValue(Object? value) {
+    if (value is String && value.isNotEmpty) {
+      return value;
+    }
+    return null;
+  }
+
+  String _shortPath(String path) {
+    final parts = path.split('/').where((part) => part.isNotEmpty).toList();
+    if (parts.length <= 4) {
+      return path;
+    }
+    return '.../${parts.sublist(parts.length - 4).join('/')}';
   }
 }

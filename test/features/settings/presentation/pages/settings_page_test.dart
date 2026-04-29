@@ -248,9 +248,33 @@ void main() {
     expect(find.text('Failed expectations: capture_ready'), findsOneWidget);
     expect(find.text('M4 sign-off: blocked'), findsOneWidget);
     expect(find.text('M4 blockers: permissions, capture'), findsOneWidget);
+    expect(
+      find.text(
+        'M4 helper: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'M4 next action: Resolve the failed M4 sign-off checks, then rerun --m4-signoff.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Live Positive Smoke: blocked'), findsOneWidget);
     expect(find.text('Live Expectations: Failed'), findsOneWidget);
     expect(find.text('Live M4 Sign-off: blocked'), findsOneWidget);
+    expect(
+      find.text(
+        'Live M4 helper: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Live M4 next action: Resolve the failed M4 sign-off checks, then rerun --m4-signoff.',
+      ),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -790,6 +814,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'm4SignoffGate': {
           'status': 'blocked',
           'blockers': ['permissions', 'capture'],
+          'helperPath': {
+            'embeddedHelperPath':
+                '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+          },
+          'nextAction':
+              'Resolve the failed M4 sign-off checks, then rerun --m4-signoff.',
         },
         'signingDiagnostics': {
           'launchConstraintLikelyAccepted': true,

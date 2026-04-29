@@ -317,6 +317,13 @@ with `m4SignoffGate.status: blocked` and lists concrete blockers such as
 helper path in the report to finish the manual grant, then rerun the same
 command.
 
+The `--m4-signoff` runner prints a concise post-run summary even when the
+required smoke test exits non-zero. The summary repeats the gate status,
+blockers, embedded helper path, failed check next-actions, and the manual grant
+command:
+
+`bash tool/run_macos_computer_use_capture_signoff.sh --reveal-helper --open-settings`
+
 M4 live sign-off notes:
 
 - 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
