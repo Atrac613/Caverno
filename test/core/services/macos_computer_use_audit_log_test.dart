@@ -107,18 +107,24 @@ void main() {
       success: true,
       result: '{"ok":true,"selectedIpcTransport":"xpc_service"}',
       postActionObservation: const MacosComputerUsePostActionObservation(
-        toolName: 'computer_screenshot',
+        toolName: 'computer_vision_observe',
         success: true,
         result:
-            '{"ok":true,"selectedIpcTransport":"xpc_service","imageBase64":"secret"}',
+            '{"ok":true,"schemaName":"macos_computer_use_vision_observation","selectedIpcTransport":"xpc_service","target":{"resolved":"window","windowId":123},"coordinateSpace":"window_pixels","imageBase64":"secret"}',
       ),
     );
 
     final entry = auditLog.redactedEntries.single;
     expect(entry['postActionObservationRequired'], isTrue);
-    expect(entry['postActionObservationToolName'], 'computer_screenshot');
+    expect(entry['postActionObservationToolName'], 'computer_vision_observe');
     expect(entry['postActionObservationSuccess'], isTrue);
     expect(entry['postActionObservationTransport'], 'xpc_service');
+    expect(
+      entry['postActionObservationSchemaName'],
+      'macos_computer_use_vision_observation',
+    );
+    expect(entry['postActionObservationCoordinateSpace'], 'window_pixels');
+    expect(entry['postActionObservationImageAttached'], isTrue);
     expect(entry.containsKey('imageBase64'), isFalse);
   });
 
@@ -133,7 +139,7 @@ void main() {
       result:
           '{"ok":true,"selectedIpcTransport":"xpc_service","characters":12,"text":"secret typed body"}',
       postActionObservation: const MacosComputerUsePostActionObservation(
-        toolName: 'computer_screenshot',
+        toolName: 'computer_vision_observe',
         success: false,
         errorCode: 'screen_capture_denied',
       ),

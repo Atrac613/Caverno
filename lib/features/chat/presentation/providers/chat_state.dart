@@ -135,6 +135,8 @@ class PendingComputerUseAction {
     required this.emergencyStop,
     required this.summary,
     required this.details,
+    required this.visionObservationSummary,
+    required this.visionObservationDetails,
     required this.reason,
     required this.completer,
   });
@@ -151,6 +153,8 @@ class PendingComputerUseAction {
   final bool emergencyStop;
   final String summary;
   final List<String> details;
+  final String? visionObservationSummary;
+  final List<String> visionObservationDetails;
   final String? reason;
   final Completer<ComputerUseActionApprovalDecision> completer;
 }

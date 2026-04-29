@@ -204,9 +204,10 @@ void main() {
     expect(
       prompt,
       contains(
-        'Include window_id for window screenshots and include source_width and source_height',
+        'Include window_id for window screenshots, source_width, source_height, coordinate_space, and vision_observation_id',
       ),
     );
+    expect(prompt, contains('observe-action-observe cycle'));
     expect(prompt, contains('follow the returned nextAction'));
     expect(
       prompt,

@@ -8132,6 +8132,9 @@ class ChatNotifier extends Notifier<ChatState> {
       toolName: toolCall.name,
       policy: policy,
     );
+    final visionObservationContext = _computerUseVisionObservationContext(
+      toolCall,
+    );
     final details = [
       if (policy != null) ...[
         'Policy: ${policy.policyLabel}',
@@ -8156,6 +8159,8 @@ class ChatNotifier extends Notifier<ChatState> {
       emergencyStop: policy?.emergencyStop ?? false,
       summary: _describeComputerUseAction(toolCall),
       details: details,
+      visionObservationSummary: visionObservationContext.summary,
+      visionObservationDetails: visionObservationContext.details,
       reason: toolCall.arguments['reason'] as String?,
     );
     if (!decision.approved) {
@@ -8191,7 +8196,7 @@ class ChatNotifier extends Notifier<ChatState> {
       arguments: toolCall.arguments,
     );
     final postActionObservation = result.isSuccess
-        ? await _runComputerUsePostActionObservation(policy)
+        ? await _runComputerUsePostActionObservation(policy, toolCall)
         : null;
     MacosComputerUseAuditLog.instance.record(
       toolName: toolCall.name,
@@ -8205,7 +8210,11 @@ class ChatNotifier extends Notifier<ChatState> {
     return _rememberToolApprovalResult(
       toolCall.name,
       toolCall.arguments,
-      result,
+      _computerUseResultWithPostActionObservation(
+        result: result,
+        policy: policy,
+        postActionObservation: postActionObservation,
+      ),
     );
   }
 
@@ -8231,14 +8240,15 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<MacosComputerUsePostActionObservation?>
   _runComputerUsePostActionObservation(
     MacosComputerUseToolPolicyDecision? policy,
+    ToolCallInfo toolCall,
   ) async {
     if (policy?.requiresPostActionObservation != true) {
       return null;
     }
 
     final observationToolName = switch (policy!.riskCategory) {
-      MacosComputerUseRiskCategory.input => 'computer_screenshot',
-      MacosComputerUseRiskCategory.sensitive ||
+      MacosComputerUseRiskCategory.input ||
+      MacosComputerUseRiskCategory.sensitive => 'computer_vision_observe',
       MacosComputerUseRiskCategory.recovery => 'computer_get_permissions',
       _ => null,
     };
@@ -8247,7 +8257,9 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final observationArguments = switch (observationToolName) {
-      'computer_screenshot' => <String, dynamic>{'max_width': 800},
+      'computer_vision_observe' => _computerUsePostActionVisionArguments(
+        toolCall.arguments,
+      ),
       _ => <String, dynamic>{},
     };
     try {
@@ -8268,6 +8280,92 @@ class ChatNotifier extends Notifier<ChatState> {
         errorCode: error.toString(),
       );
     }
+  }
+
+  McpToolResult _computerUseResultWithPostActionObservation({
+    required McpToolResult result,
+    required MacosComputerUseToolPolicyDecision? policy,
+    required MacosComputerUsePostActionObservation? postActionObservation,
+  }) {
+    if (postActionObservation == null) {
+      return result;
+    }
+
+    final actionResult =
+        _tryDecodeMap(result.result) ??
+        <String, dynamic>{'rawResult': result.result};
+    final observationResult =
+        _tryDecodeMap(postActionObservation.result ?? '') ??
+        <String, dynamic>{
+          'ok': postActionObservation.success,
+          if (postActionObservation.errorCode != null)
+            'code': postActionObservation.errorCode,
+        };
+    final observationMetadata = Map<String, dynamic>.from(observationResult);
+    final imageBase64 = observationMetadata.remove('imageBase64');
+    final imageMimeType = observationMetadata['imageMimeType'] as String?;
+    final imageAttached = imageBase64 is String && imageBase64.isNotEmpty;
+
+    return McpToolResult(
+      toolName: result.toolName,
+      isSuccess: result.isSuccess,
+      errorMessage: result.errorMessage,
+      result: jsonEncode({
+        'ok': result.isSuccess,
+        'schemaName': 'macos_computer_use_action_result',
+        'schemaVersion': 1,
+        'toolName': result.toolName,
+        'policy': policy?.toJson(),
+        'action': _redactComputerUseActionResult(actionResult),
+        'postActionObservationRequired':
+            policy?.requiresPostActionObservation == true,
+        'postActionObservation': {
+          'toolName': postActionObservation.toolName,
+          'success': postActionObservation.success,
+          'imageAttached': imageAttached,
+          if (postActionObservation.errorCode != null)
+            'errorCode': postActionObservation.errorCode,
+          ...observationMetadata,
+        },
+        if (imageAttached) 'imageBase64': imageBase64,
+        if (imageAttached) 'imageMimeType': imageMimeType ?? 'image/png',
+        'nextAction': imageAttached
+            ? 'Inspect the attached post-action observation before proposing another desktop action.'
+            : 'Run computer_vision_observe before proposing another desktop action.',
+      }),
+    );
+  }
+
+  Map<String, dynamic> _redactComputerUseActionResult(
+    Map<String, dynamic> actionResult,
+  ) {
+    final redacted = Map<String, dynamic>.from(actionResult)
+      ..remove('imageBase64')
+      ..remove('text');
+    if (actionResult['text'] is String) {
+      redacted['textRedacted'] = true;
+      redacted['textLength'] = (actionResult['text'] as String).length;
+    }
+    return redacted;
+  }
+
+  Map<String, dynamic> _computerUsePostActionVisionArguments(
+    Map<String, dynamic> actionArguments,
+  ) {
+    final windowId = actionArguments['window_id'];
+    final displayId = actionArguments['display_id'];
+    final arguments = <String, dynamic>{
+      'target': windowId != null ? 'window' : 'front_window',
+      'max_width': 800,
+      'include_windows': true,
+    };
+    if (windowId != null) {
+      arguments['window_id'] = windowId;
+    }
+    if (displayId != null) {
+      arguments['display_id'] = displayId;
+    }
+    return arguments;
   }
 
   String _computerUseBlockedResult({
@@ -8315,6 +8413,8 @@ class ChatNotifier extends Notifier<ChatState> {
     required bool emergencyStop,
     required String summary,
     required List<String> details,
+    String? visionObservationSummary,
+    List<String> visionObservationDetails = const [],
     String? reason,
   }) {
     final completer = Completer<ComputerUseActionApprovalDecision>();
@@ -8332,6 +8432,8 @@ class ChatNotifier extends Notifier<ChatState> {
         emergencyStop: emergencyStop,
         summary: summary,
         details: details,
+        visionObservationSummary: visionObservationSummary,
+        visionObservationDetails: visionObservationDetails,
         reason: reason,
         completer: completer,
       ),
@@ -8360,6 +8462,40 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     state = state.copyWith(pendingComputerUseAction: null);
+  }
+
+  ({String? summary, List<String> details})
+  _computerUseVisionObservationContext(ToolCallInfo toolCall) {
+    final args = toolCall.arguments;
+    final details = <String>[];
+    final observationId = args['vision_observation_id'];
+    final coordinateSpace = args['coordinate_space'];
+    final sourceWidth = args['source_width'];
+    final sourceHeight = args['source_height'];
+    final windowId = args['window_id'];
+    final displayId = args['display_id'];
+
+    if (observationId != null) {
+      details.add('Observation ID: $observationId');
+    }
+    if (coordinateSpace != null) {
+      details.add('Coordinate space: $coordinateSpace');
+    }
+    if (sourceWidth != null && sourceHeight != null) {
+      details.add('Source screenshot: $sourceWidth x $sourceHeight px');
+    }
+    if (windowId != null) {
+      details.add('Target window ID: $windowId');
+    }
+    if (displayId != null) {
+      details.add('Target display ID: $displayId');
+    }
+
+    return (
+      summary:
+          'Verify this action against the latest vision observation before approving.',
+      details: details,
+    );
   }
 
   String _describeComputerUseAction(ToolCallInfo toolCall) {

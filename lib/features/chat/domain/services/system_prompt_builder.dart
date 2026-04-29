@@ -342,8 +342,15 @@ class SystemPromptBuilder {
         );
         buffer.writeln(
           'Use screenshot pixel coordinates from the latest observation. '
-          'Include window_id for window screenshots and include source_width '
-          'and source_height when calling coordinate-based computer tools.',
+          'Include window_id for window screenshots, source_width, '
+          'source_height, coordinate_space, and vision_observation_id when '
+          'calling coordinate-based computer tools.',
+        );
+        buffer.writeln(
+          'When a desktop action returns an attached post-action observation, '
+          'inspect that observation before proposing any further desktop '
+          'action. Treat one observe-action-observe cycle as the smallest safe '
+          'unit of work.',
         );
         buffer.writeln(
           'If a computer-use result reports accessibility_denied, '

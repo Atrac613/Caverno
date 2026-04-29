@@ -250,8 +250,10 @@ Follow-on milestones:
   onboarding sign-off with one strict live smoke gate.
 - M5: Connect the vision LLM loop to the approved helper tool surface.
 - M6: Harden the observe-action-observe loop so multimodal desktop tasks can
-  safely propose, approve, execute, and verify one step at a time. M6 is the
-  next active milestone after the 2026-04-29 M5 debug sign-off.
+  safely propose, approve, execute, and verify one step at a time.
+- M7: Run release-helper sign-off against the release
+  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` bundle identity. M7
+  is the next active milestone after the 2026-04-29 M6 debug sign-off.
 
 Current M5 implementation status:
 
@@ -298,21 +300,24 @@ M5 live sign-off notes:
   passed with `visionObservationGate.status: ready`,
   `readinessExpectations.ok: true`, and `m4SignoffGate.status: ready`.
 
-Current M6 implementation target:
+Current M6 implementation status:
 
-- Add test coverage for an LLM-style observe-action-observe sequence:
+- M6 is complete for the current debug embedded helper.
+- Test coverage now exercises an LLM-style observe-action-observe sequence:
   `computer_vision_observe`, one approved desktop action, then another
   `computer_vision_observe`.
-- Strengthen post-action guidance so desktop actions are verified with a fresh
-  observation before the model proposes another action.
-- Surface vision-observation context in the Computer Use approval UI, including
+- Desktop action results now attach a fresh `computer_vision_observe`
+  post-action observation when the action succeeds, so multimodal models can
+  inspect the updated screen before proposing another action.
+- The Computer Use approval UI surfaces vision-observation context, including
   the target coordinate space, target window when available, and the immediate
   reason for the proposed action.
-- Keep click, text input, focus, keyboard, and system-audio actions behind the
+- Click, text input, focus, keyboard, and system-audio actions remain behind the
   existing approval and arming gates, even when they are proposed from a vision
   observation.
-- Add live smoke reporting for the first complete observe-action-observe loop
-  without requiring unsafe click or text arming by default.
+- The live smoke report now includes `observeActionObserveGate`, which verifies
+  the first complete observe-action-observe loop without requiring unsafe click
+  or text arming by default.
 
 M6 acceptance criteria:
 
@@ -324,6 +329,19 @@ M6 acceptance criteria:
   observation, approval decision, helper command, and post-action observation.
 - The live smoke report includes a ready gate for the observe-action-observe
   loop while preserving the existing M4 and M5 gates.
+
+M6 live sign-off notes:
+
+- 2026-04-29: `flutter analyze` passed after hardening the
+  observe-action-observe loop.
+- 2026-04-29: targeted tests passed for Computer Use audit logging, service
+  observation packaging, tool policy, MCP tool definitions, system prompt
+  guidance, approval copy, and the chat tool loop.
+- 2026-04-29:
+  `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff --require-vision-observe --require-observe-action-observe`
+  passed with `visionObservationGate.status: ready`,
+  `observeActionObserveGate.status: ready`, `readinessExpectations.ok: true`,
+  and `m4SignoffGate.status: ready`.
 
 Current M2 implementation status:
 

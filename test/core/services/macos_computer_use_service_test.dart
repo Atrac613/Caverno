@@ -246,6 +246,7 @@ void main() {
       result,
       containsPair('schemaName', 'macos_computer_use_vision_observation'),
     );
+    expect(result['observationId'], isA<String>());
     expect(result, containsPair('imageBase64', 'display-image'));
     expect(result['allowedNextTools'], contains('computer_click'));
     expect(result['approvalRequiredTools'], contains('computer_click'));

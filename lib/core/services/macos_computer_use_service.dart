@@ -427,6 +427,7 @@ class MacosComputerUseService {
       'ok': captureOk && imageBase64 is String && imageBase64.isNotEmpty,
       'schemaName': 'macos_computer_use_vision_observation',
       'schemaVersion': 1,
+      'observationId': 'vision-${DateTime.now().microsecondsSinceEpoch}',
       'target': targetSummary,
       'coordinateSpace': capture['coordinateSpace'] ?? 'screenshot_pixels',
       'coordinateGuidance': {

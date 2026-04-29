@@ -2108,6 +2108,16 @@ class McpToolService {
       'type': 'number',
       'description': 'Height of the screenshot used to choose coordinates.',
     },
+    'coordinate_space': {
+      'type': 'string',
+      'description':
+          'Coordinate space from computer_vision_observe, such as window_pixels or display_pixels.',
+    },
+    'vision_observation_id': {
+      'type': 'string',
+      'description':
+          'Observation ID from the latest computer_vision_observe result used to choose this action.',
+    },
   };
 
   String _buildCurrentDatetimeResult() {

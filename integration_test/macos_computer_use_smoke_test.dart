@@ -42,6 +42,9 @@ const _requireOnboardingTransition = bool.fromEnvironment(
 const _requireVisionObserve = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_VISION_OBSERVE',
 );
+const _requireObserveActionObserve = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OBSERVE_ACTION_OBSERVE',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -76,6 +79,7 @@ void main() {
       'requireOverlayReady': _requireOverlayReady,
       'requireOnboardingTransition': _requireOnboardingTransition,
       'requireVisionObserve': _requireVisionObserve,
+      'requireObserveActionObserve': _requireObserveActionObserve,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -321,6 +325,20 @@ void main() {
         'Move pointer after explicit smoke arming',
         () => service.moveMouse(inputArguments),
       );
+      await _runStep(
+        steps,
+        'post_action_vision_observe',
+        'Observe again after the armed pointer move',
+        () => service.visionObserve({
+          'target': inputArguments['window_id'] != null
+              ? 'window'
+              : 'front_window',
+          if (inputArguments['window_id'] != null)
+            'window_id': inputArguments['window_id'],
+          'max_width': 400,
+          'include_windows': true,
+        }),
+      );
     } else {
       _skipStep(
         steps,
@@ -329,6 +347,12 @@ void main() {
         _unsafeArmed
             ? 'Accessibility permission is not granted.'
             : 'Unsafe smoke actions are not armed.',
+      );
+      _skipStep(
+        steps,
+        'post_action_vision_observe',
+        'Observe again after the armed pointer move',
+        'Pointer move did not run, so post-action observation was skipped.',
       );
     }
     if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
@@ -549,6 +573,7 @@ void main() {
     report['permissionGate'] = _permissionGate(permissions);
     report['captureGate'] = _captureGate(steps, permissions: permissions);
     report['visionObservationGate'] = _visionObservationGate(steps);
+    report['observeActionObserveGate'] = _observeActionObserveGate(steps);
     report['inputGate'] = _inputGate(
       steps,
       permissions: permissions,
@@ -678,6 +703,14 @@ void main() {
         isTrue,
         reason:
             'Vision observation smoke must attach an image and expose the approved helper tool surface.',
+      );
+    }
+    if (_requireObserveActionObserve) {
+      expect(
+        _gateReady(report['observeActionObserveGate']),
+        isTrue,
+        reason:
+            'Observe-action-observe smoke must observe, run one armed action, and observe again.',
       );
     }
     if (_m4Signoff) {
@@ -1231,10 +1264,7 @@ Map<String, dynamic> _visionObservationGate(List<Map<String, dynamic>> steps) {
   final status = _stepStatusById(steps, 'vision_observe');
   final result = _mapValue(status['result']) ?? const <String, dynamic>{};
   final passed = status['passed'] == true && result['ok'] == true;
-  final imageAttached =
-      (result['imageBase64'] is String &&
-          (result['imageBase64'] as String).isNotEmpty) ||
-      ((result['imageBase64Length'] as num?)?.toInt() ?? 0) > 0;
+  final imageAttached = _hasAttachedOrCompactedImage(result);
   final allowedNextTools = _stringList(result['allowedNextTools']);
   final approvalRequiredTools = _stringList(result['approvalRequiredTools']);
   final coordinateGuidance =
@@ -1265,6 +1295,55 @@ Map<String, dynamic> _visionObservationGate(List<Map<String, dynamic>> steps) {
     'nextAction': ready
         ? 'Vision observation is ready for the approved helper tool surface.'
         : 'Inspect computer_vision_observe and rerun smoke with --require-vision-observe.',
+  };
+}
+
+bool _hasAttachedOrCompactedImage(Map<String, dynamic> result) {
+  return (result['imageBase64'] is String &&
+          (result['imageBase64'] as String).isNotEmpty) ||
+      ((result['imageBase64Length'] as num?)?.toInt() ?? 0) > 0;
+}
+
+Map<String, dynamic> _observeActionObserveGate(
+  List<Map<String, dynamic>> steps,
+) {
+  final firstObservation = _stepStatusById(steps, 'vision_observe');
+  final action = _stepStatusById(steps, 'input_move_pointer');
+  final postObservation = _stepStatusById(steps, 'post_action_vision_observe');
+  final firstResult =
+      _mapValue(firstObservation['result']) ?? const <String, dynamic>{};
+  final postResult =
+      _mapValue(postObservation['result']) ?? const <String, dynamic>{};
+  final firstImage = _hasAttachedOrCompactedImage(firstResult);
+  final postImage = _hasAttachedOrCompactedImage(postResult);
+  final ready =
+      firstObservation['passed'] == true &&
+      firstResult['ok'] == true &&
+      firstImage &&
+      action['passed'] == true &&
+      postObservation['passed'] == true &&
+      postResult['ok'] == true &&
+      postImage;
+  final blockers = <String>[
+    if (firstObservation['passed'] != true || firstResult['ok'] != true)
+      'initial_vision_observe_failed',
+    if (firstObservation['passed'] == true && !firstImage)
+      'initial_vision_image_missing',
+    if (action['passed'] != true) 'armed_action_failed_or_skipped',
+    if (postObservation['passed'] != true || postResult['ok'] != true)
+      'post_action_vision_observe_failed',
+    if (postObservation['passed'] == true && !postImage)
+      'post_action_vision_image_missing',
+  ];
+  return {
+    'status': ready ? 'ready' : 'blocked',
+    'initialObservationImageAttached': firstImage,
+    'actionPassed': action['passed'] == true,
+    'postActionObservationImageAttached': postImage,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Observe-action-observe smoke is ready.'
+        : 'Rerun smoke with --require-observe-action-observe after resolving blockers.',
   };
 }
 
@@ -2208,6 +2287,9 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
   final audioResolved = _audioGateResolved(report['audioGate']);
   final overlayReady = _gateReady(report['overlaySmoke']);
   final visionObserveReady = _gateReady(report['visionObservationGate']);
+  final observeActionObserveReady = _gateReady(
+    report['observeActionObserveGate'],
+  );
   final onboardingTransitionReady = _gateReady(
     report['onboardingTransitionGate'],
   );
@@ -2246,6 +2328,13 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
       'ok': !_requireVisionObserve || visionObserveReady,
       'status': _gateStatus(report['visionObservationGate']),
       'nextAction': _gateNextAction(report['visionObservationGate']),
+    },
+    {
+      'id': 'observe_action_observe_ready',
+      'required': _requireObserveActionObserve,
+      'ok': !_requireObserveActionObserve || observeActionObserveReady,
+      'status': _gateStatus(report['observeActionObserveGate']),
+      'nextAction': _gateNextAction(report['observeActionObserveGate']),
     },
     {
       'id': 'onboarding_transition_ready',

@@ -8461,6 +8461,77 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ),
                       ),
                     ],
+                    if (pending.visionObservationSummary != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.visibility_outlined,
+                                size: 20,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      pending.visionObservationSummary!,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onPrimaryContainer,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    if (pending
+                                        .visionObservationDetails
+                                        .isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      for (final detail
+                                          in pending.visionObservationDetails)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                          ),
+                                          child: Text(
+                                            detail,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onPrimaryContainer
+                                                      .withValues(alpha: 0.8),
+                                                  fontFamily: 'monospace',
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     const SizedBox(height: 16),
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 24),

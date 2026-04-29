@@ -24,6 +24,10 @@ class MacosComputerUseAuditEntry {
     required this.postActionObservationSuccess,
     required this.postActionObservationResponseCode,
     required this.postActionObservationTransport,
+    required this.postActionObservationSchemaName,
+    required this.postActionObservationTarget,
+    required this.postActionObservationCoordinateSpace,
+    required this.postActionObservationImageAttached,
   });
 
   final DateTime timestamp;
@@ -46,6 +50,10 @@ class MacosComputerUseAuditEntry {
   final bool? postActionObservationSuccess;
   final String? postActionObservationResponseCode;
   final String? postActionObservationTransport;
+  final String? postActionObservationSchemaName;
+  final Map<String, dynamic>? postActionObservationTarget;
+  final String? postActionObservationCoordinateSpace;
+  final bool? postActionObservationImageAttached;
 
   Map<String, dynamic> toJson() {
     return {
@@ -69,6 +77,11 @@ class MacosComputerUseAuditEntry {
       'postActionObservationSuccess': postActionObservationSuccess,
       'postActionObservationResponseCode': postActionObservationResponseCode,
       'postActionObservationTransport': postActionObservationTransport,
+      'postActionObservationSchemaName': postActionObservationSchemaName,
+      'postActionObservationTarget': postActionObservationTarget,
+      'postActionObservationCoordinateSpace':
+          postActionObservationCoordinateSpace,
+      'postActionObservationImageAttached': postActionObservationImageAttached,
     };
   }
 }
@@ -159,6 +172,17 @@ class MacosComputerUseAuditLog {
       postActionObservationTransport:
           _stringValue(observationDecoded?['selectedIpcTransport']) ??
           _stringValue(observationDecoded?['ipcTransport']),
+      postActionObservationSchemaName: _stringValue(
+        observationDecoded?['schemaName'],
+      ),
+      postActionObservationTarget: _mapValue(observationDecoded?['target']),
+      postActionObservationCoordinateSpace: _stringValue(
+        observationDecoded?['coordinateSpace'],
+      ),
+      postActionObservationImageAttached: observationDecoded == null
+          ? null
+          : observationDecoded['imageBase64'] is String &&
+                (observationDecoded['imageBase64'] as String).isNotEmpty,
     );
     _entries.add(entry);
     if (_entries.length > maxEntries) {
