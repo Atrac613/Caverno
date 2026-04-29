@@ -322,6 +322,39 @@ This writes `macos_computer_use_canary_history.json` and
 `build/integration_test_reports/`. The history report shows the latest
 stability status, pass-rate delta, and failure-class distribution.
 
+## Release Readiness Gate
+
+The release readiness gate is a read-only aggregator for release sign-off
+artifacts. It does not launch the app, operate System Settings, grant TCC, or
+run any live desktop action. It reads the latest available reports and produces
+one release decision:
+
+```bash
+dart run tool/macos_computer_use_release_readiness.dart
+```
+
+The gate evaluates:
+
+- M7 release artifact sign-off through `releaseSignoffGate`.
+- Computer Use helper runtime stability through
+  `macos_computer_use_canary_history.json` or recent live canary summaries.
+- Manual TCC sign-off through the user-produced M8 runtime report or
+  `manual_tcc_report_summary.json`.
+- LLM/tool-loop readiness through the latest Plan Mode ping CLI canary summary.
+
+The output files are
+`build/integration_test_reports/macos_computer_use_release_readiness.json` and
+`build/integration_test_reports/macos_computer_use_release_readiness.md`. Missing
+manual TCC evidence is reported as `manual_required`, not automated. When that
+happens, ask the user to run the M8 command manually, then rerun the readiness
+gate with the produced report available under `build/integration_test_reports/`
+or pass it explicitly:
+
+```bash
+dart run tool/macos_computer_use_release_readiness.dart \
+  --manual-tcc-report <user-produced-m8-report.json>
+```
+
 Current M5 implementation status:
 
 - M5 is complete for the current debug embedded helper.

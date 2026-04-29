@@ -1,0 +1,515 @@
+import 'dart:convert';
+import 'dart:io';
+
+import 'macos_computer_use_canary_history.dart';
+import 'macos_computer_use_manual_tcc_report.dart';
+
+class ReleaseReadinessGate {
+  const ReleaseReadinessGate({
+    required this.id,
+    required this.label,
+    required this.status,
+    required this.ready,
+    required this.nextAction,
+    this.artifactPath,
+    this.details = const <String, Object?>{},
+  });
+
+  final String id;
+  final String label;
+  final String status;
+  final bool ready;
+  final String nextAction;
+  final String? artifactPath;
+  final Map<String, Object?> details;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'id': id,
+      'label': label,
+      'status': status,
+      'ready': ready,
+      'nextAction': nextAction,
+      'artifactPath': artifactPath,
+      'details': details,
+    };
+  }
+}
+
+class ReleaseReadinessSummary {
+  const ReleaseReadinessSummary({
+    required this.status,
+    required this.ready,
+    required this.gates,
+  });
+
+  final String status;
+  final bool ready;
+  final List<ReleaseReadinessGate> gates;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'schemaName': 'macos_computer_use_release_readiness',
+      'schemaVersion': 1,
+      'automationBoundary': 'read_reports_only',
+      'status': status,
+      'ready': ready,
+      'gates': gates.map((gate) => gate.toJson()).toList(growable: false),
+    };
+  }
+
+  String toMarkdown() {
+    final buffer = StringBuffer()
+      ..writeln('# macOS Computer Use Release Readiness')
+      ..writeln()
+      ..writeln('- Automation boundary: read reports only')
+      ..writeln('- Status: $status')
+      ..writeln('- Ready: $ready')
+      ..writeln()
+      ..writeln('| Gate | Status | Ready | Next Action | Artifact |')
+      ..writeln('| --- | --- | --- | --- | --- |');
+
+    for (final gate in gates) {
+      buffer.writeln(
+        '| ${_markdownCell(gate.label)} | ${_markdownCell(gate.status)} | ${gate.ready} | ${_markdownCell(gate.nextAction)} | ${_artifactCell(gate.artifactPath)} |',
+      );
+    }
+
+    return buffer.toString();
+  }
+}
+
+class ReleaseReadinessInputs {
+  const ReleaseReadinessInputs({
+    required this.releaseReport,
+    required this.releaseReportPath,
+    required this.computerUseHistory,
+    required this.computerUseHistoryPath,
+    required this.manualTccReport,
+    required this.manualTccReportPath,
+    required this.llmCanarySummary,
+    required this.llmCanarySummaryPath,
+  });
+
+  final Map<String, dynamic>? releaseReport;
+  final String? releaseReportPath;
+  final ComputerUseCanaryHistory? computerUseHistory;
+  final String? computerUseHistoryPath;
+  final ManualTccReportSummary? manualTccReport;
+  final String? manualTccReportPath;
+  final Map<String, dynamic>? llmCanarySummary;
+  final String? llmCanarySummaryPath;
+}
+
+ReleaseReadinessSummary buildReleaseReadinessSummary(
+  ReleaseReadinessInputs inputs,
+) {
+  final gates = <ReleaseReadinessGate>[
+    _releaseArtifactGate(inputs.releaseReport, inputs.releaseReportPath),
+    _computerUseCanaryGate(
+      inputs.computerUseHistory,
+      inputs.computerUseHistoryPath,
+    ),
+    _manualTccGate(inputs.manualTccReport, inputs.manualTccReportPath),
+    _llmCanaryGate(inputs.llmCanarySummary, inputs.llmCanarySummaryPath),
+  ];
+  final ready = gates.every((gate) => gate.ready);
+  return ReleaseReadinessSummary(
+    status: ready ? 'ready' : 'blocked',
+    ready: ready,
+    gates: List<ReleaseReadinessGate>.unmodifiable(gates),
+  );
+}
+
+ReleaseReadinessInputs readReleaseReadinessInputs({
+  required Directory reportRoot,
+  String? releaseReportPath,
+  String? computerUseHistoryPath,
+  String? manualTccReportPath,
+  String? llmCanarySummaryPath,
+  int computerUseHistoryLimit = 10,
+}) {
+  final releaseReportFile = releaseReportPath == null
+      ? discoverLatestReleaseReport(reportRoot)
+      : File(releaseReportPath);
+  final manualTccReportFile = manualTccReportPath == null
+      ? discoverLatestManualTccReport(reportRoot)
+      : File(manualTccReportPath);
+  final llmCanarySummaryFile = llmCanarySummaryPath == null
+      ? discoverLatestLlmCanarySummary(reportRoot)
+      : File(llmCanarySummaryPath);
+  final historyFile = computerUseHistoryPath == null
+      ? File('${reportRoot.path}/macos_computer_use_canary_history.json')
+      : File(computerUseHistoryPath);
+
+  return ReleaseReadinessInputs(
+    releaseReport: _readJsonObject(releaseReportFile),
+    releaseReportPath: releaseReportFile?.path,
+    computerUseHistory: _readComputerUseHistory(
+      historyFile,
+      reportRoot,
+      computerUseHistoryLimit,
+    ),
+    computerUseHistoryPath: historyFile.path,
+    manualTccReport: manualTccReportFile == null
+        ? null
+        : _readManualTccSummaryOrReport(manualTccReportFile),
+    manualTccReportPath: manualTccReportFile?.path,
+    llmCanarySummary: _readJsonObject(llmCanarySummaryFile),
+    llmCanarySummaryPath: llmCanarySummaryFile?.path,
+  );
+}
+
+File? discoverLatestReleaseReport(Directory reportRoot) {
+  return _latestJsonMatching(reportRoot, (json) {
+    return json.containsKey('releaseSignoffGate');
+  });
+}
+
+File? discoverLatestManualTccReport(Directory reportRoot) {
+  return _latestJsonMatching(reportRoot, (json) {
+    return json.containsKey('releaseRuntimeSignoffGate');
+  });
+}
+
+File? discoverLatestLlmCanarySummary(Directory reportRoot) {
+  final candidates =
+      _jsonFiles(reportRoot)
+          .where(
+            (file) =>
+                _basename(
+                  file.parent.path,
+                ).startsWith('plan_mode_ping_cli_canary_') &&
+                _basename(file.path) == 'canary_summary.json',
+          )
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  return candidates.isEmpty ? null : candidates.last;
+}
+
+ReleaseReadinessGate _releaseArtifactGate(
+  Map<String, dynamic>? releaseReport,
+  String? reportPath,
+) {
+  if (releaseReport == null) {
+    return const ReleaseReadinessGate(
+      id: 'release_artifact',
+      label: 'Release artifact',
+      status: 'missing',
+      ready: false,
+      nextAction:
+          'Run the M7 release artifact sign-off and provide its report.',
+    );
+  }
+
+  final gate = _mapValue(releaseReport['releaseSignoffGate']);
+  final blockers = _stringList(gate['blockers']);
+  final status = gate['status'] as String? ?? 'missing';
+  final ready = status == 'ready' && blockers.isEmpty;
+  return ReleaseReadinessGate(
+    id: 'release_artifact',
+    label: 'Release artifact',
+    status: status,
+    ready: ready,
+    nextAction: ready
+        ? 'Release artifact gate is ready.'
+        : (gate['nextAction'] as String? ??
+              'Resolve release artifact blockers and rerun M7 sign-off.'),
+    artifactPath: reportPath,
+    details: <String, Object?>{'blockers': blockers},
+  );
+}
+
+ReleaseReadinessGate _computerUseCanaryGate(
+  ComputerUseCanaryHistory? history,
+  String? historyPath,
+) {
+  final latest = history?.latest;
+  if (latest == null) {
+    return const ReleaseReadinessGate(
+      id: 'computer_use_canary',
+      label: 'Computer Use runtime canary',
+      status: 'missing',
+      ready: false,
+      nextAction: 'Run the Computer Use live canary and generate history.',
+    );
+  }
+
+  final ready = latest.stable && latest.runCount > 0;
+  return ReleaseReadinessGate(
+    id: 'computer_use_canary',
+    label: 'Computer Use runtime canary',
+    status: ready ? 'stable' : 'unstable',
+    ready: ready,
+    nextAction: ready
+        ? 'Computer Use runtime canary is stable.'
+        : 'Investigate the latest Computer Use failure class and rerun the canary.',
+    artifactPath: historyPath ?? latest.summaryPath,
+    details: <String, Object?>{
+      'latestRun': latest.name,
+      'runCount': latest.runCount,
+      'passRate': latest.passRate,
+      'failureClasses': latest.failureClasses,
+    },
+  );
+}
+
+ReleaseReadinessGate _manualTccGate(
+  ManualTccReportSummary? manualTccReport,
+  String? reportPath,
+) {
+  if (manualTccReport == null) {
+    return const ReleaseReadinessGate(
+      id: 'manual_tcc',
+      label: 'Manual TCC sign-off',
+      status: 'manual_required',
+      ready: false,
+      nextAction:
+          'Ask the user to run --m8-runtime-signoff manually, then parse the report.',
+    );
+  }
+
+  return ReleaseReadinessGate(
+    id: 'manual_tcc',
+    label: 'Manual TCC sign-off',
+    status: manualTccReport.status,
+    ready: manualTccReport.ready,
+    nextAction: manualTccReport.ready
+        ? 'Manual TCC sign-off is ready.'
+        : (manualTccReport.nextAction ??
+              'Ask the user to complete the manual TCC sign-off steps.'),
+    artifactPath: reportPath ?? manualTccReport.reportPath,
+    details: <String, Object?>{'blockers': manualTccReport.blockers},
+  );
+}
+
+ReleaseReadinessGate _llmCanaryGate(
+  Map<String, dynamic>? llmSummary,
+  String? summaryPath,
+) {
+  if (llmSummary == null) {
+    return const ReleaseReadinessGate(
+      id: 'llm_canary',
+      label: 'LLM tool-loop canary',
+      status: 'missing',
+      ready: false,
+      nextAction: 'Run the LLM live canary and provide its summary.',
+    );
+  }
+
+  final runCount = _intValue(llmSummary['runCount']);
+  final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
+  final ready = runCount > 0 && failed == 0;
+  return ReleaseReadinessGate(
+    id: 'llm_canary',
+    label: 'LLM tool-loop canary',
+    status: ready ? 'passed' : 'blocked',
+    ready: ready,
+    nextAction: ready
+        ? 'LLM tool-loop canary is passing.'
+        : 'Inspect the LLM canary failure classes and rerun after fixes.',
+    artifactPath: summaryPath,
+    details: <String, Object?>{
+      'runCount': runCount,
+      'failed': failed,
+      'failureClassCounts':
+          llmSummary['failureClassCounts'] ?? llmSummary['failureClasses'],
+    },
+  );
+}
+
+ComputerUseCanaryHistory? _readComputerUseHistory(
+  File historyFile,
+  Directory reportRoot,
+  int limit,
+) {
+  if (!historyFile.existsSync()) {
+    return buildComputerUseCanaryHistory(reportRoot, limit: limit);
+  }
+  final json = _readJsonObject(historyFile);
+  if (json == null) {
+    return buildComputerUseCanaryHistory(reportRoot, limit: limit);
+  }
+  final entries = (json['entries'] as List<dynamic>? ?? const <dynamic>[])
+      .whereType<Map<String, dynamic>>()
+      .map(_historyEntryFromJson)
+      .toList(growable: false);
+  return ComputerUseCanaryHistory(
+    entries: List<ComputerUseCanaryHistoryEntry>.unmodifiable(entries),
+    limit: _intValue(json['limit']),
+  );
+}
+
+ComputerUseCanaryHistoryEntry _historyEntryFromJson(Map<String, dynamic> json) {
+  final failureClasses = <String, int>{};
+  final rawFailureClasses = json['failureClasses'];
+  if (rawFailureClasses is Map<String, dynamic>) {
+    for (final entry in rawFailureClasses.entries) {
+      failureClasses[entry.key] = _intValue(entry.value);
+    }
+  }
+  return ComputerUseCanaryHistoryEntry(
+    name: json['name'] as String? ?? 'unknown',
+    directory: json['directory'] as String? ?? '',
+    summaryPath: json['summaryPath'] as String? ?? '',
+    preset: json['preset'] as String? ?? 'unknown',
+    tccBoundary: json['tccBoundary'] as String? ?? 'unknown',
+    stabilityMode: json['stabilityMode'] == true,
+    stable: json['stable'] == true,
+    runCount: _intValue(json['runCount']),
+    passed: _intValue(json['passed']),
+    failed: _intValue(json['failed']),
+    passRate: _doubleValue(json['passRate']),
+    failureClasses: Map<String, int>.unmodifiable(failureClasses),
+    modifiedAt:
+        DateTime.tryParse(json['modifiedAt'] as String? ?? '') ??
+        DateTime.fromMillisecondsSinceEpoch(0),
+  );
+}
+
+ManualTccReportSummary? _readManualTccSummaryOrReport(File file) {
+  final json = _readJsonObject(file);
+  if (json == null) {
+    return null;
+  }
+  if (json['schemaName'] == 'macos_computer_use_manual_tcc_report_summary') {
+    return _manualTccSummaryFromJson(json, file.path);
+  }
+  if (json.containsKey('releaseRuntimeSignoffGate')) {
+    return buildManualTccReportSummary(json, reportPath: file.path);
+  }
+  return null;
+}
+
+ManualTccReportSummary _manualTccSummaryFromJson(
+  Map<String, dynamic> json,
+  String path,
+) {
+  final checks = (json['checks'] as List<dynamic>? ?? const <dynamic>[])
+      .whereType<Map<String, dynamic>>()
+      .map(
+        (check) => ManualTccCheckSummary(
+          id: check['id'] as String? ?? 'unknown',
+          label: check['label'] as String? ?? 'unknown',
+          status: check['status'] as String? ?? 'unknown',
+          ok: check['ok'] == true,
+          nextAction: check['nextAction'] as String?,
+        ),
+      )
+      .toList(growable: false);
+  return ManualTccReportSummary(
+    reportPath: json['reportPath'] as String? ?? path,
+    status: json['status'] as String? ?? 'missing',
+    ready: json['ready'] == true,
+    blockers: List<String>.unmodifiable(_stringList(json['blockers'])),
+    appPath: json['appPath'] as String?,
+    helperPath: json['helperPath'] as String?,
+    nextAction: json['nextAction'] as String?,
+    checks: List<ManualTccCheckSummary>.unmodifiable(checks),
+  );
+}
+
+File? _latestJsonMatching(
+  Directory reportRoot,
+  bool Function(Map<String, dynamic> json) matches,
+) {
+  final candidates = <File>[];
+  for (final file in _jsonFiles(reportRoot)) {
+    final json = _readJsonObject(file);
+    if (json != null && matches(json)) {
+      candidates.add(file);
+    }
+  }
+  candidates.sort((left, right) {
+    final modifiedCompare = left.statSync().modified.compareTo(
+      right.statSync().modified,
+    );
+    if (modifiedCompare != 0) {
+      return modifiedCompare;
+    }
+    return left.path.compareTo(right.path);
+  });
+  return candidates.isEmpty ? null : candidates.last;
+}
+
+List<File> _jsonFiles(Directory root) {
+  if (!root.existsSync()) {
+    return const <File>[];
+  }
+  return root
+      .listSync(recursive: true)
+      .whereType<File>()
+      .where((file) => file.path.endsWith('.json'))
+      .toList(growable: false);
+}
+
+Map<String, dynamic>? _readJsonObject(File? file) {
+  if (file == null || !file.existsSync()) {
+    return null;
+  }
+  try {
+    final decoded = jsonDecode(file.readAsStringSync());
+    return decoded is Map<String, dynamic> ? decoded : null;
+  } on FormatException {
+    return null;
+  } on FileSystemException {
+    return null;
+  }
+}
+
+Map<String, dynamic> _mapValue(Object? value) {
+  return value is Map<String, dynamic> ? value : const <String, dynamic>{};
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List<dynamic>) {
+    return const <String>[];
+  }
+  return value.map((item) => item.toString()).toList(growable: false);
+}
+
+int _intValue(Object? value) {
+  if (value is int) {
+    return value;
+  }
+  if (value is num) {
+    return value.toInt();
+  }
+  return 0;
+}
+
+double _doubleValue(Object? value) {
+  if (value is num) {
+    return value.toDouble();
+  }
+  return 0;
+}
+
+String _artifactCell(String? value) {
+  if (value == null || value.trim().isEmpty) {
+    return '-';
+  }
+  return '`${_escapeMarkdownCode(value)}`';
+}
+
+String _markdownCell(Object? value) {
+  final text = value?.toString().trim();
+  if (text == null || text.isEmpty) {
+    return '-';
+  }
+  return text.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+String _escapeMarkdownCode(String value) {
+  return value.replaceAll('`', r'\`');
+}
+
+String _basename(String path) {
+  final segments = path.split(Platform.pathSeparator);
+  for (final segment in segments.reversed) {
+    if (segment.isNotEmpty) {
+      return segment;
+    }
+  }
+  return path;
+}

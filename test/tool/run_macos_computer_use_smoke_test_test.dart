@@ -175,6 +175,12 @@ void main() {
       architectureDoc,
       contains('dart run tool/macos_computer_use_canary_history.dart'),
     );
+    expect(architectureDoc, contains('## Release Readiness Gate'));
+    expect(
+      architectureDoc,
+      contains('dart run tool/macos_computer_use_release_readiness.dart'),
+    );
+    expect(architectureDoc, contains('manual_required'));
     expect(
       architectureDoc,
       contains('Passing either canary does not replace the other.'),
