@@ -6,11 +6,13 @@ void main() {
   late String script;
   late String smokeTest;
   late String helperSource;
+  late String runnerSource;
   late String helperInfoPlist;
   late String liveCanaryScript;
   late String desktopActionCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
+  late String manualProcessChecklist;
 
   setUpAll(() {
     script = File(
@@ -21,6 +23,9 @@ void main() {
     ).readAsStringSync();
     helperSource = File(
       'macos/ComputerUseHelper/ComputerUseHelperApp.swift',
+    ).readAsStringSync();
+    runnerSource = File(
+      'macos/Runner/MainFlutterWindow.swift',
     ).readAsStringSync();
     helperInfoPlist = File(
       'macos/ComputerUseHelper/Info.plist',
@@ -36,6 +41,9 @@ void main() {
     ).readAsStringSync();
     architectureDoc = File(
       'docs/macos_computer_use_helper_architecture.md',
+    ).readAsStringSync();
+    manualProcessChecklist = File(
+      'docs/macos_computer_use_manual_process_checklist.md',
     ).readAsStringSync();
   });
 
@@ -151,15 +159,26 @@ void main() {
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
     expect(helperSource, contains('activate_existing_and_exit'));
+    expect(runnerSource, contains('replacedMismatchedHelperPath'));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));
     expect(smokeTest, contains('single_instance_lock_not_acquired'));
     expect(smokeTest, contains('helper_path_mismatch'));
     expect(smokeTest, contains('duplicate_helper_processes'));
     expect(smokeTest, contains('dock_policy_not_hidden'));
+    expect(smokeTest, contains('overlay_foreground_policy_missing'));
+    expect(smokeTest, contains('overlayIsFloatingPanel'));
     expect(architectureDoc, contains('## Helper Process Policy'));
+    expect(
+      architectureDoc,
+      contains('docs/macos_computer_use_manual_process_checklist.md'),
+    );
     expect(architectureDoc, contains('helperRunningProcessCount'));
     expect(architectureDoc, contains('helperDockPolicy'));
+    expect(manualProcessChecklist, contains('Hidden Helper'));
+    expect(manualProcessChecklist, contains('Path Mismatch'));
+    expect(manualProcessChecklist, contains('Permission Overlay'));
+    expect(manualProcessChecklist, contains('overlayForegroundPolicy'));
   });
 
   test('computer-use live canary avoids TCC-gated smoke checks', () {

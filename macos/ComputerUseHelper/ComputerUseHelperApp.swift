@@ -186,7 +186,12 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       overlayShown: controller.window?.isVisible == true,
       overlayWindowTitle: controller.window?.title ?? "Caverno Computer Use Permission Overlay",
       overlayWindowLevel: controller.window?.level.rawValue,
+      overlayWindowLevelName: controller.overlayWindowLevelName,
       overlayPlacement: controller.overlayPlacement,
+      overlayForegroundPolicy: controller.overlayForegroundPolicy,
+      overlayCollectionBehavior: controller.overlayCollectionBehaviorNames,
+      overlayHidesOnDeactivate: controller.window?.hidesOnDeactivate == true,
+      overlayIsFloatingPanel: (controller.window as? NSPanel)?.isFloatingPanel == true,
       helperBundlePath: helperBundleURL.path,
       draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
       dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
@@ -732,7 +737,12 @@ fileprivate struct PermissionOverlayPresentation {
   let overlayShown: Bool
   let overlayWindowTitle: String
   let overlayWindowLevel: Int?
+  let overlayWindowLevelName: String
   let overlayPlacement: String
+  let overlayForegroundPolicy: String
+  let overlayCollectionBehavior: [String]
+  let overlayHidesOnDeactivate: Bool
+  let overlayIsFloatingPanel: Bool
   let helperBundlePath: String
   let draggableTileReady: Bool
   let dragPasteboardTypes: [String]
@@ -743,7 +753,12 @@ fileprivate struct PermissionOverlayPresentation {
       overlayShown: false,
       overlayWindowTitle: "Caverno Computer Use Permission Overlay",
       overlayWindowLevel: nil,
+      overlayWindowLevelName: "missing",
       overlayPlacement: "delegate_unavailable",
+      overlayForegroundPolicy: "delegate_unavailable",
+      overlayCollectionBehavior: [],
+      overlayHidesOnDeactivate: false,
+      overlayIsFloatingPanel: false,
       helperBundlePath: helperBundleURL.path,
       draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
       dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
@@ -754,7 +769,12 @@ fileprivate struct PermissionOverlayPresentation {
     var map: [String: Any] = [
       "overlayShown": overlayShown,
       "overlayWindowTitle": overlayWindowTitle,
+      "overlayWindowLevelName": overlayWindowLevelName,
       "overlayPlacement": overlayPlacement,
+      "overlayForegroundPolicy": overlayForegroundPolicy,
+      "overlayCollectionBehavior": overlayCollectionBehavior,
+      "overlayHidesOnDeactivate": overlayHidesOnDeactivate,
+      "overlayIsFloatingPanel": overlayIsFloatingPanel,
       "helperBundlePath": helperBundlePath,
       "draggableTileReady": draggableTileReady,
       "dragPasteboardTypes": dragPasteboardTypes,
@@ -813,6 +833,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
   private var dragCueArrow: NSImageView?
   private var dragTile: HelperBundleDragTileView?
   private(set) var overlayPlacement = "screen_fallback"
+  private(set) var overlayForegroundPolicy = "not_shown"
 
   init(
     pane: SettingsPane,
@@ -856,6 +877,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
     }
     positionNearSettings(window)
     window.orderFrontRegardless()
+    overlayForegroundPolicy = "accessory_overlay_front"
     startDragCueAnimation()
     DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) { [weak self, weak window] in
       guard let self, let window else {
@@ -863,6 +885,40 @@ private final class PermissionOverlayWindowController: NSWindowController {
       }
       self.positionNearSettings(window)
     }
+  }
+
+  var overlayWindowLevelName: String {
+    guard let window else {
+      return "missing"
+    }
+    switch window.level {
+    case .floating:
+      return "floating"
+    case .statusBar:
+      return "statusBar"
+    case .modalPanel:
+      return "modalPanel"
+    default:
+      return "\(window.level.rawValue)"
+    }
+  }
+
+  var overlayCollectionBehaviorNames: [String] {
+    guard let window else {
+      return []
+    }
+    let behavior = window.collectionBehavior
+    var names: [String] = []
+    if behavior.contains(.canJoinAllSpaces) {
+      names.append("canJoinAllSpaces")
+    }
+    if behavior.contains(.fullScreenAuxiliary) {
+      names.append("fullScreenAuxiliary")
+    }
+    if behavior.contains(.transient) {
+      names.append("transient")
+    }
+    return names
   }
 
   private func makeContentView() -> NSView {

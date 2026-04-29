@@ -816,6 +816,9 @@ the helper declares the hidden Dock policy, declares single-instance ownership,
 acquires the startup lock, reports at most one running helper process, and
 matches the embedded helper path.
 
+Use `docs/macos_computer_use_manual_process_checklist.md` for the
+user-operated hidden-helper, path-mismatch, and permission-overlay checks.
+
 ## IPC Boundary
 
 The main app should call the helper through a small local IPC surface. XPC is the

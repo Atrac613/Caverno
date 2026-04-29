@@ -1237,10 +1237,18 @@ Map<String, dynamic> _overlaySmokeEntry(
   final settingsOpened = response?['settingsOpened'] == true;
   final permission = response?['permission'];
   final permissionMatches = permission == expectedPermission;
+  final foregroundPolicy =
+      response?['overlayForegroundPolicy'] == 'accessory_overlay_front';
+  final floatingPanel = response?['overlayIsFloatingPanel'] == true;
+  final staysVisible = response?['overlayHidesOnDeactivate'] == false;
   final blockers = <String>[
     if (response == null) 'overlay_response_missing',
     if (response != null && !settingsOpened) 'overlay_settings_not_opened',
     if (response != null && !shown) 'overlay_window_not_shown',
+    if (response != null && !foregroundPolicy)
+      'overlay_foreground_policy_missing',
+    if (response != null && !floatingPanel) 'overlay_not_floating_panel',
+    if (response != null && !staysVisible) 'overlay_hides_on_deactivate',
     if (response != null && !tileReady) 'overlay_tile_not_ready',
     if (response != null && !permissionMatches) 'overlay_permission_mismatch',
   ];
@@ -1252,6 +1260,11 @@ Map<String, dynamic> _overlaySmokeEntry(
     'draggableTileReady': tileReady,
     'reportedPermission': permission,
     'overlayPlacement': response?['overlayPlacement'],
+    'overlayForegroundPolicy': response?['overlayForegroundPolicy'],
+    'overlayWindowLevelName': response?['overlayWindowLevelName'],
+    'overlayCollectionBehavior': response?['overlayCollectionBehavior'],
+    'overlayHidesOnDeactivate': response?['overlayHidesOnDeactivate'],
+    'overlayIsFloatingPanel': response?['overlayIsFloatingPanel'],
     'overlayMode': response?['overlayMode'],
     'helperBundlePath': response?['helperBundlePath'],
     'dragPasteboardTypes': _stringList(response?['dragPasteboardTypes']),

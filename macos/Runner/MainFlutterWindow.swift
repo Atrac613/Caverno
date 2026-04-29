@@ -721,15 +721,17 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
-    if let runningApplication = NSRunningApplication.runningApplications(
+    let helperPath = helperURL.standardizedFileURL.path
+    let runningApplications = NSRunningApplication.runningApplications(
       withBundleIdentifier: helperBundleIdentifier
-    ).first(where: { !$0.isTerminated }) {
+    ).filter { !$0.isTerminated }
+
+    if let runningApplication = runningApplications.first(where: {
+      $0.bundleURL?.standardizedFileURL.path == helperPath
+    }) {
       runningApplication.activate(options: [.activateIgnoringOtherApps])
       var response = status()
       response["alreadyRunning"] = true
-      if response["helperPathMismatch"] as? Bool == true {
-        response["alreadyRunningPathMismatch"] = true
-      }
       for (key, value) in extra {
         response[key] = value
       }
@@ -737,6 +739,50 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
+    let mismatchedApplications = runningApplications.filter {
+      $0.bundleURL?.standardizedFileURL.path != helperPath
+    }
+    if !mismatchedApplications.isEmpty {
+      let processIdentifiers = mismatchedApplications.map { Int($0.processIdentifier) }
+      let paths = mismatchedApplications.map { $0.bundleURL?.standardizedFileURL.path ?? "" }
+      for application in mismatchedApplications {
+        application.terminate()
+      }
+      let startedAt = Date()
+      func waitForMismatchedTermination() {
+        let stillRunning = NSRunningApplication.runningApplications(
+          withBundleIdentifier: helperBundleIdentifier
+        ).contains { application in
+          !application.isTerminated &&
+            application.bundleURL?.standardizedFileURL.path != helperPath
+        }
+        if !stillRunning || Date().timeIntervalSince(startedAt) >= 2 {
+          var launchExtra = extra
+          launchExtra["terminatedMismatchedHelperProcessIdentifiers"] = processIdentifiers
+          launchExtra["terminatedMismatchedHelperPaths"] = paths
+          launchExtra["replacedMismatchedHelperPath"] = true
+          if stillRunning {
+            launchExtra["helperPathMismatchTerminationTimedOut"] = true
+          }
+          openEmbeddedHelper(helperURL: helperURL, extra: launchExtra, result: result)
+          return
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+          waitForMismatchedTermination()
+        }
+      }
+      waitForMismatchedTermination()
+      return
+    }
+
+    openEmbeddedHelper(helperURL: helperURL, extra: extra, result: result)
+  }
+
+  private func openEmbeddedHelper(
+    helperURL: URL,
+    extra: [String: Any],
+    result: @escaping FlutterResult
+  ) {
     MacosComputerUseHelperSharedDiagnostics.remove()
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
