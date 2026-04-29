@@ -78,6 +78,9 @@ echo "Running macOS Computer Use desktop action canary"
 echo "  Purpose: observe the screen, click once, and observe again"
 echo "  TCC boundary: user-operated manual verification only"
 echo "  Safety: prepare a safe click target before running"
+echo "  Safe target: use a visible, harmless target such as an empty text field or test window"
+echo "  Avoid: destructive buttons, purchase flows, send buttons, system controls, and private data"
+echo "  Success phases: pre_observe_image, click_sent, post_observe_image"
 echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
@@ -120,16 +123,53 @@ def classify_failure(gate, blockers):
         return "desktop_action_gate_missing"
 
     blocker_classes = {
-        "initial_vision_observe_failed": "initial_observe_failed",
-        "initial_vision_image_missing": "initial_observe_image_missing",
-        "armed_click_failed_or_skipped": "click_failed_or_skipped",
-        "post_click_vision_observe_failed": "post_click_observe_failed",
-        "post_click_vision_image_missing": "post_click_observe_image_missing",
+        "initial_vision_observe_failed": "target_not_visible",
+        "initial_vision_image_missing": "target_not_visible",
+        "armed_click_failed_or_skipped": "click_not_sent",
+        "post_click_vision_observe_failed": "post_observe_unavailable",
+        "post_click_vision_image_missing": "post_observe_unavailable",
+        "post_click_observation_unchanged": "post_observe_unchanged",
     }
     for blocker in blocker_classes:
         if blocker in blockers:
             return blocker_classes[blocker]
+    if gate.get("postClickChanged") is False:
+        return "post_observe_unchanged"
     return "desktop_action_canary_blocked"
+
+
+def phase_status(gate):
+    if not gate:
+        return {
+            "preObserve": "missing",
+            "click": "missing",
+            "postObserve": "missing",
+            "changedEvidence": "not_measured",
+        }
+    blockers = gate.get("blockers")
+    blockers = blockers if isinstance(blockers, list) else []
+    pre_observe_ready = (
+        gate.get("initialObservationImageAttached") is True
+        and "initial_vision_observe_failed" not in blockers
+    )
+    click_sent = gate.get("clickPassed") is True
+    post_observe_ready = (
+        gate.get("postClickObservationImageAttached") is True
+        and "post_click_vision_observe_failed" not in blockers
+    )
+    changed = gate.get("postClickChanged")
+    return {
+        "preObserve": "ready" if pre_observe_ready else "blocked",
+        "click": "sent" if click_sent else "blocked",
+        "postObserve": "ready" if post_observe_ready else "blocked",
+        "changedEvidence": (
+            "changed"
+            if changed is True
+            else "unchanged"
+            if changed is False
+            else "not_measured"
+        ),
+    }
 
 
 for report_path in sorted(run_dir.glob("run_*.json")):
@@ -159,6 +199,7 @@ for report_path in sorted(run_dir.glob("run_*.json")):
         "status": "passed" if passed else "failed",
         "failureClass": failure_class,
         "gateStatus": gate.get("status", "missing"),
+        "phaseStatus": phase_status(gate),
         "blockers": blockers,
         "report": str(report_path),
         "log": str(log_path),
@@ -175,6 +216,22 @@ summary = {
     "schemaVersion": 1,
     "purpose": "computer_use_desktop_action_canary",
     "tccBoundary": "manual_user_operated",
+    "safeTargetGuidance": [
+        "Use a visible, harmless target such as an empty text field or test window.",
+        "Avoid destructive buttons, purchase flows, send buttons, system controls, and private data.",
+        "Keep the pointer target stable until the post-click observation completes.",
+    ],
+    "expectedPhases": [
+        "pre_observe_image",
+        "click_sent",
+        "post_observe_image",
+    ],
+    "failureClassGuidance": {
+        "target_not_visible": "Initial observation failed or did not include an image.",
+        "click_not_sent": "The armed click did not run.",
+        "post_observe_unavailable": "Post-click observation failed or did not include an image.",
+        "post_observe_unchanged": "Post-click observation was available but did not show a measured change.",
+    },
     "stable": failed_count == 0,
     "runCount": len(runs),
     "passed": passed_count,
@@ -191,23 +248,29 @@ lines = [
     "- Purpose: observe the screen, click once, and observe again",
     "- TCC boundary: user-operated manual verification only",
     "- Safety: user prepares a safe click target before running",
+    "- Safe target: visible harmless target, such as an empty text field or test window",
+    "- Avoid: destructive buttons, purchase flows, send buttons, system controls, and private data",
+    "- Success phases: pre_observe_image, click_sent, post_observe_image",
     f"- Stable: {str(summary['stable']).lower()}",
     f"- Run count: {len(runs)}",
     f"- Passed: {passed_count}",
     f"- Failed: {failed_count}",
     f"- Pass rate: {summary['passRate'] * 100:.1f}%",
     "",
-    "| Run | Status | Failure Class | Gate | Blockers | Artifacts |",
-    "| --- | --- | --- | --- | --- | --- |",
+    "| Run | Status | Failure Class | Phases | Gate | Blockers | Artifacts |",
+    "| --- | --- | --- | --- | --- | --- | --- |",
 ]
 for run in runs:
     blockers = ", ".join(str(item) for item in run.get("blockers") or []) or "-"
+    phases = run.get("phaseStatus") or {}
+    phase_text = "<br>".join(f"{key}: `{value}`" for key, value in phases.items()) or "-"
     artifacts = f"report: `{run['report']}`<br>log: `{run['log']}`"
     lines.append(
-        "| {name} | {status} | {failureClass} | {gateStatus} | {blockers} | {artifacts} |".format(
+        "| {name} | {status} | {failureClass} | {phases} | {gateStatus} | {blockers} | {artifacts} |".format(
             name=run["name"],
             status=run["status"],
             failureClass=run["failureClass"],
+            phases=phase_text,
             gateStatus=run.get("gateStatus", "-"),
             blockers=blockers,
             artifacts=artifacts,

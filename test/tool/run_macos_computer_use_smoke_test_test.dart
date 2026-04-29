@@ -260,12 +260,27 @@ void main() {
       desktopActionCanaryScript,
       contains('Safety: prepare a safe click target before running'),
     );
+    expect(desktopActionCanaryScript, contains('Safe target:'));
+    expect(desktopActionCanaryScript, contains('destructive buttons'));
+    expect(desktopActionCanaryScript, contains('pre_observe_image'));
+    expect(desktopActionCanaryScript, contains('click_sent'));
+    expect(desktopActionCanaryScript, contains('post_observe_image'));
+    expect(desktopActionCanaryScript, contains('target_not_visible'));
+    expect(desktopActionCanaryScript, contains('click_not_sent'));
+    expect(desktopActionCanaryScript, contains('post_observe_unavailable'));
+    expect(desktopActionCanaryScript, contains('post_observe_unchanged'));
+    expect(desktopActionCanaryScript, contains('"safeTargetGuidance"'));
+    expect(desktopActionCanaryScript, contains('"expectedPhases"'));
+    expect(desktopActionCanaryScript, contains('"phaseStatus"'));
     expect(architectureDoc, contains('## Desktop Action Canary'));
     expect(
       architectureDoc,
       contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
     );
     expect(architectureDoc, contains('desktopActionCanaryGate'));
+    expect(architectureDoc, contains('visible harmless target'));
+    expect(architectureDoc, contains('target_not_visible'));
+    expect(architectureDoc, contains('click_not_sent'));
   });
 
   test('dedicated live canary runner reports Computer Use purpose', () {

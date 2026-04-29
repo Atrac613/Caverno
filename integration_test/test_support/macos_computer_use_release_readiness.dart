@@ -412,6 +412,10 @@ ReleaseReadinessGate _desktopActionCanaryGate(
       'runCount': runCount,
       'failed': failed,
       'failureClasses': summary['failureClasses'],
+      'expectedPhases': summary['expectedPhases'],
+      'safeTargetGuidance': summary['safeTargetGuidance'],
+      'failureClassGuidance': summary['failureClassGuidance'],
+      'runs': summary['runs'],
     },
   );
 }

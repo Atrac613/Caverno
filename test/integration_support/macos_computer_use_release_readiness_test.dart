@@ -258,6 +258,21 @@ void main() {
         desktopActionGate.nextAction,
         contains('prepare a safe click target'),
       );
+      expect(
+        desktopActionGate.details['expectedPhases'],
+        contains('pre_observe_image'),
+      );
+      expect(
+        desktopActionGate.details['safeTargetGuidance'],
+        contains('Use a visible, harmless target.'),
+      );
+      expect(
+        desktopActionGate.details['failureClassGuidance'],
+        containsPair('click_not_sent', 'The armed click did not run.'),
+      );
+      final runs = desktopActionGate.details['runs'] as List;
+      final firstRun = Map<String, dynamic>.from(runs.first as Map);
+      expect(firstRun['phaseStatus'], containsPair('click', 'blocked'));
     });
 
     test(
@@ -468,7 +483,35 @@ Map<String, dynamic> _desktopActionSummary({required int failed}) {
     'passRate': failed == 0 ? 1 : 0,
     'failureClasses': failed == 0
         ? <String, int>{'passed': 1}
-        : <String, int>{'click_failed_or_skipped': 1},
+        : <String, int>{'click_not_sent': 1},
+    'expectedPhases': <String>[
+      'pre_observe_image',
+      'click_sent',
+      'post_observe_image',
+    ],
+    'safeTargetGuidance': <String>[
+      'Use a visible, harmless target.',
+      'Avoid destructive controls.',
+    ],
+    'failureClassGuidance': <String, String>{
+      'target_not_visible': 'Initial observation failed.',
+      'click_not_sent': 'The armed click did not run.',
+      'post_observe_unavailable': 'Post-click observation failed.',
+      'post_observe_unchanged': 'Post-click observation did not change.',
+    },
+    'runs': <Map<String, dynamic>>[
+      <String, dynamic>{
+        'name': 'run_01',
+        'status': failed == 0 ? 'passed' : 'failed',
+        'failureClass': failed == 0 ? 'passed' : 'click_not_sent',
+        'phaseStatus': <String, String>{
+          'preObserve': 'ready',
+          'click': failed == 0 ? 'sent' : 'blocked',
+          'postObserve': failed == 0 ? 'ready' : 'blocked',
+          'changedEvidence': 'not_measured',
+        },
+      },
+    ],
   };
 }
 

@@ -35,6 +35,11 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_desktop_action_canary.sh
    ```
 
+   Use a visible harmless target, such as an empty text field or test window.
+   Avoid destructive buttons, purchase flows, send buttons, system controls,
+   and private data. The MVP success phases are `pre_observe_image`,
+   `click_sent`, and `post_observe_image`.
+
 5. Aggregate MVP readiness with the user-produced reports:
 
    ```bash

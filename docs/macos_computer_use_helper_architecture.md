@@ -353,8 +353,15 @@ The runner writes
 `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json` and
 `.md` under `build/integration_test_reports/`. The summary schema is
 `macos_computer_use_desktop_action_canary_summary`, and each run classifies
-failures such as `initial_observe_failed`, `click_failed_or_skipped`, and
-`post_click_observe_failed`.
+failures such as `target_not_visible`, `click_not_sent`,
+`post_observe_unavailable`, and `post_observe_unchanged`.
+
+The user must prepare a visible harmless target, such as an empty text field or
+test window, and avoid destructive buttons, purchase flows, send buttons,
+system controls, and private data. The current MVP success contract is
+`pre_observe_image`, `click_sent`, and `post_observe_image`; visible post-click
+change is tracked only when the runtime report includes explicit change
+evidence.
 
 The LLM live canaries and the Computer Use live canary cover different risks.
 `tool/run_plan_mode_ping_cli_live_canary.sh` validates the live LLM,
