@@ -403,7 +403,8 @@ action canary for the user.
 Running the MVP wrapper before both user-produced reports are available is the
 standard handoff check. The generated handoff lists missing manual inputs,
 validates whether provided paths exist, and prints the next user-operated
-command for each missing gate.
+command for each missing gate. Add `--dry-run` to validate that handoff without
+running the final release readiness aggregation.
 
 To refresh only non-TCC inputs before producing the readiness report, run:
 

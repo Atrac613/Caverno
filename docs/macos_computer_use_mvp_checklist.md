@@ -47,6 +47,13 @@ or run the user-operated desktop action on the user's behalf.
    `macos_computer_use_mvp_handoff.md` with the missing manual inputs and the
    exact user-operated commands to request next.
 
+   Use `--dry-run` when checking the handoff text without running the final
+   release readiness aggregation:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_signoff.sh --dry-run
+   ```
+
 ## MVP Ready Criteria
 
 - `release_artifact`: ready.

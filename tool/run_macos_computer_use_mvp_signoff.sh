@@ -8,6 +8,7 @@ MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
 DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
 REFRESH_SAFE_INPUTS=0
 REFRESH_LLM_CANARY=0
+DRY_RUN=0
 OUTPUT_JSON=""
 OUTPUT_MD=""
 HANDOFF_MD=""
@@ -22,6 +23,7 @@ Options:
   --desktop-action-canary-summary PATH User-produced desktop action canary summary.
   --refresh-safe-inputs               Refresh non-TCC M7/history inputs.
   --refresh-llm-canary                Refresh LLM canary when CAVERNO_LLM_* is set.
+  --dry-run                           Write handoff and print aggregation command only.
   --output-json PATH                  Override MVP readiness JSON output.
   --output-md PATH                    Override MVP readiness Markdown output.
   --handoff-md PATH                   Override user handoff Markdown output.
@@ -63,6 +65,10 @@ while [[ $# -gt 0 ]]; do
       ;;
     --refresh-llm-canary)
       REFRESH_LLM_CANARY=1
+      shift
+      ;;
+    --dry-run)
+      DRY_RUN=1
       shift
       ;;
     --output-json)
@@ -190,6 +196,7 @@ echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not prov
 echo "  Desktop action canary status: ${desktop_action_status}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
+echo "  Dry run: ${DRY_RUN}"
 echo "  Output JSON: ${OUTPUT_JSON}"
 echo "  Output Markdown: ${OUTPUT_MD}"
 echo "  Handoff Markdown: ${HANDOFF_MD}"
@@ -232,6 +239,13 @@ if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
 fi
 if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
   readiness_args+=(--desktop-action-canary-summary "${DESKTOP_ACTION_CANARY_SUMMARY}")
+fi
+
+if [[ "${DRY_RUN}" == "1" ]]; then
+  printf 'Dry run: would execute: bash tool/run_macos_computer_use_release_readiness.sh'
+  printf ' %q' "${readiness_args[@]}"
+  printf '\n'
+  exit 0
 fi
 
 bash tool/run_macos_computer_use_release_readiness.sh "${readiness_args[@]}"

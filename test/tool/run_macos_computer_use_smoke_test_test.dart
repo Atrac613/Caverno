@@ -367,11 +367,13 @@ void main() {
       mvpChecklist,
       contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
     );
+    expect(mvpChecklist, contains('--dry-run'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
     expect(mvpSignoffScript, contains('Current Manual Input Status'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
     expect(mvpSignoffScript, contains('provided path not found'));
+    expect(mvpSignoffScript, contains('Dry run: would execute'));
     expect(
       mvpSignoffScript,
       contains('user-operated manual verification only'),
@@ -392,4 +394,99 @@ void main() {
       contains('docs/macos_computer_use_mvp_checklist.md'),
     );
   });
+
+  test('MVP sign-off dry run writes missing manual input handoff', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_missing_',
+    );
+    try {
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Dry run: 1'));
+      expect(stdout, contains('Manual TCC status: not provided'));
+      expect(stdout, contains('Desktop action canary status: not provided'));
+      expect(
+        stdout,
+        contains('manual_tcc: ask the user for manual_tcc_report_summary.json'),
+      );
+      expect(
+        stdout,
+        contains('desktop_action_canary: ask the user for canary_summary.json'),
+      );
+      expect(stdout, contains('Dry run: would execute'));
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('Manual TCC status: not provided'));
+      expect(handoff, contains('Desktop action canary status: not provided'));
+      expect(handoff, contains('Missing Input Next Actions'));
+      expect(
+        handoff,
+        contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+      );
+      expect(
+        handoff,
+        contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
+      );
+      expect(
+        File('${root.path}/macos_computer_use_mvp_readiness.json').existsSync(),
+        isFalse,
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test(
+    'MVP sign-off dry run validates provided manual artifact paths',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_paths_',
+      );
+      try {
+        final desktopSummary = File('${root.path}/canary_summary.json')
+          ..writeAsStringSync('{"ok":true}\n');
+        final missingManualReport = '${root.path}/missing_manual_tcc.json';
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+          '--manual-tcc-report',
+          missingManualReport,
+          '--desktop-action-canary-summary',
+          desktopSummary.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(stdout, contains('Manual TCC status: provided path not found'));
+        expect(stdout, contains('Desktop action canary status: provided'));
+        expect(stdout, contains('--manual-tcc-report $missingManualReport'));
+        expect(
+          stdout,
+          contains('--desktop-action-canary-summary ${desktopSummary.path}'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('Manual TCC status: provided path not found'));
+        expect(handoff, contains('Desktop action canary status: provided'));
+        expect(handoff, contains(missingManualReport));
+        expect(handoff, contains(desktopSummary.path));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
 }
