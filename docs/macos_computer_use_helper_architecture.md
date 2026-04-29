@@ -251,9 +251,9 @@ Follow-on milestones:
 - M5: Connect the vision LLM loop to the approved helper tool surface.
 - M6: Harden the observe-action-observe loop so multimodal desktop tasks can
   safely propose, approve, execute, and verify one step at a time.
-- M7: Run release-helper sign-off against the release
-  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` bundle identity. M7
-  is the next active milestone after the 2026-04-29 M6 debug sign-off.
+- M7: Complete release-helper sign-off against the release
+  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` bundle identity,
+  signing chain, LaunchAgent plist, and MachService declaration.
 
 Current M5 implementation status:
 
@@ -342,6 +342,51 @@ M6 live sign-off notes:
   passed with `visionObservationGate.status: ready`,
   `observeActionObserveGate.status: ready`, `readinessExpectations.ok: true`,
   and `m4SignoffGate.status: ready`.
+
+Current M7 implementation status:
+
+- M7 is implemented as a release artifact sign-off gate.
+- `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff` now expands to
+  a release macOS build plus strict release helper diagnostics.
+- The release smoke report uses schema version 2 and includes
+  `releaseSignoffGate`, `releaseRuntimeReadiness`, and expanded
+  `releaseBundle` command diagnostics.
+- The runner records app, helper, LaunchAgent plist, MachService, deep
+  codesign, bundle identifier, and LaunchAgent signing-constraint checks in
+  the report before exiting non-zero for required sign-off blockers.
+- Release runtime TCC remains a separate installed-app check. The artifact gate
+  reports `releaseRuntimeReadiness.status: not_measured` with the exact helper
+  path and required macOS permissions so the manual release grant can be
+  tracked without confusing it with bundle assembly or signing failures.
+
+M7 acceptance criteria:
+
+- `--m7-signoff` builds the release app and verifies the release helper is
+  embedded at `Caverno.app/Contents/Helpers/Caverno Computer Use.app`.
+- The release report is written even when helper embedding, plist, MachService,
+  codesign, identifier, or LaunchAgent signing constraints are blocked.
+- `releaseSignoffGate.status` is `ready` only when the release helper bundle,
+  LaunchAgent, MachService declaration, deep codesign verification, expected
+  bundle identifiers, and LaunchAgent signing constraints are all ready.
+- A blocked release sign-off exits non-zero after writing the report and prints
+  the M7 summary with concrete blockers and next actions.
+- The report calls out that release TCC runtime readiness is not measured by
+  the artifact gate and must be completed against an installed release app.
+
+M7 release sign-off notes:
+
+- 2026-04-29: `flutter test test/tool/run_macos_computer_use_smoke_test_test.dart -r compact`
+  passed the script contract tests for the M7 runner flags, release report
+  schema, and report-before-fail behavior.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`
+  built the release app and passed with `releaseSignoffGate.status: ready`,
+  `blockers: []`, expected app and helper bundle identifiers, a valid
+  LaunchAgent plist, declared MachService, deep codesign verification, and no
+  LaunchAgent signing-constraint blockers.
+- The same run reported `releaseRuntimeReadiness.status: not_measured`; the
+  remaining release runtime task is to install and launch the release app,
+  grant Accessibility plus Screen & System Audio Recording to the release
+  helper, and run a live runtime smoke against that installed app.
 
 Current M2 implementation status:
 
@@ -529,9 +574,11 @@ probe retries the named service so launchd cold starts are recorded as attempts
 instead of hiding the final readiness result. Add `--cleanup-xpc-agent` when a
 run should unregister the LaunchAgent after the production gate has been
 measured. Add `--release` to run the release bundle artifact checks and emit the
-same JSON marker/report path as live smoke. Flutter Driver does not support
-release-mode desktop correctness runs, so runtime named-XPC smoke should use
-debug or profile mode.
+same JSON marker/report path as live smoke. Use `--m7-signoff` when the release
+artifact gate is required to fail on blocked helper, plist, MachService,
+codesign, bundle identifier, or LaunchAgent signing-constraint checks. Flutter
+Driver does not support release-mode desktop correctness runs, so runtime
+named-XPC smoke should use debug or profile mode.
 
 Release builds should use the same embedded helper and LaunchAgent layout as
 debug builds. Before notarization work, run:
@@ -544,7 +591,15 @@ Then verify `Caverno.app` still contains
 the helper, LaunchAgent plist, Mach service declaration, and valid signature,
 run:
 
-`bash tool/run_macos_computer_use_smoke_test.sh --release --strict-xpc --cleanup-xpc-agent`
+`bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`
+
+The M7 report includes `releaseSignoffGate`. A ready gate requires the release
+app bundle, embedded helper bundle, LaunchAgent plist, MachService declaration,
+deep codesign verification, expected bundle identifiers, and LaunchAgent
+signing constraints to pass. A blocked gate exits non-zero only after writing
+the report and printing the M7 summary. `releaseRuntimeReadiness.status` remains
+`not_measured` until an installed release app is launched and granted
+Accessibility plus Screen & System Audio Recording in macOS Privacy & Security.
 
 To exercise named XPC with a built app runtime, run:
 
