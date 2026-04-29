@@ -147,6 +147,10 @@ void main() {
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
     expect(helperSource, contains('activate_existing_and_exit'));
+    expect(smokeTest, contains('helperProcessPolicyGate'));
+    expect(smokeTest, contains('helper_process_policy'));
+    expect(smokeTest, contains('duplicate_helper_processes'));
+    expect(smokeTest, contains('dock_policy_not_hidden'));
     expect(architectureDoc, contains('## Helper Process Policy'));
     expect(architectureDoc, contains('helperRunningProcessCount'));
     expect(architectureDoc, contains('helperDockPolicy'));
@@ -225,6 +229,7 @@ void main() {
     expect(liveCanaryScript, contains('ipc_not_ready'));
     expect(liveCanaryScript, contains('helper_ping_failed'));
     expect(liveCanaryScript, contains('permission_status_failed'));
+    expect(liveCanaryScript, contains('helper_process_policy_failed'));
     expect(liveCanaryScript, contains('cleanup_failed'));
     expect(liveCanaryScript, contains('"failureClasses": failure_classes'));
     expect(liveCanaryScript, contains('"stabilityMode": stability_mode'));

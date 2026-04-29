@@ -807,7 +807,10 @@ for an existing non-terminated helper with the same bundle identifier. If one is
 already running, the new process activates the existing helper and exits before
 starting IPC. Main-app status diagnostics expose `helperRunningProcessCount`,
 `singleInstanceExpected`, and `helperDockPolicy` so duplicate helper processes
-remain visible in reports.
+remain visible in reports. Smoke reports promote those diagnostics into
+`helperProcessPolicyGate`; the gate is ready only when the helper declares the
+hidden Dock policy, declares single-instance ownership, and reports at most one
+running helper process.
 
 ## IPC Boundary
 

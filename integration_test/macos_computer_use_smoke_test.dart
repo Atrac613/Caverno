@@ -634,6 +634,10 @@ void main() {
       runOverlaySmoke: _runOverlaySmoke,
     );
     report['permissionGate'] = _permissionGate(permissions);
+    report['helperProcessPolicyGate'] = _helperProcessPolicyGate(
+      steps,
+      helperStatus: helperStatus,
+    );
     report['captureGate'] = _captureGate(steps, permissions: permissions);
     report['visionObservationGate'] = _visionObservationGate(steps);
     report['observeActionObserveGate'] = _observeActionObserveGate(steps);
@@ -695,6 +699,9 @@ void main() {
       report['ok'] = false;
     }
     if (readinessExpectations['ok'] == false) {
+      report['ok'] = false;
+    }
+    if (!_gateReady(report['helperProcessPolicyGate'])) {
       report['ok'] = false;
     }
     if (_strict && _registerXpcAgent && !xpcProductionOk) {
@@ -1317,6 +1324,74 @@ Map<String, dynamic> _onboardingTransitionGate({
   };
 }
 
+Map<String, dynamic> _helperProcessPolicyGate(
+  List<Map<String, dynamic>> steps, {
+  required Map<String, dynamic>? helperStatus,
+}) {
+  final snapshots = <Map<String, dynamic>>[
+    for (final step in steps) ?_mapValue(step['result']),
+    ?helperStatus,
+  ];
+  final observed = snapshots
+      .where((snapshot) {
+        return snapshot.containsKey('helperRunningProcessCount') ||
+            snapshot.containsKey('helperDockPolicy') ||
+            snapshot.containsKey('singleInstanceExpected');
+      })
+      .toList(growable: false);
+  final counts = observed
+      .map((snapshot) => _intValue(snapshot['helperRunningProcessCount']))
+      .whereType<int>()
+      .toList(growable: false);
+  final duplicateProcessIdentifiers = <int>{
+    for (final snapshot in observed)
+      for (final identifier in _intList(
+        snapshot['helperDuplicateProcessIdentifiers'],
+      ))
+        identifier,
+  }.toList(growable: false);
+  final maxProcessCount = counts.isEmpty
+      ? null
+      : counts.reduce((left, right) => left > right ? left : right);
+  final singleInstanceExpected = observed.any(
+    (snapshot) => snapshot['singleInstanceExpected'] == true,
+  );
+  final hiddenDockPolicy = observed.any(
+    (snapshot) => snapshot['helperDockPolicy'] == 'agent_hidden_from_dock',
+  );
+  final singleProcess = maxProcessCount != null && maxProcessCount <= 1;
+  final ready =
+      observed.isNotEmpty &&
+      singleInstanceExpected &&
+      hiddenDockPolicy &&
+      singleProcess &&
+      duplicateProcessIdentifiers.isEmpty;
+  final blockers = <String>[
+    if (observed.isEmpty) 'helper_process_policy_missing',
+    if (observed.isNotEmpty && !singleInstanceExpected)
+      'single_instance_policy_missing',
+    if (observed.isNotEmpty && !hiddenDockPolicy) 'dock_policy_not_hidden',
+    if (maxProcessCount == null) 'helper_process_count_missing',
+    if (maxProcessCount != null && maxProcessCount > 1)
+      'duplicate_helper_processes',
+    if (duplicateProcessIdentifiers.isNotEmpty)
+      'duplicate_helper_process_identifiers_reported',
+  ];
+  return {
+    'status': ready ? 'ready' : 'blocked',
+    'ok': ready,
+    'singleInstanceExpected': singleInstanceExpected,
+    'helperDockPolicy': hiddenDockPolicy ? 'agent_hidden_from_dock' : 'unknown',
+    'maxHelperRunningProcessCount': maxProcessCount,
+    'observedSnapshotCount': observed.length,
+    'duplicateProcessIdentifiers': duplicateProcessIdentifiers,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Computer Use helper is running as a single hidden agent process.'
+        : 'Quit duplicate Caverno Computer Use processes, relaunch from Caverno, then rerun smoke.',
+  };
+}
+
 Map<String, dynamic> _captureGate(
   List<Map<String, dynamic>> steps, {
   required Map<String, dynamic>? permissions,
@@ -1811,6 +1886,12 @@ Map<String, dynamic> _computerUseLiveCanaryGate({
       'status': _stepPassed(permissions) ? 'ready' : 'blocked',
     },
     {
+      'id': 'helper_process_policy',
+      'label': 'Hidden single helper process',
+      'ok': _gateReady(report['helperProcessPolicyGate']),
+      'status': _gateStatus(report['helperProcessPolicyGate']),
+    },
+    {
       'id': 'stop_helper_work',
       'label': 'Stop helper work',
       'ok': _stepPassed(stop),
@@ -2294,6 +2375,13 @@ List<String> _stringList(Object? value) {
       .map((item) => '$item')
       .where((item) => item.isNotEmpty)
       .toList(growable: false);
+}
+
+List<int> _intList(Object? value) {
+  if (value is! List) {
+    return const [];
+  }
+  return value.map(_intValue).whereType<int>().toList(growable: false);
 }
 
 List<Map<String, dynamic>> _positiveSmokeGates(

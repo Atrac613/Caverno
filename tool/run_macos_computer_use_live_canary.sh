@@ -151,6 +151,7 @@ def classify_failure(gate, blockers):
         "helper_ipc_ready": "ipc_not_ready",
         "helper_ping": "helper_ping_failed",
         "permission_status": "permission_status_failed",
+        "helper_process_policy": "helper_process_policy_failed",
         "stop_helper_work": "cleanup_failed",
     }
     for blocker in blocker_classes:
