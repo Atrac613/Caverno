@@ -1204,6 +1204,7 @@ class _ComputerUseOnboardingCardState
     final readinessExpectations = _mapValue(
       liveSmokeReport?['readinessExpectations'],
     );
+    final m4SignoffGate = _mapValue(liveSmokeReport?['m4SignoffGate']);
     final preferredAttempt =
         _mapValue(snapshot['preferredIpcAttempt']) ??
         _mapValue(snapshot['lastPreferredIpcAttempt']);
@@ -1318,6 +1319,7 @@ class _ComputerUseOnboardingCardState
       'unsafeActionGate': unsafeActionGate,
       'positiveSmokeGateSummary': positiveSmokeGateSummary,
       'readinessExpectations': readinessExpectations,
+      'm4SignoffGate': m4SignoffGate,
       'xpcProductionReadinessCriteria':
           snapshot['xpcProductionReadinessCriteria'] ??
           MacosComputerUseIpc.current.xpcProductionReadinessCriteria,
@@ -1934,6 +1936,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
       runtime['positiveSmokeGateSummary'],
     );
     final readinessExpectations = _mapValue(runtime['readinessExpectations']);
+    final m4SignoffGate = _mapValue(runtime['m4SignoffGate']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -1973,6 +1976,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
       positiveSmokeGateSummary?['blockedBy'],
     );
     final failedExpectations = _stringList(readinessExpectations?['failed']);
+    final m4SignoffBlockers = _stringList(m4SignoffGate?['blockers']);
     final launchAgentStatus = runtime['xpcLaunchAgentStatus'];
     final launchAgentPlistInstalled = runtime['xpcLaunchAgentPlistInstalled'];
     final productionReady = runtime['xpcProductionReadyMeasured'] == true;
@@ -2217,6 +2221,16 @@ class _IpcRuntimeSummary extends StatelessWidget {
                     ? 'passed'
                     : 'failed',
               ),
+            if (m4SignoffGate != null)
+              _InfoChip(
+                label: 'M4 sign-off',
+                value: '${m4SignoffGate['status']}',
+              ),
+            if (m4SignoffBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'M4 blockers',
+                value: m4SignoffBlockers.join(', '),
+              ),
             if (failedExpectations.isNotEmpty)
               _InfoChip(
                 label: 'Failed expectations',
@@ -2421,6 +2435,7 @@ class _LiveSmokeSummary extends StatelessWidget {
       report['positiveSmokeGateSummary'],
     );
     final readinessExpectations = _mapValue(report['readinessExpectations']);
+    final m4SignoffGate = _mapValue(report['m4SignoffGate']);
     final signingBlockers = _stringList(
       signingDiagnostics?['launchConstraintBlockers'],
     );
@@ -2436,6 +2451,7 @@ class _LiveSmokeSummary extends StatelessWidget {
       positiveSmokeGateSummary?['blockedBy'],
     );
     final failedExpectations = _stringList(readinessExpectations?['failed']);
+    final m4SignoffBlockers = _stringList(m4SignoffGate?['blockers']);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2530,6 +2546,13 @@ class _LiveSmokeSummary extends StatelessWidget {
                 trueText: 'Passed',
                 falseText: 'Failed',
               ),
+            if (m4SignoffGate != null)
+              _StatusChip(
+                label: 'Live M4 Sign-off',
+                value: m4SignoffGate['status'] == 'ready',
+                trueText: 'Ready',
+                falseText: '${m4SignoffGate['status']}',
+              ),
           ],
         ),
         if (signingBlockers.isNotEmpty ||
@@ -2540,6 +2563,7 @@ class _LiveSmokeSummary extends StatelessWidget {
             audioBlockers.isNotEmpty ||
             unsafeBlockers.isNotEmpty ||
             positiveSmokeBlockers.isNotEmpty ||
+            m4SignoffBlockers.isNotEmpty ||
             failedExpectations.isNotEmpty) ...[
           const SizedBox(height: 4),
           Text(
@@ -2560,6 +2584,8 @@ class _LiveSmokeSummary extends StatelessWidget {
                 'unsafe: ${unsafeBlockers.join(', ')}',
               if (positiveSmokeBlockers.isNotEmpty)
                 'positive smoke: ${positiveSmokeBlockers.join(', ')}',
+              if (m4SignoffBlockers.isNotEmpty)
+                'm4: ${m4SignoffBlockers.join(', ')}',
               if (failedExpectations.isNotEmpty)
                 'expectations: ${failedExpectations.join(', ')}',
             ].join(' | '),

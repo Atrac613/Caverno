@@ -9,6 +9,7 @@ REPORTER="${CAVERNO_MACOS_COMPUTER_USE_REPORTER:-compact}"
 BUILD_MODE="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_BUILD_MODE:-debug}"
 STRICT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT:-0}"
 STRICT_XPC="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC:-0}"
+M4_SIGNOFF="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_M4_SIGNOFF:-0}"
 UNSAFE_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED:-0}"
 UNSAFE_CLICK_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED:-0}"
 UNSAFE_TEXT_ARMED="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED:-0}"
@@ -42,6 +43,18 @@ while [[ $# -gt 0 ]]; do
     --strict-xpc)
       STRICT_XPC=1
       REGISTER_XPC_AGENT=1
+      shift
+      ;;
+    --m4-signoff)
+      M4_SIGNOFF=1
+      STRICT_XPC=1
+      REGISTER_XPC_AGENT=1
+      UNSAFE_ARMED=1
+      REQUIRE_CAPTURE_READY=1
+      REQUIRE_AUDIO_RESOLVED=1
+      RUN_OVERLAY_SMOKE=1
+      REQUIRE_OVERLAY_READY=1
+      REQUIRE_ONBOARDING_TRANSITION=1
       shift
       ;;
     --debug|--profile|--release)
@@ -117,6 +130,7 @@ echo "  Reporter: ${REPORTER}"
 echo "  Build mode: ${BUILD_MODE}"
 echo "  Strict: ${STRICT}"
 echo "  Strict XPC: ${STRICT_XPC}"
+echo "  M4 sign-off: ${M4_SIGNOFF}"
 echo "  Unsafe armed: ${UNSAFE_ARMED}"
 echo "  Unsafe click armed: ${UNSAFE_CLICK_ARMED}"
 echo "  Unsafe text armed: ${UNSAFE_TEXT_ARMED}"
@@ -132,6 +146,7 @@ echo "  Report: ${REPORT_PATH}"
 
 STRICT_DART="$(dart_bool_define "${STRICT}")"
 STRICT_XPC_DART="$(dart_bool_define "${STRICT_XPC}")"
+M4_SIGNOFF_DART="$(dart_bool_define "${M4_SIGNOFF}")"
 UNSAFE_ARMED_DART="$(dart_bool_define "${UNSAFE_ARMED}")"
 UNSAFE_CLICK_ARMED_DART="$(dart_bool_define "${UNSAFE_CLICK_ARMED}")"
 UNSAFE_TEXT_ARMED_DART="$(dart_bool_define "${UNSAFE_TEXT_ARMED}")"
@@ -149,6 +164,7 @@ cd "${ROOT_DIR}"
 COMMON_DART_DEFINES=(
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT="${STRICT_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC="${STRICT_XPC_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_M4_SIGNOFF="${M4_SIGNOFF_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED="${UNSAFE_ARMED_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED="${UNSAFE_CLICK_ARMED_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_TEXT_ARMED="${UNSAFE_TEXT_ARMED_DART}"
@@ -197,6 +213,7 @@ case "${BUILD_MODE}" in
     RELEASE_AGENT="${RELEASE_AGENT}" \
     STRICT_DART="${STRICT_DART}" \
     STRICT_XPC_DART="${STRICT_XPC_DART}" \
+    M4_SIGNOFF_DART="${M4_SIGNOFF_DART}" \
     REGISTER_XPC_AGENT_DART="${REGISTER_XPC_AGENT_DART}" \
     CLEANUP_XPC_AGENT_DART="${CLEANUP_XPC_AGENT_DART}" \
       python3 - <<'PY'
@@ -299,6 +316,7 @@ report = {
     "buildMode": "release",
     "strict": os.environ["STRICT_DART"] == "true",
     "strictXpc": os.environ["STRICT_XPC_DART"] == "true",
+    "m4Signoff": os.environ["M4_SIGNOFF_DART"] == "true",
     "registerXpcAgent": os.environ["REGISTER_XPC_AGENT_DART"] == "true",
     "cleanupXpcAgent": os.environ["CLEANUP_XPC_AGENT_DART"] == "true",
     "ok": True,

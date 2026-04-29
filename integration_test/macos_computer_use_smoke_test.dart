@@ -9,6 +9,9 @@ const _strict = bool.fromEnvironment('CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT');
 const _strictXpc = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_STRICT_XPC',
 );
+const _m4Signoff = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_M4_SIGNOFF',
+);
 const _unsafeArmed = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_ARMED',
 );
@@ -59,6 +62,7 @@ void main() {
       'generatedAt': DateTime.now().toIso8601String(),
       'strict': _strict,
       'strictXpc': _strictXpc,
+      'm4Signoff': _m4Signoff,
       'unsafeArmed': _unsafeArmed,
       'unsafeClickArmed': _unsafeClickArmed,
       'unsafeTextArmed': _unsafeTextArmed,
@@ -571,6 +575,10 @@ void main() {
     report['requiredPositiveSmokeOk'] = requiredPositiveSmokeOk;
     final readinessExpectations = _readinessExpectations(report);
     report['readinessExpectations'] = readinessExpectations;
+    report['m4SignoffGate'] = _m4SignoffGate(
+      helperStatus: helperStatus,
+      report: report,
+    );
     if (_strict && !requiredPositiveSmokeOk) {
       report['ok'] = false;
     }
@@ -586,6 +594,10 @@ void main() {
           _registerXpcAgent &&
           xpcProductionOk &&
           (!_cleanupXpcAgent || _xpcLaunchAgentNotRegistered(xpcAgentCleanup));
+    }
+    if (_m4Signoff) {
+      report['ok'] =
+          report['ok'] == true && _gateReady(report['m4SignoffGate']);
     }
     _printReport(report);
 
@@ -643,6 +655,14 @@ void main() {
         isTrue,
         reason:
             'Onboarding transition smoke must observe the Allow row placeholder and overlay animation target.',
+      );
+    }
+    if (_m4Signoff) {
+      expect(
+        _gateReady(report['m4SignoffGate']),
+        isTrue,
+        reason:
+            'M4 sign-off requires ready capture, audio, overlay, onboarding transition, helper path, and named XPC gates.',
       );
     }
     if (_strictXpc) {
@@ -1276,6 +1296,160 @@ Map<String, dynamic> _audioGate(
   };
 }
 
+Map<String, dynamic> _m4SignoffGate({
+  required Map<String, dynamic>? helperStatus,
+  required Map<String, dynamic> report,
+}) {
+  final permissionGate = _mapValue(report['permissionGate']);
+  final captureGate = _mapValue(report['captureGate']);
+  final audioGate = _mapValue(report['audioGate']);
+  final overlaySmoke = _mapValue(report['overlaySmoke']);
+  final onboardingTransitionGate = _mapValue(
+    report['onboardingTransitionGate'],
+  );
+  final xpcProductionGate = _mapValue(report['xpcProductionGate']);
+  final xpcRuntimeDiagnostics = _mapValue(report['xpcRuntimeDiagnostics']);
+  final helperPath = _m4HelperPathEvidence(
+    steps: _stepsValue(report['steps']),
+    fallback: helperStatus,
+  );
+  final checks = [
+    {
+      'id': 'helper_path',
+      'label': 'Embedded helper path',
+      'ok': helperPath['pathMatches'] == true,
+      'status': helperPath['status'],
+      'nextAction': helperPath['nextAction'],
+    },
+    {
+      'id': 'permissions',
+      'label': 'Required macOS permissions',
+      'ok': permissionGate?['status'] == 'clear',
+      'status': permissionGate?['status'] ?? 'missing',
+      'nextAction':
+          permissionGate?['blockers'] is List &&
+              (permissionGate?['blockers'] as List).isNotEmpty
+          ? 'Grant the missing macOS permissions to Caverno Computer Use, then rerun --m4-signoff.'
+          : 'Required permission gate is clear.',
+    },
+    {
+      'id': 'capture',
+      'label': 'Screen capture',
+      'ok': _gateReady(captureGate),
+      'status': _gateStatus(captureGate),
+      'nextAction': _gateNextAction(captureGate),
+    },
+    {
+      'id': 'audio',
+      'label': 'System audio',
+      'ok': _audioGateResolved(audioGate),
+      'status': _gateStatus(audioGate),
+      'nextAction': _gateNextAction(audioGate),
+    },
+    {
+      'id': 'overlay',
+      'label': 'Permission overlay',
+      'ok': _gateReady(overlaySmoke),
+      'status': _gateStatus(overlaySmoke),
+      'nextAction': _gateNextAction(overlaySmoke),
+    },
+    {
+      'id': 'onboarding_transition',
+      'label': 'Onboarding Allow transition',
+      'ok': _gateReady(onboardingTransitionGate),
+      'status': _gateStatus(onboardingTransitionGate),
+      'nextAction': _gateNextAction(onboardingTransitionGate),
+    },
+    {
+      'id': 'xpc',
+      'label': 'LaunchAgent named XPC',
+      'ok':
+          report['xpcProductionOk'] == true &&
+          xpcProductionGate?['productionReady'] == true &&
+          (xpcRuntimeDiagnostics?['blockers'] is! List ||
+              (xpcRuntimeDiagnostics?['blockers'] as List).isEmpty),
+      'status': report['xpcProductionOk'] == true ? 'ready' : 'blocked',
+      'nextAction': report['xpcProductionOk'] == true
+          ? 'Named XPC is production ready.'
+          : 'Resolve LaunchAgent named XPC blockers, then rerun --m4-signoff.',
+    },
+  ];
+  final failed = checks
+      .where((check) => check['ok'] != true)
+      .map((check) => check['id'])
+      .whereType<String>()
+      .toList(growable: false);
+  return {
+    'status': failed.isEmpty ? 'ready' : 'blocked',
+    'required': _m4Signoff,
+    'checks': checks,
+    'failed': failed,
+    'blockers': [
+      for (final check in checks)
+        if (check['ok'] != true) check['id'],
+    ],
+    'helperPath': helperPath,
+    'nextAction': failed.isEmpty
+        ? 'M4 sign-off is complete.'
+        : 'Resolve the failed M4 sign-off checks, then rerun --m4-signoff.',
+  };
+}
+
+Map<String, dynamic> _m4HelperPathEvidence({
+  required List<Map<String, dynamic>> steps,
+  required Map<String, dynamic>? fallback,
+}) {
+  final snapshots = <Map<String, dynamic>>[
+    for (final step in steps) ?_mapValue(step['result']),
+    ?fallback,
+  ];
+  String? embeddedPath;
+  String? runningPath;
+  String? diagnosticsBundlePath;
+  bool pathMatches = false;
+  for (final snapshot in snapshots) {
+    embeddedPath ??= _stringValue(snapshot['embeddedHelperPath']);
+    runningPath ??= _stringValue(snapshot['runningHelperPath']);
+    if (snapshot['helperPathMatchesRunningHelper'] == true) {
+      pathMatches = true;
+    }
+    final diagnostics = _mapValue(snapshot['helperSharedDiagnostics']);
+    diagnosticsBundlePath ??= _stringValue(diagnostics?['helperBundlePath']);
+  }
+  final expectedPath = embeddedPath;
+  final diagnosticsMatches =
+      expectedPath != null && diagnosticsBundlePath == expectedPath;
+  final runningMatches = expectedPath != null && runningPath == expectedPath;
+  final exact = pathMatches || runningMatches || diagnosticsMatches;
+  final evidence = <String, dynamic>{
+    'status': exact ? 'matched' : 'blocked',
+    'pathMatches': exact,
+    'nextAction': exact
+        ? 'The running or diagnosed helper matches the embedded helper path.'
+        : 'Launch the embedded Caverno Computer Use helper and rerun --m4-signoff.',
+  };
+  if (expectedPath != null) {
+    evidence['embeddedHelperPath'] = expectedPath;
+  }
+  if (runningPath != null) {
+    evidence['runningHelperPath'] = runningPath;
+  }
+  if (diagnosticsBundlePath != null) {
+    evidence['diagnosticsHelperBundlePath'] = diagnosticsBundlePath;
+  }
+  return evidence;
+}
+
+List<Map<String, dynamic>> _stepsValue(Object? value) {
+  if (value is! List) {
+    return const [];
+  }
+  return [
+    for (final entry in value)
+      if (entry is Map) Map<String, dynamic>.from(entry),
+  ];
+}
+
 Map<String, dynamic> _unsafeActionGate({
   required bool unsafeArmed,
   required bool unsafeClickArmed,
@@ -1407,6 +1581,13 @@ Map<String, dynamic>? _mapValue(Object? value) {
   }
   if (value is Map) {
     return Map<String, dynamic>.from(value);
+  }
+  return null;
+}
+
+String? _stringValue(Object? value) {
+  if (value is String && value.isNotEmpty) {
+    return value;
   }
   return null;
 }

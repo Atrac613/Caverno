@@ -239,7 +239,9 @@ Follow-on milestones:
   action hardening using the live smoke gates and chat approval flow.
 - M3: Promote named XPC and LaunchAgent registration to the production IPC
   path.
-- M4: Connect the vision LLM loop to the approved helper tool surface.
+- M4: Complete embedded-helper Screen & System Audio Recording, overlay, and
+  onboarding sign-off with one strict live smoke gate.
+- M5: Connect the vision LLM loop to the approved helper tool surface.
 
 Current M2 implementation status:
 
@@ -287,6 +289,42 @@ M2 live sign-off notes:
   `permissionStatus` request after helper replacement and reports
   `helperPathMismatchInvalidatesSignoff` when a standalone helper produced
   otherwise passing capture, input, or audio results.
+
+## M4 Sign-Off Gate
+
+M4 is the embedded-helper production sign-off for macOS permissions and helper
+onboarding. Run:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
+
+This expands to strict LaunchAgent-backed XPC, unsafe arming for the optional
+system-audio check, required capture readiness, required overlay readiness, and
+required onboarding Allow-transition readiness. The live smoke report includes
+`m4SignoffGate`, which is ready only when:
+
+- the running or diagnosed helper matches the embedded
+  `Caverno.app/Contents/Helpers/Caverno Computer Use.app` path;
+- Accessibility and Screen & System Audio Recording are granted to that helper;
+- display and window capture pass;
+- system audio is either ready or unsupported on the runtime;
+- both permission overlays show a draggable helper tile;
+- the onboarding Allow row transition targets the overlay window;
+- LaunchAgent named XPC is production ready with no runtime blockers.
+
+If macOS TCC is not yet granted for the embedded helper, `--m4-signoff` fails
+with `m4SignoffGate.status: blocked` and lists concrete blockers such as
+`permissions`, `capture`, or `audio`. Use the blocker list plus the embedded
+helper path in the report to finish the manual grant, then rerun the same
+command.
+
+M4 live sign-off notes:
+
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m4-signoff`
+  exercised the combined gate. Helper path, overlay readiness, onboarding
+  transition, non-destructive input, and LaunchAgent named XPC were ready.
+  `m4SignoffGate` remained `blocked` only by `permissions`, `capture`, and
+  `audio` because Screen & System Audio Recording is still not granted to the
+  embedded helper path.
 
 ## App Responsibilities
 

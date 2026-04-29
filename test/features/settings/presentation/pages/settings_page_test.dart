@@ -246,8 +246,11 @@ void main() {
     );
     expect(find.text('Readiness expectations: failed'), findsOneWidget);
     expect(find.text('Failed expectations: capture_ready'), findsOneWidget);
+    expect(find.text('M4 sign-off: blocked'), findsOneWidget);
+    expect(find.text('M4 blockers: permissions, capture'), findsOneWidget);
     expect(find.text('Live Positive Smoke: blocked'), findsOneWidget);
     expect(find.text('Live Expectations: Failed'), findsOneWidget);
+    expect(find.text('Live M4 Sign-off: blocked'), findsOneWidget);
   });
 
   testWidgets('shows recent redacted audit entries in the Settings card', (
@@ -783,6 +786,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'readinessExpectations': {
           'ok': false,
           'failed': ['capture_ready'],
+        },
+        'm4SignoffGate': {
+          'status': 'blocked',
+          'blockers': ['permissions', 'capture'],
         },
         'signingDiagnostics': {
           'launchConstraintLikelyAccepted': true,
