@@ -101,6 +101,16 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
           json.containsKey('releaseRuntimeSignoffGate'),
     ),
     _latestEntry(
+      'desktop_action_canary',
+      'Latest desktop action canary summary',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_desktop_action_canary_summary',
+      parentPrefix: 'macos_computer_use_desktop_action_canary_',
+      fileName: 'canary_summary.json',
+    ),
+    _latestEntry(
       'llm_canary',
       'Latest LLM canary summary',
       reportRoot,

@@ -45,6 +45,9 @@ const _requireVisionObserve = bool.fromEnvironment(
 const _requireObserveActionObserve = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OBSERVE_ACTION_OBSERVE',
 );
+const _requireDesktopActionCanary = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_DESKTOP_ACTION_CANARY',
+);
 const _requireComputerUseLiveCanary = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_LIVE_CANARY',
 );
@@ -83,6 +86,7 @@ void main() {
       'requireOnboardingTransition': _requireOnboardingTransition,
       'requireVisionObserve': _requireVisionObserve,
       'requireObserveActionObserve': _requireObserveActionObserve,
+      'requireDesktopActionCanary': _requireDesktopActionCanary,
       'requireComputerUseLiveCanary': _requireComputerUseLiveCanary,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
@@ -476,11 +480,12 @@ void main() {
             : 'Unsafe smoke actions are not armed.',
       );
     }
+    Map<String, dynamic>? desktopActionClick;
     if (_unsafeArmed &&
         _unsafeClickArmed &&
         permissions?['accessibilityGranted'] == true &&
         permissions?['screenCaptureGranted'] == true) {
-      await _runStep(
+      desktopActionClick = await _runStep(
         steps,
         'input_click',
         'Click once after explicit click smoke arming',
@@ -498,6 +503,27 @@ void main() {
         _unsafeClickArmed
             ? 'Accessibility or Screen Recording permission is not granted.'
             : 'Click smoke actions require unsafe click arming.',
+      );
+    }
+    if (_requireDesktopActionCanary && _stepPassed(desktopActionClick)) {
+      await _runStep(
+        steps,
+        'desktop_action_post_click_vision_observe',
+        'Observe again after the armed pointer click',
+        () => service.visionObserve(const {
+          'target': 'front_window',
+          'max_width': 400,
+          'include_windows': true,
+        }),
+      );
+    } else {
+      _skipStep(
+        steps,
+        'desktop_action_post_click_vision_observe',
+        'Observe again after the armed pointer click',
+        _requireDesktopActionCanary
+            ? 'Pointer click did not run, so post-click observation was skipped.'
+            : 'Desktop action canary is opt-in. Rerun with --desktop-action-canary.',
       );
     }
     if (_unsafeArmed &&
@@ -611,6 +637,7 @@ void main() {
     report['captureGate'] = _captureGate(steps, permissions: permissions);
     report['visionObservationGate'] = _visionObservationGate(steps);
     report['observeActionObserveGate'] = _observeActionObserveGate(steps);
+    report['desktopActionCanaryGate'] = _desktopActionCanaryGate(steps);
     report['inputGate'] = _inputGate(
       steps,
       permissions: permissions,
@@ -756,6 +783,14 @@ void main() {
         isTrue,
         reason:
             'Observe-action-observe smoke must observe, run one armed action, and observe again.',
+      );
+    }
+    if (_requireDesktopActionCanary) {
+      expect(
+        _gateReady(report['desktopActionCanaryGate']),
+        isTrue,
+        reason:
+            'Desktop action canary must observe, run one armed click, and observe again.',
       );
     }
     if (_requireComputerUseLiveCanary) {
@@ -1397,6 +1432,56 @@ Map<String, dynamic> _observeActionObserveGate(
     'nextAction': ready
         ? 'Observe-action-observe smoke is ready.'
         : 'Rerun smoke with --require-observe-action-observe after resolving blockers.',
+  };
+}
+
+Map<String, dynamic> _desktopActionCanaryGate(
+  List<Map<String, dynamic>> steps,
+) {
+  final firstObservation = _stepStatusById(steps, 'vision_observe');
+  final click = _stepStatusById(steps, 'input_click');
+  final postObservation = _stepStatusById(
+    steps,
+    'desktop_action_post_click_vision_observe',
+  );
+  final firstResult =
+      _mapValue(firstObservation['result']) ?? const <String, dynamic>{};
+  final postResult =
+      _mapValue(postObservation['result']) ?? const <String, dynamic>{};
+  final firstImage = _hasAttachedOrCompactedImage(firstResult);
+  final postImage = _hasAttachedOrCompactedImage(postResult);
+  final ready =
+      firstObservation['passed'] == true &&
+      firstResult['ok'] == true &&
+      firstImage &&
+      click['passed'] == true &&
+      postObservation['passed'] == true &&
+      postResult['ok'] == true &&
+      postImage;
+  final blockers = <String>[
+    if (firstObservation['passed'] != true || firstResult['ok'] != true)
+      'initial_vision_observe_failed',
+    if (firstObservation['passed'] == true && !firstImage)
+      'initial_vision_image_missing',
+    if (click['passed'] != true) 'armed_click_failed_or_skipped',
+    if (postObservation['passed'] != true || postResult['ok'] != true)
+      'post_click_vision_observe_failed',
+    if (postObservation['passed'] == true && !postImage)
+      'post_click_vision_image_missing',
+  ];
+  return {
+    'status': ready ? 'ready' : 'blocked',
+    'ok': ready,
+    'purpose': 'computer_use_desktop_action_canary',
+    'tccBoundary': 'manual_user_operated',
+    'requiredAction': 'computer_click',
+    'initialObservationImageAttached': firstImage,
+    'clickPassed': click['passed'] == true,
+    'postClickObservationImageAttached': postImage,
+    'blockers': blockers,
+    'nextAction': ready
+        ? 'Desktop action canary observed, clicked, and observed again.'
+        : 'Ask the user to grant required TCC permissions, place the pointer target safely, then rerun --desktop-action-canary.',
   };
 }
 
@@ -2405,6 +2490,9 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
   final observeActionObserveReady = _gateReady(
     report['observeActionObserveGate'],
   );
+  final desktopActionCanaryReady = _gateReady(
+    report['desktopActionCanaryGate'],
+  );
   final onboardingTransitionReady = _gateReady(
     report['onboardingTransitionGate'],
   );
@@ -2450,6 +2538,13 @@ Map<String, dynamic> _readinessExpectations(Map<String, dynamic> report) {
       'ok': !_requireObserveActionObserve || observeActionObserveReady,
       'status': _gateStatus(report['observeActionObserveGate']),
       'nextAction': _gateNextAction(report['observeActionObserveGate']),
+    },
+    {
+      'id': 'desktop_action_canary_ready',
+      'required': _requireDesktopActionCanary,
+      'ok': !_requireDesktopActionCanary || desktopActionCanaryReady,
+      'status': _gateStatus(report['desktopActionCanaryGate']),
+      'nextAction': _gateNextAction(report['desktopActionCanaryGate']),
     },
     {
       'id': 'onboarding_transition_ready',

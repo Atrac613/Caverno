@@ -119,6 +119,8 @@ class ReleaseReadinessInputs {
     required this.releaseReportPath,
     required this.computerUseHistory,
     required this.computerUseHistoryPath,
+    required this.desktopActionCanarySummary,
+    required this.desktopActionCanarySummaryPath,
     required this.manualTccReport,
     required this.manualTccReportPath,
     required this.llmCanarySummary,
@@ -129,6 +131,8 @@ class ReleaseReadinessInputs {
   final String? releaseReportPath;
   final ComputerUseCanaryHistory? computerUseHistory;
   final String? computerUseHistoryPath;
+  final Map<String, dynamic>? desktopActionCanarySummary;
+  final String? desktopActionCanarySummaryPath;
   final ManualTccReportSummary? manualTccReport;
   final String? manualTccReportPath;
   final Map<String, dynamic>? llmCanarySummary;
@@ -143,6 +147,10 @@ ReleaseReadinessSummary buildReleaseReadinessSummary(
     _computerUseCanaryGate(
       inputs.computerUseHistory,
       inputs.computerUseHistoryPath,
+    ),
+    _desktopActionCanaryGate(
+      inputs.desktopActionCanarySummary,
+      inputs.desktopActionCanarySummaryPath,
     ),
     _manualTccGate(inputs.manualTccReport, inputs.manualTccReportPath),
     _llmCanaryGate(inputs.llmCanarySummary, inputs.llmCanarySummaryPath),
@@ -159,6 +167,7 @@ ReleaseReadinessInputs readReleaseReadinessInputs({
   required Directory reportRoot,
   String? releaseReportPath,
   String? computerUseHistoryPath,
+  String? desktopActionCanarySummaryPath,
   String? manualTccReportPath,
   String? llmCanarySummaryPath,
   int computerUseHistoryLimit = 10,
@@ -169,6 +178,9 @@ ReleaseReadinessInputs readReleaseReadinessInputs({
   final manualTccReportFile = manualTccReportPath == null
       ? discoverLatestManualTccReport(reportRoot)
       : File(manualTccReportPath);
+  final desktopActionCanarySummaryFile = desktopActionCanarySummaryPath == null
+      ? discoverLatestDesktopActionCanarySummary(reportRoot)
+      : File(desktopActionCanarySummaryPath);
   final llmCanarySummaryFile = llmCanarySummaryPath == null
       ? discoverLatestLlmCanarySummary(reportRoot)
       : File(llmCanarySummaryPath);
@@ -185,6 +197,8 @@ ReleaseReadinessInputs readReleaseReadinessInputs({
       computerUseHistoryLimit,
     ),
     computerUseHistoryPath: historyFile.path,
+    desktopActionCanarySummary: _readJsonObject(desktopActionCanarySummaryFile),
+    desktopActionCanarySummaryPath: desktopActionCanarySummaryFile?.path,
     manualTccReport: manualTccReportFile == null
         ? null
         : _readManualTccSummaryOrReport(manualTccReportFile),
@@ -225,6 +239,21 @@ File? discoverLatestManualTccReport(Directory reportRoot) {
     return left.file.path.compareTo(right.file.path);
   });
   return candidates.isEmpty ? null : candidates.last.file;
+}
+
+File? discoverLatestDesktopActionCanarySummary(Directory reportRoot) {
+  final candidates =
+      _jsonFiles(reportRoot)
+          .where(
+            (file) =>
+                _basename(
+                  file.parent.path,
+                ).startsWith('macos_computer_use_desktop_action_canary_') &&
+                _basename(file.path) == 'canary_summary.json',
+          )
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  return candidates.isEmpty ? null : candidates.last;
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
@@ -341,6 +370,44 @@ ReleaseReadinessGate _manualTccGate(
           .toList(growable: false),
       'appPath': manualTccReport.appPath,
       'helperPath': manualTccReport.helperPath,
+    },
+  );
+}
+
+ReleaseReadinessGate _desktopActionCanaryGate(
+  Map<String, dynamic>? summary,
+  String? summaryPath,
+) {
+  if (summary == null) {
+    return const ReleaseReadinessGate(
+      id: 'desktop_action_canary',
+      label: 'Desktop action canary',
+      status: 'manual_required',
+      ready: false,
+      nextAction:
+          'Ask the user to run the desktop action canary after granting TCC permissions.',
+    );
+  }
+
+  final runCount = _intValue(summary['runCount']);
+  final failed = _intValue(summary['failed']);
+  final stable = summary['stable'] == true;
+  final ready = runCount > 0 && failed == 0 && stable;
+  return ReleaseReadinessGate(
+    id: 'desktop_action_canary',
+    label: 'Desktop action canary',
+    status: ready ? 'passed' : 'blocked',
+    ready: ready,
+    nextAction: ready
+        ? 'Desktop action canary is passing.'
+        : 'Ask the user to prepare a safe click target, rerun the canary, and provide its summary.',
+    artifactPath: summaryPath,
+    details: <String, Object?>{
+      'purpose': summary['purpose'],
+      'tccBoundary': summary['tccBoundary'],
+      'runCount': runCount,
+      'failed': failed,
+      'failureClasses': summary['failureClasses'],
     },
   );
 }

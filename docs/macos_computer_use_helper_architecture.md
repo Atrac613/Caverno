@@ -305,11 +305,47 @@ Screen & System Audio Recording, screenshot capture, or live desktop actions.
 Those TCC checks remain user-operated manual sign-off steps after the user
 grants permissions.
 
+## Desktop Action Canary
+
+The desktop action canary is the first live Computer Use canary that proves the
+helper can see the desktop, perform one explicit click, and see the desktop
+again. It is intentionally separate from the helper-runtime live canary because
+it crosses the macOS TCC boundary and can mutate foreground app state.
+
+Scope:
+
+- Read the current desktop through `computer_vision_observe`.
+- Run one explicitly armed `computer_click`.
+- Run a second `computer_vision_observe` and require an attached image.
+- Report the result through `desktopActionCanaryGate`.
+
+Non-goals:
+
+- Automating TCC grants or operating System Settings on behalf of the user.
+- Proving arbitrary LLM-chosen click safety.
+- Replacing the LLM/tool-loop canary or the manual M8 TCC sign-off.
+
+Manual run after the user grants Accessibility and Screen & System Audio
+Recording and prepares a safe click target:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh
+```
+
+The runner writes
+`macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json` and
+`.md` under `build/integration_test_reports/`. The summary schema is
+`macos_computer_use_desktop_action_canary_summary`, and each run classifies
+failures such as `initial_observe_failed`, `click_failed_or_skipped`, and
+`post_click_observe_failed`.
+
 The LLM live canaries and the Computer Use live canary cover different risks.
 `tool/run_plan_mode_ping_cli_live_canary.sh` validates the live LLM,
 tool-calling, saved-task recovery, and coding workflow behavior.
 `tool/run_macos_computer_use_live_canary.sh` validates the macOS Computer Use
-helper runtime. Passing either canary does not replace the other.
+helper runtime. `tool/run_macos_computer_use_desktop_action_canary.sh`
+validates manual TCC-gated desktop action execution. Passing any one canary
+does not replace the others.
 
 To compare recent Computer Use canary runs without launching the helper, run:
 
@@ -379,6 +415,8 @@ The gate evaluates:
 - M7 release artifact sign-off through `releaseSignoffGate`.
 - Computer Use helper runtime stability through
   `macos_computer_use_canary_history.json` or recent live canary summaries.
+- Desktop action execution through the latest user-run
+  `macos_computer_use_desktop_action_canary_summary`.
 - Manual TCC sign-off through the user-produced M8 runtime report or
   `manual_tcc_report_summary.json`.
 - LLM/tool-loop readiness through the latest Plan Mode ping CLI canary summary.
@@ -421,6 +459,7 @@ pre-manual-TCC state is:
 
 - `release_artifact`: ready.
 - `computer_use_canary`: stable.
+- `desktop_action_canary`: passed.
 - `llm_canary`: passed or explicitly refreshed and passed.
 - `manual_tcc`: `manual_required` until the user provides the M8 report.
 

@@ -17,6 +17,8 @@ void main() {
           releaseReportPath: '/tmp/m7.json',
           computerUseHistory: _computerUseHistory(stable: true),
           computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
           manualTccReport: _manualTccReport(status: 'ready'),
           manualTccReportPath: '/tmp/m8.json',
           llmCanarySummary: _llmSummary(failedCount: 0),
@@ -44,6 +46,8 @@ void main() {
           releaseReportPath: '/tmp/m7.json',
           computerUseHistory: _computerUseHistory(stable: true),
           computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
           manualTccReport: null,
           manualTccReportPath: null,
           llmCanarySummary: _llmSummary(failedCount: 0),
@@ -73,6 +77,8 @@ void main() {
           releaseReportPath: '/tmp/m7.json',
           computerUseHistory: _computerUseHistory(stable: true),
           computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
           manualTccReport: manualTcc,
           manualTccReportPath: '/tmp/m8.json',
           llmCanarySummary: _llmSummary(failedCount: 0),
@@ -121,6 +127,12 @@ void main() {
       );
       _writeJson(
         File(
+          '${root.path}/macos_computer_use_desktop_action_canary_200/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
           '${root.path}/macos_computer_use_live_canary_100/canary_summary.json',
         ),
         <String, Object?>{
@@ -143,6 +155,12 @@ void main() {
       expect(
         inputs.llmCanarySummaryPath,
         endsWith('plan_mode_ping_cli_canary_200/canary_summary.json'),
+      );
+      expect(
+        inputs.desktopActionCanarySummaryPath,
+        endsWith(
+          'macos_computer_use_desktop_action_canary_200/canary_summary.json',
+        ),
       );
       expect(summary.ready, isTrue);
     });
@@ -174,6 +192,8 @@ void main() {
           releaseReportPath: '/tmp/m7.json',
           computerUseHistory: _computerUseHistory(stable: true),
           computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
           manualTccReport: _manualTccReport(status: 'ready'),
           manualTccReportPath: '/tmp/m8.json',
           llmCanarySummary: _llmSummary(failedCount: 1),
@@ -187,6 +207,33 @@ void main() {
       expect(summary.ready, isFalse);
       expect(llmGate.status, 'blocked');
       expect(llmGate.nextAction, contains('LLM canary failure classes'));
+    });
+
+    test('surfaces blocked desktop action canary as a release blocker', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 1),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _llmSummary(failedCount: 0),
+          llmCanarySummaryPath: '/tmp/llm.json',
+        ),
+      );
+
+      final desktopActionGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'desktop_action_canary',
+      );
+      expect(summary.ready, isFalse);
+      expect(desktopActionGate.status, 'blocked');
+      expect(
+        desktopActionGate.nextAction,
+        contains('prepare a safe click target'),
+      );
     });
 
     test(
@@ -208,6 +255,8 @@ void main() {
         expect(wrapper, contains('--ci'));
         expect(wrapper, contains('--signoff'));
         expect(wrapper, contains('--manual-tcc-report'));
+        expect(cli, contains('--desktop-action-canary-summary'));
+        expect(wrapper, contains('--desktop-action-canary-summary'));
         expect(
           wrapper,
           contains(r'macos_computer_use_release_readiness_${PRESET}.json'),
@@ -250,12 +299,19 @@ void main() {
           ),
           _llmSummary(failedCount: 0),
         );
+        _writeJson(
+          File(
+            '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+          ),
+          _desktopActionSummary(failed: 0),
+        );
 
         final index = buildReadinessArtifactIndex(root);
         final entryIds = index.entries.map((entry) => entry.id).toSet();
 
         expect(entryIds, contains('release_artifact'));
         expect(entryIds, contains('manual_tcc'));
+        expect(entryIds, contains('desktop_action_canary'));
         expect(entryIds, contains('llm_canary'));
         expect(
           index.entries
@@ -361,6 +417,22 @@ Map<String, dynamic> _llmSummary({required int failedCount}) {
     'failureClassCounts': failedCount == 0
         ? <String, int>{'passed': 1}
         : <String, int>{'tool_loop_blocked': 1},
+  };
+}
+
+Map<String, dynamic> _desktopActionSummary({required int failed}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_desktop_action_canary_summary',
+    'purpose': 'computer_use_desktop_action_canary',
+    'tccBoundary': 'manual_user_operated',
+    'stable': failed == 0,
+    'runCount': 1,
+    'passed': failed == 0 ? 1 : 0,
+    'failed': failed,
+    'passRate': failed == 0 ? 1 : 0,
+    'failureClasses': failed == 0
+        ? <String, int>{'passed': 1}
+        : <String, int>{'click_failed_or_skipped': 1},
   };
 }
 

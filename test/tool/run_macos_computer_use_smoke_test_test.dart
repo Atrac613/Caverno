@@ -4,7 +4,9 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String script;
+  late String smokeTest;
   late String liveCanaryScript;
+  late String desktopActionCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
 
@@ -12,8 +14,14 @@ void main() {
     script = File(
       'tool/run_macos_computer_use_smoke_test.sh',
     ).readAsStringSync();
+    smokeTest = File(
+      'integration_test/macos_computer_use_smoke_test.dart',
+    ).readAsStringSync();
     liveCanaryScript = File(
       'tool/run_macos_computer_use_live_canary.sh',
+    ).readAsStringSync();
+    desktopActionCanaryScript = File(
+      'tool/run_macos_computer_use_desktop_action_canary.sh',
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
@@ -135,6 +143,42 @@ void main() {
     expect(liveCanaryScript, isNot(contains('--require-vision-observe')));
   });
 
+  test('desktop action canary requires a user-operated click loop', () {
+    expect(script, contains('--desktop-action-canary'));
+    expect(script, contains('REQUIRE_DESKTOP_ACTION_CANARY=1'));
+    expect(script, contains('UNSAFE_CLICK_ARMED=1'));
+    expect(
+      script,
+      contains(
+        '--dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_DESKTOP_ACTION_CANARY',
+      ),
+    );
+    expect(smokeTest, contains('desktopActionCanaryGate'));
+    expect(smokeTest, contains('desktop_action_post_click_vision_observe'));
+    expect(
+      desktopActionCanaryScript,
+      contains('macOS Computer Use desktop action canary'),
+    );
+    expect(
+      desktopActionCanaryScript,
+      contains('macos_computer_use_desktop_action_canary_summary'),
+    );
+    expect(
+      desktopActionCanaryScript,
+      contains('TCC boundary: user-operated manual verification only'),
+    );
+    expect(
+      desktopActionCanaryScript,
+      contains('Safety: prepare a safe click target before running'),
+    );
+    expect(architectureDoc, contains('## Desktop Action Canary'));
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
+    );
+    expect(architectureDoc, contains('desktopActionCanaryGate'));
+  });
+
   test('dedicated live canary runner reports Computer Use purpose', () {
     expect(liveCanaryScript, contains('macOS Computer Use live canary'));
     expect(liveCanaryScript, contains('computer_use_helper_runtime_canary'));
@@ -204,9 +248,7 @@ void main() {
     expect(architectureDoc, contains('--exit-policy ci'));
     expect(architectureDoc, contains('Manual TCC intake uses this handoff'));
     expect(architectureDoc, contains('manual_required'));
-    expect(
-      architectureDoc,
-      contains('Passing either canary does not replace the other.'),
-    );
+    expect(architectureDoc, contains('desktop_action_canary'));
+    expect(architectureDoc, contains('Passing any one canary'));
   });
 }

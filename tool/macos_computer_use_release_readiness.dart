@@ -10,6 +10,7 @@ Future<void> main(List<String> args) async {
   var exitPolicy = 'strict';
   String? releaseReportPath;
   String? computerUseHistoryPath;
+  String? desktopActionCanarySummaryPath;
   String? manualTccReportPath;
   String? llmCanarySummaryPath;
   String? outputJsonPath;
@@ -42,6 +43,14 @@ Future<void> main(List<String> args) async {
           return _usageError('--manual-tcc-report requires a value.');
         }
         manualTccReportPath = args[index];
+      case '--desktop-action-canary-summary':
+        index += 1;
+        if (index >= args.length) {
+          return _usageError(
+            '--desktop-action-canary-summary requires a value.',
+          );
+        }
+        desktopActionCanarySummaryPath = args[index];
       case '--llm-canary-summary':
         index += 1;
         if (index >= args.length) {
@@ -107,6 +116,7 @@ Future<void> main(List<String> args) async {
     reportRoot: reportRoot,
     releaseReportPath: releaseReportPath,
     computerUseHistoryPath: computerUseHistoryPath,
+    desktopActionCanarySummaryPath: desktopActionCanarySummaryPath,
     manualTccReportPath: manualTccReportPath,
     llmCanarySummaryPath: llmCanarySummaryPath,
     computerUseHistoryLimit: historyLimit,
@@ -138,7 +148,8 @@ void _printUsage() {
   stdout.writeln(
     'Usage: dart run tool/macos_computer_use_release_readiness.dart '
     '[--root path] [--release-report path] [--computer-use-history path] '
-    '[--manual-tcc-report path] [--llm-canary-summary path] '
+    '[--desktop-action-canary-summary path] [--manual-tcc-report path] '
+    '[--llm-canary-summary path] '
     '[--history-limit count] [--refresh-safe-inputs] [--exit-policy strict|ci] '
     '[--output-json path] [--output-md path]',
   );

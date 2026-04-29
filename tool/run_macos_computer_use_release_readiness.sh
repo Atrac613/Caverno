@@ -6,6 +6,7 @@ ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 PRESET="ci"
 REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_READINESS_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
+DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
 REFRESH_SAFE_INPUTS=1
 REFRESH_LLM_CANARY=0
 LLM_CANARY_PROMPT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_PROMPT:-Create a Python CLI script that pings a specific host.}"
@@ -22,6 +23,7 @@ Options:
   --signoff                Use strict exit policy for release sign-off.
   --root PATH              Report root directory.
   --manual-tcc-report PATH User-produced M8 runtime report or summary.
+  --desktop-action-canary-summary PATH User-produced desktop action canary summary.
   --no-refresh             Do not refresh M7 or Computer Use canary history.
   --refresh-llm-canary     Run the LLM canary only when CAVERNO_LLM_* is set.
   --llm-canary-prompt TEXT Override the LLM canary prompt.
@@ -57,6 +59,14 @@ while [[ $# -gt 0 ]]; do
         exit 64
       fi
       MANUAL_TCC_REPORT="$2"
+      shift 2
+      ;;
+    --desktop-action-canary-summary)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--desktop-action-canary-summary requires a value." >&2
+        exit 64
+      fi
+      DESKTOP_ACTION_CANARY_SUMMARY="$2"
       shift 2
       ;;
     --no-refresh)
@@ -144,6 +154,10 @@ if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   COMMAND+=(--manual-tcc-report "${MANUAL_TCC_REPORT}")
 fi
 
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  COMMAND+=(--desktop-action-canary-summary "${DESKTOP_ACTION_CANARY_SUMMARY}")
+fi
+
 if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
   COMMAND+=("${EXTRA_ARGS[@]}")
 fi
@@ -160,6 +174,11 @@ if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   echo "  Manual TCC report: ${MANUAL_TCC_REPORT}"
 else
   echo "  Manual TCC report: discovery only"
+fi
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY}"
+else
+  echo "  Desktop action canary summary: discovery only"
 fi
 echo "  TCC boundary: user-operated manual verification only"
 
