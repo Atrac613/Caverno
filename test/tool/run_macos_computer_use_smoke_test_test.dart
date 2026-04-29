@@ -426,6 +426,12 @@ void main() {
     expect(llmDecisionCanaryScript, contains('llm_env_missing'));
     expect(llmDecisionCanaryScript, contains('computer_click'));
     expect(llmDecisionCanaryScript, contains('CAVERNO_LLM_BASE_URL'));
+    expect(
+      llmDecisionCanaryScript,
+      contains(
+        'Set CAVERNO_LLM_BASE_URL before running the macOS Computer Use LLM decision canary.',
+      ),
+    );
     expect(llmDecisionCanaryScript, contains('--fixture-response PATH'));
     expect(llmDecisionCanaryScript, contains('--scenario NAME'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture'));
@@ -450,6 +456,12 @@ void main() {
     expect(
       mvpFixtureLlmCanaryScript,
       contains('macos_computer_use_mvp_fixture_llm_canary_summary'),
+    );
+    expect(
+      mvpFixtureLlmCanaryScript,
+      contains(
+        'Set CAVERNO_LLM_BASE_URL before running the macOS Computer Use MVP fixture LLM canary.',
+      ),
     );
     expect(mvpFixtureLlmCanaryScript, contains('mvp-fixture'));
     expect(mvpFixtureLlmCanaryScript, contains('mvp-fixture-type-confirm'));

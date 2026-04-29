@@ -74,6 +74,12 @@ if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   exit 64
 fi
 
+if [[ -z "${CLICK_FIXTURE_RESPONSE}" || -z "${TYPE_FIXTURE_RESPONSE}" ]]; then
+  : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the macOS Computer Use MVP fixture LLM canary.}"
+  : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the macOS Computer Use MVP fixture LLM canary.}"
+  : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the macOS Computer Use MVP fixture LLM canary.}"
+fi
+
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_mvp_fixture_llm_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"

@@ -28,6 +28,10 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_llm_decision_canary.sh
    ```
 
+   The Computer Use LLM canaries use the same live LLM setting contract as the
+   coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
+   `CAVERNO_LLM_MODEL`.
+
    To validate the MVP-style fixture scenario without moving the pointer or
    typing, run:
 

@@ -37,9 +37,11 @@ Or run both fixture planning scenarios and produce one aggregate summary:
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 ```
 
-These commands require `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
-`CAVERNO_LLM_MODEL` when not using `--fixture-response`. They do not move the
-pointer, click, type, or operate System Settings.
+These commands intentionally use the same live LLM setting contract as the
+coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
+`CAVERNO_LLM_MODEL`. Set those three variables when not using
+`--fixture-response`. They do not move the pointer, click, type, or operate
+System Settings.
 
 Expected LLM behavior:
 

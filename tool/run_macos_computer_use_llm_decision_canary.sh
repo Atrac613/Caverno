@@ -83,6 +83,12 @@ case "${SCENARIO}" in
     ;;
 esac
 
+if [[ -z "${FIXTURE_RESPONSE}" ]]; then
+  : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the macOS Computer Use LLM decision canary.}"
+  : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the macOS Computer Use LLM decision canary.}"
+  : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the macOS Computer Use LLM decision canary.}"
+fi
+
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_llm_decision_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
