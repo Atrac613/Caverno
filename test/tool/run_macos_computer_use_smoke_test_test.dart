@@ -126,6 +126,9 @@ void main() {
     expect(script, contains('REQUIRE_AUDIO_RESOLVED=0'));
     expect(script, contains('REQUIRE_VISION_OBSERVE=0'));
     expect(script, contains('UNSAFE_ARMED=0'));
+    expect(liveCanaryScript, isNot(contains('--m8-runtime-signoff')));
+    expect(liveCanaryScript, isNot(contains('--require-capture')));
+    expect(liveCanaryScript, isNot(contains('--require-vision-observe')));
   });
 
   test('dedicated live canary runner reports Computer Use purpose', () {
@@ -136,8 +139,31 @@ void main() {
       contains('TCC boundary: user-operated manual verification only'),
     );
     expect(liveCanaryScript, contains('--computer-use-live-canary'));
-    expect(liveCanaryScript, isNot(contains('--require-capture')));
-    expect(liveCanaryScript, isNot(contains('--require-vision-observe')));
+    expect(liveCanaryScript, contains('--ci'));
+    expect(liveCanaryScript, contains('--manual|--local'));
+    expect(liveCanaryScript, contains('--repeat'));
+    expect(liveCanaryScript, contains('Manual TCC follow-up'));
+    expect(liveCanaryScript, contains('classify_failure'));
+    expect(liveCanaryScript, contains('helper_status_failed'));
+    expect(liveCanaryScript, contains('ipc_not_ready'));
+    expect(liveCanaryScript, contains('helper_ping_failed'));
+    expect(liveCanaryScript, contains('permission_status_failed'));
+    expect(liveCanaryScript, contains('cleanup_failed'));
+    expect(liveCanaryScript, contains('"failureClasses": failure_classes'));
     expect(architectureDoc, contains('## Computer Use Live Canary'));
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_live_canary.sh --ci'),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'bash tool/run_macos_computer_use_live_canary.sh --manual --repeat 3',
+      ),
+    );
+    expect(
+      architectureDoc,
+      contains('Passing either canary does not replace the other.'),
+    );
   });
 }

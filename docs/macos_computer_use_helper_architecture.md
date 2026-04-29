@@ -277,19 +277,33 @@ Run:
 bash tool/run_macos_computer_use_live_canary.sh
 ```
 
-Optional repeat count:
+CI-style run:
 
 ```bash
-CAVERNO_MACOS_COMPUTER_USE_CANARY_REPEAT_COUNT=3 bash tool/run_macos_computer_use_live_canary.sh
+bash tool/run_macos_computer_use_live_canary.sh --ci
+```
+
+Local/manual-prep run with repeat count:
+
+```bash
+bash tool/run_macos_computer_use_live_canary.sh --manual --repeat 3
 ```
 
 The summary is written under
 `build/integration_test_reports/macos_computer_use_live_canary_<timestamp>/`.
-The summary schema is `macos_computer_use_live_canary_summary`, and each run
-contains a `computerUseLiveCanaryGate`. A passing canary means the helper core
+The summary schema is `macos_computer_use_live_canary_summary`. Each run
+contains a `computerUseLiveCanaryGate`, a granular `failureClass`, and the
+summary-level `failureClasses` count. A passing canary means the helper core
 runtime is available for Computer Use flows; it does not prove Accessibility,
 Screen & System Audio Recording, screenshot capture, or live desktop actions.
-Those TCC checks remain user-operated manual sign-off steps.
+Those TCC checks remain user-operated manual sign-off steps after the user
+grants permissions.
+
+The LLM live canaries and the Computer Use live canary cover different risks.
+`tool/run_plan_mode_ping_cli_live_canary.sh` validates the live LLM,
+tool-calling, saved-task recovery, and coding workflow behavior.
+`tool/run_macos_computer_use_live_canary.sh` validates the macOS Computer Use
+helper runtime. Passing either canary does not replace the other.
 
 Current M5 implementation status:
 
