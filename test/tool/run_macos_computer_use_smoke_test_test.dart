@@ -4,12 +4,16 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String script;
+  late String liveCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
 
   setUpAll(() {
     script = File(
       'tool/run_macos_computer_use_smoke_test.sh',
+    ).readAsStringSync();
+    liveCanaryScript = File(
+      'tool/run_macos_computer_use_live_canary.sh',
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
@@ -106,5 +110,34 @@ void main() {
       architectureDoc,
       contains('Only the user should run this TCC runtime command:'),
     );
+  });
+
+  test('computer-use live canary avoids TCC-gated smoke checks', () {
+    expect(script, contains('--computer-use-live-canary'));
+    expect(script, contains('REQUIRE_COMPUTER_USE_LIVE_CANARY=1'));
+    expect(
+      script,
+      contains(
+        '--dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_LIVE_CANARY',
+      ),
+    );
+    expect(script, contains('REQUIRE_CAPTURE_READY=0'));
+    expect(script, contains('REQUIRE_INPUT_READY=0'));
+    expect(script, contains('REQUIRE_AUDIO_RESOLVED=0'));
+    expect(script, contains('REQUIRE_VISION_OBSERVE=0'));
+    expect(script, contains('UNSAFE_ARMED=0'));
+  });
+
+  test('dedicated live canary runner reports Computer Use purpose', () {
+    expect(liveCanaryScript, contains('macOS Computer Use live canary'));
+    expect(liveCanaryScript, contains('computer_use_helper_runtime_canary'));
+    expect(
+      liveCanaryScript,
+      contains('TCC boundary: user-operated manual verification only'),
+    );
+    expect(liveCanaryScript, contains('--computer-use-live-canary'));
+    expect(liveCanaryScript, isNot(contains('--require-capture')));
+    expect(liveCanaryScript, isNot(contains('--require-vision-observe')));
+    expect(architectureDoc, contains('## Computer Use Live Canary'));
   });
 }

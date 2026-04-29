@@ -263,6 +263,34 @@ Follow-on milestones:
   prepare artifacts and parse reports, but it must not perform release runtime
   TCC sign-off on the user's behalf.
 
+## Computer Use Live Canary
+
+The live canary for this milestone is scoped to Computer Use helper readiness,
+not to generic coding-agent workflow behavior. It verifies helper launch, IPC
+readiness, helper ping, permission-status reporting, and cleanup while
+intentionally skipping TCC-gated screenshot, window capture, vision observe,
+input, and audio checks.
+
+Run:
+
+```bash
+bash tool/run_macos_computer_use_live_canary.sh
+```
+
+Optional repeat count:
+
+```bash
+CAVERNO_MACOS_COMPUTER_USE_CANARY_REPEAT_COUNT=3 bash tool/run_macos_computer_use_live_canary.sh
+```
+
+The summary is written under
+`build/integration_test_reports/macos_computer_use_live_canary_<timestamp>/`.
+The summary schema is `macos_computer_use_live_canary_summary`, and each run
+contains a `computerUseLiveCanaryGate`. A passing canary means the helper core
+runtime is available for Computer Use flows; it does not prove Accessibility,
+Screen & System Audio Recording, screenshot capture, or live desktop actions.
+Those TCC checks remain user-operated manual sign-off steps.
+
 Current M5 implementation status:
 
 - M5 is complete for the current debug embedded helper.

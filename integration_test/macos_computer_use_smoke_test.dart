@@ -45,6 +45,9 @@ const _requireVisionObserve = bool.fromEnvironment(
 const _requireObserveActionObserve = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OBSERVE_ACTION_OBSERVE',
 );
+const _requireComputerUseLiveCanary = bool.fromEnvironment(
+  'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_LIVE_CANARY',
+);
 const _registerXpcAgent = bool.fromEnvironment(
   'CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT',
 );
@@ -80,6 +83,7 @@ void main() {
       'requireOnboardingTransition': _requireOnboardingTransition,
       'requireVisionObserve': _requireVisionObserve,
       'requireObserveActionObserve': _requireObserveActionObserve,
+      'requireComputerUseLiveCanary': _requireComputerUseLiveCanary,
       'registerXpcAgent': _registerXpcAgent,
       'cleanupXpcAgent': _cleanupXpcAgent,
       'unsafeSafety': {
@@ -272,51 +276,84 @@ void main() {
         'Overlay smoke is opt-in. Rerun with --overlay-smoke or --require-overlay.',
       );
     }
-    final displayScreenshot = await _runStep(
-      steps,
-      'display_screenshot',
-      'Capture a display screenshot',
-      () => service.screenshot(const {'max_width': 400}),
-    );
-    final windows = await _runStep(
-      steps,
-      'list_windows',
-      'List visible windows',
-      () => service.listWindows(const {
-        'max_windows': 20,
-        'include_current_app': false,
-      }),
-    );
-    final firstWindowId = _firstWindowId(windows);
-    if (firstWindowId == null) {
+    Map<String, dynamic>? displayScreenshot;
+    Map<String, dynamic>? windows;
+    if (_requireComputerUseLiveCanary) {
+      _skipStep(
+        steps,
+        'display_screenshot',
+        'Capture a display screenshot',
+        'Computer Use live canary avoids TCC-gated screenshot capture.',
+      );
+      _skipStep(
+        steps,
+        'list_windows',
+        'List visible windows',
+        'Computer Use live canary avoids TCC-gated window inspection.',
+      );
       steps.add({
         'id': 'window_capture',
         'label': 'Capture the first visible window',
         'ok': false,
         'skipped': true,
-        'detail': 'No visible windows were returned.',
+        'detail': 'Computer Use live canary avoids TCC-gated window capture.',
       });
+    } else {
+      displayScreenshot = await _runStep(
+        steps,
+        'display_screenshot',
+        'Capture a display screenshot',
+        () => service.screenshot(const {'max_width': 400}),
+      );
+      windows = await _runStep(
+        steps,
+        'list_windows',
+        'List visible windows',
+        () => service.listWindows(const {
+          'max_windows': 20,
+          'include_current_app': false,
+        }),
+      );
+      final firstWindowId = _firstWindowId(windows);
+      if (firstWindowId == null) {
+        steps.add({
+          'id': 'window_capture',
+          'label': 'Capture the first visible window',
+          'ok': false,
+          'skipped': true,
+          'detail': 'No visible windows were returned.',
+        });
+      } else {
+        await _runStep(
+          steps,
+          'window_capture',
+          'Capture the first visible window',
+          () => service.screenshotWindow({
+            'window_id': firstWindowId,
+            'max_width': 400,
+          }),
+        );
+      }
+    }
+    if (_requireComputerUseLiveCanary) {
+      _skipStep(
+        steps,
+        'vision_observe',
+        'Observe the desktop through the vision loop surface',
+        'Computer Use live canary avoids TCC-gated vision observation.',
+      );
     } else {
       await _runStep(
         steps,
-        'window_capture',
-        'Capture the first visible window',
-        () => service.screenshotWindow({
-          'window_id': firstWindowId,
+        'vision_observe',
+        'Observe the desktop through the vision loop surface',
+        () => service.visionObserve(const {
+          'target': 'front_window',
           'max_width': 400,
+          'include_windows': true,
         }),
       );
     }
-    await _runStep(
-      steps,
-      'vision_observe',
-      'Observe the desktop through the vision loop surface',
-      () => service.visionObserve(const {
-        'target': 'front_window',
-        'max_width': 400,
-        'include_windows': true,
-      }),
-    );
     if (_unsafeArmed && permissions?['accessibilityGranted'] == true) {
       final inputArguments = _smokeInputArguments(displayScreenshot);
       await _runStep(
@@ -599,6 +636,14 @@ void main() {
       xpcProductionGate: xpcProductionGate,
     );
     report['xpcProductionGate'] = xpcProductionGate;
+    report['computerUseLiveCanaryGate'] = _computerUseLiveCanaryGate(
+      report: report,
+      helperStatus: helperStatus,
+      readiness: readiness,
+      ping: ping,
+      permissions: permissions,
+      stop: stop,
+    );
     report['unsafeOperationSummary'] = _unsafeOperationSummary(steps);
     final positiveSmokeGates = _positiveSmokeGates(
       steps,
@@ -711,6 +756,14 @@ void main() {
         isTrue,
         reason:
             'Observe-action-observe smoke must observe, run one armed action, and observe again.',
+      );
+    }
+    if (_requireComputerUseLiveCanary) {
+      expect(
+        _gateReady(report['computerUseLiveCanaryGate']),
+        isTrue,
+        reason:
+            'Computer Use live canary must verify helper launch, IPC, ping, permission reporting, and cleanup without TCC-gated checks.',
       );
     }
     if (_m4Signoff) {
@@ -1636,6 +1689,68 @@ Map<String, dynamic> _unsafeActionGate({
     'nextAction': blockers.isEmpty
         ? 'All unsafe smoke arms are enabled for this run.'
         : 'Rerun smoke with only the explicit unsafe arms needed for the next check.',
+  };
+}
+
+Map<String, dynamic> _computerUseLiveCanaryGate({
+  required Map<String, dynamic> report,
+  required Map<String, dynamic>? helperStatus,
+  required Map<String, dynamic>? readiness,
+  required Map<String, dynamic>? ping,
+  required Map<String, dynamic>? permissions,
+  required Map<String, dynamic>? stop,
+}) {
+  final checks = <Map<String, dynamic>>[
+    {
+      'id': 'helper_status',
+      'label': 'Helper status',
+      'ok': _stepPassed(helperStatus),
+      'status': _stepPassed(helperStatus) ? 'ready' : 'blocked',
+    },
+    {
+      'id': 'helper_ipc_ready',
+      'label': 'Helper IPC readiness',
+      'ok': _stepPassed(readiness),
+      'status': _stepPassed(readiness) ? 'ready' : 'blocked',
+    },
+    {
+      'id': 'helper_ping',
+      'label': 'Helper ping',
+      'ok': _stepPassed(ping),
+      'status': _stepPassed(ping) ? 'ready' : 'blocked',
+    },
+    {
+      'id': 'permission_status',
+      'label': 'Permission status reporting',
+      'ok': _stepPassed(permissions),
+      'status': _stepPassed(permissions) ? 'ready' : 'blocked',
+    },
+    {
+      'id': 'stop_helper_work',
+      'label': 'Stop helper work',
+      'ok': _stepPassed(stop),
+      'status': _stepPassed(stop) ? 'ready' : 'blocked',
+    },
+  ];
+  final blockers = [
+    for (final check in checks)
+      if (check['ok'] != true) check['id'] as String,
+  ];
+  return {
+    'status': blockers.isEmpty ? 'ready' : 'blocked',
+    'ok': blockers.isEmpty,
+    'purpose': 'computer_use_helper_runtime_canary',
+    'tccBoundary': 'manual_user_operated',
+    'tccGatedChecksSkipped': true,
+    'checks': checks,
+    'blockers': blockers,
+    'helperPath': helperStatus?['helperPath'],
+    'selectedIpcTransport':
+        ping?['selectedIpcTransport'] ?? readiness?['selectedIpcTransport'],
+    'permissionSummary': report['permissionSummary'],
+    'nextAction': blockers.isEmpty
+        ? 'Computer Use helper core runtime is ready for non-TCC live canary coverage.'
+        : 'Fix the blocked helper runtime checks, then rerun the Computer Use live canary.',
   };
 }
 
