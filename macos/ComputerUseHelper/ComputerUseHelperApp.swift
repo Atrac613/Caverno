@@ -17,12 +17,40 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
   static func main() {
     ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "process_main_entered")
+    guard !exitForExistingInstanceIfNeeded() else {
+      return
+    }
     let application = NSApplication.shared
     let delegate = ComputerUseHelperApp()
     delegateInstance = delegate
     application.delegate = delegate
-    application.setActivationPolicy(.regular)
+    application.setActivationPolicy(.accessory)
     application.run()
+  }
+
+  private static func exitForExistingInstanceIfNeeded() -> Bool {
+    let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
+    let existingApplications = NSRunningApplication.runningApplications(
+      withBundleIdentifier: ComputerUseHelperIpcSchema.helperBundleIdentifier
+    ).filter { application in
+      !application.isTerminated &&
+        application.processIdentifier != currentProcessIdentifier
+    }
+    guard let existingApplication = existingApplications.first else {
+      return false
+    }
+
+    ComputerUseHelperSharedDiagnostics.writeBootstrap(
+      event: "duplicate_instance_exiting",
+      extra: [
+        "existingHelperProcessIdentifier": Int(existingApplication.processIdentifier),
+        "existingHelperBundlePath": existingApplication.bundleURL?.path ?? "",
+        "duplicateHelperProcessCount": existingApplications.count,
+        "singleInstancePolicy": "activate_existing_and_exit",
+      ]
+    )
+    existingApplication.activate(options: [.activateIgnoringOtherApps])
+    return true
   }
 
   private let ipc = ComputerUseHelperIpc()
@@ -1295,10 +1323,10 @@ private enum ComputerUseHelperIpcSchema {
 private enum ComputerUseHelperSharedDiagnostics {
   static let path = "/tmp/caverno-computer-use-helper-diagnostics.json"
 
-  static func writeBootstrap(event: String) {
+  static func writeBootstrap(event: String, extra: [String: Any] = [:]) {
     let bundle = Bundle.main
     let processInfo = ProcessInfo.processInfo
-    let diagnostics: [String: Any] = [
+    var diagnostics: [String: Any] = [
       "schemaName": "caverno_computer_use_helper_diagnostics",
       "schemaVersion": 1,
       "event": event,
@@ -1315,6 +1343,9 @@ private enum ComputerUseHelperSharedDiagnostics {
       "xpcListenerStartAttempted": false,
       "launchMode": "unknown",
     ]
+    for (key, value) in extra {
+      diagnostics[key] = value
+    }
     write(diagnostics)
   }
 

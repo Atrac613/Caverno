@@ -354,9 +354,10 @@ final class MacosComputerUseHelperClient: NSObject {
 
   func status() -> [String: Any] {
     let helperURL = embeddedHelperURL()
-    let runningApplication = NSRunningApplication.runningApplications(
+    let runningApplications = NSRunningApplication.runningApplications(
       withBundleIdentifier: helperBundleIdentifier
-    ).first { !$0.isTerminated }
+    ).filter { !$0.isTerminated }
+    let runningApplication = runningApplications.first
     let helperPath = helperURL.standardizedFileURL.path
     let runningHelperPath = runningApplication?.bundleURL?.standardizedFileURL.path
     let helperPathMatchesRunningHelper =
@@ -367,6 +368,9 @@ final class MacosComputerUseHelperClient: NSObject {
       "helperBundleIdentifier": helperBundleIdentifier,
       "helperInstalled": FileManager.default.fileExists(atPath: helperURL.path),
       "helperRunning": runningApplication != nil,
+      "helperRunningProcessCount": runningApplications.count,
+      "singleInstanceExpected": true,
+      "helperDockPolicy": "agent_hidden_from_dock",
       "helperPath": helperPath,
       "embeddedHelperPath": helperPath,
       "helperLaunchPath": helperPath,
@@ -401,6 +405,11 @@ final class MacosComputerUseHelperClient: NSObject {
     ]
     if let runningHelperPath {
       response["runningHelperPath"] = runningHelperPath
+    }
+    if runningApplications.count > 1 {
+      response["helperDuplicateProcessIdentifiers"] = runningApplications
+        .map { Int($0.processIdentifier) }
+      response["helperDuplicateProcessCount"] = runningApplications.count
     }
     if !helperPathMatchesRunningHelper {
       response["helperPathMismatch"] = true

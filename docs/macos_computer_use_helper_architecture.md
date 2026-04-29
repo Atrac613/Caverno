@@ -794,6 +794,21 @@ The helper should appear in System Settings as `Caverno Computer Use`. The main
 app can still show onboarding and settings shortcuts, but the user should grant
 the helper when the helper target exists.
 
+## Helper Process Policy
+
+`Caverno Computer Use.app` is a background agent helper, not a user-facing Dock
+app. Its `Info.plist` sets `LSUIElement` and the helper sets the AppKit
+activation policy to `accessory`, so the process can own permission overlays
+without leaving a persistent Dock icon.
+
+Only one helper process should be active for the bundle identifier
+`com.noguwo.apps.caverno.computer-use`. On startup, a new helper process checks
+for an existing non-terminated helper with the same bundle identifier. If one is
+already running, the new process activates the existing helper and exits before
+starting IPC. Main-app status diagnostics expose `helperRunningProcessCount`,
+`singleInstanceExpected`, and `helperDockPolicy` so duplicate helper processes
+remain visible in reports.
+
 ## IPC Boundary
 
 The main app should call the helper through a small local IPC surface. XPC is the

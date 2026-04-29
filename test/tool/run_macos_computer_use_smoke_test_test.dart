@@ -5,6 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late String script;
   late String smokeTest;
+  late String helperSource;
+  late String helperInfoPlist;
   late String liveCanaryScript;
   late String desktopActionCanaryScript;
   late String existingHelperProbe;
@@ -16,6 +18,12 @@ void main() {
     ).readAsStringSync();
     smokeTest = File(
       'integration_test/macos_computer_use_smoke_test.dart',
+    ).readAsStringSync();
+    helperSource = File(
+      'macos/ComputerUseHelper/ComputerUseHelperApp.swift',
+    ).readAsStringSync();
+    helperInfoPlist = File(
+      'macos/ComputerUseHelper/Info.plist',
     ).readAsStringSync();
     liveCanaryScript = File(
       'tool/run_macos_computer_use_live_canary.sh',
@@ -122,6 +130,26 @@ void main() {
       architectureDoc,
       contains('dart run tool/macos_computer_use_manual_tcc_report.dart'),
     );
+  });
+
+  test('Computer Use helper runs as a single hidden agent process', () {
+    expect(helperInfoPlist, contains('<key>LSUIElement</key>'));
+    expect(helperInfoPlist, contains('<true/>'));
+    expect(
+      helperSource,
+      contains('application.setActivationPolicy(.accessory)'),
+    );
+    expect(
+      helperSource,
+      isNot(contains('application.setActivationPolicy(.regular)')),
+    );
+    expect(helperSource, contains('exitForExistingInstanceIfNeeded'));
+    expect(helperSource, contains('duplicate_instance_exiting'));
+    expect(helperSource, contains('singleInstancePolicy'));
+    expect(helperSource, contains('activate_existing_and_exit'));
+    expect(architectureDoc, contains('## Helper Process Policy'));
+    expect(architectureDoc, contains('helperRunningProcessCount'));
+    expect(architectureDoc, contains('helperDockPolicy'));
   });
 
   test('computer-use live canary avoids TCC-gated smoke checks', () {
