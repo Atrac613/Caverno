@@ -46,15 +46,28 @@ void main() {
     expect(find.text('2 of 10 complete'), findsOneWidget);
     expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
     expect(find.text('MVP Sign-Off Path'), findsOneWidget);
+    expect(find.text('MVP Artifact Paths'), findsOneWidget);
     expect(
       find.textContaining('run_macos_computer_use_mvp_signoff.sh'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('manual_tcc_report_summary.json'),
+      find.textContaining('macos_computer_use_mvp_handoff.md'),
       findsOneWidget,
     );
-    expect(find.textContaining('canary_summary.json'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_mvp_readiness.md'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('manual_tcc_report_summary.json'),
+      findsNWidgets(2),
+    );
+    expect(find.textContaining('canary_summary.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('/tmp/caverno-macos-computer-use-smoke.json'),
+      findsOneWidget,
+    );
     expect(
       find.text(
         'Grant Screen & System Audio Recording to Caverno Computer Use',

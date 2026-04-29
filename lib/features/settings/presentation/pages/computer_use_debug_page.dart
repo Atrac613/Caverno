@@ -210,6 +210,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               title: 'MVP Sign-Off Path',
               body: _mvpSignoffSummary(),
             ),
+            const SizedBox(height: 8),
+            _OnboardingNote(
+              icon: Icons.folder_open_outlined,
+              title: 'MVP Artifact Paths',
+              body: _mvpArtifactPathSummary(),
+            ),
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -1444,7 +1450,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
-    ).toJson();
+    ).toJson()..['mvpArtifactPaths'] = _mvpArtifactPaths();
   }
 
   List<Map<String, dynamic>> _onboardingSmokeChecklist() {
@@ -1624,6 +1630,33 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Wrapper: bash tool/run_macos_computer_use_mvp_signoff.sh',
       'Manual inputs: manual_tcc_report_summary.json and canary_summary.json',
       'TCC and desktop action stay user-operated',
+    ].join(' | ');
+  }
+
+  Map<String, String> _mvpArtifactPaths() {
+    final liveReportPath = _lastLiveSmokeReport?['path'];
+    return <String, String>{
+      'mvpHandoff':
+          'build/integration_test_reports/macos_computer_use_mvp_handoff.md',
+      'mvpReadiness':
+          'build/integration_test_reports/macos_computer_use_mvp_readiness.md',
+      'manualTccSummary':
+          'build/integration_test_reports/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+      'desktopActionSummary':
+          'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      if (liveReportPath is String) 'latestLiveSmokeReport': liveReportPath,
+    };
+  }
+
+  String _mvpArtifactPathSummary() {
+    final paths = _mvpArtifactPaths();
+    return [
+      'MVP handoff: ${paths['mvpHandoff']}',
+      'MVP readiness: ${paths['mvpReadiness']}',
+      'Manual TCC summary: ${paths['manualTccSummary']}',
+      'Desktop action summary: ${paths['desktopActionSummary']}',
+      if (paths['latestLiveSmokeReport'] != null)
+        'Latest live smoke: ${paths['latestLiveSmokeReport']}',
     ].join(' | ');
   }
 
