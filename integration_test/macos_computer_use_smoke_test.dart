@@ -1336,9 +1336,14 @@ Map<String, dynamic> _helperProcessPolicyGate(
       .where((snapshot) {
         return snapshot.containsKey('helperRunningProcessCount') ||
             snapshot.containsKey('helperDockPolicy') ||
-            snapshot.containsKey('singleInstanceExpected');
+            snapshot.containsKey('singleInstanceExpected') ||
+            snapshot.containsKey('singleInstanceLockExpected');
       })
       .toList(growable: false);
+  final latestObserved = observed.isEmpty ? null : observed.last;
+  final latestSharedDiagnostics =
+      _mapValue(latestObserved?['helperSharedDiagnostics']) ??
+      const <String, dynamic>{};
   final counts = observed
       .map((snapshot) => _intValue(snapshot['helperRunningProcessCount']))
       .whereType<int>()
@@ -1356,21 +1361,35 @@ Map<String, dynamic> _helperProcessPolicyGate(
   final singleInstanceExpected = observed.any(
     (snapshot) => snapshot['singleInstanceExpected'] == true,
   );
+  final singleInstanceLockExpected =
+      latestObserved?['singleInstanceLockExpected'] == true ||
+      latestSharedDiagnostics['singleInstanceLockRequired'] == true;
+  final singleInstanceLockAcquired =
+      latestSharedDiagnostics['singleInstanceLockStatus'] == 'acquired';
   final hiddenDockPolicy = observed.any(
     (snapshot) => snapshot['helperDockPolicy'] == 'agent_hidden_from_dock',
   );
+  final helperPathMismatch = latestObserved?['helperPathMismatch'] == true;
   final singleProcess = maxProcessCount != null && maxProcessCount <= 1;
   final ready =
       observed.isNotEmpty &&
       singleInstanceExpected &&
+      singleInstanceLockExpected &&
+      singleInstanceLockAcquired &&
       hiddenDockPolicy &&
       singleProcess &&
-      duplicateProcessIdentifiers.isEmpty;
+      duplicateProcessIdentifiers.isEmpty &&
+      !helperPathMismatch;
   final blockers = <String>[
     if (observed.isEmpty) 'helper_process_policy_missing',
     if (observed.isNotEmpty && !singleInstanceExpected)
       'single_instance_policy_missing',
+    if (observed.isNotEmpty && !singleInstanceLockExpected)
+      'single_instance_lock_policy_missing',
+    if (singleInstanceLockExpected && !singleInstanceLockAcquired)
+      'single_instance_lock_not_acquired',
     if (observed.isNotEmpty && !hiddenDockPolicy) 'dock_policy_not_hidden',
+    if (helperPathMismatch) 'helper_path_mismatch',
     if (maxProcessCount == null) 'helper_process_count_missing',
     if (maxProcessCount != null && maxProcessCount > 1)
       'duplicate_helper_processes',
@@ -1381,8 +1400,15 @@ Map<String, dynamic> _helperProcessPolicyGate(
     'status': ready ? 'ready' : 'blocked',
     'ok': ready,
     'singleInstanceExpected': singleInstanceExpected,
+    'singleInstanceLockExpected': singleInstanceLockExpected,
+    'singleInstanceLockStatus':
+        latestSharedDiagnostics['singleInstanceLockStatus'],
+    'singleInstanceLockPath':
+        latestObserved?['singleInstanceLockPath'] ??
+        latestSharedDiagnostics['singleInstanceLockPath'],
     'helperDockPolicy': hiddenDockPolicy ? 'agent_hidden_from_dock' : 'unknown',
     'maxHelperRunningProcessCount': maxProcessCount,
+    'helperPathMismatch': helperPathMismatch,
     'observedSnapshotCount': observed.length,
     'duplicateProcessIdentifiers': duplicateProcessIdentifiers,
     'blockers': blockers,

@@ -802,15 +802,19 @@ activation policy to `accessory`, so the process can own permission overlays
 without leaving a persistent Dock icon.
 
 Only one helper process should be active for the bundle identifier
-`com.noguwo.apps.caverno.computer-use`. On startup, a new helper process checks
-for an existing non-terminated helper with the same bundle identifier. If one is
-already running, the new process activates the existing helper and exits before
-starting IPC. Main-app status diagnostics expose `helperRunningProcessCount`,
-`singleInstanceExpected`, and `helperDockPolicy` so duplicate helper processes
-remain visible in reports. Smoke reports promote those diagnostics into
-`helperProcessPolicyGate`; the gate is ready only when the helper declares the
-hidden Dock policy, declares single-instance ownership, and reports at most one
-running helper process.
+`com.noguwo.apps.caverno.computer-use`. On startup, the helper first acquires
+`/tmp/caverno-computer-use-helper.lock`. If the lock is already held, the new
+process activates the existing helper and exits before starting IPC. After
+acquiring the lock, the helper also checks for an older non-locking helper with
+the same bundle identifier and exits in favor of that existing process.
+
+Main-app status diagnostics expose `helperRunningProcessCount`,
+`singleInstanceExpected`, `singleInstanceLockExpected`, and `helperDockPolicy`
+so duplicate helper processes remain visible in reports. Smoke reports promote
+those diagnostics into `helperProcessPolicyGate`; the gate is ready only when
+the helper declares the hidden Dock policy, declares single-instance ownership,
+acquires the startup lock, reports at most one running helper process, and
+matches the embedded helper path.
 
 ## IPC Boundary
 

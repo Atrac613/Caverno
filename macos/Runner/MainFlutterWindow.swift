@@ -370,6 +370,8 @@ final class MacosComputerUseHelperClient: NSObject {
       "helperRunning": runningApplication != nil,
       "helperRunningProcessCount": runningApplications.count,
       "singleInstanceExpected": true,
+      "singleInstanceLockExpected": true,
+      "singleInstanceLockPath": "/tmp/caverno-computer-use-helper.lock",
       "helperDockPolicy": "agent_hidden_from_dock",
       "helperPath": helperPath,
       "embeddedHelperPath": helperPath,

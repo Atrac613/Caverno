@@ -3,6 +3,7 @@ import ApplicationServices
 import AVFoundation
 import CoreGraphics
 import CoreMedia
+import Darwin
 import QuartzCore
 import ScreenCaptureKit
 
@@ -14,9 +15,36 @@ protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
 @main
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private static var delegateInstance: ComputerUseHelperApp?
+  private static var singleInstanceLock: ComputerUseHelperSingleInstanceLock?
 
   static func main() {
     ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "process_main_entered")
+    switch ComputerUseHelperSingleInstanceLock.acquire() {
+    case .acquired(let lock):
+      singleInstanceLock = lock
+      ComputerUseHelperSharedDiagnostics.setBootstrapExtra(lock.diagnostics)
+      ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "single_instance_lock_acquired")
+    case .alreadyRunning(let diagnostics):
+      var extra = diagnostics
+      if let existingApplication = activateExistingInstance() {
+        extra.merge(existingApplication) { _, new in new }
+      }
+      ComputerUseHelperSharedDiagnostics.writeBootstrap(
+        event: "duplicate_instance_lock_held",
+        extra: extra
+      )
+      return
+    case .failed(let diagnostics):
+      var extra = diagnostics
+      if let existingApplication = activateExistingInstance() {
+        extra.merge(existingApplication) { _, new in new }
+      }
+      ComputerUseHelperSharedDiagnostics.writeBootstrap(
+        event: "single_instance_lock_failed",
+        extra: extra
+      )
+      return
+    }
     guard !exitForExistingInstanceIfNeeded() else {
       return
     }
@@ -28,7 +56,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     application.run()
   }
 
-  private static func exitForExistingInstanceIfNeeded() -> Bool {
+  private static func activateExistingInstance() -> [String: Any]? {
     let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
     let existingApplications = NSRunningApplication.runningApplications(
       withBundleIdentifier: ComputerUseHelperIpcSchema.helperBundleIdentifier
@@ -37,19 +65,26 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
         application.processIdentifier != currentProcessIdentifier
     }
     guard let existingApplication = existingApplications.first else {
+      return nil
+    }
+    existingApplication.activate(options: [.activateIgnoringOtherApps])
+    return [
+      "existingHelperProcessIdentifier": Int(existingApplication.processIdentifier),
+      "existingHelperBundlePath": existingApplication.bundleURL?.path ?? "",
+      "duplicateHelperProcessCount": existingApplications.count,
+      "singleInstancePolicy": "activate_existing_and_exit",
+    ]
+  }
+
+  private static func exitForExistingInstanceIfNeeded() -> Bool {
+    guard let existingApplication = activateExistingInstance() else {
       return false
     }
 
     ComputerUseHelperSharedDiagnostics.writeBootstrap(
       event: "duplicate_instance_exiting",
-      extra: [
-        "existingHelperProcessIdentifier": Int(existingApplication.processIdentifier),
-        "existingHelperBundlePath": existingApplication.bundleURL?.path ?? "",
-        "duplicateHelperProcessCount": existingApplications.count,
-        "singleInstancePolicy": "activate_existing_and_exit",
-      ]
+      extra: existingApplication
     )
-    existingApplication.activate(options: [.activateIgnoringOtherApps])
     return true
   }
 
@@ -507,6 +542,92 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       ? "Verification complete. Caverno can observe displays and windows through this helper."
       : "Verification incomplete. Fix the failed step, then run Verify again."
     statusSummaryLabel?.textColor = verification.ok ? .systemGreen : .secondaryLabelColor
+  }
+}
+
+private final class ComputerUseHelperSingleInstanceLock {
+  enum AcquireResult {
+    case acquired(ComputerUseHelperSingleInstanceLock)
+    case alreadyRunning([String: Any])
+    case failed([String: Any])
+  }
+
+  static let lockPath = "/tmp/caverno-computer-use-helper.lock"
+
+  let diagnostics: [String: Any]
+  private let fileDescriptor: Int32
+
+  private init(fileDescriptor: Int32, diagnostics: [String: Any]) {
+    self.fileDescriptor = fileDescriptor
+    self.diagnostics = diagnostics
+  }
+
+  deinit {
+    flock(fileDescriptor, LOCK_UN)
+    close(fileDescriptor)
+  }
+
+  static func acquire() -> AcquireResult {
+    let processIdentifier = Int(ProcessInfo.processInfo.processIdentifier)
+    let fileDescriptor = open(lockPath, O_CREAT | O_RDWR, mode_t(S_IRUSR | S_IWUSR))
+    guard fileDescriptor >= 0 else {
+      return .failed(lockDiagnostics(
+        status: "open_failed",
+        processIdentifier: processIdentifier,
+        errorNumber: errno
+      ))
+    }
+
+    if flock(fileDescriptor, LOCK_EX | LOCK_NB) == 0 {
+      _ = ftruncate(fileDescriptor, 0)
+      let ownerText = "\(processIdentifier)\n"
+      ownerText.withCString { pointer in
+        _ = write(fileDescriptor, pointer, strlen(pointer))
+      }
+      let diagnostics = lockDiagnostics(
+        status: "acquired",
+        processIdentifier: processIdentifier
+      )
+      return .acquired(
+        ComputerUseHelperSingleInstanceLock(
+          fileDescriptor: fileDescriptor,
+          diagnostics: diagnostics
+        )
+      )
+    }
+
+    let lockError = errno
+    close(fileDescriptor)
+    if lockError == EWOULDBLOCK || lockError == EAGAIN {
+      return .alreadyRunning(lockDiagnostics(
+        status: "held_by_existing_process",
+        processIdentifier: processIdentifier,
+        errorNumber: lockError
+      ))
+    }
+    return .failed(lockDiagnostics(
+      status: "lock_failed",
+      processIdentifier: processIdentifier,
+      errorNumber: lockError
+    ))
+  }
+
+  private static func lockDiagnostics(
+    status: String,
+    processIdentifier: Int,
+    errorNumber: Int32? = nil
+  ) -> [String: Any] {
+    var diagnostics: [String: Any] = [
+      "singleInstanceLockStatus": status,
+      "singleInstanceLockPath": lockPath,
+      "singleInstanceLockOwnerProcessIdentifier": processIdentifier,
+      "singleInstanceLockRequired": true,
+    ]
+    if let errorNumber {
+      diagnostics["singleInstanceLockErrorNumber"] = Int(errorNumber)
+      diagnostics["singleInstanceLockErrorDescription"] = String(cString: strerror(errorNumber))
+    }
+    return diagnostics
   }
 }
 
@@ -1322,6 +1443,17 @@ private enum ComputerUseHelperIpcSchema {
 
 private enum ComputerUseHelperSharedDiagnostics {
   static let path = "/tmp/caverno-computer-use-helper-diagnostics.json"
+  private static var bootstrapExtra: [String: Any] = [:]
+
+  static func setBootstrapExtra(_ extra: [String: Any]) {
+    bootstrapExtra = extra
+  }
+
+  static func addBootstrapExtra(to diagnostics: inout [String: Any]) {
+    for (key, value) in bootstrapExtra {
+      diagnostics[key] = value
+    }
+  }
 
   static func writeBootstrap(event: String, extra: [String: Any] = [:]) {
     let bundle = Bundle.main
@@ -1343,6 +1475,7 @@ private enum ComputerUseHelperSharedDiagnostics {
       "xpcListenerStartAttempted": false,
       "launchMode": "unknown",
     ]
+    addBootstrapExtra(to: &diagnostics)
     for (key, value) in extra {
       diagnostics[key] = value
     }
@@ -2507,6 +2640,7 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcServiceName": ComputerUseHelperIpcSchema.xpcServiceName,
       "helperIpcEventCount": helperIpcEventCount,
     ]
+    ComputerUseHelperSharedDiagnostics.addBootstrapExtra(to: &diagnostics)
     if let lastHelperIpcRequest {
       diagnostics["lastHelperIpcRequest"] = lastHelperIpcRequest
     }

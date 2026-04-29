@@ -144,11 +144,17 @@ void main() {
       isNot(contains('application.setActivationPolicy(.regular)')),
     );
     expect(helperSource, contains('exitForExistingInstanceIfNeeded'));
+    expect(helperSource, contains('ComputerUseHelperSingleInstanceLock'));
+    expect(helperSource, contains('/tmp/caverno-computer-use-helper.lock'));
+    expect(helperSource, contains('single_instance_lock_acquired'));
+    expect(helperSource, contains('duplicate_instance_lock_held'));
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
     expect(helperSource, contains('activate_existing_and_exit'));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));
+    expect(smokeTest, contains('single_instance_lock_not_acquired'));
+    expect(smokeTest, contains('helper_path_mismatch'));
     expect(smokeTest, contains('duplicate_helper_processes'));
     expect(smokeTest, contains('dock_policy_not_hidden'));
     expect(architectureDoc, contains('## Helper Process Policy'));
