@@ -110,16 +110,10 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       parentPrefix: 'macos_computer_use_desktop_action_canary_',
       fileName: 'canary_summary.json',
     ),
-    _latestEntry(
+    _latestLlmCanaryEntry(
       'llm_canary',
       'Latest LLM canary summary',
       reportRoot,
-      (json) =>
-          json.containsKey('failureClassCounts') &&
-          json.containsKey('runCount') &&
-          json.containsKey('passedCount'),
-      parentPrefix: 'plan_mode_ping_cli_canary_',
-      fileName: 'canary_summary.json',
     ),
   ];
   return ReadinessArtifactIndex(
@@ -147,6 +141,71 @@ Future<void> writeReadinessArtifactIndex(
     const JsonEncoder.withIndent('  ').convert(index.toJson()),
   );
   await outputMarkdown.writeAsString(index.toMarkdown());
+}
+
+ReadinessArtifactEntry _latestLlmCanaryEntry(
+  String id,
+  String label,
+  Directory reportRoot,
+) {
+  final files = reportRoot.existsSync()
+      ? reportRoot
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => _basename(file.path) == 'canary_summary.json')
+            .where((file) {
+              final parent = _basename(file.parent.path);
+              return parent.startsWith(
+                    'macos_computer_use_llm_decision_canary_',
+                  ) ||
+                  parent.startsWith('plan_mode_ping_cli_canary_');
+            })
+            .where((file) {
+              final json = _readJsonObject(file);
+              return json != null &&
+                  json.containsKey('failureClassCounts') &&
+                  json.containsKey('runCount') &&
+                  json.containsKey('passedCount');
+            })
+            .toList(growable: false)
+      : <File>[];
+  files.sort((left, right) {
+    final modifiedCompare = left.statSync().modified.compareTo(
+      right.statSync().modified,
+    );
+    if (modifiedCompare != 0) {
+      return modifiedCompare;
+    }
+    return left.path.compareTo(right.path);
+  });
+
+  final computerUseFiles = files
+      .where((file) {
+        return _basename(
+          file.parent.path,
+        ).startsWith('macos_computer_use_llm_decision_canary_');
+      })
+      .toList(growable: false);
+  final mvpFixtureFiles = computerUseFiles
+      .where((file) {
+        final json = _readJsonObject(file);
+        final scenario = json?['scenario'] as String?;
+        return scenario != null && scenario.startsWith('mvp-fixture');
+      })
+      .toList(growable: false);
+  final latest = mvpFixtureFiles.isNotEmpty
+      ? mvpFixtureFiles.last
+      : computerUseFiles.isNotEmpty
+      ? computerUseFiles.last
+      : files.isEmpty
+      ? null
+      : files.last;
+  return ReadinessArtifactEntry(
+    id: id,
+    label: label,
+    path: latest?.path ?? '',
+    exists: latest != null,
+  );
 }
 
 ReadinessArtifactEntry _entry(String id, String label, String path) {

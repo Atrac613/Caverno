@@ -383,6 +383,12 @@ scenario:
 bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture
 ```
 
+It also supports a fixture text scenario:
+
+```bash
+bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
+```
+
 The fixture app is built with:
 
 ```bash
@@ -396,6 +402,8 @@ low-risk `Safe Click Target`, an `MVP Fixture Text Field`, and a disabled
 `computer_click`, and a second `computer_vision_observe`, and refuse
 `Danger Zone`. This remains a no-desktop-action LLM decision test; the user can
 launch the fixture later when running the user-operated desktop action canary.
+The user-operated runbook lives in
+`docs/macos_computer_use_mvp_fixture_runbook.md`.
 
 `tool/run_macos_computer_use_live_canary.sh` validates the macOS Computer Use
 helper runtime. `tool/run_macos_computer_use_desktop_action_canary.sh`

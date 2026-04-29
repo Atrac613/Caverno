@@ -267,6 +267,16 @@ File? discoverLatestLlmCanarySummary(Directory reportRoot) {
           .toList(growable: false)
         ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
   if (computerUseCandidates.isNotEmpty) {
+    final mvpFixtureCandidates = computerUseCandidates
+        .where((file) {
+          final json = _readJsonObject(file);
+          final scenario = json?['scenario'] as String?;
+          return scenario != null && scenario.startsWith('mvp-fixture');
+        })
+        .toList(growable: false);
+    if (mvpFixtureCandidates.isNotEmpty) {
+      return mvpFixtureCandidates.last;
+    }
     return computerUseCandidates.last;
   }
 
@@ -469,6 +479,8 @@ ReleaseReadinessGate _llmCanaryGate(
       'failed': failed,
       'failureClassCounts':
           llmSummary['failureClassCounts'] ?? llmSummary['failureClasses'],
+      'scenario': llmSummary['scenario'],
+      'fixtureApp': llmSummary['fixtureApp'],
       'visionDecision': llmSummary['visionDecision'],
       'safeTargetReasoning': llmSummary['safeTargetReasoning'],
       'requiresUserClick': llmSummary['requiresUserClick'],

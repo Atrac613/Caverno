@@ -14,8 +14,10 @@ void main() {
   late String mvpSignoffScript;
   late String desktopActionCanaryScript;
   late String llmDecisionCanaryScript;
+  late String releaseReadinessWrapper;
   late String mvpFixtureScript;
   late String mvpFixtureSource;
+  late String mvpFixtureRunbook;
   late String existingHelperProbe;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -54,6 +56,9 @@ void main() {
     llmDecisionCanaryScript = File(
       'tool/run_macos_computer_use_llm_decision_canary.sh',
     ).readAsStringSync();
+    releaseReadinessWrapper = File(
+      'tool/run_macos_computer_use_release_readiness.sh',
+    ).readAsStringSync();
     mvpFixtureScript = File(
       'tool/run_macos_computer_use_mvp_fixture.sh',
     ).readAsStringSync();
@@ -68,6 +73,9 @@ void main() {
     ).readAsStringSync();
     manualProcessChecklist = File(
       'docs/macos_computer_use_manual_process_checklist.md',
+    ).readAsStringSync();
+    mvpFixtureRunbook = File(
+      'docs/macos_computer_use_mvp_fixture_runbook.md',
     ).readAsStringSync();
   });
 
@@ -284,6 +292,14 @@ void main() {
     expect(desktopActionCanaryScript, contains('"safeTargetGuidance"'));
     expect(desktopActionCanaryScript, contains('"expectedPhases"'));
     expect(desktopActionCanaryScript, contains('"phaseStatus"'));
+    expect(
+      desktopActionCanaryScript,
+      contains('--fixture-target|--mvp-fixture'),
+    );
+    expect(desktopActionCanaryScript, contains('fixtureTarget'));
+    expect(desktopActionCanaryScript, contains('fixtureApp'));
+    expect(desktopActionCanaryScript, contains('Safe Click Target'));
+    expect(desktopActionCanaryScript, contains('expectedOutcome'));
     expect(architectureDoc, contains('## Desktop Action Canary'));
     expect(
       architectureDoc,
@@ -405,10 +421,24 @@ void main() {
     expect(llmDecisionCanaryScript, contains('--fixture-response PATH'));
     expect(llmDecisionCanaryScript, contains('--scenario NAME'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture'));
+    expect(llmDecisionCanaryScript, contains('mvp-fixture-type-confirm'));
     expect(llmDecisionCanaryScript, contains('computer_use_mvp_fixture'));
+    expect(
+      llmDecisionCanaryScript,
+      contains('computer_use_mvp_fixture_type_confirm'),
+    );
     expect(llmDecisionCanaryScript, contains('Safe Click Target'));
+    expect(llmDecisionCanaryScript, contains('MVP Fixture Text Field'));
+    expect(llmDecisionCanaryScript, contains('requiresUserTextInput'));
     expect(llmDecisionCanaryScript, contains('Danger Zone'));
     expect(llmDecisionCanaryScript, contains('observe_action_observe_missing'));
+    expect(releaseReadinessWrapper, contains('--llm-canary-scenario'));
+    expect(
+      releaseReadinessWrapper,
+      contains(
+        r'LLM_CANARY_SCENARIO="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SCENARIO:-mvp-fixture}"',
+      ),
+    );
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_llm_decision_canary_test_',
@@ -532,6 +562,113 @@ void main() {
     } finally {
       root.deleteSync(recursive: true);
     }
+  });
+
+  test(
+    'Computer Use MVP fixture type scenario validates text planning',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_llm_mvp_fixture_type_canary_test_',
+      );
+      try {
+        final fixture = File('${root.path}/fixture_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_mvp_fixture_type_confirm",
+  "visionDecision": "Use the fixture text field and Echo Text button for the type-and-confirm phase.",
+  "safeTargetReasoning": "The text field and Echo Text button are low-risk fixture controls with deterministic echo output.",
+  "requiresUserClick": true,
+  "requiresUserTextInput": true,
+  "selectedTarget": {
+    "label": "MVP Fixture Text Field",
+    "risk": "low",
+    "action": "type_text"
+  },
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_type_text",
+      "targetLabel": "MVP Fixture Text Field",
+      "text": "caverno-mvp-canary",
+      "requiresUserApproval": true
+    },
+    {
+      "tool": "computer_click",
+      "targetLabel": "Echo Text",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "refusedTargets": [
+    {
+      "label": "Danger Zone",
+      "reason": "The target is disabled and destructive."
+    }
+  ],
+  "expectedOutcome": "Echo label changes after user-approved text input and echo click."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_llm_decision_canary.sh',
+          '--root',
+          root.path,
+          '--scenario',
+          'mvp-fixture-type-confirm',
+          '--fixture-response',
+          fixture.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect(
+          '${result.stdout}',
+          contains('Scenario: mvp-fixture-type-confirm'),
+        );
+        expect('${result.stdout}', contains('MVP Fixture Text Field'));
+
+        final summaryDir = Directory(
+          root.path,
+        ).listSync().whereType<Directory>().single;
+        final summary = File(
+          '${summaryDir.path}/canary_summary.json',
+        ).readAsStringSync();
+        expect(summary, contains('"scenario": "mvp-fixture-type-confirm"'));
+        expect(summary, contains('"requiresUserTextInput": true'));
+        expect(summary, contains('"failedCount": 0'));
+        expect(summary, contains('"MVP Fixture Text Field"'));
+        expect(summary, contains('"Danger Zone"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test('MVP fixture runbook keeps manual boundaries explicit', () {
+    expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture',
+      ),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm',
+      ),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains('bash tool/run_macos_computer_use_mvp_fixture.sh --launch'),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+      ),
+    );
+    expect(mvpFixtureRunbook, contains('user-operated'));
+    expect(mvpFixtureRunbook, contains('does not grant TCC'));
   });
 
   test('MVP sign-off wrapper keeps user-operated boundaries explicit', () {

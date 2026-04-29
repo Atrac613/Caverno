@@ -136,6 +136,12 @@ void main() {
         _computerUseLlmDecisionSummary(failedCount: 0),
       );
       _writeJson(
+        File(
+          '${root.path}/macos_computer_use_llm_decision_canary_250/canary_summary.json',
+        ),
+        _computerUseLlmDecisionSummary(failedCount: 0, scenario: 'mvp-fixture'),
+      );
+      _writeJson(
         File('${root.path}/m8_old/report.json'),
         _runtimeReport(status: 'blocked'),
       );
@@ -185,9 +191,13 @@ void main() {
       expect(
         inputs.llmCanarySummaryPath,
         endsWith(
-          'macos_computer_use_llm_decision_canary_300/canary_summary.json',
+          'macos_computer_use_llm_decision_canary_250/canary_summary.json',
         ),
       );
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(llmGate.details['scenario'], 'mvp-fixture');
       expect(
         inputs.desktopActionCanarySummaryPath,
         endsWith(
@@ -363,53 +373,64 @@ void main() {
       },
     );
 
-    test(
-      'artifact index lists fixed readiness artifacts and latest evidence',
-      () {
-        final root = Directory.systemTemp.createTempSync(
-          'computer_use_artifact_index_test_',
-        );
-        addTearDown(() {
-          root.deleteSync(recursive: true);
-        });
+    test('artifact index lists fixed readiness artifacts and latest evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
 
-        _writeJson(
-          File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
-          _releaseReport(status: 'ready'),
-        );
-        _writeJson(
-          File('${root.path}/manual/report.json'),
-          _runtimeReport(status: 'ready'),
-        );
-        _writeJson(
-          File(
-            '${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json',
-          ),
-          _llmSummary(failedCount: 0),
-        );
-        _writeJson(
-          File(
-            '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
-          ),
-          _desktopActionSummary(failed: 0),
-        );
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json'),
+        _llmSummary(failedCount: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_llm_decision_canary_050/canary_summary.json',
+        ),
+        _computerUseLlmDecisionSummary(
+          failedCount: 0,
+          scenario: 'mvp-fixture-type-confirm',
+        ),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
 
-        final index = buildReadinessArtifactIndex(root);
-        final entryIds = index.entries.map((entry) => entry.id).toSet();
+      final index = buildReadinessArtifactIndex(root);
+      final entryIds = index.entries.map((entry) => entry.id).toSet();
 
-        expect(entryIds, contains('release_artifact'));
-        expect(entryIds, contains('manual_tcc'));
-        expect(entryIds, contains('desktop_action_canary'));
-        expect(entryIds, contains('llm_canary'));
-        expect(
-          index.entries
-              .singleWhere((entry) => entry.id == 'release_artifact')
-              .exists,
-          isTrue,
-        );
-        expect(index.toMarkdown(), contains('M7 release artifact report'));
-      },
-    );
+      expect(entryIds, contains('release_artifact'));
+      expect(entryIds, contains('manual_tcc'));
+      expect(entryIds, contains('desktop_action_canary'));
+      expect(entryIds, contains('llm_canary'));
+      expect(
+        index.entries
+            .singleWhere((entry) => entry.id == 'release_artifact')
+            .exists,
+        isTrue,
+      );
+      expect(index.toMarkdown(), contains('M7 release artifact report'));
+      final llmEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'llm_canary',
+      );
+      expect(
+        llmEntry.path,
+        contains('macos_computer_use_llm_decision_canary_050'),
+      );
+    });
   });
 }
 
@@ -522,10 +543,12 @@ Map<String, dynamic> _llmSummary({required int failedCount}) {
 
 Map<String, dynamic> _computerUseLlmDecisionSummary({
   required int failedCount,
+  String? scenario,
 }) {
   return <String, dynamic>{
     'schemaName': 'macos_computer_use_llm_decision_canary_summary',
     'purpose': 'computer_use_llm_vision_decision',
+    'scenario': scenario,
     'desktopActionBoundary': 'no_desktop_action',
     'runCount': 1,
     'passedCount': failedCount == 0 ? 1 : 0,
@@ -539,9 +562,15 @@ Map<String, dynamic> _computerUseLlmDecisionSummary({
         'The empty document body is a visible harmless target.',
     'requiresUserClick': true,
     'selectedTarget': <String, Object?>{
-      'label': 'Empty document body',
+      'label': scenario == null ? 'Empty document body' : 'Safe Click Target',
       'risk': 'low',
     },
+    'fixtureApp': scenario == null
+        ? null
+        : <String, Object?>{
+            'name': 'Caverno Computer Use MVP Fixture',
+            'windowTitle': 'Caverno Computer Use MVP Fixture',
+          },
   };
 }
 

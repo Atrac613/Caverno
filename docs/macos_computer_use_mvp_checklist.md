@@ -39,6 +39,12 @@ or run the user-operated desktop action on the user's behalf.
    observe-again, and destructive-target refusal against the deterministic
    fixture app described below. It still does not execute desktop actions.
 
+   Also run the type-and-confirm fixture scenario when validating text planning:
+
+   ```bash
+   bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
+   ```
+
 4. Ask the user to complete manual TCC runtime sign-off:
 
    ```bash
@@ -49,7 +55,7 @@ or run the user-operated desktop action on the user's behalf.
    canary:
 
    ```bash
-   bash tool/run_macos_computer_use_desktop_action_canary.sh
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
    ```
 
    Use a visible harmless target, such as an empty text field or test window.
@@ -115,6 +121,8 @@ The fixture window is titled `Caverno Computer Use MVP Fixture` and exposes:
 
 The fixture is intentionally separate from TCC automation. Building or launching
 it does not grant permissions, edit TCC, operate System Settings, or click.
+The complete fixture workflow is documented in
+`docs/macos_computer_use_mvp_fixture_runbook.md`.
 
 ## Blocked Handoff
 
