@@ -4,10 +4,14 @@ import 'package:flutter_test/flutter_test.dart';
 
 void main() {
   late String script;
+  late String existingHelperProbe;
 
   setUpAll(() {
     script = File(
       'tool/run_macos_computer_use_smoke_test.sh',
+    ).readAsStringSync();
+    existingHelperProbe = File(
+      'tool/macos_computer_use_existing_helper_probe.swift',
     ).readAsStringSync();
   });
 
@@ -28,16 +32,50 @@ void main() {
     expect(script, contains('"status": "not_measured"'));
   });
 
-  test('release diagnostics write a report before required sign-off failure', () {
-    expect(script, isNot(contains('test -d "\${RELEASE_APP}"')));
-    expect(script, isNot(contains('test -d "\${RELEASE_HELPER}"')));
-    expect(script, isNot(contains('test -f "\${RELEASE_AGENT}"')));
+  test(
+    'release diagnostics write a report before required sign-off failure',
+    () {
+      expect(script, isNot(contains('test -d "\${RELEASE_APP}"')));
+      expect(script, isNot(contains('test -d "\${RELEASE_HELPER}"')));
+      expect(script, isNot(contains('test -f "\${RELEASE_AGENT}"')));
+      expect(
+        script,
+        contains('os.environ["REQUIRE_RELEASE_SIGNOFF_DART"] == "true"'),
+      );
+      expect(
+        script,
+        contains(
+          'os.environ["REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART"] != "true"',
+        ),
+      );
+      expect(script, contains('raise SystemExit(1)'));
+    },
+  );
+
+  test('M8 runtime sign-off launches the release app and helper paths', () {
+    expect(script, contains('--m8-runtime-signoff|--release-runtime-signoff'));
+    expect(script, contains('REQUIRE_RELEASE_RUNTIME_SIGNOFF=1'));
+    expect(script, contains('SKIP_RELEASE_BUILD=1'));
+    expect(script, contains('--rebuild-release'));
     expect(
       script,
-      contains(
-        'if os.environ["REQUIRE_RELEASE_SIGNOFF_DART"] == "true" and blockers:',
-      ),
+      contains('"schemaName": "macos_computer_use_release_runtime_signoff"'),
     );
-    expect(script, contains('raise SystemExit(1)'));
+    expect(script, contains('"releaseRuntimeSignoffGate": runtime_gate'));
+    expect(script, contains('--replace-app'));
+    expect(script, contains('--require-app-path-match'));
+    expect(script, contains('--require-helper-path-match'));
+    expect(script, contains('--require-capture'));
+    expect(script, contains('--require-input'));
+    expect(script, contains('--require-audio'));
+  });
+
+  test('existing helper probe can enforce running app path identity', () {
+    expect(existingHelperProbe, contains('requireAppPathMatch'));
+    expect(existingHelperProbe, contains('replaceMismatchedApp'));
+    expect(existingHelperProbe, contains('--require-app-path-match'));
+    expect(existingHelperProbe, contains('--replace-app'));
+    expect(existingHelperProbe, contains('"id": "app_path_match"'));
+    expect(existingHelperProbe, contains('"appPathMatchesExpected"'));
   });
 }

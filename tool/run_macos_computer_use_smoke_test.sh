@@ -22,6 +22,8 @@ REQUIRE_ONBOARDING_TRANSITION="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_ONBOAR
 REQUIRE_VISION_OBSERVE="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_VISION_OBSERVE:-0}"
 REQUIRE_OBSERVE_ACTION_OBSERVE="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OBSERVE_ACTION_OBSERVE:-0}"
 REQUIRE_RELEASE_SIGNOFF="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_RELEASE_SIGNOFF:-0}"
+REQUIRE_RELEASE_RUNTIME_SIGNOFF="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_RELEASE_RUNTIME_SIGNOFF:-0}"
+SKIP_RELEASE_BUILD="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_SKIP_RELEASE_BUILD:-0}"
 REGISTER_XPC_AGENT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT:-0}"
 CLEANUP_XPC_AGENT="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT:-0}"
 REPORT_PATH="${CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH:-/tmp/caverno-macos-computer-use-smoke.json}"
@@ -202,11 +204,95 @@ for check in checks:
 PY
 }
 
+print_release_runtime_signoff_summary() {
+  if [[ "${REQUIRE_RELEASE_RUNTIME_SIGNOFF}" != "1" ]]; then
+    return 0
+  fi
+
+  echo
+  echo "M8 release runtime sign-off summary"
+
+  if [[ ! -f "${REPORT_PATH}" ]]; then
+    echo "  Status: report missing"
+    echo "  Report: ${REPORT_PATH}"
+    echo "  Next action: rerun --m8-runtime-signoff and inspect the runtime output."
+    return 0
+  fi
+
+  REPORT_PATH="${REPORT_PATH}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+def value_text(value, fallback="unknown"):
+    if value is None:
+        return fallback
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, list):
+        return ", ".join(str(item) for item in value) if value else "none"
+    return str(value)
+
+
+def map_value(value):
+    return value if isinstance(value, dict) else {}
+
+
+def list_value(value):
+    return value if isinstance(value, list) else []
+
+
+path = Path(os.environ["REPORT_PATH"])
+try:
+    report = json.loads(path.read_text())
+except Exception as error:
+    print("  Status: report unreadable")
+    print(f"  Report: {path}")
+    print(f"  Error: {error}")
+    print("  Next action: rerun --m8-runtime-signoff and inspect the runtime output.")
+    raise SystemExit(0)
+
+gate = map_value(report.get("releaseRuntimeSignoffGate"))
+readiness = map_value(report.get("releaseRuntimeReadiness"))
+checks = [
+    map_value(item)
+    for item in list_value(gate.get("checks"))
+    if isinstance(item, dict)
+]
+
+print(f"  Status: {value_text(gate.get('status'))}")
+print(f"  Blockers: {value_text(gate.get('blockers'), 'none')}")
+if gate.get("appPath"):
+    print(f"  Release app: {gate['appPath']}")
+if gate.get("helperPath"):
+    print(f"  Release helper: {gate['helperPath']}")
+if readiness.get("status"):
+    print(f"  Runtime readiness: {readiness['status']}")
+
+next_action = gate.get("nextAction")
+if next_action:
+    print(f"  Next action: {next_action}")
+
+for check in checks:
+    if check.get("ok") is True:
+        continue
+    label = value_text(check.get("label"), value_text(check.get("id"), "check"))
+    status = value_text(check.get("status"))
+    action = check.get("nextAction")
+    if action:
+        print(f"  - {label}: {status}; {action}")
+    else:
+        print(f"  - {label}: {status}")
+PY
+}
+
 finish() {
   local exit_code=$?
   set +e
   print_m4_signoff_summary
   print_release_signoff_summary
+  print_release_runtime_signoff_summary
   exit "${exit_code}"
 }
 
@@ -254,8 +340,31 @@ while [[ $# -gt 0 ]]; do
       REQUIRE_RELEASE_SIGNOFF=1
       shift
       ;;
+    --m8-runtime-signoff|--release-runtime-signoff)
+      BUILD_MODE=release
+      STRICT_XPC=1
+      REGISTER_XPC_AGENT=1
+      CLEANUP_XPC_AGENT=1
+      REQUIRE_RELEASE_SIGNOFF=1
+      REQUIRE_RELEASE_RUNTIME_SIGNOFF=1
+      SKIP_RELEASE_BUILD=1
+      shift
+      ;;
     --require-release-signoff)
       REQUIRE_RELEASE_SIGNOFF=1
+      shift
+      ;;
+    --require-release-runtime-signoff)
+      REQUIRE_RELEASE_SIGNOFF=1
+      REQUIRE_RELEASE_RUNTIME_SIGNOFF=1
+      shift
+      ;;
+    --no-release-build|--skip-release-build)
+      SKIP_RELEASE_BUILD=1
+      shift
+      ;;
+    --rebuild-release)
+      SKIP_RELEASE_BUILD=0
       shift
       ;;
     --debug|--profile|--release)
@@ -354,6 +463,8 @@ echo "  Require onboarding transition: ${REQUIRE_ONBOARDING_TRANSITION}"
 echo "  Require vision observe: ${REQUIRE_VISION_OBSERVE}"
 echo "  Require observe-action-observe: ${REQUIRE_OBSERVE_ACTION_OBSERVE}"
 echo "  Require release sign-off: ${REQUIRE_RELEASE_SIGNOFF}"
+echo "  Require release runtime sign-off: ${REQUIRE_RELEASE_RUNTIME_SIGNOFF}"
+echo "  Skip release build: ${SKIP_RELEASE_BUILD}"
 echo "  Register XPC agent: ${REGISTER_XPC_AGENT}"
 echo "  Cleanup XPC agent: ${CLEANUP_XPC_AGENT}"
 echo "  Report: ${REPORT_PATH}"
@@ -373,6 +484,8 @@ REQUIRE_ONBOARDING_TRANSITION_DART="$(dart_bool_define "${REQUIRE_ONBOARDING_TRA
 REQUIRE_VISION_OBSERVE_DART="$(dart_bool_define "${REQUIRE_VISION_OBSERVE}")"
 REQUIRE_OBSERVE_ACTION_OBSERVE_DART="$(dart_bool_define "${REQUIRE_OBSERVE_ACTION_OBSERVE}")"
 REQUIRE_RELEASE_SIGNOFF_DART="$(dart_bool_define "${REQUIRE_RELEASE_SIGNOFF}")"
+REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART="$(dart_bool_define "${REQUIRE_RELEASE_RUNTIME_SIGNOFF}")"
+SKIP_RELEASE_BUILD_DART="$(dart_bool_define "${SKIP_RELEASE_BUILD}")"
 REGISTER_XPC_AGENT_DART="$(dart_bool_define "${REGISTER_XPC_AGENT}")"
 CLEANUP_XPC_AGENT_DART="$(dart_bool_define "${CLEANUP_XPC_AGENT}")"
 
@@ -394,6 +507,8 @@ COMMON_DART_DEFINES=(
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_VISION_OBSERVE="${REQUIRE_VISION_OBSERVE_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_OBSERVE_ACTION_OBSERVE="${REQUIRE_OBSERVE_ACTION_OBSERVE_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_RELEASE_SIGNOFF="${REQUIRE_RELEASE_SIGNOFF_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REQUIRE_RELEASE_RUNTIME_SIGNOFF="${REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART}"
+  --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_SKIP_RELEASE_BUILD="${SKIP_RELEASE_BUILD_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REGISTER_XPC_AGENT="${REGISTER_XPC_AGENT_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_CLEANUP_XPC_AGENT="${CLEANUP_XPC_AGENT_DART}"
   --dart-define=CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH="${REPORT_PATH}"
@@ -415,15 +530,25 @@ case "${BUILD_MODE}" in
       "${COMMON_DART_DEFINES[@]}"
     ;;
   release)
-    flutter build macos --release "${COMMON_DART_DEFINES[@]}"
+    if [[ "${SKIP_RELEASE_BUILD}" == "1" ]]; then
+      echo "Skipping release build; using the existing release app artifact."
+    else
+      flutter build macos --release "${COMMON_DART_DEFINES[@]}"
+    fi
     RELEASE_APP="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
     RELEASE_HELPER="${RELEASE_APP}/Contents/Helpers/Caverno Computer Use.app"
     RELEASE_AGENT="${RELEASE_APP}/Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist"
-    RELEASE_REPORT_PATH="${REPORT_PATH}" \
+    RELEASE_ARTIFACT_REPORT_PATH="${REPORT_PATH}"
+    if [[ "${REQUIRE_RELEASE_RUNTIME_SIGNOFF}" == "1" ]]; then
+      RELEASE_ARTIFACT_REPORT_PATH="${REPORT_PATH}.release-artifact.json"
+    fi
+    RELEASE_REPORT_PATH="${RELEASE_ARTIFACT_REPORT_PATH}" \
     RELEASE_APP="${RELEASE_APP}" \
     RELEASE_HELPER="${RELEASE_HELPER}" \
     RELEASE_AGENT="${RELEASE_AGENT}" \
     REQUIRE_RELEASE_SIGNOFF_DART="${REQUIRE_RELEASE_SIGNOFF_DART}" \
+    REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART="${REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART}" \
+    SKIP_RELEASE_BUILD_DART="${SKIP_RELEASE_BUILD_DART}" \
     STRICT_DART="${STRICT_DART}" \
     STRICT_XPC_DART="${STRICT_XPC_DART}" \
     M4_SIGNOFF_DART="${M4_SIGNOFF_DART}" \
@@ -701,6 +826,7 @@ report = {
     "strictXpc": os.environ["STRICT_XPC_DART"] == "true",
     "m4Signoff": os.environ["M4_SIGNOFF_DART"] == "true",
     "releaseSignoff": os.environ["REQUIRE_RELEASE_SIGNOFF_DART"] == "true",
+    "skipReleaseBuild": os.environ["SKIP_RELEASE_BUILD_DART"] == "true",
     "registerXpcAgent": os.environ["REGISTER_XPC_AGENT_DART"] == "true",
     "cleanupXpcAgent": os.environ["CLEANUP_XPC_AGENT_DART"] == "true",
     "ok": len(blockers) == 0,
@@ -739,9 +865,257 @@ if report_path:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(encoded)
 print(f"CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON={encoded}")
-if os.environ["REQUIRE_RELEASE_SIGNOFF_DART"] == "true" and blockers:
+if (
+    os.environ["REQUIRE_RELEASE_SIGNOFF_DART"] == "true"
+    and os.environ["REQUIRE_RELEASE_RUNTIME_SIGNOFF_DART"] != "true"
+    and blockers
+):
     raise SystemExit(1)
 PY
+    if [[ "${REQUIRE_RELEASE_RUNTIME_SIGNOFF}" == "1" ]]; then
+      RELEASE_RUNTIME_PROBE_REPORT_PATH="${REPORT_PATH}.runtime-probe.json"
+      set +e
+      CAVERNO_MACOS_COMPUTER_USE_EXISTING_HELPER_REPORT_PATH="${RELEASE_RUNTIME_PROBE_REPORT_PATH}" \
+        bash tool/run_macos_computer_use_existing_helper_probe.sh \
+        --app "${RELEASE_APP}" \
+        --helper "${RELEASE_HELPER}" \
+        --replace-app \
+        --replace-helper \
+        --require-app-path-match \
+        --require-helper-path-match \
+        --require-capture \
+        --require-input \
+        --require-audio
+      RELEASE_RUNTIME_PROBE_EXIT=$?
+      set -e
+      RELEASE_ARTIFACT_REPORT_PATH="${RELEASE_ARTIFACT_REPORT_PATH}" \
+      RELEASE_RUNTIME_PROBE_REPORT_PATH="${RELEASE_RUNTIME_PROBE_REPORT_PATH}" \
+      RELEASE_REPORT_PATH="${REPORT_PATH}" \
+      RELEASE_RUNTIME_PROBE_EXIT="${RELEASE_RUNTIME_PROBE_EXIT}" \
+        python3 - <<'PY'
+import datetime
+import json
+import os
+from pathlib import Path
+
+
+def map_value(value):
+    return value if isinstance(value, dict) else {}
+
+
+def list_value(value):
+    return value if isinstance(value, list) else []
+
+
+def redact_images(value):
+    if isinstance(value, dict):
+        return {
+            key: "<redacted: see runtime probe report>"
+            if key == "imageBase64"
+            else redact_images(item)
+            for key, item in value.items()
+        }
+    if isinstance(value, list):
+        return [redact_images(item) for item in value]
+    return value
+
+
+def check_item(check_id, label, ok, status=None, next_action=None, details=None):
+    item = {
+        "id": check_id,
+        "label": label,
+        "ok": bool(ok),
+        "status": status or ("ready" if ok else "blocked"),
+    }
+    if next_action:
+        item["nextAction"] = next_action
+    if details is not None:
+        item["details"] = details
+    return item
+
+
+def step_ok(probe, step_id):
+    for step in list_value(probe.get("steps")):
+        if map_value(step).get("id") == step_id:
+            return map_value(step).get("ok") is True
+    return False
+
+
+def next_action(blockers):
+    if not blockers:
+        return "M8 release runtime sign-off is complete."
+    if "release_artifact_gate_blocked" in blockers:
+        return "Resolve the release artifact blockers, then rerun --m8-runtime-signoff."
+    if "release_runtime_app_path_mismatch" in blockers:
+        return "Stop the running Caverno.app and rerun --m8-runtime-signoff."
+    if "release_runtime_helper_path_mismatch" in blockers:
+        return "Stop the running helper and rerun --m8-runtime-signoff."
+    if "release_runtime_permissions_blocked" in blockers:
+        return "Grant Accessibility and Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff."
+    if "release_runtime_capture_blocked" in blockers:
+        return "Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff."
+    return "Resolve the failed M8 runtime checks, then rerun --m8-runtime-signoff."
+
+
+artifact_path = Path(os.environ["RELEASE_ARTIFACT_REPORT_PATH"])
+probe_path = Path(os.environ["RELEASE_RUNTIME_PROBE_REPORT_PATH"])
+report_path = Path(os.environ["RELEASE_REPORT_PATH"])
+artifact = json.loads(artifact_path.read_text())
+probe = json.loads(probe_path.read_text()) if probe_path.exists() else {}
+artifact_gate = map_value(artifact.get("releaseSignoffGate"))
+artifact_blockers = list_value(artifact_gate.get("blockers"))
+permission_summary = map_value(probe.get("permissionSummary"))
+app = map_value(probe.get("app"))
+helper = map_value(probe.get("helper"))
+probe_exit = int(os.environ["RELEASE_RUNTIME_PROBE_EXIT"])
+app_path_ok = probe.get("appPathMatchesExpected") is True
+helper_path_ok = probe.get("helperPathMatchesExpected") is True
+permission_status_ok = step_ok(probe, "permission_status")
+display_ok = step_ok(probe, "display_screenshot")
+windows_ok = step_ok(probe, "list_windows")
+window_ok = step_ok(probe, "window_capture")
+accessibility_ok = permission_summary.get("accessibilityGranted") is True
+screen_capture_ok = permission_summary.get("screenCaptureGranted") is True
+capture_ready = probe.get("captureReady") is True
+input_ready = probe.get("inputReady") is True
+audio_resolved = probe.get("audioResolved") is True
+runtime_blockers = []
+if artifact_blockers:
+    runtime_blockers.append("release_artifact_gate_blocked")
+if probe_exit != 0 and not probe:
+    runtime_blockers.append("release_runtime_probe_failed")
+if not app_path_ok:
+    runtime_blockers.append("release_runtime_app_path_mismatch")
+if not helper_path_ok:
+    runtime_blockers.append("release_runtime_helper_path_mismatch")
+if not permission_status_ok:
+    runtime_blockers.append("release_runtime_permission_status_failed")
+if not accessibility_ok or not screen_capture_ok:
+    runtime_blockers.append("release_runtime_permissions_blocked")
+if not capture_ready:
+    runtime_blockers.append("release_runtime_capture_blocked")
+if not input_ready:
+    runtime_blockers.append("release_runtime_input_blocked")
+if not audio_resolved:
+    runtime_blockers.append("release_runtime_audio_blocked")
+
+checks = [
+    check_item(
+        "release_artifact_gate",
+        "Release artifact gate",
+        not artifact_blockers,
+        details={"blockers": artifact_blockers},
+    ),
+    check_item(
+        "release_app_path",
+        "Running release app path",
+        app_path_ok,
+        next_action="Stop the running Caverno.app and rerun --m8-runtime-signoff.",
+        details=app,
+    ),
+    check_item(
+        "release_helper_path",
+        "Running release helper path",
+        helper_path_ok,
+        next_action="Stop the running helper and rerun --m8-runtime-signoff.",
+        details=helper,
+    ),
+    check_item(
+        "permission_status",
+        "Release helper permission status",
+        permission_status_ok,
+        next_action="Launch the release app and helper, then rerun --m8-runtime-signoff.",
+    ),
+    check_item(
+        "accessibility",
+        "Release helper Accessibility",
+        accessibility_ok,
+        next_action="Grant Accessibility to the release Caverno Computer Use helper.",
+    ),
+    check_item(
+        "screen_capture",
+        "Release helper Screen & System Audio Recording",
+        screen_capture_ok,
+        next_action="Grant Screen & System Audio Recording to the release Caverno Computer Use helper.",
+    ),
+    check_item(
+        "display_screenshot",
+        "Release display screenshot",
+        display_ok,
+        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+    ),
+    check_item(
+        "list_windows",
+        "Release list windows",
+        windows_ok,
+        next_action="Launch the release app on the desktop, then rerun --m8-runtime-signoff.",
+    ),
+    check_item(
+        "window_capture",
+        "Release window capture",
+        window_ok,
+        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+    ),
+    check_item(
+        "system_audio_resolved",
+        "Release system audio readiness",
+        audio_resolved,
+        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+    ),
+]
+runtime_status = "ready" if not runtime_blockers else "blocked"
+runtime_readiness = {
+    "status": runtime_status,
+    "appPath": app.get("expectedPath"),
+    "helperPath": helper.get("expectedPath"),
+    "runningAppPath": app.get("runningPath"),
+    "runningHelperPath": helper.get("runningPath"),
+    "helperBundleIdentifier": helper.get("bundleIdentifier"),
+    "requiredPermissions": [
+        "Accessibility",
+        "Screen & System Audio Recording",
+    ],
+    "permissionSummary": permission_summary,
+    "runtimeProbeReportPath": str(probe_path),
+    "nextAction": next_action(runtime_blockers),
+}
+runtime_gate = {
+    "status": runtime_status,
+    "blockers": runtime_blockers,
+    "checks": checks,
+    "appPath": app.get("expectedPath"),
+    "helperPath": helper.get("expectedPath"),
+    "runtimeProbeReportPath": str(probe_path),
+    "nextAction": next_action(runtime_blockers),
+}
+report = {
+    "schemaName": "macos_computer_use_release_runtime_signoff",
+    "schemaVersion": 1,
+    "generatedAt": datetime.datetime.now(datetime.timezone.utc)
+        .replace(microsecond=0)
+        .isoformat()
+        .replace("+00:00", "Z"),
+    "buildMode": "release",
+    "skipReleaseBuild": artifact.get("skipReleaseBuild"),
+    "ok": not runtime_blockers,
+    "releaseBundle": artifact.get("releaseBundle"),
+    "signingDiagnostics": artifact.get("signingDiagnostics"),
+    "releaseSignoffGate": artifact_gate,
+    "releaseRuntimeReadiness": runtime_readiness,
+    "releaseRuntimeSignoffGate": runtime_gate,
+    "releaseRuntimeProbe": redact_images(probe),
+    "artifactReportPath": str(artifact_path),
+    "runtimeProbeReportPath": str(probe_path),
+    "reportPath": str(report_path),
+}
+encoded = json.dumps(report, indent=2)
+report_path.parent.mkdir(parents=True, exist_ok=True)
+report_path.write_text(encoded)
+print(f"CAVERNO_MACOS_COMPUTER_USE_SMOKE_JSON={encoded}")
+if runtime_blockers:
+    raise SystemExit(1)
+PY
+    fi
     echo "Release bundle XPC artifacts verified"
     ;;
   *)

@@ -254,6 +254,11 @@ Follow-on milestones:
 - M7: Complete release-helper sign-off against the release
   `Caverno.app/Contents/Helpers/Caverno Computer Use.app` bundle identity,
   signing chain, LaunchAgent plist, and MachService declaration.
+- M8: Complete installed release runtime sign-off by launching the release
+  `Caverno.app`, replacing mismatched debug app/helper processes, and verifying
+  the running release helper owns Accessibility, Screen & System Audio
+  Recording, screenshot capture, window listing, window capture, and system
+  audio readiness.
 
 Current M5 implementation status:
 
@@ -387,6 +392,56 @@ M7 release sign-off notes:
   remaining release runtime task is to install and launch the release app,
   grant Accessibility plus Screen & System Audio Recording to the release
   helper, and run a live runtime smoke against that installed app.
+
+Current M8 implementation status:
+
+- M8 is implemented as a release runtime sign-off gate.
+- `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff` reuses
+  the existing release app by default, runs the M7 artifact gate, launches the
+  release app/helper path, replaces mismatched running debug app/helper
+  processes, and measures the live helper runtime through the existing helper
+  probe. Add `--rebuild-release` only when the release artifact intentionally
+  needs to be rebuilt before manual TCC sign-off.
+- The final report uses schema `macos_computer_use_release_runtime_signoff` and
+  includes `releaseRuntimeSignoffGate`, `releaseRuntimeReadiness`, the M7
+  `releaseSignoffGate`, redacted runtime probe details, and paths to the full
+  artifact and runtime probe reports.
+- The existing helper probe now supports `--replace-app` and
+  `--require-app-path-match`, so a passing helper result cannot be accepted
+  when the sender app is a different debug or standalone `Caverno.app`.
+
+M8 acceptance criteria:
+
+- `--m8-runtime-signoff` verifies the release artifact gate before trusting
+  runtime results.
+- The running `Caverno.app` path matches the release app path used by the
+  runner.
+- The running `Caverno Computer Use.app` path matches the release helper
+  embedded in the release app bundle.
+- `permissionStatus` succeeds and reports Accessibility plus Screen & System
+  Audio Recording granted to the release helper.
+- Display screenshot, visible-window listing, first-window screenshot, input
+  readiness, and system-audio readiness resolve through the running release
+  helper.
+- Blocked runtime sign-off writes the final report before exiting non-zero and
+  prints concrete next actions for app path, helper path, permission, capture,
+  input, or audio blockers.
+
+M8 release runtime sign-off notes:
+
+- 2026-04-29: `flutter test test/tool/run_macos_computer_use_smoke_test_test.dart -r compact`
+  passed the M7/M8 runner contract tests, including app path identity support
+  in the existing-helper probe.
+- 2026-04-29: `flutter analyze` passed after adding the release runtime gate.
+- Runtime TCC sign-off is intentionally manual. The user should grant
+  Accessibility plus Screen & System Audio Recording to the release
+  `Caverno Computer Use.app`, then run
+  `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`.
+- A passing manual run must report `releaseRuntimeSignoffGate.status: ready`,
+  `appPathMatchesExpected: true`, `helperPathMatchesExpected: true`,
+  `accessibilityGranted: true`, `screenCaptureGranted: true`,
+  `captureReady: true`, `inputReady: true`, `audioResolved: true`,
+  `xpcProductionReady: true`, and no runtime blockers.
 
 Current M2 implementation status:
 
@@ -600,6 +655,18 @@ signing constraints to pass. A blocked gate exits non-zero only after writing
 the report and printing the M7 summary. `releaseRuntimeReadiness.status` remains
 `not_measured` until an installed release app is launched and granted
 Accessibility plus Screen & System Audio Recording in macOS Privacy & Security.
+
+To verify the installed release runtime after the permissions are granted, run:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
+
+The M8 runner replaces mismatched running debug app/helper processes, launches
+the release app/helper paths, and writes `releaseRuntimeSignoffGate`. A ready
+gate requires the running app path, running helper path, `permissionStatus`,
+Accessibility, Screen & System Audio Recording, display screenshot, visible
+window listing, first-window screenshot, and system-audio readiness checks to
+pass. If macOS has not granted the release helper yet, the report remains
+blocked with the exact release helper path to grant.
 
 To exercise named XPC with a built app runtime, run:
 

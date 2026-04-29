@@ -29,7 +29,9 @@ private struct Config {
   var requireCaptureReady = false
   var requireInputReady = false
   var requireAudioResolved = false
+  var requireAppPathMatch = false
   var requireHelperPathMatch = false
+  var replaceMismatchedApp = false
   var replaceMismatchedHelper = false
 }
 
@@ -169,8 +171,12 @@ private func parseConfig(arguments: [String]) -> Config {
       config.requireInputReady = true
     case "--require-audio", "--require-audio-resolved":
       config.requireAudioResolved = true
+    case "--require-app-path-match":
+      config.requireAppPathMatch = true
     case "--require-helper-path-match":
       config.requireHelperPathMatch = true
+    case "--replace-app":
+      config.replaceMismatchedApp = true
     case "--replace-helper":
       config.replaceMismatchedHelper = true
     default:
@@ -357,8 +363,29 @@ private let config = parseConfig(arguments: Array(CommandLine.arguments.dropFirs
 let fileManager = FileManager.default
 let appExists = fileManager.fileExists(atPath: config.appPath)
 let helperExists = fileManager.fileExists(atPath: config.helperPath)
+let configuredAppPath = URL(fileURLWithPath: config.appPath).standardizedFileURL.path
 let configuredHelperPath = URL(fileURLWithPath: config.helperPath).standardizedFileURL.path
 var launchEvents: [[String: Any]] = []
+
+if config.replaceMismatchedApp,
+  let app = runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier) {
+  let runningPath = app.bundleURL?.standardizedFileURL.path
+  if runningPath != configuredAppPath {
+    let terminated = app.terminate()
+    let stopped = waitForNoRunningApplication(
+      bundleIdentifier: Ipc.mainAppBundleIdentifier,
+      timeout: 4
+    )
+    launchEvents.append([
+      "role": "app_replace",
+      "terminated": terminated,
+      "stopped": stopped,
+      "previousPath": jsonValue(runningPath),
+      "expectedPath": configuredAppPath,
+      "previousProcessIdentifier": Int(app.processIdentifier),
+    ])
+  }
+}
 
 if config.replaceMismatchedHelper,
   let helper = runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier) {
@@ -408,6 +435,7 @@ let app = runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier)
 let helper = runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier)
 let appProcessIdentifier = app.map { Int($0.processIdentifier) }
 let helperProcessIdentifier = helper.map { Int($0.processIdentifier) }
+let runningAppPath = app?.bundleURL?.standardizedFileURL.path
 let runningHelperPath = helper?.bundleURL?.standardizedFileURL.path
 var steps: [[String: Any]] = []
 private let client = HelperProbeClient()
@@ -503,12 +531,18 @@ let captureReady = (displayScreenshot["ok"] as? Bool ?? false) &&
   (windowCapture["ok"] as? Bool ?? false)
 let inputReady = accessibilityGranted
 let audioResolved = !audioSupported || screenCaptureGranted
+let appPathMatchesExpected = runningAppPath == nil ||
+  runningAppPath == configuredAppPath
 let helperPathMatchesExpected = runningHelperPath == nil ||
   runningHelperPath == configuredHelperPath
+let pathMismatchInvalidatesSignoff = (!appPathMatchesExpected || !helperPathMatchesExpected) &&
+  (captureReady || inputReady || audioResolved)
 let helperPathMismatchInvalidatesSignoff = !helperPathMatchesExpected &&
   (captureReady || inputReady || audioResolved)
 let nextAction: String
-if !helperPathMatchesExpected {
+if !appPathMatchesExpected {
+  nextAction = "Stop the running Caverno.app and rerun the probe with --replace-app before using these results for release runtime sign-off."
+} else if !helperPathMatchesExpected {
   nextAction = "Stop the standalone helper and rerun the probe with --replace-helper before using these results for embedded-helper sign-off."
 } else if !screenCaptureGranted {
   nextAction = "Grant Screen & System Audio Recording to the expected embedded helper path, then rerun this probe with --require-capture."
@@ -534,6 +568,11 @@ let requiredChecks: [[String: Any]] = [
     "ok": !config.requireAudioResolved || audioResolved,
   ],
   [
+    "id": "app_path_match",
+    "required": config.requireAppPathMatch,
+    "ok": !config.requireAppPathMatch || appPathMatchesExpected,
+  ],
+  [
     "id": "helper_path_match",
     "required": config.requireHelperPathMatch,
     "ok": !config.requireHelperPathMatch || helperPathMatchesExpected,
@@ -552,23 +591,28 @@ let report: [String: Any] = [
   "schemaVersion": 1,
   "generatedAt": ISO8601DateFormatter().string(from: Date()),
   "noRebuild": true,
+  "replaceMismatchedApp": config.replaceMismatchedApp,
   "replaceMismatchedHelper": config.replaceMismatchedHelper,
   "ok": ok,
   "coreOk": coreOk,
   "captureReady": captureReady,
   "inputReady": inputReady,
   "audioResolved": audioResolved,
+  "appPathMatchesExpected": appPathMatchesExpected,
   "helperPathMatchesExpected": helperPathMatchesExpected,
+  "pathMismatchInvalidatesSignoff": pathMismatchInvalidatesSignoff,
   "helperPathMismatchInvalidatesSignoff": helperPathMismatchInvalidatesSignoff,
   "nextAction": nextAction,
   "requiredChecks": requiredChecks,
   "failedRequiredChecks": failedRequiredChecks,
   "app": [
     "bundleIdentifier": Ipc.mainAppBundleIdentifier,
-    "path": config.appPath,
+    "expectedPath": configuredAppPath,
     "exists": appExists,
     "running": appProcessIdentifier != nil,
     "processIdentifier": jsonValue(appProcessIdentifier),
+    "runningPath": jsonValue(runningAppPath),
+    "pathMatchesExpected": appPathMatchesExpected,
   ],
   "helper": [
     "bundleIdentifier": Ipc.helperBundleIdentifier,
