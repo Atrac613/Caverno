@@ -204,6 +204,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 body: _overlayCanarySummary()!,
               ),
             ],
+            const SizedBox(height: 8),
+            _OnboardingNote(
+              icon: Icons.fact_check_outlined,
+              title: 'MVP Sign-Off Path',
+              body: _mvpSignoffSummary(),
+            ),
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -1610,6 +1616,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       ?command,
       ?parser,
       if (helperPath != null) _shortPath(helperPath),
+    ].join(' | ');
+  }
+
+  String _mvpSignoffSummary() {
+    return [
+      'Wrapper: bash tool/run_macos_computer_use_mvp_signoff.sh',
+      'Manual inputs: manual_tcc_report_summary.json and canary_summary.json',
+      'TCC and desktop action stay user-operated',
     ].join(' | ');
   }
 

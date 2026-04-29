@@ -43,6 +43,10 @@ or run the user-operated desktop action on the user's behalf.
      --desktop-action-canary-summary <desktop-action-canary-summary.json>
    ```
 
+   Running the wrapper without both reports is still useful. It writes
+   `macos_computer_use_mvp_handoff.md` with the missing manual inputs and the
+   exact user-operated commands to request next.
+
 ## MVP Ready Criteria
 
 - `release_artifact`: ready.

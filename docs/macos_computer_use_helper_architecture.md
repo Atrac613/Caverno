@@ -400,6 +400,11 @@ The MVP wrapper prints the user-operated commands, writes
 release readiness wrapper. It does not run manual TCC sign-off or the desktop
 action canary for the user.
 
+Running the MVP wrapper before both user-produced reports are available is the
+standard handoff check. The generated handoff lists missing manual inputs,
+validates whether provided paths exist, and prints the next user-operated
+command for each missing gate.
+
 To refresh only non-TCC inputs before producing the readiness report, run:
 
 ```bash

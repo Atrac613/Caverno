@@ -104,13 +104,38 @@ fi
 
 mkdir -p "${REPORT_ROOT}"
 
+manual_tcc_status="not provided"
+if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
+  if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
+    manual_tcc_status="provided"
+  else
+    manual_tcc_status="provided path not found"
+  fi
+fi
+
+desktop_action_status="not provided"
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  if [[ -f "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+    desktop_action_status="provided"
+  else
+    desktop_action_status="provided path not found"
+  fi
+fi
+
 cat >"${HANDOFF_MD}" <<EOF
 # macOS Computer Use MVP Handoff
 
 - Automation boundary: user-operated TCC and desktop action only
 - MVP checklist: \`docs/macos_computer_use_mvp_checklist.md\`
 - Manual TCC report: ${MANUAL_TCC_REPORT:-not provided}
+- Manual TCC status: ${manual_tcc_status}
 - Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not provided}
+- Desktop action canary status: ${desktop_action_status}
+
+## Current Manual Input Status
+
+- \`manual_tcc\`: ${manual_tcc_status}
+- \`desktop_action_canary\`: ${desktop_action_status}
 
 ## User-Operated Commands
 
@@ -142,10 +167,27 @@ bash tool/run_macos_computer_use_live_canary.sh --overlay
 \`\`\`
 EOF
 
+{
+  echo
+  echo "## Missing Input Next Actions"
+  echo
+  if [[ "${manual_tcc_status}" != "provided" ]]; then
+    echo "- Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
+  fi
+  if [[ "${desktop_action_status}" != "provided" ]]; then
+    echo "- Ask the user to prepare a safe click target, run \`bash tool/run_macos_computer_use_desktop_action_canary.sh\`, and provide \`canary_summary.json\`."
+  fi
+  if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
+    echo "- No manual input is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
+  fi
+} >>"${HANDOFF_MD}"
+
 echo "Running macOS Computer Use MVP sign-off aggregator"
 echo "  Report root: ${REPORT_ROOT}"
 echo "  Manual TCC report: ${MANUAL_TCC_REPORT:-not provided}"
+echo "  Manual TCC status: ${manual_tcc_status}"
 echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not provided}"
+echo "  Desktop action canary status: ${desktop_action_status}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Output JSON: ${OUTPUT_JSON}"
@@ -158,6 +200,17 @@ echo
 echo "User-operated commands:"
 echo "  bash tool/run_macos_computer_use_manual_tcc_signoff.sh"
 echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh"
+echo
+echo "MVP handoff next actions:"
+if [[ "${manual_tcc_status}" != "provided" ]]; then
+  echo "  manual_tcc: ask the user for manual_tcc_report_summary.json"
+fi
+if [[ "${desktop_action_status}" != "provided" ]]; then
+  echo "  desktop_action_canary: ask the user for canary_summary.json"
+fi
+if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
+  echo "  all manual inputs were provided to this wrapper"
+fi
 
 cd "${ROOT_DIR}"
 

@@ -369,11 +369,22 @@ void main() {
     );
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
+    expect(mvpSignoffScript, contains('Current Manual Input Status'));
+    expect(mvpSignoffScript, contains('Missing Input Next Actions'));
+    expect(mvpSignoffScript, contains('provided path not found'));
     expect(
       mvpSignoffScript,
       contains('user-operated manual verification only'),
     );
     expect(mvpSignoffScript, contains('user-operated safe click target only'));
+    expect(
+      mvpSignoffScript,
+      contains('manual_tcc: ask the user for manual_tcc_report_summary.json'),
+    );
+    expect(
+      mvpSignoffScript,
+      contains('desktop_action_canary: ask the user for canary_summary.json'),
+    );
     expect(mvpSignoffScript, contains('--manual-tcc-report'));
     expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
     expect(
