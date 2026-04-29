@@ -339,6 +339,13 @@ To refresh only non-TCC inputs before producing the readiness report, run:
 dart run tool/macos_computer_use_release_readiness.dart --refresh-safe-inputs
 ```
 
+The shell wrapper provides the standard presets:
+
+```bash
+bash tool/run_macos_computer_use_release_readiness.sh --ci
+bash tool/run_macos_computer_use_release_readiness.sh --signoff
+```
+
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,
 or perform any TCC-gated runtime verification. The LLM canary is discovered from
@@ -366,6 +373,16 @@ or pass it explicitly:
 dart run tool/macos_computer_use_release_readiness.dart \
   --manual-tcc-report <user-produced-m8-report.json>
 ```
+
+Manual TCC intake uses this handoff:
+
+1. Ask the user to run
+   `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff` from
+   their terminal after granting the release helper in System Settings.
+2. Ask the user for the produced report path. The report may be either the raw
+   M8 runtime report or `manual_tcc_report_summary.json`.
+3. Run
+   `bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report <report.json>`.
 
 Use `--exit-policy ci` when CI should accept a missing manual TCC report as a
 blocked-but-expected manual step. Other blocked gates still exit non-zero.

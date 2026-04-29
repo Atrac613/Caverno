@@ -180,8 +180,19 @@ void main() {
       architectureDoc,
       contains('dart run tool/macos_computer_use_release_readiness.dart'),
     );
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_release_readiness.sh --ci'),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'bash tool/run_macos_computer_use_release_readiness.sh --signoff',
+      ),
+    );
     expect(architectureDoc, contains('--refresh-safe-inputs'));
     expect(architectureDoc, contains('--exit-policy ci'));
+    expect(architectureDoc, contains('Manual TCC intake uses this handoff'));
     expect(architectureDoc, contains('manual_required'));
     expect(
       architectureDoc,

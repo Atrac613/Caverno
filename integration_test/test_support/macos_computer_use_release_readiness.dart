@@ -50,6 +50,9 @@ class ReleaseReadinessSummary {
   List<ReleaseReadinessGate> get blockedGates =>
       gates.where((gate) => !gate.ready).toList(growable: false);
 
+  List<ReleaseReadinessGate> get readyGates =>
+      gates.where((gate) => gate.ready).toList(growable: false);
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schemaName': 'macos_computer_use_release_readiness',
@@ -57,6 +60,7 @@ class ReleaseReadinessSummary {
       'automationBoundary': 'read_reports_only',
       'status': status,
       'ready': ready,
+      'readyGateIds': readyGates.map((gate) => gate.id).toList(growable: false),
       'blockedGateIds': blockedGates
           .map((gate) => gate.id)
           .toList(growable: false),
@@ -74,6 +78,27 @@ class ReleaseReadinessSummary {
       ..writeln(
         '- Blocked gates: ${blockedGates.isEmpty ? 'none' : blockedGates.map((gate) => gate.id).join(', ')}',
       )
+      ..writeln(
+        '- Ready gates: ${readyGates.map((gate) => gate.id).join(', ')}',
+      )
+      ..writeln();
+
+    if (blockedGates.isNotEmpty) {
+      buffer
+        ..writeln('## Blocked Gates')
+        ..writeln()
+        ..writeln('| Gate | Status | Next Action | Artifact |')
+        ..writeln('| --- | --- | --- | --- |');
+      for (final gate in blockedGates) {
+        buffer.writeln(
+          '| ${_markdownCell(gate.label)} | ${_markdownCell(gate.status)} | ${_markdownCell(gate.nextAction)} | ${_artifactCell(gate.artifactPath)} |',
+        );
+      }
+      buffer.writeln();
+    }
+
+    buffer
+      ..writeln('## All Gates')
       ..writeln()
       ..writeln('| Gate | Status | Ready | Next Action | Artifact |')
       ..writeln('| --- | --- | --- | --- | --- |');
@@ -294,8 +319,7 @@ ReleaseReadinessGate _manualTccGate(
       label: 'Manual TCC sign-off',
       status: 'manual_required',
       ready: false,
-      nextAction:
-          'Ask the user to run --m8-runtime-signoff manually, then parse the report.',
+      nextAction: 'User must run --m8-runtime-signoff and provide the report.',
     );
   }
 

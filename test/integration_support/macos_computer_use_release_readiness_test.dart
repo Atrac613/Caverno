@@ -30,6 +30,9 @@ void main() {
         everyElement(isNot('missing')),
       );
       expect(summary.toJson()['automationBoundary'], 'read_reports_only');
+      expect(summary.toJson()['readyGateIds'], contains('manual_tcc'));
+      expect(summary.toJson()['blockedGateIds'], isEmpty);
+      expect(summary.toMarkdown(), contains('## All Gates'));
       expect(summary.toMarkdown(), contains('Release artifact gate is ready.'));
     });
 
@@ -53,6 +56,9 @@ void main() {
       expect(summary.ready, isFalse);
       expect(manualGate.status, 'manual_required');
       expect(manualGate.nextAction, contains('--m8-runtime-signoff'));
+      expect(summary.toJson()['readyGateIds'], isNot(contains('manual_tcc')));
+      expect(summary.toJson()['blockedGateIds'], contains('manual_tcc'));
+      expect(summary.toMarkdown(), contains('## Blocked Gates'));
     });
 
     test('discovers latest manual TCC and LLM reports from report root', () {
@@ -159,6 +165,9 @@ void main() {
         final cli = File(
           'tool/macos_computer_use_release_readiness.dart',
         ).readAsStringSync();
+        final wrapper = File(
+          'tool/run_macos_computer_use_release_readiness.sh',
+        ).readAsStringSync();
 
         expect(cli, contains('--refresh-safe-inputs'));
         expect(cli, contains('--exit-policy strict|ci'));
@@ -166,6 +175,11 @@ void main() {
         expect(cli, contains('tool/macos_computer_use_canary_history.dart'));
         expect(cli, contains('Manual TCC evidence remains user-operated'));
         expect(cli, isNot(contains('--m8-runtime-signoff')));
+        expect(wrapper, contains('--ci'));
+        expect(wrapper, contains('--signoff'));
+        expect(wrapper, contains('--manual-tcc-report'));
+        expect(wrapper, contains('user-operated manual verification only'));
+        expect(wrapper, isNot(contains('--m8-runtime-signoff')));
       },
     );
   });
