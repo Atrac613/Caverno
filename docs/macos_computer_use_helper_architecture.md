@@ -429,6 +429,13 @@ Successful Developer ID profile runs should show fresh helper diagnostics with
 `xpcListenerStartAttempted`, `xpcListenerStarted`, and `namedServiceConnected`
 set to `true`.
 
+Helper diagnostics are fresh only when the shared diagnostics file matches the
+currently running helper PID and the embedded helper bundle/executable path.
+The main app reports `helperSharedDiagnosticsStaleReasons` when an old `/tmp`
+diagnostics file belongs to a previous helper process or another helper path.
+Strict XPC smoke prefers the latest fresh helper diagnostics over a newer stale
+sample so old listener evidence cannot mask a real LaunchAgent startup issue.
+
 Initial commands:
 
 - `ping`: verify helper launch and protocol version.

@@ -189,6 +189,10 @@ void main() {
     expect(find.text('Signing gate: accepted'), findsOneWidget);
     expect(find.text('XPC runtime: ready'), findsOneWidget);
     expect(find.text('XPC listener: started'), findsOneWidget);
+    expect(
+      find.text('Helper diagnostics: stale: helper_executable_path_mismatch'),
+      findsOneWidget,
+    );
     expect(find.text('Permission gate: blocked'), findsOneWidget);
     expect(
       find.text('Permission blockers: screen_capture, accessibility'),
@@ -787,6 +791,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'xpcRuntimeDiagnostics': {
           'xpcListenerStarted': true,
           'xpcListenerStartAttempted': true,
+          'helperDiagnosticsLatestStale': true,
+          'helperDiagnosticsStaleReasons': ['helper_executable_path_mismatch'],
           'blockers': <String>[],
         },
       },

@@ -905,21 +905,32 @@ Map<String, dynamic> _xpcRuntimeDiagnostics({
       _namedXpcConnected(xpcProductionProbe);
   final helperDiagnosticsObserved = helperSharedDiagnostics != null;
   final helperDiagnosticsStale = latestDiagnostics['stale'] == true;
+  final helperDiagnosticsLatestStale = latestDiagnostics['latestStale'] == true;
+  final helperDiagnosticsStaleReasons = _stringList(
+    latestDiagnostics['latestStaleReasons'],
+  );
   final xpcListenerStarted =
-      helperSharedDiagnostics?['xpcListenerStarted'] == true;
+      namedServiceConnected ||
+      (helperSharedDiagnostics?['xpcListenerStarted'] == true &&
+          !helperDiagnosticsStale);
   final xpcListenerStartAttempted =
-      helperSharedDiagnostics?['xpcListenerStartAttempted'] == true;
+      namedServiceConnected ||
+      (helperSharedDiagnostics?['xpcListenerStartAttempted'] == true &&
+          !helperDiagnosticsStale);
   final helperRunning =
+      namedServiceConnected ||
       helperStatus?['helperRunning'] == true ||
       (helperDiagnosticsObserved && !helperDiagnosticsStale);
   final blockers = <String>[
     if (launchAgentEnabled &&
         signingLooksAccepted &&
+        !namedServiceConnected &&
         (!helperDiagnosticsObserved || helperDiagnosticsStale))
       'launchd_helper_not_started',
     if (helperDiagnosticsObserved &&
         !helperDiagnosticsStale &&
-        !xpcListenerStarted)
+        !xpcListenerStarted &&
+        !namedServiceConnected)
       'xpc_listener_not_started',
     if (launchAgentEnabled && signingLooksAccepted && !namedServiceConnected)
       'launchd_mach_service_not_responding',
@@ -930,6 +941,10 @@ Map<String, dynamic> _xpcRuntimeDiagnostics({
     'helperRunning': helperRunning,
     'helperDiagnosticsObserved': helperDiagnosticsObserved,
     'helperDiagnosticsStale': helperDiagnosticsStale,
+    'helperDiagnosticsLatestStale': helperDiagnosticsLatestStale,
+    'helperDiagnosticsStaleReasons': helperDiagnosticsStaleReasons,
+    'helperDiagnosticsSelectedFresh':
+        latestDiagnostics['selectedFresh'] == true,
     'xpcListenerStarted': xpcListenerStarted,
     'xpcListenerStartAttempted': xpcListenerStartAttempted,
     'namedServiceConnected': namedServiceConnected,
@@ -1345,10 +1360,16 @@ Map<String, dynamic> _latestHelperSharedDiagnostics(
   List<Map<String, dynamic>> steps, {
   required Map<String, dynamic>? fallback,
 }) {
-  Map<String, dynamic>? diagnostics = _mapValue(
+  Map<String, dynamic>? latestDiagnostics = _mapValue(
     fallback?['helperSharedDiagnostics'],
   );
-  var stale = fallback?['helperSharedDiagnosticsStale'] == true;
+  var latestStale = fallback?['helperSharedDiagnosticsStale'] == true;
+  var latestStaleReasons = _stringList(
+    fallback?['helperSharedDiagnosticsStaleReasons'],
+  );
+  Map<String, dynamic>? freshDiagnostics = latestStale
+      ? null
+      : latestDiagnostics;
   for (final step in steps) {
     final result = _mapValue(step['result']);
     final direct = _mapValue(result?['helperSharedDiagnostics']);
@@ -1356,13 +1377,28 @@ Map<String, dynamic> _latestHelperSharedDiagnostics(
     final nested = _mapValue(details?['helperSharedDiagnostics']);
     final candidate = nested ?? direct;
     if (candidate != null) {
-      diagnostics = candidate;
-      stale =
+      final candidateStale =
           result?['helperSharedDiagnosticsStale'] == true ||
           details?['helperSharedDiagnosticsStale'] == true;
+      latestDiagnostics = candidate;
+      latestStale = candidateStale;
+      latestStaleReasons = _stringList(
+        result?['helperSharedDiagnosticsStaleReasons'] ??
+            details?['helperSharedDiagnosticsStaleReasons'],
+      );
+      if (!candidateStale) {
+        freshDiagnostics = candidate;
+      }
     }
   }
-  return {'diagnostics': diagnostics, 'stale': stale};
+  final selectedDiagnostics = freshDiagnostics ?? latestDiagnostics;
+  return {
+    'diagnostics': selectedDiagnostics,
+    'stale': freshDiagnostics == null && latestStale,
+    'latestStale': latestStale,
+    'latestStaleReasons': latestStaleReasons,
+    'selectedFresh': freshDiagnostics != null,
+  };
 }
 
 Map<String, dynamic>? _mapValue(Object? value) {

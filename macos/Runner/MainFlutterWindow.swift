@@ -417,25 +417,85 @@ final class MacosComputerUseHelperClient: NSObject {
     if let lastPreferredIpcAttempt {
       response["lastPreferredIpcAttempt"] = lastPreferredIpcAttempt
     }
-    response["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
-    if let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() {
-      response["helperSharedDiagnostics"] = helperSharedDiagnostics
-      if let diagnosticProcessIdentifier =
-        helperSharedDiagnostics["helperProcessIdentifier"] as? Int,
-        let runningProcessIdentifier = runningApplication?.processIdentifier {
-        let diagnosticsMatchesRunningHelper =
-          diagnosticProcessIdentifier == Int(runningProcessIdentifier)
-        response["helperSharedDiagnosticsMatchesRunningHelper"] =
-          diagnosticsMatchesRunningHelper
-        response["helperSharedDiagnosticsStale"] = !diagnosticsMatchesRunningHelper
-      } else if runningApplication == nil {
-        response["helperSharedDiagnosticsStale"] = true
-      }
-    }
+    addSharedDiagnostics(
+      to: &response,
+      helperURL: helperURL,
+      runningApplication: runningApplication
+    )
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
     }
     return response
+  }
+
+  private func addSharedDiagnostics(
+    to response: inout [String: Any],
+    helperURL: URL,
+    runningApplication: NSRunningApplication?
+  ) {
+    response["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
+    guard let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() else {
+      return
+    }
+
+    response["helperSharedDiagnostics"] = helperSharedDiagnostics
+    let expectedBundlePath = helperURL.standardizedFileURL.path
+    let expectedExecutablePath = helperURL
+      .appendingPathComponent("Contents/MacOS/Caverno Computer Use")
+      .standardizedFileURL.path
+    var staleReasons: [String] = []
+
+    if let runningProcessIdentifier = runningApplication?.processIdentifier {
+      let runningPid = Int(runningProcessIdentifier)
+      let diagnosticPid = helperSharedDiagnostics["helperProcessIdentifier"] as? Int
+      let pidMatches = diagnosticPid == runningPid
+      response["helperSharedDiagnosticsMatchesRunningHelper"] = pidMatches
+      if !pidMatches {
+        staleReasons.append("process_identifier_mismatch")
+      }
+      if let diagnosticPid {
+        response["helperSharedDiagnosticsProcessIdentifier"] = diagnosticPid
+      }
+    } else {
+      response["helperSharedDiagnosticsMatchesRunningHelper"] = false
+      staleReasons.append("no_running_helper_process")
+    }
+
+    if let diagnosticBundlePath = helperSharedDiagnostics["helperBundlePath"] as? String {
+      let bundleMatches =
+        URL(fileURLWithPath: diagnosticBundlePath).standardizedFileURL.path == expectedBundlePath
+      response["helperSharedDiagnosticsMatchesExpectedBundle"] = bundleMatches
+      if !bundleMatches {
+        staleReasons.append("helper_bundle_path_mismatch")
+      }
+    }
+    if let diagnosticExecutablePath = helperSharedDiagnostics["helperExecutablePath"] as? String {
+      let executableMatches =
+        URL(fileURLWithPath: diagnosticExecutablePath).standardizedFileURL.path == expectedExecutablePath
+      response["helperSharedDiagnosticsMatchesExpectedExecutable"] = executableMatches
+      if !executableMatches {
+        staleReasons.append("helper_executable_path_mismatch")
+      }
+    }
+    if let generatedAt = helperSharedDiagnostics["generatedAt"] as? String,
+       let generatedDate = parseSharedDiagnosticsDate(generatedAt) {
+      let ageMs = max(0, Int(Date().timeIntervalSince(generatedDate) * 1000))
+      response["helperSharedDiagnosticsAgeMs"] = ageMs
+    }
+
+    response["helperSharedDiagnosticsStale"] = !staleReasons.isEmpty
+    response["helperSharedDiagnosticsStaleReasons"] = staleReasons
+  }
+
+  private func parseSharedDiagnosticsDate(_ value: String) -> Date? {
+    let fractionalFormatter = ISO8601DateFormatter()
+    fractionalFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+    if let date = fractionalFormatter.date(from: value) {
+      return date
+    }
+    let formatter = ISO8601DateFormatter()
+    formatter.formatOptions = [.withInternetDateTime]
+    return formatter.date(from: value)
   }
 
   func registerXpcLaunchAgent(result: @escaping FlutterResult) {
@@ -791,13 +851,15 @@ final class MacosComputerUseHelperClient: NSObject {
       if let preferredAttemptDiagnostic = pendingRequest.preferredAttemptDiagnostic {
         details["preferredIpcAttempt"] = preferredAttemptDiagnostic
       }
-      if let runningProcessIdentifier = self.runningHelperApplication()?.processIdentifier {
+      let runningApplication = self.runningHelperApplication()
+      if let runningProcessIdentifier = runningApplication?.processIdentifier {
         details["helperProcessIdentifier"] = Int(runningProcessIdentifier)
       }
-      details["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
-      if let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() {
-        details["helperSharedDiagnostics"] = helperSharedDiagnostics
-      }
+      self.addSharedDiagnostics(
+        to: &details,
+        helperURL: self.embeddedHelperURL(),
+        runningApplication: runningApplication
+      )
       if let lastHelperIpcAttempt = self.lastHelperIpcAttempt {
         details["lastHelperIpcAttempt"] = lastHelperIpcAttempt
       }

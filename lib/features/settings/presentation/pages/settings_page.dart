@@ -1290,6 +1290,10 @@ class _ComputerUseOnboardingCardState
           MacosComputerUseIpc.current.xpcRegistrationRequirement,
       'xpcProductionBlockers': productionBlockers,
       'xpcProductionNextAction': productionNextAction,
+      'helperSharedDiagnosticsStale': snapshot['helperSharedDiagnosticsStale'],
+      'helperSharedDiagnosticsStaleReasons':
+          snapshot['helperSharedDiagnosticsStaleReasons'],
+      'helperSharedDiagnosticsAgeMs': snapshot['helperSharedDiagnosticsAgeMs'],
       'mainAppUnsafeOsActionsAllowed':
           snapshot['mainAppUnsafeOsActionsAllowed'] ??
           MacosComputerUseIpc.current.mainAppUnsafeOsActionsAllowed,
@@ -1934,6 +1938,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
       signingDiagnostics?['launchConstraintBlockers'],
     );
     final xpcRuntimeBlockers = _stringList(xpcRuntimeDiagnostics?['blockers']);
+    final helperDiagnosticsStale =
+        runtime['helperSharedDiagnosticsStale'] == true ||
+        xpcRuntimeDiagnostics?['helperDiagnosticsLatestStale'] == true;
+    final helperDiagnosticsStaleReasons = _uniqueStrings([
+      ..._stringList(runtime['helperSharedDiagnosticsStaleReasons']),
+      ..._stringList(xpcRuntimeDiagnostics?['helperDiagnosticsStaleReasons']),
+    ]);
     final permissionBlockers = _stringList(
       permissionGate?['blockedByPermissions'],
     );
@@ -2066,6 +2077,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Runtime blockers',
                 value: xpcRuntimeBlockers.join(', '),
+              ),
+            if (helperDiagnosticsStale)
+              _InfoChip(
+                label: 'Helper diagnostics',
+                value: helperDiagnosticsStaleReasons.isEmpty
+                    ? 'stale'
+                    : 'stale: ${helperDiagnosticsStaleReasons.join(', ')}',
               ),
             if (runtime.containsKey('helperPathMatchesRunningHelper'))
               _InfoChip(
