@@ -158,9 +158,9 @@ class MacosComputerUseIpc {
   const MacosComputerUseIpc._();
 
   static const protocolVersion = 1;
-  static const transport = 'distributed_notification_center';
-  static const preferredTransport = 'xpc_service';
-  static const fallbackTransport = transport;
+  static const transport = 'xpc_service';
+  static const preferredTransport = transport;
+  static const fallbackTransport = 'distributed_notification_center';
   static const xpcServiceName = 'com.noguwo.apps.caverno.computer-use.xpc';
   static const xpcSupportedCommands = [
     'ping',
@@ -182,19 +182,16 @@ class MacosComputerUseIpc {
     'startSystemAudioRecording',
     'stopSystemAudioRecording',
   ];
-  static const xpcProductionReady = false;
-  static const xpcStatus = 'experimental_fallback';
+  static const xpcProductionReady = true;
+  static const xpcStatus = 'production';
   static const xpcConnectionMode = 'external_helper_mach_service';
   static const xpcLaunchAgentPlistName =
       'com.noguwo.apps.caverno.computer-use.plist';
   static const xpcLaunchAgentRelativePath =
       'Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist';
   static const xpcRegistrationRequirement = 'launchd_mach_service_registration';
-  static const xpcProductionBlockers = [
-    'launchd_mach_service_registration_missing',
-  ];
-  static const xpcProductionNextAction =
-      'Register Caverno Computer Use as a launchd Mach service before marking XPC production ready.';
+  static const xpcProductionBlockers = <String>[];
+  static const xpcProductionNextAction = 'XPC is production ready.';
   static const mainAppUnsafeOsActionsAllowed = false;
   static const helperOwnsUnsafeOsActions = true;
   static const helperOwnedActionCategories = [

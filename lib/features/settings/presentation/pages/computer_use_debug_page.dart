@@ -394,7 +394,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 label: '${step['label']}',
                 complete: step['complete'] == true,
               ),
-            if (blockers.isNotEmpty) ...[
+            if (blockers.isEmpty) ...[
+              const SizedBox(height: 12),
+              _OnboardingNote(
+                icon: Icons.verified_outlined,
+                title: 'XPC Production Ready',
+                body: '${runtime['xpcProductionNextAction']}',
+              ),
+            ] else ...[
               const SizedBox(height: 12),
               _OnboardingNote(
                 icon: Icons.route_outlined,

@@ -156,7 +156,7 @@ void main() {
       find.textContaining('IPC runtime:', skipOffstage: false),
       findsOneWidget,
     );
-    expect(find.text('XPC status: experimental_fallback'), findsOneWidget);
+    expect(find.text('XPC status: production'), findsOneWidget);
     expect(
       find.text('XPC connection: external_helper_mach_service'),
       findsOneWidget,
@@ -606,8 +606,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'selectedIpcTransport': 'distributed_notification_center',
       'preferredIpcTransport': 'xpc_service',
       'fallbackIpcTransport': 'distributed_notification_center',
-      'xpcStatus': 'experimental_fallback',
-      'xpcProductionReady': false,
+      'xpcStatus': 'production',
+      'xpcProductionReady': true,
       'xpcConnectionMode': 'external_helper_mach_service',
       'xpcLaunchAgentPlistName': 'com.noguwo.apps.caverno.computer-use.plist',
       'xpcLaunchAgentRelativePath':
@@ -618,9 +618,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           : 'not_registered',
       'xpcLaunchAgentEnabled': _xpcLaunchAgentEnabled,
       'xpcRegistrationRequirement': 'launchd_mach_service_registration',
-      'xpcProductionBlockers': ['launchd_mach_service_registration_missing'],
-      'xpcProductionNextAction':
-          'Register Caverno Computer Use as a launchd Mach service before marking XPC production ready.',
+      'xpcProductionBlockers': <String>[],
+      'xpcProductionNextAction': 'XPC is production ready.',
       'mainAppUnsafeOsActionsAllowed': false,
       'helperOwnsUnsafeOsActions': true,
       'xpcSupportedCommands': [

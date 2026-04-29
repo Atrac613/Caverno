@@ -199,6 +199,9 @@ Manual sign-off notes:
 - 2026-04-28: The helper onboarding UI **Verify** action completed display and
   window observation checks: display screenshot `3600 x 2338 px` and window
   capture `Codex #203679`.
+- 2026-04-29: `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent --strict-xpc`
+  passed with `xpcProductionOk: true`, `namedServiceConnected: true`,
+  `launchAgentEnabled: true`, and no `xpcRuntimeDiagnostics` blockers.
 - Drag/drop tile acceptance remains a separate hands-on check. The successful
   permission grant above used the macOS Add flow because the running debug
   helper path must match the exact helper bundle that macOS records in TCC.
@@ -324,17 +327,15 @@ be constrained to the bundled helper. A Unix domain socket or localhost HTTP
 transport can be used as a temporary development transport if it accelerates
 iteration.
 
-The current helper milestone uses `DistributedNotificationCenter` as the active
-request/response transport so the separate bundled app can prove the boundary.
-XPC is exposed as an experimental preferred transport for `ping`,
-`permissionStatus`, `openSettings`, `showPermissionOverlay`,
-`startOnboardingPermissionFlow`, `stopAll`, `screenshot`, `listWindows`,
-`focusWindow`, `screenshotWindow`, `moveMouse`, `click`, `drag`, `scroll`,
-`typeText`, `pressKey`, `startSystemAudioRecording`, and
-`stopSystemAudioRecording`; when the named service is unavailable, the app
-records the preferred attempt and falls back to
-`DistributedNotificationCenter`. XPC should not be treated as production-ready
-until the named service and all migrated commands pass parity smoke checks.
+The current helper milestone uses LaunchAgent-backed named XPC as the active
+request/response transport for `ping`, `permissionStatus`, `openSettings`,
+`showPermissionOverlay`, `startOnboardingPermissionFlow`, `stopAll`,
+`screenshot`, `listWindows`, `focusWindow`, `screenshotWindow`, `moveMouse`,
+`click`, `drag`, `scroll`, `typeText`, `pressKey`,
+`startSystemAudioRecording`, and `stopSystemAudioRecording`. The app still
+records the preferred attempt and falls back to `DistributedNotificationCenter`
+when launchd cannot resolve the named service, so local development remains
+diagnosable without executing duplicate unsafe OS actions.
 
 Production readiness requires:
 
@@ -350,17 +351,17 @@ Production readiness requires:
 - Fallback behavior is observable in diagnostics and does not execute duplicate
   unsafe OS actions.
 
-The current named XPC attempt uses an external helper-app Mach service name.
-`Caverno.app` now embeds a `SMAppService` LaunchAgent plist at
+The production named XPC path uses an external helper-app Mach service name.
+`Caverno.app` embeds a `SMAppService` LaunchAgent plist at
 `Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist`.
 The plist uses `BundleProgram` to point at
 `Contents/Helpers/Caverno Computer Use.app/Contents/MacOS/Caverno Computer Use`
 and declares the `com.noguwo.apps.caverno.computer-use.xpc` Mach service. The
-named service is expected to fall back until that LaunchAgent is registered and
-approved by macOS. Diagnostics expose
-`xpcRegistrationRequirement`, `xpcProductionBlockers`, and
-`xpcProductionNextAction` so onboarding can distinguish a running helper process
-from production-ready XPC reachability.
+named service is production-ready when that LaunchAgent is registered and
+approved by macOS. Runtime diagnostics still expose
+`xpcRegistrationRequirement`, measured `xpcProductionBlockers`, and
+`xpcProductionNextAction` so onboarding can distinguish an unregistered local
+LaunchAgent from a transport regression.
 
 Use the opt-in live smoke registration path to measure the launchd gate:
 

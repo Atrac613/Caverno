@@ -1217,9 +1217,9 @@ private enum ComputerUseHelperIpcSchema {
   static let protocolVersion = 1
   static let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
   static let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
-  static let activeTransport = "distributed_notification_center"
-  static let preferredTransport = "xpc_service"
-  static let fallbackTransport = activeTransport
+  static let activeTransport = "xpc_service"
+  static let preferredTransport = activeTransport
+  static let fallbackTransport = "distributed_notification_center"
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = [
     "ping",
@@ -1242,12 +1242,12 @@ private enum ComputerUseHelperIpcSchema {
     "stopSystemAudioRecording",
   ]
   static let xpcReady = true
-  static let xpcProductionReady = false
-  static let xpcStatus = "experimental_fallback"
+  static let xpcProductionReady = true
+  static let xpcStatus = "production"
   static let xpcConnectionMode = "external_helper_mach_service"
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
-  static let xpcProductionBlockers = ["launchd_mach_service_registration_missing"]
-  static let xpcProductionNextAction = "Register Caverno Computer Use as a launchd Mach service before marking XPC production ready."
+  static let xpcProductionBlockers: [String] = []
+  static let xpcProductionNextAction = "XPC is production ready."
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
   static let helperOwnedActionCategories = [

@@ -24,7 +24,7 @@ void main() {
     final info = MacosComputerUseIpc.current.toJson();
 
     expect(info['version'], 1);
-    expect(info['transport'], 'distributed_notification_center');
+    expect(info['transport'], 'xpc_service');
     expect(info['preferredTransport'], 'xpc_service');
     expect(info['fallbackTransport'], 'distributed_notification_center');
     expect(info['requestObject'], 'com.noguwo.apps.caverno');
@@ -64,8 +64,8 @@ void main() {
       'stopSystemAudioRecording',
     ]);
     expect(info['xpcReady'], isTrue);
-    expect(info['xpcProductionReady'], isFalse);
-    expect(info['xpcStatus'], 'experimental_fallback');
+    expect(info['xpcProductionReady'], isTrue);
+    expect(info['xpcStatus'], 'production');
     expect(info['xpcConnectionMode'], 'external_helper_mach_service');
     expect(
       info['xpcLaunchAgentPlistName'],
@@ -79,13 +79,8 @@ void main() {
       info['xpcRegistrationRequirement'],
       'launchd_mach_service_registration',
     );
-    expect(info['xpcProductionBlockers'], [
-      'launchd_mach_service_registration_missing',
-    ]);
-    expect(
-      info['xpcProductionNextAction'],
-      contains('Register Caverno Computer Use as a launchd Mach service'),
-    );
+    expect(info['xpcProductionBlockers'], isEmpty);
+    expect(info['xpcProductionNextAction'], 'XPC is production ready.');
     expect(info['mainAppUnsafeOsActionsAllowed'], isFalse);
     expect(info['helperOwnsUnsafeOsActions'], isTrue);
     expect(info['helperOwnedActionCategories'], contains('input_events'));
@@ -162,7 +157,7 @@ void main() {
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', true));
     expect(
       diagnostics['helperIpcProtocol'],
-      containsPair('xpcStatus', 'experimental_fallback'),
+      containsPair('xpcStatus', 'production'),
     );
     expect(
       diagnostics['helperIpcProtocol'],

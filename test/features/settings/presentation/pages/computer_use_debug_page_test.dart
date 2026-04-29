@@ -36,7 +36,7 @@ void main() {
     expect(service.pingHelperCallCount, 1);
   });
 
-  testWidgets('shows onboarding checklist progress and XPC blockers', (
+  testWidgets('shows onboarding checklist progress and production XPC status', (
     tester,
   ) async {
     final service = _FakeMacosComputerUseService();
@@ -51,18 +51,8 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('XPC Production Blocker'), findsOneWidget);
-    expect(
-      find.text('launchd_mach_service_registration_missing'),
-      findsOneWidget,
-    );
-    expect(find.text('XPC Next Action'), findsOneWidget);
-    expect(
-      find.textContaining(
-        'Register Caverno Computer Use as a launchd Mach service',
-      ),
-      findsOneWidget,
-    );
+    expect(find.text('XPC Production Ready'), findsOneWidget);
+    expect(find.text('XPC is production ready.'), findsOneWidget);
   });
 
   testWidgets('refreshes permission and audio recording state', (tester) async {
@@ -307,8 +297,8 @@ void main() {
     expect(text, contains('"helperIpcProtocol"'));
     expect(text, contains('"preferredTransport": "xpc_service"'));
     expect(text, contains('"xpcReady": true'));
-    expect(text, contains('"xpcProductionReady": false'));
-    expect(text, contains('"xpcStatus": "experimental_fallback"'));
+    expect(text, contains('"xpcProductionReady": true'));
+    expect(text, contains('"xpcStatus": "production"'));
     expect(text, contains('"migratedCommands"'));
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
