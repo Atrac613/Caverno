@@ -386,6 +386,20 @@ one release decision:
 dart run tool/macos_computer_use_release_readiness.dart
 ```
 
+For the shortest MVP path, use
+`docs/macos_computer_use_mvp_checklist.md` and the MVP wrapper:
+
+```bash
+bash tool/run_macos_computer_use_mvp_signoff.sh \
+  --manual-tcc-report <manual-tcc-report-or-summary.json> \
+  --desktop-action-canary-summary <desktop-action-canary-summary.json>
+```
+
+The MVP wrapper prints the user-operated commands, writes
+`macos_computer_use_mvp_handoff.md`, and delegates final aggregation to the
+release readiness wrapper. It does not run manual TCC sign-off or the desktop
+action canary for the user.
+
 To refresh only non-TCC inputs before producing the readiness report, run:
 
 ```bash
@@ -454,8 +468,8 @@ dart run tool/macos_computer_use_release_readiness.dart \
 Manual TCC intake uses this handoff:
 
 1. Ask the user to run
-   `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff` from
-   their terminal after granting the release helper in System Settings.
+   `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` from their
+   terminal after granting the release helper in System Settings.
 2. Ask the user for the produced report path. The report may be either the raw
    M8 runtime report or `manual_tcc_report_summary.json`.
 3. Run

@@ -11,6 +11,7 @@ void main() {
   late String helperInfoPlist;
   late String liveCanaryScript;
   late String manualTccSignoffScript;
+  late String mvpSignoffScript;
   late String desktopActionCanaryScript;
   late String existingHelperProbe;
   late String architectureDoc;
@@ -40,6 +41,9 @@ void main() {
     ).readAsStringSync();
     manualTccSignoffScript = File(
       'tool/run_macos_computer_use_manual_tcc_signoff.sh',
+    ).readAsStringSync();
+    mvpSignoffScript = File(
+      'tool/run_macos_computer_use_mvp_signoff.sh',
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
@@ -343,5 +347,38 @@ void main() {
     expect(architectureDoc, contains('manual_required'));
     expect(architectureDoc, contains('desktop_action_canary'));
     expect(architectureDoc, contains('Passing any one canary'));
+  });
+
+  test('MVP sign-off wrapper keeps user-operated boundaries explicit', () {
+    final mvpChecklist = File(
+      'docs/macos_computer_use_mvp_checklist.md',
+    ).readAsStringSync();
+
+    expect(mvpChecklist, contains('macOS Computer Use MVP Checklist'));
+    expect(
+      mvpChecklist,
+      contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+    );
+    expect(
+      mvpChecklist,
+      contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
+    );
+    expect(
+      mvpChecklist,
+      contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
+    );
+    expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
+    expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
+    expect(
+      mvpSignoffScript,
+      contains('user-operated manual verification only'),
+    );
+    expect(mvpSignoffScript, contains('user-operated safe click target only'));
+    expect(mvpSignoffScript, contains('--manual-tcc-report'));
+    expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
+    expect(
+      architectureDoc,
+      contains('docs/macos_computer_use_mvp_checklist.md'),
+    );
   });
 }
