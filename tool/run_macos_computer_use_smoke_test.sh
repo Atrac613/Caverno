@@ -287,6 +287,18 @@ for check in checks:
 PY
 }
 
+print_manual_tcc_notice() {
+  if [[ "${REQUIRE_RELEASE_RUNTIME_SIGNOFF}" != "1" ]]; then
+    return 0
+  fi
+
+  echo
+  echo "Manual TCC sign-off notice"
+  echo "  This command measures macOS TCC state only; it does not grant permissions or edit TCC."
+  echo "  Run it from a user-controlled terminal after granting the release helper in System Settings."
+  echo "  Automation agents should stop here and ask the user to run this command manually."
+}
+
 finish() {
   local exit_code=$?
   set +e
@@ -468,6 +480,8 @@ echo "  Skip release build: ${SKIP_RELEASE_BUILD}"
 echo "  Register XPC agent: ${REGISTER_XPC_AGENT}"
 echo "  Cleanup XPC agent: ${CLEANUP_XPC_AGENT}"
 echo "  Report: ${REPORT_PATH}"
+
+print_manual_tcc_notice
 
 STRICT_DART="$(dart_bool_define "${STRICT}")"
 STRICT_XPC_DART="$(dart_bool_define "${STRICT_XPC}")"
@@ -951,10 +965,10 @@ def next_action(blockers):
     if "release_runtime_helper_path_mismatch" in blockers:
         return "Stop the running helper and rerun --m8-runtime-signoff."
     if "release_runtime_permissions_blocked" in blockers:
-        return "Grant Accessibility and Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff."
+        return "Ask the user to grant Accessibility and Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually."
     if "release_runtime_capture_blocked" in blockers:
-        return "Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff."
-    return "Resolve the failed M8 runtime checks, then rerun --m8-runtime-signoff."
+        return "Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually."
+    return "Resolve the failed M8 runtime checks, then ask the user to rerun --m8-runtime-signoff manually."
 
 
 artifact_path = Path(os.environ["RELEASE_ARTIFACT_REPORT_PATH"])
@@ -1036,13 +1050,13 @@ checks = [
         "screen_capture",
         "Release helper Screen & System Audio Recording",
         screen_capture_ok,
-        next_action="Grant Screen & System Audio Recording to the release Caverno Computer Use helper.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno Computer Use helper.",
     ),
     check_item(
         "display_screenshot",
         "Release display screenshot",
         display_ok,
-        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
     ),
     check_item(
         "list_windows",
@@ -1054,13 +1068,13 @@ checks = [
         "window_capture",
         "Release window capture",
         window_ok,
-        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
     ),
     check_item(
         "system_audio_resolved",
         "Release system audio readiness",
         audio_resolved,
-        next_action="Grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
     ),
 ]
 runtime_status = "ready" if not runtime_blockers else "blocked"

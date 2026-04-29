@@ -5,6 +5,7 @@ import 'package:flutter_test/flutter_test.dart';
 void main() {
   late String script;
   late String existingHelperProbe;
+  late String architectureDoc;
 
   setUpAll(() {
     script = File(
@@ -12,6 +13,9 @@ void main() {
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
+    ).readAsStringSync();
+    architectureDoc = File(
+      'docs/macos_computer_use_helper_architecture.md',
     ).readAsStringSync();
   });
 
@@ -77,5 +81,30 @@ void main() {
     expect(existingHelperProbe, contains('--replace-app'));
     expect(existingHelperProbe, contains('"id": "app_path_match"'));
     expect(existingHelperProbe, contains('"appPathMatchesExpected"'));
+  });
+
+  test('M9 keeps TCC runtime sign-off user operated', () {
+    expect(script, contains('Manual TCC sign-off notice'));
+    expect(script, contains('does not grant permissions or edit TCC'));
+    expect(
+      script,
+      contains(
+        'Automation agents should stop here and ask the user to run this command manually.',
+      ),
+    );
+    expect(script, contains('rerun --m8-runtime-signoff manually'));
+    expect(architectureDoc, contains('## Manual TCC Sign-Off Runbook'));
+    expect(
+      architectureDoc,
+      contains('TCC verification is a user-operated step.'),
+    );
+    expect(
+      architectureDoc,
+      contains('Automation may run these non-TCC checks:'),
+    );
+    expect(
+      architectureDoc,
+      contains('Only the user should run this TCC runtime command:'),
+    );
   });
 }

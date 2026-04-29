@@ -259,6 +259,9 @@ Follow-on milestones:
   the running release helper owns Accessibility, Screen & System Audio
   Recording, screenshot capture, window listing, window capture, and system
   audio readiness.
+- M9: Lock TCC verification to a user-operated manual runbook. Automation may
+  prepare artifacts and parse reports, but it must not perform release runtime
+  TCC sign-off on the user's behalf.
 
 Current M5 implementation status:
 
@@ -442,6 +445,26 @@ M8 release runtime sign-off notes:
   `accessibilityGranted: true`, `screenCaptureGranted: true`,
   `captureReady: true`, `inputReady: true`, `audioResolved: true`,
   `xpcProductionReady: true`, and no runtime blockers.
+
+Current M9 implementation status:
+
+- M9 is complete for the release runtime sign-off workflow.
+- The M8 runner now prints a manual TCC notice whenever release runtime
+  sign-off is requested.
+- TCC-related next actions explicitly instruct automation to ask the user to
+  grant permissions and rerun the command manually.
+- The manual runbook below defines what automation may do, what only the user
+  should do, and how to interpret blocked runtime reports.
+
+M9 acceptance criteria:
+
+- Documentation states that release runtime TCC sign-off is user-operated.
+- The runner output warns that it measures TCC state only and does not grant or
+  edit macOS privacy permissions.
+- Blocked TCC next actions tell automation to ask the user to perform the
+  manual macOS permission step.
+- Non-TCC checks, including release artifact sign-off and static tests, remain
+  safe for automation.
 
 Current M2 implementation status:
 
@@ -667,6 +690,59 @@ Accessibility, Screen & System Audio Recording, display screenshot, visible
 window listing, first-window screenshot, and system-audio readiness checks to
 pass. If macOS has not granted the release helper yet, the report remains
 blocked with the exact release helper path to grant.
+
+## Manual TCC Sign-Off Runbook
+
+TCC verification is a user-operated step. Automation may prepare the release
+artifact, update documentation, and parse reports, but it must not run release
+runtime TCC sign-off or operate System Settings on the user's behalf. When TCC
+state is needed, automation should stop and ask the user to perform the manual
+steps in this section.
+
+Automation may run these non-TCC checks:
+
+- `bash -n tool/run_macos_computer_use_smoke_test.sh`
+- `swiftc -parse tool/macos_computer_use_existing_helper_probe.swift`
+- `flutter test test/tool/run_macos_computer_use_smoke_test_test.dart -r compact`
+- `flutter analyze`
+- `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`
+
+Only the user should run this TCC runtime command:
+
+`bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
+
+Manual steps for the user:
+
+1. Confirm the release artifact is the one being signed off. If the artifact
+   intentionally changed, run
+   `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff --rebuild-release`
+   once, then grant TCC to the newly built helper.
+2. Open macOS System Settings > Privacy & Security.
+3. Grant Accessibility to the exact release helper:
+   `build/macos/Build/Products/Release/Caverno.app/Contents/Helpers/Caverno Computer Use.app`.
+4. Grant Screen & System Audio Recording to the same release helper.
+5. Run `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
+   from a user-controlled terminal.
+6. Treat the run as complete only when `releaseRuntimeSignoffGate.status` is
+   `ready` and `releaseRuntimeSignoffGate.blockers` is empty.
+
+Blocked report handling:
+
+- `release_runtime_app_path_mismatch`: quit the running `Caverno.app`, then
+  rerun the manual command.
+- `release_runtime_helper_path_mismatch`: quit the running
+  `Caverno Computer Use.app`, then rerun the manual command.
+- `release_runtime_permissions_blocked`: grant both Accessibility and Screen &
+  System Audio Recording to the release helper, then rerun the manual command.
+- `release_runtime_capture_blocked`: grant Screen & System Audio Recording to
+  the release helper, then rerun the manual command.
+- `release_runtime_audio_blocked`: grant Screen & System Audio Recording to the
+  release helper, then rerun the manual command.
+
+Avoid rebuilding between a successful manual grant and the runtime sign-off
+unless the release artifact intentionally changed. Rebuilding can change the
+bundle instance macOS associates with TCC, which may require the user to grant
+permissions again.
 
 To exercise named XPC with a built app runtime, run:
 
