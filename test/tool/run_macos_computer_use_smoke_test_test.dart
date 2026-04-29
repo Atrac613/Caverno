@@ -465,6 +465,13 @@ void main() {
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
     expect(mvpSignoffScript, contains('Current Manual Input Status'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
+    expect(mvpSignoffScript, contains('Final Readiness Next Actions'));
+    expect(mvpSignoffScript, contains('--final-signoff'));
+    expect(mvpSignoffScript, contains('readiness_exit'));
+    expect(
+      mvpSignoffScript,
+      contains('CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER'),
+    );
     expect(mvpSignoffScript, contains('provided path not found'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
     expect(
@@ -582,4 +589,88 @@ void main() {
       }
     },
   );
+
+  test('MVP sign-off appends blocked readiness next actions', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_final_actions_',
+    );
+    try {
+      final stub = File('${root.path}/release_readiness_stub.sh')
+        ..writeAsStringSync(r'''
+#!/usr/bin/env bash
+set -euo pipefail
+output_json=""
+output_md=""
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --output-json)
+      output_json="$2"
+      shift 2
+      ;;
+    --output-md)
+      output_md="$2"
+      shift 2
+      ;;
+    *)
+      shift
+      ;;
+  esac
+done
+mkdir -p "$(dirname "$output_json")"
+cat > "$output_json" <<'JSON'
+{
+  "schemaName": "macos_computer_use_release_readiness",
+  "status": "blocked",
+  "ready": false,
+  "gates": [
+    {
+      "id": "manual_tcc",
+      "label": "Manual TCC sign-off",
+      "status": "manual_required",
+      "ready": false,
+      "nextAction": "Ask the user to run manual TCC sign-off.",
+      "artifactPath": null
+    },
+    {
+      "id": "llm_canary",
+      "label": "Computer Use LLM decision canary",
+      "status": "passed",
+      "ready": true,
+      "nextAction": "LLM decision canary is passing.",
+      "artifactPath": "/tmp/llm.json"
+    }
+  ]
+}
+JSON
+if [[ -n "$output_md" ]]; then
+  echo "# Stub readiness" > "$output_md"
+fi
+exit 1
+''');
+
+      final result = await Process.run(
+        'bash',
+        ['tool/run_macos_computer_use_mvp_signoff.sh', '--root', root.path],
+        environment: {
+          'CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER': stub.path,
+        },
+      );
+
+      expect(result.exitCode, 1, reason: '${result.stdout}\n${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Final Readiness Next Actions'));
+      expect(stdout, contains('manual_tcc'));
+      expect(stdout, contains('Ask the user to run manual TCC sign-off.'));
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('Final Readiness Next Actions'));
+      expect(handoff, contains('Readiness status: blocked'));
+      expect(handoff, contains('Blocked gates: manual_tcc'));
+      expect(handoff, contains('Ask the user to run manual TCC sign-off.'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 }

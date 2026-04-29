@@ -50,6 +50,7 @@ or run the user-operated desktop action on the user's behalf.
 
    ```bash
    bash tool/run_macos_computer_use_mvp_signoff.sh \
+     --final-signoff \
      --manual-tcc-report <manual-tcc-report-or-summary.json> \
      --desktop-action-canary-summary <desktop-action-canary-summary.json>
    ```
@@ -57,6 +58,10 @@ or run the user-operated desktop action on the user's behalf.
    Running the wrapper without both reports is still useful. It writes
    `macos_computer_use_mvp_handoff.md` with the missing manual inputs and the
    exact user-operated commands to request next.
+   `--final-signoff` refreshes only automation-safe evidence plus LLM decision
+   evidence when `CAVERNO_LLM_*` is set. It still does not run TCC sign-off or
+   the desktop action canary for the user. The handoff is updated with blocked
+   gate next actions after the readiness command completes or fails.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:

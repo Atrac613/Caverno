@@ -407,6 +407,7 @@ For the shortest MVP path, use
 
 ```bash
 bash tool/run_macos_computer_use_mvp_signoff.sh \
+  --final-signoff \
   --manual-tcc-report <manual-tcc-report-or-summary.json> \
   --desktop-action-canary-summary <desktop-action-canary-summary.json>
 ```
@@ -421,6 +422,10 @@ standard handoff check. The generated handoff lists missing manual inputs,
 validates whether provided paths exist, and prints the next user-operated
 command for each missing gate. Add `--dry-run` to validate that handoff without
 running the final release readiness aggregation.
+Use `--final-signoff` for the one-command MVP path: it refreshes only
+automation-safe evidence, refreshes the Computer Use LLM decision canary when
+`CAVERNO_LLM_*` is set, aggregates strict readiness, and appends blocked gate
+next actions back into `macos_computer_use_mvp_handoff.md`.
 
 To refresh only non-TCC inputs before producing the readiness report, run:
 

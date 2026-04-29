@@ -4,11 +4,13 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
 REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_MVP_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
+RELEASE_READINESS_WRAPPER="${CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER:-tool/run_macos_computer_use_release_readiness.sh}"
 MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
 DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
 REFRESH_SAFE_INPUTS=0
 REFRESH_LLM_CANARY=0
 DRY_RUN=0
+FINAL_SIGNOFF=0
 OUTPUT_JSON=""
 OUTPUT_MD=""
 HANDOFF_MD=""
@@ -23,6 +25,7 @@ Options:
   --desktop-action-canary-summary PATH User-produced desktop action canary summary.
   --refresh-safe-inputs               Refresh non-TCC M7/history inputs.
   --refresh-llm-canary                Refresh LLM canary when CAVERNO_LLM_* is set.
+  --final-signoff                     Refresh safe inputs and LLM evidence, then aggregate.
   --dry-run                           Write handoff and print aggregation command only.
   --output-json PATH                  Override MVP readiness JSON output.
   --output-md PATH                    Override MVP readiness Markdown output.
@@ -64,6 +67,12 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     --refresh-llm-canary)
+      REFRESH_LLM_CANARY=1
+      shift
+      ;;
+    --final-signoff)
+      FINAL_SIGNOFF=1
+      REFRESH_SAFE_INPUTS=1
       REFRESH_LLM_CANARY=1
       shift
       ;;
@@ -196,10 +205,12 @@ echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not prov
 echo "  Desktop action canary status: ${desktop_action_status}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
+echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
 echo "  Dry run: ${DRY_RUN}"
 echo "  Output JSON: ${OUTPUT_JSON}"
 echo "  Output Markdown: ${OUTPUT_MD}"
 echo "  Handoff Markdown: ${HANDOFF_MD}"
+echo "  Release readiness wrapper: ${RELEASE_READINESS_WRAPPER}"
 echo "  TCC boundary: user-operated manual verification only"
 echo "  Desktop action boundary: user-operated safe click target only"
 
@@ -242,10 +253,63 @@ if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
 fi
 
 if [[ "${DRY_RUN}" == "1" ]]; then
-  printf 'Dry run: would execute: bash tool/run_macos_computer_use_release_readiness.sh'
+  printf 'Dry run: would execute: bash %q' "${RELEASE_READINESS_WRAPPER}"
   printf ' %q' "${readiness_args[@]}"
   printf '\n'
   exit 0
 fi
 
-bash tool/run_macos_computer_use_release_readiness.sh "${readiness_args[@]}"
+set +e
+bash "${RELEASE_READINESS_WRAPPER}" "${readiness_args[@]}"
+readiness_exit=$?
+set -e
+
+if [[ -f "${OUTPUT_JSON}" ]]; then
+  OUTPUT_JSON="${OUTPUT_JSON}" HANDOFF_MD="${HANDOFF_MD}" python3 - <<'PY'
+import json
+import os
+from pathlib import Path
+
+
+output_json = Path(os.environ["OUTPUT_JSON"])
+handoff_md = Path(os.environ["HANDOFF_MD"])
+summary = json.loads(output_json.read_text())
+gates = summary.get("gates")
+gates = gates if isinstance(gates, list) else []
+blocked = [gate for gate in gates if isinstance(gate, dict) and not gate.get("ready")]
+ready = [gate for gate in gates if isinstance(gate, dict) and gate.get("ready")]
+
+lines = [
+    "",
+    "## Final Readiness Next Actions",
+    "",
+    f"- Readiness status: {summary.get('status', 'unknown')}",
+    f"- Ready gates: {', '.join(str(gate.get('id')) for gate in ready) if ready else 'none'}",
+    f"- Blocked gates: {', '.join(str(gate.get('id')) for gate in blocked) if blocked else 'none'}",
+    "",
+]
+if blocked:
+    for gate in blocked:
+        gate_id = gate.get("id", "unknown")
+        status = gate.get("status", "unknown")
+        next_action = gate.get("nextAction", "Inspect the readiness report.")
+        artifact = gate.get("artifactPath") or "not available"
+        lines.append(f"- `{gate_id}` ({status}): {next_action} Artifact: `{artifact}`")
+else:
+    lines.append("- No blocked gates remain. MVP sign-off evidence is ready.")
+
+with handoff_md.open("a") as handle:
+    handle.write("\n".join(lines) + "\n")
+
+print("\n".join(lines))
+PY
+else
+  {
+    echo
+    echo "## Final Readiness Next Actions"
+    echo
+    echo "- Readiness report was not written. Inspect the release readiness command output."
+  } >>"${HANDOFF_MD}"
+fi
+
+exit "${readiness_exit}"
