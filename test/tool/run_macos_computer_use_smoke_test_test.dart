@@ -14,6 +14,8 @@ void main() {
   late String mvpSignoffScript;
   late String desktopActionCanaryScript;
   late String llmDecisionCanaryScript;
+  late String mvpFixtureScript;
+  late String mvpFixtureSource;
   late String existingHelperProbe;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -51,6 +53,12 @@ void main() {
     ).readAsStringSync();
     llmDecisionCanaryScript = File(
       'tool/run_macos_computer_use_llm_decision_canary.sh',
+    ).readAsStringSync();
+    mvpFixtureScript = File(
+      'tool/run_macos_computer_use_mvp_fixture.sh',
+    ).readAsStringSync();
+    mvpFixtureSource = File(
+      'tool/fixtures/macos_computer_use_mvp_fixture/MacOSComputerUseMvpFixtureApp.swift',
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
@@ -395,6 +403,12 @@ void main() {
     expect(llmDecisionCanaryScript, contains('computer_click'));
     expect(llmDecisionCanaryScript, contains('CAVERNO_LLM_BASE_URL'));
     expect(llmDecisionCanaryScript, contains('--fixture-response PATH'));
+    expect(llmDecisionCanaryScript, contains('--scenario NAME'));
+    expect(llmDecisionCanaryScript, contains('mvp-fixture'));
+    expect(llmDecisionCanaryScript, contains('computer_use_mvp_fixture'));
+    expect(llmDecisionCanaryScript, contains('Safe Click Target'));
+    expect(llmDecisionCanaryScript, contains('Danger Zone'));
+    expect(llmDecisionCanaryScript, contains('observe_action_observe_missing'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_llm_decision_canary_test_',
@@ -437,6 +451,84 @@ void main() {
       expect(summary, contains('"requiresUserClick": true'));
       expect(summary, contains('"failedCount": 0'));
       expect(summary, contains('"desktopActionBoundary": "no_desktop_action"'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('Computer Use MVP fixture scenario validates action planning', () async {
+    expect(
+      mvpFixtureScript,
+      contains('APP_NAME="Caverno Computer Use MVP Fixture"'),
+    );
+    expect(mvpFixtureScript, contains('swiftc'));
+    expect(mvpFixtureScript, contains('--launch'));
+    expect(mvpFixtureScript, contains('no TCC operation'));
+    expect(mvpFixtureSource, contains('safeClickTargetButton'));
+    expect(mvpFixtureSource, contains('mvpInputField'));
+    expect(mvpFixtureSource, contains('disabledDangerZoneButton'));
+    expect(mvpFixtureSource, contains('statusLabel.stringValue = "Clicked"'));
+
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_llm_mvp_fixture_canary_test_',
+    );
+    try {
+      final fixture = File('${root.path}/fixture_response.json')
+        ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_mvp_fixture",
+  "visionDecision": "Use the safe fixture button for the MVP click phase.",
+  "safeTargetReasoning": "The Safe Click Target is a low-risk fixture control with a deterministic status update.",
+  "requiresUserClick": true,
+  "selectedTarget": {
+    "label": "Safe Click Target",
+    "risk": "low",
+    "action": "click"
+  },
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_click",
+      "targetLabel": "Safe Click Target",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "refusedTargets": [
+    {
+      "label": "Danger Zone",
+      "reason": "The target is disabled and destructive."
+    }
+  ],
+  "expectedOutcome": "The status label changes after the user-approved click."
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_llm_decision_canary.sh',
+        '--root',
+        root.path,
+        '--scenario',
+        'mvp-fixture',
+        '--fixture-response',
+        fixture.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect('${result.stdout}', contains('Scenario: mvp-fixture'));
+      expect('${result.stdout}', contains('Safe Click Target'));
+
+      final summaryDir = Directory(
+        root.path,
+      ).listSync().whereType<Directory>().single;
+      final summaryFile = File('${summaryDir.path}/canary_summary.json');
+      final summary = summaryFile.readAsStringSync();
+      expect(summary, contains('"scenario": "mvp-fixture"'));
+      expect(summary, contains('"fixtureApp"'));
+      expect(summary, contains('Caverno Computer Use MVP Fixture'));
+      expect(summary, contains('"failedCount": 0'));
+      expect(summary, contains('"Safe Click Target"'));
+      expect(summary, contains('"Danger Zone"'));
     } finally {
       root.deleteSync(recursive: true);
     }
