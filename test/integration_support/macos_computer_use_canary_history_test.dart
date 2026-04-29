@@ -41,10 +41,22 @@ void main() {
       expect(history.entries, hasLength(2));
       expect(history.latest?.name, 'macos_computer_use_live_canary_200');
       expect(history.latest?.stable, isTrue);
+      expect(history.latest?.overlayForegroundCanary, isTrue);
+      expect(history.latest?.overlaySmokeStatus, 'ready');
+      expect(
+        history.latest?.helperProcessPolicy['helperPathMatchesRunningHelper'],
+        isTrue,
+      );
+      expect(
+        history.latest?.manualTccHandoff['manualCommand'],
+        contains('--m8-runtime-signoff'),
+      );
       expect(history.latestPassRateDelta, 1);
       expect(history.toJson()['latestStatus'], 'stable');
       expect(history.toMarkdown(), contains('ipc_not_ready: 1'));
       expect(history.toMarkdown(), contains('Latest pass-rate delta: +100.0%'));
+      expect(history.toMarkdown(), contains('Overlay smoke status: ready'));
+      expect(history.toMarkdown(), contains('Helper path match: true'));
     });
 
     test('honors the requested history limit', () {
@@ -153,6 +165,21 @@ void _writeCanarySummary(
       'schemaVersion': 1,
       'purpose': 'computer_use_helper_runtime_canary',
       'tccBoundary': 'manual_user_operated',
+      'overlayForegroundCanary': true,
+      'overlaySmokeStatus': 'ready',
+      'helperProcessPolicy': <String, Object?>{
+        'status': 'ready',
+        'helperPathMismatch': false,
+        'helperPathMatchesRunningHelper': true,
+        'replacedMismatchedHelperPath': false,
+      },
+      'manualTccHandoff': <String, Object?>{
+        'status': 'manual_required',
+        'manualCommand':
+            'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
+        'summaryCommand':
+            'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
+      },
       'preset': 'ci',
       'stabilityMode': stabilityMode,
       'stable': stable,

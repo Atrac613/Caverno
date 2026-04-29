@@ -55,6 +55,26 @@ void main() {
     expect(find.text('XPC is production ready.'), findsOneWidget);
   });
 
+  testWidgets('shows manual TCC handoff from the latest smoke report', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Manual TCC Handoff'), findsOneWidget);
+    expect(
+      find.textContaining('--m8-runtime-signoff', skipOffstage: false),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'tool/macos_computer_use_manual_tcc_report.dart',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('refreshes permission and audio recording state', (tester) async {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
@@ -563,6 +583,15 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'coreOk': true,
         'captureOk': false,
         'generatedAt': '2026-04-25T12:01:00Z',
+        'manualTccHandoff': {
+          'status': 'manual_required',
+          'manualCommand':
+              'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
+          'summaryCommand':
+              'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
+          'helperPath':
+              '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        },
       },
     });
   }

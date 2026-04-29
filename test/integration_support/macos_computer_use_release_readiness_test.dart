@@ -37,6 +37,18 @@ void main() {
       expect(summary.toJson()['blockedGateIds'], isEmpty);
       expect(summary.toMarkdown(), contains('## All Gates'));
       expect(summary.toMarkdown(), contains('Release artifact gate is ready.'));
+      final computerUseGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'computer_use_canary',
+      );
+      expect(computerUseGate.details['overlaySmokeStatus'], 'ready');
+      expect(
+        computerUseGate.details['helperProcessPolicy'],
+        containsPair('helperPathMatchesRunningHelper', true),
+      );
+      expect(
+        computerUseGate.details['manualTccHandoff'],
+        containsPair('status', 'manual_required'),
+      );
     });
 
     test('marks missing manual TCC as manual required', () {
@@ -138,6 +150,18 @@ void main() {
         <String, Object?>{
           'preset': 'ci',
           'tccBoundary': 'manual_user_operated',
+          'overlayForegroundCanary': true,
+          'overlaySmokeStatus': 'ready',
+          'helperProcessPolicy': <String, Object?>{
+            'status': 'ready',
+            'helperPathMismatch': false,
+            'helperPathMatchesRunningHelper': true,
+          },
+          'manualTccHandoff': <String, Object?>{
+            'status': 'manual_required',
+            'manualCommand':
+                'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
+          },
           'stabilityMode': true,
           'stable': true,
           'runCount': 3,
@@ -371,6 +395,18 @@ ComputerUseCanaryHistory _computerUseHistory({required bool stable}) {
         summaryPath: '/tmp/canary/canary_summary.json',
         preset: 'ci',
         tccBoundary: 'manual_user_operated',
+        overlayForegroundCanary: true,
+        overlaySmokeStatus: 'ready',
+        helperProcessPolicy: const <String, Object?>{
+          'status': 'ready',
+          'helperPathMismatch': false,
+          'helperPathMatchesRunningHelper': true,
+        },
+        manualTccHandoff: const <String, Object?>{
+          'status': 'manual_required',
+          'manualCommand':
+              'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
+        },
         stabilityMode: true,
         stable: stable,
         runCount: 3,

@@ -8,6 +8,10 @@ class ComputerUseCanaryHistoryEntry {
     required this.summaryPath,
     required this.preset,
     required this.tccBoundary,
+    required this.overlayForegroundCanary,
+    required this.overlaySmokeStatus,
+    required this.helperProcessPolicy,
+    required this.manualTccHandoff,
     required this.stabilityMode,
     required this.stable,
     required this.runCount,
@@ -23,6 +27,10 @@ class ComputerUseCanaryHistoryEntry {
   final String summaryPath;
   final String preset;
   final String tccBoundary;
+  final bool overlayForegroundCanary;
+  final String overlaySmokeStatus;
+  final Map<String, Object?> helperProcessPolicy;
+  final Map<String, Object?> manualTccHandoff;
   final bool stabilityMode;
   final bool stable;
   final int runCount;
@@ -39,6 +47,10 @@ class ComputerUseCanaryHistoryEntry {
       'summaryPath': summaryPath,
       'preset': preset,
       'tccBoundary': tccBoundary,
+      'overlayForegroundCanary': overlayForegroundCanary,
+      'overlaySmokeStatus': overlaySmokeStatus,
+      'helperProcessPolicy': helperProcessPolicy,
+      'manualTccHandoff': manualTccHandoff,
       'stabilityMode': stabilityMode,
       'stable': stable,
       'runCount': runCount,
@@ -108,6 +120,38 @@ class ComputerUseCanaryHistory {
         '| ${_markdownCell(entry.name)} | ${_markdownCell(entry.preset)} | ${entry.stabilityMode} | ${entry.stable} | ${(entry.passRate * 100).toStringAsFixed(1)}% | ${entry.passed} | ${entry.failed} | ${_failureClassesCell(entry.failureClasses)} | `${_escapeMarkdownCode(entry.summaryPath)}` |',
       );
     }
+
+    buffer
+      ..writeln()
+      ..writeln('## Latest Computer Use Details')
+      ..writeln();
+    final latestEntry = latest;
+    if (latestEntry == null) {
+      buffer.writeln('No Computer Use canary summaries were found.');
+    } else {
+      final helperPolicy = latestEntry.helperProcessPolicy;
+      final manual = latestEntry.manualTccHandoff;
+      buffer
+        ..writeln(
+          '- Overlay foreground canary: ${latestEntry.overlayForegroundCanary}',
+        )
+        ..writeln('- Overlay smoke status: ${latestEntry.overlaySmokeStatus}')
+        ..writeln(
+          '- Helper process policy: ${_markdownCell(helperPolicy['status'])}',
+        )
+        ..writeln(
+          '- Helper path mismatch: ${_markdownCell(helperPolicy['helperPathMismatch'])}',
+        )
+        ..writeln(
+          '- Helper path match: ${_markdownCell(helperPolicy['helperPathMatchesRunningHelper'])}',
+        )
+        ..writeln(
+          '- Replaced mismatched helper: ${_markdownCell(helperPolicy['replacedMismatchedHelperPath'])}',
+        )
+        ..writeln(
+          '- Manual TCC command: `${_escapeMarkdownCode('${manual['manualCommand'] ?? '-'}')}`',
+        );
+    }
     return buffer.toString();
   }
 }
@@ -171,12 +215,30 @@ ComputerUseCanaryHistoryEntry? _readHistoryEntry(File summaryFile) {
     final failed = _intValue(decoded['failed']);
     final runCount = _intValue(decoded['runCount']);
     final passRate = _doubleValue(decoded['passRate']);
+    final latestRun = _latestRun(decoded);
     return ComputerUseCanaryHistoryEntry(
       name: _basename(summaryFile.parent.path),
       directory: summaryFile.parent.path,
       summaryPath: summaryFile.path,
       preset: decoded['preset'] as String? ?? 'unknown',
       tccBoundary: decoded['tccBoundary'] as String? ?? 'unknown',
+      overlayForegroundCanary:
+          decoded['overlayForegroundCanary'] == true ||
+          latestRun['overlayForegroundCanary'] == true,
+      overlaySmokeStatus:
+          decoded['overlaySmokeStatus'] as String? ??
+          latestRun['overlaySmokeStatus'] as String? ??
+          'not_run',
+      helperProcessPolicy: Map<String, Object?>.unmodifiable(
+        _mapValue(decoded['helperProcessPolicy']) ??
+            _mapValue(latestRun['helperProcessPolicy']) ??
+            const <String, Object?>{},
+      ),
+      manualTccHandoff: Map<String, Object?>.unmodifiable(
+        _mapValue(decoded['manualTccHandoff']) ??
+            _mapValue(latestRun['manualTccHandoff']) ??
+            const <String, Object?>{},
+      ),
       stabilityMode: decoded['stabilityMode'] == true,
       stable: decoded['stable'] == true || (runCount > 0 && failed == 0),
       runCount: runCount,
@@ -191,6 +253,31 @@ ComputerUseCanaryHistoryEntry? _readHistoryEntry(File summaryFile) {
   } on FileSystemException {
     return null;
   }
+}
+
+Map<String, dynamic> _latestRun(Map<String, dynamic> decoded) {
+  final runs = decoded['runs'];
+  if (runs is! List || runs.isEmpty) {
+    return const <String, dynamic>{};
+  }
+  final latest = runs.last;
+  if (latest is Map<String, dynamic>) {
+    return latest;
+  }
+  if (latest is Map) {
+    return Map<String, dynamic>.from(latest);
+  }
+  return const <String, dynamic>{};
+}
+
+Map<String, Object?>? _mapValue(Object? value) {
+  if (value is Map<String, Object?>) {
+    return value;
+  }
+  if (value is Map) {
+    return Map<String, Object?>.from(value);
+  }
+  return null;
 }
 
 int _intValue(Object? value) {

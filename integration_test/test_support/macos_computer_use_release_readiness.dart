@@ -334,6 +334,10 @@ ReleaseReadinessGate _computerUseCanaryGate(
       'runCount': latest.runCount,
       'passRate': latest.passRate,
       'failureClasses': latest.failureClasses,
+      'overlayForegroundCanary': latest.overlayForegroundCanary,
+      'overlaySmokeStatus': latest.overlaySmokeStatus,
+      'helperProcessPolicy': latest.helperProcessPolicy,
+      'manualTccHandoff': latest.manualTccHandoff,
     },
   );
 }
@@ -483,6 +487,14 @@ ComputerUseCanaryHistoryEntry _historyEntryFromJson(Map<String, dynamic> json) {
     summaryPath: json['summaryPath'] as String? ?? '',
     preset: json['preset'] as String? ?? 'unknown',
     tccBoundary: json['tccBoundary'] as String? ?? 'unknown',
+    overlayForegroundCanary: json['overlayForegroundCanary'] == true,
+    overlaySmokeStatus: json['overlaySmokeStatus'] as String? ?? 'not_run',
+    helperProcessPolicy: Map<String, Object?>.unmodifiable(
+      _mapValue(json['helperProcessPolicy']),
+    ),
+    manualTccHandoff: Map<String, Object?>.unmodifiable(
+      _mapValue(json['manualTccHandoff']),
+    ),
     stabilityMode: json['stabilityMode'] == true,
     stable: json['stable'] == true,
     runCount: _intValue(json['runCount']),

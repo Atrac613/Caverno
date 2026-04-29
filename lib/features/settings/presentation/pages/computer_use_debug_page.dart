@@ -188,6 +188,14 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 body: _existingHelperProbeSummary()!,
               ),
             ],
+            if (_manualTccHandoffSummary() != null) ...[
+              const SizedBox(height: 8),
+              _OnboardingNote(
+                icon: Icons.privacy_tip_outlined,
+                title: 'Manual TCC Handoff',
+                body: _manualTccHandoffSummary()!,
+              ),
+            ],
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -1572,6 +1580,28 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'path ${pathMatches ? 'matched' : 'mismatch'}',
       if (failedChecks.isNotEmpty) 'failed ${failedChecks.join(', ')}',
       if (path is String) _shortPath(path),
+    ].join(' | ');
+  }
+
+  String? _manualTccHandoffSummary() {
+    final report = _reportBody(_lastLiveSmokeReport);
+    if (report == null) {
+      return null;
+    }
+    final handoff = report['manualTccHandoff'];
+    if (handoff is! Map) {
+      return null;
+    }
+    final handoffMap = Map<String, dynamic>.from(handoff);
+    final status = handoffMap['status'] as String? ?? 'manual_required';
+    final command = handoffMap['manualCommand'] as String?;
+    final parser = handoffMap['summaryCommand'] as String?;
+    final helperPath = handoffMap['helperPath'] as String?;
+    return [
+      status,
+      ?command,
+      ?parser,
+      if (helperPath != null) _shortPath(helperPath),
     ].join(' | ');
   }
 
