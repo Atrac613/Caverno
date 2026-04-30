@@ -257,6 +257,21 @@ File? discoverLatestDesktopActionCanarySummary(Directory reportRoot) {
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
+  final visionCandidates =
+      _jsonFiles(reportRoot)
+          .where((file) {
+            final parent = _basename(file.parent.path);
+            return _basename(file.path) == 'canary_summary.json' &&
+                parent.startsWith(
+                  'macos_computer_use_mvp_fixture_vision_llm_canary_',
+                );
+          })
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  if (visionCandidates.isNotEmpty) {
+    return visionCandidates.last;
+  }
+
   final aggregateCandidates =
       _jsonFiles(reportRoot)
           .where((file) {
@@ -477,9 +492,11 @@ ReleaseReadinessGate _llmCanaryGate(
   final ready = runCount > 0 && failed == 0;
   final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
   final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
+  final isFixtureVision =
+      purpose == 'computer_use_mvp_fixture_vision_llm_canary';
   return ReleaseReadinessGate(
     id: 'llm_canary',
-    label: isComputerUseDecision || isMvpFixture
+    label: isComputerUseDecision || isMvpFixture || isFixtureVision
         ? 'Computer Use LLM decision canary'
         : 'LLM tool-loop canary',
     status: ready ? 'passed' : 'blocked',
@@ -500,9 +517,13 @@ ReleaseReadinessGate _llmCanaryGate(
       'fixtureApp': llmSummary['fixtureApp'],
       'visionDecision': llmSummary['visionDecision'],
       'safeTargetReasoning': llmSummary['safeTargetReasoning'],
+      'visibleFixtureWindow': llmSummary['visibleFixtureWindow'],
       'requiresUserClick': llmSummary['requiresUserClick'],
       'requiresUserTextInput': llmSummary['requiresUserTextInput'],
       'selectedTarget': llmSummary['selectedTarget'],
+      'typeConfirmTarget': llmSummary['typeConfirmTarget'],
+      'refusedTargets': llmSummary['refusedTargets'],
+      'screenshotPath': llmSummary['screenshotPath'],
       'desktopActionBoundary': llmSummary['desktopActionBoundary'],
     },
   );

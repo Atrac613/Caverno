@@ -13,6 +13,9 @@ READINESS_MD="${RUN_DIR}/macos_computer_use_mvp_llm_readiness.md"
 HANDOFF_MD="${RUN_DIR}/macos_computer_use_mvp_llm_handoff.md"
 CLICK_FIXTURE_RESPONSE=""
 TYPE_FIXTURE_RESPONSE=""
+SCREENSHOT_PATH=""
+VISION_FIXTURE_RESPONSE=""
+LLM_CANARY_SUMMARY=""
 REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_REPEAT_COUNT:-1}"
 
 require_value() {
@@ -31,6 +34,9 @@ Options:
   --repeat COUNT                 Run each LLM scenario multiple times.
   --fixture-response-click PATH  Use a local response for the safe-click scenario.
   --fixture-response-type PATH   Use a local response for the type-and-confirm scenario.
+  --screenshot PATH              Run the fixture vision LLM canary with this screenshot.
+  --vision-fixture-response PATH Use a local fixture vision LLM response.
+  --llm-canary-summary PATH      Use an existing LLM canary summary.
   --help                         Show this help.
 
 This runner creates automation-safe MVP LLM evidence, feeds it into release
@@ -59,6 +65,21 @@ while [[ $# -gt 0 ]]; do
     --fixture-response-type)
       require_value "$@"
       TYPE_FIXTURE_RESPONSE="$2"
+      shift 2
+      ;;
+    --screenshot)
+      require_value "$@"
+      SCREENSHOT_PATH="$2"
+      shift 2
+      ;;
+    --vision-fixture-response)
+      require_value "$@"
+      VISION_FIXTURE_RESPONSE="$2"
+      shift 2
+      ;;
+    --llm-canary-summary)
+      require_value "$@"
+      LLM_CANARY_SUMMARY="$2"
       shift 2
       ;;
     --help|-h)
@@ -90,37 +111,73 @@ echo "Running macOS Computer Use MVP LLM readiness flow"
 echo "  Report root: ${REPORT_ROOT}"
 echo "  Run dir: ${RUN_DIR}"
 echo "  Repeat count: ${REPEAT_COUNT}"
+echo "  Screenshot: ${SCREENSHOT_PATH:-not provided}"
+echo "  Existing LLM summary: ${LLM_CANARY_SUMMARY:-not provided}"
 echo "  TCC boundary: no TCC operation"
 echo "  Desktop action boundary: no pointer, keyboard, or click operation"
 
-canary_args=(
-  --root "${REPORT_ROOT}"
-  --repeat "${REPEAT_COUNT}"
-)
-if [[ -n "${CLICK_FIXTURE_RESPONSE}" ]]; then
-  canary_args+=(--fixture-response-click "${CLICK_FIXTURE_RESPONSE}")
-fi
-if [[ -n "${TYPE_FIXTURE_RESPONSE}" ]]; then
-  canary_args+=(--fixture-response-type "${TYPE_FIXTURE_RESPONSE}")
+llm_canary_exit=66
+llm_summary_pattern=""
+llm_evidence_mode="fixture_payload"
+
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  if [[ ! -f "${LLM_CANARY_SUMMARY}" ]]; then
+    echo "LLM canary summary not found: ${LLM_CANARY_SUMMARY}" >&2
+    exit 66
+  fi
+  LLM_SUMMARY_PATH="${LLM_CANARY_SUMMARY}"
+  llm_canary_exit=0
+  llm_evidence_mode="existing_summary"
+elif [[ -n "${SCREENSHOT_PATH}" || -n "${VISION_FIXTURE_RESPONSE}" ]]; then
+  llm_evidence_mode="fixture_vision"
+  vision_args=(
+    --root "${REPORT_ROOT}"
+  )
+  if [[ -n "${SCREENSHOT_PATH}" ]]; then
+    vision_args+=(--screenshot "${SCREENSHOT_PATH}")
+  fi
+  if [[ -n "${VISION_FIXTURE_RESPONSE}" ]]; then
+    vision_args+=(--fixture-response "${VISION_FIXTURE_RESPONSE}")
+  fi
+  set +e
+  bash "${ROOT_DIR}/tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh" "${vision_args[@]}"
+  llm_canary_exit=$?
+  set -e
+  llm_summary_pattern="macos_computer_use_mvp_fixture_vision_llm_canary_*/canary_summary.json"
+else
+  canary_args=(
+    --root "${REPORT_ROOT}"
+    --repeat "${REPEAT_COUNT}"
+  )
+  if [[ -n "${CLICK_FIXTURE_RESPONSE}" ]]; then
+    canary_args+=(--fixture-response-click "${CLICK_FIXTURE_RESPONSE}")
+  fi
+  if [[ -n "${TYPE_FIXTURE_RESPONSE}" ]]; then
+    canary_args+=(--fixture-response-type "${TYPE_FIXTURE_RESPONSE}")
+  fi
+
+  set +e
+  bash "${ROOT_DIR}/tool/run_macos_computer_use_mvp_fixture_llm_canary.sh" "${canary_args[@]}"
+  llm_canary_exit=$?
+  set -e
+  llm_summary_pattern="macos_computer_use_mvp_fixture_llm_canary_*/canary_summary.json"
 fi
 
-set +e
-bash "${ROOT_DIR}/tool/run_macos_computer_use_mvp_fixture_llm_canary.sh" "${canary_args[@]}"
-llm_canary_exit=$?
-set -e
-
-LLM_SUMMARY_PATH="$(
-  REPORT_ROOT="${REPORT_ROOT}" python3 - <<'PY'
+if [[ -z "${LLM_CANARY_SUMMARY}" ]]; then
+  LLM_SUMMARY_PATH="$(
+  REPORT_ROOT="${REPORT_ROOT}" LLM_SUMMARY_PATTERN="${llm_summary_pattern}" python3 - <<'PY'
 import os
 from pathlib import Path
 
 root = Path(os.environ["REPORT_ROOT"])
+pattern = os.environ["LLM_SUMMARY_PATTERN"]
 candidates = sorted(
-    root.glob("macos_computer_use_mvp_fixture_llm_canary_*/canary_summary.json")
+    root.glob(pattern)
 )
 print(candidates[-1] if candidates else "")
 PY
 )"
+fi
 
 readiness_exit=66
 signoff_dry_run_exit=66
@@ -150,6 +207,7 @@ RUN_DIR="${RUN_DIR}" \
 SUMMARY_JSON="${SUMMARY_JSON}" \
 SUMMARY_MD="${SUMMARY_MD}" \
 LLM_SUMMARY_PATH="${LLM_SUMMARY_PATH}" \
+LLM_EVIDENCE_MODE="${llm_evidence_mode}" \
 READINESS_JSON="${READINESS_JSON}" \
 READINESS_MD="${READINESS_MD}" \
 HANDOFF_MD="${HANDOFF_MD}" \
@@ -168,6 +226,7 @@ llm_summary_path = Path(os.environ["LLM_SUMMARY_PATH"]) if os.environ["LLM_SUMMA
 readiness_json = Path(os.environ["READINESS_JSON"])
 readiness_md = Path(os.environ["READINESS_MD"])
 handoff_md = Path(os.environ["HANDOFF_MD"])
+llm_evidence_mode = os.environ["LLM_EVIDENCE_MODE"]
 llm_canary_exit = int(os.environ["LLM_CANARY_EXIT"])
 readiness_exit = int(os.environ["READINESS_EXIT"])
 signoff_dry_run_exit = int(os.environ["SIGNOFF_DRY_RUN_EXIT"])
@@ -223,6 +282,7 @@ summary = {
     "tccBoundary": "no_tcc_operation",
     "ready": automation_ready,
     "llmCanaryExitCode": llm_canary_exit,
+    "llmEvidenceMode": llm_evidence_mode,
     "readinessExitCode": readiness_exit,
     "signoffDryRunExitCode": signoff_dry_run_exit,
     "llmCanarySummaryPath": str(llm_summary_path) if llm_summary_path else None,
@@ -247,6 +307,7 @@ lines = [
     "- Automation boundary: no TCC operation and no desktop action",
     f"- Ready: {str(automation_ready).lower()}",
     f"- LLM canary exit code: {llm_canary_exit}",
+    f"- LLM evidence mode: {llm_evidence_mode}",
     f"- Release readiness exit code: {readiness_exit}",
     f"- MVP sign-off dry-run exit code: {signoff_dry_run_exit}",
     f"- LLM ready: {str(llm_ready).lower()}",

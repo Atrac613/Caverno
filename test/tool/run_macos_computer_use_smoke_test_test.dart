@@ -513,6 +513,17 @@ void main() {
     );
     expect(mvpLlmReadinessScript, contains('--fixture-response-click'));
     expect(mvpLlmReadinessScript, contains('--fixture-response-type'));
+    expect(mvpLlmReadinessScript, contains('--screenshot PATH'));
+    expect(mvpLlmReadinessScript, contains('--vision-fixture-response PATH'));
+    expect(mvpLlmReadinessScript, contains('--llm-canary-summary PATH'));
+    expect(
+      mvpLlmReadinessScript,
+      contains('tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh'),
+    );
+    expect(
+      mvpLlmReadinessScript,
+      contains('macos_computer_use_mvp_fixture_vision_llm_canary_'),
+    );
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_llm_decision_canary_test_',
@@ -943,6 +954,107 @@ void main() {
         final handoff = handoffFiles.single.readAsStringSync();
         expect(handoff, contains('Manual TCC status: not provided'));
         expect(handoff, contains('Desktop action canary status: not provided'));
+        expect(handoff, contains('LLM canary status: provided'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use MVP LLM readiness runner accepts vision canary evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_llm_readiness_vision_test_',
+      );
+      try {
+        final fixture = File('${root.path}/vision_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_mvp_fixture_vision",
+  "visionDecision": "The fixture window is visible with safe click, text, echo, and disabled danger controls.",
+  "visibleFixtureWindow": true,
+  "safeTargetReasoning": "Safe Click Target, MVP Fixture Text Field, and Echo Text are low-risk fixture controls.",
+  "requiresUserClick": true,
+  "requiresUserTextInput": true,
+  "selectedTarget": {
+    "label": "Safe Click Target",
+    "risk": "low",
+    "action": "click"
+  },
+  "typeConfirmTarget": {
+    "label": "MVP Fixture Text Field",
+    "confirmationButton": "Echo Text",
+    "action": "type_text_then_confirm"
+  },
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_click",
+      "targetLabel": "Safe Click Target",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_type_text",
+      "targetLabel": "MVP Fixture Text Field",
+      "text": "caverno-mvp-canary",
+      "requiresUserApproval": true
+    },
+    {
+      "tool": "computer_click",
+      "targetLabel": "Echo Text",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "refusedTargets": [
+    {"label": "Danger Zone", "reason": "Disabled destructive target."}
+  ],
+  "expectedOutcome": "User-approved actions update the fixture labels."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_llm_readiness.sh',
+          '--root',
+          root.path,
+          '--vision-fixture-response',
+          fixture.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('LLM gate ready: true'));
+        expect(
+          '${result.stdout}',
+          contains('LLM evidence mode: fixture_vision'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (file) => file.path.endsWith('mvp_llm_readiness_summary.json'),
+            )
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"llmEvidenceMode": "fixture_vision"'));
+        expect(summary, contains('computer_use_mvp_fixture_vision_llm_canary'));
+        expect(summary, contains('"llmReady": true'));
+        expect(summary, contains('"llmGateReady": true'));
+
+        final handoffFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('mvp_llm_handoff.md'))
+            .toList(growable: false);
+        expect(handoffFiles, hasLength(1));
+        final handoff = handoffFiles.single.readAsStringSync();
         expect(handoff, contains('LLM canary status: provided'));
       } finally {
         root.deleteSync(recursive: true);

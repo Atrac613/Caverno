@@ -67,6 +67,18 @@ LLM and validates that the model can visually identify `Safe Click Target`,
 `MVP Fixture Text Field`, `Echo Text`, and the refused `Danger Zone` without
 clicking or typing.
 
+To use that screenshot-backed vision evidence in the readiness preflight, pass
+the same user-provided screenshot to:
+
+```bash
+bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
+  --screenshot <fixture-window-screenshot.png>
+```
+
+The preflight then runs the fixture vision canary, feeds its
+`canary_summary.json` into release readiness, and writes the MVP handoff
+dry-run while keeping capture, TCC, clicks, and typing user-operated.
+
 These commands intentionally use the same live LLM setting contract as the
 coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
 `CAVERNO_LLM_MODEL`. Set those three variables when not using

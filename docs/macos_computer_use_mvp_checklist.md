@@ -43,6 +43,14 @@ or run the user-operated desktop action on the user's behalf.
      --screenshot <fixture-window-screenshot.png>
    ```
 
+   To feed that screenshot-backed evidence into the MVP readiness handoff in
+   one automation-safe preflight, run:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
+     --screenshot <fixture-window-screenshot.png>
+   ```
+
    The Computer Use LLM canaries use the same live LLM setting contract as the
    coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
    `CAVERNO_LLM_MODEL`.

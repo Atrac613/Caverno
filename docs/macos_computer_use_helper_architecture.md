@@ -396,15 +396,18 @@ together:
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 ```
 
-The aggregate runner is the preferred MVP `llm_canary` artifact. Release
-readiness discovers `macos_computer_use_mvp_fixture_llm_canary_*` summaries
-before single-scenario decision summaries, and the shell wrappers also accept
-`--llm-canary-summary` when a specific aggregate artifact should be used.
+The screenshot-backed fixture vision runner is the preferred MVP `llm_canary`
+artifact when the user has provided an actual fixture screenshot. Release
+readiness discovers `macos_computer_use_mvp_fixture_vision_llm_canary_*`
+summaries before aggregate fixture summaries, then falls back to
+single-scenario decision summaries. The shell wrappers also accept
+`--llm-canary-summary` when a specific artifact should be used.
 Use `tool/run_macos_computer_use_mvp_llm_readiness.sh` when the whole
-automation-safe LLM preflight should run in one command. It creates the
-aggregate fixture LLM summary, feeds it into release readiness, writes an MVP
-handoff dry-run, and still leaves TCC plus desktop action evidence
-user-operated.
+automation-safe LLM preflight should run in one command. By default it creates
+the aggregate fixture LLM summary; with `--screenshot <path>` it creates
+screenshot-backed fixture vision evidence instead. In both modes it feeds the
+summary into release readiness, writes an MVP handoff dry-run, and still leaves
+capture, TCC, and desktop action evidence user-operated.
 Use `tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh` when the
 live vision LLM should inspect an actual screenshot of the fixture app. The
 screenshot is provided by the user, so the canary does not capture the screen,
