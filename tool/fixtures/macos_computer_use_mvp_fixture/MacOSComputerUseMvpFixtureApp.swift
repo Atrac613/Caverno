@@ -1,6 +1,5 @@
 import Cocoa
 
-@main
 final class MvpFixtureAppDelegate: NSObject, NSApplicationDelegate {
     private var window: NSWindow?
     private let statusLabel = NSTextField(labelWithString: "Ready")
@@ -21,7 +20,8 @@ final class MvpFixtureAppDelegate: NSObject, NSApplicationDelegate {
         window.center()
         window.isReleasedWhenClosed = false
         window.contentView = buildContentView()
-        window.makeKeyAndOrderFront(nil)
+        window.makeKeyAndOrderFront(application)
+        window.orderFrontRegardless()
         application.activate(ignoringOtherApps: true)
         self.window = window
     }
@@ -135,5 +135,19 @@ final class MvpFixtureAppDelegate: NSObject, NSApplicationDelegate {
     @objc private func handleEcho() {
         let value = inputField.stringValue.trimmingCharacters(in: .whitespacesAndNewlines)
         echoLabel.stringValue = value.isEmpty ? "Echo: -" : "Echo: \(value)"
+    }
+}
+
+@main
+enum MvpFixtureMain {
+    private static var delegate: MvpFixtureAppDelegate?
+
+    static func main() {
+        let application = NSApplication.shared
+        let appDelegate = MvpFixtureAppDelegate()
+        delegate = appDelegate
+        application.delegate = appDelegate
+        application.setActivationPolicy(.regular)
+        application.run()
     }
 }

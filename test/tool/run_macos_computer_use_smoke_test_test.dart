@@ -617,6 +617,9 @@ void main() {
     expect(mvpFixtureScript, contains('swiftc'));
     expect(mvpFixtureScript, contains('--launch'));
     expect(mvpFixtureScript, contains('no TCC operation'));
+    expect(mvpFixtureSource, contains('enum MvpFixtureMain'));
+    expect(mvpFixtureSource, contains('application.run()'));
+    expect(mvpFixtureSource, contains('window.orderFrontRegardless()'));
     expect(mvpFixtureSource, contains('safeClickTargetButton'));
     expect(mvpFixtureSource, contains('mvpInputField'));
     expect(mvpFixtureSource, contains('disabledDangerZoneButton'));
