@@ -8,6 +8,7 @@ void main() {
   late String overlaySmokeSupport;
   late String helperSource;
   late String runnerSource;
+  late String windowManagerSource;
   late String helperInfoPlist;
   late String liveCanaryScript;
   late String manualTccSignoffScript;
@@ -41,6 +42,9 @@ void main() {
     ).readAsStringSync();
     runnerSource = File(
       'macos/Runner/MainFlutterWindow.swift',
+    ).readAsStringSync();
+    windowManagerSource = File(
+      'lib/core/services/window_manager_service.dart',
     ).readAsStringSync();
     helperInfoPlist = File(
       'macos/ComputerUseHelper/Info.plist',
@@ -93,6 +97,12 @@ void main() {
     mvpFixtureRunbook = File(
       'docs/macos_computer_use_mvp_fixture_runbook.md',
     ).readAsStringSync();
+  });
+
+  test('desktop startup does not block runApp on window readiness', () {
+    expect(windowManagerSource, contains('unawaited(_showWhenReady'));
+    expect(windowManagerSource, contains('Future<void> _showWhenReady'));
+    expect(windowManagerSource, contains('windowManager.waitUntilReadyToShow'));
   });
 
   test('M7 sign-off expands to release strict XPC artifact checks', () {

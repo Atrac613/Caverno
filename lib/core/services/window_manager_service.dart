@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:ui';
 
 import 'package:window_manager/window_manager.dart';
@@ -27,15 +28,28 @@ class WindowManagerService with WindowListener {
       center: !geometry.hasPosition,
     );
 
-    await windowManager.waitUntilReadyToShow(windowOptions, () async {
-      if (geometry.hasPosition && _isPositionOnScreen(geometry.x!, geometry.y!)) {
-        await windowManager.setPosition(Offset(geometry.x!, geometry.y!));
-      }
-      await windowManager.show();
-      await windowManager.focus();
-    });
+    unawaited(_showWhenReady(windowOptions, geometry));
 
     windowManager.addListener(this);
+  }
+
+  Future<void> _showWhenReady(
+    WindowOptions windowOptions,
+    WindowGeometry geometry,
+  ) async {
+    try {
+      await windowManager.waitUntilReadyToShow(windowOptions, () async {
+        if (geometry.hasPosition &&
+            _isPositionOnScreen(geometry.x!, geometry.y!)) {
+          await windowManager.setPosition(Offset(geometry.x!, geometry.y!));
+        }
+        await windowManager.show();
+        await windowManager.focus();
+      });
+    } catch (_) {
+      await windowManager.show();
+      await windowManager.focus();
+    }
   }
 
   @override
@@ -52,12 +66,14 @@ class WindowManagerService with WindowListener {
     _saveDebouncer.run(() async {
       final size = await windowManager.getSize();
       final position = await windowManager.getPosition();
-      await _settingsService.save(WindowGeometry(
-        width: size.width,
-        height: size.height,
-        x: position.dx,
-        y: position.dy,
-      ));
+      await _settingsService.save(
+        WindowGeometry(
+          width: size.width,
+          height: size.height,
+          x: position.dx,
+          y: position.dy,
+        ),
+      );
     });
   }
 
