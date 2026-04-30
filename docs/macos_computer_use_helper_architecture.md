@@ -405,6 +405,10 @@ automation-safe LLM preflight should run in one command. It creates the
 aggregate fixture LLM summary, feeds it into release readiness, writes an MVP
 handoff dry-run, and still leaves TCC plus desktop action evidence
 user-operated.
+Use `tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh` when the
+live vision LLM should inspect an actual screenshot of the fixture app. The
+screenshot is provided by the user, so the canary does not capture the screen,
+grant TCC, operate System Settings, move the pointer, click, or type.
 
 The fixture app is built with:
 

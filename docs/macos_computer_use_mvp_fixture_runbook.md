@@ -53,6 +53,20 @@ This preflight succeeds when the LLM gate is ready and any remaining blockers
 are the expected manual or release-readiness gates. It still does not grant TCC,
 operate System Settings, move the pointer, click, or type.
 
+To validate against the actual fixture app UI instead of the canned observation
+payload, ask the user to capture a screenshot of the visible fixture window and
+run the vision canary with that file:
+
+```bash
+bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+  --screenshot <fixture-window-screenshot.png>
+```
+
+The screenshot is user-provided. This vision canary sends the image to the live
+LLM and validates that the model can visually identify `Safe Click Target`,
+`MVP Fixture Text Field`, `Echo Text`, and the refused `Danger Zone` without
+clicking or typing.
+
 These commands intentionally use the same live LLM setting contract as the
 coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
 `CAVERNO_LLM_MODEL`. Set those three variables when not using

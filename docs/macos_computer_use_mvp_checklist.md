@@ -35,6 +35,14 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_mvp_llm_readiness.sh
    ```
 
+   To validate the live vision LLM against an actual screenshot of the fixture
+   app, ask the user to launch the fixture, capture the fixture window, and run:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+     --screenshot <fixture-window-screenshot.png>
+   ```
+
    The Computer Use LLM canaries use the same live LLM setting contract as the
    coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
    `CAVERNO_LLM_MODEL`.

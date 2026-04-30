@@ -15,6 +15,7 @@ void main() {
   late String desktopActionCanaryScript;
   late String llmDecisionCanaryScript;
   late String mvpFixtureLlmCanaryScript;
+  late String mvpFixtureVisionLlmCanaryScript;
   late String mvpLlmReadinessScript;
   late String releaseReadinessWrapper;
   late String mvpFixtureScript;
@@ -60,6 +61,9 @@ void main() {
     ).readAsStringSync();
     mvpFixtureLlmCanaryScript = File(
       'tool/run_macos_computer_use_mvp_fixture_llm_canary.sh',
+    ).readAsStringSync();
+    mvpFixtureVisionLlmCanaryScript = File(
+      'tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -476,6 +480,20 @@ void main() {
     expect(mvpFixtureLlmCanaryScript, contains('mvp-fixture-type-confirm'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-click'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-type'));
+    expect(
+      mvpFixtureVisionLlmCanaryScript,
+      contains('macos_computer_use_mvp_fixture_vision_llm_canary_summary'),
+    );
+    expect(mvpFixtureVisionLlmCanaryScript, contains('--screenshot PATH'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('image_url'));
+    expect(
+      mvpFixtureVisionLlmCanaryScript,
+      contains('data:{mime_type};base64'),
+    );
+    expect(mvpFixtureVisionLlmCanaryScript, contains('visibleFixtureWindow'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('requiresUserTextInput'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('no_tcc_operation'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('no_desktop_action'));
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
@@ -926,6 +944,99 @@ void main() {
         expect(handoff, contains('Manual TCC status: not provided'));
         expect(handoff, contains('Desktop action canary status: not provided'));
         expect(handoff, contains('LLM canary status: provided'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use MVP fixture vision LLM canary validates screenshot decisions',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_fixture_vision_llm_test_',
+      );
+      try {
+        final fixture = File('${root.path}/vision_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_mvp_fixture_vision",
+  "visionDecision": "The fixture window is visible with safe click, text, echo, and disabled danger controls.",
+  "visibleFixtureWindow": true,
+  "safeTargetReasoning": "Safe Click Target, MVP Fixture Text Field, and Echo Text are low-risk fixture controls.",
+  "requiresUserClick": true,
+  "requiresUserTextInput": true,
+  "selectedTarget": {
+    "label": "Safe Click Target",
+    "risk": "low",
+    "action": "click"
+  },
+  "typeConfirmTarget": {
+    "label": "MVP Fixture Text Field",
+    "confirmationButton": "Echo Text",
+    "action": "type_text_then_confirm"
+  },
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_click",
+      "targetLabel": "Safe Click Target",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_type_text",
+      "targetLabel": "MVP Fixture Text Field",
+      "text": "caverno-mvp-canary",
+      "requiresUserApproval": true
+    },
+    {
+      "tool": "computer_click",
+      "targetLabel": "Echo Text",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "refusedTargets": [
+    {"label": "Danger Zone", "reason": "Disabled destructive target."}
+  ],
+  "expectedOutcome": "User-approved actions update the fixture labels."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh',
+          '--root',
+          root.path,
+          '--fixture-response',
+          fixture.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Visible fixture window: true'));
+        expect('${result.stdout}', contains('Requires user text input: true'));
+
+        final summaryDir = Directory(
+          root.path,
+        ).listSync().whereType<Directory>().single;
+        final summary = File(
+          '${summaryDir.path}/canary_summary.json',
+        ).readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_mvp_fixture_vision_llm_canary_summary'),
+        );
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"visibleFixtureWindow": true'));
+        expect(summary, contains('"requiresUserClick": true'));
+        expect(summary, contains('"requiresUserTextInput": true'));
+        expect(summary, contains('"Safe Click Target"'));
+        expect(summary, contains('"MVP Fixture Text Field"'));
+        expect(summary, contains('"Danger Zone"'));
       } finally {
         root.deleteSync(recursive: true);
       }
