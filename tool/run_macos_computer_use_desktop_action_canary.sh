@@ -14,6 +14,7 @@ SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 FIXTURE_TARGET=0
 FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
 LAUNCH_FIXTURE=0
+RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-1}"
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -58,6 +59,10 @@ while [[ $# -gt 0 ]]; do
       FIXTURE_APP_PATH="$2"
       shift 2
       ;;
+    --skip-restore-debug-app)
+      RESTORE_DEBUG_APP=0
+      shift
+      ;;
     --help)
       cat <<'USAGE'
 Usage: bash tool/run_macos_computer_use_desktop_action_canary.sh [options]
@@ -71,6 +76,8 @@ Options:
   --launch-fixture     Build and launch the MVP fixture before the user-operated canary.
   --fixture-app-path PATH
                        Record an already built MVP fixture app path.
+  --skip-restore-debug-app
+                       Do not rebuild the normal Debug Caverno.app after the canary.
 
 This canary is user-operated. It requires the user to grant TCC permissions and
 to prepare a safe click target before running.
@@ -120,6 +127,7 @@ fi
 echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
+echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
 echo "  Report dir: ${RUN_DIR}"
 
 status=0
@@ -372,4 +380,15 @@ print(summary_md.read_text())
 PY
 
 echo "Desktop action canary summary written to ${SUMMARY_JSON}"
+if [[ "${RESTORE_DEBUG_APP}" == "1" ]]; then
+  echo "Restoring normal Debug Caverno.app after integration-test canary build"
+  set +e
+  (cd "${ROOT_DIR}" && flutter build macos --debug)
+  restore_status=$?
+  set -e
+  if [[ "${restore_status}" -ne 0 ]]; then
+    echo "Failed to restore normal Debug Caverno.app after the canary."
+    status=1
+  fi
+fi
 exit "${status}"
