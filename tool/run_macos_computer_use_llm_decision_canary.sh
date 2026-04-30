@@ -357,7 +357,8 @@ def build_scenario_payload():
 observation, user_prompt = build_scenario_payload()
 
 system_prompt = (
-    "You validate macOS Computer Use decisions. Return JSON only. "
+    "You validate macOS Computer Use decisions. Return one complete JSON object only. "
+    "Do not wrap the JSON in Markdown fences. Do not add prose before or after the JSON. "
     "Do not claim that any click or text entry was performed."
 )
 
@@ -384,7 +385,7 @@ def call_llm():
     payload = {
         "model": model,
         "temperature": 0,
-        "max_tokens": 512,
+        "max_tokens": 2048,
         "messages": [
             {"role": "system", "content": system_prompt},
             {"role": "user", "content": json.dumps(user_prompt, indent=2)},
