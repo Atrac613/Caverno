@@ -400,6 +400,11 @@ The aggregate runner is the preferred MVP `llm_canary` artifact. Release
 readiness discovers `macos_computer_use_mvp_fixture_llm_canary_*` summaries
 before single-scenario decision summaries, and the shell wrappers also accept
 `--llm-canary-summary` when a specific aggregate artifact should be used.
+Use `tool/run_macos_computer_use_mvp_llm_readiness.sh` when the whole
+automation-safe LLM preflight should run in one command. It creates the
+aggregate fixture LLM summary, feeds it into release readiness, writes an MVP
+handoff dry-run, and still leaves TCC plus desktop action evidence
+user-operated.
 
 The fixture app is built with:
 
@@ -468,6 +473,14 @@ Use `--final-signoff` for the one-command MVP path: it refreshes only
 automation-safe evidence, refreshes the aggregate Computer Use fixture LLM
 canary when `CAVERNO_LLM_*` is set, aggregates strict readiness, and appends
 blocked gate next actions back into `macos_computer_use_mvp_handoff.md`.
+Before requesting user-operated TCC and desktop action evidence, run:
+
+```bash
+bash tool/run_macos_computer_use_mvp_llm_readiness.sh
+```
+
+The preflight should leave only manual or release-readiness blockers after the
+`llm_canary` gate is ready.
 
 To refresh only non-TCC inputs before producing the readiness report, run:
 

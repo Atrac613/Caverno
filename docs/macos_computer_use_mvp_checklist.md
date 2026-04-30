@@ -28,6 +28,13 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
    ```
 
+   To run the complete automation-safe LLM evidence path, including release
+   readiness intake and MVP handoff dry-run, use:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_llm_readiness.sh
+   ```
+
    The Computer Use LLM canaries use the same live LLM setting contract as the
    coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
    `CAVERNO_LLM_MODEL`.
@@ -101,6 +108,9 @@ or run the user-operated desktop action on the user's behalf.
    evidence when `CAVERNO_LLM_*` is set. It still does not run TCC sign-off or
    the desktop action canary for the user. The handoff is updated with blocked
    gate next actions after the readiness command completes or fails.
+   `tool/run_macos_computer_use_mvp_llm_readiness.sh` is the automation-safe
+   preflight for this step: it proves the LLM gate is ready and leaves
+   `manual_tcc` plus `desktop_action_canary` as user-operated blockers.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:

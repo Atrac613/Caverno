@@ -190,7 +190,8 @@ cat >"${HANDOFF_MD}" <<EOF
    \`\`\`bash
    bash tool/run_macos_computer_use_mvp_signoff.sh \\
      --manual-tcc-report <manual-tcc-report-or-summary.json> \\
-     --desktop-action-canary-summary <desktop-action-canary-summary.json>
+     --desktop-action-canary-summary <desktop-action-canary-summary.json> \\
+     --llm-canary-summary <llm-canary-summary.json>
    \`\`\`
 
 ## Automation-Safe Commands
@@ -199,6 +200,7 @@ cat >"${HANDOFF_MD}" <<EOF
 bash tool/run_macos_computer_use_release_readiness.sh --ci
 bash tool/run_macos_computer_use_live_canary.sh --overlay
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
+bash tool/run_macos_computer_use_mvp_llm_readiness.sh
 \`\`\`
 EOF
 

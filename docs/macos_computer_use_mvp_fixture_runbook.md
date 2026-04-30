@@ -42,6 +42,17 @@ The aggregate summary is the preferred MVP `llm_canary` evidence. It includes
 `requiresUserClick` / `requiresUserTextInput` approval boundaries used by
 release readiness.
 
+To run the complete automation-safe LLM preflight, including aggregate fixture
+decisions, release readiness intake, and an MVP handoff dry-run, run:
+
+```bash
+bash tool/run_macos_computer_use_mvp_llm_readiness.sh
+```
+
+This preflight succeeds when the LLM gate is ready and any remaining blockers
+are the expected manual or release-readiness gates. It still does not grant TCC,
+operate System Settings, move the pointer, click, or type.
+
 These commands intentionally use the same live LLM setting contract as the
 coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
 `CAVERNO_LLM_MODEL`. Set those three variables when not using
