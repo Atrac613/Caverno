@@ -330,8 +330,16 @@ void main() {
     expect(desktopActionCanaryScript, contains('fixtureExpectedOutcomes'));
     expect(desktopActionCanaryScript, contains('post_observe_image_only'));
     expect(desktopActionCanaryScript, contains('expectedOutcome'));
-    expect(desktopActionCanaryScript, contains('flutter build macos --debug'));
-    expect(desktopActionCanaryScript, contains('--skip-restore-debug-app'));
+    expect(desktopActionCanaryScript, contains('No-rebuild helper probe'));
+    expect(desktopActionCanaryScript, contains('--legacy-integration'));
+    expect(desktopActionCanaryScript, contains('--desktop-action-canary'));
+    expect(desktopActionCanaryScript, contains('--require-helper-path-match'));
+    expect(desktopActionCanaryScript, contains('--replace-helper'));
+    expect(existingHelperProbe, contains('desktopActionCanaryGate'));
+    expect(
+      existingHelperProbe,
+      contains('No safe target window was available.'),
+    );
     expect(architectureDoc, contains('## Desktop Action Canary'));
     expect(
       architectureDoc,

@@ -33,6 +33,8 @@ private struct Config {
   var requireHelperPathMatch = false
   var replaceMismatchedApp = false
   var replaceMismatchedHelper = false
+  var desktopActionCanary = false
+  var fixtureTarget = false
 }
 
 private final class HelperProbeClient: NSObject {
@@ -179,6 +181,11 @@ private func parseConfig(arguments: [String]) -> Config {
       config.replaceMismatchedApp = true
     case "--replace-helper":
       config.replaceMismatchedHelper = true
+    case "--desktop-action-canary":
+      config.desktopActionCanary = true
+    case "--fixture-target", "--mvp-fixture":
+      config.desktopActionCanary = true
+      config.fixtureTarget = true
     default:
       fatalError("Unknown option: \(arguments[index])")
     }
@@ -307,18 +314,118 @@ private func runRetriedStep(
 }
 
 private func firstWindowId(_ response: [String: Any]) -> Int? {
+  firstWindow(response)?["windowId"] as? Int
+}
+
+private func firstWindow(_ response: [String: Any]) -> [String: Any]? {
   guard let windows = response["windows"] as? [[String: Any]] else {
     return nil
   }
   for window in windows {
-    if let id = window["windowId"] as? Int {
-      return id
+    if window["windowId"] is Int {
+      return window
     }
     if let id = window["window_id"] as? Int {
-      return id
+      var normalized = window
+      normalized["windowId"] = id
+      return normalized
     }
   }
   return nil
+}
+
+private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
+  guard let windows = response["windows"] as? [[String: Any]] else {
+    return nil
+  }
+  return windows.first { window in
+    let appName = (window["appName"] as? String ?? "").lowercased()
+    let title = (window["title"] as? String ?? "").lowercased()
+    return appName.contains("caverno computer use mvp fixtur")
+      || title.contains("caverno computer use mvp fixture")
+  }
+}
+
+private func intWindowId(_ window: [String: Any]?) -> Int? {
+  guard let window else {
+    return nil
+  }
+  if let id = window["windowId"] as? Int {
+    return id
+  }
+  if let id = window["window_id"] as? Int {
+    return id
+  }
+  return nil
+}
+
+private func hasImage(_ response: [String: Any]) -> Bool {
+  guard let image = response["imageBase64"] as? String else {
+    return false
+  }
+  return !image.isEmpty
+}
+
+private func clickPoint(for capture: [String: Any], fixtureTarget: Bool) -> [String: Any] {
+  let width = (capture["width"] as? NSNumber)?.doubleValue
+    ?? capture["width"] as? Double
+    ?? 400
+  let height = (capture["height"] as? NSNumber)?.doubleValue
+    ?? capture["height"] as? Double
+    ?? 300
+  let xRatio = fixtureTarget ? 0.18 : 0.50
+  let yRatio = fixtureTarget ? 0.58 : 0.50
+  return [
+    "x": max(8, min(width - 8, width * xRatio)),
+    "y": max(8, min(height - 8, height * yRatio)),
+    "source_width": Int(width),
+    "source_height": Int(height),
+  ]
+}
+
+private func desktopActionGate(
+  preObserve: [String: Any],
+  click: [String: Any],
+  postObserve: [String: Any],
+  targetWindow: [String: Any]?
+) -> [String: Any] {
+  let preOk = preObserve["ok"] as? Bool ?? false
+  let clickOk = click["ok"] as? Bool ?? false
+  let postOk = postObserve["ok"] as? Bool ?? false
+  let preImage = hasImage(preObserve)
+  let postImage = hasImage(postObserve)
+  let ready = preOk && preImage && clickOk && postOk && postImage
+  var blockers: [String] = []
+  if !preOk {
+    blockers.append("initial_vision_observe_failed")
+  }
+  if preOk && !preImage {
+    blockers.append("initial_vision_image_missing")
+  }
+  if !clickOk {
+    blockers.append("armed_click_failed_or_skipped")
+  }
+  if !postOk {
+    blockers.append("post_click_vision_observe_failed")
+  }
+  if postOk && !postImage {
+    blockers.append("post_click_vision_image_missing")
+  }
+  return [
+    "status": ready ? "ready" : "blocked",
+    "ok": ready,
+    "purpose": "computer_use_desktop_action_canary",
+    "tccBoundary": "manual_user_operated",
+    "requiredAction": "computer_click",
+    "targetWindow": jsonValue(targetWindow),
+    "initialObservationImageAttached": preImage,
+    "clickPassed": clickOk,
+    "postClickObservationImageAttached": postImage,
+    "blockers": blockers,
+    "nextAction": ready
+      ? "Desktop action canary observed, clicked, and observed again without rebuilding."
+      : "Grant required TCC permissions to the existing helper path, keep the safe target visible, then rerun the no-build desktop action canary.",
+  ]
 }
 
 private func writeReport(_ report: [String: Any], path: String) {
@@ -452,6 +559,17 @@ var windowCapture: [String: Any] = [
   "skipped": true,
   "reason": "Window capture was skipped because no window id was available.",
 ]
+var desktopActionClick: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Desktop action canary was not requested.",
+]
+var desktopActionPostCapture: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Post-click capture was skipped because no click was sent.",
+]
+var desktopActionTargetWindow: [String: Any]?
 
 if let appProcessIdentifier {
   permissionStatus = runRetriedStep(
@@ -496,7 +614,11 @@ if let appProcessIdentifier {
       timeout: 4
     )
   }
-  if let windowId = firstWindowId(windows) {
+  desktopActionTargetWindow = config.fixtureTarget ? fixtureWindow(windows) : firstWindow(windows)
+  let captureWindowId = config.desktopActionCanary
+    ? intWindowId(desktopActionTargetWindow)
+    : firstWindowId(windows)
+  if let windowId = captureWindowId {
     windowCapture = runStep(
       &steps,
       id: "window_capture",
@@ -519,6 +641,88 @@ if let appProcessIdentifier {
       "ok": false,
       "skipped": true,
       "reason": "No visible windows were returned.",
+    ])
+  }
+  if config.desktopActionCanary,
+     let windowId = intWindowId(desktopActionTargetWindow) {
+    _ = runStep(
+      &steps,
+      id: "desktop_action_focus_window",
+      label: "Focus the safe desktop action target without rebuilding"
+    ) {
+      client.send(
+        command: "focusWindow",
+        arguments: ["window_id": windowId],
+        senderProcessIdentifier: appProcessIdentifier,
+        timeout: 4
+      )
+    }
+    if windowCapture["ok"] as? Bool ?? false {
+      var clickArguments = clickPoint(
+        for: windowCapture,
+        fixtureTarget: config.fixtureTarget
+      )
+      clickArguments["window_id"] = windowId
+      clickArguments["button"] = "left"
+      clickArguments["click_count"] = 1
+      clickArguments["reason"] = "Desktop action canary was explicitly user-operated and armed for a harmless target."
+      desktopActionClick = runStep(
+        &steps,
+        id: "desktop_action_click",
+        label: "Click the safe desktop action target without rebuilding"
+      ) {
+        client.send(
+          command: "click",
+          arguments: clickArguments,
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 4
+        )
+      }
+      desktopActionPostCapture = runStep(
+        &steps,
+        id: "desktop_action_post_click_window_capture",
+        label: "Capture the desktop action target after clicking without rebuilding"
+      ) {
+        client.send(
+          command: "screenshotWindow",
+          arguments: [
+            "window_id": windowId,
+            "max_width": 400,
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 8
+        )
+      }
+    } else {
+      steps.append([
+        "id": "desktop_action_click",
+        "label": "Click the safe desktop action target without rebuilding",
+        "ok": false,
+        "skipped": true,
+        "reason": "Initial target capture failed.",
+      ])
+      steps.append([
+        "id": "desktop_action_post_click_window_capture",
+        "label": "Capture the desktop action target after clicking without rebuilding",
+        "ok": false,
+        "skipped": true,
+        "reason": "Click was skipped because initial target capture failed.",
+      ])
+    }
+  } else if config.desktopActionCanary {
+    steps.append([
+      "id": "desktop_action_click",
+      "label": "Click the safe desktop action target without rebuilding",
+      "ok": false,
+      "skipped": true,
+      "reason": "No safe target window was available.",
+    ])
+    steps.append([
+      "id": "desktop_action_post_click_window_capture",
+      "label": "Capture the desktop action target after clicking without rebuilding",
+      "ok": false,
+      "skipped": true,
+      "reason": "Click was skipped because no target window was available.",
     ])
   }
 }
@@ -584,13 +788,30 @@ let failedRequiredChecks = requiredChecks
 let coreOk = appProcessIdentifier != nil &&
   helperProcessIdentifier != nil &&
   (permissionStatus["ok"] as? Bool ?? false)
-let ok = coreOk && failedRequiredChecks.isEmpty
+let desktopActionCanaryGate: [String: Any] = config.desktopActionCanary
+  ? desktopActionGate(
+    preObserve: windowCapture,
+    click: desktopActionClick,
+    postObserve: desktopActionPostCapture,
+    targetWindow: desktopActionTargetWindow
+  )
+  : [
+    "status": "not_run",
+    "ok": true,
+    "blockers": [],
+    "nextAction": "Rerun with --desktop-action-canary to run a no-build desktop action canary.",
+  ]
+let desktopActionOk = !config.desktopActionCanary ||
+  (desktopActionCanaryGate["ok"] as? Bool ?? false)
+let ok = coreOk && failedRequiredChecks.isEmpty && desktopActionOk
 
 let report: [String: Any] = [
   "schemaName": "macos_computer_use_existing_helper_probe",
   "schemaVersion": 1,
   "generatedAt": ISO8601DateFormatter().string(from: Date()),
   "noRebuild": true,
+  "desktopActionCanary": config.desktopActionCanary,
+  "fixtureTarget": config.fixtureTarget,
   "replaceMismatchedApp": config.replaceMismatchedApp,
   "replaceMismatchedHelper": config.replaceMismatchedHelper,
   "ok": ok,
@@ -629,6 +850,7 @@ let report: [String: Any] = [
     "screenCaptureGranted": screenCaptureGranted,
     "systemAudioRecordingSupported": audioSupported,
   ],
+  "desktopActionCanaryGate": desktopActionCanaryGate,
   "steps": steps,
 ]
 

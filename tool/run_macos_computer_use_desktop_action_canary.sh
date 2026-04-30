@@ -7,6 +7,7 @@ REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_REPEAT_COUNT:-1
 REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_CANARY_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
 REPORTER="${CAVERNO_MACOS_COMPUTER_USE_REPORTER:-compact}"
 DEVICE="${CAVERNO_MACOS_COMPUTER_USE_DEVICE:-macos}"
+LEGACY_INTEGRATION="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_LEGACY_INTEGRATION:-0}"
 RUN_ID="$(date +%s)"
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_desktop_action_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
@@ -14,7 +15,7 @@ SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 FIXTURE_TARGET=0
 FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
 LAUNCH_FIXTURE=0
-RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-1}"
+RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-0}"
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -63,6 +64,10 @@ while [[ $# -gt 0 ]]; do
       RESTORE_DEBUG_APP=0
       shift
       ;;
+    --legacy-integration)
+      LEGACY_INTEGRATION=1
+      shift
+      ;;
     --help)
       cat <<'USAGE'
 Usage: bash tool/run_macos_computer_use_desktop_action_canary.sh [options]
@@ -78,9 +83,12 @@ Options:
                        Record an already built MVP fixture app path.
   --skip-restore-debug-app
                        Do not rebuild the normal Debug Caverno.app after the canary.
+  --legacy-integration
+                       Run the old Flutter integration-test canary path.
 
 This canary is user-operated. It requires the user to grant TCC permissions and
-to prepare a safe click target before running.
+to prepare a safe click target before running. The default path does not rebuild
+Caverno.app, so it does not invalidate macOS TCC permissions.
 USAGE
       exit 0
       ;;
@@ -127,6 +135,7 @@ fi
 echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
+echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
 echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
 echo "  Report dir: ${RUN_DIR}"
 
@@ -137,12 +146,28 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   run_log="${RUN_DIR}/${run_name}.log"
   echo "Running ${run_name}/${REPEAT_COUNT}"
   set +e
-  CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH="${run_report}" \
-    bash "${ROOT_DIR}/tool/run_macos_computer_use_smoke_test.sh" \
-      --desktop-action-canary \
-      --device "${DEVICE}" \
-      --reporter "${REPORTER}" \
-      >"${run_log}" 2>&1
+  if [[ "${LEGACY_INTEGRATION}" == "1" ]]; then
+    CAVERNO_MACOS_COMPUTER_USE_SMOKE_REPORT_PATH="${run_report}" \
+      bash "${ROOT_DIR}/tool/run_macos_computer_use_smoke_test.sh" \
+        --desktop-action-canary \
+        --device "${DEVICE}" \
+        --reporter "${REPORTER}" \
+        >"${run_log}" 2>&1
+  else
+    probe_args=(
+      "${ROOT_DIR}/tool/macos_computer_use_existing_helper_probe.swift"
+      --report "${run_report}"
+      --desktop-action-canary
+      --require-capture
+      --require-input
+      --require-helper-path-match
+      --replace-helper
+    )
+    if [[ "${FIXTURE_TARGET}" == "1" ]]; then
+      probe_args+=(--fixture-target)
+    fi
+    swift "${probe_args[@]}" >"${run_log}" 2>&1
+  fi
   exit_code=$?
   set -e
   if [[ "${exit_code}" -ne 0 ]]; then

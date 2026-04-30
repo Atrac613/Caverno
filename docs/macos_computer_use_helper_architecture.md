@@ -331,9 +331,10 @@ it crosses the macOS TCC boundary and can mutate foreground app state.
 
 Scope:
 
-- Read the current desktop through `computer_vision_observe`.
+- Read the current desktop through the already-built helper without rebuilding
+  `Caverno.app`.
 - Run one explicitly armed `computer_click`.
-- Run a second `computer_vision_observe` and require an attached image.
+- Capture the target again through the same already-built helper.
 - Report the result through `desktopActionCanaryGate`.
 
 Non-goals:
@@ -348,6 +349,13 @@ Recording and prepares a safe click target:
 ```bash
 bash tool/run_macos_computer_use_desktop_action_canary.sh
 ```
+
+The default runner is no-build because macOS TCC permissions are tied to the
+exact helper bundle identity. Rebuilding the Debug app during the canary can
+replace `Caverno.app/Contents/Helpers/Caverno Computer Use.app` and make
+previously granted permissions appear missing. The old Flutter integration-test
+path remains available only through `--legacy-integration` for debugging
+canary code itself.
 
 The runner writes
 `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json` and
