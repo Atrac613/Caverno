@@ -53,6 +53,16 @@ This preflight succeeds when the LLM gate is ready and any remaining blockers
 are the expected manual or release-readiness gates. It still does not grant TCC,
 operate System Settings, move the pointer, click, or type.
 
+For the guided MVP demo path, use:
+
+```bash
+bash tool/run_macos_computer_use_mvp_demo_readiness.sh
+```
+
+The guided wrapper builds the deterministic fixture, runs the LLM readiness
+path when evidence is available, writes a demo handoff, and keeps fixture launch,
+screen capture, TCC, and desktop actions user-operated.
+
 To validate against the actual fixture app UI instead of the canned observation
 payload, ask the user to capture a screenshot of the visible fixture window and
 run the vision canary with that file:
@@ -78,6 +88,7 @@ bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
 The preflight then runs the fixture vision canary, feeds its
 `canary_summary.json` into release readiness, and writes the MVP handoff
 dry-run while keeping capture, TCC, clicks, and typing user-operated.
+The guided demo wrapper accepts the same screenshot option.
 
 These commands intentionally use the same live LLM setting contract as the
 coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
@@ -138,6 +149,16 @@ bash tool/run_macos_computer_use_mvp_signoff.sh \
   --manual-tcc-report <manual-tcc-report-or-summary.json> \
   --desktop-action-canary-summary <desktop-action-canary-summary.json> \
   --llm-canary-summary <llm-canary-summary.json>
+```
+
+The guided wrapper can aggregate the same final evidence:
+
+```bash
+bash tool/run_macos_computer_use_mvp_demo_readiness.sh \
+  --manual-tcc-report <manual-tcc-report-or-summary.json> \
+  --desktop-action-canary-summary <desktop-action-canary-summary.json> \
+  --llm-canary-summary <llm-canary-summary.json> \
+  --final-signoff
 ```
 
 If manual evidence is missing, the handoff remains blocked and lists the next

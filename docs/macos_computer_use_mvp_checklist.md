@@ -16,6 +16,14 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_release_readiness.sh --ci
    ```
 
+   For a guided automation-safe MVP demo handoff, use the wrapper that builds
+   the fixture, runs the LLM readiness path, and writes the user-operated
+   follow-up commands without launching apps or performing desktop actions:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_demo_readiness.sh
+   ```
+
 2. Validate overlay foreground behavior without granting TCC:
 
    ```bash
@@ -48,6 +56,13 @@ or run the user-operated desktop action on the user's behalf.
 
    ```bash
    bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
+     --screenshot <fixture-window-screenshot.png>
+   ```
+
+   The same screenshot can be used with the guided demo wrapper:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_demo_readiness.sh \
      --screenshot <fixture-window-screenshot.png>
    ```
 
@@ -115,6 +130,16 @@ or run the user-operated desktop action on the user's behalf.
      --manual-tcc-report <manual-tcc-report-or-summary.json> \
      --desktop-action-canary-summary <desktop-action-canary-summary.json> \
      --llm-canary-summary <llm-canary-summary.json>
+   ```
+
+   Or run the guided demo wrapper with the same user-produced artifacts:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_demo_readiness.sh \
+     --manual-tcc-report <manual-tcc-report-or-summary.json> \
+     --desktop-action-canary-summary <desktop-action-canary-summary.json> \
+     --llm-canary-summary <llm-canary-summary.json> \
+     --final-signoff
    ```
 
    Running the wrapper without both reports is still useful. It writes

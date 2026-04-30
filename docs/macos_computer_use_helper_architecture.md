@@ -408,6 +408,11 @@ the aggregate fixture LLM summary; with `--screenshot <path>` it creates
 screenshot-backed fixture vision evidence instead. In both modes it feeds the
 summary into release readiness, writes an MVP handoff dry-run, and still leaves
 capture, TCC, and desktop action evidence user-operated.
+Use `tool/run_macos_computer_use_mvp_demo_readiness.sh` when a single guided
+entrypoint should prepare the fixture, run the available LLM readiness path,
+write a demo handoff, and optionally aggregate final user-produced evidence.
+That wrapper still does not launch the fixture, capture the screen, grant TCC,
+click, or type.
 Use `tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh` when the
 live vision LLM should inspect an actual screenshot of the fixture app. The
 screenshot is provided by the user, so the canary does not capture the screen,
@@ -464,6 +469,12 @@ bash tool/run_macos_computer_use_mvp_signoff.sh \
   --final-signoff \
   --manual-tcc-report <manual-tcc-report-or-summary.json> \
   --desktop-action-canary-summary <desktop-action-canary-summary.json>
+```
+
+For the guided fixture-to-readiness demo path, use:
+
+```bash
+bash tool/run_macos_computer_use_mvp_demo_readiness.sh
 ```
 
 The MVP wrapper prints the user-operated commands, writes
