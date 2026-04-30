@@ -101,6 +101,7 @@ CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY:-}" \
 CAVERNO_LLM_MODEL="${CAVERNO_LLM_MODEL:-}" \
 python3 - <<'PY'
 import base64
+import http.client
 import json
 import mimetypes
 import os
@@ -195,7 +196,7 @@ user_prompt = {
 
 FAILURE_GUIDANCE = {
     "passed": "No action required.",
-    "llm_request_failed": "Check the live LLM endpoint, API key, model name, and network reachability, then rerun the canary.",
+    "llm_request_failed": "Check the live LLM endpoint, API key, model name, image support, and network reachability, then rerun the canary.",
     "llm_env_missing": "Set CAVERNO_LLM_BASE_URL, CAVERNO_LLM_API_KEY, and CAVERNO_LLM_MODEL before calling the live LLM.",
     "llm_response_unparseable": "Inspect run_01_response.txt. The model must return one JSON object without Markdown fences or prose.",
     "vision_decision_missing": "Tighten the prompt or model settings so the response explains the visual decision.",
@@ -383,7 +384,7 @@ try:
     passed = not failures
     failure_class = "passed" if passed else failures[0]
     error = None
-except (urllib.error.URLError, TimeoutError) as exception:
+except (urllib.error.URLError, TimeoutError, http.client.HTTPException) as exception:
     decision = {}
     failures = ["llm_request_failed"]
     passed = False
