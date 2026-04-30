@@ -396,6 +396,11 @@ together:
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 ```
 
+The aggregate runner is the preferred MVP `llm_canary` artifact. Release
+readiness discovers `macos_computer_use_mvp_fixture_llm_canary_*` summaries
+before single-scenario decision summaries, and the shell wrappers also accept
+`--llm-canary-summary` when a specific aggregate artifact should be used.
+
 The fixture app is built with:
 
 ```bash
@@ -460,9 +465,9 @@ validates whether provided paths exist, and prints the next user-operated
 command for each missing gate. Add `--dry-run` to validate that handoff without
 running the final release readiness aggregation.
 Use `--final-signoff` for the one-command MVP path: it refreshes only
-automation-safe evidence, refreshes the Computer Use LLM decision canary when
-`CAVERNO_LLM_*` is set, aggregates strict readiness, and appends blocked gate
-next actions back into `macos_computer_use_mvp_handoff.md`.
+automation-safe evidence, refreshes the aggregate Computer Use fixture LLM
+canary when `CAVERNO_LLM_*` is set, aggregates strict readiness, and appends
+blocked gate next actions back into `macos_computer_use_mvp_handoff.md`.
 
 To refresh only non-TCC inputs before producing the readiness report, run:
 
@@ -489,6 +494,8 @@ bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-llm-canary
 
 If any `CAVERNO_LLM_*` value is missing, the wrapper skips the LLM refresh and
 falls back to discovering existing LLM canary summaries.
+Use `--llm-canary-summary <path>` to pin a specific aggregate LLM artifact
+instead of relying on discovery.
 
 The wrapper writes preset-specific readiness artifacts:
 

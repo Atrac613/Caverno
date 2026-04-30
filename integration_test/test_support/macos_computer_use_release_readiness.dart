@@ -257,6 +257,19 @@ File? discoverLatestDesktopActionCanarySummary(Directory reportRoot) {
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
+  final aggregateCandidates =
+      _jsonFiles(reportRoot)
+          .where((file) {
+            final parent = _basename(file.parent.path);
+            return _basename(file.path) == 'canary_summary.json' &&
+                parent.startsWith('macos_computer_use_mvp_fixture_llm_canary_');
+          })
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  if (aggregateCandidates.isNotEmpty) {
+    return aggregateCandidates.last;
+  }
+
   final computerUseCandidates =
       _jsonFiles(reportRoot)
           .where((file) {
@@ -462,9 +475,11 @@ ReleaseReadinessGate _llmCanaryGate(
   final runCount = _intValue(llmSummary['runCount']);
   final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
   final ready = runCount > 0 && failed == 0;
+  final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
+  final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
   return ReleaseReadinessGate(
     id: 'llm_canary',
-    label: purpose == 'computer_use_llm_vision_decision'
+    label: isComputerUseDecision || isMvpFixture
         ? 'Computer Use LLM decision canary'
         : 'LLM tool-loop canary',
     status: ready ? 'passed' : 'blocked',
@@ -480,10 +495,13 @@ ReleaseReadinessGate _llmCanaryGate(
       'failureClassCounts':
           llmSummary['failureClassCounts'] ?? llmSummary['failureClasses'],
       'scenario': llmSummary['scenario'],
+      'scenarioCount': llmSummary['scenarioCount'],
+      'scenarios': llmSummary['scenarios'],
       'fixtureApp': llmSummary['fixtureApp'],
       'visionDecision': llmSummary['visionDecision'],
       'safeTargetReasoning': llmSummary['safeTargetReasoning'],
       'requiresUserClick': llmSummary['requiresUserClick'],
+      'requiresUserTextInput': llmSummary['requiresUserTextInput'],
       'selectedTarget': llmSummary['selectedTarget'],
       'desktopActionBoundary': llmSummary['desktopActionBoundary'],
     },

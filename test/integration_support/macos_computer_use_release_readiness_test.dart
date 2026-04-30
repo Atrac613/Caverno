@@ -142,6 +142,12 @@ void main() {
         _computerUseLlmDecisionSummary(failedCount: 0, scenario: 'mvp-fixture'),
       );
       _writeJson(
+        File(
+          '${root.path}/macos_computer_use_mvp_fixture_llm_canary_350/canary_summary.json',
+        ),
+        _mvpFixtureAggregateLlmSummary(failed: 0),
+      );
+      _writeJson(
         File('${root.path}/m8_old/report.json'),
         _runtimeReport(status: 'blocked'),
       );
@@ -191,13 +197,14 @@ void main() {
       expect(
         inputs.llmCanarySummaryPath,
         endsWith(
-          'macos_computer_use_llm_decision_canary_250/canary_summary.json',
+          'macos_computer_use_mvp_fixture_llm_canary_350/canary_summary.json',
         ),
       );
       final llmGate = summary.gates.singleWhere(
         (gate) => gate.id == 'llm_canary',
       );
-      expect(llmGate.details['scenario'], 'mvp-fixture');
+      expect(llmGate.details['purpose'], 'computer_use_mvp_fixture_llm_canary');
+      expect(llmGate.details['scenarioCount'], 2);
       expect(
         inputs.desktopActionCanarySummaryPath,
         endsWith(
@@ -205,6 +212,38 @@ void main() {
         ),
       );
       expect(summary.ready, isTrue);
+    });
+
+    test('surfaces aggregate MVP fixture LLM canary evidence', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _mvpFixtureAggregateLlmSummary(failed: 0),
+          llmCanarySummaryPath: '/tmp/mvp_fixture_llm.json',
+        ),
+      );
+
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(summary.ready, isTrue);
+      expect(llmGate.label, 'Computer Use LLM decision canary');
+      expect(llmGate.status, 'passed');
+      expect(
+        llmGate.details,
+        containsPair('purpose', 'computer_use_mvp_fixture_llm_canary'),
+      );
+      expect(llmGate.details, containsPair('scenarioCount', 2));
+      expect(llmGate.details['scenarios'], isNotEmpty);
+      expect(llmGate.details, containsPair('requiresUserClick', true));
+      expect(llmGate.details, containsPair('requiresUserTextInput', true));
     });
 
     test('prefers ready manual TCC evidence over newer blocked evidence', () {
@@ -360,10 +399,17 @@ void main() {
           contains(r'macos_computer_use_release_readiness_${PRESET}.md'),
         );
         expect(wrapper, contains('--refresh-llm-canary'));
+        expect(wrapper, contains('--llm-canary-summary'));
+        expect(wrapper, contains('mvp-fixture-aggregate'));
         expect(
           wrapper,
           contains('tool/run_macos_computer_use_llm_decision_canary.sh'),
         );
+        expect(
+          wrapper,
+          contains('tool/run_macos_computer_use_mvp_fixture_llm_canary.sh'),
+        );
+        expect(wrapper, contains(r'--root "${REPORT_ROOT}"'));
         expect(
           wrapper,
           contains('tool/macos_computer_use_readiness_artifact_index.dart'),
@@ -404,6 +450,12 @@ void main() {
       );
       _writeJson(
         File(
+          '${root.path}/macos_computer_use_mvp_fixture_llm_canary_150/canary_summary.json',
+        ),
+        _mvpFixtureAggregateLlmSummary(failed: 0),
+      );
+      _writeJson(
+        File(
           '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
         ),
         _desktopActionSummary(failed: 0),
@@ -428,7 +480,7 @@ void main() {
       );
       expect(
         llmEntry.path,
-        contains('macos_computer_use_llm_decision_canary_050'),
+        contains('macos_computer_use_mvp_fixture_llm_canary_150'),
       );
     });
   });
@@ -571,6 +623,52 @@ Map<String, dynamic> _computerUseLlmDecisionSummary({
             'name': 'Caverno Computer Use MVP Fixture',
             'windowTitle': 'Caverno Computer Use MVP Fixture',
           },
+  };
+}
+
+Map<String, dynamic> _mvpFixtureAggregateLlmSummary({required int failed}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_mvp_fixture_llm_canary_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_mvp_fixture_llm_canary',
+    'tccBoundary': 'no_tcc_operation',
+    'desktopActionBoundary': 'no_desktop_action',
+    'ready': failed == 0,
+    'runCount': 2,
+    'scenarioCount': 2,
+    'passed': failed == 0 ? 2 : 1,
+    'failed': failed,
+    'failedCount': failed,
+    'passRate': failed == 0 ? 1 : 0.5,
+    'requiresUserClick': true,
+    'requiresUserTextInput': true,
+    'fixtureApp': <String, Object?>{
+      'name': 'Caverno Computer Use MVP Fixture',
+      'windowTitle': 'Caverno Computer Use MVP Fixture',
+    },
+    'scenarios': <Map<String, Object?>>[
+      <String, Object?>{
+        'scenario': 'mvp-fixture',
+        'status': 'passed',
+        'runCount': 1,
+        'failedCount': 0,
+        'selectedTarget': <String, Object?>{
+          'label': 'Safe Click Target',
+          'risk': 'low',
+        },
+      },
+      <String, Object?>{
+        'scenario': 'mvp-fixture-type-confirm',
+        'status': failed == 0 ? 'passed' : 'blocked',
+        'runCount': 1,
+        'failedCount': failed,
+        'requiresUserTextInput': true,
+        'selectedTarget': <String, Object?>{
+          'label': 'MVP Fixture Text Field',
+          'risk': 'low',
+        },
+      },
+    ],
   };
 }
 

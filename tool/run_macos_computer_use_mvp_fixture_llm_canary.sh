@@ -194,9 +194,20 @@ summary = {
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
     "ready": failed == 0,
+    "runCount": sum(scenario["runCount"] for scenario in scenarios),
     "scenarioCount": len(scenarios),
     "passed": passed,
     "failed": failed,
+    "failedCount": failed,
+    "passRate": 0 if not scenarios else passed / len(scenarios),
+    "requiresUserClick": all(
+        summary is not None and summary.get("requiresUserClick") is True
+        for summary in [click_summary, type_summary]
+    ),
+    "requiresUserTextInput": (
+        type_summary is not None and type_summary.get("requiresUserTextInput") is True
+    ),
+    "fixtureApp": None if click_summary is None else click_summary.get("fixtureApp"),
     "scenarios": scenarios,
 }
 summary_json.write_text(json.dumps(summary, indent=2) + "\n")

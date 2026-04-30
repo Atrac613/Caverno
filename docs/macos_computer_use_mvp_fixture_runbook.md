@@ -37,6 +37,11 @@ Or run both fixture planning scenarios and produce one aggregate summary:
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 ```
 
+The aggregate summary is the preferred MVP `llm_canary` evidence. It includes
+`runCount`, `failedCount`, both fixture scenario outcomes, and the
+`requiresUserClick` / `requiresUserTextInput` approval boundaries used by
+release readiness.
+
 These commands intentionally use the same live LLM setting contract as the
 coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
 `CAVERNO_LLM_MODEL`. Set those three variables when not using
@@ -94,7 +99,8 @@ Aggregate the user-produced reports:
 bash tool/run_macos_computer_use_mvp_signoff.sh \
   --final-signoff \
   --manual-tcc-report <manual-tcc-report-or-summary.json> \
-  --desktop-action-canary-summary <desktop-action-canary-summary.json>
+  --desktop-action-canary-summary <desktop-action-canary-summary.json> \
+  --llm-canary-summary <llm-canary-summary.json>
 ```
 
 If manual evidence is missing, the handoff remains blocked and lists the next

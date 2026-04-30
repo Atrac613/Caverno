@@ -158,14 +158,18 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
               return parent.startsWith(
                     'macos_computer_use_llm_decision_canary_',
                   ) ||
+                  parent.startsWith(
+                    'macos_computer_use_mvp_fixture_llm_canary_',
+                  ) ||
                   parent.startsWith('plan_mode_ping_cli_canary_');
             })
             .where((file) {
               final json = _readJsonObject(file);
               return json != null &&
-                  json.containsKey('failureClassCounts') &&
                   json.containsKey('runCount') &&
-                  json.containsKey('passedCount');
+                  (json.containsKey('passedCount') ||
+                      json['schemaName'] ==
+                          'macos_computer_use_mvp_fixture_llm_canary_summary');
             })
             .toList(growable: false)
       : <File>[];
@@ -182,8 +186,18 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
   final computerUseFiles = files
       .where((file) {
         return _basename(
+              file.parent.path,
+            ).startsWith('macos_computer_use_llm_decision_canary_') ||
+            _basename(
+              file.parent.path,
+            ).startsWith('macos_computer_use_mvp_fixture_llm_canary_');
+      })
+      .toList(growable: false);
+  final aggregateFiles = computerUseFiles
+      .where((file) {
+        return _basename(
           file.parent.path,
-        ).startsWith('macos_computer_use_llm_decision_canary_');
+        ).startsWith('macos_computer_use_mvp_fixture_llm_canary_');
       })
       .toList(growable: false);
   final mvpFixtureFiles = computerUseFiles
@@ -193,7 +207,9 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
         return scenario != null && scenario.startsWith('mvp-fixture');
       })
       .toList(growable: false);
-  final latest = mvpFixtureFiles.isNotEmpty
+  final latest = aggregateFiles.isNotEmpty
+      ? aggregateFiles.last
+      : mvpFixtureFiles.isNotEmpty
       ? mvpFixtureFiles.last
       : computerUseFiles.isNotEmpty
       ? computerUseFiles.last

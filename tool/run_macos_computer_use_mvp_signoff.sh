@@ -7,6 +7,7 @@ REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_MVP_REPORT_ROOT:-${ROOT_DIR}/build/int
 RELEASE_READINESS_WRAPPER="${CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER:-tool/run_macos_computer_use_release_readiness.sh}"
 MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
 DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
+LLM_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SUMMARY:-}"
 REFRESH_SAFE_INPUTS=0
 REFRESH_LLM_CANARY=0
 DRY_RUN=0
@@ -23,8 +24,9 @@ Options:
   --root PATH                         Report root directory.
   --manual-tcc-report PATH            User-produced manual TCC report or summary.
   --desktop-action-canary-summary PATH User-produced desktop action canary summary.
+  --llm-canary-summary PATH           Computer Use LLM canary summary.
   --refresh-safe-inputs               Refresh non-TCC M7/history inputs.
-  --refresh-llm-canary                Refresh LLM canary when CAVERNO_LLM_* is set.
+  --refresh-llm-canary                Refresh aggregate fixture LLM canary when CAVERNO_LLM_* is set.
   --final-signoff                     Refresh safe inputs and LLM evidence, then aggregate.
   --dry-run                           Write handoff and print aggregation command only.
   --output-json PATH                  Override MVP readiness JSON output.
@@ -60,6 +62,11 @@ while [[ $# -gt 0 ]]; do
     --desktop-action-canary-summary)
       require_value "$@"
       DESKTOP_ACTION_CANARY_SUMMARY="$2"
+      shift 2
+      ;;
+    --llm-canary-summary)
+      require_value "$@"
+      LLM_CANARY_SUMMARY="$2"
       shift 2
       ;;
     --refresh-safe-inputs)
@@ -137,6 +144,15 @@ if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
   fi
 fi
 
+llm_canary_status="discovery only"
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  if [[ -f "${LLM_CANARY_SUMMARY}" ]]; then
+    llm_canary_status="provided"
+  else
+    llm_canary_status="provided path not found"
+  fi
+fi
+
 cat >"${HANDOFF_MD}" <<EOF
 # macOS Computer Use MVP Handoff
 
@@ -146,11 +162,14 @@ cat >"${HANDOFF_MD}" <<EOF
 - Manual TCC status: ${manual_tcc_status}
 - Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not provided}
 - Desktop action canary status: ${desktop_action_status}
+- LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}
+- LLM canary status: ${llm_canary_status}
 
 ## Current Manual Input Status
 
 - \`manual_tcc\`: ${manual_tcc_status}
 - \`desktop_action_canary\`: ${desktop_action_status}
+- \`llm_canary\`: ${llm_canary_status}
 
 ## User-Operated Commands
 
@@ -179,6 +198,7 @@ cat >"${HANDOFF_MD}" <<EOF
 \`\`\`bash
 bash tool/run_macos_computer_use_release_readiness.sh --ci
 bash tool/run_macos_computer_use_live_canary.sh --overlay
+bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 \`\`\`
 EOF
 
@@ -192,6 +212,9 @@ EOF
   if [[ "${desktop_action_status}" != "provided" ]]; then
     echo "- Ask the user to prepare a safe click target, run \`bash tool/run_macos_computer_use_desktop_action_canary.sh\`, and provide \`canary_summary.json\`."
   fi
+  if [[ "${llm_canary_status}" == "provided path not found" ]]; then
+    echo "- Rerun \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an existing aggregate LLM canary summary."
+  fi
   if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
     echo "- No manual input is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
   fi
@@ -203,6 +226,8 @@ echo "  Manual TCC report: ${MANUAL_TCC_REPORT:-not provided}"
 echo "  Manual TCC status: ${manual_tcc_status}"
 echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not provided}"
 echo "  Desktop action canary status: ${desktop_action_status}"
+echo "  LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}"
+echo "  LLM canary status: ${llm_canary_status}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -225,6 +250,9 @@ if [[ "${manual_tcc_status}" != "provided" ]]; then
 fi
 if [[ "${desktop_action_status}" != "provided" ]]; then
   echo "  desktop_action_canary: ask the user for canary_summary.json"
+fi
+if [[ "${llm_canary_status}" == "provided path not found" ]]; then
+  echo "  llm_canary: provide an existing aggregate canary_summary.json or rerun the fixture LLM canary"
 fi
 if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
   echo "  all manual inputs were provided to this wrapper"
@@ -250,6 +278,9 @@ if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
 fi
 if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
   readiness_args+=(--desktop-action-canary-summary "${DESKTOP_ACTION_CANARY_SUMMARY}")
+fi
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  readiness_args+=(--llm-canary-summary "${LLM_CANARY_SUMMARY}")
 fi
 
 if [[ "${DRY_RUN}" == "1" ]]; then

@@ -25,15 +25,17 @@ or run the user-operated desktop action on the user's behalf.
 3. Refresh Computer Use LLM decision evidence when `CAVERNO_LLM_*` is set:
 
    ```bash
-   bash tool/run_macos_computer_use_llm_decision_canary.sh
+   bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
    ```
 
    The Computer Use LLM canaries use the same live LLM setting contract as the
    coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
    `CAVERNO_LLM_MODEL`.
 
-   To validate the MVP-style fixture scenario without moving the pointer or
-   typing, run:
+   The aggregate command runs the safe-click and type-and-confirm fixture
+   planning scenarios and writes one `canary_summary.json` that release
+   readiness can use as the `llm_canary` gate. To validate only the safe-click
+   scenario without moving the pointer or typing, run:
 
    ```bash
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture
@@ -49,10 +51,12 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
    ```
 
-   To run both fixture LLM scenarios in one command:
+   To pass an existing aggregate LLM summary into MVP sign-off explicitly, use
+   `--llm-canary-summary`:
 
    ```bash
-   bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
+   bash tool/run_macos_computer_use_mvp_signoff.sh \
+     --llm-canary-summary <llm-canary-summary.json>
    ```
 
 4. Ask the user to complete manual TCC runtime sign-off:
@@ -86,7 +90,8 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_mvp_signoff.sh \
      --final-signoff \
      --manual-tcc-report <manual-tcc-report-or-summary.json> \
-     --desktop-action-canary-summary <desktop-action-canary-summary.json>
+     --desktop-action-canary-summary <desktop-action-canary-summary.json> \
+     --llm-canary-summary <llm-canary-summary.json>
    ```
 
    Running the wrapper without both reports is still useful. It writes
@@ -154,4 +159,4 @@ The complete fixture workflow is documented in
   overlay/helper path diagnostics.
 - Blocked `llm_canary`: refresh the LLM canary only when the `CAVERNO_LLM_*`
   environment variables are available by running
-  `bash tool/run_macos_computer_use_llm_decision_canary.sh`.
+  `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh`.

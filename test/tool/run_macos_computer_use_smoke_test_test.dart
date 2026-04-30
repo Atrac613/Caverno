@@ -450,8 +450,13 @@ void main() {
     expect(
       releaseReadinessWrapper,
       contains(
-        r'LLM_CANARY_SCENARIO="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SCENARIO:-mvp-fixture}"',
+        r'LLM_CANARY_SCENARIO="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SCENARIO:-mvp-fixture-aggregate}"',
       ),
+    );
+    expect(releaseReadinessWrapper, contains('--llm-canary-summary'));
+    expect(
+      releaseReadinessWrapper,
+      contains('tool/run_macos_computer_use_mvp_fixture_llm_canary.sh'),
     );
     expect(
       mvpFixtureLlmCanaryScript,
@@ -769,8 +774,12 @@ void main() {
           contains('macos_computer_use_mvp_fixture_llm_canary_summary'),
         );
         expect(summary, contains('"ready": true'));
+        expect(summary, contains('"runCount": 2'));
         expect(summary, contains('"passed": 2'));
         expect(summary, contains('"failed": 0'));
+        expect(summary, contains('"failedCount": 0'));
+        expect(summary, contains('"requiresUserClick": true'));
+        expect(summary, contains('"requiresUserTextInput": true'));
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -856,6 +865,12 @@ void main() {
     );
     expect(mvpSignoffScript, contains('--manual-tcc-report'));
     expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
+    expect(mvpSignoffScript, contains('--llm-canary-summary'));
+    expect(mvpSignoffScript, contains('LLM canary status'));
+    expect(
+      mvpSignoffScript,
+      contains('bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh'),
+    );
     expect(
       architectureDoc,
       contains('docs/macos_computer_use_mvp_checklist.md'),
@@ -938,6 +953,7 @@ void main() {
         final stdout = '${result.stdout}';
         expect(stdout, contains('Manual TCC status: provided path not found'));
         expect(stdout, contains('Desktop action canary status: provided'));
+        expect(stdout, contains('LLM canary status: discovery only'));
         expect(stdout, contains('--manual-tcc-report $missingManualReport'));
         expect(
           stdout,
