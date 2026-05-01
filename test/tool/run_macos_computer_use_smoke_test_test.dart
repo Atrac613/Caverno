@@ -256,6 +256,10 @@ void main() {
       contains('duplicateInstanceShouldPreserveExistingDiagnostics'),
     );
     expect(helperSource, contains('sharedDiagnosticsMatchLockOwner'));
+    expect(helperSource, contains('CAVERNO_COMPUTER_USE_PRESENT_MAIN_WINDOW'));
+    expect(helperSource, contains('showMainWindow(reason:'));
+    expect(runnerSource, contains('finishLaunchForRunningHelper'));
+    expect(runnerSource, contains('mainWindowRequest'));
     expect(helperSource, contains('single_instance_lock_acquired'));
     expect(helperSource, contains('duplicate_instance_lock_held'));
     expect(helperSource, contains('duplicate_instance_exiting'));

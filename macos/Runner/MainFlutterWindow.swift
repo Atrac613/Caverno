@@ -167,6 +167,7 @@ final class SecurityScopedBookmarkChannel {
 
 fileprivate enum MacosComputerUseHelperCommand: String {
   case ping
+  case showMainWindow
   case permissionStatus
   case openSettings
   case showPermissionOverlay
@@ -198,6 +199,7 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = [
     "ping",
+    "showMainWindow",
     "permissionStatus",
     "openSettings",
     "showPermissionOverlay",
@@ -237,7 +239,7 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -760,12 +762,12 @@ final class MacosComputerUseHelperClient: NSObject {
       $0.bundleURL?.standardizedFileURL.path == helperPath
     }) {
       runningApplication.activate(options: [.activateIgnoringOtherApps])
-      var response = status()
-      response["alreadyRunning"] = true
-      for (key, value) in extra {
-        response[key] = value
-      }
-      result(response)
+      finishLaunchForRunningHelper(
+        extra: extra,
+        runningHelperPath: helperPath,
+        lockOwner: nil,
+        result: result
+      )
       return
     }
 
@@ -824,25 +826,60 @@ final class MacosComputerUseHelperClient: NSObject {
          let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
         application.activate(options: [.activateIgnoringOtherApps])
       }
-      var response = status()
-      response["alreadyRunning"] = true
-      response["alreadyRunningViaLockOwner"] = true
-      response["helperRunning"] = true
-      response["helperPathMatchesRunningHelper"] = true
-      response["runningHelperPath"] = helperPath
-      response["helperProcessIdentifier"] =
-        lockOwner["activeLockOwnerProcessIdentifier"]
-      response["helperLockOwnerBundlePath"] = lockOwner["activeLockOwnerBundlePath"]
-      response["helperLockOwnerDiagnosticsEvent"] =
-        lockOwner["activeLockOwnerDiagnosticsEvent"]
-      for (key, value) in extra {
-        response[key] = value
-      }
-      result(response)
+      finishLaunchForRunningHelper(
+        extra: extra,
+        runningHelperPath: helperPath,
+        lockOwner: lockOwner,
+        result: result
+      )
       return
     }
 
     openEmbeddedHelper(helperURL: helperURL, extra: extra, result: result)
+  }
+
+  private func finishLaunchForRunningHelper(
+    extra: [String: Any],
+    runningHelperPath: String,
+    lockOwner: [String: Any]?,
+    result: @escaping FlutterResult
+  ) {
+    send(
+      command: .showMainWindow,
+      arguments: ["reason": "open_computer_use"],
+      timeout: 1.5
+    ) { [weak self] mainWindowResult in
+      guard let self else {
+        return
+      }
+      var response = self.status()
+      response["alreadyRunning"] = true
+      response["runningHelperPath"] = runningHelperPath
+      response["helperPathMatchesRunningHelper"] = true
+      if let mainWindowResponse = mainWindowResult as? [String: Any] {
+        response["mainWindowRequest"] = mainWindowResponse
+      } else if let error = mainWindowResult as? FlutterError {
+        response["mainWindowRequest"] = [
+          "ok": false,
+          "code": error.code,
+          "error": error.message ?? "Caverno Computer Use did not respond to showMainWindow.",
+          "details": error.details ?? [:],
+        ]
+      }
+      if let lockOwner {
+        response["alreadyRunningViaLockOwner"] = true
+        response["helperRunning"] = true
+        response["helperProcessIdentifier"] =
+          lockOwner["activeLockOwnerProcessIdentifier"]
+        response["helperLockOwnerBundlePath"] = lockOwner["activeLockOwnerBundlePath"]
+        response["helperLockOwnerDiagnosticsEvent"] =
+          lockOwner["activeLockOwnerDiagnosticsEvent"]
+      }
+      for (key, value) in extra {
+        response[key] = value
+      }
+      result(response)
+    }
   }
 
   private func activeExpectedLockOwner(expectedHelperPath: String) -> [String: Any]? {
@@ -1003,6 +1040,9 @@ final class MacosComputerUseHelperClient: NSObject {
     MacosComputerUseHelperSharedDiagnostics.remove()
     let configuration = NSWorkspace.OpenConfiguration()
     configuration.activates = true
+    configuration.environment = ProcessInfo.processInfo.environment.merging([
+      "CAVERNO_COMPUTER_USE_PRESENT_MAIN_WINDOW": "1",
+    ]) { _, new in new }
     NSWorkspace.shared.openApplication(at: helperURL, configuration: configuration) {
       [weak self] application, error in
       guard let self else {

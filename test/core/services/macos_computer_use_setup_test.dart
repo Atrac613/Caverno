@@ -45,6 +45,7 @@ void main() {
     expect(info['xpcServiceName'], 'com.noguwo.apps.caverno.computer-use.xpc');
     expect(info['xpcSupportedCommands'], [
       'ping',
+      'showMainWindow',
       'permissionStatus',
       'openSettings',
       'showPermissionOverlay',
@@ -92,7 +93,7 @@ void main() {
     expect(
       info['xpcProductionReadinessCriteria'],
       contains(
-        'ping_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+        'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
       ),
     );
   });

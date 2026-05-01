@@ -16,12 +16,22 @@ protocol CavernoComputerUseXpcProtocol: NSObjectProtocol {
 final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private static var delegateInstance: ComputerUseHelperApp?
   private static var singleInstanceLock: ComputerUseHelperSingleInstanceLock?
+  private static let presentMainWindowEnvironmentKey = "CAVERNO_COMPUTER_USE_PRESENT_MAIN_WINDOW"
+
+  private static var shouldPresentMainWindowAtLaunch: Bool {
+    ProcessInfo.processInfo.environment[presentMainWindowEnvironmentKey] == "1"
+  }
 
   static func main() {
     switch ComputerUseHelperSingleInstanceLock.acquire() {
     case .acquired(let lock):
       singleInstanceLock = lock
-      ComputerUseHelperSharedDiagnostics.setBootstrapExtra(lock.diagnostics)
+      var bootstrapExtra = lock.diagnostics
+      bootstrapExtra["launchMode"] = shouldPresentMainWindowAtLaunch
+        ? "foreground_ui"
+        : "background"
+      bootstrapExtra["mainWindowRequestedAtLaunch"] = shouldPresentMainWindowAtLaunch
+      ComputerUseHelperSharedDiagnostics.setBootstrapExtra(bootstrapExtra)
       ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "single_instance_lock_acquired")
     case .alreadyRunning(let diagnostics):
       var extra = diagnostics
@@ -164,6 +174,13 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   func applicationDidFinishLaunching(_ notification: Notification) {
     ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "application_did_finish_launching")
     ipc.start()
+    guard Self.shouldPresentMainWindowAtLaunch else {
+      return
+    }
+    _ = presentMainWindow(reason: "launch")
+  }
+
+  private func makeMainWindow() -> NSWindow {
     let window = NSWindow(
       contentRect: NSRect(x: 0, y: 0, width: 760, height: 700),
       styleMask: [.titled, .closable, .miniaturizable],
@@ -171,16 +188,53 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       defer: false
     )
     window.title = "Caverno Computer Use"
+    window.isReleasedWhenClosed = false
     window.center()
     window.contentView = makeContentView()
+    return window
+  }
+
+  private func presentMainWindow(reason: String) -> [String: Any] {
+    let createdWindow = window == nil
+    let window = window ?? makeMainWindow()
     window.makeKeyAndOrderFront(nil)
     self.window = window
     NSApp.activate(ignoringOtherApps: true)
+    refreshPermissionRows()
+    return [
+      "ok": true,
+      "mainWindowPresented": true,
+      "mainWindowCreated": createdWindow,
+      "mainWindowReason": reason,
+      "launchMode": "foreground_ui",
+    ]
   }
 
   func applicationDidBecomeActive(_ notification: Notification) {
     ipc.start()
     refreshPermissionRows()
+  }
+
+  fileprivate static func showMainWindow(reason: String) -> [String: Any] {
+    if Thread.isMainThread {
+      return delegateInstance?.presentMainWindow(reason: reason)
+        ?? [
+          "ok": false,
+          "code": "missing_delegate",
+          "error": "Caverno Computer Use main window is not available.",
+        ]
+    }
+
+    var response: [String: Any] = [:]
+    DispatchQueue.main.sync {
+      response = delegateInstance?.presentMainWindow(reason: reason)
+        ?? [
+          "ok": false,
+          "code": "missing_delegate",
+          "error": "Caverno Computer Use main window is not available.",
+        ]
+    }
+    return response
   }
 
   fileprivate static func showPermissionOverlay(pane: SettingsPane) -> PermissionOverlayPresentation {
@@ -1474,6 +1528,7 @@ private func systemAudioRecordingSupported() -> Bool {
 
 private enum ComputerUseHelperCommand: String {
   case ping
+  case showMainWindow
   case permissionStatus
   case openSettings
   case showPermissionOverlay
@@ -1503,6 +1558,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcServiceName = "com.noguwo.apps.caverno.computer-use.xpc"
   static let xpcSupportedCommands = [
     "ping",
+    "showMainWindow",
     "permissionStatus",
     "openSettings",
     "showPermissionOverlay",
@@ -1540,7 +1596,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -1986,6 +2042,8 @@ private final class ComputerUseHelperIpc: NSObject {
     switch request.command {
     case .ping:
       completion(baseResponse(extra: ["message": "pong"]))
+    case .showMainWindow:
+      completion(showMainWindow(arguments: request.arguments))
     case .permissionStatus:
       completion(permissionStatus())
     case .openSettings:
@@ -2029,6 +2087,14 @@ private final class ComputerUseHelperIpc: NSObject {
       response[key] = value
     }
     return response
+  }
+
+  private func showMainWindow(arguments: [String: Any]) -> [String: Any] {
+    let reason = arguments["reason"] as? String ?? "ipc"
+    var response = ComputerUseHelperApp.showMainWindow(reason: reason)
+    let ok = response["ok"] as? Bool ?? true
+    response.removeValue(forKey: "ok")
+    return baseResponse(ok: ok, extra: response)
   }
 
   private func openSettings(arguments: [String: Any]) -> [String: Any] {
