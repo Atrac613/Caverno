@@ -171,7 +171,7 @@ void _writeCanarySummary(
         'status': 'ready',
         'helperPathMismatch': false,
         'helperPathMatchesRunningHelper': true,
-        'replacedMismatchedHelperPath': false,
+        'preservedMismatchedHelperPath': false,
       },
       'manualTccHandoff': <String, Object?>{
         'status': 'manual_required',

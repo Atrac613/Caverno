@@ -765,6 +765,7 @@ final class MacosComputerUseHelperClient: NSObject {
       finishLaunchForRunningHelper(
         extra: extra,
         runningHelperPath: helperPath,
+        helperPathMatchesRunningHelper: true,
         lockOwner: nil,
         result: result
       )
@@ -774,36 +775,29 @@ final class MacosComputerUseHelperClient: NSObject {
     let mismatchedApplications = runningApplications.filter {
       $0.bundleURL?.standardizedFileURL.path != helperPath
     }
-    if !mismatchedApplications.isEmpty {
-      let processIdentifiers = mismatchedApplications.map { Int($0.processIdentifier) }
-      let paths = mismatchedApplications.map { $0.bundleURL?.standardizedFileURL.path ?? "" }
-      for application in mismatchedApplications {
-        application.terminate()
-      }
-      let startedAt = Date()
-      func waitForMismatchedTermination() {
-        let stillRunning = NSRunningApplication.runningApplications(
-          withBundleIdentifier: helperBundleIdentifier
-        ).contains { application in
-          !application.isTerminated &&
-            application.bundleURL?.standardizedFileURL.path != helperPath
-        }
-        if !stillRunning || Date().timeIntervalSince(startedAt) >= 2 {
-          var launchExtra = extra
-          launchExtra["terminatedMismatchedHelperProcessIdentifiers"] = processIdentifiers
-          launchExtra["terminatedMismatchedHelperPaths"] = paths
-          launchExtra["replacedMismatchedHelperPath"] = true
-          if stillRunning {
-            launchExtra["helperPathMismatchTerminationTimedOut"] = true
-          }
-          openEmbeddedHelper(helperURL: helperURL, extra: launchExtra, result: result)
-          return
-        }
-        DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
-          waitForMismatchedTermination()
+    if let mismatchedApplication = mismatchedApplications.first {
+      let runningHelperPath = mismatchedApplication.bundleURL?.standardizedFileURL.path ?? ""
+      mismatchedApplication.activate(options: [.activateIgnoringOtherApps])
+      var launchExtra = extra
+      launchExtra["preservedMismatchedHelperPath"] = true
+      launchExtra["mismatchedHelperProcessIdentifier"] =
+        Int(mismatchedApplication.processIdentifier)
+      launchExtra["mismatchedHelperPath"] = runningHelperPath
+      launchExtra["expectedHelperPath"] = helperPath
+      if mismatchedApplications.count > 1 {
+        launchExtra["mismatchedHelperProcessIdentifiers"] =
+          mismatchedApplications.map { Int($0.processIdentifier) }
+        launchExtra["mismatchedHelperPaths"] = mismatchedApplications.map {
+          $0.bundleURL?.standardizedFileURL.path ?? ""
         }
       }
-      waitForMismatchedTermination()
+      finishLaunchForRunningHelper(
+        extra: launchExtra,
+        runningHelperPath: runningHelperPath,
+        helperPathMatchesRunningHelper: false,
+        lockOwner: nil,
+        result: result
+      )
       return
     }
 
@@ -829,6 +823,7 @@ final class MacosComputerUseHelperClient: NSObject {
       finishLaunchForRunningHelper(
         extra: extra,
         runningHelperPath: helperPath,
+        helperPathMatchesRunningHelper: true,
         lockOwner: lockOwner,
         result: result
       )
@@ -841,6 +836,7 @@ final class MacosComputerUseHelperClient: NSObject {
   private func finishLaunchForRunningHelper(
     extra: [String: Any],
     runningHelperPath: String,
+    helperPathMatchesRunningHelper: Bool,
     lockOwner: [String: Any]?,
     result: @escaping FlutterResult
   ) {
@@ -855,7 +851,16 @@ final class MacosComputerUseHelperClient: NSObject {
       var response = self.status()
       response["alreadyRunning"] = true
       response["runningHelperPath"] = runningHelperPath
-      response["helperPathMatchesRunningHelper"] = true
+      response["helperPathMatchesRunningHelper"] = helperPathMatchesRunningHelper
+      if !helperPathMatchesRunningHelper {
+        response["helperPathMismatch"] = true
+        response["helperPathMismatchDetails"] = [
+          "expectedHelperPath": self.embeddedHelperURL().standardizedFileURL.path,
+          "runningHelperPath": runningHelperPath,
+          "nextAction":
+            "Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.",
+        ]
+      }
       if let mainWindowResponse = mainWindowResult as? [String: Any] {
         response["mainWindowRequest"] = mainWindowResponse
       } else if let error = mainWindowResult as? FlutterError {

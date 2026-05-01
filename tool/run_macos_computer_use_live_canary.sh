@@ -218,8 +218,8 @@ for report_path in sorted(run_dir.glob("run_*.json")):
             "maxHelperRunningProcessCount": helper_policy.get("maxHelperRunningProcessCount"),
             "helperPathMismatch": helper_policy.get("helperPathMismatch"),
             "helperPathMatchesRunningHelper": helper_policy.get("helperPathMatchesRunningHelper"),
-            "replacedMismatchedHelperPath": helper_policy.get("replacedMismatchedHelperPath"),
-            "terminatedMismatchedHelperPaths": helper_policy.get("terminatedMismatchedHelperPaths") or [],
+            "preservedMismatchedHelperPath": helper_policy.get("preservedMismatchedHelperPath"),
+            "mismatchedHelperPaths": helper_policy.get("mismatchedHelperPaths") or [],
             "helperPathMismatchTerminationTimedOut": helper_policy.get("helperPathMismatchTerminationTimedOut"),
             "singleInstanceLockStatus": helper_policy.get("singleInstanceLockStatus"),
             "helperDockPolicy": helper_policy.get("helperDockPolicy"),
@@ -295,15 +295,15 @@ for run in runs:
         f"count={helper_policy.get('maxHelperRunningProcessCount', '-')}",
         f"pathMismatch={str(helper_policy.get('helperPathMismatch')).lower()}",
         f"pathMatch={str(helper_policy.get('helperPathMatchesRunningHelper')).lower()}",
-        f"replaced={str(helper_policy.get('replacedMismatchedHelperPath')).lower()}",
+        f"preserved={str(helper_policy.get('preservedMismatchedHelperPath')).lower()}",
         f"lock={helper_policy.get('singleInstanceLockStatus', '-')}",
         f"dock={helper_policy.get('helperDockPolicy', '-')}",
     ]
     if helper_policy.get("helperPathMismatchTerminationTimedOut"):
         helper_bits.append("terminationTimedOut=true")
-    terminated_paths = helper_policy.get("terminatedMismatchedHelperPaths") or []
-    if terminated_paths:
-        helper_bits.append("terminatedPaths=" + ", ".join(str(item) for item in terminated_paths))
+    mismatched_paths = helper_policy.get("mismatchedHelperPaths") or []
+    if mismatched_paths:
+        helper_bits.append("mismatchedPaths=" + ", ".join(str(item) for item in mismatched_paths))
     helper_summary = "<br>".join(helper_bits)
     artifacts = f"report: `{run['report']}`<br>log: `{run['log']}`"
     lines.append(

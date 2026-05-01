@@ -149,7 +149,7 @@ class ComputerUseCanaryHistory {
           '- Helper path match: ${_markdownCell(helperPolicy['helperPathMatchesRunningHelper'])}',
         )
         ..writeln(
-          '- Replaced mismatched helper: ${_markdownCell(helperPolicy['replacedMismatchedHelperPath'])}',
+          '- Preserved mismatched helper: ${_markdownCell(helperPolicy['preservedMismatchedHelperPath'])}',
         )
         ..writeln(
           '- Manual TCC command: `${_escapeMarkdownCode('${manual['manualCommand'] ?? '-'}')}`',
@@ -315,11 +315,11 @@ String _helperPathCell(Map<String, Object?> helperPolicy) {
   }
   final mismatch = helperPolicy['helperPathMismatch'];
   final matched = helperPolicy['helperPathMatchesRunningHelper'];
-  final replaced = helperPolicy['replacedMismatchedHelperPath'];
+  final preserved = helperPolicy['preservedMismatchedHelperPath'];
   return [
     'match: ${_markdownCell(matched)}',
     'mismatch: ${_markdownCell(mismatch)}',
-    'replaced: ${_markdownCell(replaced)}',
+    'preserved: ${_markdownCell(preserved)}',
   ].join('<br>');
 }
 

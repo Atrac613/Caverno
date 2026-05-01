@@ -277,13 +277,14 @@ void main() {
     expect(runnerSource, contains('replacedStaleHelperLockOwner'));
     expect(runnerSource, contains('forceTerminateProcess'));
     expect(runnerSource, contains('forceTerminatedStaleHelperProcess'));
-    expect(runnerSource, contains('replacedMismatchedHelperPath'));
+    expect(runnerSource, contains('preservedMismatchedHelperPath'));
+    expect(runnerSource, isNot(contains('replacedMismatchedHelperPath')));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));
     expect(smokeTest, contains('single_instance_lock_not_acquired'));
     expect(smokeTest, contains('helper_path_mismatch'));
-    expect(smokeTest, contains('helper_path_mismatch_termination_timed_out'));
-    expect(smokeTest, contains('terminatedMismatchedHelperPaths'));
+    expect(smokeTest, contains('helper_path_mismatch_preserved'));
+    expect(smokeTest, contains('preservedMismatchedHelperPath'));
     expect(smokeTest, contains('helperPathMatchesRunningHelper'));
     expect(smokeTest, contains('manualTccHandoff'));
     expect(smokeTest, contains('duplicate_helper_processes'));

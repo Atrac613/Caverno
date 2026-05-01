@@ -1319,22 +1319,23 @@ Map<String, dynamic> _helperProcessPolicyGate(
   final helperPathMismatchTerminationTimedOut = snapshots.any(
     (snapshot) => snapshot['helperPathMismatchTerminationTimedOut'] == true,
   );
-  final replacedMismatchedHelperPath = snapshots.any(
-    (snapshot) => snapshot['replacedMismatchedHelperPath'] == true,
+  final preservedMismatchedHelperPath = snapshots.any(
+    (snapshot) => snapshot['preservedMismatchedHelperPath'] == true,
   );
-  final terminatedMismatchedHelperPaths = <String>{
+  final mismatchedHelperPaths = <String>{
     for (final snapshot in snapshots)
-      for (final path in _stringList(
-        snapshot['terminatedMismatchedHelperPaths'],
-      ))
-        path,
+      for (final path in _stringList(snapshot['mismatchedHelperPaths'])) path,
+    for (final snapshot in snapshots)
+      ?_stringValue(snapshot['mismatchedHelperPath']),
   }.toList(growable: false);
-  final terminatedMismatchedHelperProcessIdentifiers = <int>{
+  final mismatchedHelperProcessIdentifiers = <int>{
     for (final snapshot in snapshots)
       for (final identifier in _intList(
-        snapshot['terminatedMismatchedHelperProcessIdentifiers'],
+        snapshot['mismatchedHelperProcessIdentifiers'],
       ))
         identifier,
+    for (final snapshot in snapshots)
+      ?_intValue(snapshot['mismatchedHelperProcessIdentifier']),
   }.toList(growable: false);
   final singleProcess = maxProcessCount != null && maxProcessCount <= 1;
   final ready =
@@ -1357,6 +1358,7 @@ Map<String, dynamic> _helperProcessPolicyGate(
       'single_instance_lock_not_acquired',
     if (observed.isNotEmpty && !hiddenDockPolicy) 'dock_policy_not_hidden',
     if (helperPathMismatch) 'helper_path_mismatch',
+    if (preservedMismatchedHelperPath) 'helper_path_mismatch_preserved',
     if (helperPathMismatchTerminationTimedOut)
       'helper_path_mismatch_termination_timed_out',
     if (maxProcessCount == null) 'helper_process_count_missing',
@@ -1382,10 +1384,9 @@ Map<String, dynamic> _helperProcessPolicyGate(
     'helperPathMatchesRunningHelper':
         latestObserved?['helperPathMatchesRunningHelper'],
     'helperPathMismatch': helperPathMismatch,
-    'replacedMismatchedHelperPath': replacedMismatchedHelperPath,
-    'terminatedMismatchedHelperPaths': terminatedMismatchedHelperPaths,
-    'terminatedMismatchedHelperProcessIdentifiers':
-        terminatedMismatchedHelperProcessIdentifiers,
+    'preservedMismatchedHelperPath': preservedMismatchedHelperPath,
+    'mismatchedHelperPaths': mismatchedHelperPaths,
+    'mismatchedHelperProcessIdentifiers': mismatchedHelperProcessIdentifiers,
     'helperPathMismatchTerminationTimedOut':
         helperPathMismatchTerminationTimedOut,
     'observedSnapshotCount': observed.length,
