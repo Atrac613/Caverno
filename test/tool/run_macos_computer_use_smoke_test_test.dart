@@ -216,6 +216,23 @@ void main() {
     expect(helperInfoPlist, contains('NSSystemAudioUsageDescription'));
     expect(runnerSource, isNot(contains('CGRequestScreenCaptureAccess')));
     expect(runnerSource, contains('main_app_screen_capture_blocked'));
+    expect(helperSource, contains('screenCaptureDeniedResponse'));
+    expect(
+      helperSource,
+      contains('guard computerUsePermissionSnapshot().screenCaptureGranted'),
+    );
+    expect(
+      helperSource,
+      contains(
+        'displayScreenshotStep: verifyOnboardingDisplayScreenshot(permissions: permissions)',
+      ),
+    );
+    expect(
+      helperSource,
+      contains(
+        'windowCaptureStep: verifyOnboardingWindowCapture(permissions: permissions)',
+      ),
+    );
     expect(helperInfoPlist, contains('<key>LSUIElement</key>'));
     expect(helperInfoPlist, contains('<true/>'));
     expect(

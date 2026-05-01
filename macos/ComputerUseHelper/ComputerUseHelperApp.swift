@@ -2040,6 +2040,10 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   private func screenshot(arguments: [String: Any]) -> [String: Any] {
+    guard computerUsePermissionSnapshot().screenCaptureGranted else {
+      return screenCaptureDeniedResponse()
+    }
+
     guard let screen = resolveScreen(arguments: arguments) else {
       return errorResponse(code: "display_not_found", error: "No display is available")
     }
@@ -2146,6 +2150,10 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   private func screenshotWindow(arguments: [String: Any]) -> [String: Any] {
+    guard computerUsePermissionSnapshot().screenCaptureGranted else {
+      return screenCaptureDeniedResponse()
+    }
+
     guard let windowID = windowID(arguments: arguments) else {
       return errorResponse(code: "invalid_args", error: "window_id is required")
     }
@@ -2580,6 +2588,13 @@ private final class ComputerUseHelperIpc: NSObject {
     )
   }
 
+  private func screenCaptureDeniedResponse() -> [String: Any] {
+    errorResponse(
+      code: "screen_capture_denied",
+      error: "Screen & System Audio Recording permission is required. Grant Caverno Computer Use in System Settings > Privacy & Security > Screen & System Audio Recording."
+    )
+  }
+
   private func postResponse(
     requestId: String,
     command: ComputerUseHelperCommand? = nil,
@@ -2780,12 +2795,22 @@ private func performOnboardingVerification() -> OnboardingVerificationResult {
     generatedAt: Date(),
     permissions: permissions.toMap(),
     permissionStep: permissionStep,
-    displayScreenshotStep: verifyOnboardingDisplayScreenshot(),
-    windowCaptureStep: verifyOnboardingWindowCapture()
+    displayScreenshotStep: verifyOnboardingDisplayScreenshot(permissions: permissions),
+    windowCaptureStep: verifyOnboardingWindowCapture(permissions: permissions)
   )
 }
 
-private func verifyOnboardingDisplayScreenshot() -> OnboardingVerificationStep {
+private func verifyOnboardingDisplayScreenshot(
+  permissions: PermissionSnapshot
+) -> OnboardingVerificationStep {
+  guard permissions.screenCaptureGranted else {
+    return OnboardingVerificationStep(
+      id: "display_screenshot",
+      label: "Display Screenshot",
+      ok: false,
+      detail: "Screen Recording required"
+    )
+  }
   guard let screen = NSScreen.main else {
     return OnboardingVerificationStep(
       id: "display_screenshot",
@@ -2818,7 +2843,17 @@ private func verifyOnboardingDisplayScreenshot() -> OnboardingVerificationStep {
   )
 }
 
-private func verifyOnboardingWindowCapture() -> OnboardingVerificationStep {
+private func verifyOnboardingWindowCapture(
+  permissions: PermissionSnapshot
+) -> OnboardingVerificationStep {
+  guard permissions.screenCaptureGranted else {
+    return OnboardingVerificationStep(
+      id: "window_capture",
+      label: "Window Capture",
+      ok: false,
+      detail: "Screen Recording required"
+    )
+  }
   let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
   let candidates = visibleWindows()
   guard let window = candidates.first(where: { $0.ownerPID != helperPid }) ?? candidates.first else {
