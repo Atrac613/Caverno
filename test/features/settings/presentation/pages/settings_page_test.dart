@@ -133,6 +133,34 @@ void main() {
     expect(service.getPermissionsCallCount, permissionsBeforeReturn + 1);
   });
 
+  testWidgets('opens Computer Use from the ready primary action', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(verificationOk: true);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Computer Use Ready'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+
+    final helperStatusBeforeLaunch = service.helperStatusCallCount;
+    final pingBeforeLaunch = service.pingHelperCallCount;
+    final permissionsBeforeLaunch = service.getPermissionsCallCount;
+
+    await _tapByKey(tester, 'computer-use-settings-primary-action');
+
+    expect(service.launchHelperCallCount, 1);
+    expect(
+      service.helperStatusCallCount,
+      greaterThan(helperStatusBeforeLaunch),
+    );
+    expect(service.pingHelperCallCount, greaterThan(pingBeforeLaunch));
+    expect(
+      service.getPermissionsCallCount,
+      greaterThan(permissionsBeforeLaunch),
+    );
+    expect(find.text('Open Computer Use'), findsOneWidget);
+  });
+
   testWidgets('separates helper process state from IPC readiness', (
     tester,
   ) async {
@@ -500,10 +528,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool accessibilityGranted = true,
     bool screenCaptureGranted = true,
     bool helperReachable = true,
+    bool verificationOk = false,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
-       _helperReachable = helperReachable;
+       _helperReachable = helperReachable,
+       _verificationOk = verificationOk;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -518,6 +548,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   bool _helperWorkActive;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
+  final bool _verificationOk;
   bool _helperReachable;
   bool _xpcLaunchAgentEnabled = false;
 
@@ -865,10 +896,12 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     'onboardingVerification': _verification,
   };
 
-  static Map<String, dynamic> get _verification => {
-    'ok': false,
+  Map<String, dynamic> get _verification => {
+    'ok': _verificationOk,
     'generatedAt': '2026-04-25T12:00:00Z',
-    'summary': 'Verification incomplete',
+    'summary': _verificationOk
+        ? 'Verification complete'
+        : 'Verification incomplete',
     'steps': [
       {
         'id': 'permissions',
@@ -887,9 +920,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       {
         'id': 'window_capture',
         'label': 'Window Capture',
-        'ok': false,
-        'status': 'failed',
-        'detail': 'No visible window',
+        'ok': _verificationOk,
+        'status': _verificationOk ? 'done' : 'failed',
+        'detail': _verificationOk ? 'Ready' : 'No visible window',
       },
     ],
   };

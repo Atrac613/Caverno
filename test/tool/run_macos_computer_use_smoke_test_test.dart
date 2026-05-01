@@ -259,6 +259,10 @@ void main() {
     expect(helperSource, contains('CAVERNO_COMPUTER_USE_PRESENT_MAIN_WINDOW'));
     expect(helperSource, contains('showMainWindow(reason:'));
     expect(runnerSource, contains('finishLaunchForRunningHelper'));
+    expect(
+      runnerSource,
+      contains('sendPreferred(\n      command: .showMainWindow'),
+    );
     expect(runnerSource, contains('mainWindowRequest'));
     expect(helperSource, contains('single_instance_lock_acquired'));
     expect(helperSource, contains('duplicate_instance_lock_held'));
