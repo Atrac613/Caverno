@@ -124,38 +124,91 @@ class MacosComputerUseService {
     return _invokeTransportJson(_permissionTransport.getPermissions);
   }
 
+  Future<Map<String, dynamic>> _prepareHelperUi() async {
+    final helper =
+        _decodeMap(
+          await _invokeTransportJson(_permissionTransport.launchHelper),
+        ) ??
+        const <String, dynamic>{};
+    final ready =
+        _decodeMap(
+          await waitForHelperIpcReady(
+            attempts: 4,
+            delay: const Duration(milliseconds: 250),
+          ),
+        ) ??
+        const <String, dynamic>{};
+    return {'helper': helper, 'ipcReady': ready};
+  }
+
+  Future<Map<String, dynamic>> _showPermissionOverlayMap({
+    required String permission,
+    required bool prepareHelperUi,
+  }) async {
+    final helperUi =
+        prepareHelperUi && _permissionTransport.backendInfo.usesSeparateHelper
+        ? await _prepareHelperUi()
+        : null;
+    final overlay =
+        _decodeMap(
+          await _invokeTransportJson(
+            () => _permissionTransport.showPermissionOverlay(
+              permission: permission,
+            ),
+          ),
+        ) ??
+        const <String, dynamic>{};
+    final response = <String, dynamic>{...overlay};
+    if (helperUi != null) {
+      response['helperUi'] = helperUi;
+    }
+    return response;
+  }
+
+  Future<Map<String, dynamic>> _startOnboardingPermissionFlowMap({
+    required String permission,
+    required bool prepareHelperUi,
+  }) async {
+    final helperUi =
+        prepareHelperUi && _permissionTransport.backendInfo.usesSeparateHelper
+        ? await _prepareHelperUi()
+        : null;
+    final flow =
+        _decodeMap(
+          await _invokeTransportJson(
+            () => _permissionTransport.startOnboardingPermissionFlow(
+              permission: permission,
+            ),
+          ),
+        ) ??
+        const <String, dynamic>{};
+    final response = <String, dynamic>{...flow};
+    if (helperUi != null) {
+      response['helperUi'] = helperUi;
+    }
+    return response;
+  }
+
   Future<String> requestPermissions({
     bool accessibility = true,
     bool screenCapture = true,
   }) async {
     if (_permissionTransport.backendInfo.usesSeparateHelper) {
       final responses = <String, dynamic>{};
-      responses['helper'] =
-          _decodeMap(
-            await _invokeTransportJson(_permissionTransport.launchHelper),
-          ) ??
-          const <String, dynamic>{};
+      final helperUi = await _prepareHelperUi();
+      responses['helper'] = helperUi['helper'];
+      responses['helperReady'] = helperUi['ipcReady'];
       if (accessibility) {
-        responses['accessibility'] =
-            _decodeMap(
-              await _invokeTransportJson(
-                () => _permissionTransport.showPermissionOverlay(
-                  permission: 'accessibility',
-                ),
-              ),
-            ) ??
-            const <String, dynamic>{};
+        responses['accessibility'] = await _showPermissionOverlayMap(
+          permission: 'accessibility',
+          prepareHelperUi: false,
+        );
       }
       if (screenCapture) {
-        responses['screenCapture'] =
-            _decodeMap(
-              await _invokeTransportJson(
-                () => _permissionTransport.showPermissionOverlay(
-                  permission: 'screenRecording',
-                ),
-              ),
-            ) ??
-            const <String, dynamic>{};
+        responses['screenCapture'] = await _showPermissionOverlayMap(
+          permission: 'screenRecording',
+          prepareHelperUi: false,
+        );
       }
       responses['current'] =
           _decodeMap(
@@ -187,6 +240,14 @@ class MacosComputerUseService {
   }
 
   Future<String> showPermissionOverlay({required String permission}) async {
+    if (_permissionTransport.backendInfo.usesSeparateHelper) {
+      return jsonEncode(
+        await _showPermissionOverlayMap(
+          permission: permission,
+          prepareHelperUi: true,
+        ),
+      );
+    }
     return _invokeTransportJson(
       () => _permissionTransport.showPermissionOverlay(permission: permission),
     );
@@ -195,6 +256,14 @@ class MacosComputerUseService {
   Future<String> startOnboardingPermissionFlow({
     required String permission,
   }) async {
+    if (_permissionTransport.backendInfo.usesSeparateHelper) {
+      return jsonEncode(
+        await _startOnboardingPermissionFlowMap(
+          permission: permission,
+          prepareHelperUi: true,
+        ),
+      );
+    }
     return _invokeTransportJson(
       () => _permissionTransport.startOnboardingPermissionFlow(
         permission: permission,

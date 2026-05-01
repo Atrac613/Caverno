@@ -145,10 +145,12 @@ void main() {
 
     expect(transport.calledMethods, [
       'launchHelper',
+      'ping',
       'showPermissionOverlay:accessibility',
       'getPermissions',
     ]);
     expect(result, containsPair('helper', isA<Map<String, dynamic>>()));
+    expect(result, containsPair('helperReady', isA<Map<String, dynamic>>()));
     expect(result, containsPair('current', isA<Map<String, dynamic>>()));
   });
 
@@ -193,10 +195,15 @@ void main() {
             )
             as Map<String, dynamic>;
 
-    expect(transport.calledMethods, ['showPermissionOverlay:screenRecording']);
+    expect(transport.calledMethods, [
+      'launchHelper',
+      'ping',
+      'showPermissionOverlay:screenRecording',
+    ]);
     expect(result, containsPair('permission', 'screenRecording'));
     expect(result, containsPair('overlayRequested', true));
     expect(result, containsPair('draggableTileReady', true));
+    expect(result, containsPair('helperUi', isA<Map<String, dynamic>>()));
   });
 
   test(
@@ -216,11 +223,14 @@ void main() {
               as Map<String, dynamic>;
 
       expect(transport.calledMethods, [
+        'launchHelper',
+        'ping',
         'startOnboardingPermissionFlow:screenRecording',
       ]);
       expect(result, containsPair('permission', 'screenRecording'));
       expect(result, containsPair('onboardingFlowRequested', true));
       expect(result, containsPair('lastOnboardingTransition', isA<Map>()));
+      expect(result, containsPair('helperUi', isA<Map<String, dynamic>>()));
     },
   );
 
