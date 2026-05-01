@@ -607,6 +607,16 @@ class _ComputerUseOnboardingCardState
                   icon: Icon(primaryAction.icon),
                   label: Text(primaryAction.label),
                 ),
+                if (helperInstalled &&
+                    primaryAction.kind != _ComputerUsePrimaryActionKind.launch)
+                  OutlinedButton.icon(
+                    key: const ValueKey(
+                      'computer-use-settings-open-computer-use',
+                    ),
+                    onPressed: _isLoading ? null : _launchHelper,
+                    icon: const Icon(Icons.open_in_new),
+                    label: const Text('Open Computer Use'),
+                  ),
                 OutlinedButton.icon(
                   onPressed: _openSmokeTest,
                   icon: const Icon(Icons.fact_check_outlined),
@@ -715,7 +725,7 @@ class _ComputerUseOnboardingCardState
     if (!helperInstalled || !helperRunning) {
       return const _ComputerUsePrimaryAction(
         kind: _ComputerUsePrimaryActionKind.launch,
-        label: 'Launch Computer Use',
+        label: 'Open Computer Use',
         detail: 'Launch the helper app so macOS can attach permissions to it.',
         icon: Icons.rocket_launch_outlined,
       );

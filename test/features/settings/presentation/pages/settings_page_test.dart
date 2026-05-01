@@ -187,6 +187,7 @@ void main() {
     expect(find.text('Helper Process: Running'), findsOneWidget);
     expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(find.text('Restart Helper'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Computer Use action plan'), findsOneWidget);
     expect(find.text('Helper boundary: needs IPC'), findsOneWidget);
     expect(find.text('Accessibility permission: granted'), findsOneWidget);
@@ -387,6 +388,20 @@ void main() {
 
     expect(service.restartHelperCallCount, 1);
     expect(find.text('IPC Ready: Reachable'), findsOneWidget);
+  });
+
+  testWidgets('keeps Computer Use open action when restart is primary', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(helperReachable: false);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Restart Helper'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+
+    await _tapByKey(tester, 'computer-use-settings-open-computer-use');
+
+    expect(service.launchHelperCallCount, 1);
   });
 
   testWidgets('stops helper work from the Settings card', (tester) async {
@@ -590,6 +605,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> launchHelper() async {
     launchHelperCallCount += 1;
+    _helperReachable = true;
     return _json({
       'ok': true,
       'backend': 'helper',
