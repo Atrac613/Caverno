@@ -161,6 +161,22 @@ void main() {
     expect(find.text('Open Computer Use'), findsOneWidget);
   });
 
+  testWidgets('keeps Computer Use open action after permissions are granted', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Verify: Needs attention'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+    expect(find.text('Open Smoke Test'), findsOneWidget);
+
+    await _tapByKey(tester, 'computer-use-settings-primary-action');
+
+    expect(service.launchHelperCallCount, 1);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+  });
+
   testWidgets('separates helper process state from IPC readiness', (
     tester,
   ) async {

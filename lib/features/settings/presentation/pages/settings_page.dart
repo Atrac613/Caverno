@@ -405,7 +405,6 @@ class _ComputerUseOnboardingCardState
       helperIpcReady: helperIpcReady,
       accessibilityGranted: accessibilityGranted,
       screenCaptureGranted: screenCaptureGranted,
-      verificationOk: verificationOk,
     );
     final helperIpcRuntime = _helperIpcRuntime();
     final captureGate = _mapValue(helperIpcRuntime['captureGate']);
@@ -712,7 +711,6 @@ class _ComputerUseOnboardingCardState
     required bool helperIpcReady,
     required bool accessibilityGranted,
     required bool screenCaptureGranted,
-    required bool verificationOk,
   }) {
     if (!helperInstalled || !helperRunning) {
       return const _ComputerUsePrimaryAction(
@@ -747,18 +745,11 @@ class _ComputerUseOnboardingCardState
         icon: Icons.screenshot_monitor_outlined,
       );
     }
-    if (!verificationOk) {
-      return const _ComputerUsePrimaryAction(
-        kind: _ComputerUsePrimaryActionKind.openSmokeTest,
-        label: 'Run Smoke Check',
-        detail: 'Run screenshot, window, input, and audio smoke checks.',
-        icon: Icons.fact_check_outlined,
-      );
-    }
     return const _ComputerUsePrimaryAction(
       kind: _ComputerUsePrimaryActionKind.launch,
       label: 'Open Computer Use',
-      detail: 'Open the helper when you want to review permissions.',
+      detail:
+          'Open the helper when you want to review permissions or helper status.',
       icon: Icons.open_in_new,
     );
   }
