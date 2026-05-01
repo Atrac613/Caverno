@@ -258,6 +258,8 @@ void main() {
     expect(helperSource, contains('activate_existing_and_exit'));
     expect(runnerSource, contains('staleMismatchedLockOwner'));
     expect(runnerSource, contains('replacedStaleHelperLockOwner'));
+    expect(runnerSource, contains('forceTerminateProcess'));
+    expect(runnerSource, contains('forceTerminatedStaleHelperProcess'));
     expect(runnerSource, contains('replacedMismatchedHelperPath'));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));

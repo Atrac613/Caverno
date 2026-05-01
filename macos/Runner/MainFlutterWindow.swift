@@ -825,37 +825,40 @@ final class MacosComputerUseHelperClient: NSObject {
   ) {
     let processIdentifier = staleLock["staleLockOwnerProcessIdentifier"] as? Int ?? 0
     let bundlePath = staleLock["staleLockOwnerBundlePath"] as? String ?? ""
-    if let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
-      application.terminate()
-    } else if processIdentifier > 0 {
-      _ = Darwin.kill(pid_t(processIdentifier), SIGTERM)
-    }
+    terminateProcess(processIdentifier)
 
     let startedAt = Date()
-    func finish(timedOut: Bool = false) {
+    var forceTerminateAttempted = false
+    func finish(timedOut: Bool = false, forceTimedOut: Bool = false) {
       MacosComputerUseHelperSharedDiagnostics.remove()
       var response: [String: Any] = [
         "replacedStaleHelperLockOwner": true,
         "terminatedStaleHelperProcessIdentifier": processIdentifier,
         "terminatedStaleHelperPath": bundlePath,
+        "forceTerminatedStaleHelperProcess": forceTerminateAttempted,
       ]
       if timedOut {
         response["staleHelperLockOwnerTerminationTimedOut"] = true
+      }
+      if forceTimedOut {
+        response["staleHelperLockOwnerForceTerminationTimedOut"] = true
       }
       completion(response)
     }
 
     func waitForTermination() {
-      let stillRunning =
-        processIdentifier > 0 &&
-        NSRunningApplication(processIdentifier: pid_t(processIdentifier)) != nil &&
-        Darwin.kill(pid_t(processIdentifier), 0) == 0
+      let stillRunning = processIsRunning(processIdentifier)
       if !stillRunning {
         finish()
         return
       }
-      if Date().timeIntervalSince(startedAt) >= 2 {
-        finish(timedOut: true)
+      let elapsed = Date().timeIntervalSince(startedAt)
+      if elapsed >= 1 && !forceTerminateAttempted {
+        forceTerminateAttempted = true
+        forceTerminateProcess(processIdentifier)
+      }
+      if elapsed >= 3 {
+        finish(timedOut: true, forceTimedOut: forceTerminateAttempted)
         return
       }
       DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
@@ -864,6 +867,39 @@ final class MacosComputerUseHelperClient: NSObject {
     }
 
     waitForTermination()
+  }
+
+  private func terminateProcess(_ processIdentifier: Int) {
+    guard processIdentifier > 0 else {
+      return
+    }
+    if let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
+      _ = application.terminate()
+    } else {
+      _ = Darwin.kill(pid_t(processIdentifier), SIGTERM)
+    }
+  }
+
+  private func forceTerminateProcess(_ processIdentifier: Int) {
+    guard processIdentifier > 0 else {
+      return
+    }
+    if let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
+      _ = application.forceTerminate()
+    } else {
+      _ = Darwin.kill(pid_t(processIdentifier), SIGKILL)
+    }
+  }
+
+  private func processIsRunning(_ processIdentifier: Int) -> Bool {
+    guard processIdentifier > 0 else {
+      return false
+    }
+    if let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)),
+       !application.isTerminated {
+      return true
+    }
+    return Darwin.kill(pid_t(processIdentifier), 0) == 0
   }
 
   private func openEmbeddedHelper(
