@@ -18,7 +18,6 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   private static var singleInstanceLock: ComputerUseHelperSingleInstanceLock?
 
   static func main() {
-    ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "process_main_entered")
     switch ComputerUseHelperSingleInstanceLock.acquire() {
     case .acquired(let lock):
       singleInstanceLock = lock
@@ -28,6 +27,9 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       var extra = diagnostics
       if let existingApplication = activateExistingInstance() {
         extra.merge(existingApplication) { _, new in new }
+      }
+      if duplicateInstanceShouldPreserveExistingDiagnostics(extra) {
+        return
       }
       ComputerUseHelperSharedDiagnostics.writeBootstrap(
         event: "duplicate_instance_lock_held",
@@ -74,6 +76,65 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       "duplicateHelperProcessCount": existingApplications.count,
       "singleInstancePolicy": "activate_existing_and_exit",
     ]
+  }
+
+  private static func duplicateInstanceShouldPreserveExistingDiagnostics(
+    _ duplicateDiagnostics: [String: Any]
+  ) -> Bool {
+    if existingHelperMatchesCurrentBundle(duplicateDiagnostics) {
+      return true
+    }
+    guard
+      let sharedDiagnostics = ComputerUseHelperSharedDiagnostics.read(),
+      sharedDiagnosticsMatchCurrentBundle(sharedDiagnostics),
+      sharedDiagnosticsMatchLockOwner(
+        sharedDiagnostics,
+        duplicateDiagnostics: duplicateDiagnostics
+      )
+    else {
+      return false
+    }
+    return true
+  }
+
+  private static func existingHelperMatchesCurrentBundle(_ diagnostics: [String: Any]) -> Bool {
+    guard let existingBundlePath = diagnostics["existingHelperBundlePath"] as? String else {
+      return false
+    }
+    let existingPath = URL(fileURLWithPath: existingBundlePath).standardizedFileURL.path
+    let currentPath = Bundle.main.bundleURL.standardizedFileURL.path
+    return existingPath == currentPath
+  }
+
+  private static func sharedDiagnosticsMatchCurrentBundle(_ diagnostics: [String: Any]) -> Bool {
+    guard
+      diagnostics["helperBundleIdentifier"] as? String == ComputerUseHelperIpcSchema.helperBundleIdentifier,
+      let helperBundlePath = diagnostics["helperBundlePath"] as? String
+    else {
+      return false
+    }
+    let diagnosticPath = URL(fileURLWithPath: helperBundlePath).standardizedFileURL.path
+    let currentPath = Bundle.main.bundleURL.standardizedFileURL.path
+    return diagnosticPath == currentPath
+  }
+
+  private static func sharedDiagnosticsMatchLockOwner(
+    _ sharedDiagnostics: [String: Any],
+    duplicateDiagnostics: [String: Any]
+  ) -> Bool {
+    guard
+      let lockOwnerProcessIdentifier =
+        duplicateDiagnostics["singleInstanceLockOwnerProcessIdentifier"] as? Int,
+      lockOwnerProcessIdentifier > 0
+    else {
+      return false
+    }
+    let sharedProcessIdentifiers = [
+      sharedDiagnostics["helperProcessIdentifier"] as? Int,
+      sharedDiagnostics["singleInstanceLockOwnerProcessIdentifier"] as? Int,
+      sharedDiagnostics["existingHelperProcessIdentifier"] as? Int,
+    ].compactMap { $0 }
+    return sharedProcessIdentifiers.contains(lockOwnerProcessIdentifier)
   }
 
   private static func exitForExistingInstanceIfNeeded() -> Bool {
@@ -1523,6 +1584,14 @@ private enum ComputerUseHelperSharedDiagnostics {
     for (key, value) in bootstrapExtra {
       diagnostics[key] = value
     }
+  }
+
+  static func read() -> [String: Any]? {
+    let url = URL(fileURLWithPath: path)
+    guard let data = try? Data(contentsOf: url) else {
+      return nil
+    }
+    return try? JSONSerialization.jsonObject(with: data) as? [String: Any]
   }
 
   static func writeBootstrap(event: String, extra: [String: Any] = [:]) {

@@ -251,12 +251,19 @@ void main() {
       helperSource,
       contains('singleInstanceLockRequesterProcessIdentifier'),
     );
+    expect(
+      helperSource,
+      contains('duplicateInstanceShouldPreserveExistingDiagnostics'),
+    );
+    expect(helperSource, contains('sharedDiagnosticsMatchLockOwner'));
     expect(helperSource, contains('single_instance_lock_acquired'));
     expect(helperSource, contains('duplicate_instance_lock_held'));
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
     expect(helperSource, contains('activate_existing_and_exit'));
     expect(runnerSource, contains('staleMismatchedLockOwner'));
+    expect(runnerSource, contains('activeExpectedLockOwner'));
+    expect(runnerSource, contains('alreadyRunningViaLockOwner'));
     expect(runnerSource, contains('replacedStaleHelperLockOwner'));
     expect(runnerSource, contains('forceTerminateProcess'));
     expect(runnerSource, contains('forceTerminatedStaleHelperProcess'));

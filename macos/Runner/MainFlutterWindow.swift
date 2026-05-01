@@ -360,15 +360,17 @@ final class MacosComputerUseHelperClient: NSObject {
     ).filter { !$0.isTerminated }
     let runningApplication = runningApplications.first
     let helperPath = helperURL.standardizedFileURL.path
+    let lockOwner = activeExpectedLockOwner(expectedHelperPath: helperPath)
     let runningHelperPath = runningApplication?.bundleURL?.standardizedFileURL.path
+    let helperRunningViaLockOwner = runningApplication == nil && lockOwner != nil
     let helperPathMatchesRunningHelper =
-      runningHelperPath == nil || runningHelperPath == helperPath
+      helperRunningViaLockOwner || runningHelperPath == nil || runningHelperPath == helperPath
     var response: [String: Any] = [
       "ok": true,
       "helperDisplayName": helperDisplayName,
       "helperBundleIdentifier": helperBundleIdentifier,
       "helperInstalled": FileManager.default.fileExists(atPath: helperURL.path),
-      "helperRunning": runningApplication != nil,
+      "helperRunning": runningApplication != nil || helperRunningViaLockOwner,
       "helperRunningProcessCount": runningApplications.count,
       "singleInstanceExpected": true,
       "singleInstanceLockExpected": true,
@@ -409,6 +411,18 @@ final class MacosComputerUseHelperClient: NSObject {
     if let runningHelperPath {
       response["runningHelperPath"] = runningHelperPath
     }
+    if let lockOwner {
+      response["helperRunningViaLockOwner"] = helperRunningViaLockOwner
+      response["helperLockOwnerProcessIdentifier"] =
+        lockOwner["activeLockOwnerProcessIdentifier"]
+      response["helperLockOwnerBundlePath"] = lockOwner["activeLockOwnerBundlePath"]
+      response["helperLockOwnerDiagnosticsEvent"] =
+        lockOwner["activeLockOwnerDiagnosticsEvent"]
+      if runningHelperPath == nil {
+        response["runningHelperPath"] = helperPath
+        response["helperProcessIdentifier"] = lockOwner["activeLockOwnerProcessIdentifier"]
+      }
+    }
     if runningApplications.count > 1 {
       response["helperDuplicateProcessIdentifiers"] = runningApplications
         .map { Int($0.processIdentifier) }
@@ -432,7 +446,8 @@ final class MacosComputerUseHelperClient: NSObject {
     addSharedDiagnostics(
       to: &response,
       helperURL: helperURL,
-      runningApplication: runningApplication
+      runningApplication: runningApplication,
+      lockOwnerProcessIdentifier: lockOwner?["activeLockOwnerProcessIdentifier"] as? Int
     )
     if let processIdentifier = runningApplication?.processIdentifier {
       response["helperProcessIdentifier"] = Int(processIdentifier)
@@ -443,7 +458,8 @@ final class MacosComputerUseHelperClient: NSObject {
   private func addSharedDiagnostics(
     to response: inout [String: Any],
     helperURL: URL,
-    runningApplication: NSRunningApplication?
+    runningApplication: NSRunningApplication?,
+    lockOwnerProcessIdentifier: Int?
   ) {
     response["helperSharedDiagnosticsPath"] = MacosComputerUseHelperSharedDiagnostics.path
     guard let helperSharedDiagnostics = MacosComputerUseHelperSharedDiagnostics.read() else {
@@ -467,6 +483,19 @@ final class MacosComputerUseHelperClient: NSObject {
       }
       if let diagnosticPid {
         response["helperSharedDiagnosticsProcessIdentifier"] = diagnosticPid
+      }
+    } else if let lockOwnerProcessIdentifier {
+      let diagnosticProcessIdentifiers = [
+        helperSharedDiagnostics["helperProcessIdentifier"] as? Int,
+        helperSharedDiagnostics["singleInstanceLockOwnerProcessIdentifier"] as? Int,
+        helperSharedDiagnostics["existingHelperProcessIdentifier"] as? Int,
+      ].compactMap { $0 }
+      let pidMatches = diagnosticProcessIdentifiers.contains(lockOwnerProcessIdentifier)
+      response["helperSharedDiagnosticsMatchesRunningHelper"] = pidMatches
+      response["helperSharedDiagnosticsProcessIdentifier"] = lockOwnerProcessIdentifier
+      response["helperSharedDiagnosticsMatchedViaLockOwner"] = true
+      if !pidMatches {
+        staleReasons.append("process_identifier_mismatch")
       }
     } else {
       response["helperSharedDiagnosticsMatchesRunningHelper"] = false
@@ -790,7 +819,71 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
+    if let lockOwner = activeExpectedLockOwner(expectedHelperPath: helperPath) {
+      if let processIdentifier = lockOwner["activeLockOwnerProcessIdentifier"] as? Int,
+         let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
+        application.activate(options: [.activateIgnoringOtherApps])
+      }
+      var response = status()
+      response["alreadyRunning"] = true
+      response["alreadyRunningViaLockOwner"] = true
+      response["helperRunning"] = true
+      response["helperPathMatchesRunningHelper"] = true
+      response["runningHelperPath"] = helperPath
+      response["helperProcessIdentifier"] =
+        lockOwner["activeLockOwnerProcessIdentifier"]
+      response["helperLockOwnerBundlePath"] = lockOwner["activeLockOwnerBundlePath"]
+      response["helperLockOwnerDiagnosticsEvent"] =
+        lockOwner["activeLockOwnerDiagnosticsEvent"]
+      for (key, value) in extra {
+        response[key] = value
+      }
+      result(response)
+      return
+    }
+
     openEmbeddedHelper(helperURL: helperURL, extra: extra, result: result)
+  }
+
+  private func activeExpectedLockOwner(expectedHelperPath: String) -> [String: Any]? {
+    guard
+      let diagnostics = MacosComputerUseHelperSharedDiagnostics.read(),
+      diagnostics["helperBundleIdentifier"] as? String == helperBundleIdentifier
+    else {
+      return nil
+    }
+
+    let candidatePaths = [
+      diagnostics["existingHelperBundlePath"] as? String,
+      diagnostics["helperBundlePath"] as? String,
+    ].compactMap { value -> String? in
+      guard let value, !value.isEmpty else {
+        return nil
+      }
+      return URL(fileURLWithPath: value).standardizedFileURL.path
+    }
+    guard candidatePaths.contains(expectedHelperPath) else {
+      return nil
+    }
+
+    let ownerProcessIdentifier =
+      diagnostics["existingHelperProcessIdentifier"] as? Int ??
+      diagnostics["singleInstanceLockOwnerProcessIdentifier"] as? Int ??
+      diagnostics["helperProcessIdentifier"] as? Int
+    guard
+      let ownerProcessIdentifier,
+      ownerProcessIdentifier > 0,
+      processIsRunning(ownerProcessIdentifier)
+    else {
+      return nil
+    }
+
+    return [
+      "activeLockOwnerProcessIdentifier": ownerProcessIdentifier,
+      "activeLockOwnerBundlePath": expectedHelperPath,
+      "activeLockOwnerDiagnosticsEvent": diagnostics["event"] as? String ?? "",
+      "activeLockOwnerDiagnostics": diagnostics,
+    ]
   }
 
   private func staleMismatchedLockOwner(expectedHelperPath: String) -> [String: Any]? {
@@ -1033,13 +1126,21 @@ final class MacosComputerUseHelperClient: NSObject {
         details["preferredIpcAttempt"] = preferredAttemptDiagnostic
       }
       let runningApplication = self.runningHelperApplication()
+      let helperPath = self.embeddedHelperURL().standardizedFileURL.path
+      let lockOwner = self.activeExpectedLockOwner(expectedHelperPath: helperPath)
       if let runningProcessIdentifier = runningApplication?.processIdentifier {
         details["helperProcessIdentifier"] = Int(runningProcessIdentifier)
+      } else if let lockOwnerProcessIdentifier =
+        lockOwner?["activeLockOwnerProcessIdentifier"] as? Int {
+        details["helperProcessIdentifier"] = lockOwnerProcessIdentifier
+        details["helperRunning"] = true
+        details["helperRunningViaLockOwner"] = true
       }
       self.addSharedDiagnostics(
         to: &details,
         helperURL: self.embeddedHelperURL(),
-        runningApplication: runningApplication
+        runningApplication: runningApplication,
+        lockOwnerProcessIdentifier: lockOwner?["activeLockOwnerProcessIdentifier"] as? Int
       )
       if let lastHelperIpcAttempt = self.lastHelperIpcAttempt {
         details["lastHelperIpcAttempt"] = lastHelperIpcAttempt
