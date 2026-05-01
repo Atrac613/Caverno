@@ -844,7 +844,7 @@ final class MacosComputerUseHelperClient: NSObject {
     lockOwner: [String: Any]?,
     result: @escaping FlutterResult
   ) {
-    send(
+    sendPreferred(
       command: .showMainWindow,
       arguments: ["reason": "open_computer_use"],
       timeout: 1.5

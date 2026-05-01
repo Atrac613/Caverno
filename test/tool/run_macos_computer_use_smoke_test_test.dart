@@ -264,7 +264,9 @@ void main() {
     expect(helperSource, contains('duplicate_instance_lock_held'));
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
+    expect(helperSource, contains('existingHelperActivated'));
     expect(helperSource, contains('activate_existing_and_exit'));
+    expect(helperSource, contains('reuse_existing_and_exit'));
     expect(runnerSource, contains('staleMismatchedLockOwner'));
     expect(runnerSource, contains('activeExpectedLockOwner'));
     expect(runnerSource, contains('alreadyRunningViaLockOwner'));

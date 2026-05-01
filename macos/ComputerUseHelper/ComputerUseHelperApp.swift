@@ -35,7 +35,9 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       ComputerUseHelperSharedDiagnostics.writeBootstrap(event: "single_instance_lock_acquired")
     case .alreadyRunning(let diagnostics):
       var extra = diagnostics
-      if let existingApplication = activateExistingInstance() {
+      if let existingApplication = existingInstanceDiagnostics(
+        activate: shouldPresentMainWindowAtLaunch
+      ) {
         extra.merge(existingApplication) { _, new in new }
       }
       if duplicateInstanceShouldPreserveExistingDiagnostics(extra) {
@@ -48,7 +50,9 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       return
     case .failed(let diagnostics):
       var extra = diagnostics
-      if let existingApplication = activateExistingInstance() {
+      if let existingApplication = existingInstanceDiagnostics(
+        activate: shouldPresentMainWindowAtLaunch
+      ) {
         extra.merge(existingApplication) { _, new in new }
       }
       ComputerUseHelperSharedDiagnostics.writeBootstrap(
@@ -68,7 +72,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     application.run()
   }
 
-  private static func activateExistingInstance() -> [String: Any]? {
+  private static func existingInstanceDiagnostics(activate: Bool) -> [String: Any]? {
     let currentProcessIdentifier = ProcessInfo.processInfo.processIdentifier
     let existingApplications = NSRunningApplication.runningApplications(
       withBundleIdentifier: ComputerUseHelperIpcSchema.helperBundleIdentifier
@@ -79,12 +83,17 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     guard let existingApplication = existingApplications.first else {
       return nil
     }
-    existingApplication.activate(options: [.activateIgnoringOtherApps])
+    if activate {
+      existingApplication.activate(options: [.activateIgnoringOtherApps])
+    }
     return [
       "existingHelperProcessIdentifier": Int(existingApplication.processIdentifier),
       "existingHelperBundlePath": existingApplication.bundleURL?.path ?? "",
       "duplicateHelperProcessCount": existingApplications.count,
-      "singleInstancePolicy": "activate_existing_and_exit",
+      "existingHelperActivated": activate,
+      "singleInstancePolicy": activate
+        ? "activate_existing_and_exit"
+        : "reuse_existing_and_exit",
     ]
   }
 
@@ -148,7 +157,9 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
   }
 
   private static func exitForExistingInstanceIfNeeded() -> Bool {
-    guard let existingApplication = activateExistingInstance() else {
+    guard let existingApplication = existingInstanceDiagnostics(
+      activate: shouldPresentMainWindowAtLaunch
+    ) else {
       return false
     }
 
