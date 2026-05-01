@@ -9,6 +9,7 @@ void main() {
   late String helperSource;
   late String runnerSource;
   late String windowManagerSource;
+  late String runnerInfoPlist;
   late String helperInfoPlist;
   late String liveCanaryScript;
   late String manualTccSignoffScript;
@@ -46,6 +47,7 @@ void main() {
     windowManagerSource = File(
       'lib/core/services/window_manager_service.dart',
     ).readAsStringSync();
+    runnerInfoPlist = File('macos/Runner/Info.plist').readAsStringSync();
     helperInfoPlist = File(
       'macos/ComputerUseHelper/Info.plist',
     ).readAsStringSync();
@@ -210,6 +212,8 @@ void main() {
   });
 
   test('Computer Use helper runs as a single hidden agent process', () {
+    expect(runnerInfoPlist, isNot(contains('NSSystemAudioUsageDescription')));
+    expect(helperInfoPlist, contains('NSSystemAudioUsageDescription'));
     expect(helperInfoPlist, contains('<key>LSUIElement</key>'));
     expect(helperInfoPlist, contains('<true/>'));
     expect(

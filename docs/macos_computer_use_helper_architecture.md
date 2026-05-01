@@ -15,6 +15,8 @@ recording.
   in `Caverno.app`.
 - Keep Accessibility, screen capture, input events, and system audio capture in
   `Caverno Computer Use.app`.
+- Keep `NSSystemAudioUsageDescription` out of `Caverno.app`; the main chat app
+  should not appear as the system-audio permission owner.
 - Make macOS privacy prompts understandable by showing the helper name next to
   the sensitive permissions it owns.
 - Make revocation and emergency stop possible without shutting down the chat
