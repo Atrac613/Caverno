@@ -346,7 +346,7 @@ Non-goals:
 - Replacing the LLM/tool-loop canary or the manual M8 TCC sign-off.
 
 Manual run after the user grants Accessibility and Screen & System Audio
-Recording and prepares a safe click target:
+Recording, launches Caverno.app manually, and prepares a safe click target:
 
 ```bash
 bash tool/run_macos_computer_use_desktop_action_canary.sh
@@ -355,9 +355,11 @@ bash tool/run_macos_computer_use_desktop_action_canary.sh
 The default runner is no-build because macOS TCC permissions are tied to the
 exact helper bundle identity. Rebuilding the Debug app during the canary can
 replace `Caverno.app/Contents/Helpers/Caverno Computer Use.app` and make
-previously granted permissions appear missing. The old Flutter integration-test
-path remains available only through `--legacy-integration` for debugging
-canary code itself.
+previously granted permissions appear missing. The runner also does not
+auto-launch `Caverno.app` by default; this keeps main-app TCC prompts out of
+the canary path. Use `--launch-caverno` only when intentionally debugging
+main-app launch behavior. The old Flutter integration-test path remains
+available only through `--legacy-integration` for debugging canary code itself.
 
 The runner writes
 `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json` and

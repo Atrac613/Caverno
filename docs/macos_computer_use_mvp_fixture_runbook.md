@@ -120,11 +120,16 @@ target is the harmless `Safe Click Target`. The user should not target
 ## 4. User-Operated Desktop Action Canary
 
 After the user has granted the required TCC permissions and prepared the
-fixture window, ask the user to run:
+fixture window, ask the user to launch Caverno.app manually and run:
 
 ```bash
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
 ```
+
+The canary does not auto-launch Caverno.app by default. If Caverno.app is not
+already running, the report will ask the user to launch it manually and rerun
+the command. Use `--launch-caverno` only when intentionally debugging main-app
+launch behavior.
 
 To build and launch the fixture before the user-operated canary, ask the user to
 run:

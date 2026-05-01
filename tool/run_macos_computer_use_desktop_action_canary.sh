@@ -16,6 +16,7 @@ FIXTURE_TARGET=0
 FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
 LAUNCH_FIXTURE=0
 RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-0}"
+LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_LAUNCH_CAVERNO:-0}"
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -64,6 +65,10 @@ while [[ $# -gt 0 ]]; do
       RESTORE_DEBUG_APP=0
       shift
       ;;
+    --launch-caverno)
+      LAUNCH_CAVERNO_APP=1
+      shift
+      ;;
     --legacy-integration)
       LEGACY_INTEGRATION=1
       shift
@@ -83,12 +88,16 @@ Options:
                        Record an already built MVP fixture app path.
   --skip-restore-debug-app
                        Do not rebuild the normal Debug Caverno.app after the canary.
+  --launch-caverno     Also launch Caverno.app from this script. By default the
+                       no-build probe requires Caverno.app to be already running
+                       so the script does not trigger main-app TCC prompts.
   --legacy-integration
                        Run the old Flutter integration-test canary path.
 
 This canary is user-operated. It requires the user to grant TCC permissions and
 to prepare a safe click target before running. The default path does not rebuild
-Caverno.app, so it does not invalidate macOS TCC permissions.
+or auto-launch Caverno.app, so it does not invalidate or trigger main-app TCC
+permissions.
 USAGE
       exit 0
       ;;
@@ -136,6 +145,7 @@ echo "  Device: ${DEVICE}"
 echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
+echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
 echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
 echo "  Report dir: ${RUN_DIR}"
 
@@ -163,6 +173,9 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
       --require-helper-path-match
       --replace-helper
     )
+    if [[ "${LAUNCH_CAVERNO_APP}" != "1" ]]; then
+      probe_args+=(--no-launch-app)
+    fi
     if [[ "${FIXTURE_TARGET}" == "1" ]]; then
       probe_args+=(--fixture-target)
     fi

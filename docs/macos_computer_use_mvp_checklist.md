@@ -103,12 +103,15 @@ or run the user-operated desktop action on the user's behalf.
    bash tool/run_macos_computer_use_manual_tcc_signoff.sh
    ```
 
-5. Ask the user to prepare a safe click target and run the desktop action
-   canary:
+5. Ask the user to launch Caverno.app manually, prepare a safe click target,
+   and run the desktop action canary:
 
    ```bash
    bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
    ```
+
+   The desktop action canary does not auto-launch Caverno.app by default, which
+   keeps main-app TCC prompts out of the helper-owned canary path.
 
    If the user wants the canary runner to build and launch the fixture first,
    use:

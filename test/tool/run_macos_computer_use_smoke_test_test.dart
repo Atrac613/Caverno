@@ -335,11 +335,17 @@ void main() {
     expect(desktopActionCanaryScript, contains('post_observe_image_only'));
     expect(desktopActionCanaryScript, contains('expectedOutcome'));
     expect(desktopActionCanaryScript, contains('No-rebuild helper probe'));
+    expect(desktopActionCanaryScript, contains('--no-launch-app'));
+    expect(desktopActionCanaryScript, contains('--launch-caverno'));
+    expect(desktopActionCanaryScript, contains('Auto-launch Caverno.app'));
     expect(desktopActionCanaryScript, contains('--legacy-integration'));
     expect(desktopActionCanaryScript, contains('--desktop-action-canary'));
     expect(desktopActionCanaryScript, contains('--require-helper-path-match'));
     expect(desktopActionCanaryScript, contains('--replace-helper'));
     expect(existingHelperProbe, contains('desktopActionCanaryGate'));
+    expect(existingHelperProbe, contains('--no-launch-app'));
+    expect(existingHelperProbe, contains('launchMissingApp'));
+    expect(existingHelperProbe, contains('Launch it manually, then rerun'));
     expect(
       existingHelperProbe,
       contains('No safe target window was available.'),
@@ -349,6 +355,7 @@ void main() {
       architectureDoc,
       contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
     );
+    expect(architectureDoc, contains('auto-launch `Caverno.app` by default'));
     expect(architectureDoc, contains('desktopActionCanaryGate'));
     expect(architectureDoc, contains('visible harmless target'));
     expect(architectureDoc, contains('target_not_visible'));
@@ -1363,6 +1370,11 @@ void main() {
         'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
       ),
     );
+    expect(
+      mvpFixtureRunbook,
+      contains('does not auto-launch Caverno.app by default'),
+    );
+    expect(mvpFixtureRunbook, contains('--launch-caverno'));
     expect(mvpFixtureRunbook, contains('user-operated'));
     expect(mvpFixtureRunbook, contains('does not grant TCC'));
   });

@@ -26,6 +26,8 @@ private struct Config {
   var helperPath: String
   var reportPath: String
   var launchMissingApps = true
+  var launchMissingApp = true
+  var launchMissingHelper = true
   var requireCaptureReady = false
   var requireInputReady = false
   var requireAudioResolved = false
@@ -167,6 +169,12 @@ private func parseConfig(arguments: [String]) -> Config {
       config.reportPath = arguments[index]
     case "--no-launch":
       config.launchMissingApps = false
+      config.launchMissingApp = false
+      config.launchMissingHelper = false
+    case "--no-launch-app":
+      config.launchMissingApp = false
+    case "--no-launch-helper":
+      config.launchMissingHelper = false
     case "--require-capture", "--require-capture-ready":
       config.requireCaptureReady = true
     case "--require-input", "--require-input-ready":
@@ -514,7 +522,7 @@ if config.replaceMismatchedHelper,
   }
 }
 
-if config.launchMissingApps && appExists &&
+if config.launchMissingApps && config.launchMissingApp && appExists &&
   runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier) == nil {
   launchEvents.append([
     "role": "app",
@@ -526,7 +534,7 @@ if config.launchMissingApps && appExists &&
   )
 }
 
-if config.launchMissingApps && helperExists &&
+if config.launchMissingApps && config.launchMissingHelper && helperExists &&
   runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier) == nil {
   launchEvents.append([
     "role": "helper",
@@ -550,7 +558,9 @@ private let client = HelperProbeClient()
 var permissionStatus: [String: Any] = [
   "ok": false,
   "code": "app_not_running",
-  "error": "Caverno.app must be running so the helper can validate the sender bundle.",
+  "error": config.launchMissingApp
+    ? "Caverno.app must be running so the helper can validate the sender bundle."
+    : "Caverno.app is not running. Launch it manually, then rerun the probe.",
 ]
 var displayScreenshot: [String: Any] = [:]
 var windows: [String: Any] = [:]
@@ -814,6 +824,8 @@ let report: [String: Any] = [
   "fixtureTarget": config.fixtureTarget,
   "replaceMismatchedApp": config.replaceMismatchedApp,
   "replaceMismatchedHelper": config.replaceMismatchedHelper,
+  "launchMissingApp": config.launchMissingApps && config.launchMissingApp,
+  "launchMissingHelper": config.launchMissingApps && config.launchMissingHelper,
   "ok": ok,
   "coreOk": coreOk,
   "captureReady": captureReady,
