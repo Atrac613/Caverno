@@ -246,11 +246,18 @@ void main() {
     expect(helperSource, contains('exitForExistingInstanceIfNeeded'));
     expect(helperSource, contains('ComputerUseHelperSingleInstanceLock'));
     expect(helperSource, contains('/tmp/caverno-computer-use-helper.lock'));
+    expect(helperSource, contains('readLockOwnerProcessIdentifier'));
+    expect(
+      helperSource,
+      contains('singleInstanceLockRequesterProcessIdentifier'),
+    );
     expect(helperSource, contains('single_instance_lock_acquired'));
     expect(helperSource, contains('duplicate_instance_lock_held'));
     expect(helperSource, contains('duplicate_instance_exiting'));
     expect(helperSource, contains('singleInstancePolicy'));
     expect(helperSource, contains('activate_existing_and_exit'));
+    expect(runnerSource, contains('staleMismatchedLockOwner'));
+    expect(runnerSource, contains('replacedStaleHelperLockOwner'));
     expect(runnerSource, contains('replacedMismatchedHelperPath'));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));

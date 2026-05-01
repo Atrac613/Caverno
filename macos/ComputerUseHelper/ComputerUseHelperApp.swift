@@ -607,6 +607,7 @@ private final class ComputerUseHelperSingleInstanceLock {
       return .alreadyRunning(lockDiagnostics(
         status: "held_by_existing_process",
         processIdentifier: processIdentifier,
+        ownerProcessIdentifier: readLockOwnerProcessIdentifier(),
         errorNumber: lockError
       ))
     }
@@ -620,12 +621,14 @@ private final class ComputerUseHelperSingleInstanceLock {
   private static func lockDiagnostics(
     status: String,
     processIdentifier: Int,
+    ownerProcessIdentifier: Int? = nil,
     errorNumber: Int32? = nil
   ) -> [String: Any] {
     var diagnostics: [String: Any] = [
       "singleInstanceLockStatus": status,
       "singleInstanceLockPath": lockPath,
-      "singleInstanceLockOwnerProcessIdentifier": processIdentifier,
+      "singleInstanceLockOwnerProcessIdentifier": ownerProcessIdentifier ?? processIdentifier,
+      "singleInstanceLockRequesterProcessIdentifier": processIdentifier,
       "singleInstanceLockRequired": true,
     ]
     if let errorNumber {
@@ -633,6 +636,17 @@ private final class ComputerUseHelperSingleInstanceLock {
       diagnostics["singleInstanceLockErrorDescription"] = String(cString: strerror(errorNumber))
     }
     return diagnostics
+  }
+
+  private static func readLockOwnerProcessIdentifier() -> Int? {
+    guard
+      let text = try? String(contentsOfFile: lockPath, encoding: .utf8),
+      let firstLine = text.split(separator: "\n").first,
+      let processIdentifier = Int(firstLine.trimmingCharacters(in: .whitespacesAndNewlines))
+    else {
+      return nil
+    }
+    return processIdentifier
   }
 }
 

@@ -1,5 +1,6 @@
 import Cocoa
 import CoreGraphics
+import Darwin
 import FlutterMacOS
 import ServiceManagement
 
@@ -775,7 +776,94 @@ final class MacosComputerUseHelperClient: NSObject {
       return
     }
 
+    if let staleLock = staleMismatchedLockOwner(expectedHelperPath: helperPath) {
+      terminateStaleLockOwner(staleLock) { [weak self] repair in
+        guard let self else {
+          return
+        }
+        var launchExtra = extra
+        for (key, value) in repair {
+          launchExtra[key] = value
+        }
+        self.openEmbeddedHelper(helperURL: helperURL, extra: launchExtra, result: result)
+      }
+      return
+    }
+
     openEmbeddedHelper(helperURL: helperURL, extra: extra, result: result)
+  }
+
+  private func staleMismatchedLockOwner(expectedHelperPath: String) -> [String: Any]? {
+    guard
+      let diagnostics = MacosComputerUseHelperSharedDiagnostics.read(),
+      diagnostics["event"] as? String == "duplicate_instance_lock_held",
+      diagnostics["helperBundleIdentifier"] as? String == helperBundleIdentifier,
+      let existingPath = diagnostics["existingHelperBundlePath"] as? String,
+      !existingPath.isEmpty,
+      URL(fileURLWithPath: existingPath).standardizedFileURL.path != expectedHelperPath
+    else {
+      return nil
+    }
+
+    let ownerProcessIdentifier =
+      diagnostics["existingHelperProcessIdentifier"] as? Int ??
+      diagnostics["singleInstanceLockOwnerProcessIdentifier"] as? Int
+    guard let ownerProcessIdentifier, ownerProcessIdentifier > 0 else {
+      return nil
+    }
+
+    return [
+      "staleLockOwnerProcessIdentifier": ownerProcessIdentifier,
+      "staleLockOwnerBundlePath": existingPath,
+      "staleLockDiagnostics": diagnostics,
+    ]
+  }
+
+  private func terminateStaleLockOwner(
+    _ staleLock: [String: Any],
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    let processIdentifier = staleLock["staleLockOwnerProcessIdentifier"] as? Int ?? 0
+    let bundlePath = staleLock["staleLockOwnerBundlePath"] as? String ?? ""
+    if let application = NSRunningApplication(processIdentifier: pid_t(processIdentifier)) {
+      application.terminate()
+    } else if processIdentifier > 0 {
+      _ = Darwin.kill(pid_t(processIdentifier), SIGTERM)
+    }
+
+    let startedAt = Date()
+    func finish(timedOut: Bool = false) {
+      MacosComputerUseHelperSharedDiagnostics.remove()
+      var response: [String: Any] = [
+        "replacedStaleHelperLockOwner": true,
+        "terminatedStaleHelperProcessIdentifier": processIdentifier,
+        "terminatedStaleHelperPath": bundlePath,
+      ]
+      if timedOut {
+        response["staleHelperLockOwnerTerminationTimedOut"] = true
+      }
+      completion(response)
+    }
+
+    func waitForTermination() {
+      let stillRunning =
+        processIdentifier > 0 &&
+        NSRunningApplication(processIdentifier: pid_t(processIdentifier)) != nil &&
+        Darwin.kill(pid_t(processIdentifier), 0) == 0
+      if !stillRunning {
+        finish()
+        return
+      }
+      if Date().timeIntervalSince(startedAt) >= 2 {
+        finish(timedOut: true)
+        return
+      }
+      DispatchQueue.main.asyncAfter(deadline: .now() + 0.15) {
+        waitForTermination()
+      }
+    }
+
+    waitForTermination()
   }
 
   private func openEmbeddedHelper(
