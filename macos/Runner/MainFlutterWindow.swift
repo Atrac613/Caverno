@@ -1298,6 +1298,7 @@ final class MacosComputerUseHelperClient: NSObject {
 }
 
 final class MacosComputerUseChannel {
+  private let helperDisplayName = "Caverno Computer Use"
   private let channel: FlutterMethodChannel
   private let helperClient = MacosComputerUseHelperClient()
 
@@ -1451,15 +1452,13 @@ final class MacosComputerUseChannel {
   }
 
   private func permissionSnapshot() -> [String: Any] {
-    var screenCaptureGranted = true
-    if #available(macOS 10.15, *) {
-      screenCaptureGranted = CGPreflightScreenCaptureAccess()
-    }
-
     return [
       "accessibilityGranted": AXIsProcessTrusted(),
-      "screenCaptureGranted": screenCaptureGranted,
+      "screenCaptureGranted": false,
       "systemAudioRecordingSupported": isSystemAudioRecordingSupported(),
+      "screenCaptureOwner": helperDisplayName,
+      "mainAppScreenCaptureRequestBlocked": true,
+      "nextAction": "Launch Caverno Computer Use and grant Screen & System Audio Recording to the helper.",
     ]
   }
 
@@ -1472,12 +1471,14 @@ final class MacosComputerUseChannel {
   }
 
   private func requestScreenCapture(result: @escaping FlutterResult) {
-    if #available(macOS 10.15, *) {
-      let granted = CGRequestScreenCaptureAccess()
-      result(["screenCaptureGranted": granted])
-      return
-    }
-    result(["screenCaptureGranted": true])
+    result([
+      "ok": false,
+      "code": "main_app_screen_capture_blocked",
+      "screenCaptureGranted": false,
+      "screenCaptureOwner": helperDisplayName,
+      "error": "Caverno.app does not request Screen & System Audio Recording. Computer Use permissions belong to Caverno Computer Use.",
+      "nextAction": "Open the helper-owned permission overlay and grant Screen & System Audio Recording to Caverno Computer Use.",
+    ])
   }
 
   private func openSystemSettings(_ call: FlutterMethodCall, result: @escaping FlutterResult) {
