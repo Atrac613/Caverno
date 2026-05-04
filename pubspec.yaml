@@ -64,7 +64,7 @@ dependencies:
   multicast_dns: ^0.3.2+1
 
   # Image picker
-  image_picker: ^1.1.2
+  image_picker: ^1.2.2
 
   # Speech I/O
   speech_to_text: ^7.0.0
