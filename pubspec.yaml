@@ -111,7 +111,7 @@ dev_dependencies:
   # Code generation
   build_runner: ^2.13.1
   freezed: ^3.2.5
-  json_serializable: ^6.13.1
+  json_serializable: ^6.13.2
 
   # The "flutter_lints" package below contains a set of recommended lints to
   # encourage good coding practices. The lint set provided by the package is
