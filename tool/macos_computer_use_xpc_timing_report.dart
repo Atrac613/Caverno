@@ -1,7 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
-import '../integration_test/test_support/macos_computer_use_xpc_timing_report.dart';
+import '../lib/core/services/macos_computer_use_xpc_timing_report.dart';
 
 Future<void> main(List<String> args) async {
   if (args.isEmpty || args.contains('--help')) {

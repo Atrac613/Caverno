@@ -9,6 +9,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../providers/settings_notifier.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/qr_export_dialog.dart';
@@ -416,6 +417,7 @@ class _ComputerUseOnboardingCardState
         helperIpcRuntime['xpcLaunchAgentRegistered'] == true;
     final xpcLaunchAgentSupported =
         helperIpcRuntime['xpcLaunchAgentSupported'] != false;
+    final xpcTimingSummary = _xpcTimingSummary(helperIpcRuntime);
 
     return Card(
       margin: const EdgeInsets.fromLTRB(16, 16, 16, 8),
@@ -549,6 +551,11 @@ class _ComputerUseOnboardingCardState
             ],
             const SizedBox(height: 8),
             _IpcRuntimeSummary(runtime: helperIpcRuntime),
+            if (xpcTimingSummary['classification'] !=
+                'missing_preferred_attempt') ...[
+              const SizedBox(height: 8),
+              _XpcTimingSummary(summary: xpcTimingSummary),
+            ],
             if (_lastLiveSmokeReport != null) ...[
               const SizedBox(height: 8),
               _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
@@ -1039,7 +1046,8 @@ class _ComputerUseOnboardingCardState
   }
 
   Map<String, dynamic> _diagnosticsMap() {
-    return MacosComputerUseOnboardingDiagnostics(
+    final helperIpcRuntime = _helperIpcRuntime();
+    final diagnostics = MacosComputerUseOnboardingDiagnostics(
       generatedAt: DateTime.now(),
       setupChecklist: _setupChecklist(
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
@@ -1050,14 +1058,14 @@ class _ComputerUseOnboardingCardState
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
-      helperIpcRuntime: _helperIpcRuntime(),
+      helperIpcRuntime: helperIpcRuntime,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,
         'helperStatusPersistence': _helperStatusPersistence(),
         'permissions': _permissions,
-        'helperIpcRuntime': _helperIpcRuntime(),
+        'helperIpcRuntime': helperIpcRuntime,
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastExistingHelperProbeReport': _lastExistingHelperProbeReport,
@@ -1069,6 +1077,11 @@ class _ComputerUseOnboardingCardState
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson();
+    diagnostics['xpcTimingReport'] = buildXpcTimingReportSummary(
+      diagnostics,
+      sourcePath: 'settings_page_diagnostics',
+    ).toJson();
+    return diagnostics;
   }
 
   List<Map<String, dynamic>> _onboardingSmokeChecklist() {
@@ -1437,6 +1450,15 @@ class _ComputerUseOnboardingCardState
           : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
     }
     return runtime;
+  }
+
+  Map<String, dynamic> _xpcTimingSummary(
+    Map<String, dynamic> helperIpcRuntime,
+  ) {
+    return buildXpcTimingReportSummary({
+      'helperStatus': _helperStatus,
+      'helperIpcRuntime': helperIpcRuntime,
+    }, sourcePath: 'settings_page_runtime').toJson();
   }
 
   Map<String, dynamic>? _liveSmokeReportBody(Map<String, dynamic>? envelope) {
@@ -2662,6 +2684,70 @@ class _PersistenceSummary extends StatelessWidget {
         ),
       ],
     );
+  }
+}
+
+class _XpcTimingSummary extends StatelessWidget {
+  const _XpcTimingSummary({required this.summary});
+
+  final Map<String, dynamic> summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final ready = summary['ready'] == true;
+    final classification = _summaryString('classification') ?? 'unknown';
+    final status = _summaryString('status') ?? 'unknown';
+    final nextAction = _summaryString('nextAction');
+    final elapsedMs = summary['elapsedMs'];
+    final lateElapsedMs = summary['lateResponseElapsedMs'];
+    final responseBeforeTimeout = summary['responseReceivedBeforeTimeout'];
+    final responseAfterTimeout = summary['responseReceivedAfterTimeout'];
+    final fallbackSucceeded = summary['preferredFallbackSucceeded'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          'XPC timing: $classification',
+          style: Theme.of(context).textTheme.bodySmall,
+        ),
+        const SizedBox(height: 6),
+        Wrap(
+          spacing: 8,
+          runSpacing: 8,
+          children: [
+            _InfoChip(label: 'Timing status', value: status),
+            _InfoChip(label: 'Timing gate', value: ready ? 'ready' : 'review'),
+            if (elapsedMs is int)
+              _InfoChip(label: 'Elapsed', value: '${elapsedMs}ms'),
+            if (responseBeforeTimeout is bool)
+              _InfoChip(
+                label: 'Before timeout',
+                value: responseBeforeTimeout ? 'yes' : 'no',
+              ),
+            if (responseAfterTimeout is bool)
+              _InfoChip(
+                label: 'Late response',
+                value: responseAfterTimeout ? 'yes' : 'no',
+              ),
+            if (lateElapsedMs is int)
+              _InfoChip(label: 'Late elapsed', value: '${lateElapsedMs}ms'),
+            if (fallbackSucceeded is bool)
+              _InfoChip(
+                label: 'Fallback',
+                value: fallbackSucceeded ? 'succeeded' : 'not used',
+              ),
+            if (nextAction != null)
+              _InfoChip(label: 'Timing next action', value: nextAction),
+          ],
+        ),
+      ],
+    );
+  }
+
+  String? _summaryString(String key) {
+    final value = summary[key];
+    return value is String && value.isNotEmpty ? value : null;
   }
 }
 

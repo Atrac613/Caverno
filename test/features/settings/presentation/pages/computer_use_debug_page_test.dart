@@ -374,6 +374,11 @@ void main() {
     expect(text, contains('"command": "startSystemAudioRecording"'));
     expect(text, contains('"helperStatus"'));
     expect(text, contains('"helperStatusPersistence"'));
+    expect(text, contains('"xpcTimingReport"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
+    );
     expect(text, contains('"auditLog"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));

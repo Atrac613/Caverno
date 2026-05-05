@@ -68,6 +68,11 @@ void main() {
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"helperIpcRuntime"'));
+    expect(text, contains('"xpcTimingReport"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
+    );
     expect(text, contains('"auditLog"'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
@@ -501,6 +506,16 @@ void main() {
     expect(find.text('XPC response before timeout: no'), findsOneWidget);
     expect(find.text('XPC late response: yes'), findsOneWidget);
     expect(find.text('XPC late elapsed: 2050ms'), findsOneWidget);
+    expect(
+      find.text('XPC timing: late_response_after_timeout'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Timing next action: Tune the preferred XPC timeout or add a warmup ping before fallback.',
+      ),
+      findsOneWidget,
+    );
     expect(
       find.text('XPC blockers: named_xpc_service_not_connected'),
       findsNothing,

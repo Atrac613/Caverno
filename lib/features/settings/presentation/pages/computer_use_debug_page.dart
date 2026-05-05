@@ -8,6 +8,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 
 class ComputerUseDebugPage extends ConsumerStatefulWidget {
@@ -1422,7 +1423,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   }
 
   Map<String, dynamic> _diagnosticsMap() {
-    return MacosComputerUseOnboardingDiagnostics(
+    final diagnostics = MacosComputerUseOnboardingDiagnostics(
       generatedAt: DateTime.now(),
       setupChecklist: _setupChecklist(
         ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
@@ -1455,6 +1456,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
     ).toJson()..['mvpArtifactPaths'] = _mvpArtifactPaths();
+    diagnostics['xpcTimingReport'] = buildXpcTimingReportSummary(
+      diagnostics,
+      sourcePath: 'computer_use_debug_page_diagnostics',
+    ).toJson();
+    return diagnostics;
   }
 
   List<Map<String, dynamic>> _onboardingSmokeChecklist() {
