@@ -8,6 +8,9 @@ class XpcTimingReportSummary {
     required this.classification,
     required this.ready,
     required this.nextAction,
+    required this.recommendedActionId,
+    required this.userNextAction,
+    required this.engineeringNextAction,
     this.errorCode,
     this.elapsedMs,
     this.responseReceivedBeforeTimeout,
@@ -24,6 +27,9 @@ class XpcTimingReportSummary {
   final String classification;
   final bool ready;
   final String nextAction;
+  final String recommendedActionId;
+  final String userNextAction;
+  final String engineeringNextAction;
   final String? errorCode;
   final int? elapsedMs;
   final bool? responseReceivedBeforeTimeout;
@@ -42,6 +48,9 @@ class XpcTimingReportSummary {
     'classification': classification,
     'ready': ready,
     'nextAction': nextAction,
+    'recommendedActionId': recommendedActionId,
+    'userNextAction': userNextAction,
+    'engineeringNextAction': engineeringNextAction,
     if (errorCode != null) 'errorCode': errorCode,
     if (elapsedMs != null) 'elapsedMs': elapsedMs,
     if (responseReceivedBeforeTimeout != null)
@@ -66,6 +75,9 @@ class XpcTimingReportSummary {
       ('Classification', classification),
       ('Ready', '$ready'),
       ('Next Action', nextAction),
+      ('Recommended Action ID', recommendedActionId),
+      ('User Next Action', userNextAction),
+      ('Engineering Next Action', engineeringNextAction),
       if (errorCode != null) ('Error Code', errorCode!),
       if (elapsedMs != null) ('Elapsed', '${elapsedMs}ms'),
       if (responseReceivedBeforeTimeout != null)
@@ -159,6 +171,9 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
     classification: classification,
     ready: classification == 'responded_before_timeout',
     nextAction: _nextAction(classification),
+    recommendedActionId: _recommendedActionId(classification),
+    userNextAction: _userNextAction(classification),
+    engineeringNextAction: _engineeringNextAction(classification),
     errorCode: errorCode,
     elapsedMs: elapsedMs,
     responseReceivedBeforeTimeout: responseBeforeTimeout,
@@ -212,6 +227,49 @@ String _nextAction(String classification) {
       'Inspect Mach service registration and helper signing constraints.',
     'missing_preferred_attempt' =>
       'Open Computer Use or recheck permissions, then export diagnostics again.',
+    _ => 'Inspect the preferred XPC attempt diagnostics.',
+  };
+}
+
+String _recommendedActionId(String classification) {
+  return switch (classification) {
+    'responded_before_timeout' => 'none',
+    'late_response_after_timeout' => 'tune_xpc_timeout_or_warmup',
+    'no_response_before_timeout' => 'inspect_launch_agent_listener',
+    'xpc_connection_error' => 'inspect_mach_service_signing',
+    'missing_preferred_attempt' => 'rerun_helper_diagnostics',
+    _ => 'inspect_preferred_xpc_attempt',
+  };
+}
+
+String _userNextAction(String classification) {
+  return switch (classification) {
+    'responded_before_timeout' =>
+      'Run the Computer Use smoke sequence when ready.',
+    'late_response_after_timeout' =>
+      'No manual TCC action is required; export diagnostics if this repeats.',
+    'no_response_before_timeout' =>
+      'Restart Caverno Computer Use from Caverno, then recheck permissions.',
+    'xpc_connection_error' =>
+      'Restart Caverno and Caverno Computer Use, then retry Open Computer Use.',
+    'missing_preferred_attempt' =>
+      'Open Computer Use or recheck permissions, then export diagnostics again.',
+    _ => 'Export diagnostics and share the preferred XPC attempt details.',
+  };
+}
+
+String _engineeringNextAction(String classification) {
+  return switch (classification) {
+    'responded_before_timeout' =>
+      'No preferred XPC timeout mitigation is needed.',
+    'late_response_after_timeout' =>
+      'Tune the preferred XPC timeout or add a warmup ping before fallback.',
+    'no_response_before_timeout' =>
+      'Inspect LaunchAgent registration and helper XPC listener startup.',
+    'xpc_connection_error' =>
+      'Inspect Mach service registration and helper signing constraints.',
+    'missing_preferred_attempt' =>
+      'Collect a fresh preferred XPC attempt before classifying timing.',
     _ => 'Inspect the preferred XPC attempt diagnostics.',
   };
 }

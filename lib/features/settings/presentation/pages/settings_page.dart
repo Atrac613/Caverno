@@ -2698,6 +2698,9 @@ class _XpcTimingSummary extends StatelessWidget {
     final classification = _summaryString('classification') ?? 'unknown';
     final status = _summaryString('status') ?? 'unknown';
     final nextAction = _summaryString('nextAction');
+    final recommendedActionId = _summaryString('recommendedActionId');
+    final userNextAction = _summaryString('userNextAction');
+    final engineeringNextAction = _summaryString('engineeringNextAction');
     final elapsedMs = summary['elapsedMs'];
     final lateElapsedMs = summary['lateResponseElapsedMs'];
     final responseBeforeTimeout = summary['responseReceivedBeforeTimeout'];
@@ -2736,6 +2739,15 @@ class _XpcTimingSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Fallback',
                 value: fallbackSucceeded ? 'succeeded' : 'not used',
+              ),
+            if (recommendedActionId != null)
+              _InfoChip(label: 'Timing action', value: recommendedActionId),
+            if (userNextAction != null)
+              _InfoChip(label: 'User next action', value: userNextAction),
+            if (engineeringNextAction != null)
+              _InfoChip(
+                label: 'Engineering next action',
+                value: engineeringNextAction,
               ),
             if (nextAction != null)
               _InfoChip(label: 'Timing next action', value: nextAction),

@@ -26,6 +26,15 @@ void main() {
       summary.nextAction,
       'Preferred XPC responded before timeout. No timeout mitigation is needed.',
     );
+    expect(summary.recommendedActionId, 'none');
+    expect(
+      summary.userNextAction,
+      'Run the Computer Use smoke sequence when ready.',
+    );
+    expect(
+      summary.engineeringNextAction,
+      'No preferred XPC timeout mitigation is needed.',
+    );
   });
 
   test('classifies a late XPC response after timeout', () {
@@ -56,6 +65,15 @@ void main() {
       summary.nextAction,
       'Tune the preferred XPC timeout or add a warmup ping before fallback.',
     );
+    expect(summary.recommendedActionId, 'tune_xpc_timeout_or_warmup');
+    expect(
+      summary.userNextAction,
+      'No manual TCC action is required; export diagnostics if this repeats.',
+    );
+    expect(
+      summary.engineeringNextAction,
+      'Tune the preferred XPC timeout or add a warmup ping before fallback.',
+    );
   });
 
   test('reads nested helper status preferred attempt data', () {
@@ -76,6 +94,11 @@ void main() {
     expect(
       summary.nextAction,
       'Inspect LaunchAgent registration and helper XPC listener startup.',
+    );
+    expect(summary.recommendedActionId, 'inspect_launch_agent_listener');
+    expect(
+      summary.userNextAction,
+      'Restart Caverno Computer Use from Caverno, then recheck permissions.',
     );
   });
 

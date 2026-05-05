@@ -517,6 +517,22 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.text('Timing action: tune_xpc_timeout_or_warmup'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'User next action: No manual TCC action is required; export diagnostics if this repeats.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Engineering next action: Tune the preferred XPC timeout or add a warmup ping before fallback.',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.text('XPC blockers: named_xpc_service_not_connected'),
       findsNothing,
     );
