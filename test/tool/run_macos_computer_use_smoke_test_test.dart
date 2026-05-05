@@ -1557,6 +1557,7 @@ void main() {
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
     expect(mvpSignoffScript, contains('Current Manual Input Status'));
+    expect(mvpSignoffScript, contains('LLM Evidence Gate'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
     expect(mvpSignoffScript, contains('Final Readiness Next Actions'));
     expect(mvpSignoffScript, contains('--final-signoff'));
@@ -1591,6 +1592,8 @@ void main() {
     expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
     expect(mvpSignoffScript, contains('--llm-canary-summary'));
     expect(mvpSignoffScript, contains('LLM canary status'));
+    expect(mvpSignoffScript, contains('LLM evidence gate'));
+    expect(mvpSignoffScript, contains('LLM_EVIDENCE_FRAGMENT'));
     expect(
       mvpSignoffScript,
       contains('bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh'),
@@ -1741,7 +1744,25 @@ void main() {
   "schemaName": "macos_computer_use_mvp_fixture_vision_llm_canary_summary",
   "purpose": "computer_use_mvp_fixture_vision_llm_canary",
   "runCount": 1,
-  "failedCount": 0
+  "failedCount": 0,
+  "mvpEvidenceGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "safe_click_plan",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": []
+  },
+  "expectedUserOperatedRuntimePhases": [
+    "pre_observe_image",
+    "click_sent",
+    "post_observe_image",
+    "destructive_target_refused"
+  ]
 }
 ''');
 
@@ -1757,6 +1778,8 @@ void main() {
       expect(stdout, contains('Manual TCC status: discovered'));
       expect(stdout, contains('Desktop action canary status: discovered'));
       expect(stdout, contains('LLM canary status: discovered'));
+      expect(stdout, contains('LLM evidence gate: ready'));
+      expect(stdout, contains('LLM evidence blockers: none'));
       expect(stdout, contains('--manual-tcc-report ${manualSummary.path}'));
       expect(
         stdout,
@@ -1776,6 +1799,10 @@ void main() {
       expect(handoff, contains('Manual TCC status: discovered'));
       expect(handoff, contains('Desktop action canary status: discovered'));
       expect(handoff, contains('LLM canary status: discovered'));
+      expect(handoff, contains('LLM Evidence Gate'));
+      expect(handoff, contains('MVP evidence gate: ready'));
+      expect(handoff, contains('safe_click_plan'));
+      expect(handoff, contains('destructive_target_refused'));
       expect(handoff, contains(manualSummary.path));
       expect(handoff, contains(desktopSummary.path));
       expect(handoff, contains(llmSummary.path));

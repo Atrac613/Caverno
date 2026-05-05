@@ -240,6 +240,88 @@ elif [[ -n "${DISCOVERED_LLM_CANARY_SUMMARY:-}" ]]; then
   llm_canary_status="discovered"
 fi
 
+LLM_EVIDENCE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_mvp_llm_evidence_handoff.md"
+llm_evidence_values="$(
+  LLM_CANARY_SUMMARY="${LLM_CANARY_SUMMARY}" LLM_EVIDENCE_FRAGMENT="${LLM_EVIDENCE_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["LLM_CANARY_SUMMARY"]) if os.environ["LLM_CANARY_SUMMARY"] else None
+fragment_path = Path(os.environ["LLM_EVIDENCE_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    if path is None or not path.exists():
+        return None
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+summary = read_json(summary_path)
+gate = summary.get("mvpEvidenceGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else None
+checks = gate.get("checks") if isinstance(gate, dict) else []
+checks = checks if isinstance(checks, list) else []
+blockers = gate.get("blockers") if isinstance(gate, dict) else []
+blockers = blockers if isinstance(blockers, list) else []
+phases = (
+    summary.get("expectedUserOperatedRuntimePhases")
+    if isinstance(summary, dict)
+    else []
+)
+phases = phases if isinstance(phases, list) else []
+status = str(gate.get("status")) if gate and gate.get("status") else "not available"
+blocker_text = ", ".join(str(blocker) for blocker in blockers) if blockers else "none"
+phase_text = ", ".join(str(phase) for phase in phases) if phases else "not available"
+
+lines = [
+    "",
+    "## LLM Evidence Gate",
+    "",
+    f"- LLM evidence summary: `{summary_path if summary_path else 'not provided'}`",
+    f"- MVP evidence gate: {status}",
+    f"- MVP evidence blockers: {blocker_text}",
+    f"- Expected user-operated runtime phases: {phase_text}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        check_id = check.get("id", "unknown")
+        check_status = "passed" if check.get("ok") is True else "blocked"
+        next_action = check.get("nextAction") or "-"
+        lines.append(f"| {check_id} | {check_status} | {next_action} |")
+elif summary_path:
+    lines.extend([
+        "",
+        "- No MVP evidence gate was present in the selected LLM summary.",
+    ])
+else:
+    lines.extend([
+        "",
+        "- No LLM summary is selected yet.",
+    ])
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"LLM_EVIDENCE_STATUS={shlex.quote(status)}")
+print(f"LLM_EVIDENCE_BLOCKERS={shlex.quote(blocker_text)}")
+print(f"LLM_EVIDENCE_PHASES={shlex.quote(phase_text)}")
+PY
+)"
+eval "${llm_evidence_values}"
+
 cat >"${HANDOFF_MD}" <<EOF
 # macOS Computer Use MVP Handoff
 
@@ -291,6 +373,8 @@ bash tool/run_macos_computer_use_mvp_llm_readiness.sh
 \`\`\`
 EOF
 
+cat "${LLM_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
+
 {
   echo
   echo "## Missing Input Next Actions"
@@ -317,6 +401,9 @@ echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not prov
 echo "  Desktop action canary status: ${desktop_action_status}"
 echo "  LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}"
 echo "  LLM canary status: ${llm_canary_status}"
+echo "  LLM evidence gate: ${LLM_EVIDENCE_STATUS}"
+echo "  LLM evidence blockers: ${LLM_EVIDENCE_BLOCKERS}"
+echo "  LLM evidence phases: ${LLM_EVIDENCE_PHASES}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
