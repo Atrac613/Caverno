@@ -515,6 +515,18 @@ void main() {
         ),
         _desktopActionSummary(failed: 0),
       );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_mvp_llm_readiness_300/mvp_llm_readiness_summary.json',
+        ),
+        _mvpLlmReadinessSummary(),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_mvp_demo_readiness_400/mvp_demo_readiness_summary.json',
+        ),
+        _mvpDemoReadinessSummary(),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -523,6 +535,8 @@ void main() {
       expect(entryIds, contains('manual_tcc'));
       expect(entryIds, contains('desktop_action_canary'));
       expect(entryIds, contains('llm_canary'));
+      expect(entryIds, contains('mvp_llm_readiness'));
+      expect(entryIds, contains('mvp_demo_readiness'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -537,6 +551,24 @@ void main() {
         llmEntry.path,
         contains('macos_computer_use_mvp_fixture_vision_llm_canary_200'),
       );
+      final mvpLlmEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'mvp_llm_readiness',
+      );
+      expect(mvpLlmEntry.exists, isTrue);
+      expect(
+        mvpLlmEntry.path,
+        contains('macos_computer_use_mvp_llm_readiness_300'),
+      );
+      final mvpDemoEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'mvp_demo_readiness',
+      );
+      expect(mvpDemoEntry.exists, isTrue);
+      expect(
+        mvpDemoEntry.path,
+        contains('macos_computer_use_mvp_demo_readiness_400'),
+      );
+      expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
+      expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
     });
   });
 }
@@ -813,6 +845,47 @@ Map<String, dynamic> _desktopActionSummary({required int failed}) {
         },
       },
     ],
+  };
+}
+
+Map<String, dynamic> _mvpLlmReadinessSummary() {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_mvp_llm_readiness_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_mvp_llm_readiness',
+    'automationBoundary': 'no_tcc_no_desktop_action',
+    'ready': true,
+    'llmReady': true,
+    'llmGateReady': true,
+    'mvpEvidenceGate': <String, Object?>{
+      'status': 'ready',
+      'ready': true,
+      'checks': <Map<String, Object?>>[
+        <String, Object?>{'id': 'safe_click_plan', 'ok': true},
+      ],
+      'blockers': <String>[],
+    },
+    'expectedUserOperatedRuntimePhases': <String>[
+      'pre_observe_image',
+      'click_sent',
+      'type_text_sent',
+      'post_observe_image',
+      'destructive_target_refused',
+    ],
+  };
+}
+
+Map<String, dynamic> _mvpDemoReadinessSummary() {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_mvp_demo_readiness_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_mvp_demo_readiness',
+    'automationBoundary': 'no_tcc_no_desktop_action',
+    'ready': true,
+    'llmReadinessSummaryPath':
+        '/tmp/macos_computer_use_mvp_llm_readiness_summary.json',
+    'llmCanarySummaryPath': '/tmp/canary_summary.json',
+    'nextUserActions': <String>[],
   };
 }
 

@@ -115,6 +115,24 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       'Latest LLM canary summary',
       reportRoot,
     ),
+    _latestEntry(
+      'mvp_llm_readiness',
+      'Latest MVP LLM readiness summary',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_mvp_llm_readiness_summary',
+      parentPrefix: 'macos_computer_use_mvp_llm_readiness_',
+      fileName: 'mvp_llm_readiness_summary.json',
+    ),
+    _latestEntry(
+      'mvp_demo_readiness',
+      'Latest MVP demo readiness summary',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_mvp_demo_readiness_summary',
+      parentPrefix: 'macos_computer_use_mvp_demo_readiness_',
+      fileName: 'mvp_demo_readiness_summary.json',
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,

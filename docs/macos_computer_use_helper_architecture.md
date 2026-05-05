@@ -563,6 +563,10 @@ The wrapper writes preset-specific readiness artifacts:
 - `macos_computer_use_readiness_artifact_index.json`
 - `macos_computer_use_readiness_artifact_index.md`
 
+The artifact index includes the latest manual TCC summary, desktop action
+canary, preferred LLM canary, MVP LLM readiness summary, and guided MVP demo
+readiness summary when those user-produced or automation-safe artifacts exist.
+
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,
 or perform any TCC-gated runtime verification. The LLM canary is discovered from
