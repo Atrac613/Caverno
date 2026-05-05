@@ -414,6 +414,12 @@ together:
 bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 ```
 
+The aggregate fixture summary includes `mvpEvidenceGate`, `actionPlan`,
+`refusedTargets`, and `expectedUserOperatedRuntimePhases`. The gate proves the
+LLM planned safe click, type-and-confirm, observe-again, user approval
+boundaries, and `destructive_target_refused` before any user-operated desktop
+action canary runs.
+
 The screenshot-backed fixture vision runner is the preferred MVP `llm_canary`
 artifact when the user has provided an actual fixture screenshot. Release
 readiness discovers `macos_computer_use_mvp_fixture_vision_llm_canary_*`

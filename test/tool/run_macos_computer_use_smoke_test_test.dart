@@ -626,6 +626,10 @@ void main() {
       mvpFixtureVisionLlmCanaryScript,
       contains('destructive_target_not_refused'),
     );
+    expect(mvpFixtureVisionLlmCanaryScript, contains('mvpEvidenceGate'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('safe_click_plan'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('type_confirm_plan'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('no_execution_claim'));
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
@@ -655,6 +659,11 @@ void main() {
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_fixture_vision_llm_canary_'),
+    );
+    expect(mvpLlmReadinessScript, contains('mvpEvidenceGate'));
+    expect(
+      mvpLlmReadinessScript,
+      contains('expectedUserOperatedRuntimePhases'),
     );
     expect(
       mvpDemoReadinessScript,
@@ -1114,6 +1123,11 @@ void main() {
         expect(summary, contains('"ready": true'));
         expect(summary, contains('"llmReady": true'));
         expect(summary, contains('"llmGateReady": true'));
+        expect(summary, contains('"mvpEvidenceGate"'));
+        expect(summary, contains('"safe_click_plan"'));
+        expect(summary, contains('"type_confirm_plan"'));
+        expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
+        expect(summary, contains('"destructive_target_refused"'));
         expect(summary, contains('"manual_tcc"'));
         expect(summary, contains('"desktop_action_canary"'));
 
@@ -1219,6 +1233,9 @@ void main() {
         expect(summary, contains('computer_use_mvp_fixture_vision_llm_canary'));
         expect(summary, contains('"llmReady": true'));
         expect(summary, contains('"llmGateReady": true'));
+        expect(summary, contains('"mvpEvidenceGate"'));
+        expect(summary, contains('"fixture_window_visible"'));
+        expect(summary, contains('"no_execution_claim"'));
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1450,6 +1467,14 @@ void main() {
         expect(summary, contains('"screenshotSource"'));
         expect(summary, contains('"desktopActionReportPath"'));
         expect(summary, contains('"failureGuidance"'));
+        expect(summary, contains('"actionPlan"'));
+        expect(summary, contains('"expectedOutcome"'));
+        expect(summary, contains('"mvpEvidenceGate"'));
+        expect(summary, contains('"fixture_window_visible"'));
+        expect(summary, contains('"safe_click_plan"'));
+        expect(summary, contains('"type_confirm_plan"'));
+        expect(summary, contains('"no_execution_claim"'));
+        expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
         expect(summary, contains('"Safe Click Target"'));
         expect(summary, contains('"MVP Fixture Text Field"'));
         expect(summary, contains('"Danger Zone"'));
@@ -1502,6 +1527,8 @@ void main() {
     ).readAsStringSync();
 
     expect(mvpChecklist, contains('macOS Computer Use MVP Checklist'));
+    expect(mvpChecklist, contains('mvpEvidenceGate'));
+    expect(mvpChecklist, contains('destructive_target_refused'));
     expect(
       mvpChecklist,
       contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),

@@ -80,8 +80,12 @@ or run the user-operated desktop action on the user's behalf.
 
    The aggregate command runs the safe-click and type-and-confirm fixture
    planning scenarios and writes one `canary_summary.json` that release
-   readiness can use as the `llm_canary` gate. To validate only the safe-click
-   scenario without moving the pointer or typing, run:
+   readiness can use as the `llm_canary` gate. The summary includes
+   `mvpEvidenceGate`, `actionPlan`, `refusedTargets`, and
+   `expectedUserOperatedRuntimePhases` so the handoff can prove the LLM planned
+   observe, user-approved action, observe-again, and
+   `destructive_target_refused` without executing desktop actions. To validate
+   only the safe-click scenario without moving the pointer or typing, run:
 
    ```bash
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture
@@ -178,8 +182,10 @@ or run the user-operated desktop action on the user's behalf.
 - `manual_tcc`: ready from a user-produced M8 runtime report.
 - `desktop_action_canary`: passed from a user-operated safe click target.
 - `llm_canary`: passed with `visionDecision`, `safeTargetReasoning`, and
-  `requiresUserClick` evidence, or explicitly accepted from current readiness
-  evidence.
+  `requiresUserClick` evidence plus a ready `mvpEvidenceGate` when the selected
+  LLM summary provides one. The gate must include safe click planning,
+  type-and-confirm planning when applicable, user approval boundaries,
+  observe-again behavior, and `destructive_target_refused` evidence.
 
 ## MVP Fixture App
 

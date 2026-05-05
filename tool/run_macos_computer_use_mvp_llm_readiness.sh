@@ -242,6 +242,24 @@ def read_json(path):
 
 
 llm_summary = read_json(llm_summary_path)
+mvp_evidence_gate = (
+    llm_summary.get("mvpEvidenceGate") if isinstance(llm_summary, dict) else None
+)
+mvp_evidence_gate = mvp_evidence_gate if isinstance(mvp_evidence_gate, dict) else None
+expected_runtime_phases = (
+    llm_summary.get("expectedUserOperatedRuntimePhases")
+    if isinstance(llm_summary, dict)
+    else None
+)
+expected_runtime_phases = (
+    expected_runtime_phases if isinstance(expected_runtime_phases, list) else []
+)
+llm_action_plan = (
+    llm_summary.get("actionPlan") if isinstance(llm_summary, dict) else None
+)
+llm_refused_targets = (
+    llm_summary.get("refusedTargets") if isinstance(llm_summary, dict) else None
+)
 readiness = read_json(readiness_json)
 gates = readiness.get("gates") if isinstance(readiness, dict) else []
 gates = gates if isinstance(gates, list) else []
@@ -291,6 +309,10 @@ summary = {
     "handoffMarkdownPath": str(handoff_md) if handoff_md.exists() else None,
     "llmReady": llm_ready,
     "llmGateReady": llm_gate_ready,
+    "mvpEvidenceGate": mvp_evidence_gate,
+    "expectedUserOperatedRuntimePhases": expected_runtime_phases,
+    "llmActionPlan": llm_action_plan,
+    "llmRefusedTargets": llm_refused_targets,
     "blockedGateIds": blocked_gate_ids,
     "unexpectedBlockedGateIds": unexpected_blocked,
     "nextUserActions": [
@@ -312,9 +334,39 @@ lines = [
     f"- MVP sign-off dry-run exit code: {signoff_dry_run_exit}",
     f"- LLM ready: {str(llm_ready).lower()}",
     f"- LLM gate ready: {str(llm_gate_ready).lower()}",
+    f"- MVP evidence gate: {mvp_evidence_gate.get('status') if mvp_evidence_gate else 'not available'}",
     f"- Blocked gates: {', '.join(blocked_gate_ids) if blocked_gate_ids else 'none'}",
     f"- Unexpected blocked gates: {', '.join(unexpected_blocked) if unexpected_blocked else 'none'}",
     "",
+]
+if mvp_evidence_gate:
+    checks = mvp_evidence_gate.get("checks")
+    checks = checks if isinstance(checks, list) else []
+    lines.extend([
+        "## MVP Evidence Checks",
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {nextAction} |".format(
+                id=check.get("id"),
+                status="passed" if check.get("ok") is True else "blocked",
+                nextAction=check.get("nextAction"),
+            )
+        )
+    lines.append("")
+if expected_runtime_phases:
+    lines.extend([
+        "## Expected User-Operated Runtime Phases",
+        "",
+    ])
+    lines.extend(f"- `{phase}`" for phase in expected_runtime_phases)
+    lines.append("")
+lines.extend([
     "## Artifacts",
     "",
     f"- LLM canary summary: `{summary['llmCanarySummaryPath'] or 'not available'}`",
@@ -324,7 +376,7 @@ lines = [
     "",
     "## Next User Actions",
     "",
-]
+])
 lines.extend(f"- {action}" for action in summary["nextUserActions"])
 summary_md.write_text("\n".join(lines) + "\n")
 print(summary_md.read_text())
