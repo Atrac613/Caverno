@@ -322,6 +322,112 @@ PY
 )"
 eval "${llm_evidence_values}"
 
+DESKTOP_ACTION_EVIDENCE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_mvp_desktop_action_evidence_handoff.md"
+desktop_action_evidence_values="$(
+  DESKTOP_ACTION_CANARY_SUMMARY="${DESKTOP_ACTION_CANARY_SUMMARY}" DESKTOP_ACTION_EVIDENCE_FRAGMENT="${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["DESKTOP_ACTION_CANARY_SUMMARY"]) if os.environ["DESKTOP_ACTION_CANARY_SUMMARY"] else None
+fragment_path = Path(os.environ["DESKTOP_ACTION_EVIDENCE_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    if path is None or not path.exists():
+        return None
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+runs = as_list(summary.get("runs") if isinstance(summary, dict) else [])
+phases = as_list(summary.get("expectedPhases") if isinstance(summary, dict) else [])
+guidance = as_list(summary.get("safeTargetGuidance") if isinstance(summary, dict) else [])
+stable = summary.get("stable") if isinstance(summary, dict) else None
+failed = summary.get("failed") if isinstance(summary, dict) else None
+run_count = summary.get("runCount") if isinstance(summary, dict) else None
+status = "not provided"
+if summary_path and summary is None:
+    status = "unreadable"
+elif isinstance(summary, dict):
+    status = "passed" if run_count and failed == 0 and stable is True else "blocked"
+
+lines = [
+    "",
+    "## Desktop Action Evidence",
+    "",
+    f"- Desktop action summary: `{summary_path if summary_path else 'not provided'}`",
+    f"- Desktop action status: {status}",
+    f"- Desktop action runs: {run_count if run_count is not None else 'not available'}",
+    f"- Desktop action failures: {failed if failed is not None else 'not available'}",
+]
+if phases:
+    lines.append(
+        "- Expected phases: " + ", ".join(f"`{str(phase)}`" for phase in phases)
+    )
+else:
+    lines.append("- Expected phases: not available")
+if guidance:
+    lines.append(
+        "- Safe target guidance: " + "; ".join(str(item) for item in guidance)
+    )
+if runs:
+    lines.extend([
+        "",
+        "| Run | Status | Failure Class | Pre Observe | Click | Post Observe | Changed Evidence |",
+        "| --- | --- | --- | --- | --- | --- | --- |",
+    ])
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        phase_status = run.get("phaseStatus")
+        phase_status = phase_status if isinstance(phase_status, dict) else {}
+        lines.append(
+            "| {name} | {status} | {failure} | {pre} | {click} | {post} | {changed} |".format(
+                name=cell(run.get("name")),
+                status=cell(run.get("status")),
+                failure=cell(run.get("failureClass")),
+                pre=cell(phase_status.get("preObserve")),
+                click=cell(phase_status.get("click")),
+                post=cell(phase_status.get("postObserve")),
+                changed=cell(phase_status.get("changedEvidence")),
+            )
+        )
+elif summary_path:
+    lines.extend([
+        "",
+        "- No run-level desktop action evidence was present in the selected summary.",
+    ])
+else:
+    lines.extend([
+        "",
+        "- No desktop action summary is selected yet.",
+    ])
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"DESKTOP_ACTION_EVIDENCE_STATUS={shlex.quote(status)}")
+print(f"DESKTOP_ACTION_EVIDENCE_RUNS={shlex.quote(str(run_count) if run_count is not None else 'not available')}")
+print(f"DESKTOP_ACTION_EVIDENCE_FAILURES={shlex.quote(str(failed) if failed is not None else 'not available')}")
+PY
+)"
+eval "${desktop_action_evidence_values}"
+
 cat >"${HANDOFF_MD}" <<EOF
 # macOS Computer Use MVP Handoff
 
@@ -374,6 +480,7 @@ bash tool/run_macos_computer_use_mvp_llm_readiness.sh
 EOF
 
 cat "${LLM_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -404,6 +511,9 @@ echo "  LLM canary status: ${llm_canary_status}"
 echo "  LLM evidence gate: ${LLM_EVIDENCE_STATUS}"
 echo "  LLM evidence blockers: ${LLM_EVIDENCE_BLOCKERS}"
 echo "  LLM evidence phases: ${LLM_EVIDENCE_PHASES}"
+echo "  Desktop action evidence status: ${DESKTOP_ACTION_EVIDENCE_STATUS}"
+echo "  Desktop action evidence runs: ${DESKTOP_ACTION_EVIDENCE_RUNS}"
+echo "  Desktop action evidence failures: ${DESKTOP_ACTION_EVIDENCE_FAILURES}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"

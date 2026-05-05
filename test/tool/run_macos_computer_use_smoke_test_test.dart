@@ -1732,7 +1732,29 @@ void main() {
   "schemaName": "macos_computer_use_desktop_action_canary_summary",
   "stable": true,
   "runCount": 1,
-  "failed": 0
+  "failed": 0,
+  "expectedPhases": [
+    "pre_observe_image",
+    "click_sent",
+    "post_observe_image"
+  ],
+  "safeTargetGuidance": [
+    "Use a visible, harmless target.",
+    "Avoid destructive controls."
+  ],
+  "runs": [
+    {
+      "name": "run_01",
+      "status": "passed",
+      "failureClass": "passed",
+      "phaseStatus": {
+        "preObserve": "ready",
+        "click": "sent",
+        "postObserve": "ready",
+        "changedEvidence": "observed"
+      }
+    }
+  ]
 }
 ''');
       final llmDir = Directory(
@@ -1803,6 +1825,12 @@ void main() {
       expect(handoff, contains('MVP evidence gate: ready'));
       expect(handoff, contains('safe_click_plan'));
       expect(handoff, contains('destructive_target_refused'));
+      expect(handoff, contains('Desktop Action Evidence'));
+      expect(handoff, contains('Desktop action status: passed'));
+      expect(handoff, contains('`pre_observe_image`'));
+      expect(handoff, contains('Use a visible, harmless target.'));
+      expect(handoff, contains('| run_01 | passed | passed |'));
+      expect(handoff, contains('| ready | sent | ready | observed |'));
       expect(handoff, contains(manualSummary.path));
       expect(handoff, contains(desktopSummary.path));
       expect(handoff, contains(llmSummary.path));
