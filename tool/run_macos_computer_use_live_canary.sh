@@ -290,8 +290,18 @@ lines.extend([
 for run in runs:
     blockers = ", ".join(str(item) for item in run.get("blockers") or []) or "-"
     helper_policy = run.get("helperProcessPolicy") or {}
+    preserved_mismatch = helper_policy.get("preservedMismatchedHelperPath") is True
+    path_mismatch = helper_policy.get("helperPathMismatch") is True
+    path_match = helper_policy.get("helperPathMatchesRunningHelper") is True
+    helper_identity = (
+        "preserved_running_helper" if preserved_mismatch else
+        "path_mismatch" if path_mismatch else
+        "matched" if path_match else
+        "unknown"
+    )
     helper_bits = [
         f"status={helper_policy.get('status', '-')}",
+        f"identity={helper_identity}",
         f"count={helper_policy.get('maxHelperRunningProcessCount', '-')}",
         f"pathMismatch={str(helper_policy.get('helperPathMismatch')).lower()}",
         f"pathMatch={str(helper_policy.get('helperPathMatchesRunningHelper')).lower()}",

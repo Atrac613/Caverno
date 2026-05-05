@@ -1340,6 +1340,9 @@ class _ComputerUseOnboardingCardState
       'helperPathMatchesRunningHelper',
       'helperPathMismatch',
       'helperPathMismatchDetails',
+      'preservedMismatchedHelperPath',
+      'mismatchedHelperPath',
+      'mismatchedHelperPaths',
       'alreadyRunningPathMismatch',
     ]) {
       if (snapshot.containsKey(key)) {
@@ -1989,8 +1992,19 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final helperPathMismatch = runtime['helperPathMismatch'] == true;
     final helperPathMatchesRunning =
         runtime['helperPathMatchesRunningHelper'] == true;
+    final preservedMismatchedHelperPath =
+        runtime['preservedMismatchedHelperPath'] == true;
+    final helperPathMismatchDetails = _mapValue(
+      runtime['helperPathMismatchDetails'],
+    );
+    final helperPathNextAction = _stringValue(
+      helperPathMismatchDetails?['nextAction'],
+    );
     final embeddedHelperPath = _stringValue(runtime['embeddedHelperPath']);
     final runningHelperPath = _stringValue(runtime['runningHelperPath']);
+    final tccOwnerHelperPath = preservedMismatchedHelperPath
+        ? runningHelperPath
+        : embeddedHelperPath;
     final existingProbeOk = runtime['existingHelperProbeOk'];
     final existingProbePathMatch =
         runtime['existingHelperProbeHelperPathMatchesExpected'];
@@ -2102,6 +2116,28 @@ class _IpcRuntimeSummary extends StatelessWidget {
                     : helperPathMatchesRunning
                     ? 'matched'
                     : 'unknown',
+              ),
+            if (helperPathMismatch)
+              _InfoChip(
+                label: 'Helper identity',
+                value: preservedMismatchedHelperPath
+                    ? 'preserved running helper'
+                    : 'path mismatch',
+              ),
+            if (helperPathMismatch && tccOwnerHelperPath != null)
+              _InfoChip(
+                label: 'TCC owner helper',
+                value: _shortPath(tccOwnerHelperPath),
+              ),
+            if (preservedMismatchedHelperPath)
+              const _InfoChip(
+                label: 'Release sign-off',
+                value: 'requires helper path match',
+              ),
+            if (helperPathNextAction != null)
+              _InfoChip(
+                label: 'Helper path next action',
+                value: helperPathNextAction,
               ),
             if (embeddedHelperPath != null)
               _InfoChip(

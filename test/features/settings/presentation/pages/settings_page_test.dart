@@ -404,6 +404,29 @@ void main() {
     expect(service.launchHelperCallCount, 1);
   });
 
+  testWidgets('explains preserved helper identity during path mismatch', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(helperPathMismatch: true);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Helper path: mismatch'), findsOneWidget);
+    expect(
+      find.text('Helper identity: preserved running helper'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'TCC owner helper: .../Build/Products/Debug/Caverno Computer Use.app',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Release sign-off: requires helper path match'),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('stops helper work from the Settings card', (tester) async {
     final service = _FakeMacosComputerUseService(helperWorkActive: true);
     await _pumpPage(tester, service);
@@ -560,11 +583,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool screenCaptureGranted = true,
     bool helperReachable = true,
     bool verificationOk = false,
+    bool helperPathMismatch = false,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
        _helperReachable = helperReachable,
-       _verificationOk = verificationOk;
+       _verificationOk = verificationOk,
+       _helperPathMismatch = helperPathMismatch;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -580,8 +605,16 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
   final bool _verificationOk;
+  final bool _helperPathMismatch;
   bool _helperReachable;
   bool _xpcLaunchAgentEnabled = false;
+
+  String get _embeddedHelperPath =>
+      '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app';
+
+  String get _runningHelperPath => _helperPathMismatch
+      ? '/Users/noguwo/Documents/Workspace/Flutter/caverno-worktrees/macos-computer-use/build/macos/Build/Products/Debug/Caverno Computer Use.app'
+      : _embeddedHelperPath;
 
   @override
   bool get isAvailable => true;
@@ -596,8 +629,20 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'helperBundleIdentifier': 'com.noguwo.apps.caverno.computer-use',
       'helperInstalled': true,
       'helperRunning': true,
-      'helperPath':
-          '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'helperPath': _embeddedHelperPath,
+      'embeddedHelperPath': _embeddedHelperPath,
+      'runningHelperPath': _runningHelperPath,
+      'helperPathMatchesRunningHelper': !_helperPathMismatch,
+      'helperPathMismatch': _helperPathMismatch,
+      if (_helperPathMismatch) 'preservedMismatchedHelperPath': true,
+      if (_helperPathMismatch) 'mismatchedHelperPath': _runningHelperPath,
+      if (_helperPathMismatch)
+        'helperPathMismatchDetails': {
+          'expectedHelperPath': _embeddedHelperPath,
+          'runningHelperPath': _runningHelperPath,
+          'nextAction':
+              'Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.',
+        },
       'helperStatusPersistence': _persistence,
     });
   }
@@ -700,6 +745,19 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'selectedIpcTransport': 'distributed_notification_center',
       'preferredIpcTransport': 'xpc_service',
       'fallbackIpcTransport': 'distributed_notification_center',
+      'embeddedHelperPath': _embeddedHelperPath,
+      'runningHelperPath': _runningHelperPath,
+      'helperPathMatchesRunningHelper': !_helperPathMismatch,
+      'helperPathMismatch': _helperPathMismatch,
+      if (_helperPathMismatch) 'preservedMismatchedHelperPath': true,
+      if (_helperPathMismatch) 'mismatchedHelperPath': _runningHelperPath,
+      if (_helperPathMismatch)
+        'helperPathMismatchDetails': {
+          'expectedHelperPath': _embeddedHelperPath,
+          'runningHelperPath': _runningHelperPath,
+          'nextAction':
+              'Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.',
+        },
       'xpcStatus': 'production',
       'xpcProductionReady': true,
       'xpcConnectionMode': 'external_helper_mach_service',

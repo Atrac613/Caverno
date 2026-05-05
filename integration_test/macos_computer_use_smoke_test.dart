@@ -1367,6 +1367,14 @@ Map<String, dynamic> _helperProcessPolicyGate(
     if (duplicateProcessIdentifiers.isNotEmpty)
       'duplicate_helper_process_identifiers_reported',
   ];
+  final nextAction = ready
+      ? 'Computer Use helper is running as a single hidden agent process.'
+      : preservedMismatchedHelperPath
+      ? 'Running helper was preserved to avoid invalidating TCC. Restart from the installed Caverno bundle before release sign-off.'
+      : helperPathMismatch
+      ? 'Restart Caverno Computer Use from the installed Caverno bundle before validating release sign-off.'
+      : 'Quit duplicate Caverno Computer Use processes, relaunch from Caverno, then rerun smoke.';
+
   return {
     'status': ready ? 'ready' : 'blocked',
     'ok': ready,
@@ -1392,9 +1400,7 @@ Map<String, dynamic> _helperProcessPolicyGate(
     'observedSnapshotCount': observed.length,
     'duplicateProcessIdentifiers': duplicateProcessIdentifiers,
     'blockers': blockers,
-    'nextAction': ready
-        ? 'Computer Use helper is running as a single hidden agent process.'
-        : 'Quit duplicate Caverno Computer Use processes, relaunch from Caverno, then rerun smoke.',
+    'nextAction': nextAction,
   };
 }
 

@@ -316,7 +316,15 @@ String _helperPathCell(Map<String, Object?> helperPolicy) {
   final mismatch = helperPolicy['helperPathMismatch'];
   final matched = helperPolicy['helperPathMatchesRunningHelper'];
   final preserved = helperPolicy['preservedMismatchedHelperPath'];
+  final identity = preserved == true
+      ? 'preserved running helper'
+      : mismatch == true
+      ? 'path mismatch'
+      : matched == true
+      ? 'matched'
+      : 'unknown';
   return [
+    'identity: ${_markdownCell(identity)}',
     'match: ${_markdownCell(matched)}',
     'mismatch: ${_markdownCell(mismatch)}',
     'preserved: ${_markdownCell(preserved)}',
