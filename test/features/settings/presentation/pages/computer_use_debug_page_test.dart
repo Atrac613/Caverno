@@ -98,6 +98,19 @@ void main() {
     );
   });
 
+  testWidgets('shows helper path mismatch next action', (tester) async {
+    final service = _FakeMacosComputerUseService(helperPathMismatch: true);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Helper Path Mismatch'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Next: Keep using the currently granted helper for this session',
+      ),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('shows overlay canary summary from the latest smoke report', (
     tester,
   ) async {
@@ -508,9 +521,13 @@ Future<void> _scrollUntilVisible(WidgetTester tester, Finder finder) async {
 }
 
 class _FakeMacosComputerUseService extends MacosComputerUseService {
-  _FakeMacosComputerUseService({this.startAudioSucceeds = true});
+  _FakeMacosComputerUseService({
+    this.startAudioSucceeds = true,
+    this.helperPathMismatch = false,
+  });
 
   final bool startAudioSucceeds;
+  final bool helperPathMismatch;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -542,6 +559,22 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'helperRunning': true,
       'helperPath':
           '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'embeddedHelperPath':
+          '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'runningHelperPath': helperPathMismatch
+          ? '/Users/noguwo/Documents/Workspace/Flutter/caverno-worktrees/macos-computer-use/build/macos/Build/Products/Debug/Caverno Computer Use.app'
+          : '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'helperPathMatchesRunningHelper': !helperPathMismatch,
+      'helperPathMismatch': helperPathMismatch,
+      if (helperPathMismatch)
+        'helperPathMismatchDetails': {
+          'expectedHelperPath':
+              '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+          'runningHelperPath':
+              '/Users/noguwo/Documents/Workspace/Flutter/caverno-worktrees/macos-computer-use/build/macos/Build/Products/Debug/Caverno Computer Use.app',
+          'nextAction':
+              'Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.',
+        },
       'helperStatusPersistence': _persistence,
     });
   }

@@ -176,8 +176,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               _OnboardingNote(
                 icon: Icons.route_outlined,
                 title: 'Helper Path Mismatch',
-                body:
-                    'Running: ${_shortPath('${_helperStatus?['runningHelperPath']}')} | Expected: ${_shortPath('${_helperStatus?['embeddedHelperPath'] ?? _helperStatus?['helperPath']}')}',
+                body: [
+                  'Running: ${_shortPath('${_helperStatus?['runningHelperPath']}')}',
+                  'Expected: ${_shortPath('${_helperStatus?['embeddedHelperPath'] ?? _helperStatus?['helperPath']}')}',
+                  if (_helperPathMismatchNextAction() != null)
+                    'Next: ${_helperPathMismatchNextAction()}',
+                ].join(' | '),
               ),
             ],
             if (_existingHelperProbeSummary() != null) ...[
@@ -1530,6 +1534,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
         _permissions?['helperStatusPersistence'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  String? _helperPathMismatchNextAction() {
+    final details = _helperStatus?['helperPathMismatchDetails'];
+    if (details is Map) {
+      final nextAction = details['nextAction'];
+      if (nextAction is String && nextAction.isNotEmpty) {
+        return nextAction;
+      }
     }
     return null;
   }

@@ -170,6 +170,10 @@ void main() {
     expect(find.text('Verify: Needs attention'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Open Smoke Sequence'), findsOneWidget);
+    expect(
+      find.byKey(const ValueKey('computer-use-settings-open-smoke-sequence')),
+      findsOneWidget,
+    );
 
     await _tapByKey(tester, 'computer-use-settings-primary-action');
 
@@ -474,6 +478,31 @@ void main() {
     );
   });
 
+  testWidgets('shows successful fallback separately from XPC timeout', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      preferredXpcTimeoutWithFallback: true,
+      xpcLaunchAgentEnabled: true,
+    );
+    await _pumpPage(tester, service);
+
+    expect(find.text('XPC gate: ready'), findsOneWidget);
+    expect(
+      find.text('Preferred attempt: xpc_timeout, fallback succeeded'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('Fallback reason: xpc_timeout (helper_xpc_timeout)'),
+      findsOneWidget,
+    );
+    expect(find.text('Fallback outcome: succeeded'), findsOneWidget);
+    expect(
+      find.text('XPC blockers: named_xpc_service_not_connected'),
+      findsNothing,
+    );
+  });
+
   testWidgets('stops helper work from the Settings card', (tester) async {
     final service = _FakeMacosComputerUseService(helperWorkActive: true);
     await _pumpPage(tester, service);
@@ -632,13 +661,17 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool verificationOk = false,
     bool helperPathMismatch = false,
     bool liveSmokeReportAvailable = true,
+    bool preferredXpcTimeoutWithFallback = false,
+    bool xpcLaunchAgentEnabled = false,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
        _helperReachable = helperReachable,
        _verificationOk = verificationOk,
        _helperPathMismatch = helperPathMismatch,
-       _liveSmokeReportAvailable = liveSmokeReportAvailable;
+       _liveSmokeReportAvailable = liveSmokeReportAvailable,
+       _preferredXpcTimeoutWithFallback = preferredXpcTimeoutWithFallback,
+       _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -656,8 +689,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final bool _verificationOk;
   final bool _helperPathMismatch;
   final bool _liveSmokeReportAvailable;
+  final bool _preferredXpcTimeoutWithFallback;
   bool _helperReachable;
-  bool _xpcLaunchAgentEnabled = false;
+  bool _xpcLaunchAgentEnabled;
 
   String get _embeddedHelperPath =>
       '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app';
@@ -863,6 +897,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'preferredIpcAttempt': {
           'status': 'xpc_error',
           'errorCode': 'helper_xpc_unavailable',
+        },
+      if (_preferredXpcTimeoutWithFallback)
+        'preferredIpcAttempt': {
+          'status': 'xpc_timeout',
+          'errorCode': 'helper_xpc_timeout',
         },
       if (!_helperReachable) 'code': 'helper_unreachable',
       'message': 'pong',

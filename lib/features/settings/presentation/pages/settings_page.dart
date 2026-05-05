@@ -618,6 +618,9 @@ class _ComputerUseOnboardingCardState
                     label: const Text('Open Computer Use'),
                   ),
                 OutlinedButton.icon(
+                  key: const ValueKey(
+                    'computer-use-settings-open-smoke-sequence',
+                  ),
                   onPressed: _openSmokeTest,
                   icon: const Icon(Icons.fact_check_outlined),
                   label: const Text('Open Smoke Sequence'),
@@ -1229,6 +1232,12 @@ class _ComputerUseOnboardingCardState
     final preferredAttemptErrorCode = _stringValue(
       preferredAttempt?['errorCode'],
     );
+    final reportedProductionReady = snapshot['xpcProductionReady'] == true;
+    final helperReachable = snapshot['helperReachable'] != false;
+    final reportedProductionBlockers =
+        snapshot.containsKey('xpcProductionBlockers')
+        ? _stringListValue(snapshot['xpcProductionBlockers'])
+        : null;
     final nextParityCommands = _stringListValue(
       snapshot['xpcNextParityCommands'] ??
           MacosComputerUseIpc.current.xpcNextParityCommands,
@@ -1250,18 +1259,25 @@ class _ComputerUseOnboardingCardState
       if (!namedServiceConnected) 'named_xpc_service_not_connected',
       if (nextParityCommands.isNotEmpty) 'command_parity_pending',
     ];
-    final measuredProductionReady = productionBlockers.isEmpty;
-    final productionNextAction = measuredProductionReady
+    final effectiveProductionBlockers = helperReachable
+        ? reportedProductionBlockers ?? productionBlockers
+        : productionBlockers;
+    final effectiveProductionReady = reportedProductionBlockers == null
+        ? productionBlockers.isEmpty
+        : helperReachable &&
+              reportedProductionReady &&
+              effectiveProductionBlockers.isEmpty;
+    final productionNextAction = effectiveProductionReady
         ? 'XPC is production ready.'
         : 'Resolve XPC production blockers before marking production ready.';
     final productionGate = <String, dynamic>{
-      'productionReady': measuredProductionReady,
+      'productionReady': effectiveProductionReady,
       'namedServiceConnected': namedServiceConnected,
       'launchAgentPlistInstalled': launchAgentPlistInstalled,
       'launchAgentRegistered': launchAgentRegistered,
       'commandParityComplete': nextParityCommands.isEmpty,
       'nextParityCommands': nextParityCommands,
-      'blockers': productionBlockers,
+      'blockers': effectiveProductionBlockers,
       'nextAction': productionNextAction,
     };
     if (launchAgentStatus != null) {
@@ -1272,9 +1288,10 @@ class _ComputerUseOnboardingCardState
       'preferredIpcTransport': preferredTransport,
       'fallbackIpcTransport': fallbackTransport,
       'xpcReady': snapshot['xpcReady'] ?? MacosComputerUseIpc.current.xpcReady,
-      'xpcProductionReady': measuredProductionReady,
-      'xpcProductionReadyMeasured': measuredProductionReady,
+      'xpcProductionReady': effectiveProductionReady,
+      'xpcProductionReadyMeasured': effectiveProductionReady,
       'xpcNamedServiceConnected': namedServiceConnected,
+      'xpcNamedServiceConnectedMeasured': namedServiceConnected,
       'xpcStatus':
           snapshot['xpcStatus'] ?? MacosComputerUseIpc.current.xpcStatus,
       'xpcConnectionMode':
@@ -1296,7 +1313,7 @@ class _ComputerUseOnboardingCardState
       'xpcRegistrationRequirement':
           snapshot['xpcRegistrationRequirement'] ??
           MacosComputerUseIpc.current.xpcRegistrationRequirement,
-      'xpcProductionBlockers': productionBlockers,
+      'xpcProductionBlockers': effectiveProductionBlockers,
       'xpcProductionNextAction': productionNextAction,
       'helperSharedDiagnosticsStale': snapshot['helperSharedDiagnosticsStale'],
       'helperSharedDiagnosticsStaleReasons':
@@ -1338,6 +1355,10 @@ class _ComputerUseOnboardingCardState
           preferredAttempt != null &&
           preferredTransport != fallbackTransport,
     };
+    runtime['preferredFallbackSucceeded'] =
+        runtime['preferredFallbackActive'] == true &&
+        (snapshot['ok'] == true || snapshot['helperReachable'] == true) &&
+        snapshot['code'] == null;
     for (final key in const [
       'embeddedHelperPath',
       'helperLaunchPath',
@@ -1384,6 +1405,12 @@ class _ComputerUseOnboardingCardState
     if (runtime['preferredFallbackActive'] == true &&
         preferredAttemptStatus != null) {
       runtime['preferredFallbackReason'] = preferredAttemptErrorCode == null
+          ? preferredAttemptStatus
+          : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
+      runtime['preferredFallbackSummary'] =
+          runtime['preferredFallbackSucceeded'] == true
+          ? '$preferredAttemptStatus, fallback succeeded'
+          : preferredAttemptErrorCode == null
           ? preferredAttemptStatus
           : '$preferredAttemptStatus ($preferredAttemptErrorCode)';
     }
@@ -2005,6 +2032,8 @@ class _IpcRuntimeSummary extends StatelessWidget {
         ? 'preferred XPC fell back to $fallback'
         : 'using $selected';
     final fallbackReason = runtime['preferredFallbackReason'];
+    final fallbackSummary = runtime['preferredFallbackSummary'];
+    final fallbackSucceeded = runtime['preferredFallbackSucceeded'] == true;
     final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
     final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
@@ -2420,7 +2449,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
             if (preferredAttemptStatus is String)
               _InfoChip(
                 label: 'Preferred attempt',
-                value: preferredAttemptStatus,
+                value: fallbackSummary is String
+                    ? fallbackSummary
+                    : preferredAttemptStatus,
               ),
             if (preferredAttemptErrorCode is String)
               _InfoChip(
@@ -2429,6 +2460,11 @@ class _IpcRuntimeSummary extends StatelessWidget {
               ),
             if (fallbackReason is String)
               _InfoChip(label: 'Fallback reason', value: fallbackReason),
+            if (fallbackActive)
+              _InfoChip(
+                label: 'Fallback outcome',
+                value: fallbackSucceeded ? 'succeeded' : 'needs attention',
+              ),
             _InfoChip(
               label: 'Next XPC parity',
               value: nextParityCommands.isEmpty
