@@ -620,7 +620,7 @@ class _ComputerUseOnboardingCardState
                 OutlinedButton.icon(
                   onPressed: _openSmokeTest,
                   icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text('Open Smoke Test'),
+                  label: const Text('Open Smoke Sequence'),
                 ),
                 OutlinedButton.icon(
                   key: const ValueKey(
@@ -1146,7 +1146,8 @@ class _ComputerUseOnboardingCardState
   Map<String, dynamic>? _onboardingVerification() {
     final value =
         _helperStatus?['onboardingVerification'] ??
-        _permissions?['onboardingVerification'];
+        _permissions?['onboardingVerification'] ??
+        _helperStatusPersistence()?['onboardingVerification'];
     if (value is Map) {
       return Map<String, dynamic>.from(value);
     }
@@ -1195,7 +1196,12 @@ class _ComputerUseOnboardingCardState
       liveSmokeReport?['xpcRuntimeDiagnostics'],
     );
     final permissionGate = _mapValue(liveSmokeReport?['permissionGate']);
-    final captureGate = _mapValue(liveSmokeReport?['captureGate']);
+    final captureGate =
+        _mapValue(liveSmokeReport?['captureGate']) ??
+        _verificationCaptureGate(
+          verification: _onboardingVerification(),
+          snapshot: snapshot,
+        );
     final inputGate = _mapValue(liveSmokeReport?['inputGate']);
     final audioGate = _mapValue(liveSmokeReport?['audioGate']);
     final unsafeActionGate = _mapValue(liveSmokeReport?['unsafeActionGate']);
@@ -1393,6 +1399,82 @@ class _ComputerUseOnboardingCardState
       return Map<String, dynamic>.from(report);
     }
     return envelope;
+  }
+
+  Map<String, dynamic>? _verificationCaptureGate({
+    required Map<String, dynamic>? verification,
+    required Map<String, dynamic> snapshot,
+  }) {
+    if (verification == null) {
+      return null;
+    }
+    final displayPassed = _verificationStepOk(
+      verification,
+      'display_screenshot',
+    );
+    final windowPassed = _verificationStepOk(verification, 'window_capture');
+    final permissions = _mapValue(verification['permissions']);
+    final screenCaptureGranted =
+        permissions?['screenCaptureGranted'] == true ||
+        snapshot['screenCaptureGranted'] == true;
+    final blockers = <String>[
+      if (!screenCaptureGranted) 'screen_capture_permission_missing',
+      if (screenCaptureGranted && !displayPassed)
+        'display_capture_runtime_failed',
+      if (screenCaptureGranted && !windowPassed)
+        'window_capture_runtime_failed',
+    ];
+    final status = !screenCaptureGranted
+        ? 'blocked'
+        : blockers.isEmpty
+        ? 'ready'
+        : 'failed';
+    final helperPath =
+        _stringValue(snapshot['runningHelperPath']) ??
+        _stringValue(snapshot['embeddedHelperPath']) ??
+        _stringValue(snapshot['helperPath']);
+    return {
+      'status': status,
+      'source': 'helper_verification',
+      'screenCaptureGranted': screenCaptureGranted,
+      'displayScreenshotPassed': displayPassed,
+      'windowCapturePassed': windowPassed,
+      'failureClass': blockers.isEmpty ? 'none' : blockers.first,
+      'failureClasses': blockers,
+      'blockers': blockers,
+      'tccOwnerHelperPath': helperPath,
+      'nextAction': blockers.isEmpty
+          ? 'Display and window capture passed in helper verification.'
+          : !screenCaptureGranted
+          ? 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun the smoke sequence manually.'
+          : 'Open Smoke Sequence and rerun display and window capture checks.',
+    };
+  }
+
+  bool _verificationStepOk(Map<String, dynamic> verification, String id) {
+    final direct = _mapValue(verification[id]);
+    if (direct != null) {
+      return direct['ok'] == true;
+    }
+    final camelCaseId = switch (id) {
+      'display_screenshot' => 'displayScreenshot',
+      'window_capture' => 'windowCapture',
+      _ => id,
+    };
+    final camelCase = _mapValue(verification[camelCaseId]);
+    if (camelCase != null) {
+      return camelCase['ok'] == true;
+    }
+    final steps = verification['steps'];
+    if (steps is! List) {
+      return false;
+    }
+    for (final step in steps) {
+      if (step is Map && step['id'] == id) {
+        return step['ok'] == true;
+      }
+    }
+    return false;
   }
 
   List<String> _stringListValue(Object? value) {
@@ -1646,7 +1728,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
               label: 'Capture smoke',
               status: captureStatus,
               ok: captureStatus == 'ready',
-              detail: hasLiveSmokeReport
+              detail: captureGate != null
                   ? _nextAction(captureGate)
                   : 'Run live smoke after permissions are granted.',
             ),

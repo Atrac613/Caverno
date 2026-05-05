@@ -118,7 +118,7 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
-    await _tapButton(tester, 'Open Smoke Test');
+    await _tapButton(tester, 'Open Smoke Sequence');
     expect(find.byType(ComputerUseDebugPage), findsOneWidget);
 
     final helperStatusBeforeReturn = service.helperStatusCallCount;
@@ -169,7 +169,7 @@ void main() {
 
     expect(find.text('Verify: Needs attention'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
-    expect(find.text('Open Smoke Test'), findsOneWidget);
+    expect(find.text('Open Smoke Sequence'), findsOneWidget);
 
     await _tapByKey(tester, 'computer-use-settings-primary-action');
 
@@ -345,6 +345,27 @@ void main() {
         'Live M4 next action: Resolve the failed M4 sign-off checks, then rerun --m4-signoff.',
       ),
       findsOneWidget,
+    );
+  });
+
+  testWidgets('uses helper verification when live smoke has not run', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      verificationOk: true,
+      liveSmokeReportAvailable: false,
+    );
+    await _pumpPage(tester, service);
+
+    expect(find.text('Capture smoke: ready'), findsOneWidget);
+    expect(
+      find.text('Display and window capture passed in helper verification.'),
+      findsOneWidget,
+    );
+    expect(find.text('Capture gate: ready'), findsOneWidget);
+    expect(
+      find.text('Capture blockers: screen_capture_permission_missing'),
+      findsNothing,
     );
   });
 
@@ -610,12 +631,14 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool helperReachable = true,
     bool verificationOk = false,
     bool helperPathMismatch = false,
+    bool liveSmokeReportAvailable = true,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
        _helperReachable = helperReachable,
        _verificationOk = verificationOk,
-       _helperPathMismatch = helperPathMismatch;
+       _helperPathMismatch = helperPathMismatch,
+       _liveSmokeReportAvailable = liveSmokeReportAvailable;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -632,6 +655,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final bool _screenCaptureGranted;
   final bool _verificationOk;
   final bool _helperPathMismatch;
+  final bool _liveSmokeReportAvailable;
   bool _helperReachable;
   bool _xpcLaunchAgentEnabled = false;
 
@@ -865,6 +889,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 
   @override
   Future<String> getLastLiveSmokeReport() async {
+    if (!_liveSmokeReportAvailable) {
+      return _json({'ok': false, 'code': 'no_live_smoke_report'});
+    }
     return _json({
       'ok': true,
       'path': '/tmp/caverno-macos-computer-use-smoke.json',
