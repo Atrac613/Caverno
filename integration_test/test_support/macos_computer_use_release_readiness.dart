@@ -489,7 +489,11 @@ ReleaseReadinessGate _llmCanaryGate(
   final purpose = llmSummary['purpose'] as String?;
   final runCount = _intValue(llmSummary['runCount']);
   final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
-  final ready = runCount > 0 && failed == 0;
+  final mvpEvidenceGate = _mapValue(llmSummary['mvpEvidenceGate']);
+  final hasMvpEvidenceGate = mvpEvidenceGate.isNotEmpty;
+  final mvpEvidenceReady =
+      !hasMvpEvidenceGate || mvpEvidenceGate['ready'] == true;
+  final ready = runCount > 0 && failed == 0 && mvpEvidenceReady;
   final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
   final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
   final isFixtureVision =
@@ -514,6 +518,9 @@ ReleaseReadinessGate _llmCanaryGate(
       'scenario': llmSummary['scenario'],
       'scenarioCount': llmSummary['scenarioCount'],
       'scenarios': llmSummary['scenarios'],
+      'mvpEvidenceGate': mvpEvidenceGate,
+      'expectedUserOperatedRuntimePhases':
+          llmSummary['expectedUserOperatedRuntimePhases'],
       'fixtureApp': llmSummary['fixtureApp'],
       'visionDecision': llmSummary['visionDecision'],
       'safeTargetReasoning': llmSummary['safeTargetReasoning'],

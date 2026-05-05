@@ -585,6 +585,11 @@ void main() {
     expect(mvpFixtureLlmCanaryScript, contains('mvp-fixture-type-confirm'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-click'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-type'));
+    expect(mvpFixtureLlmCanaryScript, contains('mvpEvidenceGate'));
+    expect(mvpFixtureLlmCanaryScript, contains('safe_click_plan'));
+    expect(mvpFixtureLlmCanaryScript, contains('type_confirm_plan'));
+    expect(mvpFixtureLlmCanaryScript, contains('post_observe_required'));
+    expect(mvpFixtureLlmCanaryScript, contains('destructive_refusal'));
     expect(
       mvpFixtureVisionLlmCanaryScript,
       contains('macos_computer_use_mvp_fixture_vision_llm_canary_summary'),
@@ -987,6 +992,18 @@ void main() {
         expect(summary, contains('"failedCount": 0'));
         expect(summary, contains('"requiresUserClick": true'));
         expect(summary, contains('"requiresUserTextInput": true'));
+        expect(summary, contains('"mvpEvidenceGate"'));
+        expect(summary, contains('"safe_click_plan"'));
+        expect(summary, contains('"type_confirm_plan"'));
+        expect(summary, contains('"observe_action_observe_plan"'));
+        expect(summary, contains('"user_approval_boundary"'));
+        expect(summary, contains('"destructive_refusal"'));
+        expect(summary, contains('"post_observe_required"'));
+        expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
+        expect(summary, contains('"pre_observe_image"'));
+        expect(summary, contains('"click_sent"'));
+        expect(summary, contains('"type_text_sent"'));
+        expect(summary, contains('"post_observe_image"'));
       } finally {
         root.deleteSync(recursive: true);
       }
