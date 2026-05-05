@@ -50,6 +50,13 @@ void main() {
         'preferredAttemptResponseReceivedBeforeTimeout': false,
         'preferredAttemptResponseReceivedAfterTimeout': true,
         'preferredAttemptLateResponseElapsedMs': 2098,
+        'preferredIpcAttempt': {
+          'warmupAttempt': {
+            'status': 'xpc_response',
+            'elapsedMs': 41,
+            'responseReceivedBeforeTimeout': true,
+          },
+        },
       },
     }, sourcePath: 'diagnostics.json');
 
@@ -61,6 +68,9 @@ void main() {
     expect(summary.responseReceivedAfterTimeout, isTrue);
     expect(summary.lateResponseElapsedMs, 2098);
     expect(summary.preferredFallbackSucceeded, isTrue);
+    expect(summary.warmupStatus, 'xpc_response');
+    expect(summary.warmupElapsedMs, 41);
+    expect(summary.warmupResponseReceivedBeforeTimeout, isTrue);
     expect(
       summary.nextAction,
       'Tune the preferred XPC timeout or add a warmup ping before fallback.',

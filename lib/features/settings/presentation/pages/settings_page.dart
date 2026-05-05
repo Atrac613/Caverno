@@ -1252,6 +1252,10 @@ class _ComputerUseOnboardingCardState
         preferredAttempt?['responseReceivedAfterTimeout'];
     final preferredAttemptLateResponseElapsedMs =
         preferredAttempt?['lateResponseElapsedMs'];
+    final preferredWarmupAttempt = _mapValue(
+      preferredAttempt?['warmupAttempt'] ??
+          snapshot['preferredIpcWarmupAttempt'],
+    );
     final reportedProductionReady = snapshot['xpcProductionReady'] == true;
     final helperReachable = snapshot['helperReachable'] != false;
     final reportedProductionBlockers =
@@ -1436,6 +1440,9 @@ class _ComputerUseOnboardingCardState
     if (preferredAttemptLateResponseElapsedMs is int) {
       runtime['preferredAttemptLateResponseElapsedMs'] =
           preferredAttemptLateResponseElapsedMs;
+    }
+    if (preferredWarmupAttempt != null) {
+      runtime['preferredIpcWarmupAttempt'] = preferredWarmupAttempt;
     }
     if (runtime['preferredFallbackActive'] == true &&
         preferredAttemptStatus != null) {
@@ -2703,9 +2710,13 @@ class _XpcTimingSummary extends StatelessWidget {
     final engineeringNextAction = _summaryString('engineeringNextAction');
     final elapsedMs = summary['elapsedMs'];
     final lateElapsedMs = summary['lateResponseElapsedMs'];
+    final warmupElapsedMs = summary['warmupElapsedMs'];
     final responseBeforeTimeout = summary['responseReceivedBeforeTimeout'];
     final responseAfterTimeout = summary['responseReceivedAfterTimeout'];
+    final warmupResponseBeforeTimeout =
+        summary['warmupResponseReceivedBeforeTimeout'];
     final fallbackSucceeded = summary['preferredFallbackSucceeded'];
+    final warmupStatus = _summaryString('warmupStatus');
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -2735,6 +2746,15 @@ class _XpcTimingSummary extends StatelessWidget {
               ),
             if (lateElapsedMs is int)
               _InfoChip(label: 'Late elapsed', value: '${lateElapsedMs}ms'),
+            if (warmupStatus != null)
+              _InfoChip(label: 'Warmup status', value: warmupStatus),
+            if (warmupElapsedMs is int)
+              _InfoChip(label: 'Warmup elapsed', value: '${warmupElapsedMs}ms'),
+            if (warmupResponseBeforeTimeout is bool)
+              _InfoChip(
+                label: 'Warmup before timeout',
+                value: warmupResponseBeforeTimeout ? 'yes' : 'no',
+              ),
             if (fallbackSucceeded is bool)
               _InfoChip(
                 label: 'Fallback',

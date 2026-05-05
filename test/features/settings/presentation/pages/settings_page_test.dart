@@ -506,6 +506,9 @@ void main() {
     expect(find.text('XPC response before timeout: no'), findsOneWidget);
     expect(find.text('XPC late response: yes'), findsOneWidget);
     expect(find.text('XPC late elapsed: 2050ms'), findsOneWidget);
+    expect(find.text('Warmup status: xpc_response'), findsOneWidget);
+    expect(find.text('Warmup elapsed: 43ms'), findsOneWidget);
+    expect(find.text('Warmup before timeout: yes'), findsOneWidget);
     expect(
       find.text('XPC timing: late_response_after_timeout'),
       findsOneWidget,
@@ -941,6 +944,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'responseReceivedBeforeTimeout': false,
           'responseReceivedAfterTimeout': true,
           'lateResponseElapsedMs': 2050,
+          'warmupAttempt': {
+            'status': 'xpc_response',
+            'elapsedMs': 43,
+            'responseReceivedBeforeTimeout': true,
+          },
         },
       if (!_helperReachable) 'code': 'helper_unreachable',
       'message': 'pong',

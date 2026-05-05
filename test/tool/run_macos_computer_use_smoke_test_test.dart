@@ -282,6 +282,10 @@ void main() {
     expect(runnerSource, contains('responseReceivedAfterTimeout'));
     expect(runnerSource, contains('lateResponseElapsedMs'));
     expect(runnerSource, contains('xpc late response received'));
+    expect(runnerSource, contains('sendXpcWarmup'));
+    expect(runnerSource, contains('xpcWarmupTimeout'));
+    expect(runnerSource, contains('warmupAttempt'));
+    expect(runnerSource, contains('preferredIpcWarmupAttempt'));
     expect(runnerSource, isNot(contains('replacedMismatchedHelperPath')));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));

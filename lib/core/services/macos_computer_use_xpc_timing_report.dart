@@ -20,6 +20,9 @@ class XpcTimingReportSummary {
     this.preferredIpcTransport,
     this.fallbackIpcTransport,
     this.preferredFallbackSucceeded,
+    this.warmupStatus,
+    this.warmupElapsedMs,
+    this.warmupResponseReceivedBeforeTimeout,
   });
 
   final String sourcePath;
@@ -39,6 +42,9 @@ class XpcTimingReportSummary {
   final String? preferredIpcTransport;
   final String? fallbackIpcTransport;
   final bool? preferredFallbackSucceeded;
+  final String? warmupStatus;
+  final int? warmupElapsedMs;
+  final bool? warmupResponseReceivedBeforeTimeout;
 
   Map<String, dynamic> toJson() => {
     'schemaName': 'macos_computer_use_xpc_timing_report_summary',
@@ -67,6 +73,11 @@ class XpcTimingReportSummary {
       'fallbackIpcTransport': fallbackIpcTransport,
     if (preferredFallbackSucceeded != null)
       'preferredFallbackSucceeded': preferredFallbackSucceeded,
+    if (warmupStatus != null) 'warmupStatus': warmupStatus,
+    if (warmupElapsedMs != null) 'warmupElapsedMs': warmupElapsedMs,
+    if (warmupResponseReceivedBeforeTimeout != null)
+      'warmupResponseReceivedBeforeTimeout':
+          warmupResponseReceivedBeforeTimeout,
   };
 
   String toMarkdown() {
@@ -92,6 +103,13 @@ class XpcTimingReportSummary {
       if (fallbackIpcTransport != null) ('Fallback IPC', fallbackIpcTransport!),
       if (preferredFallbackSucceeded != null)
         ('Fallback Succeeded', '$preferredFallbackSucceeded'),
+      if (warmupStatus != null) ('Warmup Status', warmupStatus!),
+      if (warmupElapsedMs != null) ('Warmup Elapsed', '${warmupElapsedMs}ms'),
+      if (warmupResponseReceivedBeforeTimeout != null)
+        (
+          'Warmup Response Before Timeout',
+          '$warmupResponseReceivedBeforeTimeout',
+        ),
     ];
     final buffer = StringBuffer()
       ..writeln('# macOS Computer Use XPC Timing Report')
@@ -136,6 +154,10 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
       _mapValue(helperStatus['lastPreferredIpcAttempt']) ??
       _mapValue(diagnostics['preferredIpcAttempt']) ??
       _mapValue(diagnostics['lastPreferredIpcAttempt']);
+  final warmupAttempt =
+      _mapValue(attempt?['warmupAttempt']) ??
+      _mapValue(runtime?['preferredIpcWarmupAttempt']) ??
+      _mapValue(diagnostics['preferredIpcWarmupAttempt']);
 
   final status =
       _stringValue(runtime?['preferredAttemptStatus']) ??
@@ -189,6 +211,11 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
       runtime?['fallbackIpcTransport'] ?? diagnostics['fallbackIpcTransport'],
     ),
     preferredFallbackSucceeded: fallbackSucceeded,
+    warmupStatus: _stringValue(warmupAttempt?['status']),
+    warmupElapsedMs: _intValue(warmupAttempt?['elapsedMs']),
+    warmupResponseReceivedBeforeTimeout: _boolValue(
+      warmupAttempt?['responseReceivedBeforeTimeout'],
+    ),
   );
 }
 

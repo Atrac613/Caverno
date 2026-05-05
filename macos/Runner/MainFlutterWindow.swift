@@ -244,6 +244,8 @@ fileprivate enum MacosComputerUseIpcSchema {
     "fallback_path_is_observable_and_non_destructive",
   ]
   static let xpcFallbackTimeout = 2.0
+  static let xpcWarmupTimeout = 1.0
+  static let xpcWarmupReuseInterval = 30.0
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
   static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
   static let helperUnreachable = "helper_unreachable"
@@ -338,6 +340,7 @@ final class MacosComputerUseHelperClient: NSObject {
   private var helperIpcSequence = 0
   private var lastHelperIpcAttempt: [String: Any]?
   private var lastPreferredIpcAttempt: [String: Any]?
+  private var lastSuccessfulXpcWarmupAt: Date?
 
   override init() {
     super.init()
@@ -1206,10 +1209,45 @@ final class MacosComputerUseHelperClient: NSObject {
     timeout: TimeInterval = 1.5,
     result: @escaping FlutterResult
   ) {
+    if shouldWarmupXpc(for: command) {
+      sendXpcWarmup(for: command) { [weak self] warmupDiagnostic in
+        guard let self else {
+          return
+        }
+        if self.sendXpc(
+          command: command,
+          arguments: arguments,
+          timeout: timeout,
+          warmupDiagnostic: warmupDiagnostic,
+          result: result
+        ) {
+          return
+        }
+        self.sendFallback(
+          command: command,
+          arguments: arguments,
+          timeout: timeout,
+          warmupDiagnostic: warmupDiagnostic,
+          result: result
+        )
+      }
+      return
+    }
+
     if sendXpc(command: command, arguments: arguments, timeout: timeout, result: result) {
       return
     }
 
+    sendFallback(command: command, arguments: arguments, timeout: timeout, result: result)
+  }
+
+  private func sendFallback(
+    command: MacosComputerUseHelperCommand,
+    arguments: [String: Any],
+    timeout: TimeInterval,
+    warmupDiagnostic: [String: Any]? = nil,
+    result: @escaping FlutterResult
+  ) {
     let attemptedTransport: String?
     if command.supportsPreferredXpcTransport {
       attemptedTransport = MacosComputerUseIpcSchema.preferredTransport
@@ -1222,14 +1260,151 @@ final class MacosComputerUseHelperClient: NSObject {
       timeout: timeout,
       selectedTransport: MacosComputerUseIpcSchema.fallbackTransport,
       attemptedTransport: attemptedTransport,
+      preferredAttemptDiagnostic: warmupDiagnostic.map {
+        ["warmupAttempt": $0, "status": "xpc_skipped_after_warmup"]
+      },
       result: result
     )
+  }
+
+  private func shouldWarmupXpc(for command: MacosComputerUseHelperCommand) -> Bool {
+    guard MacosComputerUseIpcSchema.xpcReady else {
+      return false
+    }
+    guard command.supportsPreferredXpcTransport, command != .ping else {
+      return false
+    }
+    guard let lastSuccessfulXpcWarmupAt else {
+      return true
+    }
+    return Date().timeIntervalSince(lastSuccessfulXpcWarmupAt) >
+      MacosComputerUseIpcSchema.xpcWarmupReuseInterval
+  }
+
+  private func sendXpcWarmup(
+    for command: MacosComputerUseHelperCommand,
+    completion: @escaping ([String: Any]) -> Void
+  ) {
+    let requestId = UUID().uuidString
+    let sentAt = Date()
+    helperIpcSequence += 1
+    let sequence = helperIpcSequence
+    let request = MacosComputerUseHelperRequest(
+      requestId: requestId,
+      command: .ping,
+      arguments: ["warmupForCommand": command.rawValue]
+    )
+    var completed = false
+    let connection = NSXPCConnection(
+      machServiceName: MacosComputerUseIpcSchema.xpcServiceName,
+      options: []
+    )
+    connection.remoteObjectInterface = NSXPCInterface(with: CavernoComputerUseXpcProtocol.self)
+
+    func finish(
+      status: String,
+      completedAt: Date = Date(),
+      errorCode: String? = nil,
+      errorDescription: String? = nil
+    ) {
+      guard !completed else {
+        return
+      }
+      completed = true
+      connection.invalidate()
+      var diagnostic = helperIpcDiagnostic(
+        sequence: sequence,
+        requestId: requestId,
+        command: .ping,
+        selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+        attemptedTransport: nil,
+        sentAt: sentAt,
+        timeout: MacosComputerUseIpcSchema.xpcWarmupTimeout,
+        status: status,
+        completedAt: completedAt,
+        errorCode: errorCode,
+        errorDescription: errorDescription
+      )
+      diagnostic["warmupForCommand"] = command.rawValue
+      diagnostic["xpcWarmup"] = true
+      if status == "xpc_response" {
+        diagnostic["responseReceivedBeforeTimeout"] = true
+        lastSuccessfulXpcWarmupAt = completedAt
+      } else if status == "xpc_timeout" {
+        diagnostic["responseReceivedBeforeTimeout"] = false
+      }
+      lastHelperIpcAttempt = diagnostic
+      completion(diagnostic)
+    }
+
+    connection.invalidationHandler = { [weak self] in
+      DispatchQueue.main.async {
+        guard let self, !completed else {
+          return
+        }
+        self.lastHelperIpcAttempt = self.helperIpcDiagnostic(
+          sequence: sequence,
+          requestId: requestId,
+          command: .ping,
+          selectedTransport: MacosComputerUseIpcSchema.preferredTransport,
+          attemptedTransport: nil,
+          sentAt: sentAt,
+          timeout: MacosComputerUseIpcSchema.xpcWarmupTimeout,
+          status: "xpc_invalidated",
+          completedAt: Date(),
+          errorCode: MacosComputerUseIpcSchema.xpcUnavailable
+        )
+      }
+    }
+    connection.resume()
+
+    let proxy = connection.remoteObjectProxyWithErrorHandler { error in
+      DispatchQueue.main.async {
+        NSLog(
+          "CavernoComputerUseIPC xpc warmup error requestId=%@ command=%@ error=%@",
+          requestId,
+          command.rawValue,
+          error.localizedDescription
+        )
+        finish(
+          status: "xpc_error",
+          errorCode: MacosComputerUseIpcSchema.xpcUnavailable,
+          errorDescription: error.localizedDescription
+        )
+      }
+    } as? CavernoComputerUseXpcProtocol
+
+    guard let proxy else {
+      finish(status: "xpc_proxy_unavailable", errorCode: MacosComputerUseIpcSchema.xpcUnavailable)
+      return
+    }
+
+    NSLog(
+      "CavernoComputerUseIPC xpc warmup sent requestId=%@ command=%@",
+      requestId,
+      command.rawValue
+    )
+    proxy.handleRequest(request.userInfo as NSDictionary) { response in
+      DispatchQueue.main.async {
+        let responseMap = response as? [String: Any] ?? [:]
+        finish(
+          status: responseMap["ok"] as? Bool == false ? "xpc_response_error" : "xpc_response",
+          completedAt: Date(),
+          errorCode: responseMap["code"] as? String
+        )
+      }
+    }
+
+    DispatchQueue.main.asyncAfter(deadline: .now() + MacosComputerUseIpcSchema.xpcWarmupTimeout) {
+      finish(status: "xpc_timeout", errorCode: MacosComputerUseIpcSchema.xpcTimeout)
+    }
   }
 
   private func sendXpc(
     command: MacosComputerUseHelperCommand,
     arguments: [String: Any],
     timeout: TimeInterval,
+    warmupDiagnostic: [String: Any]? = nil,
     result: @escaping FlutterResult
   ) -> Bool {
     guard MacosComputerUseIpcSchema.xpcReady else {
@@ -1291,6 +1466,9 @@ final class MacosComputerUseHelperClient: NSObject {
         errorDescription: errorDescription
       )
       diagnostic.merge(extraDiagnostics) { _, new in new }
+      if let warmupDiagnostic {
+        diagnostic["warmupAttempt"] = warmupDiagnostic
+      }
       lastHelperIpcAttempt = diagnostic
       lastPreferredIpcAttempt = diagnostic
       send(
@@ -1371,6 +1549,9 @@ final class MacosComputerUseHelperClient: NSObject {
             if let responseCode = responseMap["code"] as? String {
               diagnostic["lateResponseCode"] = responseCode
             }
+            if let warmupDiagnostic {
+              diagnostic["warmupAttempt"] = warmupDiagnostic
+            }
             self.lastPreferredIpcAttempt = diagnostic
             self.lastHelperIpcAttempt = diagnostic
             NSLog(
@@ -1400,7 +1581,13 @@ final class MacosComputerUseHelperClient: NSObject {
           errorCode: responseMap["code"] as? String
         )
         diagnostic["responseReceivedBeforeTimeout"] = true
+        if let warmupDiagnostic {
+          diagnostic["warmupAttempt"] = warmupDiagnostic
+          responseWithTransport["preferredIpcWarmupAttempt"] = warmupDiagnostic
+        }
+        responseWithTransport["preferredIpcAttempt"] = diagnostic
         self.lastHelperIpcAttempt = diagnostic
+        self.lastPreferredIpcAttempt = diagnostic
         NSLog(
           "CavernoComputerUseIPC xpc response received requestId=%@ command=%@",
           requestId,
