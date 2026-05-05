@@ -241,6 +241,37 @@ def path_or_none(value):
     return value if value else None
 
 
+def read_json(path):
+    if not path:
+        return None
+    json_path = Path(path)
+    if not json_path.exists():
+        return None
+    try:
+        return json.loads(json_path.read_text())
+    except Exception:
+        return None
+
+
+llm_readiness_summary = read_json(os.environ["LLM_READINESS_SUMMARY"])
+llm_readiness_summary = (
+    llm_readiness_summary if isinstance(llm_readiness_summary, dict) else {}
+)
+mvp_evidence_gate = llm_readiness_summary.get("mvpEvidenceGate")
+mvp_evidence_gate = (
+    mvp_evidence_gate if isinstance(mvp_evidence_gate, dict) else None
+)
+expected_runtime_phases = llm_readiness_summary.get(
+    "expectedUserOperatedRuntimePhases"
+)
+expected_runtime_phases = (
+    expected_runtime_phases if isinstance(expected_runtime_phases, list) else []
+)
+llm_evidence_mode = llm_readiness_summary.get("llmEvidenceMode")
+llm_ready = llm_readiness_summary.get("llmReady")
+llm_gate_ready = llm_readiness_summary.get("llmGateReady")
+
+
 next_user_actions = []
 if not llm_summary_path:
     next_user_actions.append(
@@ -273,6 +304,11 @@ summary = {
     "fixtureBuildExitCode": fixture_build_exit,
     "llmReadinessExitCode": llm_readiness_exit,
     "llmReadinessSummaryPath": path_or_none(os.environ["LLM_READINESS_SUMMARY"]),
+    "llmEvidenceMode": llm_evidence_mode,
+    "llmReady": llm_ready,
+    "llmGateReady": llm_gate_ready,
+    "mvpEvidenceGate": mvp_evidence_gate,
+    "expectedUserOperatedRuntimePhases": expected_runtime_phases,
     "llmCanarySummaryPath": path_or_none(llm_summary_path),
     "mvpSignoffExitCode": mvp_signoff_exit,
     "mvpSignoffJsonPath": path_or_none(os.environ["MVP_SIGNOFF_JSON"]),
@@ -292,9 +328,41 @@ lines = [
     f"- Ready: {str(summary['ready']).lower()}",
     f"- Fixture build exit code: {fixture_build_exit}",
     f"- LLM readiness exit code: {llm_readiness_exit}",
+    f"- LLM evidence mode: {llm_evidence_mode or 'not available'}",
+    f"- LLM gate ready: {str(llm_gate_ready).lower() if isinstance(llm_gate_ready, bool) else 'not available'}",
+    f"- MVP evidence gate: {mvp_evidence_gate.get('status') if mvp_evidence_gate else 'not available'}",
     f"- MVP sign-off exit code: {mvp_signoff_exit}",
     f"- Final sign-off: {str(final_signoff).lower()}",
     "",
+]
+if mvp_evidence_gate:
+    checks = mvp_evidence_gate.get("checks")
+    checks = checks if isinstance(checks, list) else []
+    lines.extend([
+        "## MVP Evidence Checks",
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {nextAction} |".format(
+                id=check.get("id"),
+                status="passed" if check.get("ok") is True else "blocked",
+                nextAction=check.get("nextAction"),
+            )
+        )
+    lines.append("")
+if expected_runtime_phases:
+    lines.extend([
+        "## Expected User-Operated Runtime Phases",
+        "",
+    ])
+    lines.extend(f"- `{phase}`" for phase in expected_runtime_phases)
+    lines.append("")
+lines.extend([
     "## Artifacts",
     "",
     f"- Fixture app: `{summary['fixtureAppPath'] or 'not available'}`",
@@ -306,7 +374,7 @@ lines = [
     "",
     "## Next User Actions",
     "",
-]
+])
 if next_user_actions:
     lines.extend(f"- {action}" for action in next_user_actions)
 else:

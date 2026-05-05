@@ -61,7 +61,11 @@ bash tool/run_macos_computer_use_mvp_demo_readiness.sh
 
 The guided wrapper builds the deterministic fixture, runs the LLM readiness
 path when evidence is available, writes a demo handoff, and keeps fixture launch,
-screen capture, TCC, and desktop actions user-operated.
+screen capture, TCC, and desktop actions user-operated. Its summary and handoff
+carry the LLM readiness `mvpEvidenceGate` and
+`expectedUserOperatedRuntimePhases` forward so the guided path shows the same
+safe-click, type-confirm, observe-again, and refusal evidence as the lower-level
+LLM canary.
 
 To validate against the actual fixture app UI instead of the canned observation
 payload, ask the user to capture a screenshot of the visible fixture window and

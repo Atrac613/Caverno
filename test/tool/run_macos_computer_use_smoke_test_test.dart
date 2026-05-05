@@ -686,6 +686,11 @@ void main() {
       mvpDemoReadinessScript,
       contains('tool/run_macos_computer_use_mvp_llm_readiness.sh'),
     );
+    expect(mvpDemoReadinessScript, contains('mvpEvidenceGate'));
+    expect(
+      mvpDemoReadinessScript,
+      contains('expectedUserOperatedRuntimePhases'),
+    );
     expect(
       mvpDemoReadinessScript,
       contains('tool/run_macos_computer_use_mvp_signoff.sh'),
@@ -1340,6 +1345,11 @@ void main() {
           summary,
           contains('macos_computer_use_mvp_fixture_vision_llm_canary'),
         );
+        expect(summary, contains('"llmEvidenceMode": "fixture_vision"'));
+        expect(summary, contains('"llmGateReady": true'));
+        expect(summary, contains('"mvpEvidenceGate"'));
+        expect(summary, contains('"fixture_window_visible"'));
+        expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1348,6 +1358,8 @@ void main() {
             .toList(growable: false);
         expect(handoffFiles, hasLength(1));
         final handoff = handoffFiles.single.readAsStringSync();
+        expect(handoff, contains('MVP Evidence Checks'));
+        expect(handoff, contains('Expected User-Operated Runtime Phases'));
         expect(handoff, contains('User-Operated Commands'));
         expect(
           handoff,
