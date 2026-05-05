@@ -38,6 +38,8 @@ class ManualTccReportSummary {
     required this.helperPath,
     required this.nextAction,
     required this.checks,
+    this.captureFailureClasses = const <String>[],
+    this.captureNextAction,
   });
 
   final String reportPath;
@@ -49,6 +51,8 @@ class ManualTccReportSummary {
   final String? helperPath;
   final String? nextAction;
   final List<ManualTccCheckSummary> checks;
+  final List<String> captureFailureClasses;
+  final String? captureNextAction;
 
   List<ManualTccCheckSummary> get failedChecks =>
       checks.where((check) => !check.ok).toList(growable: false);
@@ -66,6 +70,8 @@ class ManualTccReportSummary {
       'appPath': appPath,
       'helperPath': helperPath,
       'nextAction': nextAction,
+      'captureFailureClasses': captureFailureClasses,
+      'captureNextAction': captureNextAction,
       'failedChecks': failedChecks
           .map((check) => check.toJson())
           .toList(growable: false),
@@ -95,6 +101,14 @@ class ManualTccReportSummary {
     }
     if (nextAction != null && nextAction!.trim().isNotEmpty) {
       buffer.writeln('- Next action: $nextAction');
+    }
+    if (captureFailureClasses.isNotEmpty) {
+      buffer.writeln(
+        '- Capture failure classes: ${captureFailureClasses.join(', ')}',
+      );
+    }
+    if (captureNextAction != null && captureNextAction!.trim().isNotEmpty) {
+      buffer.writeln('- Capture next action: $captureNextAction');
     }
 
     if (failedChecks.isNotEmpty) {
@@ -140,6 +154,7 @@ ManualTccReportSummary buildManualTccReportSummary(
   required String reportPath,
 }) {
   final gate = _mapValue(report['releaseRuntimeSignoffGate']);
+  final captureGate = _mapValue(report['captureGate']);
   final blockers = _stringList(gate['blockers']);
   final status = gate['status'] as String? ?? 'missing';
   final checks = _listValue(gate['checks'])
@@ -168,6 +183,10 @@ ManualTccReportSummary buildManualTccReportSummary(
     helperPath: gate['helperPath'] as String?,
     nextAction: gate['nextAction'] as String?,
     checks: List<ManualTccCheckSummary>.unmodifiable(checks),
+    captureFailureClasses: List<String>.unmodifiable(
+      _stringList(captureGate['failureClasses']),
+    ),
+    captureNextAction: captureGate['nextAction'] as String?,
   );
 }
 

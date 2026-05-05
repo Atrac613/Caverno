@@ -1956,6 +1956,21 @@ class _IpcRuntimeSummary extends StatelessWidget {
       permissionGate?['blockedByPermissions'],
     );
     final captureBlockers = _stringList(captureGate?['blockers']);
+    final captureFailureClasses = _stringList(captureGate?['failureClasses']);
+    final captureFailureClass = _stringValue(captureGate?['failureClass']);
+    final captureStepDiagnostics = _mapValue(captureGate?['stepDiagnostics']);
+    final captureDisplayStatus = _stringValue(
+      _mapValue(captureStepDiagnostics?['displayScreenshot'])?['status'],
+    );
+    final captureWindowListStatus = _stringValue(
+      _mapValue(captureStepDiagnostics?['listWindows'])?['status'],
+    );
+    final captureWindowStatus = _stringValue(
+      _mapValue(captureStepDiagnostics?['windowCapture'])?['status'],
+    );
+    final captureTccOwnerPath = _stringValue(
+      captureGate?['tccOwnerHelperPath'],
+    );
     final inputBlockers = _stringList(inputGate?['blockers']);
     final audioBlockers = _stringList(audioGate?['blockers']);
     final overlayBlockers = _stringList(overlaySmoke?['blockers']);
@@ -2193,6 +2208,30 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Capture blockers',
                 value: captureBlockers.join(', '),
+              ),
+            if (captureFailureClass != null && captureFailureClass != 'none')
+              _InfoChip(
+                label: 'Capture failure',
+                value: captureFailureClasses.isEmpty
+                    ? captureFailureClass
+                    : captureFailureClasses.join(', '),
+              ),
+            if (captureStepDiagnostics != null)
+              _InfoChip(
+                label: 'Capture steps',
+                value: [
+                  if (captureDisplayStatus != null)
+                    'display=$captureDisplayStatus',
+                  if (captureWindowListStatus != null)
+                    'windows=$captureWindowListStatus',
+                  if (captureWindowStatus != null)
+                    'window=$captureWindowStatus',
+                ].join(', '),
+              ),
+            if (captureTccOwnerPath != null)
+              _InfoChip(
+                label: 'Capture TCC owner',
+                value: _shortPath(captureTccOwnerPath),
               ),
             if (inputGate != null)
               _InfoChip(label: 'Input gate', value: '${inputGate['status']}'),
@@ -2492,6 +2531,9 @@ class _LiveSmokeSummary extends StatelessWidget {
       permissionGate?['blockedByPermissions'],
     );
     final captureBlockers = _stringList(captureGate?['blockers']);
+    final captureFailureClasses = _stringList(captureGate?['failureClasses']);
+    final captureFailureClass = _stringValue(captureGate?['failureClass']);
+    final captureNextAction = _stringValue(captureGate?['nextAction']);
     final inputBlockers = _stringList(inputGate?['blockers']);
     final audioBlockers = _stringList(audioGate?['blockers']);
     final unsafeBlockers = _stringList(unsafeActionGate?['blockers']);
@@ -2655,6 +2697,20 @@ class _LiveSmokeSummary extends StatelessWidget {
           const SizedBox(height: 4),
           Text(
             'Live M4 next action: $m4SignoffNextAction',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (captureFailureClass != null && captureFailureClass != 'none') ...[
+          const SizedBox(height: 4),
+          Text(
+            'Live capture failure: ${captureFailureClasses.isEmpty ? captureFailureClass : captureFailureClasses.join(', ')}',
+            style: Theme.of(context).textTheme.bodySmall,
+          ),
+        ],
+        if (captureNextAction != null) ...[
+          const SizedBox(height: 4),
+          Text(
+            'Live capture next action: $captureNextAction',
             style: Theme.of(context).textTheme.bodySmall,
           ),
         ],

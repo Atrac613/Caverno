@@ -640,7 +640,11 @@ void main() {
       steps,
       helperStatus: helperStatus,
     );
-    report['captureGate'] = _captureGate(steps, permissions: permissions);
+    report['captureGate'] = _captureGate(
+      steps,
+      permissions: permissions,
+      helperStatus: helperStatus,
+    );
     report['visionObservationGate'] = _visionObservationGate(steps);
     report['observeActionObserveGate'] = _observeActionObserveGate(steps);
     report['desktopActionCanaryGate'] = _desktopActionCanaryGate(steps);
@@ -1407,32 +1411,194 @@ Map<String, dynamic> _helperProcessPolicyGate(
 Map<String, dynamic> _captureGate(
   List<Map<String, dynamic>> steps, {
   required Map<String, dynamic>? permissions,
+  required Map<String, dynamic>? helperStatus,
 }) {
   final screenCaptureGranted = permissions?['screenCaptureGranted'] == true;
-  final displayPassed = _stepPassedById(steps, 'display_screenshot');
-  final windowPassed = _stepPassedById(steps, 'window_capture');
+  final displayStatus = _stepStatusById(steps, 'display_screenshot');
+  final windowListStatus = _stepStatusById(steps, 'list_windows');
+  final windowStatus = _stepStatusById(steps, 'window_capture');
+  final displayPassed = displayStatus['passed'] == true;
+  final windowListPassed = windowListStatus['passed'] == true;
+  final windowPassed = windowStatus['passed'] == true;
+  final failureClasses = _captureFailureClasses(
+    screenCaptureGranted: screenCaptureGranted,
+    displayStatus: displayStatus,
+    windowListStatus: windowListStatus,
+    windowStatus: windowStatus,
+  );
+  final helperPathMismatch = helperStatus?['helperPathMismatch'] == true;
+  final preservedMismatchedHelperPath =
+      helperStatus?['preservedMismatchedHelperPath'] == true;
+  final tccOwnerHelperPath = preservedMismatchedHelperPath
+      ? _stringValue(helperStatus?['runningHelperPath'])
+      : _stringValue(helperStatus?['embeddedHelperPath']) ??
+            _stringValue(helperStatus?['helperPath']);
   final blockers = <String>[
     if (!screenCaptureGranted) 'screen_capture_permission_missing',
     if (screenCaptureGranted && !displayPassed)
       'display_capture_runtime_failed',
-    if (screenCaptureGranted && !windowPassed) 'window_capture_runtime_failed',
+    if (screenCaptureGranted && !windowListPassed) 'window_list_runtime_failed',
+    if (screenCaptureGranted && windowListPassed && !windowPassed)
+      'window_capture_runtime_failed',
   ];
+  final status = !screenCaptureGranted
+      ? 'blocked'
+      : blockers.isEmpty
+      ? 'ready'
+      : 'failed';
   return {
-    'status': !screenCaptureGranted
-        ? 'blocked'
-        : blockers.isEmpty
-        ? 'ready'
-        : 'failed',
+    'status': status,
     'screenCaptureGranted': screenCaptureGranted,
     'displayScreenshotPassed': displayPassed,
+    'windowListPassed': windowListPassed,
     'windowCapturePassed': windowPassed,
+    'failureClass': failureClasses.isEmpty ? 'none' : failureClasses.first,
+    'failureClasses': failureClasses,
+    'stepDiagnostics': {
+      'displayScreenshot': _captureStepDiagnostic(displayStatus),
+      'listWindows': _captureStepDiagnostic(windowListStatus),
+      'windowCapture': _captureStepDiagnostic(windowStatus),
+    },
+    'helperPathMismatch': helperPathMismatch,
+    'preservedMismatchedHelperPath': preservedMismatchedHelperPath,
+    'tccOwnerHelperPath': tccOwnerHelperPath,
     'blockers': blockers,
-    'nextAction': blockers.isEmpty
-        ? 'Capture smoke is ready.'
-        : !screenCaptureGranted
-        ? 'Grant Screen Recording to Caverno Computer Use, then rerun smoke.'
-        : 'Inspect capture runtime failures after permissions are granted.',
+    'nextAction': _captureNextAction(
+      status: status,
+      failureClasses: failureClasses,
+      helperPathMismatch: helperPathMismatch,
+      preservedMismatchedHelperPath: preservedMismatchedHelperPath,
+    ),
   };
+}
+
+List<String> _captureFailureClasses({
+  required bool screenCaptureGranted,
+  required Map<String, dynamic> displayStatus,
+  required Map<String, dynamic> windowListStatus,
+  required Map<String, dynamic> windowStatus,
+}) {
+  final classes = <String>{};
+  if (!screenCaptureGranted) {
+    classes.add('screen_capture_permission_missing');
+    return classes.toList(growable: false);
+  }
+
+  void addStepClass(String prefix, Map<String, dynamic> status) {
+    if (status['passed'] == true) {
+      return;
+    }
+    if (status['status'] == 'missing') {
+      classes.add('${prefix}_missing');
+      return;
+    }
+    if (status['status'] == 'skipped') {
+      classes.add('${prefix}_skipped');
+      return;
+    }
+    final result = _mapValue(status['result']);
+    final code = _stringValue(result?['code']);
+    switch (code) {
+      case 'screen_capture_denied':
+        classes.add('${prefix}_permission_denied');
+      case 'display_not_found':
+        classes.add('display_not_found');
+      case 'window_not_found':
+        classes.add('window_not_found');
+      case 'screenshot_failed':
+        classes.add('${prefix}_api_failed');
+      case 'image_encode_failed':
+        classes.add('${prefix}_image_encode_failed');
+      case 'invalid_args':
+        classes.add('${prefix}_invalid_args');
+      case null:
+        classes.add('${prefix}_runtime_failed');
+      default:
+        classes.add('${prefix}_$code');
+    }
+  }
+
+  addStepClass('display_capture', displayStatus);
+  addStepClass('window_list', windowListStatus);
+  if (windowListStatus['passed'] == true) {
+    addStepClass('window_capture', windowStatus);
+  }
+
+  return classes.toList(growable: false)..sort();
+}
+
+Map<String, dynamic> _captureStepDiagnostic(Map<String, dynamic> status) {
+  final result = _mapValue(status['result']);
+  final diagnostic = <String, dynamic>{
+    'status': status['status'],
+    'passed': status['passed'] == true,
+    'skipped': status['skipped'] == true,
+  };
+  final reason = _stringValue(status['reason']);
+  final error = _stringValue(status['error']);
+  final code = _stringValue(result?['code']);
+  final resultError = _stringValue(result?['error']);
+  final details = result?['details'];
+  if (reason != null) {
+    diagnostic['reason'] = reason;
+  }
+  if (error != null) {
+    diagnostic['error'] = error;
+  }
+  if (code != null) {
+    diagnostic['code'] = code;
+  }
+  if (resultError != null) {
+    diagnostic['resultError'] = resultError;
+  }
+  if (details != null) {
+    diagnostic['details'] = details;
+  }
+  for (final key in const [
+    'selectedIpcTransport',
+    'preferredIpcTransport',
+    'fallbackIpcTransport',
+    'width',
+    'height',
+    'displayId',
+    'windowId',
+    'count',
+  ]) {
+    if (result?.containsKey(key) == true) {
+      diagnostic[key] = result?[key];
+    }
+  }
+  return diagnostic;
+}
+
+String _captureNextAction({
+  required String status,
+  required List<String> failureClasses,
+  required bool helperPathMismatch,
+  required bool preservedMismatchedHelperPath,
+}) {
+  if (status == 'ready') {
+    return 'Capture smoke is ready.';
+  }
+  if (failureClasses.contains('screen_capture_permission_missing')) {
+    return 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.';
+  }
+  if (failureClasses.any((failure) => failure.endsWith('_permission_denied'))) {
+    return 'Ask the user to confirm Screen & System Audio Recording is granted to the helper shown as the TCC owner, then rerun smoke manually.';
+  }
+  if (failureClasses.contains('window_list_runtime_failed')) {
+    return 'Inspect the list_windows step diagnostics, keep a visible desktop window open, then rerun smoke.';
+  }
+  if (failureClasses.contains('window_capture_skipped')) {
+    return 'Keep a visible non-helper window open, then rerun smoke.';
+  }
+  if (helperPathMismatch && preservedMismatchedHelperPath) {
+    return 'Capture ran against a preserved granted helper. Continue development, but restart from the installed Caverno bundle before release sign-off.';
+  }
+  if (helperPathMismatch) {
+    return 'Resolve the helper path mismatch before trusting capture sign-off.';
+  }
+  return 'Inspect display_screenshot and window_capture step diagnostics after permissions are granted.';
 }
 
 Map<String, dynamic> _visionObservationGate(List<Map<String, dynamic>> steps) {

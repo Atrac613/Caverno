@@ -628,6 +628,10 @@ ManualTccReportSummary _manualTccSummaryFromJson(
     helperPath: json['helperPath'] as String?,
     nextAction: json['nextAction'] as String?,
     checks: List<ManualTccCheckSummary>.unmodifiable(checks),
+    captureFailureClasses: List<String>.unmodifiable(
+      _stringList(json['captureFailureClasses']),
+    ),
+    captureNextAction: json['captureNextAction'] as String?,
   );
 }
 

@@ -251,6 +251,22 @@ void main() {
       find.text('Capture blockers: screen_capture_permission_missing'),
       findsOneWidget,
     );
+    expect(
+      find.text('Capture failure: screen_capture_permission_missing'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Capture steps: display=failed, windows=passed, window=skipped',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Capture TCC owner: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Input gate: not_armed'), findsOneWidget);
     expect(find.text('Input blockers: unsafe_smoke_not_armed'), findsOneWidget);
     expect(find.text('Audio gate: not_armed'), findsOneWidget);
@@ -308,6 +324,16 @@ void main() {
     expect(find.text('Live Positive Smoke: blocked'), findsOneWidget);
     expect(find.text('Live Expectations: Failed'), findsOneWidget);
     expect(find.text('Live M4 Sign-off: blocked'), findsOneWidget);
+    expect(
+      find.text('Live capture failure: screen_capture_permission_missing'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Live capture next action: Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
+      ),
+      findsOneWidget,
+    );
     expect(
       find.text(
         'Live M4 helper: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
@@ -853,6 +879,17 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'captureGate': {
           'status': 'blocked',
           'blockers': ['screen_capture_permission_missing'],
+          'failureClass': 'screen_capture_permission_missing',
+          'failureClasses': ['screen_capture_permission_missing'],
+          'stepDiagnostics': {
+            'displayScreenshot': {'status': 'failed', 'passed': false},
+            'listWindows': {'status': 'passed', 'passed': true, 'count': 3},
+            'windowCapture': {'status': 'skipped', 'passed': false},
+          },
+          'tccOwnerHelperPath':
+              '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+          'nextAction':
+              'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
         },
         'inputGate': {
           'status': 'not_armed',

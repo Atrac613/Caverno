@@ -135,14 +135,30 @@ void main() {
             },
           ],
         },
+        'captureGate': <String, dynamic>{
+          'failureClasses': <String>['screen_capture_permission_missing'],
+          'nextAction': 'Ask the user to rerun capture after manual TCC.',
+        },
       }, reportPath: '/tmp/report.json');
 
       expect(summary.ready, isFalse);
       expect(summary.blockers, contains('release_runtime_permissions_blocked'));
       expect(summary.failureClasses, contains('permissions_missing'));
+      expect(
+        summary.captureFailureClasses,
+        contains('screen_capture_permission_missing'),
+      );
       expect(summary.toJson()['failedChecks'], isNotEmpty);
+      expect(
+        summary.toJson()['captureFailureClasses'],
+        contains('screen_capture_permission_missing'),
+      );
       expect(summary.toMarkdown(), contains('## Failed Checks'));
       expect(summary.toMarkdown(), contains('Grant permissions manually.'));
+      expect(
+        summary.toMarkdown(),
+        contains('Capture failure classes: screen_capture_permission_missing'),
+      );
     });
   });
 }
