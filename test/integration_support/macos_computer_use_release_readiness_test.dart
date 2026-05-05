@@ -424,6 +424,15 @@ void main() {
       final runs = desktopActionGate.details['runs'] as List;
       final firstRun = Map<String, dynamic>.from(runs.first as Map);
       expect(firstRun['phaseStatus'], containsPair('click', 'blocked'));
+
+      final markdown = summary.toMarkdown();
+      expect(markdown, contains('Desktop Action Evidence'));
+      expect(markdown, contains('`pre_observe_image`'));
+      expect(markdown, contains('`click_sent`'));
+      expect(markdown, contains('`post_observe_image`'));
+      expect(markdown, contains('Use a visible, harmless target.'));
+      expect(markdown, contains('| run_01 | failed | click_not_sent |'));
+      expect(markdown, contains('| ready | blocked | blocked |'));
     });
 
     test(

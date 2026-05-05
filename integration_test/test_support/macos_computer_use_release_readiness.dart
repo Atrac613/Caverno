@@ -109,13 +109,72 @@ class ReleaseReadinessSummary {
       );
     }
 
+    ReleaseReadinessGate? desktopActionGate;
     ReleaseReadinessGate? llmGate;
     for (final gate in gates) {
+      if (gate.id == 'desktop_action_canary') {
+        desktopActionGate = gate;
+      }
       if (gate.id == 'llm_canary') {
         llmGate = gate;
-        break;
       }
     }
+
+    final desktopActionRuns = desktopActionGate?.details['runs'];
+    final desktopActionPhases = _stringList(
+      desktopActionGate?.details['expectedPhases'],
+    );
+    if (desktopActionGate != null &&
+        (desktopActionPhases.isNotEmpty ||
+            (desktopActionRuns is List && desktopActionRuns.isNotEmpty))) {
+      final safeTargetGuidance = _stringList(
+        desktopActionGate.details['safeTargetGuidance'],
+      );
+      buffer
+        ..writeln()
+        ..writeln('## Desktop Action Evidence')
+        ..writeln()
+        ..writeln(
+          '- Desktop action status: ${_markdownCell(desktopActionGate.status)}',
+        )
+        ..writeln(
+          '- Desktop action runs: ${_markdownCell(desktopActionGate.details['runCount'])}',
+        )
+        ..writeln(
+          '- Desktop action failures: ${_markdownCell(desktopActionGate.details['failed'])}',
+        );
+      if (desktopActionPhases.isNotEmpty) {
+        buffer.writeln(
+          '- Expected phases: ${desktopActionPhases.map((phase) => '`${_escapeMarkdownCode(phase)}`').join(', ')}',
+        );
+      }
+      if (safeTargetGuidance.isNotEmpty) {
+        buffer.writeln(
+          '- Safe target guidance: ${safeTargetGuidance.map(_markdownCell).join('; ')}',
+        );
+      }
+      if (desktopActionRuns is List && desktopActionRuns.isNotEmpty) {
+        buffer
+          ..writeln()
+          ..writeln(
+            '| Run | Status | Failure Class | Pre Observe | Click | Post Observe | Changed Evidence |',
+          )
+          ..writeln('| --- | --- | --- | --- | --- | --- | --- |');
+        for (final run in desktopActionRuns) {
+          if (run is! Map) {
+            continue;
+          }
+          final phaseStatus = run['phaseStatus'];
+          final phaseStatusMap = phaseStatus is Map
+              ? phaseStatus
+              : const <Object?, Object?>{};
+          buffer.writeln(
+            '| ${_markdownCell(run['name'])} | ${_markdownCell(run['status'])} | ${_markdownCell(run['failureClass'])} | ${_markdownCell(phaseStatusMap['preObserve'])} | ${_markdownCell(phaseStatusMap['click'])} | ${_markdownCell(phaseStatusMap['postObserve'])} | ${_markdownCell(phaseStatusMap['changedEvidence'])} |',
+          );
+        }
+      }
+    }
+
     final mvpEvidenceGate = llmGate?.details['mvpEvidenceGate'];
     if (mvpEvidenceGate is Map && mvpEvidenceGate.isNotEmpty) {
       final blockers = _stringList(mvpEvidenceGate['blockers']);
