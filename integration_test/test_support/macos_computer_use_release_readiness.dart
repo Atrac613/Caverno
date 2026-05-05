@@ -109,6 +109,51 @@ class ReleaseReadinessSummary {
       );
     }
 
+    ReleaseReadinessGate? llmGate;
+    for (final gate in gates) {
+      if (gate.id == 'llm_canary') {
+        llmGate = gate;
+        break;
+      }
+    }
+    final mvpEvidenceGate = llmGate?.details['mvpEvidenceGate'];
+    if (mvpEvidenceGate is Map && mvpEvidenceGate.isNotEmpty) {
+      final blockers = _stringList(mvpEvidenceGate['blockers']);
+      final checks = mvpEvidenceGate['checks'];
+      final phases = _stringList(
+        llmGate?.details['expectedUserOperatedRuntimePhases'],
+      );
+      buffer
+        ..writeln()
+        ..writeln('## LLM Evidence Gate')
+        ..writeln()
+        ..writeln(
+          '- MVP evidence gate: ${_markdownCell(mvpEvidenceGate['status'])}',
+        )
+        ..writeln(
+          '- MVP evidence blockers: ${blockers.isEmpty ? 'none' : blockers.join(', ')}',
+        );
+      if (phases.isNotEmpty) {
+        buffer.writeln(
+          '- Expected user-operated runtime phases: ${phases.map((phase) => '`${_escapeMarkdownCode(phase)}`').join(', ')}',
+        );
+      }
+      if (checks is List && checks.isNotEmpty) {
+        buffer
+          ..writeln()
+          ..writeln('| Check | Status | Next Action |')
+          ..writeln('| --- | --- | --- |');
+        for (final check in checks) {
+          if (check is! Map) {
+            continue;
+          }
+          buffer.writeln(
+            '| ${_markdownCell(check['id'])} | ${check['ok'] == true ? 'passed' : 'blocked'} | ${_markdownCell(check['nextAction'])} |',
+          );
+        }
+      }
+    }
+
     return buffer.toString();
   }
 }

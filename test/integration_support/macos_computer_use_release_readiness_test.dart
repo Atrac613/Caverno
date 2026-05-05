@@ -253,6 +253,10 @@ void main() {
       expect(llmGate.details['scenarios'], isNotEmpty);
       expect(llmGate.details, containsPair('requiresUserClick', true));
       expect(llmGate.details, containsPair('requiresUserTextInput', true));
+      expect(summary.toMarkdown(), contains('LLM Evidence Gate'));
+      expect(summary.toMarkdown(), contains('safe_click_plan'));
+      expect(summary.toMarkdown(), contains('type_confirm_plan'));
+      expect(summary.toMarkdown(), contains('destructive_target_refused'));
     });
 
     test('surfaces fixture vision MVP LLM canary evidence', () {
@@ -293,6 +297,10 @@ void main() {
         llmGate.details,
         containsPair('screenshotPath', '/tmp/fixture-window.png'),
       );
+      expect(summary.toMarkdown(), contains('LLM Evidence Gate'));
+      expect(summary.toMarkdown(), contains('fixture_window_visible'));
+      expect(summary.toMarkdown(), contains('no_execution_claim'));
+      expect(summary.toMarkdown(), contains('destructive_target_refused'));
     });
 
     test('prefers ready manual TCC evidence over newer blocked evidence', () {
@@ -729,6 +737,20 @@ Map<String, dynamic> _mvpFixtureAggregateLlmSummary({required int failed}) {
     'passRate': failed == 0 ? 1 : 0.5,
     'requiresUserClick': true,
     'requiresUserTextInput': true,
+    'mvpEvidenceGate': _mvpEvidenceGate(
+      checkIds: <String>[
+        'safe_click_plan',
+        'type_confirm_plan',
+        'destructive_refusal',
+      ],
+    ),
+    'expectedUserOperatedRuntimePhases': <String>[
+      'pre_observe_image',
+      'click_sent',
+      'type_text_sent',
+      'post_observe_image',
+      'destructive_target_refused',
+    ],
     'fixtureApp': <String, Object?>{
       'name': 'Caverno Computer Use MVP Fixture',
       'windowTitle': 'Caverno Computer Use MVP Fixture',
@@ -781,6 +803,21 @@ Map<String, dynamic> _mvpFixtureVisionLlmSummary({required int failed}) {
         'Safe Click Target and MVP Fixture Text Field are low-risk fixture controls.',
     'requiresUserClick': true,
     'requiresUserTextInput': true,
+    'mvpEvidenceGate': _mvpEvidenceGate(
+      checkIds: <String>[
+        'fixture_window_visible',
+        'safe_click_plan',
+        'type_confirm_plan',
+        'no_execution_claim',
+      ],
+    ),
+    'expectedUserOperatedRuntimePhases': <String>[
+      'pre_observe_image',
+      'click_sent',
+      'type_text_sent',
+      'post_observe_image',
+      'destructive_target_refused',
+    ],
     'selectedTarget': <String, Object?>{
       'label': 'Safe Click Target',
       'risk': 'low',
@@ -801,6 +838,23 @@ Map<String, dynamic> _mvpFixtureVisionLlmSummary({required int failed}) {
       'name': 'Caverno Computer Use MVP Fixture',
       'windowTitle': 'Caverno Computer Use MVP Fixture',
     },
+  };
+}
+
+Map<String, Object?> _mvpEvidenceGate({required List<String> checkIds}) {
+  return <String, Object?>{
+    'status': 'ready',
+    'ready': true,
+    'checks': checkIds
+        .map(
+          (id) => <String, Object?>{
+            'id': id,
+            'ok': true,
+            'nextAction': 'No action required.',
+          },
+        )
+        .toList(growable: false),
+    'blockers': <String>[],
   };
 }
 
