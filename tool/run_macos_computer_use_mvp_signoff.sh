@@ -126,6 +126,84 @@ fi
 
 mkdir -p "${REPORT_ROOT}"
 
+discovered_artifacts="$(
+  REPORT_ROOT="${REPORT_ROOT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+report_root = Path(os.environ["REPORT_ROOT"])
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def json_files():
+    if not report_root.exists():
+        return []
+    return [path for path in report_root.rglob("*.json") if path.is_file()]
+
+
+def latest_matching(matches):
+    candidates = []
+    for path in json_files():
+        decoded = read_json(path)
+        if decoded is None or not matches(path, decoded):
+            continue
+        candidates.append((path.stat().st_mtime, str(path), path))
+    candidates.sort()
+    return candidates[-1][2] if candidates else None
+
+
+manual = latest_matching(
+    lambda _path, decoded: decoded.get("schemaName")
+    == "macos_computer_use_manual_tcc_report_summary"
+    or "releaseRuntimeSignoffGate" in decoded
+)
+desktop = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith("macos_computer_use_desktop_action_canary_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_desktop_action_canary_summary"
+)
+vision = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith(
+        "macos_computer_use_mvp_fixture_vision_llm_canary_"
+    )
+    and decoded.get("schemaName")
+    == "macos_computer_use_mvp_fixture_vision_llm_canary_summary"
+)
+aggregate = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith("macos_computer_use_mvp_fixture_llm_canary_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_mvp_fixture_llm_canary_summary"
+)
+decision = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
+    and str(decoded.get("scenario", "")).startswith("mvp-fixture")
+)
+llm = vision or aggregate or decision
+
+for name, path in [
+    ("DISCOVERED_MANUAL_TCC_REPORT", manual),
+    ("DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY", desktop),
+    ("DISCOVERED_LLM_CANARY_SUMMARY", llm),
+]:
+    print(f"{name}={shlex.quote(str(path) if path else '')}")
+PY
+)"
+eval "${discovered_artifacts}"
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -133,6 +211,9 @@ if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   else
     manual_tcc_status="provided path not found"
   fi
+elif [[ -n "${DISCOVERED_MANUAL_TCC_REPORT:-}" ]]; then
+  MANUAL_TCC_REPORT="${DISCOVERED_MANUAL_TCC_REPORT}"
+  manual_tcc_status="discovered"
 fi
 
 desktop_action_status="not provided"
@@ -142,6 +223,9 @@ if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
   else
     desktop_action_status="provided path not found"
   fi
+elif [[ -n "${DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY:-}" ]]; then
+  DESKTOP_ACTION_CANARY_SUMMARY="${DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY}"
+  desktop_action_status="discovered"
 fi
 
 llm_canary_status="discovery only"
@@ -151,6 +235,9 @@ if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
   else
     llm_canary_status="provided path not found"
   fi
+elif [[ -n "${DISCOVERED_LLM_CANARY_SUMMARY:-}" ]]; then
+  LLM_CANARY_SUMMARY="${DISCOVERED_LLM_CANARY_SUMMARY}"
+  llm_canary_status="discovered"
 fi
 
 cat >"${HANDOFF_MD}" <<EOF
@@ -208,16 +295,16 @@ EOF
   echo
   echo "## Missing Input Next Actions"
   echo
-  if [[ "${manual_tcc_status}" != "provided" ]]; then
+  if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discovered" ]]; then
     echo "- Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
   fi
-  if [[ "${desktop_action_status}" != "provided" ]]; then
+  if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
     echo "- Ask the user to prepare a safe click target, run \`bash tool/run_macos_computer_use_desktop_action_canary.sh\`, and provide \`canary_summary.json\`."
   fi
   if [[ "${llm_canary_status}" == "provided path not found" ]]; then
     echo "- Rerun \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an existing aggregate LLM canary summary."
   fi
-  if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
+  if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered") && ("${desktop_action_status}" == "provided" || "${desktop_action_status}" == "discovered") ]]; then
     echo "- No manual input is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
   fi
 } >>"${HANDOFF_MD}"
@@ -247,17 +334,17 @@ echo "  bash tool/run_macos_computer_use_manual_tcc_signoff.sh"
 echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh"
 echo
 echo "MVP handoff next actions:"
-if [[ "${manual_tcc_status}" != "provided" ]]; then
+if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discovered" ]]; then
   echo "  manual_tcc: ask the user for manual_tcc_report_summary.json"
 fi
-if [[ "${desktop_action_status}" != "provided" ]]; then
+if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
   echo "  desktop_action_canary: ask the user for canary_summary.json"
 fi
 if [[ "${llm_canary_status}" == "provided path not found" ]]; then
   echo "  llm_canary: provide an existing aggregate canary_summary.json or rerun the fixture LLM canary"
 fi
-if [[ "${manual_tcc_status}" == "provided" && "${desktop_action_status}" == "provided" ]]; then
-  echo "  all manual inputs were provided to this wrapper"
+if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered") && ("${desktop_action_status}" == "provided" || "${desktop_action_status}" == "discovered") ]]; then
+  echo "  all manual inputs were provided or discovered by this wrapper"
 fi
 
 cd "${ROOT_DIR}"

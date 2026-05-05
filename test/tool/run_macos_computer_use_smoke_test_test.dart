@@ -1502,6 +1502,13 @@ void main() {
       contains('CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER'),
     );
     expect(mvpSignoffScript, contains('provided path not found'));
+    expect(mvpSignoffScript, contains('DISCOVERED_MANUAL_TCC_REPORT'));
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY'),
+    );
+    expect(mvpSignoffScript, contains('DISCOVERED_LLM_CANARY_SUMMARY'));
+    expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
     expect(
       mvpSignoffScript,
@@ -1629,6 +1636,93 @@ void main() {
       }
     },
   );
+
+  test('MVP sign-off dry run discovers current artifact paths', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_discovered_',
+    );
+    try {
+      final manualDir = Directory(
+        '${root.path}/macos_computer_use_manual_tcc_1',
+      )..createSync();
+      final manualSummary =
+          File('${manualDir.path}/manual_tcc_report_summary.json')
+            ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_manual_tcc_report_summary",
+  "ready": true,
+  "status": "ready",
+  "blockers": [],
+  "checks": []
+}
+''');
+      final desktopDir = Directory(
+        '${root.path}/macos_computer_use_desktop_action_canary_1',
+      )..createSync();
+      final desktopSummary = File('${desktopDir.path}/canary_summary.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_desktop_action_canary_summary",
+  "stable": true,
+  "runCount": 1,
+  "failed": 0
+}
+''');
+      final llmDir = Directory(
+        '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_1',
+      )..createSync();
+      final llmSummary = File('${llmDir.path}/canary_summary.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_mvp_fixture_vision_llm_canary_summary",
+  "purpose": "computer_use_mvp_fixture_vision_llm_canary",
+  "runCount": 1,
+  "failedCount": 0
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Manual TCC status: discovered'));
+      expect(stdout, contains('Desktop action canary status: discovered'));
+      expect(stdout, contains('LLM canary status: discovered'));
+      expect(stdout, contains('--manual-tcc-report ${manualSummary.path}'));
+      expect(
+        stdout,
+        contains('--desktop-action-canary-summary ${desktopSummary.path}'),
+      );
+      expect(stdout, contains('--llm-canary-summary ${llmSummary.path}'));
+      expect(
+        stdout,
+        contains(
+          'all manual inputs were provided or discovered by this wrapper',
+        ),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('Manual TCC status: discovered'));
+      expect(handoff, contains('Desktop action canary status: discovered'));
+      expect(handoff, contains('LLM canary status: discovered'));
+      expect(handoff, contains(manualSummary.path));
+      expect(handoff, contains(desktopSummary.path));
+      expect(handoff, contains(llmSummary.path));
+      expect(
+        handoff,
+        contains('No manual input is missing from this wrapper invocation.'),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 
   test('MVP sign-off appends blocked readiness next actions', () async {
     final root = Directory.systemTemp.createTempSync(
