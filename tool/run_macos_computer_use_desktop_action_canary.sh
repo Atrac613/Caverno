@@ -17,6 +17,8 @@ FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
 LAUNCH_FIXTURE=0
 RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-0}"
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_LAUNCH_CAVERNO:-0}"
+REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_REQUIRE_HELPER_PATH_MATCH:-0}"
+REPLACE_HELPER="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_REPLACE_HELPER:-0}"
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -69,6 +71,19 @@ while [[ $# -gt 0 ]]; do
       LAUNCH_CAVERNO_APP=1
       shift
       ;;
+    --require-helper-path-match)
+      REQUIRE_HELPER_PATH_MATCH=1
+      shift
+      ;;
+    --replace-helper)
+      REPLACE_HELPER=1
+      shift
+      ;;
+    --release-helper-signoff)
+      REQUIRE_HELPER_PATH_MATCH=1
+      REPLACE_HELPER=1
+      shift
+      ;;
     --legacy-integration)
       LEGACY_INTEGRATION=1
       shift
@@ -91,13 +106,23 @@ Options:
   --launch-caverno     Also launch Caverno.app from this script. By default the
                        no-build probe requires Caverno.app to be already running
                        so the script does not trigger main-app TCC prompts.
+  --require-helper-path-match
+                       Fail when the running helper is not the embedded helper.
+                       This is for release/helper path sign-off, not the default
+                       user-operated canary path.
+  --replace-helper     Stop a mismatched running helper before probing. This may
+                       require the user to grant TCC again for the replacement
+                       helper and is intentionally off by default.
+  --release-helper-signoff
+                       Equivalent to --require-helper-path-match --replace-helper.
   --legacy-integration
                        Run the old Flutter integration-test canary path.
 
 This canary is user-operated. It requires the user to grant TCC permissions and
 to prepare a safe click target before running. The default path does not rebuild
 or auto-launch Caverno.app, so it does not invalidate or trigger main-app TCC
-permissions.
+permissions. It also preserves the currently running helper by default so a
+TCC-granted standalone Debug helper can be used for local canary validation.
 USAGE
       exit 0
       ;;
@@ -146,6 +171,9 @@ echo "  Reporter: ${REPORTER}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
 echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
+echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
+echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
+echo "  Preserve current helper/TCC: $([[ "${REPLACE_HELPER}" == "1" ]] && echo false || echo true)"
 echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
 echo "  Report dir: ${RUN_DIR}"
 
@@ -170,11 +198,15 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
       --desktop-action-canary
       --require-capture
       --require-input
-      --require-helper-path-match
-      --replace-helper
     )
     if [[ "${LAUNCH_CAVERNO_APP}" != "1" ]]; then
       probe_args+=(--no-launch-app)
+    fi
+    if [[ "${REQUIRE_HELPER_PATH_MATCH}" == "1" ]]; then
+      probe_args+=(--require-helper-path-match)
+    fi
+    if [[ "${REPLACE_HELPER}" == "1" ]]; then
+      probe_args+=(--replace-helper)
     fi
     if [[ "${FIXTURE_TARGET}" == "1" ]]; then
       probe_args+=(--fixture-target)
@@ -188,7 +220,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" LAUNCH_FIXTURE="${LAUNCH_FIXTURE}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" LAUNCH_FIXTURE="${LAUNCH_FIXTURE}" REQUIRE_HELPER_PATH_MATCH="${REQUIRE_HELPER_PATH_MATCH}" REPLACE_HELPER="${REPLACE_HELPER}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -200,6 +232,8 @@ summary_md = Path(os.environ["SUMMARY_MD"])
 fixture_target = os.environ["FIXTURE_TARGET"] == "1"
 fixture_app_path = os.environ.get("FIXTURE_APP_PATH", "")
 launch_fixture = os.environ["LAUNCH_FIXTURE"] == "1"
+require_helper_path_match = os.environ["REQUIRE_HELPER_PATH_MATCH"] == "1"
+replace_helper = os.environ["REPLACE_HELPER"] == "1"
 runs = []
 
 
@@ -336,6 +370,9 @@ summary = {
     ],
     "fixtureTarget": fixture_target,
     "fixtureLaunchRequested": launch_fixture,
+    "helperPathMatchRequired": require_helper_path_match,
+    "helperReplacementRequested": replace_helper,
+    "helperTccPreservedByDefault": not replace_helper,
     "fixtureApp": fixture_app if fixture_target else None,
     "safeTarget": fixture_app["safeTarget"] if fixture_target else None,
     "fixtureExpectedOutcomes": {
@@ -376,6 +413,9 @@ lines = [
     "- Success phases: pre_observe_image, click_sent, post_observe_image",
     f"- MVP fixture target: {str(fixture_target).lower()}",
     f"- Fixture launch requested: {str(launch_fixture).lower()}",
+    f"- Helper path match required: {str(require_helper_path_match).lower()}",
+    f"- Helper replacement requested: {str(replace_helper).lower()}",
+    f"- Helper TCC preserved by default: {str(not replace_helper).lower()}",
     f"- Stable: {str(summary['stable']).lower()}",
     f"- Run count: {len(runs)}",
     f"- Passed: {passed_count}",

@@ -388,6 +388,18 @@ void main() {
     expect(desktopActionCanaryScript, contains('--desktop-action-canary'));
     expect(desktopActionCanaryScript, contains('--require-helper-path-match'));
     expect(desktopActionCanaryScript, contains('--replace-helper'));
+    expect(desktopActionCanaryScript, contains('--release-helper-signoff'));
+    expect(desktopActionCanaryScript, contains('helperPathMatchRequired'));
+    expect(desktopActionCanaryScript, contains('helperReplacementRequested'));
+    expect(
+      desktopActionCanaryScript,
+      contains('Helper TCC preserved by default'),
+    );
+    final defaultProbeArgs = RegExp(
+      r'probe_args=\([\s\S]*?\n    \)',
+    ).firstMatch(desktopActionCanaryScript)!.group(0)!;
+    expect(defaultProbeArgs, isNot(contains('--require-helper-path-match')));
+    expect(defaultProbeArgs, isNot(contains('--replace-helper')));
     expect(existingHelperProbe, contains('desktopActionCanaryGate'));
     expect(existingHelperProbe, contains('--no-launch-app'));
     expect(existingHelperProbe, contains('launchMissingApp'));

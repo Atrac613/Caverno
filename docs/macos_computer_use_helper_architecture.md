@@ -357,9 +357,15 @@ exact helper bundle identity. Rebuilding the Debug app during the canary can
 replace `Caverno.app/Contents/Helpers/Caverno Computer Use.app` and make
 previously granted permissions appear missing. The runner also does not
 auto-launch `Caverno.app` by default; this keeps main-app TCC prompts out of
-the canary path. Use `--launch-caverno` only when intentionally debugging
-main-app launch behavior. The old Flutter integration-test path remains
-available only through `--legacy-integration` for debugging canary code itself.
+the canary path. It also preserves the currently running helper by default, so
+a TCC-granted standalone Debug helper can be used for local desktop-action
+validation without replacing the helper bundle. Use `--launch-caverno` only
+when intentionally debugging main-app launch behavior. Use
+`--release-helper-signoff` only when intentionally validating that the running
+helper path matches the embedded release/debug helper; that mode may require the
+user to grant TCC again after helper replacement. The old Flutter
+integration-test path remains available only through `--legacy-integration` for
+debugging canary code itself.
 
 The runner writes
 `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json` and
