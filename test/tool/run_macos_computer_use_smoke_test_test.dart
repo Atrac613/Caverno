@@ -278,6 +278,10 @@ void main() {
     expect(runnerSource, contains('forceTerminateProcess'));
     expect(runnerSource, contains('forceTerminatedStaleHelperProcess'));
     expect(runnerSource, contains('preservedMismatchedHelperPath'));
+    expect(runnerSource, contains('responseReceivedBeforeTimeout'));
+    expect(runnerSource, contains('responseReceivedAfterTimeout'));
+    expect(runnerSource, contains('lateResponseElapsedMs'));
+    expect(runnerSource, contains('xpc late response received'));
     expect(runnerSource, isNot(contains('replacedMismatchedHelperPath')));
     expect(smokeTest, contains('helperProcessPolicyGate'));
     expect(smokeTest, contains('helper_process_policy'));

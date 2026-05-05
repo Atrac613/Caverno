@@ -1232,6 +1232,13 @@ class _ComputerUseOnboardingCardState
     final preferredAttemptErrorCode = _stringValue(
       preferredAttempt?['errorCode'],
     );
+    final preferredAttemptElapsedMs = preferredAttempt?['elapsedMs'];
+    final preferredAttemptResponseReceivedBeforeTimeout =
+        preferredAttempt?['responseReceivedBeforeTimeout'];
+    final preferredAttemptResponseReceivedAfterTimeout =
+        preferredAttempt?['responseReceivedAfterTimeout'];
+    final preferredAttemptLateResponseElapsedMs =
+        preferredAttempt?['lateResponseElapsedMs'];
     final reportedProductionReady = snapshot['xpcProductionReady'] == true;
     final helperReachable = snapshot['helperReachable'] != false;
     final reportedProductionBlockers =
@@ -1401,6 +1408,21 @@ class _ComputerUseOnboardingCardState
     }
     if (preferredAttemptErrorCode != null) {
       runtime['preferredAttemptErrorCode'] = preferredAttemptErrorCode;
+    }
+    if (preferredAttemptElapsedMs is int) {
+      runtime['preferredAttemptElapsedMs'] = preferredAttemptElapsedMs;
+    }
+    if (preferredAttemptResponseReceivedBeforeTimeout is bool) {
+      runtime['preferredAttemptResponseReceivedBeforeTimeout'] =
+          preferredAttemptResponseReceivedBeforeTimeout;
+    }
+    if (preferredAttemptResponseReceivedAfterTimeout is bool) {
+      runtime['preferredAttemptResponseReceivedAfterTimeout'] =
+          preferredAttemptResponseReceivedAfterTimeout;
+    }
+    if (preferredAttemptLateResponseElapsedMs is int) {
+      runtime['preferredAttemptLateResponseElapsedMs'] =
+          preferredAttemptLateResponseElapsedMs;
     }
     if (runtime['preferredFallbackActive'] == true &&
         preferredAttemptStatus != null) {
@@ -2034,6 +2056,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final fallbackReason = runtime['preferredFallbackReason'];
     final fallbackSummary = runtime['preferredFallbackSummary'];
     final fallbackSucceeded = runtime['preferredFallbackSucceeded'] == true;
+    final preferredAttemptElapsedMs = runtime['preferredAttemptElapsedMs'];
+    final responseReceivedBeforeTimeout =
+        runtime['preferredAttemptResponseReceivedBeforeTimeout'];
+    final responseReceivedAfterTimeout =
+        runtime['preferredAttemptResponseReceivedAfterTimeout'];
+    final lateResponseElapsedMs =
+        runtime['preferredAttemptLateResponseElapsedMs'];
     final supportedCommands = _stringList(runtime['xpcSupportedCommands']);
     final nextParityCommands = _stringList(runtime['xpcNextParityCommands']);
     final productionBlockers = _stringList(runtime['xpcProductionBlockers']);
@@ -2457,6 +2486,26 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Preferred error',
                 value: preferredAttemptErrorCode,
+              ),
+            if (preferredAttemptElapsedMs is int)
+              _InfoChip(
+                label: 'Preferred elapsed',
+                value: '${preferredAttemptElapsedMs}ms',
+              ),
+            if (responseReceivedBeforeTimeout is bool)
+              _InfoChip(
+                label: 'XPC response before timeout',
+                value: responseReceivedBeforeTimeout ? 'yes' : 'no',
+              ),
+            if (responseReceivedAfterTimeout is bool)
+              _InfoChip(
+                label: 'XPC late response',
+                value: responseReceivedAfterTimeout ? 'yes' : 'no',
+              ),
+            if (lateResponseElapsedMs is int)
+              _InfoChip(
+                label: 'XPC late elapsed',
+                value: '${lateResponseElapsedMs}ms',
               ),
             if (fallbackReason is String)
               _InfoChip(label: 'Fallback reason', value: fallbackReason),

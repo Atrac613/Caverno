@@ -1266,13 +1266,18 @@ final class MacosComputerUseHelperClient: NSObject {
     connection.remoteObjectInterface = NSXPCInterface(with: CavernoComputerUseXpcProtocol.self)
     var completed = false
 
-    func fallback(status: String, errorCode: String, errorDescription: String? = nil) {
+    func fallback(
+      status: String,
+      errorCode: String,
+      errorDescription: String? = nil,
+      extraDiagnostics: [String: Any] = [:]
+    ) {
       guard !completed else {
         return
       }
       completed = true
       connection.invalidate()
-      let diagnostic = helperIpcDiagnostic(
+      var diagnostic = helperIpcDiagnostic(
         sequence: sequence,
         requestId: requestId,
         command: command,
@@ -1285,6 +1290,7 @@ final class MacosComputerUseHelperClient: NSObject {
         errorCode: errorCode,
         errorDescription: errorDescription
       )
+      diagnostic.merge(extraDiagnostics) { _, new in new }
       lastHelperIpcAttempt = diagnostic
       lastPreferredIpcAttempt = diagnostic
       send(
@@ -1347,16 +1353,41 @@ final class MacosComputerUseHelperClient: NSObject {
     )
     proxy.handleRequest(request.userInfo as NSDictionary) { [weak self] response in
       DispatchQueue.main.async {
-        guard let self, !completed else {
+        guard let self else {
+          return
+        }
+        let responseReceivedAt = Date()
+        let responseMap = response as? [String: Any] ?? [:]
+        if completed {
+          if var diagnostic = self.lastPreferredIpcAttempt,
+             diagnostic["requestId"] as? String == requestId,
+             diagnostic["status"] as? String == "xpc_timeout" {
+            diagnostic["responseReceivedAfterTimeout"] = true
+            diagnostic["lateResponseCompletedAt"] = self.isoString(responseReceivedAt)
+            diagnostic["lateResponseElapsedMs"] = Int(
+              responseReceivedAt.timeIntervalSince(sentAt) * 1000
+            )
+            diagnostic["lateResponseOk"] = responseMap["ok"] as? Bool ?? true
+            if let responseCode = responseMap["code"] as? String {
+              diagnostic["lateResponseCode"] = responseCode
+            }
+            self.lastPreferredIpcAttempt = diagnostic
+            self.lastHelperIpcAttempt = diagnostic
+            NSLog(
+              "CavernoComputerUseIPC xpc late response received requestId=%@ command=%@ elapsedMs=%d",
+              requestId,
+              command.rawValue,
+              diagnostic["lateResponseElapsedMs"] as? Int ?? -1
+            )
+          }
           return
         }
         completed = true
         connection.invalidate()
-        let responseMap = response as? [String: Any] ?? [:]
         var responseWithTransport = responseMap
         responseWithTransport["selectedIpcTransport"] = MacosComputerUseIpcSchema.preferredTransport
         responseWithTransport["fallbackIpcTransport"] = MacosComputerUseIpcSchema.fallbackTransport
-        self.lastHelperIpcAttempt = self.helperIpcDiagnostic(
+        var diagnostic = self.helperIpcDiagnostic(
           sequence: sequence,
           requestId: requestId,
           command: command,
@@ -1365,9 +1396,11 @@ final class MacosComputerUseHelperClient: NSObject {
           sentAt: sentAt,
           timeout: MacosComputerUseIpcSchema.xpcFallbackTimeout,
           status: responseMap["ok"] as? Bool == false ? "xpc_response_error" : "xpc_response",
-          completedAt: Date(),
+          completedAt: responseReceivedAt,
           errorCode: responseMap["code"] as? String
         )
+        diagnostic["responseReceivedBeforeTimeout"] = true
+        self.lastHelperIpcAttempt = diagnostic
         NSLog(
           "CavernoComputerUseIPC xpc response received requestId=%@ command=%@",
           requestId,
@@ -1378,7 +1411,11 @@ final class MacosComputerUseHelperClient: NSObject {
     }
 
     DispatchQueue.main.asyncAfter(deadline: .now() + MacosComputerUseIpcSchema.xpcFallbackTimeout) {
-      fallback(status: "xpc_timeout", errorCode: MacosComputerUseIpcSchema.xpcTimeout)
+      fallback(
+        status: "xpc_timeout",
+        errorCode: MacosComputerUseIpcSchema.xpcTimeout,
+        extraDiagnostics: ["responseReceivedBeforeTimeout": false]
+      )
     }
     return true
   }

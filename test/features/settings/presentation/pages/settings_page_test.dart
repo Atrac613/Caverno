@@ -497,6 +497,10 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Fallback outcome: succeeded'), findsOneWidget);
+    expect(find.text('Preferred elapsed: 2001ms'), findsOneWidget);
+    expect(find.text('XPC response before timeout: no'), findsOneWidget);
+    expect(find.text('XPC late response: yes'), findsOneWidget);
+    expect(find.text('XPC late elapsed: 2050ms'), findsOneWidget);
     expect(
       find.text('XPC blockers: named_xpc_service_not_connected'),
       findsNothing,
@@ -902,6 +906,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'preferredIpcAttempt': {
           'status': 'xpc_timeout',
           'errorCode': 'helper_xpc_timeout',
+          'elapsedMs': 2001,
+          'responseReceivedBeforeTimeout': false,
+          'responseReceivedAfterTimeout': true,
+          'lateResponseElapsedMs': 2050,
         },
       if (!_helperReachable) 'code': 'helper_unreachable',
       'message': 'pong',
