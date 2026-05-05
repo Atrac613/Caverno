@@ -72,6 +72,14 @@ bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
   --screenshot <fixture-window-screenshot.png>
 ```
 
+When a desktop action canary report is already available, the vision canary can
+reuse the post-click fixture screenshot embedded in that report:
+
+```bash
+bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+  --desktop-action-report <desktop-action-run-report.json>
+```
+
 The screenshot is user-provided. This vision canary sends the image to the live
 LLM and validates that the model can visually identify `Safe Click Target`,
 `MVP Fixture Text Field`, `Echo Text`, and the refused `Danger Zone` without

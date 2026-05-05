@@ -51,6 +51,14 @@ or run the user-operated desktop action on the user's behalf.
      --screenshot <fixture-window-screenshot.png>
    ```
 
+   If a user-operated desktop action canary report already contains fixture
+   screenshots, reuse that report instead:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+     --desktop-action-report <desktop-action-run-report.json>
+   ```
+
    To feed that screenshot-backed evidence into the MVP readiness handoff in
    one automation-safe preflight, run:
 

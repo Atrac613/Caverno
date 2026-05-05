@@ -433,8 +433,10 @@ That wrapper still does not launch the fixture, capture the screen, grant TCC,
 click, or type.
 Use `tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh` when the
 live vision LLM should inspect an actual screenshot of the fixture app. The
-screenshot is provided by the user, so the canary does not capture the screen,
-grant TCC, operate System Settings, move the pointer, click, or type.
+screenshot is provided by the user or extracted from a user-operated desktop
+action canary report through `--desktop-action-report <path>`, so the canary
+does not capture the screen, grant TCC, operate System Settings, move the
+pointer, click, or type.
 
 The fixture app is built with:
 

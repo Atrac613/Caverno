@@ -9,6 +9,7 @@ RUN_DIR="${REPORT_ROOT}/macos_computer_use_llm_decision_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_REPEAT_COUNT:-1}"
+EMPTY_RESPONSE_RETRIES="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_EMPTY_RESPONSE_RETRIES:-1}"
 FIXTURE_RESPONSE=""
 SCENARIO="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SCENARIO:-observe-safe-click}"
 
@@ -25,6 +26,8 @@ Usage: bash tool/run_macos_computer_use_llm_decision_canary.sh [options]
 
 Options:
   --repeat COUNT          Run the canary multiple times.
+  --empty-response-retries COUNT
+                          Retry live LLM calls that return an empty response.
   --root PATH             Report root directory.
   --scenario NAME         Scenario: observe-safe-click, mvp-fixture, or mvp-fixture-type-confirm.
   --fixture-response PATH Use a local LLM response fixture instead of calling the LLM.
@@ -40,6 +43,11 @@ while [[ $# -gt 0 ]]; do
     --repeat)
       require_value "$@"
       REPEAT_COUNT="$2"
+      shift 2
+      ;;
+    --empty-response-retries)
+      require_value "$@"
+      EMPTY_RESPONSE_RETRIES="$2"
       shift 2
       ;;
     --root)
@@ -74,6 +82,11 @@ if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   exit 64
 fi
 
+if ! [[ "${EMPTY_RESPONSE_RETRIES}" =~ ^[0-9]+$ ]]; then
+  echo "CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_EMPTY_RESPONSE_RETRIES must be a non-negative integer." >&2
+  exit 64
+fi
+
 case "${SCENARIO}" in
   observe-safe-click|mvp-fixture|mvp-fixture-type-confirm)
     ;;
@@ -100,6 +113,7 @@ echo "  LLM base URL: ${CAVERNO_LLM_BASE_URL:-not set}"
 echo "  LLM model: ${CAVERNO_LLM_MODEL:-not set}"
 echo "  Scenario: ${SCENARIO}"
 echo "  Repeat count: ${REPEAT_COUNT}"
+echo "  Empty response retries: ${EMPTY_RESPONSE_RETRIES}"
 echo "  Report dir: ${RUN_DIR}"
 echo "  TCC boundary: no TCC operation"
 echo "  Desktop action boundary: no pointer, keyboard, or click operation"
@@ -108,6 +122,7 @@ RUN_DIR="${RUN_DIR}" \
 SUMMARY_JSON="${SUMMARY_JSON}" \
 SUMMARY_MD="${SUMMARY_MD}" \
 REPEAT_COUNT="${REPEAT_COUNT}" \
+EMPTY_RESPONSE_RETRIES="${EMPTY_RESPONSE_RETRIES}" \
 FIXTURE_RESPONSE="${FIXTURE_RESPONSE}" \
 SCENARIO="${SCENARIO}" \
 CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL:-}" \
@@ -128,6 +143,7 @@ run_dir = Path(os.environ["RUN_DIR"])
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 repeat_count = int(os.environ["REPEAT_COUNT"])
+empty_response_retries = int(os.environ["EMPTY_RESPONSE_RETRIES"])
 fixture_response = os.environ.get("FIXTURE_RESPONSE", "")
 base_url = os.environ.get("CAVERNO_LLM_BASE_URL", "").rstrip("/")
 api_key = os.environ.get("CAVERNO_LLM_API_KEY", "")
@@ -411,6 +427,26 @@ def load_response():
     return call_llm()
 
 
+class EmptyLLMResponseError(RuntimeError):
+    pass
+
+
+def load_non_empty_response():
+    attempts = 0
+    response_text = ""
+    max_attempts = 1 if fixture_response else empty_response_retries + 1
+    for attempt in range(1, max_attempts + 1):
+        attempts = attempt
+        response_text = load_response()
+        if response_text.strip():
+            return response_text, attempts
+        if attempt < max_attempts:
+            time.sleep(1)
+    raise EmptyLLMResponseError(
+        f"LLM returned an empty response after {attempts} attempt(s)"
+    )
+
+
 def validate_default_decision(decision):
     failures = []
     vision_decision = str(decision.get("visionDecision", "")).strip()
@@ -550,7 +586,7 @@ for index in range(1, repeat_count + 1):
     decision_path = run_dir / f"{name}_decision.json"
     started = time.time()
     try:
-        response_text = load_response()
+        response_text, attempt_count = load_non_empty_response()
         response_path.write_text(response_text)
         decision = extract_json_object(response_text)
         decision_path.write_text(json.dumps(decision, indent=2) + "\n")
@@ -568,6 +604,7 @@ for index in range(1, repeat_count + 1):
             "requiresUserClick": decision.get("requiresUserClick"),
             "requiresUserTextInput": decision.get("requiresUserTextInput"),
             "selectedTarget": decision.get("selectedTarget"),
+            "llmAttemptCount": attempt_count,
             "responsePath": str(response_path),
             "decisionPath": str(decision_path),
         })
@@ -578,6 +615,18 @@ for index in range(1, repeat_count + 1):
             "failureClass": "llm_request_failed",
             "failureClasses": ["llm_request_failed"],
             "durationMs": int((time.time() - started) * 1000),
+            "error": str(error),
+        })
+    except EmptyLLMResponseError as error:
+        response_path.write_text("")
+        runs.append({
+            "name": name,
+            "status": "failed",
+            "failureClass": "llm_response_empty",
+            "failureClasses": ["llm_response_empty"],
+            "durationMs": int((time.time() - started) * 1000),
+            "llmAttemptCount": empty_response_retries + 1,
+            "responsePath": str(response_path),
             "error": str(error),
         })
     except RuntimeError as error:
@@ -620,6 +669,7 @@ summary = {
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
     "fixtureApp": fixture_app if scenario == "mvp-fixture" else None,
+    "emptyResponseRetries": empty_response_retries,
     "runCount": len(runs),
     "passedCount": passed_count,
     "failedCount": failed_count,
@@ -642,6 +692,7 @@ lines = [
     f"- Scenario: {scenario}",
     "- TCC boundary: no TCC operation",
     "- Desktop action boundary: no pointer, keyboard, or click operation",
+    f"- Empty response retries: {empty_response_retries}",
     f"- Run count: {len(runs)}",
     f"- Passed: {passed_count}",
     f"- Failed: {failed_count}",

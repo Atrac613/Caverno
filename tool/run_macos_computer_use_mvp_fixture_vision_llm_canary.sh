@@ -9,6 +9,7 @@ RUN_DIR="${REPORT_ROOT}/macos_computer_use_mvp_fixture_vision_llm_canary_${RUN_I
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 SCREENSHOT_PATH=""
+DESKTOP_ACTION_REPORT=""
 FIXTURE_RESPONSE=""
 
 require_value() {
@@ -25,6 +26,9 @@ Usage: bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh [option
 Options:
   --root PATH             Report root directory.
   --screenshot PATH       User-provided screenshot of the MVP fixture app.
+  --desktop-action-report PATH
+                          Extract the fixture screenshot from a desktop action
+                          canary run report.
   --fixture-response PATH Use a local response instead of calling the LLM.
   --help                  Show this help.
 
@@ -44,6 +48,11 @@ while [[ $# -gt 0 ]]; do
     --screenshot)
       require_value "$@"
       SCREENSHOT_PATH="$2"
+      shift 2
+      ;;
+    --desktop-action-report)
+      require_value "$@"
+      DESKTOP_ACTION_REPORT="$2"
       shift 2
       ;;
     --fixture-response)
@@ -67,12 +76,16 @@ if [[ -z "${FIXTURE_RESPONSE}" ]]; then
   : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the MVP fixture vision LLM canary.}"
   : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the MVP fixture vision LLM canary.}"
   : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the MVP fixture vision LLM canary.}"
-  if [[ -z "${SCREENSHOT_PATH}" ]]; then
-    echo "--screenshot is required when calling the live LLM." >&2
+  if [[ -z "${SCREENSHOT_PATH}" && -z "${DESKTOP_ACTION_REPORT}" ]]; then
+    echo "--screenshot or --desktop-action-report is required when calling the live LLM." >&2
     exit 64
   fi
-  if [[ ! -f "${SCREENSHOT_PATH}" ]]; then
+  if [[ -n "${SCREENSHOT_PATH}" && ! -f "${SCREENSHOT_PATH}" ]]; then
     echo "Screenshot not found: ${SCREENSHOT_PATH}" >&2
+    exit 66
+  fi
+  if [[ -n "${DESKTOP_ACTION_REPORT}" && ! -f "${DESKTOP_ACTION_REPORT}" ]]; then
+    echo "Desktop action report not found: ${DESKTOP_ACTION_REPORT}" >&2
     exit 66
   fi
 fi
@@ -86,7 +99,14 @@ echo "Running macOS Computer Use MVP fixture vision LLM canary"
 echo "  Purpose: validate visual fixture target decisions from a user-provided screenshot"
 echo "  LLM base URL: ${CAVERNO_LLM_BASE_URL:-not set}"
 echo "  LLM model: ${CAVERNO_LLM_MODEL:-not set}"
-echo "  Screenshot: ${SCREENSHOT_PATH:-fixture response only}"
+if [[ -n "${SCREENSHOT_PATH}" ]]; then
+  echo "  Screenshot: ${SCREENSHOT_PATH}"
+elif [[ -n "${DESKTOP_ACTION_REPORT}" ]]; then
+  echo "  Screenshot: extract from desktop action report"
+else
+  echo "  Screenshot: fixture response only"
+fi
+echo "  Desktop action report: ${DESKTOP_ACTION_REPORT:-not set}"
 echo "  Report dir: ${RUN_DIR}"
 echo "  TCC boundary: no TCC operation"
 echo "  Desktop action boundary: no pointer, keyboard, or click operation"
@@ -95,6 +115,7 @@ RUN_DIR="${RUN_DIR}" \
 SUMMARY_JSON="${SUMMARY_JSON}" \
 SUMMARY_MD="${SUMMARY_MD}" \
 SCREENSHOT_PATH="${SCREENSHOT_PATH}" \
+DESKTOP_ACTION_REPORT="${DESKTOP_ACTION_REPORT}" \
 FIXTURE_RESPONSE="${FIXTURE_RESPONSE}" \
 CAVERNO_LLM_BASE_URL="${CAVERNO_LLM_BASE_URL:-}" \
 CAVERNO_LLM_API_KEY="${CAVERNO_LLM_API_KEY:-}" \
@@ -118,10 +139,48 @@ summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 screenshot_path_text = os.environ.get("SCREENSHOT_PATH", "")
 screenshot_path = Path(screenshot_path_text) if screenshot_path_text else None
+desktop_action_report_text = os.environ.get("DESKTOP_ACTION_REPORT", "")
+desktop_action_report_path = (
+    Path(desktop_action_report_text) if desktop_action_report_text else None
+)
+screenshot_source = "user_screenshot" if screenshot_path else "fixture_response"
 fixture_response = os.environ.get("FIXTURE_RESPONSE", "")
 base_url = os.environ.get("CAVERNO_LLM_BASE_URL", "").rstrip("/")
 api_key = os.environ.get("CAVERNO_LLM_API_KEY", "")
 model = os.environ.get("CAVERNO_LLM_MODEL", "")
+
+
+def extract_desktop_action_screenshot():
+    global screenshot_path, screenshot_source
+    if screenshot_path is not None or desktop_action_report_path is None:
+        return
+    report = json.loads(desktop_action_report_path.read_text())
+    candidates = []
+    for step in report.get("steps", []):
+        if not isinstance(step, dict):
+            continue
+        response = step.get("response")
+        if not isinstance(response, dict) or not response.get("imageBase64"):
+            continue
+        step_id = str(step.get("id", ""))
+        priority = 0
+        if step_id == "desktop_action_post_click_window_capture":
+            priority = 3
+        elif step_id == "window_capture":
+            priority = 2
+        elif step_id == "display_screenshot":
+            priority = 1
+        candidates.append((priority, step_id, response["imageBase64"]))
+    if not candidates:
+        raise RuntimeError("desktop action report did not contain an imageBase64 screenshot")
+    _, step_id, image_base64 = sorted(candidates, reverse=True)[0]
+    extracted = run_dir / f"{step_id or 'desktop_action'}_screenshot.png"
+    extracted.write_bytes(base64.b64decode(image_base64))
+    screenshot_path = extracted
+    screenshot_source = f"desktop_action_report:{step_id or 'unknown'}"
+
+
+extract_desktop_action_screenshot()
 
 
 system_prompt = (
@@ -434,6 +493,8 @@ summary = {
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
     "screenshotPath": str(screenshot_path) if screenshot_path else None,
+    "screenshotSource": screenshot_source,
+    "desktopActionReportPath": str(desktop_action_report_path) if desktop_action_report_path else None,
     "runCount": 1,
     "passedCount": 1 if passed else 0,
     "failedCount": 0 if passed else 1,
@@ -460,6 +521,8 @@ lines = [
     "- TCC boundary: no TCC operation",
     "- Desktop action boundary: no pointer, keyboard, or click operation",
     f"- Screenshot: {summary['screenshotPath'] or 'fixture response only'}",
+    f"- Screenshot source: {summary['screenshotSource']}",
+    f"- Desktop action report: {summary['desktopActionReportPath'] or '-'}",
     f"- Ready: {str(passed).lower()}",
     f"- Failure class: {failure_class}",
     f"- Vision decision: {summary['visionDecision'] or '-'}",

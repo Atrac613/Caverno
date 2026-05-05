@@ -534,6 +534,10 @@ void main() {
       ),
     );
     expect(llmDecisionCanaryScript, contains('--fixture-response PATH'));
+    expect(llmDecisionCanaryScript, contains('--empty-response-retries COUNT'));
+    expect(llmDecisionCanaryScript, contains('llm_response_empty'));
+    expect(llmDecisionCanaryScript, contains('emptyResponseRetries'));
+    expect(llmDecisionCanaryScript, contains('llmAttemptCount'));
     expect(llmDecisionCanaryScript, contains('--scenario NAME'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture-type-confirm'));
@@ -578,6 +582,19 @@ void main() {
       contains('macos_computer_use_mvp_fixture_vision_llm_canary_summary'),
     );
     expect(mvpFixtureVisionLlmCanaryScript, contains('--screenshot PATH'));
+    expect(
+      mvpFixtureVisionLlmCanaryScript,
+      contains('--desktop-action-report PATH'),
+    );
+    expect(mvpFixtureVisionLlmCanaryScript, contains('screenshotSource'));
+    expect(
+      mvpFixtureVisionLlmCanaryScript,
+      contains('desktopActionReportPath'),
+    );
+    expect(
+      mvpFixtureVisionLlmCanaryScript,
+      contains('desktop_action_post_click_window_capture'),
+    );
     expect(mvpFixtureVisionLlmCanaryScript, contains('image_url'));
     expect(
       mvpFixtureVisionLlmCanaryScript,
@@ -1359,11 +1376,26 @@ void main() {
   "expectedOutcome": "User-approved actions update the fixture labels."
 }
 ''');
+        final desktopActionReport = File('${root.path}/desktop_action.json')
+          ..writeAsStringSync('''
+{
+  "steps": [
+    {
+      "id": "desktop_action_post_click_window_capture",
+      "response": {
+        "imageBase64": "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8BQDwAFgwJ/lx7B2wAAAABJRU5ErkJggg=="
+      }
+    }
+  ]
+}
+''');
 
         final result = await Process.run('bash', [
           'tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh',
           '--root',
           root.path,
+          '--desktop-action-report',
+          desktopActionReport.path,
           '--fixture-response',
           fixture.path,
         ]);
@@ -1390,6 +1422,8 @@ void main() {
         expect(summary, contains('"visibleFixtureWindow": true'));
         expect(summary, contains('"requiresUserClick": true'));
         expect(summary, contains('"requiresUserTextInput": true'));
+        expect(summary, contains('"screenshotSource"'));
+        expect(summary, contains('"desktopActionReportPath"'));
         expect(summary, contains('"failureGuidance"'));
         expect(summary, contains('"Safe Click Target"'));
         expect(summary, contains('"MVP Fixture Text Field"'));
