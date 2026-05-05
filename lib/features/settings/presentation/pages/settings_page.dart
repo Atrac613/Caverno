@@ -1256,6 +1256,29 @@ class _ComputerUseOnboardingCardState
       preferredAttempt?['warmupAttempt'] ??
           snapshot['preferredIpcWarmupAttempt'],
     );
+    final helperPathMismatch = snapshot['helperPathMismatch'] == true;
+    final helperPathMatchesRunning =
+        snapshot['helperPathMatchesRunningHelper'] == true;
+    final preservedMismatchedHelperPath =
+        snapshot['preservedMismatchedHelperPath'] == true;
+    final helperPathMismatchDetails = _mapValue(
+      snapshot['helperPathMismatchDetails'],
+    );
+    final helperPathNextAction = _stringValue(
+      helperPathMismatchDetails?['nextAction'],
+    );
+    final embeddedHelperPath =
+        _stringValue(snapshot['embeddedHelperPath']) ??
+        _stringValue(snapshot['helperPath']);
+    final runningHelperPath = _stringValue(snapshot['runningHelperPath']);
+    final helperPathSignoffGate = _helperPathSignoffGate(
+      embeddedHelperPath: embeddedHelperPath,
+      runningHelperPath: runningHelperPath,
+      helperPathMismatch: helperPathMismatch,
+      helperPathMatchesRunning: helperPathMatchesRunning,
+      preservedMismatchedHelperPath: preservedMismatchedHelperPath,
+      helperPathNextAction: helperPathNextAction,
+    );
     final reportedProductionReady = snapshot['xpcProductionReady'] == true;
     final helperReachable = snapshot['helperReachable'] != false;
     final reportedProductionBlockers =
@@ -1378,6 +1401,7 @@ class _ComputerUseOnboardingCardState
           selectedTransport == fallbackTransport &&
           preferredAttempt != null &&
           preferredTransport != fallbackTransport,
+      'helperPathSignoffGate': helperPathSignoffGate,
     };
     runtime['preferredFallbackSucceeded'] =
         runtime['preferredFallbackActive'] == true &&
@@ -1477,6 +1501,39 @@ class _ComputerUseOnboardingCardState
       return Map<String, dynamic>.from(report);
     }
     return envelope;
+  }
+
+  Map<String, dynamic> _helperPathSignoffGate({
+    required String? embeddedHelperPath,
+    required String? runningHelperPath,
+    required bool helperPathMismatch,
+    required bool helperPathMatchesRunning,
+    required bool preservedMismatchedHelperPath,
+    required String? helperPathNextAction,
+  }) {
+    final blockers = <String>[
+      if (helperPathMismatch) 'helper_path_mismatch',
+      if (preservedMismatchedHelperPath) 'preserved_mismatched_helper',
+      if (!helperPathMismatch &&
+          !helperPathMatchesRunning &&
+          runningHelperPath != null)
+        'helper_path_match_unknown',
+    ];
+    final ready = blockers.isEmpty;
+    return {
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'embeddedHelperPath': embeddedHelperPath,
+      'runningHelperPath': runningHelperPath,
+      'helperPathMismatch': helperPathMismatch,
+      'helperPathMatchesRunningHelper': helperPathMatchesRunning,
+      'preservedMismatchedHelperPath': preservedMismatchedHelperPath,
+      'blockers': blockers,
+      'nextAction': ready
+          ? 'Helper path is ready for release runtime sign-off.'
+          : helperPathNextAction ??
+                'Restart Caverno Computer Use from Caverno before release runtime sign-off.',
+    };
   }
 
   Map<String, dynamic>? _verificationCaptureGate({
@@ -2178,6 +2235,13 @@ class _IpcRuntimeSummary extends StatelessWidget {
         runtime['helperPathMatchesRunningHelper'] == true;
     final preservedMismatchedHelperPath =
         runtime['preservedMismatchedHelperPath'] == true;
+    final helperPathSignoffGate = _mapValue(runtime['helperPathSignoffGate']);
+    final helperPathSignoffBlockers = _stringList(
+      helperPathSignoffGate?['blockers'],
+    );
+    final helperPathSignoffNextAction = _stringValue(
+      helperPathSignoffGate?['nextAction'],
+    );
     final helperPathMismatchDetails = _mapValue(
       runtime['helperPathMismatchDetails'],
     );
@@ -2317,6 +2381,21 @@ class _IpcRuntimeSummary extends StatelessWidget {
               const _InfoChip(
                 label: 'Release sign-off',
                 value: 'requires helper path match',
+              ),
+            if (helperPathSignoffGate != null)
+              _InfoChip(
+                label: 'Helper path sign-off',
+                value: '${helperPathSignoffGate['status']}',
+              ),
+            if (helperPathSignoffBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'Helper path blockers',
+                value: helperPathSignoffBlockers.join(', '),
+              ),
+            if (helperPathSignoffNextAction != null)
+              _InfoChip(
+                label: 'Helper path sign-off next action',
+                value: helperPathSignoffNextAction,
               ),
             if (helperPathNextAction != null)
               _InfoChip(

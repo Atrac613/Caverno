@@ -68,6 +68,7 @@ void main() {
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"helperIpcRuntime"'));
+    expect(text, contains('"helperPathSignoffGate"'));
     expect(text, contains('"xpcTimingReport"'));
     expect(
       text,
@@ -479,6 +480,19 @@ void main() {
     );
     expect(
       find.text('Release sign-off: requires helper path match'),
+      findsOneWidget,
+    );
+    expect(find.text('Helper path sign-off: blocked'), findsOneWidget);
+    expect(
+      find.text(
+        'Helper path blockers: helper_path_mismatch, preserved_mismatched_helper',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Helper path sign-off next action: Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.',
+      ),
       findsOneWidget,
     );
   });

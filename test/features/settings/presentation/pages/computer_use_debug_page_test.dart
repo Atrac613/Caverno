@@ -109,6 +109,10 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(
+      find.textContaining('Sign-off: blocked until helper path matches'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('shows overlay canary summary from the latest smoke report', (

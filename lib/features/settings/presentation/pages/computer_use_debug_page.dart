@@ -180,6 +180,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                 body: [
                   'Running: ${_shortPath('${_helperStatus?['runningHelperPath']}')}',
                   'Expected: ${_shortPath('${_helperStatus?['embeddedHelperPath'] ?? _helperStatus?['helperPath']}')}',
+                  if (_helperPathSignoffSummary() != null)
+                    'Sign-off: ${_helperPathSignoffSummary()}',
                   if (_helperPathMismatchNextAction() != null)
                     'Next: ${_helperPathMismatchNextAction()}',
                 ].join(' | '),
@@ -1553,6 +1555,19 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       }
     }
     return null;
+  }
+
+  String? _helperPathSignoffSummary() {
+    if (_helperStatus == null) {
+      return null;
+    }
+    final mismatch = _helperStatus?['helperPathMismatch'] == true;
+    final preserved = _helperStatus?['preservedMismatchedHelperPath'] == true;
+    final matches = _helperStatus?['helperPathMatchesRunningHelper'] == true;
+    if (mismatch || preserved) {
+      return 'blocked until helper path matches';
+    }
+    return matches ? 'ready' : 'unknown';
   }
 
   Map<String, dynamic>? _liveSmokeReportFrom(Map<String, dynamic>? decoded) {
