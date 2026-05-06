@@ -568,7 +568,10 @@ The artifact index includes the latest manual TCC summary, desktop action
 canary, preferred LLM canary, MVP LLM readiness summary, and guided MVP demo
 readiness summary when those user-produced or automation-safe artifacts exist.
 It also includes an MVP final sign-off rehearsal checklist that reports missing
-required input evidence before the final aggregation is attempted.
+required input evidence before the final aggregation is attempted. The Markdown
+artifact also contains a `PR Review Summary` section that separates ready
+artifacts, missing evidence, pending user-operated evidence, and pending
+automation-safe evidence for review notes.
 
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,
@@ -621,9 +624,9 @@ blocked-but-expected manual step. Other blocked gates still exit non-zero.
 Use the default `--exit-policy strict` for release sign-off, where any blocked
 gate exits non-zero.
 
-Before opening or merging a PR for this milestone, review the artifact index,
-the CI readiness Markdown, and the sign-off readiness Markdown. The expected
-pre-manual-TCC state is:
+Before opening or merging a PR for this milestone, review the artifact index
+`PR Review Summary`, the CI readiness Markdown, and the sign-off readiness
+Markdown. The expected pre-manual-TCC state is:
 
 - `release_artifact`: ready.
 - `computer_use_canary`: stable.

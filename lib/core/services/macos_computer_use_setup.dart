@@ -70,6 +70,7 @@ class MacosComputerUseMvpGuidance {
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
       'macos_computer_use_readiness_artifact_index.md';
+  static const prReviewSummarySection = 'PR Review Summary';
   static const llmCanarySummaryPlaceholder = '<llm-canary-summary.json>';
   static const manualTccSummaryPlaceholder =
       '<manual-tcc-report-or-summary.json>';
@@ -88,6 +89,8 @@ class MacosComputerUseMvpGuidance {
       'Run the automation-safe Computer Use canary or safe readiness refresh to produce `macos_computer_use_canary_history.json`.';
   static const finalAggregationCommand =
       '$mvpSignoffCommand --final-signoff --manual-tcc-report $manualTccSummaryPlaceholder --desktop-action-canary-summary $desktopActionSummaryPlaceholder --llm-canary-summary $llmCanarySummaryPlaceholder';
+  static const prReviewSummaryGuidance =
+      'Review `$prReviewSummarySection` in `$artifactIndexMarkdownFile` before PR review. It separates ready artifacts, missing evidence, user-operated blockers, and automation-safe blockers.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {

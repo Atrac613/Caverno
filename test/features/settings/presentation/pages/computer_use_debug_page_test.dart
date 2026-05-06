@@ -50,6 +50,7 @@ void main() {
     expect(find.text('MVP Missing Evidence Checklist'), findsOneWidget);
     expect(find.text('User-Operated MVP Commands'), findsOneWidget);
     expect(find.text('MVP Artifact Paths'), findsOneWidget);
+    expect(find.text('MVP PR Review Summary'), findsOneWidget);
     expect(
       find.textContaining(
         'release_artifact, canary_history, manual_tcc, desktop_action_canary, llm_canary',
@@ -88,7 +89,7 @@ void main() {
       find.textContaining(
         'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports',
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('run_macos_computer_use_mvp_signoff.sh'),
@@ -125,6 +126,13 @@ void main() {
     );
     expect(
       find.textContaining('macos_computer_use_readiness_artifact_index.md'),
+      findsNWidgets(2),
+    );
+    expect(find.textContaining('Review `PR Review Summary`'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'ready artifacts, missing evidence, user-operated blockers',
+      ),
       findsOneWidget,
     );
     expect(
@@ -515,10 +523,7 @@ void main() {
 
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
-    await tester.ensureVisible(
-      find.text('Recent audit entries', skipOffstage: false),
-    );
-    await tester.pumpAndSettle();
+    await _scrollUntilVisible(tester, find.text('Recent audit entries'));
 
     expect(find.text('Recent audit entries'), findsOneWidget);
     expect(find.text('computer_list_windows'), findsOneWidget);

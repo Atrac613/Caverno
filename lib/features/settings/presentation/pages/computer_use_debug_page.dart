@@ -241,6 +241,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               title: 'MVP Artifact Paths',
               body: _mvpArtifactPathSummary(),
             ),
+            const SizedBox(height: 8),
+            _OnboardingNote(
+              icon: Icons.rate_review_outlined,
+              title: 'MVP PR Review Summary',
+              body: _mvpPrReviewSummary(),
+            ),
             _PermissionRow(
               label: 'Accessibility',
               value: _permissionValue('accessibilityGranted'),
@@ -1751,6 +1757,13 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)
         'Latest live smoke: ${paths['latestLiveSmokeReport']}',
+    ].join(' | ');
+  }
+
+  String _mvpPrReviewSummary() {
+    return [
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      'CLI: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
     ].join(' | ');
   }
 
