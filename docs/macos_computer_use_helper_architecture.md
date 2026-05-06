@@ -349,7 +349,7 @@ Manual run after the user grants Accessibility and Screen & System Audio
 Recording, launches Caverno.app manually, and prepares a safe click target:
 
 ```bash
-bash tool/run_macos_computer_use_desktop_action_canary.sh
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
 ```
 
 The default runner is no-build because macOS TCC permissions are tied to the

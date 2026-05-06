@@ -1611,7 +1611,9 @@ void main() {
     );
     expect(
       mvpChecklist,
-      contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
+      contains(
+        'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+      ),
     );
     expect(
       mvpChecklist,

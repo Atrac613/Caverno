@@ -221,9 +221,9 @@ The complete fixture workflow is documented in
 - Missing `manual_tcc`: ask the user to run
   `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide the
   generated report or summary.
-- Missing `desktop_action_canary`: ask the user to prepare a safe click target,
-  run `bash tool/run_macos_computer_use_desktop_action_canary.sh`, and provide
-  `canary_summary.json`.
+- Missing `desktop_action_canary`: ask the user to run
+  `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target`
+  and provide `canary_summary.json`.
 - Blocked `computer_use_canary`: rerun
   `bash tool/run_macos_computer_use_live_canary.sh --overlay` and inspect
   overlay/helper path diagnostics.
