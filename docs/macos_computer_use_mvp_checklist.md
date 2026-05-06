@@ -177,6 +177,20 @@ changes do not require fresh TCC or live desktop-action verification.
    bash tool/run_macos_computer_use_mvp_signoff.sh --dry-run
    ```
 
+   For PR review, regenerate the report-only summaries and inspect the
+   `PR Review Summary` sections in:
+
+   - `macos_computer_use_mvp_handoff.md`
+   - `macos_computer_use_readiness_artifact_index.md`
+
+   ```bash
+   dart run tool/macos_computer_use_readiness_artifact_index.dart \
+     --root build/integration_test_reports
+   ```
+
+   These report-only commands summarize existing evidence and do not grant TCC,
+   operate System Settings, or run desktop actions.
+
 ## MVP Ready Criteria
 
 - `release_artifact`: ready.

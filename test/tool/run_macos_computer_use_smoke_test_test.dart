@@ -1620,6 +1620,22 @@ void main() {
       contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
     );
     expect(mvpChecklist, contains('--dry-run'));
+    expect(mvpChecklist, contains('PR Review Summary'));
+    expect(mvpChecklist, contains('macos_computer_use_mvp_handoff.md'));
+    expect(
+      mvpChecklist,
+      contains('macos_computer_use_readiness_artifact_index.md'),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'dart run tool/macos_computer_use_readiness_artifact_index.dart',
+      ),
+    );
+    expect(
+      mvpChecklist,
+      contains('These report-only commands summarize existing evidence'),
+    );
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
     expect(
