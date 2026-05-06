@@ -588,6 +588,15 @@ void main() {
       );
       expect(index.toMarkdown(), contains('MVP Final Sign-Off Rehearsal'));
       expect(index.toMarkdown(), contains('- Ready: true'));
+      expect(index.toMarkdown(), contains('PR Review Summary'));
+      expect(
+        index.toMarkdown(),
+        contains('- Status: ready_for_final_aggregation'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Pending user-operated evidence: none'),
+      );
       expect(index.toMarkdown(), contains('Final MVP aggregation command:'));
       expect(
         index.toMarkdown(),
@@ -643,6 +652,28 @@ void main() {
 
       expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
       expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.readyArtifactIds,
+        contains('release_artifact'),
+      );
+      expect(
+        index
+            .mvpFinalSignoffRehearsal
+            .prReviewSummary
+            .pendingUserOperatedEvidenceIds,
+        containsAll(<String>['manual_tcc', 'desktop_action_canary']),
+      );
+      expect(
+        index
+            .mvpFinalSignoffRehearsal
+            .prReviewSummary
+            .pendingAutomationSafeEvidenceIds,
+        containsAll(<String>['canary_history', 'llm_canary']),
+      );
+      expect(
         index.mvpFinalSignoffRehearsal.missingArtifactIds,
         containsAll(<String>[
           'canary_history',
@@ -663,6 +694,23 @@ void main() {
         ]),
       );
       expect(index.toMarkdown(), contains('- Ready: false'));
+      expect(index.toMarkdown(), contains('PR Review Summary'));
+      expect(
+        index.toMarkdown(),
+        contains('- Status: blocked_pending_evidence'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          '- Pending user-operated evidence: manual_tcc, desktop_action_canary',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          '- Pending automation-safe evidence: canary_history, llm_canary',
+        ),
+      );
       expect(
         index.toMarkdown(),
         contains('Missing Required Artifact Checklist'),
@@ -689,6 +737,14 @@ void main() {
           (action) => action['artifactId'],
         ),
         contains('manual_tcc'),
+      );
+      final prReviewSummary =
+          index.mvpFinalSignoffRehearsal.toJson()['prReviewSummary']
+              as Map<String, Object?>;
+      expect(prReviewSummary['status'], 'blocked_pending_evidence');
+      expect(
+        prReviewSummary['pendingUserOperatedEvidenceIds'],
+        containsAll(<String>['manual_tcc', 'desktop_action_canary']),
       );
       expect(index.toMarkdown(), contains(_manualTccNextAction));
       expect(index.toMarkdown(), contains(_desktopActionNextAction));
@@ -736,6 +792,21 @@ void main() {
         stdout,
         contains(
           'Missing MVP artifacts: canary_history, manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(stdout, contains('PR review summary:'));
+      expect(stdout, contains('- Status: blocked_pending_evidence'));
+      expect(stdout, contains('- Ready artifacts: release_artifact'));
+      expect(
+        stdout,
+        contains(
+          '- Pending user-operated evidence: manual_tcc, desktop_action_canary',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          '- Pending automation-safe evidence: canary_history, llm_canary',
         ),
       );
       expect(stdout, contains('Operation boundary:'));

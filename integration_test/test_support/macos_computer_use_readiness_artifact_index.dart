@@ -70,6 +70,26 @@ class ReadinessArtifactIndex {
       );
     buffer
       ..writeln()
+      ..writeln('## PR Review Summary')
+      ..writeln()
+      ..writeln('- Status: ${mvpFinalSignoffRehearsal.prReviewSummary.status}')
+      ..writeln(
+        '- Ready artifacts: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.readyArtifactIds)}',
+      )
+      ..writeln(
+        '- Missing artifacts: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.missingArtifactIds)}',
+      )
+      ..writeln(
+        '- Pending user-operated evidence: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.pendingUserOperatedEvidenceIds)}',
+      )
+      ..writeln(
+        '- Pending automation-safe evidence: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.pendingAutomationSafeEvidenceIds)}',
+      )
+      ..writeln(
+        '- Boundary: ${mvpFinalSignoffRehearsal.prReviewSummary.operationBoundarySummary}',
+      );
+    buffer
+      ..writeln()
       ..writeln('Operation boundary:')
       ..writeln()
       ..writeln(
@@ -138,6 +158,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.requiredArtifacts,
     required this.missingArtifactIds,
     required this.missingArtifactActions,
+    required this.prReviewSummary,
     required this.nextActions,
     required this.finalAggregationCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
@@ -147,6 +168,7 @@ class ReadinessFinalSignoffRehearsal {
   final List<ReadinessArtifactEntry> requiredArtifacts;
   final List<String> missingArtifactIds;
   final List<ReadinessMissingArtifactAction> missingArtifactActions;
+  final ReadinessPrReviewSummary prReviewSummary;
   final List<String> nextActions;
   final String? finalAggregationCommand;
   final Map<String, Object?> operationBoundary;
@@ -161,6 +183,7 @@ class ReadinessFinalSignoffRehearsal {
       'missingArtifactActions': missingArtifactActions
           .map((action) => action.toJson())
           .toList(growable: false),
+      'prReviewSummary': prReviewSummary.toJson(),
       'nextActions': nextActions,
       'finalAggregationCommand': finalAggregationCommand,
       'operationBoundary': operationBoundary,
@@ -184,6 +207,35 @@ class ReadinessMissingArtifactAction {
       'artifactId': artifactId,
       'label': label,
       'nextAction': nextAction,
+    };
+  }
+}
+
+class ReadinessPrReviewSummary {
+  const ReadinessPrReviewSummary({
+    required this.status,
+    required this.readyArtifactIds,
+    required this.missingArtifactIds,
+    required this.pendingUserOperatedEvidenceIds,
+    required this.pendingAutomationSafeEvidenceIds,
+    required this.operationBoundarySummary,
+  });
+
+  final String status;
+  final List<String> readyArtifactIds;
+  final List<String> missingArtifactIds;
+  final List<String> pendingUserOperatedEvidenceIds;
+  final List<String> pendingAutomationSafeEvidenceIds;
+  final String operationBoundarySummary;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'status': status,
+      'readyArtifactIds': readyArtifactIds,
+      'missingArtifactIds': missingArtifactIds,
+      'pendingUserOperatedEvidenceIds': pendingUserOperatedEvidenceIds,
+      'pendingAutomationSafeEvidenceIds': pendingAutomationSafeEvidenceIds,
+      'operationBoundarySummary': operationBoundarySummary,
     };
   }
 }
@@ -286,6 +338,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       .where((entry) => !entry.exists)
       .map((entry) => entry.id)
       .toList(growable: false);
+  final readyArtifactIds = requiredArtifacts
+      .where((entry) => entry.exists)
+      .map((entry) => entry.id)
+      .toList(growable: false);
   final missingArtifactActions = requiredArtifacts
       .where((entry) => !entry.exists)
       .map(
@@ -302,6 +358,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   final finalAggregationCommand = missingArtifactIds.isEmpty
       ? _mvpFinalAggregationCommand(reportRoot, byId)
       : null;
+  final prReviewSummary = _mvpPrReviewSummary(
+    readyArtifactIds: readyArtifactIds,
+    missingArtifactIds: missingArtifactIds,
+  );
   return ReadinessFinalSignoffRehearsal(
     ready: missingArtifactIds.isEmpty,
     requiredArtifacts: List<ReadinessArtifactEntry>.unmodifiable(
@@ -311,8 +371,38 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     missingArtifactActions: List<ReadinessMissingArtifactAction>.unmodifiable(
       missingArtifactActions,
     ),
+    prReviewSummary: prReviewSummary,
     nextActions: List<String>.unmodifiable(nextActions),
     finalAggregationCommand: finalAggregationCommand,
+  );
+}
+
+ReadinessPrReviewSummary _mvpPrReviewSummary({
+  required List<String> readyArtifactIds,
+  required List<String> missingArtifactIds,
+}) {
+  final userOperated = MacosComputerUseMvpGuidance.userOperatedEvidenceIds
+      .toSet();
+  final pendingUserOperatedEvidenceIds = missingArtifactIds
+      .where(userOperated.contains)
+      .toList(growable: false);
+  final pendingAutomationSafeEvidenceIds = missingArtifactIds
+      .where((id) => !userOperated.contains(id))
+      .toList(growable: false);
+  return ReadinessPrReviewSummary(
+    status: missingArtifactIds.isEmpty
+        ? 'ready_for_final_aggregation'
+        : 'blocked_pending_evidence',
+    readyArtifactIds: List<String>.unmodifiable(readyArtifactIds),
+    missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
+    pendingUserOperatedEvidenceIds: List<String>.unmodifiable(
+      pendingUserOperatedEvidenceIds,
+    ),
+    pendingAutomationSafeEvidenceIds: List<String>.unmodifiable(
+      pendingAutomationSafeEvidenceIds,
+    ),
+    operationBoundarySummary:
+        'TCC grants and desktop actions remain user-operated; report-only checks may be automated.',
   );
 }
 
@@ -539,6 +629,13 @@ String _markdownCell(Object? value) {
     return '-';
   }
   return text.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+String _joinedOrNone(List<String> values) {
+  if (values.isEmpty) {
+    return 'none';
+  }
+  return values.join(', ');
 }
 
 String _escapeMarkdownCode(String value) {

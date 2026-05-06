@@ -59,6 +59,22 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
   );
+  final prSummary = rehearsal.prReviewSummary;
+  stdout.writeln('PR review summary:');
+  stdout.writeln('- Status: ${prSummary.status}');
+  stdout.writeln(
+    '- Ready artifacts: ${_joinedOrNone(prSummary.readyArtifactIds)}',
+  );
+  stdout.writeln(
+    '- Missing artifacts: ${_joinedOrNone(prSummary.missingArtifactIds)}',
+  );
+  stdout.writeln(
+    '- Pending user-operated evidence: ${_joinedOrNone(prSummary.pendingUserOperatedEvidenceIds)}',
+  );
+  stdout.writeln(
+    '- Pending automation-safe evidence: ${_joinedOrNone(prSummary.pendingAutomationSafeEvidenceIds)}',
+  );
+  stdout.writeln('- Boundary: ${prSummary.operationBoundarySummary}');
   stdout.writeln('Operation boundary:');
   for (final entry in rehearsal.operationBoundary.entries) {
     stdout.writeln('- ${entry.key}: ${entry.value}');
@@ -94,4 +110,11 @@ void _usageError(String message) {
   stderr.writeln(message);
   _printUsage();
   exitCode = 64;
+}
+
+String _joinedOrNone(List<String> values) {
+  if (values.isEmpty) {
+    return 'none';
+  }
+  return values.join(', ');
 }
