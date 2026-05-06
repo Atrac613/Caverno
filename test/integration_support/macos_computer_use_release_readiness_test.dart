@@ -9,6 +9,13 @@ import '../../integration_test/test_support/macos_computer_use_manual_tcc_report
 import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
 import '../../integration_test/test_support/macos_computer_use_release_readiness.dart';
 
+const _manualTccNextAction =
+    'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.';
+const _desktopActionNextAction =
+    'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.';
+const _llmCanaryNextAction =
+    'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+
 void main() {
   group('Computer Use release readiness', () {
     test('is ready when all required summaries are ready', () {
@@ -73,7 +80,7 @@ void main() {
       );
       expect(summary.ready, isFalse);
       expect(manualGate.status, 'manual_required');
-      expect(manualGate.nextAction, contains('--m8-runtime-signoff'));
+      expect(manualGate.nextAction, _manualTccNextAction);
       expect(summary.toJson()['readyGateIds'], isNot(contains('manual_tcc')));
       expect(summary.toJson()['blockedGateIds'], contains('manual_tcc'));
       expect(summary.toMarkdown(), contains('## Blocked Gates'));
@@ -406,10 +413,7 @@ void main() {
       );
       expect(summary.ready, isFalse);
       expect(desktopActionGate.status, 'blocked');
-      expect(
-        desktopActionGate.nextAction,
-        contains('prepare a safe click target'),
-      );
+      expect(desktopActionGate.nextAction, _desktopActionNextAction);
       expect(
         desktopActionGate.details['expectedPhases'],
         contains('pre_observe_image'),
@@ -662,18 +666,9 @@ void main() {
         index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
         MacosComputerUseOperationBoundary.values,
       );
-      expect(
-        index.toMarkdown(),
-        contains(
-          'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh`',
-        ),
-      );
-      expect(
-        index.toMarkdown(),
-        contains(
-          'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target`',
-        ),
-      );
+      expect(index.toMarkdown(), contains(_manualTccNextAction));
+      expect(index.toMarkdown(), contains(_desktopActionNextAction));
+      expect(index.toMarkdown(), contains(_llmCanaryNextAction));
     });
 
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
@@ -712,10 +707,9 @@ void main() {
       expect(stdout, contains('- inputSmokeRequiresArming: true'));
       expect(stdout, contains('- systemAudioSmokeRequiresArming: true'));
       expect(stdout, contains('MVP rehearsal next actions:'));
-      expect(
-        stdout,
-        contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
-      );
+      expect(stdout, contains(_manualTccNextAction));
+      expect(stdout, contains(_desktopActionNextAction));
+      expect(stdout, contains(_llmCanaryNextAction));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',

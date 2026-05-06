@@ -507,7 +507,8 @@ ReleaseReadinessGate _manualTccGate(
       label: 'Manual TCC sign-off',
       status: 'manual_required',
       ready: false,
-      nextAction: 'User must run --m8-runtime-signoff and provide the report.',
+      nextAction:
+          'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.',
     );
   }
 
@@ -544,7 +545,7 @@ ReleaseReadinessGate _desktopActionCanaryGate(
       status: 'manual_required',
       ready: false,
       nextAction:
-          'Ask the user to run the desktop action canary after granting TCC permissions.',
+          'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.',
     );
   }
 
@@ -559,7 +560,7 @@ ReleaseReadinessGate _desktopActionCanaryGate(
     ready: ready,
     nextAction: ready
         ? 'Desktop action canary is passing.'
-        : 'Ask the user to prepare a safe click target, rerun the canary, and provide its summary.',
+        : 'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.',
     artifactPath: summaryPath,
     details: <String, Object?>{
       'purpose': summary['purpose'],
