@@ -1636,6 +1636,10 @@ void main() {
     expect(mvpSignoffScript, contains('LLM Evidence Gate'));
     expect(mvpSignoffScript, contains('MVP Sign-Off Outputs'));
     expect(mvpSignoffScript, contains('MVP sign-off outputs:'));
+    expect(mvpSignoffScript, contains('PR Review Summary'));
+    expect(mvpSignoffScript, contains('PR review summary:'));
+    expect(mvpSignoffScript, contains('ready_for_final_aggregation'));
+    expect(mvpSignoffScript, contains('blocked_pending_evidence'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
     expect(mvpSignoffScript, contains('Final Readiness Next Actions'));
     expect(mvpSignoffScript, contains('--final-signoff'));
@@ -1712,6 +1716,22 @@ void main() {
       expect(stdout, contains('Manual TCC status: not provided'));
       expect(stdout, contains('Desktop action canary status: not provided'));
       expect(stdout, contains('MVP sign-off outputs:'));
+      expect(stdout, contains('PR review summary:'));
+      expect(stdout, contains('Status: blocked_pending_evidence'));
+      expect(stdout, contains('Ready input evidence: none'));
+      expect(
+        stdout,
+        contains(
+          'Missing input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Pending user-operated evidence: manual_tcc, desktop_action_canary',
+        ),
+      );
+      expect(stdout, contains('Pending automation-safe evidence: llm_canary'));
       expect(
         stdout,
         contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),
@@ -1743,6 +1763,22 @@ void main() {
       );
       expect(handoff, contains('Current Required Input Evidence Status'));
       expect(handoff, contains('MVP Sign-Off Outputs'));
+      expect(handoff, contains('PR Review Summary'));
+      expect(handoff, contains('Status: blocked_pending_evidence'));
+      expect(handoff, contains('Ready input evidence: none'));
+      expect(
+        handoff,
+        contains(
+          'Missing input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'Pending user-operated evidence: manual_tcc, desktop_action_canary',
+        ),
+      );
+      expect(handoff, contains('Pending automation-safe evidence: llm_canary'));
       expect(
         handoff,
         contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),
@@ -1943,6 +1979,16 @@ void main() {
       expect(stdout, contains('LLM evidence gate: ready'));
       expect(stdout, contains('LLM evidence blockers: none'));
       expect(stdout, contains('Final MVP aggregation command:'));
+      expect(stdout, contains('Status: ready_for_final_aggregation'));
+      expect(
+        stdout,
+        contains(
+          'Ready input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(stdout, contains('Missing input evidence: none'));
+      expect(stdout, contains('Pending user-operated evidence: none'));
+      expect(stdout, contains('Pending automation-safe evidence: none'));
       expect(
         stdout,
         contains(
@@ -1969,6 +2015,15 @@ void main() {
       expect(handoff, contains('Desktop action canary status: discovered'));
       expect(handoff, contains('LLM canary status: discovered'));
       expect(handoff, contains('LLM Evidence Gate'));
+      expect(handoff, contains('PR Review Summary'));
+      expect(handoff, contains('Status: ready_for_final_aggregation'));
+      expect(
+        handoff,
+        contains(
+          'Ready input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(handoff, contains('Missing input evidence: none'));
       expect(handoff, contains('MVP evidence gate: ready'));
       expect(handoff, contains('safe_click_plan'));
       expect(handoff, contains('destructive_target_refused'));
