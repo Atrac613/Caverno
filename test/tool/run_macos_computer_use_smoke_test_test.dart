@@ -1615,6 +1615,14 @@ void main() {
       mvpSignoffScript,
       contains('Current Required Input Evidence Status'),
     );
+    expect(mvpSignoffScript, contains('Operation Boundary'));
+    expect(mvpSignoffScript, contains('\\`tccGrants\\`: user_operated'));
+    expect(mvpSignoffScript, contains('\\`desktopActions\\`: user_operated'));
+    expect(mvpSignoffScript, contains('\\`inputSmokeRequiresArming\\`: true'));
+    expect(
+      mvpSignoffScript,
+      contains('\\`systemAudioSmokeRequiresArming\\`: true'),
+    );
     expect(
       mvpSignoffScript,
       contains(
@@ -1711,6 +1719,11 @@ void main() {
         ),
       );
       expect(handoff, contains('Current Required Input Evidence Status'));
+      expect(handoff, contains('Operation Boundary'));
+      expect(handoff, contains('`tccGrants`: user_operated'));
+      expect(handoff, contains('`desktopActions`: user_operated'));
+      expect(handoff, contains('`inputSmokeRequiresArming`: true'));
+      expect(handoff, contains('`systemAudioSmokeRequiresArming`: true'));
       expect(handoff, contains('Missing Input Next Actions'));
       expect(
         handoff,

@@ -481,6 +481,13 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`desktop_action_canary\`: ${desktop_action_status}
 - \`llm_canary\`: ${llm_canary_status}
 
+## Operation Boundary
+
+- \`tccGrants\`: user_operated
+- \`desktopActions\`: user_operated
+- \`inputSmokeRequiresArming\`: true
+- \`systemAudioSmokeRequiresArming\`: true
+
 ## User-Operated Commands
 
 1. Manual TCC sign-off:
