@@ -651,7 +651,24 @@ void main() {
           'llm_canary',
         ]),
       );
+      expect(
+        index.mvpFinalSignoffRehearsal.missingArtifactActions.map(
+          (action) => action.artifactId,
+        ),
+        containsAll(<String>[
+          'canary_history',
+          'manual_tcc',
+          'desktop_action_canary',
+          'llm_canary',
+        ]),
+      );
       expect(index.toMarkdown(), contains('- Ready: false'));
+      expect(
+        index.toMarkdown(),
+        contains('Missing Required Artifact Checklist'),
+      );
+      expect(index.toMarkdown(), contains('| `manual_tcc` |'));
+      expect(index.toMarkdown(), contains('| `desktop_action_canary` |'));
       expect(index.toMarkdown(), contains('Operation boundary:'));
       expect(index.toMarkdown(), contains('`tccGrants`: user_operated'));
       expect(index.toMarkdown(), contains('`desktopActions`: user_operated'));
@@ -663,6 +680,15 @@ void main() {
       expect(
         index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
         MacosComputerUseOperationBoundary.values,
+      );
+      final missingActions =
+          index.mvpFinalSignoffRehearsal.toJson()['missingArtifactActions']
+              as List<Object?>;
+      expect(
+        missingActions.cast<Map<String, Object?>>().map(
+          (action) => action['artifactId'],
+        ),
+        contains('manual_tcc'),
       );
       expect(index.toMarkdown(), contains(_manualTccNextAction));
       expect(index.toMarkdown(), contains(_desktopActionNextAction));
@@ -717,6 +743,14 @@ void main() {
       expect(stdout, contains('- desktopActions: user_operated'));
       expect(stdout, contains('- inputSmokeRequiresArming: true'));
       expect(stdout, contains('- systemAudioSmokeRequiresArming: true'));
+      expect(stdout, contains('Missing MVP artifact checklist:'));
+      expect(stdout, contains('- manual_tcc (Latest manual TCC evidence):'));
+      expect(
+        stdout,
+        contains(
+          '- desktop_action_canary (Latest desktop action canary summary):',
+        ),
+      );
       expect(stdout, contains('MVP rehearsal next actions:'));
       expect(stdout, contains(_manualTccNextAction));
       expect(stdout, contains(_desktopActionNextAction));

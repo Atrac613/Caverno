@@ -102,6 +102,19 @@ class ReadinessArtifactIndex {
         '| ${_markdownCell(artifact.label)} | ${artifact.exists} | `${_escapeMarkdownCode(artifact.path)}` |',
       );
     }
+    if (mvpFinalSignoffRehearsal.missingArtifactActions.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## Missing Required Artifact Checklist')
+        ..writeln()
+        ..writeln('| Artifact | Next Action |')
+        ..writeln('| --- | --- |');
+      for (final action in mvpFinalSignoffRehearsal.missingArtifactActions) {
+        buffer.writeln(
+          '| `${_escapeMarkdownCode(action.artifactId)}` | ${_markdownCell(action.nextAction)} |',
+        );
+      }
+    }
     buffer
       ..writeln()
       ..writeln('## MVP Rehearsal Next Actions')
@@ -124,6 +137,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.ready,
     required this.requiredArtifacts,
     required this.missingArtifactIds,
+    required this.missingArtifactActions,
     required this.nextActions,
     required this.finalAggregationCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
@@ -132,6 +146,7 @@ class ReadinessFinalSignoffRehearsal {
   final bool ready;
   final List<ReadinessArtifactEntry> requiredArtifacts;
   final List<String> missingArtifactIds;
+  final List<ReadinessMissingArtifactAction> missingArtifactActions;
   final List<String> nextActions;
   final String? finalAggregationCommand;
   final Map<String, Object?> operationBoundary;
@@ -143,9 +158,32 @@ class ReadinessFinalSignoffRehearsal {
           .map((entry) => entry.toJson())
           .toList(growable: false),
       'missingArtifactIds': missingArtifactIds,
+      'missingArtifactActions': missingArtifactActions
+          .map((action) => action.toJson())
+          .toList(growable: false),
       'nextActions': nextActions,
       'finalAggregationCommand': finalAggregationCommand,
       'operationBoundary': operationBoundary,
+    };
+  }
+}
+
+class ReadinessMissingArtifactAction {
+  const ReadinessMissingArtifactAction({
+    required this.artifactId,
+    required this.label,
+    required this.nextAction,
+  });
+
+  final String artifactId;
+  final String label;
+  final String nextAction;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'artifactId': artifactId,
+      'label': label,
+      'nextAction': nextAction,
     };
   }
 }
@@ -248,8 +286,18 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       .where((entry) => !entry.exists)
       .map((entry) => entry.id)
       .toList(growable: false);
-  final nextActions = missingArtifactIds
-      .map(_mvpMissingArtifactNextAction)
+  final missingArtifactActions = requiredArtifacts
+      .where((entry) => !entry.exists)
+      .map(
+        (entry) => ReadinessMissingArtifactAction(
+          artifactId: entry.id,
+          label: entry.label,
+          nextAction: _mvpMissingArtifactNextAction(entry.id),
+        ),
+      )
+      .toList(growable: false);
+  final nextActions = missingArtifactActions
+      .map((action) => action.nextAction)
       .toList(growable: false);
   final finalAggregationCommand = missingArtifactIds.isEmpty
       ? _mvpFinalAggregationCommand(reportRoot, byId)
@@ -260,6 +308,9 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       requiredArtifacts,
     ),
     missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
+    missingArtifactActions: List<ReadinessMissingArtifactAction>.unmodifiable(
+      missingArtifactActions,
+    ),
     nextActions: List<String>.unmodifiable(nextActions),
     finalAggregationCommand: finalAggregationCommand,
   );
