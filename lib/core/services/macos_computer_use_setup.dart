@@ -82,8 +82,29 @@ class MacosComputerUseMvpGuidance {
       'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
   static const llmCanaryNextAction =
       'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+  static const releaseArtifactNextAction =
+      'Refresh safe release inputs with `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`.';
+  static const canaryHistoryNextAction =
+      'Run the automation-safe Computer Use canary or safe readiness refresh to produce `macos_computer_use_canary_history.json`.';
   static const finalAggregationCommand =
       '$mvpSignoffCommand --final-signoff --manual-tcc-report $manualTccSummaryPlaceholder --desktop-action-canary-summary $desktopActionSummaryPlaceholder --llm-canary-summary $llmCanarySummaryPlaceholder';
+
+  static String missingArtifactNextAction(String artifactId) {
+    switch (artifactId) {
+      case 'release_artifact':
+        return releaseArtifactNextAction;
+      case 'canary_history':
+        return canaryHistoryNextAction;
+      case 'manual_tcc':
+        return manualTccNextAction;
+      case 'desktop_action_canary':
+        return desktopActionCanaryNextAction;
+      case 'llm_canary':
+        return llmCanaryNextAction;
+      default:
+        return 'Provide the missing `$artifactId` artifact before final sign-off aggregation.';
+    }
+  }
 }
 
 class MacosComputerUseBackends {

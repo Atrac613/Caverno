@@ -47,6 +47,7 @@ void main() {
     expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
     expect(find.text('MVP Sign-Off Path'), findsOneWidget);
     expect(find.text('MVP Evidence Preflight'), findsOneWidget);
+    expect(find.text('MVP Missing Evidence Checklist'), findsOneWidget);
     expect(find.text('User-Operated MVP Commands'), findsOneWidget);
     expect(find.text('MVP Artifact Paths'), findsOneWidget);
     expect(
@@ -57,6 +58,30 @@ void main() {
     );
     expect(
       find.textContaining('User-operated: manual_tcc, desktop_action_canary'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('release_artifact: Refresh safe release inputs'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'canary_history: Run the automation-safe Computer Use canary',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('manual_tcc: Ask the user to run'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('desktop_action_canary: Ask the user to run'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'llm_canary: Run or provide an MVP fixture LLM canary summary',
+      ),
       findsOneWidget,
     );
     expect(
@@ -78,13 +103,13 @@ void main() {
     expect(find.textContaining('--llm-canary-summary'), findsOneWidget);
     expect(
       find.textContaining('run_macos_computer_use_manual_tcc_signoff.sh'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining(
         'run_macos_computer_use_desktop_action_canary.sh --fixture-target',
       ),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('macos_computer_use_mvp_handoff.md'),
@@ -104,9 +129,9 @@ void main() {
     );
     expect(
       find.textContaining('manual_tcc_report_summary.json'),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
-    expect(find.textContaining('canary_summary.json'), findsNWidgets(2));
+    expect(find.textContaining('canary_summary.json'), findsNWidgets(3));
     expect(
       find.textContaining('/tmp/caverno-macos-computer-use-smoke.json'),
       findsOneWidget,
@@ -490,6 +515,10 @@ void main() {
 
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
+    await tester.ensureVisible(
+      find.text('Recent audit entries', skipOffstage: false),
+    );
+    await tester.pumpAndSettle();
 
     expect(find.text('Recent audit entries'), findsOneWidget);
     expect(find.text('computer_list_windows'), findsOneWidget);

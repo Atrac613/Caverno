@@ -336,20 +336,7 @@ String _mvpFinalAggregationCommand(
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
-  switch (artifactId) {
-    case 'release_artifact':
-      return 'Refresh safe release inputs with `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`.';
-    case 'canary_history':
-      return 'Run the automation-safe Computer Use canary or safe readiness refresh to produce `macos_computer_use_canary_history.json`.';
-    case 'manual_tcc':
-      return MacosComputerUseMvpGuidance.manualTccNextAction;
-    case 'desktop_action_canary':
-      return MacosComputerUseMvpGuidance.desktopActionCanaryNextAction;
-    case 'llm_canary':
-      return MacosComputerUseMvpGuidance.llmCanaryNextAction;
-    default:
-      return 'Provide the missing `$artifactId` artifact before final sign-off aggregation.';
-  }
+  return MacosComputerUseMvpGuidance.missingArtifactNextAction(artifactId);
 }
 
 Future<ReadinessArtifactIndex> writeReadinessArtifactIndex(

@@ -225,6 +225,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ),
             const SizedBox(height: 8),
             _OnboardingNote(
+              icon: Icons.rule_folder_outlined,
+              title: 'MVP Missing Evidence Checklist',
+              body: _mvpMissingEvidenceChecklistSummary(),
+            ),
+            const SizedBox(height: 8),
+            _OnboardingNote(
               icon: Icons.terminal_outlined,
               title: 'User-Operated MVP Commands',
               body: _mvpUserOperatedCommandSummary(),
@@ -1704,6 +1710,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
+  }
+
+  String _mvpMissingEvidenceChecklistSummary() {
+    return MacosComputerUseMvpGuidance.requiredEvidenceIds
+        .map(
+          (artifactId) =>
+              '$artifactId: ${MacosComputerUseMvpGuidance.missingArtifactNextAction(artifactId)}',
+        )
+        .join(' | ');
   }
 
   Map<String, String> _mvpArtifactPaths() {
