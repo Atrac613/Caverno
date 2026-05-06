@@ -645,6 +645,55 @@ void main() {
         ),
       );
     });
+
+    test('artifact index CLI prints MVP sign-off rehearsal status', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_cli_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+
+      final result = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_readiness_artifact_index.dart',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Readiness artifact index written under'));
+      expect(stdout, contains('MVP final sign-off rehearsal: blocked'));
+      expect(
+        stdout,
+        contains(
+          'Missing MVP artifacts: canary_history, manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(stdout, contains('MVP rehearsal next actions:'));
+      expect(
+        stdout,
+        contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+      );
+      expect(
+        File(
+          '${root.path}/macos_computer_use_readiness_artifact_index.json',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ).existsSync(),
+        isTrue,
+      );
+    });
   });
 }
 

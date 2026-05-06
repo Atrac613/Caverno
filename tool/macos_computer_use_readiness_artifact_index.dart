@@ -37,12 +37,25 @@ Future<void> main(List<String> args) async {
   }
 
   final reportRoot = Directory(reportRootPath);
-  await writeReadinessArtifactIndex(
+  final index = await writeReadinessArtifactIndex(
     reportRoot,
     outputJsonPath: outputJsonPath,
     outputMarkdownPath: outputMarkdownPath,
   );
   stdout.writeln('Readiness artifact index written under ${reportRoot.path}');
+  final rehearsal = index.mvpFinalSignoffRehearsal;
+  stdout.writeln(
+    'MVP final sign-off rehearsal: ${rehearsal.ready ? 'ready' : 'blocked'}',
+  );
+  stdout.writeln(
+    'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
+  );
+  if (rehearsal.nextActions.isNotEmpty) {
+    stdout.writeln('MVP rehearsal next actions:');
+    for (final action in rehearsal.nextActions) {
+      stdout.writeln('- $action');
+    }
+  }
 }
 
 void _printUsage() {

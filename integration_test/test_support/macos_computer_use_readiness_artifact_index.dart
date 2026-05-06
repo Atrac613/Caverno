@@ -249,7 +249,7 @@ String _mvpMissingArtifactNextAction(String artifactId) {
   }
 }
 
-Future<void> writeReadinessArtifactIndex(
+Future<ReadinessArtifactIndex> writeReadinessArtifactIndex(
   Directory reportRoot, {
   String? outputJsonPath,
   String? outputMarkdownPath,
@@ -268,6 +268,7 @@ Future<void> writeReadinessArtifactIndex(
     const JsonEncoder.withIndent('  ').convert(index.toJson()),
   );
   await outputMarkdown.writeAsString(index.toMarkdown());
+  return index;
 }
 
 ReadinessArtifactEntry _latestLlmCanaryEntry(
