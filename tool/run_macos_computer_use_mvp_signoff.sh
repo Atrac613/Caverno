@@ -499,7 +499,7 @@ cat >"${HANDOFF_MD}" <<EOF
 2. Desktop action canary after preparing a safe click target:
 
    \`\`\`bash
-   bash tool/run_macos_computer_use_desktop_action_canary.sh
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
    \`\`\`
 
 3. Final MVP aggregation:
@@ -538,10 +538,10 @@ cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
     echo "- Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
   fi
   if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
-    echo "- Ask the user to prepare a safe click target, run \`bash tool/run_macos_computer_use_desktop_action_canary.sh\`, and provide \`canary_summary.json\`."
+    echo "- Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
   fi
   if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-    echo "- Rerun \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an existing aggregate LLM canary summary."
+    echo "- Run or provide an MVP fixture LLM canary summary before final sign-off aggregation."
   fi
   if [[ "${required_input_evidence_ready}" == "1" ]]; then
     echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
@@ -577,17 +577,17 @@ echo "  Final MVP aggregation command: ${FINAL_MVP_AGGREGATION_COMMAND}"
 echo
 echo "User-operated commands:"
 echo "  bash tool/run_macos_computer_use_manual_tcc_signoff.sh"
-echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh"
+echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target"
 echo
 echo "MVP handoff next actions:"
 if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discovered" ]]; then
-  echo "  manual_tcc: ask the user for manual_tcc_report_summary.json"
+  echo "  - Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
 fi
 if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
-  echo "  desktop_action_canary: ask the user for canary_summary.json"
+  echo "  - Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
 fi
 if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-  echo "  llm_canary: provide an existing aggregate canary_summary.json or rerun the fixture LLM canary"
+  echo "  - Run or provide an MVP fixture LLM canary summary before final sign-off aggregation."
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

@@ -4,6 +4,13 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+const _manualTccNextAction =
+    'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.';
+const _desktopActionNextAction =
+    'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.';
+const _llmCanaryNextAction =
+    'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+
 void main() {
   late String script;
   late String smokeTest;
@@ -1648,11 +1655,11 @@ void main() {
     expect(mvpSignoffScript, contains('user-operated safe click target only'));
     expect(
       mvpSignoffScript,
-      contains('manual_tcc: ask the user for manual_tcc_report_summary.json'),
+      contains(_manualTccNextAction.replaceAll('`', r'\`')),
     );
     expect(
       mvpSignoffScript,
-      contains('desktop_action_canary: ask the user for canary_summary.json'),
+      contains(_desktopActionNextAction.replaceAll('`', r'\`')),
     );
     expect(mvpSignoffScript, contains('--manual-tcc-report'));
     expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
@@ -1691,14 +1698,8 @@ void main() {
       expect(stdout, contains('Dry run: 1'));
       expect(stdout, contains('Manual TCC status: not provided'));
       expect(stdout, contains('Desktop action canary status: not provided'));
-      expect(
-        stdout,
-        contains('manual_tcc: ask the user for manual_tcc_report_summary.json'),
-      );
-      expect(
-        stdout,
-        contains('desktop_action_canary: ask the user for canary_summary.json'),
-      );
+      expect(stdout, contains(_manualTccNextAction));
+      expect(stdout, contains(_desktopActionNextAction));
       expect(stdout, contains('Dry run: would execute'));
 
       final handoff = File(
@@ -1721,7 +1722,9 @@ void main() {
       );
       expect(
         handoff,
-        contains('bash tool/run_macos_computer_use_desktop_action_canary.sh'),
+        contains(
+          'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+        ),
       );
       expect(
         File('${root.path}/macos_computer_use_mvp_readiness.json').existsSync(),
@@ -1759,12 +1762,7 @@ void main() {
         expect(stdout, contains('Manual TCC status: provided path not found'));
         expect(stdout, contains('Desktop action canary status: provided'));
         expect(stdout, contains('LLM canary status: discovery only'));
-        expect(
-          stdout,
-          contains(
-            'llm_canary: provide an existing aggregate canary_summary.json',
-          ),
-        );
+        expect(stdout, contains(_llmCanaryNextAction));
         expect(stdout, contains('--manual-tcc-report $missingManualReport'));
         expect(
           stdout,
@@ -1776,12 +1774,7 @@ void main() {
         ).readAsStringSync();
         expect(handoff, contains('Manual TCC status: provided path not found'));
         expect(handoff, contains('Desktop action canary status: provided'));
-        expect(
-          handoff,
-          contains(
-            'Rerun `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh`',
-          ),
-        );
+        expect(handoff, contains(_llmCanaryNextAction));
         expect(handoff, contains(missingManualReport));
         expect(handoff, contains(desktopSummary.path));
       } finally {
