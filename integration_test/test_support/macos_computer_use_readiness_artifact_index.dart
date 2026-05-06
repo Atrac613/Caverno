@@ -66,6 +66,22 @@ class ReadinessArtifactIndex {
       ..writeln(
         '- Missing required artifacts: ${mvpFinalSignoffRehearsal.missingArtifactIds.isEmpty ? 'none' : mvpFinalSignoffRehearsal.missingArtifactIds.join(', ')}',
       );
+    buffer
+      ..writeln()
+      ..writeln('Operation boundary:')
+      ..writeln()
+      ..writeln(
+        '- `tccGrants`: ${mvpFinalSignoffRehearsal.operationBoundary['tccGrants']}',
+      )
+      ..writeln(
+        '- `desktopActions`: ${mvpFinalSignoffRehearsal.operationBoundary['desktopActions']}',
+      )
+      ..writeln(
+        '- `inputSmokeRequiresArming`: ${mvpFinalSignoffRehearsal.operationBoundary['inputSmokeRequiresArming']}',
+      )
+      ..writeln(
+        '- `systemAudioSmokeRequiresArming`: ${mvpFinalSignoffRehearsal.operationBoundary['systemAudioSmokeRequiresArming']}',
+      );
     if (mvpFinalSignoffRehearsal.finalAggregationCommand != null) {
       buffer
         ..writeln()
@@ -108,6 +124,12 @@ class ReadinessFinalSignoffRehearsal {
     required this.missingArtifactIds,
     required this.nextActions,
     required this.finalAggregationCommand,
+    this.operationBoundary = const <String, Object?>{
+      'tccGrants': 'user_operated',
+      'desktopActions': 'user_operated',
+      'inputSmokeRequiresArming': true,
+      'systemAudioSmokeRequiresArming': true,
+    },
   });
 
   final bool ready;
@@ -115,6 +137,7 @@ class ReadinessFinalSignoffRehearsal {
   final List<String> missingArtifactIds;
   final List<String> nextActions;
   final String? finalAggregationCommand;
+  final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -125,6 +148,7 @@ class ReadinessFinalSignoffRehearsal {
       'missingArtifactIds': missingArtifactIds,
       'nextActions': nextActions,
       'finalAggregationCommand': finalAggregationCommand,
+      'operationBoundary': operationBoundary,
     };
   }
 }

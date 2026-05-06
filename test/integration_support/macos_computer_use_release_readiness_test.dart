@@ -649,6 +649,22 @@ void main() {
         ]),
       );
       expect(index.toMarkdown(), contains('- Ready: false'));
+      expect(index.toMarkdown(), contains('Operation boundary:'));
+      expect(index.toMarkdown(), contains('`tccGrants`: user_operated'));
+      expect(index.toMarkdown(), contains('`desktopActions`: user_operated'));
+      expect(index.toMarkdown(), contains('`inputSmokeRequiresArming`: true'));
+      expect(
+        index.toMarkdown(),
+        contains('`systemAudioSmokeRequiresArming`: true'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
+        containsPair('tccGrants', 'user_operated'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
+        containsPair('desktopActions', 'user_operated'),
+      );
       expect(
         index.toMarkdown(),
         contains(
