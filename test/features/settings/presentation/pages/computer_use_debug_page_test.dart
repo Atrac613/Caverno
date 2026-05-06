@@ -114,7 +114,7 @@ void main() {
     );
     expect(
       find.textContaining('macos_computer_use_mvp_handoff.md'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('macos_computer_use_mvp_readiness.md'),
@@ -128,7 +128,18 @@ void main() {
       find.textContaining('macos_computer_use_readiness_artifact_index.md'),
       findsNWidgets(2),
     );
-    expect(find.textContaining('Review `PR Review Summary`'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        '`macos_computer_use_readiness_artifact_index.md` before PR review',
+      ),
+      findsOneWidget,
+    );
     expect(
       find.textContaining(
         'ready artifacts, missing evidence, user-operated blockers',

@@ -1731,7 +1731,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final liveReportPath = _lastLiveSmokeReport?['path'];
     return <String, String>{
       'mvpHandoff':
-          'build/integration_test_reports/macos_computer_use_mvp_handoff.md',
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.mvpHandoffMarkdownFile}',
       'mvpReadiness':
           'build/integration_test_reports/macos_computer_use_mvp_readiness.md',
       'manualTccSummary':
