@@ -41,6 +41,24 @@ class MacosComputerUseOperationBoundary {
   };
 }
 
+class MacosComputerUseMvpGuidance {
+  const MacosComputerUseMvpGuidance._();
+
+  static const manualTccCommand =
+      'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
+  static const desktopActionCanaryCommand =
+      'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
+  static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
+  static const desktopActionSummaryFile = 'canary_summary.json';
+
+  static const manualTccNextAction =
+      'Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
+  static const desktopActionCanaryNextAction =
+      'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
+  static const llmCanaryNextAction =
+      'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+}
+
 class MacosComputerUseBackends {
   const MacosComputerUseBackends._();
 

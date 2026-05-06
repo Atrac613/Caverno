@@ -4,12 +4,10 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-const _manualTccNextAction =
-    'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.';
+const _manualTccNextAction = MacosComputerUseMvpGuidance.manualTccNextAction;
 const _desktopActionNextAction =
-    'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.';
-const _llmCanaryNextAction =
-    'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+    MacosComputerUseMvpGuidance.desktopActionCanaryNextAction;
+const _llmCanaryNextAction = MacosComputerUseMvpGuidance.llmCanaryNextAction;
 
 void main() {
   late String script;

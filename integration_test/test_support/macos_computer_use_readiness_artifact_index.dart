@@ -297,11 +297,11 @@ String _mvpMissingArtifactNextAction(String artifactId) {
     case 'canary_history':
       return 'Run the automation-safe Computer Use canary or safe readiness refresh to produce `macos_computer_use_canary_history.json`.';
     case 'manual_tcc':
-      return 'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.';
+      return MacosComputerUseMvpGuidance.manualTccNextAction;
     case 'desktop_action_canary':
-      return 'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.';
+      return MacosComputerUseMvpGuidance.desktopActionCanaryNextAction;
     case 'llm_canary':
-      return 'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+      return MacosComputerUseMvpGuidance.llmCanaryNextAction;
     default:
       return 'Provide the missing `$artifactId` artifact before final sign-off aggregation.';
   }

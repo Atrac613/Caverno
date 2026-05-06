@@ -1677,15 +1677,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
   String _mvpSignoffSummary() {
     return [
       'Wrapper: bash tool/run_macos_computer_use_mvp_signoff.sh',
-      'Manual inputs: manual_tcc_report_summary.json and canary_summary.json',
+      'Manual inputs: ${MacosComputerUseMvpGuidance.manualTccSummaryFile} and ${MacosComputerUseMvpGuidance.desktopActionSummaryFile}',
       'TCC and desktop action stay user-operated',
     ].join(' | ');
   }
 
   String _mvpUserOperatedCommandSummary() {
     return [
-      'Manual TCC: bash tool/run_macos_computer_use_manual_tcc_signoff.sh',
-      'Desktop action: bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+      'Manual TCC: ${MacosComputerUseMvpGuidance.manualTccCommand}',
+      'Desktop action: ${MacosComputerUseMvpGuidance.desktopActionCanaryCommand}',
     ].join(' | ');
   }
 

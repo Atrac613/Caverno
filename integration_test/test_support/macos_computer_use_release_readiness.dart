@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_setup.dart';
+
 import 'macos_computer_use_canary_history.dart';
 import 'macos_computer_use_manual_tcc_report.dart';
 
@@ -507,8 +509,7 @@ ReleaseReadinessGate _manualTccGate(
       label: 'Manual TCC sign-off',
       status: 'manual_required',
       ready: false,
-      nextAction:
-          'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.',
+      nextAction: MacosComputerUseMvpGuidance.manualTccNextAction,
     );
   }
 
@@ -544,8 +545,7 @@ ReleaseReadinessGate _desktopActionCanaryGate(
       label: 'Desktop action canary',
       status: 'manual_required',
       ready: false,
-      nextAction:
-          'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.',
+      nextAction: MacosComputerUseMvpGuidance.desktopActionCanaryNextAction,
     );
   }
 
@@ -560,7 +560,7 @@ ReleaseReadinessGate _desktopActionCanaryGate(
     ready: ready,
     nextAction: ready
         ? 'Desktop action canary is passing.'
-        : 'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.',
+        : MacosComputerUseMvpGuidance.desktopActionCanaryNextAction,
     artifactPath: summaryPath,
     details: <String, Object?>{
       'purpose': summary['purpose'],
