@@ -98,6 +98,24 @@ void main() {
     );
   });
 
+  testWidgets('shows the manual boundary before smoke sequence actions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    await _scrollUntilVisible(tester, find.text('Manual Smoke Boundary'));
+
+    expect(find.text('Manual Smoke Boundary'), findsOneWidget);
+    expect(
+      find.text(
+        'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Run Smoke Sequence'), findsOneWidget);
+  });
+
   testWidgets('shows helper path mismatch next action', (tester) async {
     final service = _FakeMacosComputerUseService(helperPathMismatch: true);
     await _pumpPage(tester, service);

@@ -773,6 +773,13 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
                   'Copy or export a redacted smoke-test snapshot for debugging.',
             ),
             const SizedBox(height: 12),
+            const _OnboardingNote(
+              icon: Icons.privacy_tip_outlined,
+              title: 'Manual Smoke Boundary',
+              body:
+                  'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
+            ),
+            const SizedBox(height: 12),
             Wrap(
               spacing: 8,
               runSpacing: 8,
