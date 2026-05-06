@@ -481,6 +481,12 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`desktop_action_canary\`: ${desktop_action_status}
 - \`llm_canary\`: ${llm_canary_status}
 
+## MVP Sign-Off Outputs
+
+- JSON: ${OUTPUT_JSON}
+- Markdown: ${OUTPUT_MD}
+- Handoff Markdown: ${HANDOFF_MD}
+
 ## Operation Boundary
 
 - \`tccGrants\`: user_operated
@@ -568,6 +574,10 @@ echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
 echo "  Dry run: ${DRY_RUN}"
 echo "  Output JSON: ${OUTPUT_JSON}"
 echo "  Output Markdown: ${OUTPUT_MD}"
+echo "  Handoff Markdown: ${HANDOFF_MD}"
+echo "MVP sign-off outputs:"
+echo "  JSON: ${OUTPUT_JSON}"
+echo "  Markdown: ${OUTPUT_MD}"
 echo "  Handoff Markdown: ${HANDOFF_MD}"
 echo "  Release readiness wrapper: ${RELEASE_READINESS_WRAPPER}"
 echo "  TCC boundary: user-operated manual verification only"

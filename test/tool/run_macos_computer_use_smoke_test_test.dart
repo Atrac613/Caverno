@@ -1634,6 +1634,8 @@ void main() {
       ),
     );
     expect(mvpSignoffScript, contains('LLM Evidence Gate'));
+    expect(mvpSignoffScript, contains('MVP Sign-Off Outputs'));
+    expect(mvpSignoffScript, contains('MVP sign-off outputs:'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
     expect(mvpSignoffScript, contains('Final Readiness Next Actions'));
     expect(mvpSignoffScript, contains('--final-signoff'));
@@ -1709,6 +1711,21 @@ void main() {
       expect(stdout, contains('Dry run: 1'));
       expect(stdout, contains('Manual TCC status: not provided'));
       expect(stdout, contains('Desktop action canary status: not provided'));
+      expect(stdout, contains('MVP sign-off outputs:'));
+      expect(
+        stdout,
+        contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),
+      );
+      expect(
+        stdout,
+        contains('Markdown: ${root.path}/macos_computer_use_mvp_readiness.md'),
+      );
+      expect(
+        stdout,
+        contains(
+          'Handoff Markdown: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
       expect(stdout, contains(_manualTccNextAction));
       expect(stdout, contains(_desktopActionNextAction));
       expect(stdout, contains('Dry run: would execute'));
@@ -1725,6 +1742,21 @@ void main() {
         ),
       );
       expect(handoff, contains('Current Required Input Evidence Status'));
+      expect(handoff, contains('MVP Sign-Off Outputs'));
+      expect(
+        handoff,
+        contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),
+      );
+      expect(
+        handoff,
+        contains('Markdown: ${root.path}/macos_computer_use_mvp_readiness.md'),
+      );
+      expect(
+        handoff,
+        contains(
+          'Handoff Markdown: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
       _expectOperationBoundaryMarkdown(handoff);
       expect(handoff, contains('Missing Input Next Actions'));
       expect(
