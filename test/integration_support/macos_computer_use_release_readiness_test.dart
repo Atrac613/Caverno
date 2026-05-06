@@ -692,6 +692,19 @@ void main() {
       expect(result.exitCode, 0, reason: '${result.stderr}');
       final stdout = '${result.stdout}';
       expect(stdout, contains('Readiness artifact index written under'));
+      expect(stdout, contains('Artifact index outputs:'));
+      expect(
+        stdout,
+        contains(
+          '- JSON: ${root.path}/macos_computer_use_readiness_artifact_index.json',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          '- Markdown: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
       expect(stdout, contains('MVP final sign-off rehearsal: blocked'));
       expect(
         stdout,

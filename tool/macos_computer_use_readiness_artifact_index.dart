@@ -43,6 +43,15 @@ Future<void> main(List<String> args) async {
     outputMarkdownPath: outputMarkdownPath,
   );
   stdout.writeln('Readiness artifact index written under ${reportRoot.path}');
+  final outputJson =
+      outputJsonPath ??
+      '${reportRoot.path}/macos_computer_use_readiness_artifact_index.json';
+  final outputMarkdown =
+      outputMarkdownPath ??
+      '${reportRoot.path}/macos_computer_use_readiness_artifact_index.md';
+  stdout.writeln('Artifact index outputs:');
+  stdout.writeln('- JSON: $outputJson');
+  stdout.writeln('- Markdown: $outputMarkdown');
   final rehearsal = index.mvpFinalSignoffRehearsal;
   stdout.writeln(
     'MVP final sign-off rehearsal: ${rehearsal.ready ? 'ready' : 'blocked'}',
