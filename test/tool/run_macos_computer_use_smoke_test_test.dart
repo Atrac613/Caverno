@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -1615,14 +1616,7 @@ void main() {
       mvpSignoffScript,
       contains('Current Required Input Evidence Status'),
     );
-    expect(mvpSignoffScript, contains('Operation Boundary'));
-    expect(mvpSignoffScript, contains('\\`tccGrants\\`: user_operated'));
-    expect(mvpSignoffScript, contains('\\`desktopActions\\`: user_operated'));
-    expect(mvpSignoffScript, contains('\\`inputSmokeRequiresArming\\`: true'));
-    expect(
-      mvpSignoffScript,
-      contains('\\`systemAudioSmokeRequiresArming\\`: true'),
-    );
+    _expectOperationBoundaryMarkdown(mvpSignoffScript, escapedBackticks: true);
     expect(
       mvpSignoffScript,
       contains(
@@ -1719,11 +1713,7 @@ void main() {
         ),
       );
       expect(handoff, contains('Current Required Input Evidence Status'));
-      expect(handoff, contains('Operation Boundary'));
-      expect(handoff, contains('`tccGrants`: user_operated'));
-      expect(handoff, contains('`desktopActions`: user_operated'));
-      expect(handoff, contains('`inputSmokeRequiresArming`: true'));
-      expect(handoff, contains('`systemAudioSmokeRequiresArming`: true'));
+      _expectOperationBoundaryMarkdown(handoff);
       expect(handoff, contains('Missing Input Next Actions'));
       expect(
         handoff,
@@ -2088,4 +2078,15 @@ exit 1
       root.deleteSync(recursive: true);
     }
   });
+}
+
+void _expectOperationBoundaryMarkdown(
+  String markdown, {
+  bool escapedBackticks = false,
+}) {
+  expect(markdown, contains('Operation Boundary'));
+  final tick = escapedBackticks ? r'\`' : '`';
+  for (final entry in MacosComputerUseOperationBoundary.values.entries) {
+    expect(markdown, contains('- $tick${entry.key}$tick: ${entry.value}'));
+  }
 }
