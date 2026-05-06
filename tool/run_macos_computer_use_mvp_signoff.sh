@@ -269,6 +269,10 @@ if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
   final_mvp_args+=(--llm-canary-summary "${LLM_CANARY_SUMMARY}")
 fi
 FINAL_MVP_AGGREGATION_COMMAND="$(shell_join "${final_mvp_args[@]}")"
+required_input_evidence_ready=0
+if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered") && ("${desktop_action_status}" == "provided" || "${desktop_action_status}" == "discovered") && ("${llm_canary_status}" == "provided" || "${llm_canary_status}" == "discovered") ]]; then
+  required_input_evidence_ready=1
+fi
 
 LLM_EVIDENCE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_mvp_llm_evidence_handoff.md"
 llm_evidence_values="$(
@@ -528,11 +532,11 @@ cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
   if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
     echo "- Ask the user to prepare a safe click target, run \`bash tool/run_macos_computer_use_desktop_action_canary.sh\`, and provide \`canary_summary.json\`."
   fi
-  if [[ "${llm_canary_status}" == "provided path not found" ]]; then
+  if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
     echo "- Rerun \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an existing aggregate LLM canary summary."
   fi
-  if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered") && ("${desktop_action_status}" == "provided" || "${desktop_action_status}" == "discovered") ]]; then
-    echo "- No manual input is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
+  if [[ "${required_input_evidence_ready}" == "1" ]]; then
+    echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
   fi
 } >>"${HANDOFF_MD}"
 
@@ -574,11 +578,11 @@ fi
 if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
   echo "  desktop_action_canary: ask the user for canary_summary.json"
 fi
-if [[ "${llm_canary_status}" == "provided path not found" ]]; then
+if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
   echo "  llm_canary: provide an existing aggregate canary_summary.json or rerun the fixture LLM canary"
 fi
-if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered") && ("${desktop_action_status}" == "provided" || "${desktop_action_status}" == "discovered") ]]; then
-  echo "  all manual inputs were provided or discovered by this wrapper"
+if [[ "${required_input_evidence_ready}" == "1" ]]; then
+  echo "  all required input evidence was provided or discovered by this wrapper"
 fi
 
 cd "${ROOT_DIR}"

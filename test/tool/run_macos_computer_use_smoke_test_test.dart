@@ -1727,6 +1727,12 @@ void main() {
         expect(stdout, contains('Manual TCC status: provided path not found'));
         expect(stdout, contains('Desktop action canary status: provided'));
         expect(stdout, contains('LLM canary status: discovery only'));
+        expect(
+          stdout,
+          contains(
+            'llm_canary: provide an existing aggregate canary_summary.json',
+          ),
+        );
         expect(stdout, contains('--manual-tcc-report $missingManualReport'));
         expect(
           stdout,
@@ -1738,6 +1744,12 @@ void main() {
         ).readAsStringSync();
         expect(handoff, contains('Manual TCC status: provided path not found'));
         expect(handoff, contains('Desktop action canary status: provided'));
+        expect(
+          handoff,
+          contains(
+            'Rerun `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh`',
+          ),
+        );
         expect(handoff, contains(missingManualReport));
         expect(handoff, contains(desktopSummary.path));
       } finally {
@@ -1860,7 +1872,7 @@ void main() {
       expect(
         stdout,
         contains(
-          'all manual inputs were provided or discovered by this wrapper',
+          'all required input evidence was provided or discovered by this wrapper',
         ),
       );
 
@@ -1892,7 +1904,9 @@ void main() {
       expect(handoff, contains(llmSummary.path));
       expect(
         handoff,
-        contains('No manual input is missing from this wrapper invocation.'),
+        contains(
+          'No required input evidence is missing from this wrapper invocation.',
+        ),
       );
     } finally {
       root.deleteSync(recursive: true);
