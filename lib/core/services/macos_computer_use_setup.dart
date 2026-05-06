@@ -44,6 +44,18 @@ class MacosComputerUseOperationBoundary {
 class MacosComputerUseMvpGuidance {
   const MacosComputerUseMvpGuidance._();
 
+  static const requiredEvidenceIds = <String>[
+    'release_artifact',
+    'canary_history',
+    'manual_tcc',
+    'desktop_action_canary',
+    'llm_canary',
+  ];
+  static const userOperatedEvidenceIds = <String>[
+    'manual_tcc',
+    'desktop_action_canary',
+  ];
+
   static const manualTccCommand =
       'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
   static const desktopActionCanaryCommand =

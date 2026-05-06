@@ -219,6 +219,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ),
             const SizedBox(height: 8),
             _OnboardingNote(
+              icon: Icons.checklist_outlined,
+              title: 'MVP Evidence Preflight',
+              body: _mvpEvidencePreflightSummary(),
+            ),
+            const SizedBox(height: 8),
+            _OnboardingNote(
               icon: Icons.terminal_outlined,
               title: 'User-Operated MVP Commands',
               body: _mvpUserOperatedCommandSummary(),
@@ -1687,6 +1693,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return [
       'Manual TCC: ${MacosComputerUseMvpGuidance.manualTccCommand}',
       'Desktop action: ${MacosComputerUseMvpGuidance.desktopActionCanaryCommand}',
+    ].join(' | ');
+  }
+
+  String _mvpEvidencePreflightSummary() {
+    return [
+      'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
+      'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
+      'LLM evidence: llm_canary',
+      'Final aggregation waits for all required evidence',
     ].join(' | ');
   }
 

@@ -239,13 +239,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   final byId = <String, ReadinessArtifactEntry>{
     for (final entry in entries) entry.id: entry,
   };
-  final requiredIds = <String>[
-    'release_artifact',
-    'canary_history',
-    'manual_tcc',
-    'desktop_action_canary',
-    'llm_canary',
-  ];
+  final requiredIds = MacosComputerUseMvpGuidance.requiredEvidenceIds;
   final requiredArtifacts = requiredIds
       .map((id) => byId[id])
       .whereType<ReadinessArtifactEntry>()
