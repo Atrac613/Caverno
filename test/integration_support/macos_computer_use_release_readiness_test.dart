@@ -498,6 +498,14 @@ void main() {
         _releaseReport(status: 'ready'),
       );
       _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
         File('${root.path}/manual/report.json'),
         _runtimeReport(status: 'ready'),
       );
@@ -561,6 +569,16 @@ void main() {
         isTrue,
       );
       expect(index.toMarkdown(), contains('M7 release artifact report'));
+      expect(index.mvpFinalSignoffRehearsal.ready, isTrue);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.toMarkdown(), contains('MVP Final Sign-Off Rehearsal'));
+      expect(index.toMarkdown(), contains('- Ready: true'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'All required input evidence is present. Run final MVP sign-off aggregation.',
+        ),
+      );
       final llmEntry = index.entries.singleWhere(
         (entry) => entry.id == 'llm_canary',
       );
@@ -586,6 +604,46 @@ void main() {
       );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
+    });
+
+    test('artifact index surfaces MVP sign-off rehearsal blockers', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_missing_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.missingArtifactIds,
+        containsAll(<String>[
+          'canary_history',
+          'manual_tcc',
+          'desktop_action_canary',
+          'llm_canary',
+        ]),
+      );
+      expect(index.toMarkdown(), contains('- Ready: false'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh`',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target`',
+        ),
+      );
     });
   });
 }

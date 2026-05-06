@@ -566,6 +566,8 @@ The wrapper writes preset-specific readiness artifacts:
 The artifact index includes the latest manual TCC summary, desktop action
 canary, preferred LLM canary, MVP LLM readiness summary, and guided MVP demo
 readiness summary when those user-produced or automation-safe artifacts exist.
+It also includes an MVP final sign-off rehearsal checklist that reports missing
+required input evidence before the final aggregation is attempted.
 
 Safe refresh generates the M7 release artifact report and the Computer Use
 canary history. It does not run M8, launch System Settings, grant permissions,

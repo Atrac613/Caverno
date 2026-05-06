@@ -28,10 +28,12 @@ class ReadinessArtifactIndex {
   const ReadinessArtifactIndex({
     required this.reportRoot,
     required this.entries,
+    required this.mvpFinalSignoffRehearsal,
   });
 
   final String reportRoot;
   final List<ReadinessArtifactEntry> entries;
+  final ReadinessFinalSignoffRehearsal mvpFinalSignoffRehearsal;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -39,6 +41,7 @@ class ReadinessArtifactIndex {
       'schemaVersion': 1,
       'reportRoot': reportRoot,
       'entries': entries.map((entry) => entry.toJson()).toList(growable: false),
+      'mvpFinalSignoffRehearsal': mvpFinalSignoffRehearsal.toJson(),
     };
   }
 
@@ -55,7 +58,61 @@ class ReadinessArtifactIndex {
         '| ${_markdownCell(entry.label)} | ${entry.exists} | `${_escapeMarkdownCode(entry.path)}` |',
       );
     }
+    buffer
+      ..writeln()
+      ..writeln('## MVP Final Sign-Off Rehearsal')
+      ..writeln()
+      ..writeln('- Ready: ${mvpFinalSignoffRehearsal.ready}')
+      ..writeln(
+        '- Missing required artifacts: ${mvpFinalSignoffRehearsal.missingArtifactIds.isEmpty ? 'none' : mvpFinalSignoffRehearsal.missingArtifactIds.join(', ')}',
+      )
+      ..writeln()
+      ..writeln('| Required Artifact | Present | Path |')
+      ..writeln('| --- | --- | --- |');
+    for (final artifact in mvpFinalSignoffRehearsal.requiredArtifacts) {
+      buffer.writeln(
+        '| ${_markdownCell(artifact.label)} | ${artifact.exists} | `${_escapeMarkdownCode(artifact.path)}` |',
+      );
+    }
+    buffer
+      ..writeln()
+      ..writeln('## MVP Rehearsal Next Actions')
+      ..writeln();
+    if (mvpFinalSignoffRehearsal.nextActions.isEmpty) {
+      buffer.writeln(
+        '- All required input evidence is present. Run final MVP sign-off aggregation.',
+      );
+    } else {
+      for (final action in mvpFinalSignoffRehearsal.nextActions) {
+        buffer.writeln('- $action');
+      }
+    }
     return buffer.toString();
+  }
+}
+
+class ReadinessFinalSignoffRehearsal {
+  const ReadinessFinalSignoffRehearsal({
+    required this.ready,
+    required this.requiredArtifacts,
+    required this.missingArtifactIds,
+    required this.nextActions,
+  });
+
+  final bool ready;
+  final List<ReadinessArtifactEntry> requiredArtifacts;
+  final List<String> missingArtifactIds;
+  final List<String> nextActions;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'ready': ready,
+      'requiredArtifacts': requiredArtifacts
+          .map((entry) => entry.toJson())
+          .toList(growable: false),
+      'missingArtifactIds': missingArtifactIds,
+      'nextActions': nextActions,
+    };
   }
 }
 
@@ -137,7 +194,59 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
     entries: List<ReadinessArtifactEntry>.unmodifiable(entries),
+    mvpFinalSignoffRehearsal: _mvpFinalSignoffRehearsal(entries),
   );
+}
+
+ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
+  List<ReadinessArtifactEntry> entries,
+) {
+  final byId = <String, ReadinessArtifactEntry>{
+    for (final entry in entries) entry.id: entry,
+  };
+  final requiredIds = <String>[
+    'release_artifact',
+    'canary_history',
+    'manual_tcc',
+    'desktop_action_canary',
+    'llm_canary',
+  ];
+  final requiredArtifacts = requiredIds
+      .map((id) => byId[id])
+      .whereType<ReadinessArtifactEntry>()
+      .toList(growable: false);
+  final missingArtifactIds = requiredArtifacts
+      .where((entry) => !entry.exists)
+      .map((entry) => entry.id)
+      .toList(growable: false);
+  final nextActions = missingArtifactIds
+      .map(_mvpMissingArtifactNextAction)
+      .toList(growable: false);
+  return ReadinessFinalSignoffRehearsal(
+    ready: missingArtifactIds.isEmpty,
+    requiredArtifacts: List<ReadinessArtifactEntry>.unmodifiable(
+      requiredArtifacts,
+    ),
+    missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
+    nextActions: List<String>.unmodifiable(nextActions),
+  );
+}
+
+String _mvpMissingArtifactNextAction(String artifactId) {
+  switch (artifactId) {
+    case 'release_artifact':
+      return 'Refresh safe release inputs with `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`.';
+    case 'canary_history':
+      return 'Run the automation-safe Computer Use canary or safe readiness refresh to produce `macos_computer_use_canary_history.json`.';
+    case 'manual_tcc':
+      return 'Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.';
+    case 'desktop_action_canary':
+      return 'Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.';
+    case 'llm_canary':
+      return 'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+    default:
+      return 'Provide the missing `$artifactId` artifact before final sign-off aggregation.';
+  }
 }
 
 Future<void> writeReadinessArtifactIndex(
