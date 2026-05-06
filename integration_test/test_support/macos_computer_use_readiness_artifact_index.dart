@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_setup.dart';
+
 class ReadinessArtifactEntry {
   const ReadinessArtifactEntry({
     required this.id,
@@ -124,12 +126,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.missingArtifactIds,
     required this.nextActions,
     required this.finalAggregationCommand,
-    this.operationBoundary = const <String, Object?>{
-      'tccGrants': 'user_operated',
-      'desktopActions': 'user_operated',
-      'inputSmokeRequiresArming': true,
-      'systemAudioSmokeRequiresArming': true,
-    },
+    this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
   final bool ready;

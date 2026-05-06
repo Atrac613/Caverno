@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
@@ -659,11 +660,7 @@ void main() {
       );
       expect(
         index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
-        containsPair('tccGrants', 'user_operated'),
-      );
-      expect(
-        index.mvpFinalSignoffRehearsal.toJson()['operationBoundary'],
-        containsPair('desktopActions', 'user_operated'),
+        MacosComputerUseOperationBoundary.values,
       );
       expect(
         index.toMarkdown(),

@@ -173,19 +173,7 @@ void main() {
     expect(helperIpcProtocol['xpcNextParityCommands'], isEmpty);
     expect(
       diagnostics['operationBoundary'],
-      containsPair('tccGrants', 'user_operated'),
-    );
-    expect(
-      diagnostics['operationBoundary'],
-      containsPair('desktopActions', 'user_operated'),
-    );
-    expect(
-      diagnostics['operationBoundary'],
-      containsPair('inputSmokeRequiresArming', true),
-    );
-    expect(
-      diagnostics['operationBoundary'],
-      containsPair('systemAudioSmokeRequiresArming', true),
+      MacosComputerUseOperationBoundary.values,
     );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
