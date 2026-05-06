@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -1791,6 +1792,24 @@ void main() {
       'caverno_mvp_signoff_dry_run_discovered_',
     );
     try {
+      File('${root.path}/macos_computer_use_release_artifact_signoff.json')
+        ..writeAsStringSync('''
+{
+  "releaseSignoffGate": {
+    "status": "ready",
+    "blockers": [],
+    "nextAction": "M7 release artifact sign-off is complete."
+  }
+}
+''');
+      File('${root.path}/macos_computer_use_canary_history.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_canary_history",
+  "stable": true,
+  "runCount": 1
+}
+''');
       final manualDir = Directory(
         '${root.path}/macos_computer_use_manual_tcc_1',
       )..createSync();
@@ -1936,6 +1955,38 @@ void main() {
           'No required input evidence is missing from this wrapper invocation.',
         ),
       );
+
+      final handoffCommand = RegExp(
+        r'```bash\n(bash tool/run_macos_computer_use_mvp_signoff\.sh --final-signoff[^\n]*)\n```',
+      ).firstMatch(handoff)?.group(1);
+      expect(handoffCommand, isNotNull);
+
+      final artifactIndexResult = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_readiness_artifact_index.dart',
+        '--root',
+        root.path,
+      ]);
+      expect(
+        artifactIndexResult.exitCode,
+        0,
+        reason: '${artifactIndexResult.stdout}\n${artifactIndexResult.stderr}',
+      );
+      expect(
+        '${artifactIndexResult.stdout}',
+        contains('MVP final sign-off rehearsal: ready'),
+      );
+      final artifactIndex =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_readiness_artifact_index.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final rehearsal =
+          artifactIndex['mvpFinalSignoffRehearsal'] as Map<String, dynamic>;
+      expect(rehearsal['ready'], isTrue);
+      expect(rehearsal['finalAggregationCommand'], handoffCommand);
     } finally {
       root.deleteSync(recursive: true);
     }
