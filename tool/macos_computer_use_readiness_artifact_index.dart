@@ -50,6 +50,10 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
   );
+  stdout.writeln('Operation boundary:');
+  for (final entry in rehearsal.operationBoundary.entries) {
+    stdout.writeln('- ${entry.key}: ${entry.value}');
+  }
   if (rehearsal.finalAggregationCommand != null) {
     stdout.writeln('Final MVP aggregation command:');
     stdout.writeln(rehearsal.finalAggregationCommand);

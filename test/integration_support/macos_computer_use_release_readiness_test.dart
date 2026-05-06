@@ -706,6 +706,11 @@ void main() {
           'Missing MVP artifacts: canary_history, manual_tcc, desktop_action_canary, llm_canary',
         ),
       );
+      expect(stdout, contains('Operation boundary:'));
+      expect(stdout, contains('- tccGrants: user_operated'));
+      expect(stdout, contains('- desktopActions: user_operated'));
+      expect(stdout, contains('- inputSmokeRequiresArming: true'));
+      expect(stdout, contains('- systemAudioSmokeRequiresArming: true'));
       expect(stdout, contains('MVP rehearsal next actions:'));
       expect(
         stdout,
