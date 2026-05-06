@@ -466,6 +466,7 @@ cat >"${HANDOFF_MD}" <<EOF
 # macOS Computer Use MVP Handoff
 
 - Automation boundary: user-operated TCC and desktop action only
+- Report-only handoff and aggregation checks do not require TCC or live desktop action.
 - MVP checklist: \`docs/macos_computer_use_mvp_checklist.md\`
 - Manual TCC report: ${MANUAL_TCC_REPORT:-not provided}
 - Manual TCC status: ${manual_tcc_status}
@@ -474,7 +475,7 @@ cat >"${HANDOFF_MD}" <<EOF
 - LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}
 - LLM canary status: ${llm_canary_status}
 
-## Current Manual Input Status
+## Current Required Input Evidence Status
 
 - \`manual_tcc\`: ${manual_tcc_status}
 - \`desktop_action_canary\`: ${desktop_action_status}

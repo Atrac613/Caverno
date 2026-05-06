@@ -7,6 +7,8 @@ evidence into a release readiness report.
 
 Automation must not grant TCC permissions, edit TCC, operate System Settings,
 or run the user-operated desktop action on the user's behalf.
+Report-only handoff, readiness, artifact-index, and aggregation guidance
+changes do not require fresh TCC or live desktop-action verification.
 
 ## Sign-Off Order
 

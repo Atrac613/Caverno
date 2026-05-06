@@ -1585,6 +1585,18 @@ void main() {
     expect(mvpChecklist, contains('destructive_target_refused'));
     expect(
       mvpChecklist,
+      contains(
+        'Report-only handoff, readiness, artifact-index, and aggregation guidance',
+      ),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'changes do not require fresh TCC or live desktop-action verification.',
+      ),
+    );
+    expect(
+      mvpChecklist,
       contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
     );
     expect(
@@ -1598,7 +1610,16 @@ void main() {
     expect(mvpChecklist, contains('--dry-run'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_handoff.md'));
     expect(mvpSignoffScript, contains('macos_computer_use_mvp_readiness.json'));
-    expect(mvpSignoffScript, contains('Current Manual Input Status'));
+    expect(
+      mvpSignoffScript,
+      contains('Current Required Input Evidence Status'),
+    );
+    expect(
+      mvpSignoffScript,
+      contains(
+        'Report-only handoff and aggregation checks do not require TCC or live desktop action.',
+      ),
+    );
     expect(mvpSignoffScript, contains('LLM Evidence Gate'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
     expect(mvpSignoffScript, contains('Final Readiness Next Actions'));
@@ -1682,6 +1703,13 @@ void main() {
       ).readAsStringSync();
       expect(handoff, contains('Manual TCC status: not provided'));
       expect(handoff, contains('Desktop action canary status: not provided'));
+      expect(
+        handoff,
+        contains(
+          'Report-only handoff and aggregation checks do not require TCC or live desktop action.',
+        ),
+      );
+      expect(handoff, contains('Current Required Input Evidence Status'));
       expect(handoff, contains('Missing Input Next Actions'));
       expect(
         handoff,
