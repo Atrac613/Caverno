@@ -1844,6 +1844,13 @@ void main() {
       expect(stdout, contains('LLM canary status: discovered'));
       expect(stdout, contains('LLM evidence gate: ready'));
       expect(stdout, contains('LLM evidence blockers: none'));
+      expect(stdout, contains('Final MVP aggregation command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_mvp_signoff.sh --final-signoff',
+        ),
+      );
       expect(stdout, contains('--manual-tcc-report ${manualSummary.path}'));
       expect(
         stdout,
@@ -1869,6 +1876,13 @@ void main() {
       expect(handoff, contains('destructive_target_refused'));
       expect(handoff, contains('Desktop Action Evidence'));
       expect(handoff, contains('Desktop action status: passed'));
+      expect(handoff, contains('Final MVP Aggregation Command'));
+      expect(
+        handoff,
+        contains(
+          'bash tool/run_macos_computer_use_mvp_signoff.sh --final-signoff',
+        ),
+      );
       expect(handoff, contains('`pre_observe_image`'));
       expect(handoff, contains('Use a visible, harmless target.'));
       expect(handoff, contains('| run_01 | passed | passed |'));

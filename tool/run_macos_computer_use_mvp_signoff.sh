@@ -240,6 +240,36 @@ elif [[ -n "${DISCOVERED_LLM_CANARY_SUMMARY:-}" ]]; then
   llm_canary_status="discovered"
 fi
 
+shell_join() {
+  local output=""
+  local part
+  for part in "$@"; do
+    if [[ -n "${output}" ]]; then
+      output+=" "
+    fi
+    printf -v part "%q" "${part}"
+    output+="${part}"
+  done
+  printf '%s' "${output}"
+}
+
+final_mvp_args=(
+  bash
+  tool/run_macos_computer_use_mvp_signoff.sh
+  --final-signoff
+  --root "${REPORT_ROOT}"
+)
+if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
+  final_mvp_args+=(--manual-tcc-report "${MANUAL_TCC_REPORT}")
+fi
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  final_mvp_args+=(--desktop-action-canary-summary "${DESKTOP_ACTION_CANARY_SUMMARY}")
+fi
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  final_mvp_args+=(--llm-canary-summary "${LLM_CANARY_SUMMARY}")
+fi
+FINAL_MVP_AGGREGATION_COMMAND="$(shell_join "${final_mvp_args[@]}")"
+
 LLM_EVIDENCE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_mvp_llm_evidence_handoff.md"
 llm_evidence_values="$(
   LLM_CANARY_SUMMARY="${LLM_CANARY_SUMMARY}" LLM_EVIDENCE_FRAGMENT="${LLM_EVIDENCE_FRAGMENT}" python3 - <<'PY'
@@ -469,6 +499,12 @@ cat >"${HANDOFF_MD}" <<EOF
      --llm-canary-summary <llm-canary-summary.json>
    \`\`\`
 
+## Final MVP Aggregation Command
+
+\`\`\`bash
+${FINAL_MVP_AGGREGATION_COMMAND}
+\`\`\`
+
 ## Automation-Safe Commands
 
 \`\`\`bash
@@ -524,6 +560,7 @@ echo "  Handoff Markdown: ${HANDOFF_MD}"
 echo "  Release readiness wrapper: ${RELEASE_READINESS_WRAPPER}"
 echo "  TCC boundary: user-operated manual verification only"
 echo "  Desktop action boundary: user-operated safe click target only"
+echo "  Final MVP aggregation command: ${FINAL_MVP_AGGREGATION_COMMAND}"
 
 echo
 echo "User-operated commands:"
