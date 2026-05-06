@@ -52,6 +52,13 @@ void main() {
       find.textContaining('run_macos_computer_use_mvp_signoff.sh'),
       findsOneWidget,
     );
+    expect(find.textContaining('--final-signoff'), findsOneWidget);
+    expect(find.textContaining('--manual-tcc-report'), findsOneWidget);
+    expect(
+      find.textContaining('--desktop-action-canary-summary'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('--llm-canary-summary'), findsOneWidget);
     expect(
       find.textContaining('run_macos_computer_use_manual_tcc_signoff.sh'),
       findsOneWidget,

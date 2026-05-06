@@ -1676,7 +1676,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
 
   String _mvpSignoffSummary() {
     return [
-      'Wrapper: bash tool/run_macos_computer_use_mvp_signoff.sh',
+      'Wrapper: ${MacosComputerUseMvpGuidance.mvpSignoffCommand}',
+      'Final aggregation: ${MacosComputerUseMvpGuidance.finalAggregationCommand}',
       'Manual inputs: ${MacosComputerUseMvpGuidance.manualTccSummaryFile} and ${MacosComputerUseMvpGuidance.desktopActionSummaryFile}',
       'TCC and desktop action stay user-operated',
     ].join(' | ');

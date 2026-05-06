@@ -494,7 +494,8 @@ For the shortest MVP path, use
 bash tool/run_macos_computer_use_mvp_signoff.sh \
   --final-signoff \
   --manual-tcc-report <manual-tcc-report-or-summary.json> \
-  --desktop-action-canary-summary <desktop-action-canary-summary.json>
+  --desktop-action-canary-summary <desktop-action-canary-summary.json> \
+  --llm-canary-summary <llm-canary-summary.json>
 ```
 
 For the guided fixture-to-readiness demo path, use:

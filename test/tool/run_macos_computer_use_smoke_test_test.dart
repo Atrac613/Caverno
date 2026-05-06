@@ -1686,6 +1686,10 @@ void main() {
       architectureDoc,
       contains('docs/macos_computer_use_mvp_checklist.md'),
     );
+    expect(
+      architectureDoc,
+      contains('--llm-canary-summary <llm-canary-summary.json>'),
+    );
   });
 
   test('MVP sign-off dry run writes missing manual input handoff', () async {

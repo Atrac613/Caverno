@@ -48,8 +48,15 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
   static const desktopActionCanaryCommand =
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
+  static const mvpSignoffCommand =
+      'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
+  static const llmCanarySummaryPlaceholder = '<llm-canary-summary.json>';
+  static const manualTccSummaryPlaceholder =
+      '<manual-tcc-report-or-summary.json>';
+  static const desktopActionSummaryPlaceholder =
+      '<desktop-action-canary-summary.json>';
 
   static const manualTccNextAction =
       'Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
@@ -57,6 +64,8 @@ class MacosComputerUseMvpGuidance {
       'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
   static const llmCanaryNextAction =
       'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+  static const finalAggregationCommand =
+      '$mvpSignoffCommand --final-signoff --manual-tcc-report $manualTccSummaryPlaceholder --desktop-action-canary-summary $desktopActionSummaryPlaceholder --llm-canary-summary $llmCanarySummaryPlaceholder';
 }
 
 class MacosComputerUseBackends {
