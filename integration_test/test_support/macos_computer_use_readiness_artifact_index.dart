@@ -65,7 +65,17 @@ class ReadinessArtifactIndex {
       ..writeln('- Ready: ${mvpFinalSignoffRehearsal.ready}')
       ..writeln(
         '- Missing required artifacts: ${mvpFinalSignoffRehearsal.missingArtifactIds.isEmpty ? 'none' : mvpFinalSignoffRehearsal.missingArtifactIds.join(', ')}',
-      )
+      );
+    if (mvpFinalSignoffRehearsal.finalAggregationCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('Final MVP aggregation command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.finalAggregationCommand)
+        ..writeln('```');
+    }
+    buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
       ..writeln('| --- | --- | --- |');
@@ -97,12 +107,14 @@ class ReadinessFinalSignoffRehearsal {
     required this.requiredArtifacts,
     required this.missingArtifactIds,
     required this.nextActions,
+    required this.finalAggregationCommand,
   });
 
   final bool ready;
   final List<ReadinessArtifactEntry> requiredArtifacts;
   final List<String> missingArtifactIds;
   final List<String> nextActions;
+  final String? finalAggregationCommand;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -112,6 +124,7 @@ class ReadinessFinalSignoffRehearsal {
           .toList(growable: false),
       'missingArtifactIds': missingArtifactIds,
       'nextActions': nextActions,
+      'finalAggregationCommand': finalAggregationCommand,
     };
   }
 }
@@ -194,11 +207,12 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
     entries: List<ReadinessArtifactEntry>.unmodifiable(entries),
-    mvpFinalSignoffRehearsal: _mvpFinalSignoffRehearsal(entries),
+    mvpFinalSignoffRehearsal: _mvpFinalSignoffRehearsal(reportRoot, entries),
   );
 }
 
 ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
+  Directory reportRoot,
   List<ReadinessArtifactEntry> entries,
 ) {
   final byId = <String, ReadinessArtifactEntry>{
@@ -222,6 +236,9 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   final nextActions = missingArtifactIds
       .map(_mvpMissingArtifactNextAction)
       .toList(growable: false);
+  final finalAggregationCommand = missingArtifactIds.isEmpty
+      ? _mvpFinalAggregationCommand(reportRoot, byId)
+      : null;
   return ReadinessFinalSignoffRehearsal(
     ready: missingArtifactIds.isEmpty,
     requiredArtifacts: List<ReadinessArtifactEntry>.unmodifiable(
@@ -229,7 +246,27 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     ),
     missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
     nextActions: List<String>.unmodifiable(nextActions),
+    finalAggregationCommand: finalAggregationCommand,
   );
+}
+
+String _mvpFinalAggregationCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_mvp_signoff.sh',
+    '--final-signoff',
+    '--root',
+    reportRoot.path,
+    '--manual-tcc-report',
+    entriesById['manual_tcc']?.path ?? '',
+    '--desktop-action-canary-summary',
+    entriesById['desktop_action_canary']?.path ?? '',
+    '--llm-canary-summary',
+    entriesById['llm_canary']?.path ?? '',
+  ].map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -453,4 +490,14 @@ String _markdownCell(Object? value) {
 
 String _escapeMarkdownCode(String value) {
   return value.replaceAll('`', r'\`');
+}
+
+String _shellQuote(String value) {
+  if (value.isEmpty) {
+    return "''";
+  }
+  if (RegExp(r'^[A-Za-z0-9_./:=@%+-]+$').hasMatch(value)) {
+    return value;
+  }
+  return "'${value.replaceAll("'", "'\"'\"'")}'";
 }

@@ -50,6 +50,10 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
   );
+  if (rehearsal.finalAggregationCommand != null) {
+    stdout.writeln('Final MVP aggregation command:');
+    stdout.writeln(rehearsal.finalAggregationCommand);
+  }
   if (rehearsal.nextActions.isNotEmpty) {
     stdout.writeln('MVP rehearsal next actions:');
     for (final action in rehearsal.nextActions) {

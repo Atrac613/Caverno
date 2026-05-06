@@ -505,10 +505,8 @@ void main() {
           'runCount': 1,
         },
       );
-      _writeJson(
-        File('${root.path}/manual/report.json'),
-        _runtimeReport(status: 'ready'),
-      );
+      final manualSummaryPath = '${root.path}/manual/report.json';
+      _writeJson(File(manualSummaryPath), _runtimeReport(status: 'ready'));
       _writeJson(
         File('${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json'),
         _llmSummary(failedCount: 0),
@@ -528,18 +526,12 @@ void main() {
         ),
         _mvpFixtureAggregateLlmSummary(failed: 0),
       );
-      _writeJson(
-        File(
-          '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_200/canary_summary.json',
-        ),
-        _mvpFixtureVisionLlmSummary(failed: 0),
-      );
-      _writeJson(
-        File(
-          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
-        ),
-        _desktopActionSummary(failed: 0),
-      );
+      final llmSummaryPath =
+          '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_200/canary_summary.json';
+      _writeJson(File(llmSummaryPath), _mvpFixtureVisionLlmSummary(failed: 0));
+      final desktopSummaryPath =
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json';
+      _writeJson(File(desktopSummaryPath), _desktopActionSummary(failed: 0));
       _writeJson(
         File(
           '${root.path}/macos_computer_use_mvp_llm_readiness_300/mvp_llm_readiness_summary.json',
@@ -571,8 +563,33 @@ void main() {
       expect(index.toMarkdown(), contains('M7 release artifact report'));
       expect(index.mvpFinalSignoffRehearsal.ready, isTrue);
       expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(
+        index.mvpFinalSignoffRehearsal.finalAggregationCommand,
+        contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.finalAggregationCommand,
+        contains('--final-signoff'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.finalAggregationCommand,
+        contains('--manual-tcc-report $manualSummaryPath'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.finalAggregationCommand,
+        contains('--desktop-action-canary-summary $desktopSummaryPath'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.finalAggregationCommand,
+        contains('--llm-canary-summary $llmSummaryPath'),
+      );
       expect(index.toMarkdown(), contains('MVP Final Sign-Off Rehearsal'));
       expect(index.toMarkdown(), contains('- Ready: true'));
+      expect(index.toMarkdown(), contains('Final MVP aggregation command:'));
+      expect(
+        index.toMarkdown(),
+        contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
+      );
       expect(
         index.toMarkdown(),
         contains(
