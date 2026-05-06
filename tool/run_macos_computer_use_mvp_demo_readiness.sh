@@ -253,6 +253,105 @@ def read_json(path):
         return None
 
 
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def markdown_cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+def desktop_action_evidence_from_summary(path):
+    if not path:
+        return None
+    decoded = read_json(path)
+    if not isinstance(decoded, dict):
+        return {
+            "path": path,
+            "status": "unreadable",
+            "runCount": None,
+            "failed": None,
+            "expectedPhases": [],
+            "safeTargetGuidance": [],
+            "runs": [],
+        }
+    run_count = decoded.get("runCount")
+    failed = decoded.get("failed")
+    stable = decoded.get("stable")
+    status = "passed" if run_count and failed == 0 and stable is True else "blocked"
+    runs = []
+    for run in as_list(decoded.get("runs")):
+        if not isinstance(run, dict):
+            continue
+        phase_status = run.get("phaseStatus")
+        runs.append({
+            "name": run.get("name"),
+            "status": run.get("status"),
+            "failureClass": run.get("failureClass"),
+            "phaseStatus": phase_status if isinstance(phase_status, dict) else {},
+        })
+    return {
+        "path": path,
+        "status": status,
+        "runCount": run_count,
+        "failed": failed,
+        "expectedPhases": as_list(decoded.get("expectedPhases")),
+        "safeTargetGuidance": as_list(decoded.get("safeTargetGuidance")),
+        "runs": runs,
+    }
+
+
+def append_desktop_action_evidence(lines, evidence):
+    if not evidence:
+        return
+    lines.extend([
+        "## Desktop Action Evidence",
+        "",
+        f"- Desktop action summary: `{evidence.get('path') or 'not available'}`",
+        f"- Desktop action status: {evidence.get('status') or 'not available'}",
+        f"- Desktop action runs: {evidence.get('runCount') if evidence.get('runCount') is not None else 'not available'}",
+        f"- Desktop action failures: {evidence.get('failed') if evidence.get('failed') is not None else 'not available'}",
+    ])
+    phases = as_list(evidence.get("expectedPhases"))
+    if phases:
+        lines.append(
+            "- Expected phases: " + ", ".join(f"`{str(phase)}`" for phase in phases)
+        )
+    guidance = as_list(evidence.get("safeTargetGuidance"))
+    if guidance:
+        lines.append(
+            "- Safe target guidance: " + "; ".join(str(item) for item in guidance)
+        )
+    runs = as_list(evidence.get("runs"))
+    if runs:
+        lines.extend([
+            "",
+            "| Run | Status | Failure Class | Pre Observe | Click | Post Observe | Changed Evidence |",
+            "| --- | --- | --- | --- | --- | --- | --- |",
+        ])
+        for run in runs:
+            if not isinstance(run, dict):
+                continue
+            phase_status = run.get("phaseStatus")
+            phase_status = phase_status if isinstance(phase_status, dict) else {}
+            lines.append(
+                "| {name} | {status} | {failure} | {pre} | {click} | {post} | {changed} |".format(
+                    name=markdown_cell(run.get("name")),
+                    status=markdown_cell(run.get("status")),
+                    failure=markdown_cell(run.get("failureClass")),
+                    pre=markdown_cell(phase_status.get("preObserve")),
+                    click=markdown_cell(phase_status.get("click")),
+                    post=markdown_cell(phase_status.get("postObserve")),
+                    changed=markdown_cell(phase_status.get("changedEvidence")),
+                )
+            )
+    else:
+        lines.append("")
+        lines.append("- No run-level desktop action evidence was present in the selected summary.")
+    lines.append("")
+
+
 llm_readiness_summary = read_json(os.environ["LLM_READINESS_SUMMARY"])
 llm_readiness_summary = (
     llm_readiness_summary if isinstance(llm_readiness_summary, dict) else {}
@@ -270,6 +369,9 @@ expected_runtime_phases = (
 llm_evidence_mode = llm_readiness_summary.get("llmEvidenceMode")
 llm_ready = llm_readiness_summary.get("llmReady")
 llm_gate_ready = llm_readiness_summary.get("llmGateReady")
+desktop_action_evidence = desktop_action_evidence_from_summary(
+    desktop_action_summary
+)
 
 
 next_user_actions = []
@@ -316,6 +418,7 @@ summary = {
     "mvpSignoffHandoffPath": path_or_none(os.environ["MVP_SIGNOFF_HANDOFF"]),
     "manualTccReportPath": path_or_none(manual_tcc_report),
     "desktopActionCanarySummaryPath": path_or_none(desktop_action_summary),
+    "desktopActionEvidence": desktop_action_evidence,
     "finalSignoff": final_signoff,
     "nextUserActions": next_user_actions,
 }
@@ -362,6 +465,7 @@ if expected_runtime_phases:
     ])
     lines.extend(f"- `{phase}`" for phase in expected_runtime_phases)
     lines.append("")
+append_desktop_action_evidence(lines, desktop_action_evidence)
 lines.extend([
     "## Artifacts",
     "",

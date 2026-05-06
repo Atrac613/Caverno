@@ -1309,6 +1309,37 @@ void main() {
   "expectedOutcome": "User-approved actions update the fixture labels."
 }
 ''');
+        final desktopActionSummary = File('${root.path}/desktop_action.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_desktop_action_canary_summary",
+  "stable": true,
+  "runCount": 1,
+  "failed": 0,
+  "expectedPhases": [
+    "pre_observe_image",
+    "click_sent",
+    "post_observe_image"
+  ],
+  "safeTargetGuidance": [
+    "Use a visible, harmless target.",
+    "Avoid destructive controls."
+  ],
+  "runs": [
+    {
+      "name": "run_01",
+      "status": "passed",
+      "failureClass": "passed",
+      "phaseStatus": {
+        "preObserve": "ready",
+        "click": "sent",
+        "postObserve": "ready",
+        "changedEvidence": "observed"
+      }
+    }
+  ]
+}
+''');
 
         final result = await Process.run('bash', [
           'tool/run_macos_computer_use_mvp_demo_readiness.sh',
@@ -1317,6 +1348,8 @@ void main() {
           '--skip-fixture-build',
           '--vision-fixture-response',
           fixture.path,
+          '--desktop-action-canary-summary',
+          desktopActionSummary.path,
         ]);
 
         expect(
@@ -1350,6 +1383,9 @@ void main() {
         expect(summary, contains('"mvpEvidenceGate"'));
         expect(summary, contains('"fixture_window_visible"'));
         expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
+        expect(summary, contains('"desktopActionEvidence"'));
+        expect(summary, contains('"status": "passed"'));
+        expect(summary, contains('"changedEvidence": "observed"'));
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1360,6 +1396,12 @@ void main() {
         final handoff = handoffFiles.single.readAsStringSync();
         expect(handoff, contains('MVP Evidence Checks'));
         expect(handoff, contains('Expected User-Operated Runtime Phases'));
+        expect(handoff, contains('Desktop Action Evidence'));
+        expect(handoff, contains('Desktop action status: passed'));
+        expect(handoff, contains('`pre_observe_image`'));
+        expect(handoff, contains('Use a visible, harmless target.'));
+        expect(handoff, contains('| run_01 | passed | passed |'));
+        expect(handoff, contains('| ready | sent | ready | observed |'));
         expect(handoff, contains('User-Operated Commands'));
         expect(
           handoff,
