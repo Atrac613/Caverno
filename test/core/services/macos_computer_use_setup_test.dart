@@ -171,6 +171,22 @@ void main() {
     final helperIpcProtocol =
         diagnostics['helperIpcProtocol'] as Map<String, dynamic>;
     expect(helperIpcProtocol['xpcNextParityCommands'], isEmpty);
+    expect(
+      diagnostics['operationBoundary'],
+      containsPair('tccGrants', 'user_operated'),
+    );
+    expect(
+      diagnostics['operationBoundary'],
+      containsPair('desktopActions', 'user_operated'),
+    );
+    expect(
+      diagnostics['operationBoundary'],
+      containsPair('inputSmokeRequiresArming', true),
+    );
+    expect(
+      diagnostics['operationBoundary'],
+      containsPair('systemAudioSmokeRequiresArming', true),
+    );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());

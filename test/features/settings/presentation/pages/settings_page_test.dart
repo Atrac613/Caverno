@@ -68,6 +68,11 @@ void main() {
     expect(text, contains('"helperStatusPersistence"'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"helperIpcRuntime"'));
+    expect(text, contains('"operationBoundary"'));
+    expect(text, contains('"tccGrants": "user_operated"'));
+    expect(text, contains('"desktopActions": "user_operated"'));
+    expect(text, contains('"inputSmokeRequiresArming": true'));
+    expect(text, contains('"systemAudioSmokeRequiresArming": true'));
     expect(text, contains('"helperPathSignoffGate"'));
     expect(text, contains('"xpcTimingReport"'));
     expect(

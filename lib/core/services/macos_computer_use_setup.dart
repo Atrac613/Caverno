@@ -288,6 +288,12 @@ class MacosComputerUseOnboardingDiagnostics {
     required this.setupChecklist,
     required this.onboardingSmokeChecklist,
     required this.helperIpcProtocol,
+    this.operationBoundary = const <String, dynamic>{
+      'tccGrants': 'user_operated',
+      'desktopActions': 'user_operated',
+      'inputSmokeRequiresArming': true,
+      'systemAudioSmokeRequiresArming': true,
+    },
     this.helperIpcRuntime,
     this.onboardingVerification,
     this.helperStatus,
@@ -323,6 +329,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final MacosComputerUseSetupChecklist setupChecklist;
   final List<Map<String, dynamic>> onboardingSmokeChecklist;
   final Map<String, dynamic> helperIpcProtocol;
+  final Map<String, dynamic> operationBoundary;
   final Map<String, dynamic>? helperIpcRuntime;
   final Map<String, dynamic>? onboardingVerification;
   final Map<String, dynamic>? helperStatus;
@@ -357,6 +364,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'generatedAt': generatedAt.toIso8601String(),
       'setupChecklist': setupChecklist.toJson(),
       'onboardingSmokeChecklist': onboardingSmokeChecklist,
+      'operationBoundary': operationBoundary,
       'onboardingVerification': onboardingVerification,
       'helperStatus': helperStatus,
       'helperStatusPersistence': helperStatusPersistence,

@@ -382,6 +382,11 @@ void main() {
     expect(text, contains('"coordinateTarget": "display"'));
     expect(text, contains('"setupChecklist"'));
     expect(text, contains('"onboardingSmokeChecklist"'));
+    expect(text, contains('"operationBoundary"'));
+    expect(text, contains('"tccGrants": "user_operated"'));
+    expect(text, contains('"desktopActions": "user_operated"'));
+    expect(text, contains('"inputSmokeRequiresArming": true'));
+    expect(text, contains('"systemAudioSmokeRequiresArming": true'));
     expect(text, contains('"id": "capture_display"'));
     expect(text, contains('"id": "run_smoke_sequence"'));
     expect(text, contains('"id": "run_input_smoke"'));
