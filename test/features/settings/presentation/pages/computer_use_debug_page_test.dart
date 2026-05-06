@@ -46,9 +46,20 @@ void main() {
     expect(find.text('2 of 10 complete'), findsOneWidget);
     expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
     expect(find.text('MVP Sign-Off Path'), findsOneWidget);
+    expect(find.text('User-Operated MVP Commands'), findsOneWidget);
     expect(find.text('MVP Artifact Paths'), findsOneWidget);
     expect(
       find.textContaining('run_macos_computer_use_mvp_signoff.sh'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('run_macos_computer_use_manual_tcc_signoff.sh'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+      ),
       findsOneWidget,
     );
     expect(

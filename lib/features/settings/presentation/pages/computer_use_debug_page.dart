@@ -219,6 +219,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             ),
             const SizedBox(height: 8),
             _OnboardingNote(
+              icon: Icons.terminal_outlined,
+              title: 'User-Operated MVP Commands',
+              body: _mvpUserOperatedCommandSummary(),
+            ),
+            const SizedBox(height: 8),
+            _OnboardingNote(
               icon: Icons.folder_open_outlined,
               title: 'MVP Artifact Paths',
               body: _mvpArtifactPathSummary(),
@@ -1673,6 +1679,13 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Wrapper: bash tool/run_macos_computer_use_mvp_signoff.sh',
       'Manual inputs: manual_tcc_report_summary.json and canary_summary.json',
       'TCC and desktop action stay user-operated',
+    ].join(' | ');
+  }
+
+  String _mvpUserOperatedCommandSummary() {
+    return [
+      'Manual TCC: bash tool/run_macos_computer_use_manual_tcc_signoff.sh',
+      'Desktop action: bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
     ].join(' | ');
   }
 
