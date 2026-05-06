@@ -1701,6 +1701,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
+      'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
   }
@@ -1716,6 +1717,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       'desktopActionSummary':
           'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      'artifactIndexJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
+      'artifactIndexMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexMarkdownFile}',
       if (liveReportPath is String) 'latestLiveSmokeReport': liveReportPath,
     };
   }
@@ -1727,6 +1732,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'MVP readiness: ${paths['mvpReadiness']}',
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
+      'Artifact index JSON: ${paths['artifactIndexJson']}',
+      'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)
         'Latest live smoke: ${paths['latestLiveSmokeReport']}',
     ].join(' | ');

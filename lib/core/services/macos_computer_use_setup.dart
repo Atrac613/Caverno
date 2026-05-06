@@ -62,8 +62,14 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
+  static const artifactIndexCommand =
+      'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
+  static const artifactIndexJsonFile =
+      'macos_computer_use_readiness_artifact_index.json';
+  static const artifactIndexMarkdownFile =
+      'macos_computer_use_readiness_artifact_index.md';
   static const llmCanarySummaryPlaceholder = '<llm-canary-summary.json>';
   static const manualTccSummaryPlaceholder =
       '<manual-tcc-report-or-summary.json>';

@@ -60,6 +60,12 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining(
+        'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('run_macos_computer_use_mvp_signoff.sh'),
       findsOneWidget,
     );
@@ -86,6 +92,14 @@ void main() {
     );
     expect(
       find.textContaining('macos_computer_use_mvp_readiness.md'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_readiness_artifact_index.json'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_readiness_artifact_index.md'),
       findsOneWidget,
     );
     expect(
