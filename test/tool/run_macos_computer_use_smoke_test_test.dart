@@ -1144,6 +1144,8 @@ void main() {
         expect(summary, contains('"destructive_target_refused"'));
         expect(summary, contains('"manual_tcc"'));
         expect(summary, contains('"desktop_action_canary"'));
+        expect(summary, contains(_manualTccNextAction));
+        expect(summary, contains(_desktopActionNextAction));
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1395,6 +1397,7 @@ void main() {
         expect(summary, contains('"desktopActionEvidence"'));
         expect(summary, contains('"status": "passed"'));
         expect(summary, contains('"changedEvidence": "observed"'));
+        expect(summary, contains(_manualTccNextAction));
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1661,6 +1664,10 @@ void main() {
       mvpSignoffScript,
       contains(_desktopActionNextAction.replaceAll('`', r'\`')),
     );
+    expect(mvpLlmReadinessScript, contains(_manualTccNextAction));
+    expect(mvpLlmReadinessScript, contains(_desktopActionNextAction));
+    expect(mvpDemoReadinessScript, contains(_manualTccNextAction));
+    expect(mvpDemoReadinessScript, contains(_desktopActionNextAction));
     expect(mvpSignoffScript, contains('--manual-tcc-report'));
     expect(mvpSignoffScript, contains('--desktop-action-canary-summary'));
     expect(mvpSignoffScript, contains('--llm-canary-summary'));

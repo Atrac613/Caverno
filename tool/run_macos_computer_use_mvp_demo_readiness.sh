@@ -381,11 +381,11 @@ if not llm_summary_path:
     )
 if not manual_tcc_report:
     next_user_actions.append(
-        "Ask the user to run bash tool/run_macos_computer_use_manual_tcc_signoff.sh and provide manual_tcc_report_summary.json."
+        "Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`."
     )
 if not desktop_action_summary:
     next_user_actions.append(
-        "Ask the user to prepare the fixture, run bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target, and provide canary_summary.json."
+        "Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`."
     )
 if manual_tcc_report and desktop_action_summary and llm_summary_path and not final_signoff:
     next_user_actions.append(
