@@ -630,7 +630,7 @@ class _ComputerUseOnboardingCardState
                   ),
                   onPressed: _openSmokeTest,
                   icon: const Icon(Icons.fact_check_outlined),
-                  label: const Text('Open Smoke Sequence'),
+                  label: const Text('Open Smoke Test'),
                 ),
                 OutlinedButton.icon(
                   key: const ValueKey(
@@ -1582,7 +1582,7 @@ class _ComputerUseOnboardingCardState
           ? 'Display and window capture passed in helper verification.'
           : !screenCaptureGranted
           ? 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun the smoke sequence manually.'
-          : 'Open Smoke Sequence and rerun display and window capture checks.',
+          : 'Open Smoke Test, then press Run Smoke Sequence to rerun display and window capture checks.',
     };
   }
 
