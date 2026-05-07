@@ -69,6 +69,9 @@ changes do not require fresh TCC or live desktop-action verification.
      --latest-screenshot
    ```
 
+   The summary records the LLM mode, base URL, model, and fixture response path
+   when present. It does not record the API key.
+
    To feed that screenshot-backed evidence into the MVP readiness handoff in
    one automation-safe preflight, run:
 

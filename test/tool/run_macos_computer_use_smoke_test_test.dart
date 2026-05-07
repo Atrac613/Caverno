@@ -1645,6 +1645,10 @@ void main() {
         expect(summary, contains('"requiresUserTextInput": true'));
         expect(summary, contains('"screenshotSource"'));
         expect(summary, contains('"desktopActionReportPath"'));
+        expect(summary, contains('"llmRequest"'));
+        expect(summary, contains('"mode": "fixture_response"'));
+        expect(summary, contains('"fixtureResponsePath": "${fixture.path}"'));
+        expect(summary, isNot(contains('no-key')));
         expect(summary, contains('"failureGuidance"'));
         expect(summary, contains('"actionPlan"'));
         expect(summary, contains('"expectedOutcome"'));

@@ -606,12 +606,22 @@ if error:
     run["error"] = error
 
 mvp_gate = mvp_evidence_gate(decision, failures)
+llm_request = {
+    "mode": "fixture_response" if fixture_response else "live_llm",
+    "baseUrl": base_url or None,
+    "model": model or None,
+    "fixtureResponsePath": str(Path(fixture_response)) if fixture_response else None,
+    "temperature": 0,
+    "maxTokens": 2048,
+    "apiKeyConfigured": bool(api_key),
+}
 summary = {
     "schemaName": "macos_computer_use_mvp_fixture_vision_llm_canary_summary",
     "schemaVersion": 1,
     "purpose": "computer_use_mvp_fixture_vision_llm_canary",
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
+    "llmRequest": llm_request,
     "screenshotPath": str(screenshot_path) if screenshot_path else None,
     "screenshotSource": screenshot_source,
     "desktopActionReportPath": str(desktop_action_report_path) if desktop_action_report_path else None,
@@ -644,6 +654,10 @@ lines = [
     "- Purpose: validate visual fixture target decisions from a user-provided screenshot",
     "- TCC boundary: no TCC operation",
     "- Desktop action boundary: no pointer, keyboard, or click operation",
+    f"- LLM mode: {summary['llmRequest']['mode']}",
+    f"- LLM base URL: {summary['llmRequest']['baseUrl'] or '-'}",
+    f"- LLM model: {summary['llmRequest']['model'] or '-'}",
+    f"- Fixture response: {summary['llmRequest']['fixtureResponsePath'] or '-'}",
     f"- Screenshot: {summary['screenshotPath'] or 'fixture response only'}",
     f"- Screenshot source: {summary['screenshotSource']}",
     f"- Desktop action report: {summary['desktopActionReportPath'] or '-'}",

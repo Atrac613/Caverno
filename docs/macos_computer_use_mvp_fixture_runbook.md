@@ -97,6 +97,9 @@ LLM and validates that the model can visually identify `Safe Click Target`,
 `MVP Fixture Text Field`, `Echo Text`, and the refused `Danger Zone` without
 clicking or typing.
 
+The canary summary records the LLM mode, base URL, model, and fixture response
+path when present. It does not record the API key.
+
 To use that screenshot-backed vision evidence in the readiness preflight, pass
 the same user-provided screenshot to:
 
