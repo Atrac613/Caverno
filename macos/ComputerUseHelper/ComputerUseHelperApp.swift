@@ -478,10 +478,25 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let stack = NSStackView()
     stack.orientation = .vertical
-    stack.alignment = .centerX
+    stack.alignment = .width
     stack.spacing = 18
     stack.translatesAutoresizingMaskIntoConstraints = false
     documentView.addSubview(stack)
+
+    func centeredContainer(for view: NSView) -> NSView {
+      let container = NSView()
+      container.translatesAutoresizingMaskIntoConstraints = false
+      container.addSubview(view)
+      view.translatesAutoresizingMaskIntoConstraints = false
+      NSLayoutConstraint.activate([
+        view.centerXAnchor.constraint(equalTo: container.centerXAnchor),
+        view.topAnchor.constraint(equalTo: container.topAnchor),
+        view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
+        view.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor),
+        view.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
+      ])
+      return container
+    }
 
     let icon = NSImageView()
     icon.symbolConfiguration = .init(pointSize: 52, weight: .medium)
@@ -603,14 +618,14 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     footer.alignment = .center
     footer.maximumNumberOfLines = 2
 
-    stack.addArrangedSubview(icon)
+    stack.addArrangedSubview(centeredContainer(for: icon))
     stack.addArrangedSubview(title)
     stack.addArrangedSubview(subtitle)
     stack.addArrangedSubview(statusSummaryLabel)
     stack.addArrangedSubview(rows)
     stack.addArrangedSubview(smokeTitle)
     stack.addArrangedSubview(smokeRows)
-    stack.addArrangedSubview(buttonStack)
+    stack.addArrangedSubview(centeredContainer(for: buttonStack))
     stack.addArrangedSubview(footer)
 
     NSLayoutConstraint.activate([
@@ -629,12 +644,6 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -28),
       icon.heightAnchor.constraint(equalToConstant: 68),
       icon.widthAnchor.constraint(equalToConstant: 68),
-      rows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
-      rows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
-      smokeTitle.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
-      smokeTitle.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
-      smokeRows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
-      smokeRows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
     ])
 
     refreshPermissionRows()
