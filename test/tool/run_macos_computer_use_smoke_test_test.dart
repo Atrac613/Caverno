@@ -124,6 +124,24 @@ void main() {
   });
 
   test('M3 documents production IPC readiness', () {
+    expect(
+      architectureDoc,
+      contains('LaunchAgent-backed named XPC is the preferred production IPC'),
+    );
+    expect(
+      architectureDoc,
+      contains('distributed notifications remain an observable fallback path'),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'must not treat distributed-notification fallback as production IPC',
+      ),
+    );
+    expect(
+      architectureDoc,
+      contains('readiness. Fallback is allowed only as an observable'),
+    );
     expect(architectureDoc, contains('Current M3 implementation status'));
     expect(
       architectureDoc,

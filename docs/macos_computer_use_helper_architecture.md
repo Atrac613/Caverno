@@ -7,7 +7,9 @@ This document defines the target split between `Caverno.app` and a separate
 `Caverno.app`, can be launched from the settings smoke-test panel, and now owns
 permission status, System Settings shortcuts, reachability checks, emergency
 stop requests, visual observation, window focus, input events, and system audio
-recording.
+recording. LaunchAgent-backed named XPC is the preferred production IPC
+transport; distributed notifications remain an observable fallback path for
+timeouts or named-service startup failures.
 
 ## Goals
 
@@ -30,8 +32,9 @@ recording.
   persistence.
 - The helper must not automatically toggle macOS privacy permissions. It may
   open System Settings and explain what the user must grant manually.
-- The helper milestone does not need to replace the temporary IPC transport.
-  XPC can replace distributed notifications after the helper boundary is stable.
+- The helper must not treat distributed-notification fallback as production IPC
+  readiness. Fallback is allowed only as an observable, non-destructive recovery
+  path when named XPC is unavailable.
 
 ## Roadmap
 
