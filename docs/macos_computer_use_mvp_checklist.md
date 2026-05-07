@@ -10,6 +10,22 @@ or run the user-operated desktop action on the user's behalf.
 Report-only handoff, readiness, artifact-index, and aggregation guidance
 changes do not require fresh TCC or live desktop-action verification.
 
+## Runtime Verification Boundary
+
+Run TCC or real desktop action verification only when the change touches one of
+these runtime surfaces:
+
+- macOS permission prompts, TCC owner identity, or helper bundle paths
+- Accessibility input events, pointer movement, click, drag, scroll, or typing
+- Screen & System Audio Recording capture behavior
+- permission overlay foreground policy or System Settings handoff behavior
+- helper process policy, Dock visibility, or single-instance behavior
+
+For docs, report parsing, UI copy, non-runtime settings layout, or
+automation-safe readiness aggregation, run the static checks and report-only
+preflight first. Ask the user to perform TCC and desktop action steps only when
+fresh runtime evidence is required.
+
 ## Sign-Off Order
 
 1. Prepare non-TCC release evidence:

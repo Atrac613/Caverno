@@ -24,6 +24,28 @@ Report parser command for automation after the user provides the report:
 dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>
 ```
 
+## Post-Merge Main Sanity Check
+
+Run these checks after merging Computer Use changes into `main`. They do not
+grant TCC permissions, operate System Settings, launch the helper UI, or perform
+desktop actions:
+
+```bash
+flutter analyze
+flutter test test/features/settings/presentation/pages/settings_page_test.dart \
+  test/features/settings/presentation/pages/computer_use_debug_page_test.dart \
+  test/tool/run_macos_computer_use_smoke_test_test.dart \
+  test/core/services/macos_computer_use_service_test.dart \
+  test/core/services/macos_computer_use_setup_test.dart \
+  test/core/services/macos_computer_use_transport_test.dart -r compact
+flutter build macos --debug
+```
+
+Treat TCC grants, helper foreground checks, smoke sequence execution, and
+desktop action canaries as user-operated follow-ups. Ask the user to run the
+manual commands and provide the generated report when runtime evidence is
+needed.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

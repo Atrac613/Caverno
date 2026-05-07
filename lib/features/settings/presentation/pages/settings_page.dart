@@ -195,6 +195,7 @@ class SettingsPage extends ConsumerWidget {
             key: const ValueKey('settings-menu-computer-use'),
             leading: const Icon(Icons.desktop_windows_outlined),
             title: Text('settings.menu_computer_use'.tr()),
+            subtitle: Text('settings.menu_computer_use_desc'.tr()),
             trailing: const Icon(Icons.chevron_right),
             onTap: () {
               Navigator.push(

@@ -333,6 +333,7 @@
     "menu_voice": "Voice",
     "menu_tools": "Tools (MCP)",
     "menu_computer_use": "Computer Use",
+    "menu_computer_use_desc": "Helper permissions, smoke checks, and manual sign-off",
     "menu_debug": "Debug",
     "reset_to_default": "Reset to defaults",
     "saved": "Settings saved",

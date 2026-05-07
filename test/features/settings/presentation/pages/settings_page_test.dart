@@ -41,6 +41,10 @@ void main() {
 
     expect(find.text('Computer Use Ready'), findsNothing);
     expect(find.text('Computer Use'), findsOneWidget);
+    expect(
+      find.text('Helper permissions, smoke checks, and manual sign-off'),
+      findsOneWidget,
+    );
     expect(service.helperStatusCallCount, 0);
     expect(service.pingHelperCallCount, 0);
     expect(service.getPermissionsCallCount, 0);
