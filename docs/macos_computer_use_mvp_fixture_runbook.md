@@ -192,6 +192,8 @@ For PR review, inspect the generated `PR Review Artifacts` and
   `PR Review Summary`.
 - `macos_computer_use_release_readiness_signoff.md`: sign-off readiness
   `PR Review Summary`.
+- `macos_computer_use_mvp_readiness.json`: final sign-off readiness output.
+- `macos_computer_use_mvp_readiness.md`: final sign-off readiness output.
 
 Run the report-only MVP readiness preflight to refresh the artifact index and
 dry-run handoff without running TCC, System Settings, app launch, or desktop

@@ -193,6 +193,8 @@ changes do not require fresh TCC or live desktop-action verification.
    - `macos_computer_use_readiness_artifact_index.md`
    - `macos_computer_use_release_readiness_ci.md`
    - `macos_computer_use_release_readiness_signoff.md`
+   - `macos_computer_use_mvp_readiness.json` after final sign-off aggregation.
+   - `macos_computer_use_mvp_readiness.md` after final sign-off aggregation.
 
    ```bash
    dart run tool/macos_computer_use_readiness_artifact_index.dart \

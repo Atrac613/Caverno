@@ -1711,6 +1711,11 @@ void main() {
     );
     expect(
       mvpFixtureRunbook,
+      contains('macos_computer_use_mvp_readiness.json'),
+    );
+    expect(mvpFixtureRunbook, contains('macos_computer_use_mvp_readiness.md'));
+    expect(
+      mvpFixtureRunbook,
       contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
     );
     expect(
@@ -1787,6 +1792,8 @@ void main() {
       mvpChecklist,
       contains('macos_computer_use_release_readiness_signoff.md'),
     );
+    expect(mvpChecklist, contains('macos_computer_use_mvp_readiness.json'));
+    expect(mvpChecklist, contains('macos_computer_use_mvp_readiness.md'));
     expect(
       mvpChecklist,
       contains(
