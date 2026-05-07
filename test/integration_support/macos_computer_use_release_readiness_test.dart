@@ -41,7 +41,21 @@ void main() {
       expect(summary.toJson()['automationBoundary'], 'read_reports_only');
       expect(summary.toJson()['readyGateIds'], contains('manual_tcc'));
       expect(summary.toJson()['blockedGateIds'], isEmpty);
+      final prReviewSummary =
+          summary.toJson()['prReviewSummary'] as Map<String, Object?>;
+      expect(prReviewSummary['status'], 'ready_for_release_signoff');
+      expect(prReviewSummary['blockedGateIds'], isEmpty);
+      expect(prReviewSummary['pendingUserOperatedEvidenceIds'], isEmpty);
       expect(summary.toMarkdown(), contains('## All Gates'));
+      expect(summary.toMarkdown(), contains('## PR Review Summary'));
+      expect(
+        summary.toMarkdown(),
+        contains('- Status: ready_for_release_signoff'),
+      );
+      expect(
+        summary.toMarkdown(),
+        contains('- Pending user-operated evidence: none'),
+      );
       expect(summary.toMarkdown(), contains('Release artifact gate is ready.'));
       final computerUseGate = summary.gates.singleWhere(
         (gate) => gate.id == 'computer_use_canary',
@@ -81,6 +95,17 @@ void main() {
       expect(manualGate.nextAction, _manualTccNextAction);
       expect(summary.toJson()['readyGateIds'], isNot(contains('manual_tcc')));
       expect(summary.toJson()['blockedGateIds'], contains('manual_tcc'));
+      final prReviewSummary =
+          summary.toJson()['prReviewSummary'] as Map<String, Object?>;
+      expect(prReviewSummary['status'], 'blocked_gates_present');
+      expect(
+        prReviewSummary['pendingUserOperatedEvidenceIds'],
+        contains('manual_tcc'),
+      );
+      expect(
+        summary.toMarkdown(),
+        contains('- Pending user-operated evidence: manual_tcc'),
+      );
       expect(summary.toMarkdown(), contains('## Blocked Gates'));
     });
 

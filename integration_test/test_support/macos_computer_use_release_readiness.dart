@@ -55,6 +55,32 @@ class ReleaseReadinessSummary {
   List<ReleaseReadinessGate> get readyGates =>
       gates.where((gate) => gate.ready).toList(growable: false);
 
+  Map<String, Object?> get prReviewSummary {
+    final userOperated = MacosComputerUseMvpGuidance.userOperatedEvidenceIds
+        .toSet();
+    final readyGateIds = readyGates
+        .map((gate) => gate.id)
+        .toList(growable: false);
+    final blockedGateIds = blockedGates
+        .map((gate) => gate.id)
+        .toList(growable: false);
+    final pendingUserOperatedEvidenceIds = blockedGateIds
+        .where(userOperated.contains)
+        .toList(growable: false);
+    final pendingAutomationSafeEvidenceIds = blockedGateIds
+        .where((id) => !userOperated.contains(id))
+        .toList(growable: false);
+    return <String, Object?>{
+      'status': ready ? 'ready_for_release_signoff' : 'blocked_gates_present',
+      'readyGateIds': readyGateIds,
+      'blockedGateIds': blockedGateIds,
+      'pendingUserOperatedEvidenceIds': pendingUserOperatedEvidenceIds,
+      'pendingAutomationSafeEvidenceIds': pendingAutomationSafeEvidenceIds,
+      'operationBoundarySummary':
+          'Release readiness reads reports only; TCC grants and desktop actions remain user-operated.',
+    };
+  }
+
   Map<String, Object?> toJson() {
     return <String, Object?>{
       'schemaName': 'macos_computer_use_release_readiness',
@@ -66,11 +92,13 @@ class ReleaseReadinessSummary {
       'blockedGateIds': blockedGates
           .map((gate) => gate.id)
           .toList(growable: false),
+      'prReviewSummary': prReviewSummary,
       'gates': gates.map((gate) => gate.toJson()).toList(growable: false),
     };
   }
 
   String toMarkdown() {
+    final review = prReviewSummary;
     final buffer = StringBuffer()
       ..writeln('# macOS Computer Use Release Readiness')
       ..writeln()
@@ -83,6 +111,25 @@ class ReleaseReadinessSummary {
       ..writeln(
         '- Ready gates: ${readyGates.map((gate) => gate.id).join(', ')}',
       )
+      ..writeln();
+
+    buffer
+      ..writeln('## PR Review Summary')
+      ..writeln()
+      ..writeln('- Status: ${review['status']}')
+      ..writeln(
+        '- Ready gates: ${_joinedOrNone(_stringList(review['readyGateIds']))}',
+      )
+      ..writeln(
+        '- Blocked gates: ${_joinedOrNone(_stringList(review['blockedGateIds']))}',
+      )
+      ..writeln(
+        '- Pending user-operated evidence: ${_joinedOrNone(_stringList(review['pendingUserOperatedEvidenceIds']))}',
+      )
+      ..writeln(
+        '- Pending automation-safe evidence: ${_joinedOrNone(_stringList(review['pendingAutomationSafeEvidenceIds']))}',
+      )
+      ..writeln('- Boundary: ${review['operationBoundarySummary']}')
       ..writeln();
 
     if (blockedGates.isNotEmpty) {
@@ -848,6 +895,13 @@ String _markdownCell(Object? value) {
     return '-';
   }
   return text.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+String _joinedOrNone(List<String> values) {
+  if (values.isEmpty) {
+    return 'none';
+  }
+  return values.join(', ');
 }
 
 String _escapeMarkdownCode(String value) {
