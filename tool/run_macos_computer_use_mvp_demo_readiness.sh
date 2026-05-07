@@ -204,6 +204,7 @@ mvp_signoff_exit=$?
 set -e
 
 RUN_DIR="${RUN_DIR}" \
+REPORT_ROOT="${REPORT_ROOT}" \
 SUMMARY_JSON="${SUMMARY_JSON}" \
 SUMMARY_MD="${SUMMARY_MD}" \
 HANDOFF_MD="${HANDOFF_MD}" \
@@ -372,6 +373,17 @@ llm_gate_ready = llm_readiness_summary.get("llmGateReady")
 desktop_action_evidence = desktop_action_evidence_from_summary(
     desktop_action_summary
 )
+report_root = os.environ["REPORT_ROOT"]
+artifact_index_json = (
+    f"{report_root}/macos_computer_use_readiness_artifact_index.json"
+)
+artifact_index_md = (
+    f"{report_root}/macos_computer_use_readiness_artifact_index.md"
+)
+artifact_index_command = (
+    "dart run tool/macos_computer_use_readiness_artifact_index.dart "
+    f"--root {report_root}"
+)
 
 
 next_user_actions = []
@@ -416,6 +428,13 @@ summary = {
     "mvpSignoffJsonPath": path_or_none(os.environ["MVP_SIGNOFF_JSON"]),
     "mvpSignoffMarkdownPath": path_or_none(os.environ["MVP_SIGNOFF_MD"]),
     "mvpSignoffHandoffPath": path_or_none(os.environ["MVP_SIGNOFF_HANDOFF"]),
+    "prReviewArtifacts": {
+        "mvpSignoffHandoffPath": path_or_none(os.environ["MVP_SIGNOFF_HANDOFF"]),
+        "artifactIndexJsonPath": artifact_index_json,
+        "artifactIndexMarkdownPath": artifact_index_md,
+        "artifactIndexCommand": artifact_index_command,
+        "reviewSection": "PR Review Summary",
+    },
     "manualTccReportPath": path_or_none(manual_tcc_report),
     "desktopActionCanarySummaryPath": path_or_none(desktop_action_summary),
     "desktopActionEvidence": desktop_action_evidence,
@@ -467,6 +486,14 @@ if expected_runtime_phases:
     lines.append("")
 append_desktop_action_evidence(lines, desktop_action_evidence)
 lines.extend([
+    "## PR Review Artifacts",
+    "",
+    f"- Review section: `PR Review Summary`",
+    f"- MVP sign-off handoff: `{summary['mvpSignoffHandoffPath'] or 'not available'}`",
+    f"- Artifact index JSON: `{artifact_index_json}`",
+    f"- Artifact index Markdown: `{artifact_index_md}`",
+    f"- Artifact index command: `{artifact_index_command}`",
+    "",
     "## Artifacts",
     "",
     f"- Fixture app: `{summary['fixtureAppPath'] or 'not available'}`",

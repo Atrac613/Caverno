@@ -1265,15 +1265,13 @@ void main() {
     },
   );
 
-  test(
-    'Computer Use MVP demo readiness wrapper guides the full handoff',
-    () async {
-      final root = Directory.systemTemp.createTempSync(
-        'caverno_mvp_demo_readiness_test_',
-      );
-      try {
-        final fixture = File('${root.path}/vision_response.json')
-          ..writeAsStringSync('''
+  test('Computer Use MVP demo readiness wrapper guides the full handoff', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_demo_readiness_test_',
+    );
+    try {
+      final fixture = File('${root.path}/vision_response.json')
+        ..writeAsStringSync('''
 {
   "scenarioName": "computer_use_mvp_fixture_vision",
   "visionDecision": "The fixture window is visible with safe click, text, echo, and disabled danger controls.",
@@ -1318,8 +1316,8 @@ void main() {
   "expectedOutcome": "User-approved actions update the fixture labels."
 }
 ''');
-        final desktopActionSummary = File('${root.path}/desktop_action.json')
-          ..writeAsStringSync('''
+      final desktopActionSummary = File('${root.path}/desktop_action.json')
+        ..writeAsStringSync('''
 {
   "schemaName": "macos_computer_use_desktop_action_canary_summary",
   "stable": true,
@@ -1350,84 +1348,97 @@ void main() {
 }
 ''');
 
-        final result = await Process.run('bash', [
-          'tool/run_macos_computer_use_mvp_demo_readiness.sh',
-          '--root',
-          root.path,
-          '--skip-fixture-build',
-          '--vision-fixture-response',
-          fixture.path,
-          '--desktop-action-canary-summary',
-          desktopActionSummary.path,
-        ]);
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_demo_readiness.sh',
+        '--root',
+        root.path,
+        '--skip-fixture-build',
+        '--vision-fixture-response',
+        fixture.path,
+        '--desktop-action-canary-summary',
+        desktopActionSummary.path,
+      ]);
 
-        expect(
-          result.exitCode,
-          0,
-          reason: '${result.stdout}\n${result.stderr}',
-        );
-        expect('${result.stdout}', contains('MVP demo readiness summary'));
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      expect('${result.stdout}', contains('MVP demo readiness summary'));
 
-        final summaryFiles = Directory(root.path)
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where(
-              (file) => file.path.endsWith('mvp_demo_readiness_summary.json'),
-            )
-            .toList(growable: false);
-        expect(summaryFiles, hasLength(1));
-        final summary = summaryFiles.single.readAsStringSync();
-        expect(
-          summary,
-          contains('macos_computer_use_mvp_demo_readiness_summary'),
-        );
-        expect(summary, contains('"ready": true'));
-        expect(summary, contains('"llmReadinessExitCode": 0'));
-        expect(
-          summary,
-          contains('macos_computer_use_mvp_fixture_vision_llm_canary'),
-        );
-        expect(summary, contains('"llmEvidenceMode": "fixture_vision"'));
-        expect(summary, contains('"llmGateReady": true'));
-        expect(summary, contains('"mvpEvidenceGate"'));
-        expect(summary, contains('"fixture_window_visible"'));
-        expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
-        expect(summary, contains('"desktopActionEvidence"'));
-        expect(summary, contains('"status": "passed"'));
-        expect(summary, contains('"changedEvidence": "observed"'));
-        expect(summary, contains(_manualTccNextAction));
+      final summaryFiles = Directory(root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where(
+            (file) => file.path.endsWith('mvp_demo_readiness_summary.json'),
+          )
+          .toList(growable: false);
+      expect(summaryFiles, hasLength(1));
+      final summary = summaryFiles.single.readAsStringSync();
+      expect(
+        summary,
+        contains('macos_computer_use_mvp_demo_readiness_summary'),
+      );
+      expect(summary, contains('"ready": true'));
+      expect(summary, contains('"llmReadinessExitCode": 0'));
+      expect(
+        summary,
+        contains('macos_computer_use_mvp_fixture_vision_llm_canary'),
+      );
+      expect(summary, contains('"llmEvidenceMode": "fixture_vision"'));
+      expect(summary, contains('"llmGateReady": true'));
+      expect(summary, contains('"mvpEvidenceGate"'));
+      expect(summary, contains('"fixture_window_visible"'));
+      expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
+      expect(summary, contains('"desktopActionEvidence"'));
+      expect(summary, contains('"status": "passed"'));
+      expect(summary, contains('"changedEvidence": "observed"'));
+      expect(summary, contains('"prReviewArtifacts"'));
+      expect(summary, contains('"reviewSection": "PR Review Summary"'));
+      expect(
+        summary,
+        contains('macos_computer_use_readiness_artifact_index.md'),
+      );
+      expect(summary, contains(_manualTccNextAction));
 
-        final handoffFiles = Directory(root.path)
-            .listSync(recursive: true)
-            .whereType<File>()
-            .where((file) => file.path.endsWith('mvp_demo_handoff.md'))
-            .toList(growable: false);
-        expect(handoffFiles, hasLength(1));
-        final handoff = handoffFiles.single.readAsStringSync();
-        expect(handoff, contains('MVP Evidence Checks'));
-        expect(handoff, contains('Expected User-Operated Runtime Phases'));
-        expect(handoff, contains('Desktop Action Evidence'));
-        expect(handoff, contains('Desktop action status: passed'));
-        expect(handoff, contains('`pre_observe_image`'));
-        expect(handoff, contains('Use a visible, harmless target.'));
-        expect(handoff, contains('| run_01 | passed | passed |'));
-        expect(handoff, contains('| ready | sent | ready | observed |'));
-        expect(handoff, contains('User-Operated Commands'));
-        expect(
-          handoff,
-          contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
-        );
-        expect(
-          handoff,
-          contains(
-            'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
-          ),
-        );
-      } finally {
-        root.deleteSync(recursive: true);
-      }
-    },
-  );
+      final handoffFiles = Directory(root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .where((file) => file.path.endsWith('mvp_demo_handoff.md'))
+          .toList(growable: false);
+      expect(handoffFiles, hasLength(1));
+      final handoff = handoffFiles.single.readAsStringSync();
+      expect(handoff, contains('MVP Evidence Checks'));
+      expect(handoff, contains('Expected User-Operated Runtime Phases'));
+      expect(handoff, contains('Desktop Action Evidence'));
+      expect(handoff, contains('Desktop action status: passed'));
+      expect(handoff, contains('PR Review Artifacts'));
+      expect(handoff, contains('Review section: `PR Review Summary`'));
+      expect(
+        handoff,
+        contains('macos_computer_use_readiness_artifact_index.md'),
+      );
+      expect(
+        handoff,
+        contains(
+          'dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
+        ),
+      );
+      expect(handoff, contains('`pre_observe_image`'));
+      expect(handoff, contains('Use a visible, harmless target.'));
+      expect(handoff, contains('| run_01 | passed | passed |'));
+      expect(handoff, contains('| ready | sent | ready | observed |'));
+      expect(handoff, contains('User-Operated Commands'));
+      expect(
+        handoff,
+        contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+      );
+      expect(
+        handoff,
+        contains(
+          'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
 
   test(
     'Computer Use MVP fixture vision LLM canary validates screenshot decisions',
