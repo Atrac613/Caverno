@@ -1962,6 +1962,25 @@ void main() {
         ),
       );
       expect(stdout, contains('Pending automation-safe evidence: llm_canary'));
+      expect(stdout, contains('Expected final input paths:'));
+      expect(
+        stdout,
+        contains(
+          'Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'MVP fixture LLM: macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+        ),
+      );
       expect(
         stdout,
         contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),
@@ -2023,6 +2042,7 @@ void main() {
       );
       expect(handoff, contains('Current Required Input Evidence Status'));
       expect(handoff, contains('MVP Sign-Off Outputs'));
+      expect(handoff, contains('Expected Final Input Paths'));
       expect(handoff, contains('PR Review Summary'));
       expect(handoff, contains('Status: blocked_pending_evidence'));
       expect(handoff, contains('Ready input evidence: none'));
@@ -2039,6 +2059,24 @@ void main() {
         ),
       );
       expect(handoff, contains('Pending automation-safe evidence: llm_canary'));
+      expect(
+        handoff,
+        contains(
+          'Manual TCC: `macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json`',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'Desktop action: `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json`',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'MVP fixture LLM: `macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json`',
+        ),
+      );
       expect(
         handoff,
         contains('JSON: ${root.path}/macos_computer_use_mvp_readiness.json'),

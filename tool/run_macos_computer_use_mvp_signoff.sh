@@ -547,6 +547,12 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`desktop_action_canary\`: ${desktop_action_status}
 - \`llm_canary\`: ${llm_canary_status}
 
+## Expected Final Input Paths
+
+- Manual TCC: \`macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json\`
+- Desktop action: \`macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json\`
+- MVP fixture LLM: \`macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json\`
+
 ## MVP Sign-Off Outputs
 
 - JSON: ${OUTPUT_JSON}
@@ -641,6 +647,10 @@ echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY:-not prov
 echo "  Desktop action canary status: ${desktop_action_status}"
 echo "  LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}"
 echo "  LLM canary status: ${llm_canary_status}"
+echo "Expected final input paths:"
+echo "  Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json"
+echo "  Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json"
+echo "  MVP fixture LLM: macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json"
 echo "  LLM evidence gate: ${LLM_EVIDENCE_STATUS}"
 echo "  LLM evidence blockers: ${LLM_EVIDENCE_BLOCKERS}"
 echo "  LLM evidence phases: ${LLM_EVIDENCE_PHASES}"
