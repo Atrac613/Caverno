@@ -539,6 +539,9 @@ void main() {
     );
     expect(find.text('Fallback outcome: succeeded'), findsOneWidget);
     expect(find.text('Preferred elapsed: 2001ms'), findsOneWidget);
+    expect(find.text('Timeout budget: 2000ms'), findsOneWidget);
+    expect(find.text('Current XPC timeout: 3000ms'), findsOneWidget);
+    expect(find.text('Current headroom: 950ms'), findsOneWidget);
     expect(find.text('XPC response before timeout: no'), findsOneWidget);
     expect(find.text('XPC late response: yes'), findsOneWidget);
     expect(find.text('XPC late elapsed: 2050ms'), findsOneWidget);
@@ -546,28 +549,28 @@ void main() {
     expect(find.text('Warmup elapsed: 43ms'), findsOneWidget);
     expect(find.text('Warmup before timeout: yes'), findsOneWidget);
     expect(
-      find.text('XPC timing: late_response_after_timeout'),
+      find.text('XPC timing: late_response_within_current_budget'),
       findsOneWidget,
     );
     expect(
       find.text(
-        'Timing next action: Tune the preferred XPC timeout or add a warmup ping before fallback.',
+        'Timing next action: Rerun Computer Use diagnostics with the current preferred XPC timeout.',
       ),
       findsOneWidget,
     );
     expect(
-      find.text('Timing action: tune_xpc_timeout_or_warmup'),
+      find.text('Timing action: rerun_with_current_xpc_timeout'),
       findsOneWidget,
     );
     expect(
       find.text(
-        'User next action: No manual TCC action is required; export diagnostics if this repeats.',
+        'User next action: No manual TCC action is required; recheck permissions or reopen Computer Use to collect fresh timing.',
       ),
       findsOneWidget,
     );
     expect(
       find.text(
-        'Engineering next action: Tune the preferred XPC timeout or add a warmup ping before fallback.',
+        'Engineering next action: No timeout tuning is needed unless the rerun still times out under the current budget.',
       ),
       findsOneWidget,
     );
@@ -977,6 +980,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'status': 'xpc_timeout',
           'errorCode': 'helper_xpc_timeout',
           'elapsedMs': 2001,
+          'timeoutMs': 2000,
           'responseReceivedBeforeTimeout': false,
           'responseReceivedAfterTimeout': true,
           'lateResponseElapsedMs': 2050,

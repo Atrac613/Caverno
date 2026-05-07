@@ -47,6 +47,7 @@ void main() {
         'preferredAttemptStatus': 'xpc_timeout',
         'preferredAttemptErrorCode': 'helper_xpc_timeout',
         'preferredAttemptElapsedMs': 2002,
+        'preferredAttemptTimeoutMs': 2000,
         'preferredAttemptResponseReceivedBeforeTimeout': false,
         'preferredAttemptResponseReceivedAfterTimeout': true,
         'preferredAttemptLateResponseElapsedMs': 2098,
@@ -61,9 +62,12 @@ void main() {
     }, sourcePath: 'diagnostics.json');
 
     expect(summary.ready, isFalse);
-    expect(summary.classification, 'late_response_after_timeout');
+    expect(summary.classification, 'late_response_within_current_budget');
     expect(summary.errorCode, 'helper_xpc_timeout');
     expect(summary.elapsedMs, 2002);
+    expect(summary.timeoutMs, 2000);
+    expect(summary.currentPreferredFallbackTimeoutMs, 3000);
+    expect(summary.currentTimeoutHeadroomMs, 902);
     expect(summary.responseReceivedBeforeTimeout, isFalse);
     expect(summary.responseReceivedAfterTimeout, isTrue);
     expect(summary.lateResponseElapsedMs, 2098);
@@ -73,15 +77,41 @@ void main() {
     expect(summary.warmupResponseReceivedBeforeTimeout, isTrue);
     expect(
       summary.nextAction,
-      'Tune the preferred XPC timeout or add a warmup ping before fallback.',
+      'Rerun Computer Use diagnostics with the current preferred XPC timeout.',
     );
-    expect(summary.recommendedActionId, 'tune_xpc_timeout_or_warmup');
+    expect(summary.recommendedActionId, 'rerun_with_current_xpc_timeout');
     expect(
       summary.userNextAction,
-      'No manual TCC action is required; export diagnostics if this repeats.',
+      'No manual TCC action is required; recheck permissions or reopen Computer Use to collect fresh timing.',
     );
     expect(
       summary.engineeringNextAction,
+      'No timeout tuning is needed unless the rerun still times out under the current budget.',
+    );
+  });
+
+  test('keeps late XPC responses beyond the current budget as tuning work', () {
+    final summary = buildXpcTimingReportSummary({
+      'helperIpcRuntime': {
+        'selectedIpcTransport': 'distributed_notification_center',
+        'preferredIpcTransport': 'xpc_service',
+        'fallbackIpcTransport': 'distributed_notification_center',
+        'preferredFallbackSucceeded': true,
+        'preferredAttemptStatus': 'xpc_timeout',
+        'preferredAttemptErrorCode': 'helper_xpc_timeout',
+        'preferredAttemptElapsedMs': 3001,
+        'preferredAttemptTimeoutMs': 3000,
+        'preferredAttemptResponseReceivedBeforeTimeout': false,
+        'preferredAttemptResponseReceivedAfterTimeout': true,
+        'preferredAttemptLateResponseElapsedMs': 3200,
+      },
+    }, sourcePath: 'diagnostics.json');
+
+    expect(summary.ready, isFalse);
+    expect(summary.classification, 'late_response_after_timeout');
+    expect(summary.currentTimeoutHeadroomMs, -200);
+    expect(
+      summary.nextAction,
       'Tune the preferred XPC timeout or add a warmup ping before fallback.',
     );
   });

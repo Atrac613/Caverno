@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'macos_computer_use_setup.dart';
+
 class XpcTimingReportSummary {
   const XpcTimingReportSummary({
     required this.sourcePath,
@@ -13,6 +15,9 @@ class XpcTimingReportSummary {
     required this.engineeringNextAction,
     this.errorCode,
     this.elapsedMs,
+    this.timeoutMs,
+    this.currentPreferredFallbackTimeoutMs,
+    this.currentTimeoutHeadroomMs,
     this.responseReceivedBeforeTimeout,
     this.responseReceivedAfterTimeout,
     this.lateResponseElapsedMs,
@@ -35,6 +40,9 @@ class XpcTimingReportSummary {
   final String engineeringNextAction;
   final String? errorCode;
   final int? elapsedMs;
+  final int? timeoutMs;
+  final int? currentPreferredFallbackTimeoutMs;
+  final int? currentTimeoutHeadroomMs;
   final bool? responseReceivedBeforeTimeout;
   final bool? responseReceivedAfterTimeout;
   final int? lateResponseElapsedMs;
@@ -59,6 +67,11 @@ class XpcTimingReportSummary {
     'engineeringNextAction': engineeringNextAction,
     if (errorCode != null) 'errorCode': errorCode,
     if (elapsedMs != null) 'elapsedMs': elapsedMs,
+    if (timeoutMs != null) 'timeoutMs': timeoutMs,
+    if (currentPreferredFallbackTimeoutMs != null)
+      'currentPreferredFallbackTimeoutMs': currentPreferredFallbackTimeoutMs,
+    if (currentTimeoutHeadroomMs != null)
+      'currentTimeoutHeadroomMs': currentTimeoutHeadroomMs,
     if (responseReceivedBeforeTimeout != null)
       'responseReceivedBeforeTimeout': responseReceivedBeforeTimeout,
     if (responseReceivedAfterTimeout != null)
@@ -91,6 +104,14 @@ class XpcTimingReportSummary {
       ('Engineering Next Action', engineeringNextAction),
       if (errorCode != null) ('Error Code', errorCode!),
       if (elapsedMs != null) ('Elapsed', '${elapsedMs}ms'),
+      if (timeoutMs != null) ('Timeout Budget', '${timeoutMs}ms'),
+      if (currentPreferredFallbackTimeoutMs != null)
+        (
+          'Current Preferred Fallback Timeout',
+          '${currentPreferredFallbackTimeoutMs}ms',
+        ),
+      if (currentTimeoutHeadroomMs != null)
+        ('Current Timeout Headroom', '${currentTimeoutHeadroomMs}ms'),
       if (responseReceivedBeforeTimeout != null)
         ('Response Before Timeout', '$responseReceivedBeforeTimeout'),
       if (responseReceivedAfterTimeout != null)
@@ -169,6 +190,9 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
   final elapsedMs =
       _intValue(runtime?['preferredAttemptElapsedMs']) ??
       _intValue(attempt?['elapsedMs']);
+  final timeoutMs =
+      _intValue(runtime?['preferredAttemptTimeoutMs']) ??
+      _intValue(attempt?['timeoutMs']);
   final responseBeforeTimeout =
       _boolValue(runtime?['preferredAttemptResponseReceivedBeforeTimeout']) ??
       _boolValue(attempt?['responseReceivedBeforeTimeout']);
@@ -181,11 +205,20 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
   final fallbackSucceeded =
       _boolValue(runtime?['preferredFallbackSucceeded']) ??
       _boolValue(diagnostics['preferredFallbackSucceeded']);
+  final currentPreferredFallbackTimeoutMs =
+      MacosComputerUseIpc.current.timeoutsMs['xpcPreferredFallback'];
+  final currentTimeoutHeadroomMs =
+      lateElapsedMs != null && currentPreferredFallbackTimeoutMs != null
+      ? currentPreferredFallbackTimeoutMs - lateElapsedMs
+      : null;
 
   final classification = _classification(
     status: status,
     responseBeforeTimeout: responseBeforeTimeout,
     responseAfterTimeout: responseAfterTimeout,
+    lateElapsedMs: lateElapsedMs,
+    timeoutMs: timeoutMs,
+    currentPreferredFallbackTimeoutMs: currentPreferredFallbackTimeoutMs,
   );
   return XpcTimingReportSummary(
     sourcePath: sourcePath,
@@ -198,6 +231,9 @@ XpcTimingReportSummary buildXpcTimingReportSummary(
     engineeringNextAction: _engineeringNextAction(classification),
     errorCode: errorCode,
     elapsedMs: elapsedMs,
+    timeoutMs: timeoutMs,
+    currentPreferredFallbackTimeoutMs: currentPreferredFallbackTimeoutMs,
+    currentTimeoutHeadroomMs: currentTimeoutHeadroomMs,
     responseReceivedBeforeTimeout: responseBeforeTimeout,
     responseReceivedAfterTimeout: responseAfterTimeout,
     lateResponseElapsedMs: lateElapsedMs,
@@ -223,12 +259,24 @@ String _classification({
   required String status,
   required bool? responseBeforeTimeout,
   required bool? responseAfterTimeout,
+  required int? lateElapsedMs,
+  required int? timeoutMs,
+  required int? currentPreferredFallbackTimeoutMs,
 }) {
   if (status == 'missing') {
     return 'missing_preferred_attempt';
   }
   if (status == 'xpc_response' || responseBeforeTimeout == true) {
     return 'responded_before_timeout';
+  }
+  if (status == 'xpc_timeout' &&
+      responseAfterTimeout == true &&
+      timeoutMs != null &&
+      currentPreferredFallbackTimeoutMs != null &&
+      timeoutMs < currentPreferredFallbackTimeoutMs &&
+      lateElapsedMs != null &&
+      lateElapsedMs <= currentPreferredFallbackTimeoutMs) {
+    return 'late_response_within_current_budget';
   }
   if (status == 'xpc_timeout' && responseAfterTimeout == true) {
     return 'late_response_after_timeout';
@@ -246,6 +294,8 @@ String _nextAction(String classification) {
   return switch (classification) {
     'responded_before_timeout' =>
       'Preferred XPC responded before timeout. No timeout mitigation is needed.',
+    'late_response_within_current_budget' =>
+      'Rerun Computer Use diagnostics with the current preferred XPC timeout.',
     'late_response_after_timeout' =>
       'Tune the preferred XPC timeout or add a warmup ping before fallback.',
     'no_response_before_timeout' =>
@@ -261,6 +311,7 @@ String _nextAction(String classification) {
 String _recommendedActionId(String classification) {
   return switch (classification) {
     'responded_before_timeout' => 'none',
+    'late_response_within_current_budget' => 'rerun_with_current_xpc_timeout',
     'late_response_after_timeout' => 'tune_xpc_timeout_or_warmup',
     'no_response_before_timeout' => 'inspect_launch_agent_listener',
     'xpc_connection_error' => 'inspect_mach_service_signing',
@@ -273,6 +324,8 @@ String _userNextAction(String classification) {
   return switch (classification) {
     'responded_before_timeout' =>
       'Run the Computer Use smoke sequence when ready.',
+    'late_response_within_current_budget' =>
+      'No manual TCC action is required; recheck permissions or reopen Computer Use to collect fresh timing.',
     'late_response_after_timeout' =>
       'No manual TCC action is required; export diagnostics if this repeats.',
     'no_response_before_timeout' =>
@@ -289,6 +342,8 @@ String _engineeringNextAction(String classification) {
   return switch (classification) {
     'responded_before_timeout' =>
       'No preferred XPC timeout mitigation is needed.',
+    'late_response_within_current_budget' =>
+      'No timeout tuning is needed unless the rerun still times out under the current budget.',
     'late_response_after_timeout' =>
       'Tune the preferred XPC timeout or add a warmup ping before fallback.',
     'no_response_before_timeout' =>

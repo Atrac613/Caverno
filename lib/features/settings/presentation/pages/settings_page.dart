@@ -1246,6 +1246,7 @@ class _ComputerUseOnboardingCardState
       preferredAttempt?['errorCode'],
     );
     final preferredAttemptElapsedMs = preferredAttempt?['elapsedMs'];
+    final preferredAttemptTimeoutMs = preferredAttempt?['timeoutMs'];
     final preferredAttemptResponseReceivedBeforeTimeout =
         preferredAttempt?['responseReceivedBeforeTimeout'];
     final preferredAttemptResponseReceivedAfterTimeout =
@@ -1452,6 +1453,9 @@ class _ComputerUseOnboardingCardState
     }
     if (preferredAttemptElapsedMs is int) {
       runtime['preferredAttemptElapsedMs'] = preferredAttemptElapsedMs;
+    }
+    if (preferredAttemptTimeoutMs is int) {
+      runtime['preferredAttemptTimeoutMs'] = preferredAttemptTimeoutMs;
     }
     if (preferredAttemptResponseReceivedBeforeTimeout is bool) {
       runtime['preferredAttemptResponseReceivedBeforeTimeout'] =
@@ -2788,6 +2792,10 @@ class _XpcTimingSummary extends StatelessWidget {
     final userNextAction = _summaryString('userNextAction');
     final engineeringNextAction = _summaryString('engineeringNextAction');
     final elapsedMs = summary['elapsedMs'];
+    final timeoutMs = summary['timeoutMs'];
+    final currentPreferredFallbackTimeoutMs =
+        summary['currentPreferredFallbackTimeoutMs'];
+    final currentTimeoutHeadroomMs = summary['currentTimeoutHeadroomMs'];
     final lateElapsedMs = summary['lateResponseElapsedMs'];
     final warmupElapsedMs = summary['warmupElapsedMs'];
     final responseBeforeTimeout = summary['responseReceivedBeforeTimeout'];
@@ -2813,6 +2821,18 @@ class _XpcTimingSummary extends StatelessWidget {
             _InfoChip(label: 'Timing gate', value: ready ? 'ready' : 'review'),
             if (elapsedMs is int)
               _InfoChip(label: 'Elapsed', value: '${elapsedMs}ms'),
+            if (timeoutMs is int)
+              _InfoChip(label: 'Timeout budget', value: '${timeoutMs}ms'),
+            if (currentPreferredFallbackTimeoutMs is int)
+              _InfoChip(
+                label: 'Current XPC timeout',
+                value: '${currentPreferredFallbackTimeoutMs}ms',
+              ),
+            if (currentTimeoutHeadroomMs is int)
+              _InfoChip(
+                label: 'Current headroom',
+                value: '${currentTimeoutHeadroomMs}ms',
+              ),
             if (responseBeforeTimeout is bool)
               _InfoChip(
                 label: 'Before timeout',
