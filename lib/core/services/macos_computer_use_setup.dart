@@ -62,6 +62,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
+  static const mvpReadinessPreflightCommand =
+      'bash tool/run_macos_computer_use_mvp_readiness_preflight.sh';
   static const artifactIndexCommand =
       'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';

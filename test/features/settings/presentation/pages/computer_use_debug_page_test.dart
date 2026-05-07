@@ -62,6 +62,12 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining(
+        'Report-only preflight: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('release_artifact: Refresh safe release inputs'),
       findsOneWidget,
     );
