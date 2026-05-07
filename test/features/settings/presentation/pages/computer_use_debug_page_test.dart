@@ -125,11 +125,11 @@ void main() {
     );
     expect(
       find.textContaining('macos_computer_use_mvp_readiness.json'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('macos_computer_use_mvp_readiness.md'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('MVP readiness JSON (final sign-off output):'),
@@ -170,6 +170,12 @@ void main() {
     expect(
       find.textContaining(
         '`macos_computer_use_release_readiness_ci.md`, and `macos_computer_use_release_readiness_signoff.md` before PR review',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'After final sign-off aggregation, inspect `macos_computer_use_mvp_readiness.json` and `macos_computer_use_mvp_readiness.md`.',
       ),
       findsOneWidget,
     );

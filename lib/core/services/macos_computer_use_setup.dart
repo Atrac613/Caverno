@@ -99,7 +99,9 @@ class MacosComputerUseMvpGuidance {
   static const finalAggregationCommand =
       '$mvpSignoffCommand --final-signoff --manual-tcc-report $manualTccSummaryPlaceholder --desktop-action-canary-summary $desktopActionSummaryPlaceholder --llm-canary-summary $llmCanarySummaryPlaceholder';
   static const prReviewSummaryGuidance =
-      'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. It separates ready artifacts, missing evidence, user-operated blockers, and automation-safe blockers.';
+      'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
+      'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
+      'It separates ready artifacts, missing evidence, user-operated blockers, and automation-safe blockers.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {
