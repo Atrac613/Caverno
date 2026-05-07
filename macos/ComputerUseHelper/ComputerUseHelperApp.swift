@@ -511,12 +511,6 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     statusSummaryLabel.translatesAutoresizingMaskIntoConstraints = false
     self.statusSummaryLabel = statusSummaryLabel
 
-    let rows = NSStackView()
-    rows.orientation = .vertical
-    rows.alignment = .width
-    rows.spacing = 12
-    rows.translatesAutoresizingMaskIntoConstraints = false
-
     let accessibilityRow = PermissionRowView(
       symbolName: "figure.stand",
       title: "Accessibility",
@@ -537,21 +531,14 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     )
     self.accessibilityRow = accessibilityRow
     self.screenRecordingRow = screenRecordingRow
-
-    rows.addArrangedSubview(accessibilityRow)
-    rows.addArrangedSubview(screenRecordingRow)
+    accessibilityRow.translatesAutoresizingMaskIntoConstraints = false
+    screenRecordingRow.translatesAutoresizingMaskIntoConstraints = false
 
     let smokeTitle = NSTextField(labelWithString: "Verification")
     smokeTitle.font = .systemFont(ofSize: 15, weight: .semibold)
     smokeTitle.textColor = .secondaryLabelColor
     smokeTitle.alignment = .left
     smokeTitle.translatesAutoresizingMaskIntoConstraints = false
-
-    let smokeRows = NSStackView()
-    smokeRows.orientation = .vertical
-    smokeRows.alignment = .width
-    smokeRows.spacing = 8
-    smokeRows.translatesAutoresizingMaskIntoConstraints = false
 
     let permissionSmokeRow = SmokeStepRowView(
       title: "Permissions",
@@ -568,9 +555,9 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     self.permissionSmokeRow = permissionSmokeRow
     self.displayScreenshotSmokeRow = displayScreenshotSmokeRow
     self.windowCaptureSmokeRow = windowCaptureSmokeRow
-    smokeRows.addArrangedSubview(permissionSmokeRow)
-    smokeRows.addArrangedSubview(displayScreenshotSmokeRow)
-    smokeRows.addArrangedSubview(windowCaptureSmokeRow)
+    permissionSmokeRow.translatesAutoresizingMaskIntoConstraints = false
+    displayScreenshotSmokeRow.translatesAutoresizingMaskIntoConstraints = false
+    windowCaptureSmokeRow.translatesAutoresizingMaskIntoConstraints = false
 
     let refreshButton = NSButton(
       title: "Refresh",
@@ -607,9 +594,12 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       title,
       subtitle,
       statusSummaryLabel,
-      rows,
+      accessibilityRow,
+      screenRecordingRow,
       smokeTitle,
-      smokeRows,
+      permissionSmokeRow,
+      displayScreenshotSmokeRow,
+      windowCaptureSmokeRow,
       buttonStack,
       footer,
     ].forEach(documentView.addSubview)
@@ -637,17 +627,26 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       statusSummaryLabel.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
       statusSummaryLabel.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
       statusSummaryLabel.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 28),
-      rows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
-      rows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
-      rows.topAnchor.constraint(equalTo: statusSummaryLabel.bottomAnchor, constant: 44),
+      accessibilityRow.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      accessibilityRow.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      accessibilityRow.topAnchor.constraint(equalTo: statusSummaryLabel.bottomAnchor, constant: 44),
+      screenRecordingRow.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      screenRecordingRow.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      screenRecordingRow.topAnchor.constraint(equalTo: accessibilityRow.bottomAnchor, constant: 12),
       smokeTitle.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
       smokeTitle.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
-      smokeTitle.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 44),
-      smokeRows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
-      smokeRows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
-      smokeRows.topAnchor.constraint(equalTo: smokeTitle.bottomAnchor, constant: 14),
+      smokeTitle.topAnchor.constraint(equalTo: screenRecordingRow.bottomAnchor, constant: 44),
+      permissionSmokeRow.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      permissionSmokeRow.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      permissionSmokeRow.topAnchor.constraint(equalTo: smokeTitle.bottomAnchor, constant: 14),
+      displayScreenshotSmokeRow.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      displayScreenshotSmokeRow.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      displayScreenshotSmokeRow.topAnchor.constraint(equalTo: permissionSmokeRow.bottomAnchor, constant: 8),
+      windowCaptureSmokeRow.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      windowCaptureSmokeRow.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      windowCaptureSmokeRow.topAnchor.constraint(equalTo: displayScreenshotSmokeRow.bottomAnchor, constant: 8),
       buttonStack.centerXAnchor.constraint(equalTo: documentView.centerXAnchor),
-      buttonStack.topAnchor.constraint(equalTo: smokeRows.bottomAnchor, constant: 28),
+      buttonStack.topAnchor.constraint(equalTo: windowCaptureSmokeRow.bottomAnchor, constant: 28),
       footer.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
       footer.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
       footer.topAnchor.constraint(equalTo: buttonStack.bottomAnchor, constant: 14),
