@@ -123,6 +123,22 @@ void main() {
     expect(script, contains('REQUIRE_RELEASE_SIGNOFF=1'));
   });
 
+  test('M3 documents production IPC readiness', () {
+    expect(architectureDoc, contains('Current M3 implementation status'));
+    expect(
+      architectureDoc,
+      contains('LaunchAgent-backed named XPC is the preferred production IPC'),
+    );
+    expect(architectureDoc, contains('external_helper_mach_service'));
+    expect(architectureDoc, contains('launchd_mach_service_registration'));
+    expect(
+      architectureDoc,
+      contains('com.noguwo.apps.caverno.computer-use.xpc'),
+    );
+    expect(architectureDoc, contains('xpcProductionGate'));
+    expect(architectureDoc, contains('DNC fallback remains non-destructive'));
+  });
+
   test('release report includes M7 gate and runtime readiness fields', () {
     expect(script, contains('"schemaVersion": 2'));
     expect(script, contains('"releaseSignoffGate": gate'));

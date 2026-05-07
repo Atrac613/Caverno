@@ -891,6 +891,52 @@ M2 live sign-off notes:
   passed with capture, non-destructive input, system audio, overlay,
   onboarding transition, and LaunchAgent named XPC gates all ready.
 
+Current M3 implementation status:
+
+- M3 is complete for the current debug embedded helper and release artifact
+  layout.
+- LaunchAgent-backed named XPC is the preferred production IPC transport for
+  `Caverno.app` to request helper-owned Computer Use operations.
+- The helper advertises `xpcStatus: production`,
+  `xpcConnectionMode: external_helper_mach_service`, and
+  `xpcRegistrationRequirement: launchd_mach_service_registration` in
+  diagnostics.
+- The production IPC surface covers the same command set as the fallback
+  distributed-notification transport, including `ping`, `showMainWindow`,
+  `permissionStatus`, settings shortcuts, permission overlays, observation,
+  window capture, input, keyboard, scroll, and system-audio commands.
+- Distributed notifications remain as an observable fallback when the preferred
+  XPC request times out or the named service is unavailable. Fallback metadata
+  records the attempted transport, timeout class, and next action without
+  widening helper permissions.
+- LaunchAgent registration, unregister, plist installation, MachService name,
+  and parity checks are surfaced in the debug UI, release artifact sign-off,
+  and helper diagnostics.
+
+M3 acceptance criteria:
+
+- `Caverno.app` embeds
+  `Contents/Library/LaunchAgents/com.noguwo.apps.caverno.computer-use.plist`.
+- The helper exposes the named Mach service
+  `com.noguwo.apps.caverno.computer-use.xpc`.
+- The signed main app can connect to the named XPC service and receive
+  responses for the supported helper command set.
+- `xpcProductionGate` reports ready only when LaunchAgent registration,
+  named-service reachability, command parity, and production diagnostics are
+  ready.
+- DNC fallback remains non-destructive, observable, and explicitly reported as
+  fallback rather than accepted as production XPC readiness.
+
+M3 sign-off notes:
+
+- 2026-04-29: the M4 combined sign-off passed with LaunchAgent named XPC gates
+  ready for the current debug embedded helper.
+- M7 extends the same LaunchAgent, MachService, bundle identity, and signing
+  checks to release artifacts before runtime TCC is considered.
+- M8 verifies that the installed release helper path is the runtime owner for
+  helper commands before measuring permissions, capture, input, window, or
+  audio readiness.
+
 ## M4 Sign-Off Gate
 
 M4 is the embedded-helper production sign-off for macOS permissions and helper
