@@ -209,6 +209,11 @@ void main() {
     expect(architectureDoc, contains('manual_tcc_report_summary.json'));
     expect(architectureDoc, contains('user-operated safe target run'));
     expect(architectureDoc, contains('PR Review Artifacts'));
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
+    );
+    expect(architectureDoc, contains('without launching apps'));
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {
@@ -595,6 +600,7 @@ void main() {
       contains('macos_computer_use_readiness_artifact_index.json'),
     );
     expect(architectureDoc, contains('--refresh-llm-canary'));
+    expect(architectureDoc, contains('report-only MVP readiness preflight'));
     expect(architectureDoc, contains('permissions_missing'));
     expect(architectureDoc, contains('--refresh-safe-inputs'));
     expect(architectureDoc, contains('--exit-policy ci'));

@@ -517,6 +517,18 @@ standard handoff check. The generated handoff lists missing manual inputs,
 validates whether provided paths exist, and prints the next user-operated
 command for each missing gate. Add `--dry-run` to validate that handoff without
 running the final release readiness aggregation.
+
+For PR review, run the report-only MVP readiness preflight when you only need
+to refresh the artifact index plus dry-run handoff:
+
+```bash
+bash tool/run_macos_computer_use_mvp_readiness_preflight.sh
+```
+
+This preflight reads existing artifacts, writes the MVP handoff, and prints the
+`PR Review Summary` / `PR Review Artifacts` paths without launching apps,
+operating System Settings, granting TCC, or running desktop actions.
+
 Use `--final-signoff` for the one-command MVP path: it refreshes only
 automation-safe evidence, refreshes the aggregate Computer Use fixture LLM
 canary when `CAVERNO_LLM_*` is set, aggregates strict readiness, and appends
