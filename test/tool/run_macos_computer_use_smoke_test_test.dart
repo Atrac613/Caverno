@@ -168,6 +168,31 @@ void main() {
     expect(architectureDoc, contains('selected transport'));
     expect(architectureDoc, contains('preferred transport'));
     expect(architectureDoc, contains('fallback transport metadata'));
+    expect(architectureDoc, contains('## Migration Completion Status'));
+    expect(
+      architectureDoc,
+      contains('The helper migration is complete for the current MVP path.'),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'distributed notifications retained only as observable fallback',
+      ),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'The main app no longer owns unsafe macOS Computer Use actions.',
+      ),
+    );
+    expect(architectureDoc, contains('mainAppUnsafeOsActionsAllowed=false'));
+    expect(architectureDoc, contains('helperOwnsUnsafeOsActions=true'));
+    expect(
+      architectureDoc,
+      contains(
+        'Remaining work is release readiness and user-operated sign-off',
+      ),
+    );
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {

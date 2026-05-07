@@ -1419,22 +1419,34 @@ Each missing state should have one primary action:
 - Refresh status.
 - Run a focused smoke check.
 
-## Migration Plan
+## Migration Completion Status
 
-1. Keep the current in-process native channel as the compatibility backend.
-2. Add helper-oriented status models and onboarding copy to the debug page.
-3. Add the `Caverno Computer Use.app` target with a minimal window and no
-   privileged operations.
-4. Add IPC `ping`, `permissionStatus`, `openSettings`, and `stopAll`.
-5. Move permission status and settings shortcuts to the helper backend.
-6. Bundle the helper in `Caverno.app` and launch it from the permission panel.
-7. Move screenshot, window listing, window focusing, and window screenshots.
-8. Move input events behind the existing approval and arming flow.
-9. Move system audio recording behind the existing approval and arming flow.
-10. Add the helper-owned permission overlay for Accessibility and Screen &
-    System Audio Recording onboarding.
-11. Remove or disable privileged computer-use APIs from the main app once parity
-    is verified.
+The helper migration is complete for the current MVP path. The original
+migration plan has been converted into these completion checks:
+
+- Helper status models and onboarding copy are visible in Settings and the
+  Computer Use debug page.
+- `Caverno Computer Use.app` is bundled in `Caverno.app` and owns macOS
+  Accessibility, Screen & System Audio Recording, input, observation, and
+  system-audio operations.
+- Helper IPC supports `ping`, `permissionStatus`, `openSettings`,
+  `showPermissionOverlay`, `startOnboardingPermissionFlow`, `stopAll`,
+  observation, window, input, keyboard, scroll, and system-audio commands.
+- LaunchAgent-backed named XPC is the preferred production transport, with
+  distributed notifications retained only as observable fallback.
+- Screenshot, window listing, window focus, window screenshots, input events,
+  and system audio recording are routed through the helper backend.
+- Input and sensitive helper commands remain behind app-level approval plus
+  explicit action-time arming.
+- The helper-owned permission overlay is available for Accessibility and
+  Screen & System Audio Recording onboarding.
+- The main app no longer owns unsafe macOS Computer Use actions. Diagnostics
+  report `mainAppUnsafeOsActionsAllowed=false`,
+  `helperOwnsUnsafeOsActions=true`, and the helper-owned action categories.
+
+Remaining work is release readiness and user-operated sign-off rather than
+migration: release artifacts, manual TCC runtime reports, user-operated desktop
+action canaries, LLM canaries, and MVP PR review artifacts.
 
 ## Verification Gates
 
