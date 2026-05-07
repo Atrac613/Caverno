@@ -74,7 +74,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final service = ref.watch(macosComputerUseServiceProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Computer Use Smoke Test')),
+      appBar: AppBar(title: const Text('Computer Use Smoke Sequence')),
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [

@@ -35,7 +35,7 @@ class DebugSettingsPage extends ConsumerWidget {
                 const Divider(height: 1),
                 ListTile(
                   leading: const Icon(Icons.desktop_mac_outlined),
-                  title: const Text('Computer Use Smoke Test'),
+                  title: const Text('Computer Use Smoke Sequence'),
                   subtitle: const Text(
                     'Run direct macOS permission, screenshot, window, input, and audio checks.',
                   ),
