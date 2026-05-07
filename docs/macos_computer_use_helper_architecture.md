@@ -579,6 +579,11 @@ The wrapper writes preset-specific readiness artifacts:
 - `macos_computer_use_readiness_artifact_index.json`
 - `macos_computer_use_readiness_artifact_index.md`
 
+Each release readiness JSON and Markdown report contains a `PR Review Summary`
+that separates ready gates, blocked gates, pending user-operated evidence, and
+pending automation-safe evidence. The summary keeps release report review
+usable even before the artifact index is opened.
+
 The artifact index includes the latest manual TCC summary, desktop action
 canary, preferred LLM canary, MVP LLM readiness summary, and guided MVP demo
 readiness summary when those user-produced or automation-safe artifacts exist.

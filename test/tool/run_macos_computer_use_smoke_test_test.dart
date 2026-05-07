@@ -597,6 +597,14 @@ void main() {
     );
     expect(
       architectureDoc,
+      contains(
+        'Each release readiness JSON and Markdown report contains a `PR Review Summary`',
+      ),
+    );
+    expect(architectureDoc, contains('pending user-operated evidence'));
+    expect(architectureDoc, contains('pending automation-safe evidence'));
+    expect(
+      architectureDoc,
       contains('macos_computer_use_readiness_artifact_index.json'),
     );
     expect(architectureDoc, contains('--refresh-llm-canary'));
