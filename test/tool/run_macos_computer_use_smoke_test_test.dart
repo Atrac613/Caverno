@@ -1686,6 +1686,24 @@ void main() {
     expect(
       mvpFixtureRunbook,
       contains(
+        'macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+      ),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      ),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+      ),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
         'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
       ),
     );
@@ -1766,6 +1784,24 @@ void main() {
     expect(
       mvpChecklist,
       contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+      ),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      ),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+      ),
     );
     expect(mvpChecklist, contains('--dry-run'));
     expect(

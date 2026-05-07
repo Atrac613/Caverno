@@ -149,6 +149,12 @@ changes do not require fresh TCC or live desktop-action verification.
      --llm-canary-summary <llm-canary-summary.json>
    ```
 
+   The expected final input paths are:
+
+   - Manual TCC: `macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json`
+   - Desktop action: `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json`
+   - MVP fixture LLM: `macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json`
+
    Or run the guided demo wrapper with the same user-produced artifacts:
 
    ```bash

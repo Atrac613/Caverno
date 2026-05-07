@@ -168,6 +168,12 @@ bash tool/run_macos_computer_use_mvp_signoff.sh \
   --llm-canary-summary <llm-canary-summary.json>
 ```
 
+Use these final input paths when wiring the aggregation:
+
+- Manual TCC: `macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json`
+- Desktop action: `macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json`
+- MVP fixture LLM: `macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json`
+
 The guided wrapper can aggregate the same final evidence:
 
 ```bash
