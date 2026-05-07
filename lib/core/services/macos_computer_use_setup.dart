@@ -323,6 +323,8 @@ class MacosComputerUseIpc {
   ];
   static const timeoutsMs = {
     'default': 1500,
+    'xpcPreferredFallback': 3000,
+    'xpcWarmup': 1000,
     'focusWindow': 3000,
     'screenshot': 8000,
     'screenshotWindow': 8000,

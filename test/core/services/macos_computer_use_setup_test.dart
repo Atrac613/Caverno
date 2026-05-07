@@ -39,6 +39,8 @@ void main() {
     );
     expect(info['requestEnvelope'], contains('senderProcessIdentifier'));
     expect(info['responseEnvelope'], contains('response'));
+    expect(info['timeoutsMs'], containsPair('xpcPreferredFallback', 3000));
+    expect(info['timeoutsMs'], containsPair('xpcWarmup', 1000));
     expect(info['timeoutsMs'], containsPair('stopAll', 8000));
     expect(info['errorCodes'], contains('helper_unreachable'));
     expect(info['errorCodes'], contains('helper_xpc_timeout'));
