@@ -1755,7 +1755,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final paths = _mvpArtifactPaths();
     return [
       'MVP handoff: ${paths['mvpHandoff']}',
-      'MVP readiness: ${paths['mvpReadiness']}',
+      'MVP readiness (final sign-off output): ${paths['mvpReadiness']}',
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',

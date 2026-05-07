@@ -127,6 +127,10 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining('MVP readiness (final sign-off output):'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_readiness_artifact_index.json'),
       findsOneWidget,
     );
