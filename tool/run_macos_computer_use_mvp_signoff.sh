@@ -125,6 +125,7 @@ if [[ -z "${HANDOFF_MD}" ]]; then
 fi
 ARTIFACT_INDEX_MD="${REPORT_ROOT}/macos_computer_use_readiness_artifact_index.md"
 ARTIFACT_INDEX_COMMAND="dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${REPORT_ROOT}"
+MVP_READINESS_PREFLIGHT_COMMAND="bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${REPORT_ROOT}"
 
 mkdir -p "${REPORT_ROOT}"
 
@@ -553,6 +554,7 @@ cat >"${HANDOFF_MD}" <<EOF
 - Handoff Markdown: ${HANDOFF_MD}
 - Artifact index Markdown: ${ARTIFACT_INDEX_MD}
 - Artifact index command: \`${ARTIFACT_INDEX_COMMAND}\`
+- MVP readiness preflight command: \`${MVP_READINESS_PREFLIGHT_COMMAND}\`
 
 ## PR Review Summary
 
@@ -659,6 +661,7 @@ echo "PR review summary:"
 echo "  Handoff PR Review Summary: ${HANDOFF_MD}"
 echo "  Artifact index PR Review Summary: ${ARTIFACT_INDEX_MD}"
 echo "  Artifact index command: ${ARTIFACT_INDEX_COMMAND}"
+echo "  MVP readiness preflight command: ${MVP_READINESS_PREFLIGHT_COMMAND}"
 echo "  Status: ${review_status}"
 echo "  Ready input evidence: ${ready_input_evidence_summary}"
 echo "  Missing input evidence: ${missing_input_evidence_summary}"

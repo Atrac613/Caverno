@@ -1795,6 +1795,11 @@ void main() {
       mvpSignoffScript,
       contains('CAVERNO_MACOS_COMPUTER_USE_READINESS_WRAPPER'),
     );
+    expect(mvpSignoffScript, contains('MVP_READINESS_PREFLIGHT_COMMAND'));
+    expect(
+      mvpSignoffScript,
+      contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
+    );
     expect(mvpSignoffScript, contains('provided path not found'));
     expect(mvpSignoffScript, contains('DISCOVERED_MANUAL_TCC_REPORT'));
     expect(
@@ -1911,6 +1916,12 @@ void main() {
           'Artifact index command: dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'MVP readiness preflight command: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}',
+        ),
+      );
       expect(stdout, contains(_manualTccNextAction));
       expect(stdout, contains(_desktopActionNextAction));
       expect(stdout, contains('Dry run: would execute'));
@@ -1968,6 +1979,12 @@ void main() {
         handoff,
         contains(
           'Artifact index command: `dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}`',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'MVP readiness preflight command: `bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}`',
         ),
       );
       _expectOperationBoundaryMarkdown(handoff);
