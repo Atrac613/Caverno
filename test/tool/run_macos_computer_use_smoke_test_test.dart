@@ -1762,6 +1762,24 @@ void main() {
           'Handoff Markdown: ${root.path}/macos_computer_use_mvp_handoff.md',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'Handoff PR Review Summary: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Artifact index PR Review Summary: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Artifact index command: dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
+        ),
+      );
       expect(stdout, contains(_manualTccNextAction));
       expect(stdout, contains(_desktopActionNextAction));
       expect(stdout, contains('Dry run: would execute'));
@@ -1807,6 +1825,18 @@ void main() {
         handoff,
         contains(
           'Handoff Markdown: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'Artifact index Markdown: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'Artifact index command: `dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}`',
         ),
       );
       _expectOperationBoundaryMarkdown(handoff);
