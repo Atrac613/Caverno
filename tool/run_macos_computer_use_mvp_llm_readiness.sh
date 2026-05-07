@@ -14,6 +14,7 @@ HANDOFF_MD="${RUN_DIR}/macos_computer_use_mvp_llm_handoff.md"
 CLICK_FIXTURE_RESPONSE=""
 TYPE_FIXTURE_RESPONSE=""
 SCREENSHOT_PATH=""
+USE_LATEST_SCREENSHOT=0
 VISION_FIXTURE_RESPONSE=""
 LLM_CANARY_SUMMARY=""
 REPEAT_COUNT="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_REPEAT_COUNT:-1}"
@@ -35,6 +36,8 @@ Options:
   --fixture-response-click PATH  Use a local response for the safe-click scenario.
   --fixture-response-type PATH   Use a local response for the type-and-confirm scenario.
   --screenshot PATH              Run the fixture vision LLM canary with this screenshot.
+  --latest-screenshot            Run the fixture vision LLM canary with the latest
+                                 saved fixture screenshot under the report root.
   --vision-fixture-response PATH Use a local fixture vision LLM response.
   --llm-canary-summary PATH      Use an existing LLM canary summary.
   --help                         Show this help.
@@ -71,6 +74,10 @@ while [[ $# -gt 0 ]]; do
       require_value "$@"
       SCREENSHOT_PATH="$2"
       shift 2
+      ;;
+    --latest-screenshot)
+      USE_LATEST_SCREENSHOT=1
+      shift
       ;;
     --vision-fixture-response)
       require_value "$@"
@@ -112,6 +119,7 @@ echo "  Report root: ${REPORT_ROOT}"
 echo "  Run dir: ${RUN_DIR}"
 echo "  Repeat count: ${REPEAT_COUNT}"
 echo "  Screenshot: ${SCREENSHOT_PATH:-not provided}"
+echo "  Latest screenshot: ${USE_LATEST_SCREENSHOT}"
 echo "  Existing LLM summary: ${LLM_CANARY_SUMMARY:-not provided}"
 echo "  TCC boundary: no TCC operation"
 echo "  Desktop action boundary: no pointer, keyboard, or click operation"
@@ -128,13 +136,16 @@ if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
   LLM_SUMMARY_PATH="${LLM_CANARY_SUMMARY}"
   llm_canary_exit=0
   llm_evidence_mode="existing_summary"
-elif [[ -n "${SCREENSHOT_PATH}" || -n "${VISION_FIXTURE_RESPONSE}" ]]; then
+elif [[ -n "${SCREENSHOT_PATH}" || "${USE_LATEST_SCREENSHOT}" == "1" || -n "${VISION_FIXTURE_RESPONSE}" ]]; then
   llm_evidence_mode="fixture_vision"
   vision_args=(
     --root "${REPORT_ROOT}"
   )
   if [[ -n "${SCREENSHOT_PATH}" ]]; then
     vision_args+=(--screenshot "${SCREENSHOT_PATH}")
+  fi
+  if [[ "${USE_LATEST_SCREENSHOT}" == "1" ]]; then
+    vision_args+=(--latest-screenshot)
   fi
   if [[ -n "${VISION_FIXTURE_RESPONSE}" ]]; then
     vision_args+=(--fixture-response "${VISION_FIXTURE_RESPONSE}")

@@ -101,11 +101,14 @@ The canary summary records the LLM mode, base URL, model, and fixture response
 path when present. It does not record the API key.
 
 To use that screenshot-backed vision evidence in the readiness preflight, pass
-the same user-provided screenshot to:
+the same user-provided screenshot, or reuse the latest saved fixture screenshot:
 
 ```bash
 bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
   --screenshot <fixture-window-screenshot.png>
+
+bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
+  --latest-screenshot
 ```
 
 The preflight then runs the fixture vision canary, feeds its

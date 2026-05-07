@@ -761,6 +761,7 @@ void main() {
     expect(mvpLlmReadinessScript, contains('--fixture-response-click'));
     expect(mvpLlmReadinessScript, contains('--fixture-response-type'));
     expect(mvpLlmReadinessScript, contains('--screenshot PATH'));
+    expect(mvpLlmReadinessScript, contains('--latest-screenshot'));
     expect(mvpLlmReadinessScript, contains('--vision-fixture-response PATH'));
     expect(mvpLlmReadinessScript, contains('--llm-canary-summary PATH'));
     expect(
@@ -1272,6 +1273,12 @@ void main() {
         'caverno_mvp_llm_readiness_vision_test_',
       );
       try {
+        final previousVisionRun = Directory(
+          '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_1',
+        )..createSync();
+        final latestScreenshot = File(
+          '${previousVisionRun.path}/desktop_action_post_click_window_capture_screenshot.png',
+        )..writeAsBytesSync([137, 80, 78, 71, 13, 10, 26, 10]);
         final fixture = File('${root.path}/vision_response.json')
           ..writeAsStringSync('''
 {
@@ -1323,6 +1330,7 @@ void main() {
           'tool/run_macos_computer_use_mvp_llm_readiness.sh',
           '--root',
           root.path,
+          '--latest-screenshot',
           '--vision-fixture-response',
           fixture.path,
         ]);
@@ -1337,6 +1345,7 @@ void main() {
           '${result.stdout}',
           contains('LLM evidence mode: fixture_vision'),
         );
+        expect('${result.stdout}', contains('Latest screenshot: 1'));
 
         final summaryFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -1354,6 +1363,22 @@ void main() {
         expect(summary, contains('"mvpEvidenceGate"'));
         expect(summary, contains('"fixture_window_visible"'));
         expect(summary, contains('"no_execution_claim"'));
+
+        final visionSummaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('canary_summary.json'))
+            .toList(growable: false);
+        expect(visionSummaryFiles, hasLength(1));
+        final visionSummary = visionSummaryFiles.single.readAsStringSync();
+        expect(
+          visionSummary,
+          contains('"screenshotPath": "${latestScreenshot.path}"'),
+        );
+        expect(
+          visionSummary,
+          contains('"screenshotSource": "user_screenshot"'),
+        );
 
         final handoffFiles = Directory(root.path)
             .listSync(recursive: true)

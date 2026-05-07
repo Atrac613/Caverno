@@ -73,11 +73,18 @@ changes do not require fresh TCC or live desktop-action verification.
    when present. It does not record the API key.
 
    To feed that screenshot-backed evidence into the MVP readiness handoff in
-   one automation-safe preflight, run:
+   one automation-safe preflight, run either:
 
    ```bash
    bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
      --screenshot <fixture-window-screenshot.png>
+   ```
+
+   or reuse the latest saved fixture screenshot:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_llm_readiness.sh \
+     --latest-screenshot
    ```
 
    The same screenshot can be used with the guided demo wrapper:
