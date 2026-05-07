@@ -7,6 +7,7 @@ import 'package:bluetooth_low_energy/bluetooth_low_energy.dart'
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
+import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
@@ -86,6 +87,22 @@ class McpToolService {
     ...BleTools.allToolNames,
     ...WifiTools.allToolNames,
     ...LanScanTools.allToolNames,
+    'computer_get_permissions',
+    'computer_request_permissions',
+    'computer_open_system_settings',
+    'computer_vision_observe',
+    'computer_list_windows',
+    'computer_focus_window',
+    'computer_screenshot',
+    'computer_screenshot_window',
+    'computer_move_mouse',
+    'computer_click',
+    'computer_drag',
+    'computer_scroll',
+    'computer_type_text',
+    'computer_press_key',
+    'computer_start_system_audio_recording',
+    'computer_stop_system_audio_recording',
   };
 
   McpToolService({
@@ -97,6 +114,7 @@ class McpToolService {
     this.bleService,
     this.wifiService,
     this.lanScanService,
+    this.computerUseService,
     this.osLogProcessRunner,
     this.disabledBuiltInTools = const {},
   });
@@ -109,6 +127,7 @@ class McpToolService {
   final BleService? bleService;
   final WifiService? wifiService;
   final LanScanService? lanScanService;
+  final MacosComputerUseService? computerUseService;
   final OsLogProcessRunner? osLogProcessRunner;
   final Set<String> disabledBuiltInTools;
 
@@ -515,6 +534,12 @@ class McpToolService {
       }
     }
 
+    if (computerUseService?.isAvailable ?? false) {
+      for (final tool in _computerUseTools) {
+        _addIfEnabled(toolDefinitions, tool);
+      }
+    }
+
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
@@ -566,6 +591,29 @@ class McpToolService {
       final result = _recallMemory(arguments);
       appLog('[McpToolService] Memory recall executed: ${result.length} chars');
       return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name.startsWith('computer_')) {
+      final service = computerUseService;
+      if (service == null || !service.isAvailable) {
+        return McpToolResult(
+          toolName: name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'macOS computer use tools are unavailable',
+        );
+      }
+      final result = await _executeComputerUseTool(service, name, arguments);
+      final decoded = _tryDecodeMap(result);
+      final success = decoded == null || decoded['ok'] != false;
+      return McpToolResult(
+        toolName: name,
+        result: result,
+        isSuccess: success,
+        errorMessage: success
+            ? null
+            : (decoded['error'] as String? ?? 'Computer use tool failed'),
+      );
     }
 
     if (name == 'list_directory') {
@@ -1597,6 +1645,57 @@ class McpToolService {
     }
   }
 
+  Map<String, dynamic>? _tryDecodeMap(String payload) {
+    try {
+      final decoded = jsonDecode(payload);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  Future<String> _executeComputerUseTool(
+    MacosComputerUseService service,
+    String name,
+    Map<String, dynamic> arguments,
+  ) {
+    return switch (name) {
+      'computer_get_permissions' => service.getPermissions(),
+      'computer_request_permissions' => service.requestPermissions(
+        accessibility: arguments['accessibility'] as bool? ?? true,
+        screenCapture:
+            arguments['screen_capture'] as bool? ??
+            arguments['screenCapture'] as bool? ??
+            true,
+      ),
+      'computer_open_system_settings' => service.openSystemSettings(
+        section: arguments['section'] as String? ?? 'privacy',
+      ),
+      'computer_vision_observe' => service.visionObserve(arguments),
+      'computer_list_windows' => service.listWindows(arguments),
+      'computer_focus_window' => service.focusWindow(arguments),
+      'computer_screenshot' => service.screenshot(arguments),
+      'computer_screenshot_window' => service.screenshotWindow(arguments),
+      'computer_move_mouse' => service.moveMouse(arguments),
+      'computer_click' => service.click(arguments),
+      'computer_drag' => service.drag(arguments),
+      'computer_scroll' => service.scroll(arguments),
+      'computer_type_text' => service.typeText(arguments),
+      'computer_press_key' => service.pressKey(arguments),
+      'computer_start_system_audio_recording' =>
+        service.startSystemAudioRecording(arguments),
+      'computer_stop_system_audio_recording' =>
+        service.stopSystemAudioRecording(),
+      _ => Future.value(
+        jsonEncode({
+          'ok': false,
+          'code': 'tool_not_available',
+          'error': 'No matching computer use tool is available: $name',
+        }),
+      ),
+    };
+  }
+
   void _pushFileRollbackEntry(TextFileSnapshot snapshot) {
     if (snapshot.exists && snapshot.error != null) {
       return;
@@ -1640,6 +1739,384 @@ class McpToolService {
       'description':
           'Returns the current local date/time and reference date ranges for interpreting relative expressions such as today/this week/recent.',
       'parameters': {'type': 'object', 'properties': {}, 'required': []},
+    },
+  };
+
+  static List<Map<String, dynamic>> get _computerUseTools => [
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_get_permissions',
+        'description':
+            'Check macOS Accessibility, Screen Recording, and system audio recording availability for computer-use tools.',
+        'parameters': {'type': 'object', 'properties': {}, 'required': []},
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_request_permissions',
+        'description':
+            'Ask macOS to open prompts for Accessibility and/or Screen Recording permissions required by computer-use tools.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'accessibility': {
+              'type': 'boolean',
+              'description': 'Request Accessibility permission.',
+            },
+            'screen_capture': {
+              'type': 'boolean',
+              'description': 'Request Screen Recording permission.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_open_system_settings',
+        'description':
+            'Open the relevant macOS Privacy & Security pane for granting Accessibility or Screen Recording permissions. The user must still grant access manually.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'section': {
+              'type': 'string',
+              'enum': ['accessibility', 'screen_recording', 'privacy'],
+              'description':
+                  'System Settings section to open. Use screen_recording for Screen & System Audio Recording.',
+            },
+          },
+          'required': ['section'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_vision_observe',
+        'description':
+            'Observe the macOS desktop for a vision LLM loop. Returns permission status, optional visible-window metadata, one display or window screenshot as image content, coordinate guidance, and the approved next computer-use tool surface. This tool is read-only.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'target': {
+              'type': 'string',
+              'enum': ['display', 'window', 'front_window'],
+              'description':
+                  'Observation target. Use window with window_id for a known window, front_window for the first visible non-Caverno window, or display for the full display.',
+            },
+            'window_id': {
+              'type': 'integer',
+              'description':
+                  'Window ID from computer_list_windows. Required when target is window.',
+            },
+            'display_id': {
+              'type': 'integer',
+              'description':
+                  'Optional CGDirectDisplayID. Used when target is display.',
+            },
+            'max_width': {
+              'type': 'integer',
+              'description':
+                  'Optional maximum PNG width to reduce tokens. Defaults to 900.',
+            },
+            'include_windows': {
+              'type': 'boolean',
+              'description':
+                  'Include visible-window metadata. Defaults to true.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_screenshot',
+        'description':
+            'Capture a macOS display screenshot for visual inspection. Use returned screenshot pixel coordinates for computer input tools.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'display_id': {
+              'type': 'integer',
+              'description':
+                  'Optional CGDirectDisplayID. Defaults to the main display.',
+            },
+            'max_width': {
+              'type': 'integer',
+              'description': 'Optional maximum PNG width to reduce tokens.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_list_windows',
+        'description':
+            'List visible macOS application windows with window IDs, app names, titles, and bounds. Prefer this before focusing or capturing a specific app window.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'include_current_app': {
+              'type': 'boolean',
+              'description':
+                  'Include Caverno windows in the result. Defaults to false.',
+            },
+            'max_windows': {
+              'type': 'integer',
+              'description': 'Maximum number of windows to return.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_focus_window',
+        'description':
+            'Bring a specific macOS window to the foreground by window_id. Requires Accessibility permission.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'window_id': {
+              'type': 'integer',
+              'description':
+                  'Window ID from computer_list_windows or computer_screenshot_window.',
+            },
+            'reason': {'type': 'string'},
+          },
+          'required': ['window_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_screenshot_window',
+        'description':
+            'Capture a specific macOS window screenshot. Use returned window pixel coordinates and window_id for follow-up computer input tools.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'window_id': {
+              'type': 'integer',
+              'description': 'Window ID from computer_list_windows.',
+            },
+            'max_width': {
+              'type': 'integer',
+              'description': 'Optional maximum PNG width to reduce tokens.',
+            },
+          },
+          'required': ['window_id'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_move_mouse',
+        'description':
+            'Move the macOS pointer to screenshot pixel coordinates.',
+        'parameters': _computerPointParameters(required: ['x', 'y']),
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_click',
+        'description':
+            'Click at screenshot pixel coordinates. Requires explicit user approval in Caverno before execution.',
+        'parameters': {
+          ..._computerPointParameters(required: ['x', 'y']),
+          'properties': {
+            ..._computerPointProperties,
+            'button': {
+              'type': 'string',
+              'enum': ['left', 'right', 'middle'],
+              'description': 'Mouse button. Defaults to left.',
+            },
+            'click_count': {
+              'type': 'integer',
+              'description': 'Number of clicks, from 1 to 3.',
+            },
+            'reason': {
+              'type': 'string',
+              'description': 'Why this click is needed.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_drag',
+        'description':
+            'Drag from one screenshot pixel coordinate to another. Requires explicit user approval in Caverno before execution.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            ..._computerDisplayProperties,
+            'from_x': {'type': 'number'},
+            'from_y': {'type': 'number'},
+            'to_x': {'type': 'number'},
+            'to_y': {'type': 'number'},
+            'duration_ms': {
+              'type': 'integer',
+              'description': 'Drag duration in milliseconds.',
+            },
+            'reason': {'type': 'string'},
+          },
+          'required': ['from_x', 'from_y', 'to_x', 'to_y'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_scroll',
+        'description':
+            'Scroll the active macOS target, optionally after moving to screenshot pixel coordinates.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            ..._computerPointProperties,
+            'delta_x': {'type': 'integer'},
+            'delta_y': {
+              'type': 'integer',
+              'description': 'Positive scrolls up, negative scrolls down.',
+            },
+            'reason': {'type': 'string'},
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_type_text',
+        'description':
+            'Type text into the currently focused macOS UI element. Requires explicit user approval in Caverno before execution.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'text': {'type': 'string'},
+            'reason': {'type': 'string'},
+          },
+          'required': ['text'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_press_key',
+        'description':
+            'Press a keyboard key, optionally with modifiers such as command, shift, option, or control.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'key': {'type': 'string'},
+            'modifiers': {
+              'type': 'array',
+              'items': {'type': 'string'},
+            },
+            'reason': {'type': 'string'},
+          },
+          'required': ['key'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_start_system_audio_recording',
+        'description':
+            'Start recording macOS system audio to a CAF file via ScreenCaptureKit. Requires explicit user approval in Caverno before execution.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'output_path': {
+              'type': 'string',
+              'description': 'Optional absolute CAF output path.',
+            },
+            'exclude_current_process_audio': {
+              'type': 'boolean',
+              'description':
+                  'Exclude Caverno audio from the recording. Defaults to true.',
+            },
+            'reason': {'type': 'string'},
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_stop_system_audio_recording',
+        'description':
+            'Stop the active macOS system audio recording and return the output file path.',
+        'parameters': {'type': 'object', 'properties': {}, 'required': []},
+      },
+    },
+  ];
+
+  static Map<String, dynamic> _computerPointParameters({
+    List<String> required = const [],
+  }) {
+    return {
+      'type': 'object',
+      'properties': _computerPointProperties,
+      if (required.isNotEmpty) 'required': required,
+    };
+  }
+
+  static Map<String, dynamic> get _computerPointProperties => {
+    ..._computerDisplayProperties,
+    'x': {
+      'type': 'number',
+      'description': 'X coordinate in screenshot pixels from the top-left.',
+    },
+    'y': {
+      'type': 'number',
+      'description': 'Y coordinate in screenshot pixels from the top-left.',
+    },
+  };
+
+  static Map<String, dynamic> get _computerDisplayProperties => {
+    'window_id': {
+      'type': 'integer',
+      'description':
+          'Optional window ID from computer_list_windows or computer_screenshot_window. When set, x/y are interpreted as window screenshot pixels.',
+    },
+    'display_id': {
+      'type': 'integer',
+      'description': 'Optional display ID from computer_screenshot.',
+    },
+    'source_width': {
+      'type': 'number',
+      'description': 'Width of the screenshot used to choose coordinates.',
+    },
+    'source_height': {
+      'type': 'number',
+      'description': 'Height of the screenshot used to choose coordinates.',
+    },
+    'coordinate_space': {
+      'type': 'string',
+      'description':
+          'Coordinate space from computer_vision_observe, such as window_pixels or display_pixels.',
+    },
+    'vision_observation_id': {
+      'type': 'string',
+      'description':
+          'Observation ID from the latest computer_vision_observe result used to choose this action.',
     },
   };
 

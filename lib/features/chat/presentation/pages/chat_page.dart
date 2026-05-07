@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/constants/api_constants.dart';
+import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../../../routines/presentation/pages/routines_home_page.dart';
@@ -330,6 +331,18 @@ class _ChatPageState extends ConsumerState<ChatPage>
           _showApprovalDialogOnce(
             next.id,
             () => _showLocalCommandDialog(context, next),
+          );
+        }
+      },
+    );
+
+    ref.listen<PendingComputerUseAction?>(
+      chatNotifierProvider.select((s) => s.pendingComputerUseAction),
+      (prev, next) {
+        if (next != null && prev?.id != next.id) {
+          _showApprovalDialogOnce(
+            next.id,
+            () => _showComputerUseActionDialog(context, next),
           );
         }
       },
@@ -7700,7 +7713,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final approved = await showModalBottomSheet<bool>(
       context: context,
       isDismissible: false,
-      enableDrag: true,
+      enableDrag: false,
       isScrollControlled: true,
       backgroundColor: Colors.transparent,
       builder: (sheetContext) {
@@ -8291,6 +8304,510 @@ class _ChatPageState extends ConsumerState<ChatPage>
     ref
         .read(chatNotifierProvider.notifier)
         .resolveLocalCommand(id: pending.id, approved: approved ?? false);
+  }
+
+  Future<void> _showComputerUseActionDialog(
+    BuildContext context,
+    PendingComputerUseAction pending,
+  ) async {
+    var unsafeArmed = !pending.requiresSmokeArming;
+    var stopInProgress = false;
+    String? stopStatus;
+    final approved = await showModalBottomSheet<bool>(
+      context: context,
+      isDismissible: false,
+      enableDrag: true,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (sheetContext) {
+        final theme = Theme.of(sheetContext);
+        final riskStyle = _computerUseRiskStyle(
+          theme,
+          pending.riskCategory,
+          pending.toolName,
+        );
+        return StatefulBuilder(
+          builder: (sheetContext, setSheetState) {
+            return Container(
+              decoration: BoxDecoration(
+                color: theme.colorScheme.surface,
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(20),
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12, bottom: 4),
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.onSurfaceVariant.withValues(
+                            alpha: 0.4,
+                          ),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 12, 24, 0),
+                      child: Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(10),
+                            decoration: BoxDecoration(
+                              color: riskStyle.containerColor.withValues(
+                                alpha: 0.6,
+                              ),
+                              borderRadius: BorderRadius.circular(12),
+                            ),
+                            child: Icon(
+                              riskStyle.icon,
+                              color: riskStyle.iconColor,
+                              size: 22,
+                            ),
+                          ),
+                          const SizedBox(width: 14),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pending.title,
+                                  style: theme.textTheme.titleMedium?.copyWith(
+                                    fontWeight: FontWeight.bold,
+                                  ),
+                                ),
+                                Text(
+                                  pending.toolName,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                    fontFamily: 'monospace',
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 6),
+                                Chip(
+                                  avatar: Icon(
+                                    riskStyle.icon,
+                                    size: 16,
+                                    color: riskStyle.accentColor,
+                                  ),
+                                  label: Text(pending.riskLabel),
+                                  visualDensity: VisualDensity.compact,
+                                  side: BorderSide(
+                                    color: riskStyle.accentColor.withValues(
+                                      alpha: 0.2,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    const Divider(height: 24),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            riskStyle.warningIcon,
+                            size: 20,
+                            color: riskStyle.accentColor,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              pending.warningMessage,
+                              style: theme.textTheme.bodyMedium?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                    if (pending.reason != null &&
+                        pending.reason!.isNotEmpty) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Icon(
+                              Icons.info_outline_rounded,
+                              size: 18,
+                              color: theme.colorScheme.onSurfaceVariant,
+                            ),
+                            const SizedBox(width: 8),
+                            Expanded(
+                              child: Text(
+                                pending.reason!,
+                                style: theme.textTheme.bodyMedium?.copyWith(
+                                  color: theme.colorScheme.onSurfaceVariant,
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ],
+                    if (pending.visionObservationSummary != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.primaryContainer
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.primary.withValues(
+                                alpha: 0.2,
+                              ),
+                            ),
+                          ),
+                          child: Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Icon(
+                                Icons.visibility_outlined,
+                                size: 20,
+                                color: theme.colorScheme.primary,
+                              ),
+                              const SizedBox(width: 10),
+                              Expanded(
+                                child: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(
+                                      pending.visionObservationSummary!,
+                                      style: theme.textTheme.bodyMedium
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onPrimaryContainer,
+                                            fontWeight: FontWeight.w600,
+                                          ),
+                                    ),
+                                    if (pending
+                                        .visionObservationDetails
+                                        .isNotEmpty) ...[
+                                      const SizedBox(height: 8),
+                                      for (final detail
+                                          in pending.visionObservationDetails)
+                                        Padding(
+                                          padding: const EdgeInsets.only(
+                                            top: 2,
+                                          ),
+                                          child: Text(
+                                            detail,
+                                            style: theme.textTheme.bodySmall
+                                                ?.copyWith(
+                                                  color: theme
+                                                      .colorScheme
+                                                      .onPrimaryContainer
+                                                      .withValues(alpha: 0.8),
+                                                  fontFamily: 'monospace',
+                                                ),
+                                          ),
+                                        ),
+                                    ],
+                                  ],
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                    const SizedBox(height: 16),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      child: Container(
+                        width: double.infinity,
+                        padding: const EdgeInsets.all(16),
+                        decoration: BoxDecoration(
+                          color: theme.colorScheme.surfaceContainerHighest
+                              .withValues(alpha: 0.6),
+                          borderRadius: BorderRadius.circular(12),
+                          border: Border.all(
+                            color: theme.colorScheme.outline.withValues(
+                              alpha: 0.15,
+                            ),
+                          ),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            SelectableText(
+                              pending.summary,
+                              style: TextStyle(
+                                fontFamily: 'monospace',
+                                fontSize: 14,
+                                height: 1.5,
+                                color: theme.colorScheme.onSurface,
+                              ),
+                            ),
+                            if (pending.details.isNotEmpty) ...[
+                              const SizedBox(height: 12),
+                              for (final detail in pending.details)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: 4),
+                                  child: Row(
+                                    crossAxisAlignment:
+                                        CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        '• ',
+                                        style: TextStyle(
+                                          color: theme
+                                              .colorScheme
+                                              .onSurfaceVariant,
+                                          height: 1.4,
+                                        ),
+                                      ),
+                                      Expanded(
+                                        child: SelectableText(
+                                          detail,
+                                          style: TextStyle(
+                                            fontFamily: 'monospace',
+                                            fontSize: 12,
+                                            height: 1.4,
+                                            color: theme
+                                                .colorScheme
+                                                .onSurfaceVariant,
+                                          ),
+                                        ),
+                                      ),
+                                    ],
+                                  ),
+                                ),
+                            ],
+                          ],
+                        ),
+                      ),
+                    ),
+                    if (pending.requiresSmokeArming) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: CheckboxListTile(
+                          value: unsafeArmed,
+                          onChanged: (value) {
+                            setSheetState(() {
+                              unsafeArmed = value ?? false;
+                            });
+                          },
+                          controlAffinity: ListTileControlAffinity.leading,
+                          contentPadding: EdgeInsets.zero,
+                          title: const Text('Arm this Computer Use action'),
+                          subtitle: const Text(
+                            'I understand this can control the Mac and should run now.',
+                          ),
+                        ),
+                      ),
+                    ],
+                    if (!pending.emergencyStop) ...[
+                      const SizedBox(height: 8),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Align(
+                          alignment: Alignment.centerLeft,
+                          child: OutlinedButton.icon(
+                            onPressed: stopInProgress
+                                ? null
+                                : () async {
+                                    setSheetState(() {
+                                      stopInProgress = true;
+                                      stopStatus = null;
+                                    });
+                                    try {
+                                      final result = await ref
+                                          .read(macosComputerUseServiceProvider)
+                                          .stopHelperWork();
+                                      final decoded = jsonDecode(result);
+                                      final ok =
+                                          decoded is Map &&
+                                          decoded['ok'] != false;
+                                      if (!sheetContext.mounted) return;
+                                      setSheetState(() {
+                                        stopStatus = ok
+                                            ? 'Emergency stop sent.'
+                                            : 'Emergency stop returned an error.';
+                                      });
+                                    } catch (error) {
+                                      if (!sheetContext.mounted) return;
+                                      setSheetState(() {
+                                        stopStatus = 'Emergency stop failed.';
+                                      });
+                                    } finally {
+                                      if (sheetContext.mounted) {
+                                        setSheetState(() {
+                                          stopInProgress = false;
+                                        });
+                                      }
+                                    }
+                                  },
+                            icon: stopInProgress
+                                ? const SizedBox(
+                                    width: 16,
+                                    height: 16,
+                                    child: CircularProgressIndicator(
+                                      strokeWidth: 2,
+                                    ),
+                                  )
+                                : const Icon(
+                                    Icons.stop_circle_outlined,
+                                    size: 18,
+                                  ),
+                            label: const Text('Stop Computer Use'),
+                          ),
+                        ),
+                      ),
+                      if (stopStatus != null) ...[
+                        const SizedBox(height: 4),
+                        Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 24),
+                          child: Align(
+                            alignment: Alignment.centerLeft,
+                            child: Text(
+                              stopStatus!,
+                              style: theme.textTheme.bodySmall?.copyWith(
+                                color: theme.colorScheme.onSurfaceVariant,
+                              ),
+                            ),
+                          ),
+                        ),
+                      ],
+                    ],
+                    const SizedBox(height: 24),
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(
+                        24,
+                        0,
+                        24,
+                        16 + MediaQuery.of(sheetContext).padding.bottom,
+                      ),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: OutlinedButton.icon(
+                              onPressed: stopInProgress
+                                  ? null
+                                  : () => Navigator.pop(sheetContext, false),
+                              icon: const Icon(Icons.block_rounded, size: 18),
+                              label: const Text('Deny'),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            flex: 2,
+                            child: FilledButton.icon(
+                              onPressed: unsafeArmed && !stopInProgress
+                                  ? () => Navigator.pop(sheetContext, true)
+                                  : null,
+                              icon: Icon(riskStyle.approveIcon, size: 20),
+                              label: Text(pending.approveLabel),
+                              style: FilledButton.styleFrom(
+                                backgroundColor: riskStyle.buttonColor,
+                                foregroundColor:
+                                    riskStyle.buttonForegroundColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            );
+          },
+        );
+      },
+    );
+
+    ref
+        .read(chatNotifierProvider.notifier)
+        .resolveComputerUseAction(
+          id: pending.id,
+          approved: approved ?? false,
+          armed: unsafeArmed,
+        );
+  }
+
+  _ComputerUseRiskStyle _computerUseRiskStyle(
+    ThemeData theme,
+    String riskCategory,
+    String toolName,
+  ) {
+    final scheme = theme.colorScheme;
+    return switch (riskCategory) {
+      'observe' => _ComputerUseRiskStyle(
+        icon: Icons.visibility_outlined,
+        warningIcon: Icons.visibility_outlined,
+        approveIcon: Icons.visibility_rounded,
+        containerColor: scheme.primaryContainer,
+        iconColor: scheme.onPrimaryContainer,
+        accentColor: scheme.primary,
+        buttonColor: scheme.primary,
+        buttonForegroundColor: scheme.onPrimary,
+      ),
+      'sensitive' => _ComputerUseRiskStyle(
+        icon: Icons.graphic_eq_rounded,
+        warningIcon: Icons.hearing_outlined,
+        approveIcon: Icons.mic_rounded,
+        containerColor: scheme.errorContainer,
+        iconColor: scheme.onErrorContainer,
+        accentColor: scheme.error,
+        buttonColor: scheme.error,
+        buttonForegroundColor: scheme.onError,
+      ),
+      'recovery' => _ComputerUseRiskStyle(
+        icon: Icons.health_and_safety_outlined,
+        warningIcon: Icons.shield_outlined,
+        approveIcon: Icons.stop_circle_outlined,
+        containerColor: scheme.tertiaryContainer,
+        iconColor: scheme.onTertiaryContainer,
+        accentColor: scheme.tertiary,
+        buttonColor: scheme.tertiary,
+        buttonForegroundColor: scheme.onTertiary,
+      ),
+      'setup' => _ComputerUseRiskStyle(
+        icon: Icons.settings_suggest_outlined,
+        warningIcon: Icons.info_outline_rounded,
+        approveIcon: Icons.arrow_forward_rounded,
+        containerColor: scheme.secondaryContainer,
+        iconColor: scheme.onSecondaryContainer,
+        accentColor: scheme.secondary,
+        buttonColor: scheme.secondary,
+        buttonForegroundColor: scheme.onSecondary,
+      ),
+      _ => _ComputerUseRiskStyle(
+        icon: toolName == 'computer_type_text'
+            ? Icons.keyboard_rounded
+            : Icons.ads_click_rounded,
+        warningIcon: Icons.warning_amber_rounded,
+        approveIcon: Icons.check_rounded,
+        containerColor: scheme.errorContainer,
+        iconColor: scheme.onErrorContainer,
+        accentColor: scheme.error,
+        buttonColor: scheme.error,
+        buttonForegroundColor: scheme.onError,
+      ),
+    };
   }
 
   Future<void> _showFileOperationDialog(
@@ -9633,6 +10150,28 @@ class _WorkflowQuickAction {
   final IconData icon;
   final ConversationWorkflowStage targetStage;
   final String promptKey;
+}
+
+class _ComputerUseRiskStyle {
+  const _ComputerUseRiskStyle({
+    required this.icon,
+    required this.warningIcon,
+    required this.approveIcon,
+    required this.containerColor,
+    required this.iconColor,
+    required this.accentColor,
+    required this.buttonColor,
+    required this.buttonForegroundColor,
+  });
+
+  final IconData icon;
+  final IconData warningIcon;
+  final IconData approveIcon;
+  final Color containerColor;
+  final Color iconColor;
+  final Color accentColor;
+  final Color buttonColor;
+  final Color buttonForegroundColor;
 }
 
 const List<_WorkflowQuickAction> _workflowQuickActions = [

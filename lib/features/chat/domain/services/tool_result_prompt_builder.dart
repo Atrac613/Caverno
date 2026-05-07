@@ -79,10 +79,21 @@ class ToolResultPromptBuilder {
       }
       buffer
         ..writeln('Result:')
-        ..write(toolResult.result);
+        ..write(formatToolResultPayload(toolResult.result));
       return buffer.toString().trimRight();
     });
     return sections.join('\n\n');
+  }
+
+  static String formatToolResultPayload(String result) {
+    final decoded = _tryDecodeJsonMap(result);
+    if (decoded == null || decoded['imageBase64'] is! String) {
+      return result;
+    }
+
+    final redacted = Map<String, dynamic>.from(decoded)
+      ..['imageBase64'] = '[attached as image content]';
+    return jsonEncode(redacted);
   }
 
   static Map<String, String> descriptionsByNameFromDefinitions(
@@ -125,5 +136,18 @@ class ToolResultPromptBuilder {
           'radios, access points, or BSSIDs rather than user devices.';
     }
     return null;
+  }
+
+  static Map<String, dynamic>? _tryDecodeJsonMap(String value) {
+    final trimmed = value.trim();
+    if (!trimmed.startsWith('{')) {
+      return null;
+    }
+    try {
+      final decoded = jsonDecode(trimmed);
+      return decoded is Map<String, dynamic> ? decoded : null;
+    } catch (_) {
+      return null;
+    }
   }
 }

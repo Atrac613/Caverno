@@ -30,6 +30,13 @@ class RoutineCompletionActionService {
     required RoutineRunRecord runRecord,
     required AppSettings settings,
   }) {
+    if (routine.allowsPromptGoogleChatPost) {
+      return const RoutineDeliveryDecision(
+        status: RoutineDeliveryStatus.notRequested,
+        message: 'Google Chat delivery is controlled by the routine prompt.',
+      );
+    }
+
     if (!routine.postsToGoogleChat) {
       return const RoutineDeliveryDecision(
         status: RoutineDeliveryStatus.notRequested,
@@ -78,7 +85,7 @@ class RoutineCompletionActionService {
     if (runRecord.usedTools) {
       final toolSummary = runRecord.toolNames.isEmpty
           ? '${runRecord.toolCallCount} tool call(s)'
-          : runRecord.toolNames.join(', ');
+          : runRecord.toolDisplayNames.join(', ');
       buffer.writeln('Tools: $toolSummary');
     }
 

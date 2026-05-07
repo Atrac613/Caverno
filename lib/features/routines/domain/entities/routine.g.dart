@@ -33,6 +33,14 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
               ?.map((e) => e as String)
               .toList() ??
           const <String>[],
+      toolCalls: json['toolCalls'] == null
+          ? const <RoutineRunToolCall>[]
+          : _routineRunToolCallsFromJson(json['toolCalls'] as List?),
+      toolSourceLabels:
+          (json['toolSourceLabels'] as Map<String, dynamic>?)?.map(
+            (k, e) => MapEntry(k, e as String),
+          ) ??
+          const <String, String>{},
       deliveryStatus:
           $enumDecodeNullable(
             _$RoutineDeliveryStatusEnumMap,
@@ -47,6 +55,7 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
       preview: json['preview'] as String? ?? '',
       output: json['output'] as String? ?? '',
       error: json['error'] as String? ?? '',
+      failureAcknowledged: json['failureAcknowledged'] as bool? ?? false,
     );
 
 Map<String, dynamic> _$RoutineRunRecordToJson(
@@ -61,12 +70,15 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'usedTools': instance.usedTools,
   'toolCallCount': instance.toolCallCount,
   'toolNames': instance.toolNames,
+  'toolCalls': _routineRunToolCallsToJson(instance.toolCalls),
+  'toolSourceLabels': instance.toolSourceLabels,
   'deliveryStatus': _$RoutineDeliveryStatusEnumMap[instance.deliveryStatus]!,
   'deliveredAt': instance.deliveredAt?.toIso8601String(),
   'deliveryMessage': instance.deliveryMessage,
   'preview': instance.preview,
   'output': instance.output,
   'error': instance.error,
+  'failureAcknowledged': instance.failureAcknowledged,
 };
 
 const _$RoutineRunStatusEnumMap = {
@@ -85,6 +97,22 @@ const _$RoutineDeliveryStatusEnumMap = {
   RoutineDeliveryStatus.delivered: 'delivered',
   RoutineDeliveryStatus.failed: 'failed',
 };
+
+_RoutineRunToolCall _$RoutineRunToolCallFromJson(Map<String, dynamic> json) =>
+    _RoutineRunToolCall(
+      id: json['id'] as String,
+      name: json['name'] as String,
+      arguments: json['arguments'] as String? ?? '',
+      result: json['result'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$RoutineRunToolCallToJson(_RoutineRunToolCall instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'name': instance.name,
+      'arguments': instance.arguments,
+      'result': instance.result,
+    };
 
 _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
   id: json['id'] as String,
@@ -109,6 +137,8 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
         unknownValue: RoutineGoogleChatRule.onFailure,
       ) ??
       RoutineGoogleChatRule.onFailure,
+  workspaceDirectory: json['workspaceDirectory'] as String? ?? '',
+  allowWorkspaceWrites: json['allowWorkspaceWrites'] as bool? ?? false,
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -142,6 +172,8 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'completionAction':
       _$RoutineCompletionActionEnumMap[instance.completionAction]!,
   'googleChatRule': _$RoutineGoogleChatRuleEnumMap[instance.googleChatRule]!,
+  'workspaceDirectory': instance.workspaceDirectory,
+  'allowWorkspaceWrites': instance.allowWorkspaceWrites,
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),
@@ -152,6 +184,7 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
 const _$RoutineCompletionActionEnumMap = {
   RoutineCompletionAction.none: 'none',
   RoutineCompletionAction.googleChat: 'googleChat',
+  RoutineCompletionAction.promptGoogleChat: 'promptGoogleChat',
 };
 
 const _$RoutineGoogleChatRuleEnumMap = {

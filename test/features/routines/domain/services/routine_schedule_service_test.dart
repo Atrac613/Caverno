@@ -66,5 +66,13 @@ void main() {
 
       expect(summary, 'Visible result with extra spacing.');
     });
+
+    test('detects when output contains only thinking content', () {
+      final visible = RoutineScheduleService.visibleOutput(
+        '<think>private reasoning only</think>',
+      );
+
+      expect(visible, isEmpty);
+    });
   });
 }

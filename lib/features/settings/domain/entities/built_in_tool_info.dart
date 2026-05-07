@@ -24,6 +24,7 @@ class BuiltInToolRegistry {
   static const String categoryWebSearch = 'web_search';
   static const String categoryBle = 'ble';
   static const String categorySystem = 'system';
+  static const String categoryComputerUse = 'computer_use';
   static const String categoryWifi = 'wifi';
   static const String categoryLanScan = 'lan_scan';
 
@@ -37,6 +38,7 @@ class BuiltInToolRegistry {
     categoryWebSearch,
     categoryBle,
     categorySystem,
+    categoryComputerUse,
     categoryWifi,
     categoryLanScan,
   ];
@@ -175,6 +177,82 @@ class BuiltInToolRegistry {
       name: 'os_log_read',
       descriptionKey: 'settings.tool_os_log_read',
       category: categorySystem,
+    ),
+    // macOS computer use
+    BuiltInToolInfo(
+      name: 'computer_get_permissions',
+      descriptionKey: 'settings.tool_computer_get_permissions',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_request_permissions',
+      descriptionKey: 'settings.tool_computer_request_permissions',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_open_system_settings',
+      descriptionKey: 'settings.tool_computer_open_system_settings',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_screenshot',
+      descriptionKey: 'settings.tool_computer_screenshot',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_list_windows',
+      descriptionKey: 'settings.tool_computer_list_windows',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_focus_window',
+      descriptionKey: 'settings.tool_computer_focus_window',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_screenshot_window',
+      descriptionKey: 'settings.tool_computer_screenshot_window',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_move_mouse',
+      descriptionKey: 'settings.tool_computer_move_mouse',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_click',
+      descriptionKey: 'settings.tool_computer_click',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_drag',
+      descriptionKey: 'settings.tool_computer_drag',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_scroll',
+      descriptionKey: 'settings.tool_computer_scroll',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_type_text',
+      descriptionKey: 'settings.tool_computer_type_text',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_press_key',
+      descriptionKey: 'settings.tool_computer_press_key',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_start_system_audio_recording',
+      descriptionKey: 'settings.tool_computer_start_system_audio_recording',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
+      name: 'computer_stop_system_audio_recording',
+      descriptionKey: 'settings.tool_computer_stop_system_audio_recording',
+      category: categoryComputerUse,
     ),
     // Coding
     BuiltInToolInfo(
@@ -381,6 +459,7 @@ class BuiltInToolRegistry {
       categoryWebSearch => Icons.search,
       categoryBle => Icons.bluetooth,
       categorySystem => Icons.computer,
+      categoryComputerUse => Icons.ads_click,
       categoryWifi => Icons.wifi,
       categoryLanScan => Icons.device_hub,
       _ => Icons.extension,

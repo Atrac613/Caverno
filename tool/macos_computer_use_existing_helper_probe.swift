@@ -1,0 +1,870 @@
+#!/usr/bin/env swift
+
+import Cocoa
+import Foundation
+
+private enum Ipc {
+  static let protocolVersion = 1
+  static let mainAppBundleIdentifier = "com.noguwo.apps.caverno"
+  static let helperBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
+  static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
+  static let responseName = Notification.Name("com.caverno.computer_use.helper.response")
+
+  enum Field {
+    static let protocolVersion = "protocolVersion"
+    static let requestId = "requestId"
+    static let command = "command"
+    static let senderBundleIdentifier = "senderBundleIdentifier"
+    static let senderProcessIdentifier = "senderProcessIdentifier"
+    static let arguments = "arguments"
+    static let response = "response"
+  }
+}
+
+private struct Config {
+  var appPath: String
+  var helperPath: String
+  var reportPath: String
+  var launchMissingApps = true
+  var launchMissingApp = true
+  var launchMissingHelper = true
+  var requireCaptureReady = false
+  var requireInputReady = false
+  var requireAudioResolved = false
+  var requireAppPathMatch = false
+  var requireHelperPathMatch = false
+  var replaceMismatchedApp = false
+  var replaceMismatchedHelper = false
+  var desktopActionCanary = false
+  var fixtureTarget = false
+}
+
+private final class HelperProbeClient: NSObject {
+  private let center = DistributedNotificationCenter.default()
+  private var pendingRequestId: String?
+  private var receivedUserInfo: [AnyHashable: Any]?
+
+  override init() {
+    super.init()
+    center.addObserver(
+      self,
+      selector: #selector(handleResponse(_:)),
+      name: Ipc.responseName,
+      object: nil,
+      suspensionBehavior: .deliverImmediately
+    )
+    center.suspended = false
+  }
+
+  deinit {
+    center.removeObserver(self)
+  }
+
+  func send(
+    command: String,
+    arguments: [String: Any],
+    senderProcessIdentifier: Int,
+    timeout: TimeInterval
+  ) -> [String: Any] {
+    let requestId = UUID().uuidString
+    pendingRequestId = requestId
+    receivedUserInfo = nil
+
+    center.postNotificationName(
+      Ipc.requestName,
+      object: Ipc.mainAppBundleIdentifier,
+      userInfo: [
+        Ipc.Field.protocolVersion: Ipc.protocolVersion,
+        Ipc.Field.requestId: requestId,
+        Ipc.Field.command: command,
+        Ipc.Field.senderBundleIdentifier: Ipc.mainAppBundleIdentifier,
+        Ipc.Field.senderProcessIdentifier: senderProcessIdentifier,
+        Ipc.Field.arguments: arguments,
+      ],
+      deliverImmediately: true
+    )
+
+    let deadline = Date().addingTimeInterval(timeout)
+    while receivedUserInfo == nil && Date() < deadline {
+      RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.05))
+    }
+
+    guard let userInfo = receivedUserInfo else {
+      return [
+        "ok": false,
+        "code": "timeout",
+        "error": "Caverno Computer Use did not respond before the probe timeout.",
+        "requestId": requestId,
+        "command": command,
+      ]
+    }
+    let protocolVersion = userInfo[Ipc.Field.protocolVersion] as? Int ?? 0
+    let responseCommand = userInfo[Ipc.Field.command] as? String ?? ""
+    guard protocolVersion == Ipc.protocolVersion else {
+      return [
+        "ok": false,
+        "code": "unsupported_protocol",
+        "error": "Caverno Computer Use returned an unsupported protocol version.",
+        "protocolVersion": protocolVersion,
+        "requestId": requestId,
+        "command": command,
+      ]
+    }
+    guard responseCommand == command else {
+      return [
+        "ok": false,
+        "code": "response_mismatch",
+        "error": "Caverno Computer Use returned a response for a different command.",
+        "expectedCommand": command,
+        "actualCommand": responseCommand,
+        "requestId": requestId,
+      ]
+    }
+    guard var response = userInfo[Ipc.Field.response] as? [String: Any] else {
+      return [
+        "ok": false,
+        "code": "invalid_response",
+        "error": "Caverno Computer Use returned an invalid response envelope.",
+        "requestId": requestId,
+        "command": command,
+      ]
+    }
+    response["requestId"] = requestId
+    response["command"] = command
+    return response
+  }
+
+  @objc private func handleResponse(_ notification: Notification) {
+    guard
+      let userInfo = notification.userInfo,
+      let requestId = userInfo[Ipc.Field.requestId] as? String,
+      requestId == pendingRequestId
+    else {
+      return
+    }
+    receivedUserInfo = userInfo
+  }
+}
+
+private func parseConfig(arguments: [String]) -> Config {
+  let root = FileManager.default.currentDirectoryPath
+  let defaultAppPath = "\(root)/build/macos/Build/Products/Debug/Caverno.app"
+  let defaultHelperPath = "\(defaultAppPath)/Contents/Helpers/Caverno Computer Use.app"
+  var config = Config(
+    appPath: defaultAppPath,
+    helperPath: defaultHelperPath,
+    reportPath: "/tmp/caverno-macos-computer-use-existing-helper-probe.json"
+  )
+  var index = 0
+  while index < arguments.count {
+    switch arguments[index] {
+    case "--app":
+      index += 1
+      config.appPath = arguments[index]
+    case "--helper":
+      index += 1
+      config.helperPath = arguments[index]
+    case "--report":
+      index += 1
+      config.reportPath = arguments[index]
+    case "--no-launch":
+      config.launchMissingApps = false
+      config.launchMissingApp = false
+      config.launchMissingHelper = false
+    case "--no-launch-app":
+      config.launchMissingApp = false
+    case "--no-launch-helper":
+      config.launchMissingHelper = false
+    case "--require-capture", "--require-capture-ready":
+      config.requireCaptureReady = true
+    case "--require-input", "--require-input-ready":
+      config.requireInputReady = true
+    case "--require-audio", "--require-audio-resolved":
+      config.requireAudioResolved = true
+    case "--require-app-path-match":
+      config.requireAppPathMatch = true
+    case "--require-helper-path-match":
+      config.requireHelperPathMatch = true
+    case "--replace-app":
+      config.replaceMismatchedApp = true
+    case "--replace-helper":
+      config.replaceMismatchedHelper = true
+    case "--desktop-action-canary":
+      config.desktopActionCanary = true
+    case "--fixture-target", "--mvp-fixture":
+      config.desktopActionCanary = true
+      config.fixtureTarget = true
+    default:
+      fatalError("Unknown option: \(arguments[index])")
+    }
+    index += 1
+  }
+  if config.helperPath.isEmpty {
+    config.helperPath = "\(config.appPath)/Contents/Helpers/Caverno Computer Use.app"
+  }
+  return config
+}
+
+private func runningApplication(bundleIdentifier: String) -> NSRunningApplication? {
+  NSRunningApplication.runningApplications(withBundleIdentifier: bundleIdentifier)
+    .first { !$0.isTerminated }
+}
+
+private func openApplication(path: String) -> [String: Any] {
+  let url = URL(fileURLWithPath: path)
+  let configuration = NSWorkspace.OpenConfiguration()
+  configuration.activates = true
+  let semaphore = DispatchSemaphore(value: 0)
+  var result: [String: Any] = ["path": path]
+  NSWorkspace.shared.openApplication(at: url, configuration: configuration) { application, error in
+    if let error {
+      result["ok"] = false
+      result["error"] = error.localizedDescription
+    } else {
+      result["ok"] = true
+      if let application {
+        result["processIdentifier"] = Int(application.processIdentifier)
+      }
+    }
+    semaphore.signal()
+  }
+  _ = semaphore.wait(timeout: .now() + 8)
+  return result
+}
+
+private func waitForRunningApplication(
+  bundleIdentifier: String,
+  timeout: TimeInterval
+) -> NSRunningApplication? {
+  let deadline = Date().addingTimeInterval(timeout)
+  while Date() < deadline {
+    if let application = runningApplication(bundleIdentifier: bundleIdentifier) {
+      return application
+    }
+    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+  }
+  return runningApplication(bundleIdentifier: bundleIdentifier)
+}
+
+private func waitForNoRunningApplication(
+  bundleIdentifier: String,
+  timeout: TimeInterval
+) -> Bool {
+  let deadline = Date().addingTimeInterval(timeout)
+  while Date() < deadline {
+    if runningApplication(bundleIdentifier: bundleIdentifier) == nil {
+      return true
+    }
+    RunLoop.current.run(mode: .default, before: Date().addingTimeInterval(0.1))
+  }
+  return runningApplication(bundleIdentifier: bundleIdentifier) == nil
+}
+
+private func runStep(
+  _ steps: inout [[String: Any]],
+  id: String,
+  label: String,
+  operation: () -> [String: Any]
+) -> [String: Any] {
+  let startedAt = Date()
+  let response = operation()
+  let ok = response["ok"] as? Bool ?? false
+  let step: [String: Any] = [
+    "id": id,
+    "label": label,
+    "ok": ok,
+    "elapsedMs": Int(Date().timeIntervalSince(startedAt) * 1000),
+    "response": response,
+  ]
+  steps.append(step)
+  return response
+}
+
+private func runRetriedStep(
+  _ steps: inout [[String: Any]],
+  id: String,
+  label: String,
+  attempts: Int,
+  delay: TimeInterval,
+  operation: (_ attempt: Int) -> [String: Any]
+) -> [String: Any] {
+  let startedAt = Date()
+  var attemptReports: [[String: Any]] = []
+  var finalResponse: [String: Any] = [:]
+  for attempt in 1...max(1, attempts) {
+    let attemptStartedAt = Date()
+    let response = operation(attempt)
+    finalResponse = response
+    attemptReports.append([
+      "attempt": attempt,
+      "ok": response["ok"] as? Bool ?? false,
+      "code": jsonValue(response["code"] as? String),
+      "elapsedMs": Int(Date().timeIntervalSince(attemptStartedAt) * 1000),
+    ])
+    if response["ok"] as? Bool ?? false {
+      break
+    }
+    if attempt < attempts {
+      Thread.sleep(forTimeInterval: delay)
+    }
+  }
+  let ok = finalResponse["ok"] as? Bool ?? false
+  let step: [String: Any] = [
+    "id": id,
+    "label": label,
+    "ok": ok,
+    "elapsedMs": Int(Date().timeIntervalSince(startedAt) * 1000),
+    "attempts": attemptReports,
+    "response": finalResponse,
+  ]
+  steps.append(step)
+  return finalResponse
+}
+
+private func firstWindowId(_ response: [String: Any]) -> Int? {
+  firstWindow(response)?["windowId"] as? Int
+}
+
+private func firstWindow(_ response: [String: Any]) -> [String: Any]? {
+  guard let windows = response["windows"] as? [[String: Any]] else {
+    return nil
+  }
+  for window in windows {
+    if window["windowId"] is Int {
+      return window
+    }
+    if let id = window["window_id"] as? Int {
+      var normalized = window
+      normalized["windowId"] = id
+      return normalized
+    }
+  }
+  return nil
+}
+
+private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
+  guard let windows = response["windows"] as? [[String: Any]] else {
+    return nil
+  }
+  return windows.first { window in
+    let appName = (window["appName"] as? String ?? "").lowercased()
+    let title = (window["title"] as? String ?? "").lowercased()
+    return appName.contains("caverno computer use mvp fixtur")
+      || title.contains("caverno computer use mvp fixture")
+  }
+}
+
+private func intWindowId(_ window: [String: Any]?) -> Int? {
+  guard let window else {
+    return nil
+  }
+  if let id = window["windowId"] as? Int {
+    return id
+  }
+  if let id = window["window_id"] as? Int {
+    return id
+  }
+  return nil
+}
+
+private func hasImage(_ response: [String: Any]) -> Bool {
+  guard let image = response["imageBase64"] as? String else {
+    return false
+  }
+  return !image.isEmpty
+}
+
+private func clickPoint(for capture: [String: Any], fixtureTarget: Bool) -> [String: Any] {
+  let width = (capture["width"] as? NSNumber)?.doubleValue
+    ?? capture["width"] as? Double
+    ?? 400
+  let height = (capture["height"] as? NSNumber)?.doubleValue
+    ?? capture["height"] as? Double
+    ?? 300
+  let xRatio = fixtureTarget ? 0.18 : 0.50
+  let yRatio = fixtureTarget ? 0.58 : 0.50
+  return [
+    "x": max(8, min(width - 8, width * xRatio)),
+    "y": max(8, min(height - 8, height * yRatio)),
+    "source_width": Int(width),
+    "source_height": Int(height),
+  ]
+}
+
+private func desktopActionGate(
+  preObserve: [String: Any],
+  click: [String: Any],
+  postObserve: [String: Any],
+  targetWindow: [String: Any]?
+) -> [String: Any] {
+  let preOk = preObserve["ok"] as? Bool ?? false
+  let clickOk = click["ok"] as? Bool ?? false
+  let postOk = postObserve["ok"] as? Bool ?? false
+  let preImage = hasImage(preObserve)
+  let postImage = hasImage(postObserve)
+  let ready = preOk && preImage && clickOk && postOk && postImage
+  var blockers: [String] = []
+  if !preOk {
+    blockers.append("initial_vision_observe_failed")
+  }
+  if preOk && !preImage {
+    blockers.append("initial_vision_image_missing")
+  }
+  if !clickOk {
+    blockers.append("armed_click_failed_or_skipped")
+  }
+  if !postOk {
+    blockers.append("post_click_vision_observe_failed")
+  }
+  if postOk && !postImage {
+    blockers.append("post_click_vision_image_missing")
+  }
+  return [
+    "status": ready ? "ready" : "blocked",
+    "ok": ready,
+    "purpose": "computer_use_desktop_action_canary",
+    "tccBoundary": "manual_user_operated",
+    "requiredAction": "computer_click",
+    "targetWindow": jsonValue(targetWindow),
+    "initialObservationImageAttached": preImage,
+    "clickPassed": clickOk,
+    "postClickObservationImageAttached": postImage,
+    "blockers": blockers,
+    "nextAction": ready
+      ? "Desktop action canary observed, clicked, and observed again without rebuilding."
+      : "Grant required TCC permissions to the existing helper path, keep the safe target visible, then rerun the no-build desktop action canary.",
+  ]
+}
+
+private func writeReport(_ report: [String: Any], path: String) {
+  guard JSONSerialization.isValidJSONObject(report) else {
+    fatalError("Probe report is not valid JSON.")
+  }
+  let data = try! JSONSerialization.data(
+    withJSONObject: report,
+    options: [.prettyPrinted, .sortedKeys]
+  )
+  try! data.write(to: URL(fileURLWithPath: path), options: [.atomic])
+  let redactedReport = redactForStdout(report)
+  let stdoutData = try! JSONSerialization.data(
+    withJSONObject: redactedReport,
+    options: [.prettyPrinted, .sortedKeys]
+  )
+  FileHandle.standardOutput.write(stdoutData)
+  FileHandle.standardOutput.write("\n".data(using: .utf8)!)
+}
+
+private func jsonValue<T>(_ value: T?) -> Any {
+  value as Any? ?? NSNull()
+}
+
+private func redactForStdout(_ value: Any) -> Any {
+  if let dictionary = value as? [String: Any] {
+    return dictionary.reduce(into: [String: Any]()) { partial, entry in
+      if entry.key == "imageBase64" {
+        partial[entry.key] = "<redacted: written to report file>"
+      } else {
+        partial[entry.key] = redactForStdout(entry.value)
+      }
+    }
+  }
+  if let array = value as? [Any] {
+    return array.map(redactForStdout)
+  }
+  return value
+}
+
+private let config = parseConfig(arguments: Array(CommandLine.arguments.dropFirst()))
+let fileManager = FileManager.default
+let appExists = fileManager.fileExists(atPath: config.appPath)
+let helperExists = fileManager.fileExists(atPath: config.helperPath)
+let configuredAppPath = URL(fileURLWithPath: config.appPath).standardizedFileURL.path
+let configuredHelperPath = URL(fileURLWithPath: config.helperPath).standardizedFileURL.path
+var launchEvents: [[String: Any]] = []
+
+if config.replaceMismatchedApp,
+  let app = runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier) {
+  let runningPath = app.bundleURL?.standardizedFileURL.path
+  if runningPath != configuredAppPath {
+    let terminated = app.terminate()
+    let stopped = waitForNoRunningApplication(
+      bundleIdentifier: Ipc.mainAppBundleIdentifier,
+      timeout: 4
+    )
+    launchEvents.append([
+      "role": "app_replace",
+      "terminated": terminated,
+      "stopped": stopped,
+      "previousPath": jsonValue(runningPath),
+      "expectedPath": configuredAppPath,
+      "previousProcessIdentifier": Int(app.processIdentifier),
+    ])
+  }
+}
+
+if config.replaceMismatchedHelper,
+  let helper = runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier) {
+  let runningPath = helper.bundleURL?.standardizedFileURL.path
+  if runningPath != configuredHelperPath {
+    let terminated = helper.terminate()
+    let stopped = waitForNoRunningApplication(
+      bundleIdentifier: Ipc.helperBundleIdentifier,
+      timeout: 4
+    )
+    launchEvents.append([
+      "role": "helper_replace",
+      "terminated": terminated,
+      "stopped": stopped,
+      "previousPath": jsonValue(runningPath),
+      "expectedPath": configuredHelperPath,
+      "previousProcessIdentifier": Int(helper.processIdentifier),
+    ])
+  }
+}
+
+if config.launchMissingApps && config.launchMissingApp && appExists &&
+  runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier) == nil {
+  launchEvents.append([
+    "role": "app",
+    "result": openApplication(path: config.appPath),
+  ])
+  _ = waitForRunningApplication(
+    bundleIdentifier: Ipc.mainAppBundleIdentifier,
+    timeout: 8
+  )
+}
+
+if config.launchMissingApps && config.launchMissingHelper && helperExists &&
+  runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier) == nil {
+  launchEvents.append([
+    "role": "helper",
+    "result": openApplication(path: config.helperPath),
+  ])
+  _ = waitForRunningApplication(
+    bundleIdentifier: Ipc.helperBundleIdentifier,
+    timeout: 8
+  )
+}
+
+let app = runningApplication(bundleIdentifier: Ipc.mainAppBundleIdentifier)
+let helper = runningApplication(bundleIdentifier: Ipc.helperBundleIdentifier)
+let appProcessIdentifier = app.map { Int($0.processIdentifier) }
+let helperProcessIdentifier = helper.map { Int($0.processIdentifier) }
+let runningAppPath = app?.bundleURL?.standardizedFileURL.path
+let runningHelperPath = helper?.bundleURL?.standardizedFileURL.path
+var steps: [[String: Any]] = []
+private let client = HelperProbeClient()
+
+var permissionStatus: [String: Any] = [
+  "ok": false,
+  "code": "app_not_running",
+  "error": config.launchMissingApp
+    ? "Caverno.app must be running so the helper can validate the sender bundle."
+    : "Caverno.app is not running. Launch it manually, then rerun the probe.",
+]
+var displayScreenshot: [String: Any] = [:]
+var windows: [String: Any] = [:]
+var windowCapture: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Window capture was skipped because no window id was available.",
+]
+var desktopActionClick: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Desktop action canary was not requested.",
+]
+var desktopActionPostCapture: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Post-click capture was skipped because no click was sent.",
+]
+var desktopActionTargetWindow: [String: Any]?
+
+if let appProcessIdentifier {
+  permissionStatus = runRetriedStep(
+    &steps,
+    id: "permission_status",
+    label: "Read helper-owned permission status",
+    attempts: 3,
+    delay: 0.5
+  ) { _ in
+    client.send(
+      command: "permissionStatus",
+      arguments: [:],
+      senderProcessIdentifier: appProcessIdentifier,
+      timeout: 6
+    )
+  }
+  displayScreenshot = runStep(
+    &steps,
+    id: "display_screenshot",
+    label: "Capture a display screenshot without rebuilding"
+  ) {
+    client.send(
+      command: "screenshot",
+      arguments: ["max_width": 400],
+      senderProcessIdentifier: appProcessIdentifier,
+      timeout: 8
+    )
+  }
+  windows = runStep(
+    &steps,
+    id: "list_windows",
+    label: "List visible windows without rebuilding"
+  ) {
+    client.send(
+      command: "listWindows",
+      arguments: [
+        "max_windows": 20,
+        "include_current_app": false,
+        "main_app_pid": appProcessIdentifier,
+      ],
+      senderProcessIdentifier: appProcessIdentifier,
+      timeout: 4
+    )
+  }
+  desktopActionTargetWindow = config.fixtureTarget ? fixtureWindow(windows) : firstWindow(windows)
+  let captureWindowId = config.desktopActionCanary
+    ? intWindowId(desktopActionTargetWindow)
+    : firstWindowId(windows)
+  if let windowId = captureWindowId {
+    windowCapture = runStep(
+      &steps,
+      id: "window_capture",
+      label: "Capture the first visible window without rebuilding"
+    ) {
+      client.send(
+        command: "screenshotWindow",
+        arguments: [
+          "window_id": windowId,
+          "max_width": 400,
+        ],
+        senderProcessIdentifier: appProcessIdentifier,
+        timeout: 8
+      )
+    }
+  } else {
+    steps.append([
+      "id": "window_capture",
+      "label": "Capture the first visible window without rebuilding",
+      "ok": false,
+      "skipped": true,
+      "reason": "No visible windows were returned.",
+    ])
+  }
+  if config.desktopActionCanary,
+     let windowId = intWindowId(desktopActionTargetWindow) {
+    _ = runStep(
+      &steps,
+      id: "desktop_action_focus_window",
+      label: "Focus the safe desktop action target without rebuilding"
+    ) {
+      client.send(
+        command: "focusWindow",
+        arguments: ["window_id": windowId],
+        senderProcessIdentifier: appProcessIdentifier,
+        timeout: 4
+      )
+    }
+    if windowCapture["ok"] as? Bool ?? false {
+      var clickArguments = clickPoint(
+        for: windowCapture,
+        fixtureTarget: config.fixtureTarget
+      )
+      clickArguments["window_id"] = windowId
+      clickArguments["button"] = "left"
+      clickArguments["click_count"] = 1
+      clickArguments["reason"] = "Desktop action canary was explicitly user-operated and armed for a harmless target."
+      desktopActionClick = runStep(
+        &steps,
+        id: "desktop_action_click",
+        label: "Click the safe desktop action target without rebuilding"
+      ) {
+        client.send(
+          command: "click",
+          arguments: clickArguments,
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 4
+        )
+      }
+      desktopActionPostCapture = runStep(
+        &steps,
+        id: "desktop_action_post_click_window_capture",
+        label: "Capture the desktop action target after clicking without rebuilding"
+      ) {
+        client.send(
+          command: "screenshotWindow",
+          arguments: [
+            "window_id": windowId,
+            "max_width": 400,
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 8
+        )
+      }
+    } else {
+      steps.append([
+        "id": "desktop_action_click",
+        "label": "Click the safe desktop action target without rebuilding",
+        "ok": false,
+        "skipped": true,
+        "reason": "Initial target capture failed.",
+      ])
+      steps.append([
+        "id": "desktop_action_post_click_window_capture",
+        "label": "Capture the desktop action target after clicking without rebuilding",
+        "ok": false,
+        "skipped": true,
+        "reason": "Click was skipped because initial target capture failed.",
+      ])
+    }
+  } else if config.desktopActionCanary {
+    steps.append([
+      "id": "desktop_action_click",
+      "label": "Click the safe desktop action target without rebuilding",
+      "ok": false,
+      "skipped": true,
+      "reason": "No safe target window was available.",
+    ])
+    steps.append([
+      "id": "desktop_action_post_click_window_capture",
+      "label": "Capture the desktop action target after clicking without rebuilding",
+      "ok": false,
+      "skipped": true,
+      "reason": "Click was skipped because no target window was available.",
+    ])
+  }
+}
+
+let accessibilityGranted = permissionStatus["accessibilityGranted"] as? Bool ?? false
+let screenCaptureGranted = permissionStatus["screenCaptureGranted"] as? Bool ?? false
+let audioSupported = permissionStatus["systemAudioRecordingSupported"] as? Bool ?? false
+let captureReady = (displayScreenshot["ok"] as? Bool ?? false) &&
+  (windows["ok"] as? Bool ?? false) &&
+  (windowCapture["ok"] as? Bool ?? false)
+let inputReady = accessibilityGranted
+let audioResolved = !audioSupported || screenCaptureGranted
+let appPathMatchesExpected = runningAppPath == nil ||
+  runningAppPath == configuredAppPath
+let helperPathMatchesExpected = runningHelperPath == nil ||
+  runningHelperPath == configuredHelperPath
+let pathMismatchInvalidatesSignoff = (!appPathMatchesExpected || !helperPathMatchesExpected) &&
+  (captureReady || inputReady || audioResolved)
+let helperPathMismatchInvalidatesSignoff = !helperPathMatchesExpected &&
+  (captureReady || inputReady || audioResolved)
+let nextAction: String
+if !appPathMatchesExpected {
+  nextAction = "Stop the running Caverno.app and rerun the probe with --replace-app before using these results for release runtime sign-off."
+} else if !helperPathMatchesExpected {
+  nextAction = "Stop the standalone helper and rerun the probe with --replace-helper before using these results for embedded-helper sign-off."
+} else if !screenCaptureGranted {
+  nextAction = "Grant Screen & System Audio Recording to the expected embedded helper path, then rerun this probe with --require-capture."
+} else if !inputReady {
+  nextAction = "Grant Accessibility to the expected embedded helper path, then rerun this probe with --require-input."
+} else {
+  nextAction = "Embedded helper sign-off gates are ready for the requested checks."
+}
+let requiredChecks: [[String: Any]] = [
+  [
+    "id": "capture_ready",
+    "required": config.requireCaptureReady,
+    "ok": !config.requireCaptureReady || captureReady,
+  ],
+  [
+    "id": "input_ready",
+    "required": config.requireInputReady,
+    "ok": !config.requireInputReady || inputReady,
+  ],
+  [
+    "id": "audio_resolved",
+    "required": config.requireAudioResolved,
+    "ok": !config.requireAudioResolved || audioResolved,
+  ],
+  [
+    "id": "app_path_match",
+    "required": config.requireAppPathMatch,
+    "ok": !config.requireAppPathMatch || appPathMatchesExpected,
+  ],
+  [
+    "id": "helper_path_match",
+    "required": config.requireHelperPathMatch,
+    "ok": !config.requireHelperPathMatch || helperPathMatchesExpected,
+  ],
+]
+let failedRequiredChecks = requiredChecks
+  .filter { ($0["required"] as? Bool ?? false) && !($0["ok"] as? Bool ?? false) }
+  .compactMap { $0["id"] as? String }
+let coreOk = appProcessIdentifier != nil &&
+  helperProcessIdentifier != nil &&
+  (permissionStatus["ok"] as? Bool ?? false)
+let desktopActionCanaryGate: [String: Any] = config.desktopActionCanary
+  ? desktopActionGate(
+    preObserve: windowCapture,
+    click: desktopActionClick,
+    postObserve: desktopActionPostCapture,
+    targetWindow: desktopActionTargetWindow
+  )
+  : [
+    "status": "not_run",
+    "ok": true,
+    "blockers": [],
+    "nextAction": "Rerun with --desktop-action-canary to run a no-build desktop action canary.",
+  ]
+let desktopActionOk = !config.desktopActionCanary ||
+  (desktopActionCanaryGate["ok"] as? Bool ?? false)
+let ok = coreOk && failedRequiredChecks.isEmpty && desktopActionOk
+
+let report: [String: Any] = [
+  "schemaName": "macos_computer_use_existing_helper_probe",
+  "schemaVersion": 1,
+  "generatedAt": ISO8601DateFormatter().string(from: Date()),
+  "noRebuild": true,
+  "desktopActionCanary": config.desktopActionCanary,
+  "fixtureTarget": config.fixtureTarget,
+  "replaceMismatchedApp": config.replaceMismatchedApp,
+  "replaceMismatchedHelper": config.replaceMismatchedHelper,
+  "launchMissingApp": config.launchMissingApps && config.launchMissingApp,
+  "launchMissingHelper": config.launchMissingApps && config.launchMissingHelper,
+  "ok": ok,
+  "coreOk": coreOk,
+  "captureReady": captureReady,
+  "inputReady": inputReady,
+  "audioResolved": audioResolved,
+  "appPathMatchesExpected": appPathMatchesExpected,
+  "helperPathMatchesExpected": helperPathMatchesExpected,
+  "pathMismatchInvalidatesSignoff": pathMismatchInvalidatesSignoff,
+  "helperPathMismatchInvalidatesSignoff": helperPathMismatchInvalidatesSignoff,
+  "nextAction": nextAction,
+  "requiredChecks": requiredChecks,
+  "failedRequiredChecks": failedRequiredChecks,
+  "app": [
+    "bundleIdentifier": Ipc.mainAppBundleIdentifier,
+    "expectedPath": configuredAppPath,
+    "exists": appExists,
+    "running": appProcessIdentifier != nil,
+    "processIdentifier": jsonValue(appProcessIdentifier),
+    "runningPath": jsonValue(runningAppPath),
+    "pathMatchesExpected": appPathMatchesExpected,
+  ],
+  "helper": [
+    "bundleIdentifier": Ipc.helperBundleIdentifier,
+    "expectedPath": configuredHelperPath,
+    "exists": helperExists,
+    "running": helperProcessIdentifier != nil,
+    "processIdentifier": jsonValue(helperProcessIdentifier),
+    "runningPath": jsonValue(runningHelperPath),
+    "pathMatchesExpected": helperPathMatchesExpected,
+  ],
+  "launchEvents": launchEvents,
+  "permissionSummary": [
+    "accessibilityGranted": accessibilityGranted,
+    "screenCaptureGranted": screenCaptureGranted,
+    "systemAudioRecordingSupported": audioSupported,
+  ],
+  "desktopActionCanaryGate": desktopActionCanaryGate,
+  "steps": steps,
+]
+
+writeReport(report, path: config.reportPath)
+exit(ok ? 0 : 1)

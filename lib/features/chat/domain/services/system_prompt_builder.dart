@@ -51,6 +51,9 @@ class SystemPromptBuilder {
     final hasOsSystemInfoTool = uniqueToolNames.contains('os_get_system_info');
     final hasOsLogTool = uniqueToolNames.contains('os_log_read');
     final hasGitTool = uniqueToolNames.contains('git_execute_command');
+    final hasComputerUseTools = uniqueToolNames.any(
+      (name) => name.startsWith('computer_'),
+    );
 
     final date = _formatDate(now);
     final time = _formatTime(now);
@@ -318,6 +321,52 @@ class SystemPromptBuilder {
           'conversations, use search_past_conversations to find the relevant '
           'information before answering from memory alone. '
           'Use recall_memory for quick lookups of known facts and preferences.',
+        );
+      }
+      if (hasComputerUseTools) {
+        buffer.writeln(
+          'For macOS computer-use tasks, start with computer_vision_observe. '
+          'Use target=window with a known window_id, target=front_window for '
+          'the first visible non-Caverno window, or target=display for the '
+          'full display.',
+        );
+        buffer.writeln(
+          'After every click, drag, scroll, text input, key press, or system '
+          'audio recording state change, observe again with '
+          'computer_vision_observe before deciding the next desktop action.',
+        );
+        buffer.writeln(
+          'Use raw computer_list_windows, computer_screenshot, and '
+          'computer_screenshot_window only for focused follow-up checks when '
+          'computer_vision_observe is too broad.',
+        );
+        buffer.writeln(
+          'Use screenshot pixel coordinates from the latest observation. '
+          'Include window_id for window screenshots, source_width, '
+          'source_height, coordinate_space, and vision_observation_id when '
+          'calling coordinate-based computer tools.',
+        );
+        buffer.writeln(
+          'When a desktop action returns an attached post-action observation, '
+          'inspect that observation before proposing any further desktop '
+          'action. Treat one observe-action-observe cycle as the smallest safe '
+          'unit of work.',
+        );
+        buffer.writeln(
+          'If a computer-use result reports accessibility_denied, '
+          'screen_capture_unavailable, or screenshot_failed, follow the '
+          'returned nextAction. Use computer_open_system_settings only when '
+          'the user wants the relevant macOS settings pane opened.',
+        );
+        buffer.writeln(
+          'If the target is ambiguous, hidden, or could trigger credential, '
+          'payment, destructive, or external-send behavior, pause and ask the '
+          'user instead of guessing.',
+        );
+        buffer.writeln(
+          'The app will show approval dialogs for desktop control actions; '
+          'treat those approvals as sufficient and do not ask for duplicate '
+          'permission in natural language.',
         );
       }
     }

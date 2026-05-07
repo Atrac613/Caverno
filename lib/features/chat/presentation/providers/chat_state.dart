@@ -107,6 +107,58 @@ class PendingLocalCommand {
   final Completer<bool> completer;
 }
 
+/// Decision for a macOS computer-use action approval request.
+class ComputerUseActionApprovalDecision {
+  const ComputerUseActionApprovalDecision({
+    required this.approved,
+    required this.armed,
+    this.blockerCode,
+  });
+
+  final bool approved;
+  final bool armed;
+  final String? blockerCode;
+}
+
+/// Pending macOS computer-use action awaiting user approval.
+class PendingComputerUseAction {
+  PendingComputerUseAction({
+    required this.id,
+    required this.toolName,
+    required this.title,
+    required this.riskCategory,
+    required this.riskLabel,
+    required this.warningMessage,
+    required this.approveLabel,
+    required this.requiresUserApproval,
+    required this.requiresSmokeArming,
+    required this.emergencyStop,
+    required this.summary,
+    required this.details,
+    required this.visionObservationSummary,
+    required this.visionObservationDetails,
+    required this.reason,
+    required this.completer,
+  });
+
+  final String id;
+  final String toolName;
+  final String title;
+  final String riskCategory;
+  final String riskLabel;
+  final String warningMessage;
+  final String approveLabel;
+  final bool requiresUserApproval;
+  final bool requiresSmokeArming;
+  final bool emergencyStop;
+  final String summary;
+  final List<String> details;
+  final String? visionObservationSummary;
+  final List<String> visionObservationDetails;
+  final String? reason;
+  final Completer<ComputerUseActionApprovalDecision> completer;
+}
+
 /// Pending local file operation awaiting user approval.
 class PendingFileOperation {
   PendingFileOperation({
@@ -229,6 +281,8 @@ abstract class ChatState with _$ChatState {
     PendingGitCommand? pendingGitCommand,
     // Local shell tool UI flow.
     PendingLocalCommand? pendingLocalCommand,
+    // macOS computer-use tool UI flow.
+    PendingComputerUseAction? pendingComputerUseAction,
     // File mutation tool UI flow.
     PendingFileOperation? pendingFileOperation,
     // BLE tool UI flow — same Completer-based pattern as SSH.

@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +9,7 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:caverno/core/services/app_lifecycle_service.dart';
 import 'package:caverno/core/services/background_task_service.dart';
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/notification_providers.dart';
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
@@ -810,10 +812,17 @@ class _PlanSettingsNotifier extends SettingsNotifier {
 }
 
 class _FakeMcpToolService extends McpToolService {
-  _FakeMcpToolService({required this.results, this.descriptions = const {}});
+  _FakeMcpToolService({
+    required this.results,
+    this.descriptions = const {},
+    Map<String, List<String>> queuedResults = const {},
+  }) : queuedResults = queuedResults.map(
+         (key, value) => MapEntry(key, Queue<String>.from(value)),
+       );
 
   final Map<String, String> results;
   final Map<String, String> descriptions;
+  final Map<String, Queue<String>> queuedResults;
   final List<String> executedToolNames = [];
 
   @override
@@ -845,6 +854,14 @@ class _FakeMcpToolService extends McpToolService {
     required Map<String, dynamic> arguments,
   }) async {
     executedToolNames.add(name);
+    final queued = queuedResults[name];
+    if (queued != null && queued.isNotEmpty) {
+      return McpToolResult(
+        toolName: name,
+        result: queued.removeFirst(),
+        isSuccess: true,
+      );
+    }
     return McpToolResult(
       toolName: name,
       result: results[name] ?? '',
@@ -1501,6 +1518,425 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test('approved input actions record post-action observations', () async {
+    for (final caseData in const [
+      (
+        toolName: 'computer_drag',
+        arguments: {'from_x': 10, 'from_y': 20, 'to_x': 30, 'to_y': 40},
+        result: '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      ),
+      (
+        toolName: 'computer_scroll',
+        arguments: {'x': 20, 'y': 30, 'delta_y': -5},
+        result: '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      ),
+      (
+        toolName: 'computer_type_text',
+        arguments: {'text': 'secret typed body'},
+        result:
+            '{"selectedIpcTransport":"xpc_service","code":"ok","characters":17,"text":"secret typed body"}',
+      ),
+      (
+        toolName: 'computer_press_key',
+        arguments: {'key': 'escape'},
+        result: '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      ),
+    ]) {
+      MacosComputerUseAuditLog.instance.clear();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-${caseData.toolName}',
+            name: caseData.toolName,
+            arguments: Map<String, dynamic>.from(caseData.arguments),
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          caseData.toolName: caseData.result,
+          'computer_vision_observe':
+              '{"ok":true,"schemaName":"macos_computer_use_vision_observation","selectedIpcTransport":"xpc_service","code":"ok","target":{"resolved":"front_window"},"coordinateSpace":"window_pixels","imageBase64":"secret","imageMimeType":"image/png"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final sendFuture = toolNotifier.sendMessage('Use ${caseData.toolName}');
+
+        PendingComputerUseAction? pending;
+        for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+          await Future<void>.delayed(Duration.zero);
+          pending = toolNotifier.state.pendingComputerUseAction;
+        }
+        expect(pending, isNotNull, reason: caseData.toolName);
+        expect(pending!.requiresSmokeArming, isTrue);
+        toolNotifier.resolveComputerUseAction(
+          id: pending.id,
+          approved: true,
+          armed: true,
+        );
+
+        await sendFuture;
+
+        expect(toolService.executedToolNames, [
+          caseData.toolName,
+          'computer_vision_observe',
+        ]);
+        final entry = MacosComputerUseAuditLog.instance.redactedEntries.single;
+        expect(entry['toolName'], caseData.toolName);
+        expect(entry['postActionObservationRequired'], isTrue);
+        expect(
+          entry['postActionObservationToolName'],
+          'computer_vision_observe',
+        );
+        expect(entry['postActionObservationSuccess'], isTrue);
+        expect(entry['postActionObservationTransport'], 'xpc_service');
+        expect(
+          entry['postActionObservationSchemaName'],
+          'macos_computer_use_vision_observation',
+        );
+        expect(entry['postActionObservationCoordinateSpace'], 'window_pixels');
+        expect(entry['postActionObservationImageAttached'], isTrue);
+        expect(entry.containsKey('text'), isFalse);
+        expect(entry.containsKey('imageBase64'), isFalse);
+      } finally {
+        toolContainer.dispose();
+        MacosComputerUseAuditLog.instance.clear();
+      }
+    }
+  });
+
+  test('computer-use actions return a post-action vision observation', () async {
+    MacosComputerUseAuditLog.instance.clear();
+    final initialObservation =
+        '{"ok":true,"schemaName":"macos_computer_use_vision_observation","observationId":"vision-1","target":{"resolved":"window","windowId":123},"coordinateSpace":"window_pixels","coordinateGuidance":{"sourceWidth":640,"sourceHeight":480,"windowId":123},"allowedNextTools":["computer_move_mouse"],"approvalRequiredTools":["computer_move_mouse"],"imageBase64":"initial-image","imageMimeType":"image/png"}';
+    final postActionObservation =
+        '{"ok":true,"schemaName":"macos_computer_use_vision_observation","observationId":"vision-2","target":{"resolved":"window","windowId":123},"coordinateSpace":"window_pixels","coordinateGuidance":{"sourceWidth":640,"sourceHeight":480,"windowId":123},"imageBase64":"post-image","imageMimeType":"image/png"}';
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'observe-1',
+          name: 'computer_vision_observe',
+          arguments: const {'target': 'front_window', 'max_width': 640},
+        ),
+      ],
+      followUpToolCalls: [
+        ToolCallInfo(
+          id: 'move-1',
+          name: 'computer_move_mouse',
+          arguments: const {
+            'x': 20,
+            'y': 30,
+            'window_id': 123,
+            'source_width': 640,
+            'source_height': 480,
+            'coordinate_space': 'window_pixels',
+            'vision_observation_id': 'vision-1',
+            'reason': 'Move to the highlighted control.',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'computer_move_mouse':
+            '{"ok":true,"selectedIpcTransport":"xpc_service","code":"ok"}',
+      },
+      queuedResults: {
+        'computer_vision_observe': [initialObservation, postActionObservation],
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = toolNotifier.sendMessage('Move after observing');
+
+      PendingComputerUseAction? pending;
+      for (var attempt = 0; attempt < 20 && pending == null; attempt += 1) {
+        await Future<void>.delayed(Duration.zero);
+        pending = toolNotifier.state.pendingComputerUseAction;
+      }
+      expect(pending, isNotNull);
+      expect(
+        pending!.visionObservationSummary,
+        contains('latest vision observation'),
+      );
+      expect(
+        pending.visionObservationDetails,
+        contains('Observation ID: vision-1'),
+      );
+      expect(
+        pending.visionObservationDetails,
+        contains('Coordinate space: window_pixels'),
+      );
+      expect(
+        pending.visionObservationDetails,
+        contains('Source screenshot: 640 x 480 px'),
+      );
+      toolNotifier.resolveComputerUseAction(
+        id: pending.id,
+        approved: true,
+        armed: true,
+      );
+
+      await sendFuture;
+
+      expect(toolService.executedToolNames, [
+        'computer_vision_observe',
+        'computer_move_mouse',
+        'computer_vision_observe',
+      ]);
+      final actionBatch = toolDataSource.toolResultBatches.last;
+      final actionResult = jsonDecode(actionBatch.single.result) as Map;
+      expect(actionResult['schemaName'], 'macos_computer_use_action_result');
+      expect(actionResult['imageBase64'], 'post-image');
+      expect(actionResult['nextAction'], contains('post-action observation'));
+      final postObservation =
+          actionResult['postActionObservation'] as Map<String, dynamic>;
+      expect(postObservation['toolName'], 'computer_vision_observe');
+      expect(postObservation['imageAttached'], isTrue);
+      final entry = MacosComputerUseAuditLog.instance.redactedEntries.last;
+      expect(entry['toolName'], 'computer_move_mouse');
+      expect(entry['postActionObservationToolName'], 'computer_vision_observe');
+      expect(entry['postActionObservationImageAttached'], isTrue);
+    } finally {
+      toolContainer.dispose();
+      MacosComputerUseAuditLog.instance.clear();
+    }
+  });
+
+  test('unsafe computer-use actions require explicit arming', () async {
+    MacosComputerUseAuditLog.instance.clear();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-click',
+          name: 'computer_click',
+          arguments: const {'x': 10, 'y': 20},
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'computer_click': '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = toolNotifier.sendMessage('Click without arming');
+
+      PendingComputerUseAction? pending;
+      for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+        await Future<void>.delayed(Duration.zero);
+        pending = toolNotifier.state.pendingComputerUseAction;
+      }
+      expect(pending, isNotNull);
+      expect(pending!.requiresUserApproval, isTrue);
+      expect(pending.requiresSmokeArming, isTrue);
+      toolNotifier.resolveComputerUseAction(id: pending.id, approved: true);
+
+      await sendFuture;
+
+      expect(toolService.executedToolNames, isEmpty);
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.name, 'computer_click');
+      expect(result.result, contains('"code":"arming_missing"'));
+
+      final entry = MacosComputerUseAuditLog.instance.redactedEntries.single;
+      expect(entry['toolName'], 'computer_click');
+      expect(entry['approvalResult'], 'arming_missing');
+      expect(entry['requiresSmokeArming'], isTrue);
+      expect(entry['success'], isFalse);
+      expect(entry['responseCode'], 'arming_missing');
+    } finally {
+      toolContainer.dispose();
+      MacosComputerUseAuditLog.instance.clear();
+    }
+  });
+
+  test(
+    'sendMessage carries computer-use screenshots into final vision prompt',
+    () async {
+      final toolDataSource = _QueuedToolLoopChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-display',
+            name: 'computer_screenshot',
+            arguments: const {'max_width': 800},
+          ),
+        ],
+        toolLoopResponses: [
+          ChatCompletionResult(
+            content: 'The display is visible; I need the window list.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-windows',
+                name: 'computer_list_windows',
+                arguments: const {'include_current_app': true},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'I found the target window and need a focused screenshot.',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-window-image',
+                name: 'computer_screenshot_window',
+                arguments: const {'window_id': 42, 'max_width': 800},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          ChatCompletionResult(
+            content: 'Visual inspection is ready.',
+            finishReason: 'stop',
+          ),
+        ],
+        finalAnswerChunks: const ['Observed the target window.'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'computer_screenshot':
+              '{"imageBase64":"display-image-payload","imageMimeType":"image/png","width":800,"height":500}',
+          'computer_list_windows':
+              '{"windows":[{"windowId":42,"appName":"Caverno","title":"Debug","bounds":{"x":0,"y":0,"width":800,"height":500}}],"count":1}',
+          'computer_screenshot_window':
+              '{"imageBase64":"window-image-payload","imageMimeType":"image/png","width":640,"height":400,"windowId":42}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the desktop visually');
+
+        expect(toolService.executedToolNames, [
+          'computer_screenshot',
+          'computer_list_windows',
+          'computer_screenshot_window',
+        ]);
+        expect(
+          toolDataSource.toolResultBatches
+              .map((batch) => batch.map((item) => item.name).toList())
+              .toList(),
+          [
+            ['computer_screenshot'],
+            ['computer_list_windows'],
+            ['computer_screenshot_window'],
+          ],
+        );
+
+        final answerPrompt = toolDataSource.finalAnswerMessages.singleWhere(
+          (message) => message.content.contains('[Tool: computer_screenshot]'),
+        );
+        expect(answerPrompt.content, isNot(contains('display-image-payload')));
+        expect(answerPrompt.content, isNot(contains('window-image-payload')));
+        expect(answerPrompt.content, contains('[attached as image content]'));
+
+        final imageMessages = toolDataSource.finalAnswerMessages
+            .where((message) => message.imageBase64 != null)
+            .toList();
+        expect(imageMessages.map((message) => message.imageBase64).toList(), [
+          'display-image-payload',
+          'window-image-payload',
+        ]);
+        expect(
+          imageMessages.last.content,
+          contains('Visual observation from computer_screenshot_window'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Observed the target window.'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage allows repeated read_file retries across tool loops',

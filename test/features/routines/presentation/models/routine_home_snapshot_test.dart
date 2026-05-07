@@ -158,5 +158,32 @@ void main() {
       expect(snapshot.attentionCount, 0);
       expect(snapshot.sections.single.kind, RoutineHomeSectionKind.paused);
     });
+
+    test('keeps reviewed latest failures in the scheduled section', () {
+      final reviewedFailedRoutine = buildRoutine(
+        id: 'reviewed-failed',
+        name: 'Reviewed failed routine',
+        updatedAt: DateTime(2026, 4, 21, 10),
+        nextRunAt: DateTime(3026, 4, 21, 11),
+        runs: [
+          RoutineRunRecord(
+            id: 'run-failed',
+            startedAt: DateTime(2026, 4, 21, 7),
+            finishedAt: DateTime(2026, 4, 21, 7, 0, 5),
+            status: RoutineRunStatus.failed,
+            error: 'Network error',
+            failureAcknowledged: true,
+          ),
+        ],
+      );
+
+      final snapshot = RoutineHomeSnapshotBuilder.build(
+        routines: [reviewedFailedRoutine],
+        runningRoutineIds: const <String>{},
+      );
+
+      expect(snapshot.attentionCount, 0);
+      expect(snapshot.sections.single.kind, RoutineHomeSectionKind.scheduled);
+    });
   });
 }

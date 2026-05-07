@@ -269,6 +269,22 @@ directly instead of depending on a foreground-sensitive approval sheet tap.
 Treat `unexpectedWarnings` as fix targets. `allowedWarnings` are still reported,
 but they have a documented recovery path or scenario-level allow pattern.
 
+## Routine Live LLM Canary
+
+Routine live LLM validation is documented in
+[`docs/routine_live_llm_canary.md`](docs/routine_live_llm_canary.md).
+
+Use it when changing routine execution, routine tool-call parsing, workspace
+file tools, or Google Chat notification handling. It is an explicit canary, not
+part of the normal deterministic unit test suite.
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_routine_live_llm_canary.sh
+```
+
 ## Architecture
 
 Clean Architecture with feature-based modules and Riverpod state management.

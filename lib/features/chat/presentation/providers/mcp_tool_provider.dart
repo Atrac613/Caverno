@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/services/ble_service.dart';
 import '../../../../core/services/lan_scan_service.dart';
+import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/ssh_service.dart';
 import '../../../../core/services/wifi_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
@@ -31,10 +32,9 @@ final mcpClientsProvider = Provider<List<McpClientBase>>((ref) {
         clients.add(McpClient(baseUrl: server.normalizedUrl));
       case McpServerType.stdio:
         if (isDesktop) {
-          clients.add(McpStdioClient(
-            command: server.command.trim(),
-            args: server.args,
-          ));
+          clients.add(
+            McpStdioClient(command: server.command.trim(), args: server.args),
+          );
         }
     }
   }
@@ -75,6 +75,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
   final bleService = ref.watch(bleServiceProvider);
   final wifiService = ref.watch(wifiServiceProvider);
   final lanScanService = ref.watch(lanScanServiceProvider);
+  final computerUseService = ref.watch(macosComputerUseServiceProvider);
   final settings = ref.watch(settingsNotifierProvider);
   // Always provide the service so built-in local tools remain available.
   return McpToolService(
@@ -86,6 +87,7 @@ final mcpToolServiceProvider = Provider<McpToolService?>((ref) {
     bleService: bleService,
     wifiService: wifiService,
     lanScanService: lanScanService,
+    computerUseService: computerUseService,
     disabledBuiltInTools: settings.disabledBuiltInToolsSet,
   );
 });

@@ -58,6 +58,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required bool toolsEnabled,
     required RoutineCompletionAction completionAction,
     required RoutineGoogleChatRule googleChatRule,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
   }) async {
     final now = DateTime.now();
     final routine = Routine(
@@ -71,6 +73,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       toolsEnabled: toolsEnabled,
       completionAction: completionAction,
       googleChatRule: googleChatRule,
+      workspaceDirectory: workspaceDirectory,
+      allowWorkspaceWrites: allowWorkspaceWrites,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -92,6 +96,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required bool toolsEnabled,
     required RoutineCompletionAction completionAction,
     required RoutineGoogleChatRule googleChatRule,
+    String? workspaceDirectory,
+    bool? allowWorkspaceWrites,
   }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
@@ -106,6 +112,9 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       toolsEnabled: toolsEnabled,
       completionAction: completionAction,
       googleChatRule: googleChatRule,
+      workspaceDirectory: workspaceDirectory ?? existing.workspaceDirectory,
+      allowWorkspaceWrites:
+          allowWorkspaceWrites ?? existing.allowWorkspaceWrites,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         intervalValue,
       ),
@@ -163,6 +172,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       toolsEnabled: source.toolsEnabled,
       completionAction: source.completionAction,
       googleChatRule: source.googleChatRule,
+      workspaceDirectory: source.workspaceDirectory,
+      allowWorkspaceWrites: source.allowWorkspaceWrites,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
     );
@@ -180,6 +191,27 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     final updated = existing.copyWith(
       runs: const [],
       lastRunAt: null,
+      updatedAt: DateTime.now(),
+    );
+    await _persistRoutine(updated);
+  }
+
+  Future<void> acknowledgeLatestFailure(String routineId) async {
+    final existing = _findRoutine(routineId);
+    final latestRun = existing?.latestRun;
+    if (existing == null ||
+        latestRun == null ||
+        latestRun.isSuccessful ||
+        latestRun.failureAcknowledged) {
+      return;
+    }
+
+    final updatedRuns = [
+      latestRun.copyWith(failureAcknowledged: true),
+      ...existing.runs.skip(1),
+    ];
+    final updated = existing.copyWith(
+      runs: updatedRuns,
       updatedAt: DateTime.now(),
     );
     await _persistRoutine(updated);
@@ -351,6 +383,11 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     return routine.copyWith(
       name: routine.trimmedName,
       prompt: routine.trimmedPrompt,
+      workspaceDirectory: routine.trimmedWorkspaceDirectory,
+      allowWorkspaceWrites:
+          routine.toolsEnabled &&
+          routine.allowWorkspaceWrites &&
+          routine.hasWorkspaceDirectory,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         routine.intervalValue,
       ),

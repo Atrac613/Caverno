@@ -729,6 +729,7 @@ class ChatRemoteDataSource implements ChatDataSource {
         ),
       ),
     );
+    formattedMessages.addAll(_buildToolImageObservationMessages(toolResults));
 
     final request = ChatCompletionCreateRequest(
       model: modelId,
@@ -886,10 +887,23 @@ class ChatRemoteDataSource implements ChatDataSource {
     return _formatToolResultContentForLlm(toolResult);
   }
 
+  @visibleForTesting
+  int countToolImageObservationMessagesForTest(
+    List<ToolResultInfo> toolResults,
+  ) {
+    return _buildToolImageObservationMessages(toolResults).length;
+  }
+
   String _formatToolResultContentForLlm(ToolResultInfo toolResult) {
     final decoded = _tryDecodeToolResultJson(toolResult.result);
     if (decoded == null) {
       return toolResult.result;
+    }
+
+    if (decoded['imageBase64'] is String) {
+      final redacted = Map<String, dynamic>.from(decoded)
+        ..['imageBase64'] = '[attached as image content]';
+      return dart_convert.jsonEncode(redacted);
     }
 
     final interpretationLines = <String>[];
@@ -922,6 +936,33 @@ class ChatRemoteDataSource implements ChatDataSource {
     }
 
     return '${interpretationLines.join('\n')}\nRaw result:\n${toolResult.result}';
+  }
+
+  List<ChatMessage> _buildToolImageObservationMessages(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final messages = <ChatMessage>[];
+    for (final toolResult in toolResults) {
+      final decoded = _tryDecodeToolResultJson(toolResult.result);
+      if (decoded == null) continue;
+      final imageBase64 = decoded['imageBase64'];
+      if (imageBase64 is! String || imageBase64.isEmpty) continue;
+
+      final mimeType = decoded['imageMimeType'] as String? ?? 'image/png';
+      final metadata = Map<String, dynamic>.from(decoded)
+        ..remove('imageBase64');
+      final text =
+          'Visual observation from ${toolResult.name}. '
+          'Use this screenshot to decide the next computer-use action. '
+          'Metadata: ${dart_convert.jsonEncode(metadata)}';
+      messages.add(
+        ChatMessage.user([
+          ContentPart.text(text),
+          ContentPart.imageBase64(data: imageBase64, mediaType: mimeType),
+        ]),
+      );
+    }
+    return messages;
   }
 
   Map<String, dynamic>? _tryDecodeToolResultJson(String value) {

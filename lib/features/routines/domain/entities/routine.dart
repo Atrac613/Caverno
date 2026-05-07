@@ -9,7 +9,7 @@ enum RoutineRunStatus { completed, failed }
 
 enum RoutineRunTrigger { manual, scheduled }
 
-enum RoutineCompletionAction { none, googleChat }
+enum RoutineCompletionAction { none, googleChat, promptGoogleChat }
 
 enum RoutineGoogleChatRule { onSuccess, onFailure, always }
 
@@ -33,6 +33,13 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default(false) bool usedTools,
     @Default(0) int toolCallCount,
     @Default(<String>[]) List<String> toolNames,
+    @JsonKey(
+      fromJson: _routineRunToolCallsFromJson,
+      toJson: _routineRunToolCallsToJson,
+    )
+    @Default(<RoutineRunToolCall>[])
+    List<RoutineRunToolCall> toolCalls,
+    @Default(<String, String>{}) Map<String, String> toolSourceLabels,
     @JsonKey(unknownEnumValue: RoutineDeliveryStatus.notRequested)
     @Default(RoutineDeliveryStatus.notRequested)
     RoutineDeliveryStatus deliveryStatus,
@@ -41,6 +48,7 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @Default('') String preview,
     @Default('') String output,
     @Default('') String error,
+    @Default(false) bool failureAcknowledged,
   }) = _RoutineRunRecord;
 
   factory RoutineRunRecord.fromJson(Map<String, dynamic> json) =>
@@ -48,7 +56,22 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
 
   bool get isSuccessful => status == RoutineRunStatus.completed;
 
+  bool get requiresAttention =>
+      status == RoutineRunStatus.failed && !failureAcknowledged;
+
   bool get wasDelivered => deliveryStatus == RoutineDeliveryStatus.delivered;
+
+  List<String> get toolDisplayNames {
+    return toolNames
+        .map((name) {
+          final sourceLabel = toolSourceLabels[name]?.trim();
+          if (sourceLabel == null || sourceLabel.isEmpty) {
+            return name;
+          }
+          return '$name ($sourceLabel)';
+        })
+        .toList(growable: false);
+  }
 
   int get effectiveDurationMs {
     final measured = finishedAt.difference(startedAt).inMilliseconds;
@@ -57,6 +80,43 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     }
     return measured < 0 ? 0 : measured;
   }
+}
+
+List<RoutineRunToolCall> _routineRunToolCallsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <RoutineRunToolCall>[];
+  }
+  return json
+      .map((item) {
+        if (item is RoutineRunToolCall) {
+          return item;
+        }
+        return RoutineRunToolCall.fromJson(
+          Map<String, dynamic>.from(item as Map),
+        );
+      })
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _routineRunToolCallsToJson(
+  List<RoutineRunToolCall> toolCalls,
+) {
+  return toolCalls.map((toolCall) => toolCall.toJson()).toList(growable: false);
+}
+
+@freezed
+abstract class RoutineRunToolCall with _$RoutineRunToolCall {
+  const RoutineRunToolCall._();
+
+  const factory RoutineRunToolCall({
+    required String id,
+    required String name,
+    @Default('') String arguments,
+    @Default('') String result,
+  }) = _RoutineRunToolCall;
+
+  factory RoutineRunToolCall.fromJson(Map<String, dynamic> json) =>
+      _$RoutineRunToolCallFromJson(json);
 }
 
 @freezed
@@ -78,6 +138,8 @@ abstract class Routine with _$Routine {
     @JsonKey(unknownEnumValue: RoutineGoogleChatRule.onFailure)
     @Default(RoutineGoogleChatRule.onFailure)
     RoutineGoogleChatRule googleChatRule,
+    @Default('') String workspaceDirectory,
+    @Default(false) bool allowWorkspaceWrites,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)
@@ -94,10 +156,31 @@ abstract class Routine with _$Routine {
 
   String get trimmedPrompt => prompt.trim();
 
+  String get trimmedWorkspaceDirectory => workspaceDirectory.trim();
+
   bool get hasPrompt => trimmedPrompt.isNotEmpty;
+
+  bool get hasWorkspaceDirectory => trimmedWorkspaceDirectory.isNotEmpty;
+
+  bool get hasWorkspaceWriteAccess =>
+      toolsEnabled && allowWorkspaceWrites && hasWorkspaceDirectory;
 
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
 
+  int get consecutiveFailureCount {
+    var count = 0;
+    for (final run in runs) {
+      if (run.isSuccessful) {
+        break;
+      }
+      count += 1;
+    }
+    return count;
+  }
+
   bool get postsToGoogleChat =>
       completionAction == RoutineCompletionAction.googleChat;
+
+  bool get allowsPromptGoogleChatPost =>
+      completionAction == RoutineCompletionAction.promptGoogleChat;
 }

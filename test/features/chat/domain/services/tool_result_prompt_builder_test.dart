@@ -64,5 +64,21 @@ void main() {
       expect(prompt, contains('Result:'));
       expect(prompt, contains('Scope note:'));
     });
+
+    test('redacts screenshot base64 from answer prompts', () {
+      final prompt = ToolResultPromptBuilder.buildAnswerPrompt([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'computer_screenshot',
+          arguments: const {},
+          result:
+              '{"imageBase64":"large-payload","imageMimeType":"image/png","width":800,"height":600}',
+        ),
+      ]);
+
+      expect(prompt, isNot(contains('large-payload')));
+      expect(prompt, contains('[attached as image content]'));
+      expect(prompt, contains('"width":800'));
+    });
   });
 }

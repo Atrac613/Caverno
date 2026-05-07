@@ -97,6 +97,29 @@ void main() {
     expect(report, containsPair('naturalStops', 1));
   });
 
+  test('fake scenarios keep final assertions artifact and log focused', () {
+    final finalResultExpectations = buildPlanModeScenarios().expand(
+      (scenario) => scenario.uiExpectations.where(
+        (expectation) => expectation.phase == PlanModeUiPhase.finalResult,
+      ),
+    );
+
+    expect(finalResultExpectations, isEmpty);
+  });
+
+  test('batched_tool_calls includes an empty-workspace follow-up task', () {
+    final scenario = buildPlanModeScenarios().firstWhere(
+      (item) => item.name == 'batched_tool_calls',
+    );
+
+    expect(scenario.taskProposal, hasLength(2));
+    expect(
+      scenario.taskProposal.first.title,
+      'Write the initial scaffold files',
+    );
+    expect(scenario.taskProposal.last.targetFiles, contains('main.py'));
+  });
+
   test(
     'batched_tool_calls emits both file writes in one tool-call turn',
     () async {
@@ -147,6 +170,106 @@ void main() {
 
       expect(followUp.finishReason, 'stop');
       expect(followUp.toolCalls, isNull);
+    },
+  );
+
+  test(
+    'fake scenario datasource accepts current approved task prompts',
+    () async {
+      final scenario = buildPlanModeScenarios().firstWhere(
+        (item) => item.name == 'host_health_scaffold',
+      );
+      final dataSource = FakePlanModeChatDataSource(scenario);
+
+      final streamResult = dataSource.streamChatCompletionWithTools(
+        messages: [
+          Message(
+            id: 'prompt',
+            content:
+                'Use the approved saved task now: ${scenario.initialTaskTitle}\n'
+                'Saved task ID: task-1',
+            role: MessageRole.user,
+            timestamp: DateTime(2026),
+          ),
+        ],
+        tools: const <Map<String, dynamic>>[],
+      );
+
+      final completion = await streamResult.completion;
+
+      expect(completion.toolCalls, isNotNull);
+      expect(completion.toolCalls, hasLength(1));
+      expect(completion.toolCalls!.single.name, 'write_file');
+      expect(
+        completion.toolCalls!.single.arguments['path'],
+        'requirements.txt',
+      );
+    },
+  );
+
+  test(
+    'fake scenario datasource accepts quality fallback task prompts',
+    () async {
+      final scenario = buildPlanModeScenarios().firstWhere(
+        (item) => item.name == 'batched_tool_calls',
+      );
+      final dataSource = FakePlanModeChatDataSource(scenario);
+
+      final streamResult = dataSource.streamChatCompletionWithTools(
+        messages: [
+          Message(
+            id: 'prompt',
+            content:
+                'Use the approved saved task now: Create scaffold files\n'
+                'Saved task ID: task-1\n'
+                'Implement this task now. Use available tools and report completion evidence.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026),
+          ),
+        ],
+        tools: const <Map<String, dynamic>>[],
+      );
+
+      final completion = await streamResult.completion;
+
+      expect(completion.toolCalls, isNotNull);
+      expect(completion.toolCalls, hasLength(2));
+      expect(
+        completion.toolCalls!.map((toolCall) => toolCall.arguments['path']),
+        ['requirements.txt', 'README.md'],
+      );
+    },
+  );
+
+  test(
+    'fake scenario datasource accepts approved plan execution prompts',
+    () async {
+      final scenario = buildPlanModeScenarios().firstWhere(
+        (item) => item.name == 'batched_tool_calls',
+      );
+      final dataSource = FakePlanModeChatDataSource(scenario);
+
+      final streamResult = dataSource.streamChatCompletionWithTools(
+        messages: [
+          Message(
+            id: 'prompt',
+            content:
+                'Use the approved plan for this coding thread. Start with the highest-value task.',
+            role: MessageRole.user,
+            timestamp: DateTime(2026),
+          ),
+        ],
+        tools: const <Map<String, dynamic>>[],
+      );
+
+      final completion = await streamResult.completion;
+
+      expect(completion.toolCalls, isNotNull);
+      expect(completion.toolCalls, hasLength(2));
+      expect(
+        completion.toolCalls!.map((toolCall) => toolCall.arguments['path']),
+        ['requirements.txt', 'README.md'],
+      );
     },
   );
 }

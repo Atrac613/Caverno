@@ -100,6 +100,8 @@ class RoutinesHomePage extends ConsumerWidget {
                         .toggleRoutine(routine.id, enabled);
                   },
                   onRunNow: () => _runRoutine(context, ref, routine),
+                  onAcknowledgeFailure: () =>
+                      _acknowledgeLatestFailure(context, ref, routine),
                   onOpenDetails: () => _openDetails(context, routine),
                   onEdit: () => _openEditor(context, ref, routine: routine),
                   onDelete: () => _confirmDelete(context, ref, routine),
@@ -140,6 +142,8 @@ class RoutinesHomePage extends ConsumerWidget {
         toolsEnabled: result.toolsEnabled,
         completionAction: result.completionAction,
         googleChatRule: result.googleChatRule,
+        workspaceDirectory: result.workspaceDirectory,
+        allowWorkspaceWrites: result.allowWorkspaceWrites,
       );
     } else {
       await notifier.updateRoutine(
@@ -153,6 +157,8 @@ class RoutinesHomePage extends ConsumerWidget {
         toolsEnabled: result.toolsEnabled,
         completionAction: result.completionAction,
         googleChatRule: result.googleChatRule,
+        workspaceDirectory: result.workspaceDirectory,
+        allowWorkspaceWrites: result.allowWorkspaceWrites,
       );
     }
   }
@@ -197,6 +203,22 @@ class RoutinesHomePage extends ConsumerWidget {
     ScaffoldMessenger.of(
       context,
     ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _acknowledgeLatestFailure(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    await ref
+        .read(routinesNotifierProvider.notifier)
+        .acknowledgeLatestFailure(routine.id);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('routines.acknowledge_failure_done'.tr())),
+    );
   }
 
   void _openDetails(BuildContext context, Routine routine) {
@@ -393,6 +415,7 @@ class _RoutineCard extends StatelessWidget {
     required this.isRunning,
     required this.onToggleEnabled,
     required this.onRunNow,
+    required this.onAcknowledgeFailure,
     required this.onOpenDetails,
     required this.onEdit,
     required this.onDelete,
@@ -402,6 +425,7 @@ class _RoutineCard extends StatelessWidget {
   final bool isRunning;
   final ValueChanged<bool> onToggleEnabled;
   final VoidCallback onRunNow;
+  final VoidCallback onAcknowledgeFailure;
   final VoidCallback onOpenDetails;
   final VoidCallback onEdit;
   final VoidCallback onDelete;
@@ -411,6 +435,9 @@ class _RoutineCard extends StatelessWidget {
     final latestRun = routine.latestRun;
     final isDue = RoutineScheduleService.isDue(routine);
     final isFailed = latestRun != null && !latestRun.isSuccessful;
+    final requiresFailureAcknowledgement =
+        latestRun?.requiresAttention ?? false;
+    final consecutiveFailureCount = routine.consecutiveFailureCount;
     final colorScheme = Theme.of(context).colorScheme;
 
     return Card(
@@ -447,7 +474,9 @@ class _RoutineCard extends StatelessWidget {
                           ),
                           if (routine.toolsEnabled)
                             _RoutineStatusChip(
-                              label: 'routines.tools_read_only_badge'.tr(),
+                              label: routine.hasWorkspaceWriteAccess
+                                  ? 'routines.tools_workspace_write_badge'.tr()
+                                  : 'routines.tools_read_only_badge'.tr(),
                               color: colorScheme.secondaryContainer,
                             ),
                           if (routine.postsToGoogleChat)
@@ -470,6 +499,13 @@ class _RoutineCard extends StatelessWidget {
                           if (isFailed)
                             _RoutineStatusChip(
                               label: 'routines.failed_badge'.tr(),
+                              color: colorScheme.errorContainer,
+                            ),
+                          if (consecutiveFailureCount > 1)
+                            _RoutineStatusChip(
+                              label: _formatConsecutiveFailures(
+                                consecutiveFailureCount,
+                              ),
                               color: colorScheme.errorContainer,
                             ),
                         ],
@@ -544,6 +580,25 @@ class _RoutineCard extends StatelessWidget {
                             : colorScheme.onErrorContainer,
                       ),
                     ),
+                    if (isFailed) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        _formatConsecutiveFailures(consecutiveFailureCount),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onErrorContainer,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ],
+                    if (isFailed && latestRun.failureAcknowledged) ...[
+                      const SizedBox(height: 8),
+                      Text(
+                        'routines.failure_reviewed_hint'.tr(),
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          color: colorScheme.onErrorContainer,
+                        ),
+                      ),
+                    ],
                     if (latestRun.usedTools &&
                         latestRun.toolNames.isNotEmpty) ...[
                       const SizedBox(height: 8),
@@ -551,7 +606,7 @@ class _RoutineCard extends StatelessWidget {
                         'routines.tools_used_summary'.tr(
                           namedArgs: {
                             'count': latestRun.toolCallCount.toString(),
-                            'names': latestRun.toolNames.join(', '),
+                            'names': latestRun.toolDisplayNames.join(', '),
                           },
                         ),
                         style: Theme.of(context).textTheme.bodySmall?.copyWith(
@@ -559,6 +614,14 @@ class _RoutineCard extends StatelessWidget {
                               ? colorScheme.onSurfaceVariant
                               : colorScheme.onErrorContainer,
                         ),
+                      ),
+                    ],
+                    if (requiresFailureAcknowledgement && !isRunning) ...[
+                      const SizedBox(height: 12),
+                      OutlinedButton.icon(
+                        onPressed: onAcknowledgeFailure,
+                        icon: const Icon(Icons.check_circle_outline),
+                        label: Text('routines.acknowledge_failure'.tr()),
                       ),
                     ],
                   ],
@@ -636,6 +699,15 @@ class _RoutineCard extends StatelessWidget {
       return 'routines.never_value'.tr();
     }
     return DateFormat('yyyy/MM/dd HH:mm').format(lastRunAt);
+  }
+
+  String _formatConsecutiveFailures(int count) {
+    if (count == 1) {
+      return 'routines.consecutive_failure_summary'.tr();
+    }
+    return 'routines.consecutive_failures_summary'.tr(
+      namedArgs: {'count': count.toString()},
+    );
   }
 }
 

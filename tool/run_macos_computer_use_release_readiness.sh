@@ -1,0 +1,243 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")/.." && pwd)"
+PRESET="ci"
+REPORT_ROOT="${CAVERNO_MACOS_COMPUTER_USE_READINESS_REPORT_ROOT:-${ROOT_DIR}/build/integration_test_reports}"
+MANUAL_TCC_REPORT="${CAVERNO_MACOS_COMPUTER_USE_MANUAL_TCC_REPORT:-}"
+DESKTOP_ACTION_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_SUMMARY:-}"
+REFRESH_SAFE_INPUTS=1
+REFRESH_LLM_CANARY=0
+LLM_CANARY_SCENARIO="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SCENARIO:-mvp-fixture-aggregate}"
+LLM_CANARY_SUMMARY="${CAVERNO_MACOS_COMPUTER_USE_LLM_CANARY_SUMMARY:-}"
+LEGACY_LLM_CANARY_PROMPT=""
+OUTPUT_JSON=""
+OUTPUT_MD=""
+EXTRA_ARGS=()
+
+usage() {
+  cat <<'USAGE'
+Usage: bash tool/run_macos_computer_use_release_readiness.sh [--ci|--signoff] [options]
+
+Options:
+  --ci                     Refresh non-TCC inputs and use CI exit policy.
+  --signoff                Use strict exit policy for release sign-off.
+  --root PATH              Report root directory.
+  --manual-tcc-report PATH User-produced M8 runtime report or summary.
+  --desktop-action-canary-summary PATH User-produced desktop action canary summary.
+  --no-refresh             Do not refresh M7 or Computer Use canary history.
+  --refresh-llm-canary     Run the LLM canary only when CAVERNO_LLM_* is set.
+  --llm-canary-scenario NAME
+                           LLM canary scenario to refresh. Defaults to mvp-fixture-aggregate.
+                           Use mvp-fixture-aggregate to run both fixture scenarios.
+  --llm-canary-summary PATH Existing LLM canary summary to aggregate.
+  --llm-canary-prompt TEXT Legacy option accepted for compatibility.
+  --output-json PATH       Override readiness JSON output path.
+  --output-md PATH         Override readiness Markdown output path.
+  --                       Pass remaining args to the Dart readiness CLI.
+
+This wrapper never runs M8 runtime sign-off or operates macOS TCC.
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --ci)
+      PRESET="ci"
+      shift
+      ;;
+    --signoff|--strict)
+      PRESET="signoff"
+      shift
+      ;;
+    --root)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--root requires a value." >&2
+        exit 64
+      fi
+      REPORT_ROOT="$2"
+      shift 2
+      ;;
+    --manual-tcc-report)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--manual-tcc-report requires a value." >&2
+        exit 64
+      fi
+      MANUAL_TCC_REPORT="$2"
+      shift 2
+      ;;
+    --desktop-action-canary-summary)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--desktop-action-canary-summary requires a value." >&2
+        exit 64
+      fi
+      DESKTOP_ACTION_CANARY_SUMMARY="$2"
+      shift 2
+      ;;
+    --no-refresh)
+      REFRESH_SAFE_INPUTS=0
+      shift
+      ;;
+    --refresh-llm-canary)
+      REFRESH_LLM_CANARY=1
+      shift
+      ;;
+    --llm-canary-scenario)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--llm-canary-scenario requires a value." >&2
+        exit 64
+      fi
+      LLM_CANARY_SCENARIO="$2"
+      shift 2
+      ;;
+    --llm-canary-summary)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--llm-canary-summary requires a value." >&2
+        exit 64
+      fi
+      LLM_CANARY_SUMMARY="$2"
+      shift 2
+      ;;
+    --llm-canary-prompt)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--llm-canary-prompt requires a value." >&2
+        exit 64
+      fi
+      LEGACY_LLM_CANARY_PROMPT="$2"
+      shift 2
+      ;;
+    --output-json)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--output-json requires a value." >&2
+        exit 64
+      fi
+      OUTPUT_JSON="$2"
+      shift 2
+      ;;
+    --output-md)
+      if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
+        echo "--output-md requires a value." >&2
+        exit 64
+      fi
+      OUTPUT_MD="$2"
+      shift 2
+      ;;
+    --help)
+      usage
+      exit 0
+      ;;
+    --)
+      shift
+      EXTRA_ARGS+=("$@")
+      break
+      ;;
+    *)
+      EXTRA_ARGS+=("$1")
+      shift
+      ;;
+  esac
+done
+
+case "${PRESET}" in
+  ci)
+    EXIT_POLICY="ci"
+    ;;
+  signoff)
+    EXIT_POLICY="strict"
+    ;;
+  *)
+    echo "Unknown preset: ${PRESET}" >&2
+    exit 64
+    ;;
+esac
+
+if [[ -z "${OUTPUT_JSON}" ]]; then
+  OUTPUT_JSON="${REPORT_ROOT}/macos_computer_use_release_readiness_${PRESET}.json"
+fi
+
+if [[ -z "${OUTPUT_MD}" ]]; then
+  OUTPUT_MD="${REPORT_ROOT}/macos_computer_use_release_readiness_${PRESET}.md"
+fi
+
+COMMAND=(
+  dart run tool/macos_computer_use_release_readiness.dart
+  --root "${REPORT_ROOT}"
+  --exit-policy "${EXIT_POLICY}"
+  --output-json "${OUTPUT_JSON}"
+  --output-md "${OUTPUT_MD}"
+)
+
+if [[ "${REFRESH_SAFE_INPUTS}" == "1" ]]; then
+  COMMAND+=(--refresh-safe-inputs)
+fi
+
+if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
+  COMMAND+=(--manual-tcc-report "${MANUAL_TCC_REPORT}")
+fi
+
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  COMMAND+=(--desktop-action-canary-summary "${DESKTOP_ACTION_CANARY_SUMMARY}")
+fi
+
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  COMMAND+=(--llm-canary-summary "${LLM_CANARY_SUMMARY}")
+fi
+
+if [[ "${#EXTRA_ARGS[@]}" -gt 0 ]]; then
+  COMMAND+=("${EXTRA_ARGS[@]}")
+fi
+
+echo "Running macOS Computer Use release readiness"
+echo "  Preset: ${PRESET}"
+echo "  Report root: ${REPORT_ROOT}"
+echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
+echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
+echo "  LLM canary scenario: ${LLM_CANARY_SCENARIO}"
+if [[ -n "${LEGACY_LLM_CANARY_PROMPT}" ]]; then
+  echo "  Legacy LLM prompt override: ignored by Computer Use decision canary"
+fi
+echo "  Exit policy: ${EXIT_POLICY}"
+echo "  Output JSON: ${OUTPUT_JSON}"
+echo "  Output Markdown: ${OUTPUT_MD}"
+if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
+  echo "  Manual TCC report: ${MANUAL_TCC_REPORT}"
+else
+  echo "  Manual TCC report: discovery only"
+fi
+if [[ -n "${DESKTOP_ACTION_CANARY_SUMMARY}" ]]; then
+  echo "  Desktop action canary summary: ${DESKTOP_ACTION_CANARY_SUMMARY}"
+else
+  echo "  Desktop action canary summary: discovery only"
+fi
+if [[ -n "${LLM_CANARY_SUMMARY}" ]]; then
+  echo "  LLM canary summary: ${LLM_CANARY_SUMMARY}"
+else
+  echo "  LLM canary summary: discovery only"
+fi
+echo "  TCC boundary: user-operated manual verification only"
+
+cd "${ROOT_DIR}"
+
+if [[ "${REFRESH_LLM_CANARY}" == "1" ]]; then
+  if [[ -n "${CAVERNO_LLM_BASE_URL:-}" && -n "${CAVERNO_LLM_API_KEY:-}" && -n "${CAVERNO_LLM_MODEL:-}" ]]; then
+    echo "Refreshing Computer Use LLM decision canary"
+    if [[ "${LLM_CANARY_SCENARIO}" == "mvp-fixture-aggregate" ]]; then
+      bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh --root "${REPORT_ROOT}"
+    else
+      bash tool/run_macos_computer_use_llm_decision_canary.sh --root "${REPORT_ROOT}" --scenario "${LLM_CANARY_SCENARIO}"
+    fi
+  else
+    echo "Skipping LLM canary refresh because CAVERNO_LLM_BASE_URL, CAVERNO_LLM_API_KEY, or CAVERNO_LLM_MODEL is not set."
+    echo "Existing LLM canary summaries will be discovered instead."
+  fi
+fi
+
+set +e
+"${COMMAND[@]}"
+readiness_exit=$?
+set -e
+
+dart run tool/macos_computer_use_readiness_artifact_index.dart --root "${REPORT_ROOT}"
+
+exit "${readiness_exit}"

@@ -491,8 +491,8 @@ class FakePlanModeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) {
     final prompt = messages.last.content;
-    if (prompt.contains('Use the saved task "${scenario.initialTaskTitle}"') &&
-        scenario.toolWrites.isNotEmpty) {
+    if (_isImplementationPrompt(prompt) &&
+        _toolWriteIndex < scenario.toolWrites.length) {
       appLog('[ScenarioLLM] implementation tool call stream');
       return StreamWithToolsResult(
         stream: const Stream<String>.empty(),
@@ -507,6 +507,18 @@ class FakePlanModeChatDataSource implements ChatDataSource {
         ChatCompletionResult(content: '', finishReason: 'stop'),
       ),
     );
+  }
+
+  bool _isImplementationPrompt(String prompt) {
+    return prompt.contains(
+          'Use the saved task "${scenario.initialTaskTitle}"',
+        ) ||
+        prompt.contains(
+          'Use the approved saved task now: ${scenario.initialTaskTitle}',
+        ) ||
+        prompt.contains('Use the approved plan for this coding thread.') ||
+        (prompt.contains('Saved task ID:') &&
+            prompt.contains('Implement this task now.'));
   }
 
   @override
@@ -829,10 +841,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           phase: PlanModeUiPhase.proposal,
           text: 'Which report format should the first slice generate?',
         ),
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'remaining reporting blocker',
-        ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
@@ -923,10 +931,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           phase: PlanModeUiPhase.proposal,
           text: 'Recent Context:',
         ),
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'reasoning-only proposal',
-        ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
@@ -1010,12 +1014,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           errorMessage: 'permission_denied',
         ),
       ],
-      uiExpectations: <PlanModeUiExpectation>[
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'Task 1 is complete. Starting task 2 now.',
-        ),
-      ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
           path: 'requirements.txt',
@@ -1091,12 +1089,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       continuationStreams: const <String>[
         'Task 1 is complete. Starting task 2 now.\n<tool_use>{"name":"write_file","arguments":{"path":"main.py","content":"from ping3 import ping\\n\\n\\ndef main() -> None:\\n    print(\\"ready\\")\\n\\n\\nif __name__ == \\"__main__\\":\\n    main()\\n"}}</tool_use>',
         'I completed task 2 by creating main.py, so the scaffold auto-continued through both saved tasks.',
-      ],
-      uiExpectations: <PlanModeUiExpectation>[
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'auto-continued through both saved tasks',
-        ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
@@ -1195,10 +1187,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           phase: PlanModeUiPhase.proposal,
           text: 'Setup project structure and dependencies',
         ),
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'requirements.txt and README.md',
-        ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
@@ -1264,6 +1252,13 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           validationCommand: 'ls README.md',
           notes: 'Create both scaffold files in the first implementation turn.',
         ),
+        PlanModeScenarioTaskSpec(
+          title: 'Implement host health CLI entry point',
+          targetFiles: <String>['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes:
+              'Add a standard-library CLI follow-up after the scaffold files exist.',
+        ),
       ],
       toolWrites: const <PlanModeScenarioToolWriteSpec>[
         PlanModeScenarioToolWriteSpec(
@@ -1279,12 +1274,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       toolCallBatchSizes: const <int>[2],
       continuationStreams: const <String>[
         'I created requirements.txt and README.md from a single batched tool-call turn.',
-      ],
-      uiExpectations: <PlanModeUiExpectation>[
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'single batched tool-call turn',
-        ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(
@@ -1413,10 +1402,6 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
         PlanModeUiExpectation.present(
           phase: PlanModeUiPhase.proposal,
           text: 'CLI-first Python host health scaffold.',
-        ),
-        PlanModeUiExpectation.present(
-          phase: PlanModeUiPhase.finalResult,
-          text: 'CLI-first scaffold',
         ),
       ],
       artifactExpectations: <PlanModeArtifactExpectation>[

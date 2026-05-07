@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_report_summary.dart';
@@ -151,6 +154,59 @@ void main() {
       expect(junit, contains('toolLoopConvergenceSuccessfulValidations=1'));
       expect(junit, contains('toolLoopConvergenceGuardActivations=1'));
       expect(junit, contains('toolLoopConvergenceNaturalStops=0'));
+    });
+
+    test('writes suite reports to run and latest artifact paths', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plan_mode_suite_report_test_',
+      );
+      try {
+        final reportDirectory = Directory('${tempDir.path}/latest');
+        final suiteRunDirectory = Directory('${tempDir.path}/runs/current');
+
+        final writeResult = await writePlanModeSuiteReportArtifacts(
+          reportDirectory: reportDirectory,
+          suiteRunDirectory: suiteRunDirectory,
+          reportPrefix: 'plan_mode_live_suite_macos',
+          config: config,
+          suiteResults: results,
+        );
+
+        final latestJsonFile = File(writeResult.latestJsonPath);
+        final runJsonFile = File(writeResult.suiteRunJsonPath);
+        final latestMarkdownFile = File(writeResult.latestMarkdownPath);
+        final runMarkdownFile = File(writeResult.suiteRunMarkdownPath);
+        final latestJUnitFile = File(writeResult.latestJUnitPath);
+        final runJUnitFile = File(writeResult.suiteRunJUnitPath);
+
+        expect(latestJsonFile.existsSync(), isTrue);
+        expect(runJsonFile.existsSync(), isTrue);
+        expect(latestMarkdownFile.existsSync(), isTrue);
+        expect(runMarkdownFile.existsSync(), isTrue);
+        expect(latestJUnitFile.existsSync(), isTrue);
+        expect(runJUnitFile.existsSync(), isTrue);
+        expect(
+          latestJsonFile.readAsStringSync(),
+          runJsonFile.readAsStringSync(),
+        );
+        expect(
+          latestMarkdownFile.readAsStringSync(),
+          runMarkdownFile.readAsStringSync(),
+        );
+        expect(
+          latestJUnitFile.readAsStringSync(),
+          runJUnitFile.readAsStringSync(),
+        );
+
+        final decoded =
+            jsonDecode(latestJsonFile.readAsStringSync())
+                as Map<String, dynamic>;
+        expect(decoded['suite'], config.suiteName);
+        expect(decoded['scenarioCount'], results.length);
+        expect(writeResult.report['passedCount'], 1);
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
     });
   });
 }

@@ -1347,56 +1347,108 @@ Future<void> _runApprovedTaskFromHarness(
   required ConversationWorkflowTask task,
   required String? previousAssistantMessageId,
 }) async {
-  final chatNotifier = container.read(chatNotifierProvider.notifier);
   final conversationsNotifier = container.read(
     conversationsNotifierProvider.notifier,
   );
+  var currentTask = task;
+  var currentPreviousAssistantMessageId = previousAssistantMessageId;
+  var currentPrompt = ConversationPlanExecutionCoordinator.buildTaskPrompt(
+    task: currentTask,
+    intro: 'Use the approved saved task now: ${currentTask.title}',
+    targetFilesLabel: 'Target files',
+    validationLabel: 'Validation',
+    notesLabel: 'Notes',
+    outro:
+        'Implement this task now. Use available tools and report completion evidence.',
+  );
+  var useHiddenPrompt = false;
+  var recoveryAttemptsForCurrentTask = 0;
   try {
-    await chatNotifier.sendMessage(
-      ConversationPlanExecutionCoordinator.buildTaskPrompt(
-        task: task,
-        intro: 'Use the approved saved task now: ${task.title}',
-        targetFilesLabel: 'Target files',
-        validationLabel: 'Validation',
-        notesLabel: 'Notes',
-        outro:
-            'Implement this task now. Use available tools and report completion evidence.',
-      ),
-      languageCode: 'en',
-      bypassPlanMode: true,
-    );
+    for (var depth = 0; depth < 8; depth += 1) {
+      final producedEvidence = await _runHarnessTaskTurn(
+        container,
+        task: currentTask,
+        previousAssistantMessageId: currentPreviousAssistantMessageId,
+        prompt: currentPrompt,
+        useHiddenPrompt: useHiddenPrompt,
+      );
+      if (!producedEvidence) {
+        return;
+      }
 
-    final toolResults = chatNotifier.takeLatestToolResults();
-    final hiddenAssistantResponse = chatNotifier
-        .takeLatestHiddenAssistantResponse();
-    final conversation = container
-        .read(conversationsNotifierProvider)
-        .currentConversation;
-    final latestAssistantResponse = _latestAssistantResponseAfter(
-      conversation,
-      previousAssistantMessageId,
-    );
-    final fallbackResponse = _harnessFallbackAssistantResponse(
-      toolResults: toolResults,
-      hiddenAssistantResponse: hiddenAssistantResponse,
-    );
-    if (latestAssistantResponse.trim().isEmpty &&
-        fallbackResponse.trim().isEmpty) {
-      return;
+      final conversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      if (conversation == null) {
+        return;
+      }
+      final completedTask = conversation.projectedExecutionTasks.firstWhere(
+        (candidate) => candidate.id == currentTask.id,
+        orElse: () => currentTask,
+      );
+      if (completedTask.status != ConversationWorkflowTaskStatus.completed) {
+        if (completedTask.status == ConversationWorkflowTaskStatus.inProgress &&
+            recoveryAttemptsForCurrentTask < 2) {
+          final latestConversation = container
+              .read(conversationsNotifierProvider)
+              .currentConversation;
+          currentPreviousAssistantMessageId = _latestAssistantMessageId(
+            latestConversation,
+          );
+          currentTask = completedTask;
+          currentPrompt =
+              ConversationPlanExecutionCoordinator.buildToolLessExecutionRecoveryPrompt(
+                task: completedTask,
+              );
+          useHiddenPrompt = true;
+          recoveryAttemptsForCurrentTask += 1;
+          appLog(
+            '[Workflow] Harness requested tool-less recovery for saved task: ${completedTask.title}',
+          );
+          continue;
+        }
+        return;
+      }
+
+      final nextTask = ConversationPlanExecutionCoordinator.nextTask(
+        conversation,
+      );
+      if (nextTask == null || nextTask.id == completedTask.id) {
+        return;
+      }
+
+      await conversationsNotifier.updateCurrentExecutionTaskProgress(
+        taskId: nextTask.id,
+        status: ConversationWorkflowTaskStatus.inProgress,
+        lastRunAt: DateTime.now(),
+        summary:
+            'Auto-continued to the next saved task after completing "${completedTask.title}".',
+        eventType: ConversationExecutionTaskEventType.started,
+      );
+      appLog(
+        '[Workflow] Harness auto-continued to next saved task: ${nextTask.title}',
+      );
+
+      final startedConversation = container
+          .read(conversationsNotifierProvider)
+          .currentConversation;
+      currentPreviousAssistantMessageId = _latestAssistantMessageId(
+        startedConversation,
+      );
+      currentTask = nextTask;
+      currentPrompt =
+          ConversationPlanExecutionCoordinator.buildAutoContinueTaskPrompt(
+            completedTask: completedTask,
+            nextTask: nextTask,
+          );
+      useHiddenPrompt = true;
+      recoveryAttemptsForCurrentTask = 0;
     }
-
-    await conversationsNotifier
-        .updateCurrentExecutionTaskProgressFromAssistantTurn(
-          task: task,
-          assistantResponse: latestAssistantResponse,
-          isValidationRun: false,
-          fallbackAssistantResponse: fallbackResponse,
-        );
   } catch (error, stackTrace) {
     appLog('[Workflow] Harness task execution failed: $error');
     appLog('$stackTrace');
     await conversationsNotifier.updateCurrentExecutionTaskProgress(
-      taskId: task.id,
+      taskId: currentTask.id,
       status: ConversationWorkflowTaskStatus.blocked,
       blockedReason: error.toString(),
       summary: 'Harness task execution failed before completion.',
@@ -1404,6 +1456,60 @@ Future<void> _runApprovedTaskFromHarness(
       eventSummary: error.toString(),
     );
   }
+}
+
+Future<bool> _runHarnessTaskTurn(
+  ProviderContainer container, {
+  required ConversationWorkflowTask task,
+  required String? previousAssistantMessageId,
+  required String prompt,
+  required bool useHiddenPrompt,
+}) async {
+  final chatNotifier = container.read(chatNotifierProvider.notifier);
+  final conversationsNotifier = container.read(
+    conversationsNotifierProvider.notifier,
+  );
+  if (useHiddenPrompt) {
+    await chatNotifier.sendHiddenPrompt(prompt, languageCode: 'en');
+  } else {
+    await chatNotifier.sendMessage(
+      prompt,
+      languageCode: 'en',
+      bypassPlanMode: true,
+    );
+  }
+
+  final toolResults = chatNotifier.takeLatestToolResults();
+  final hiddenAssistantResponse = chatNotifier
+      .takeLatestHiddenAssistantResponse();
+  final conversation = container
+      .read(conversationsNotifierProvider)
+      .currentConversation;
+  final latestAssistantResponse = _latestAssistantResponseAfter(
+    conversation,
+    previousAssistantMessageId,
+  );
+  final primaryAssistantResponse =
+      useHiddenPrompt && (hiddenAssistantResponse?.trim().isNotEmpty ?? false)
+      ? hiddenAssistantResponse!.trim()
+      : latestAssistantResponse;
+  final fallbackResponse = _harnessFallbackAssistantResponse(
+    toolResults: toolResults,
+    hiddenAssistantResponse: useHiddenPrompt ? null : hiddenAssistantResponse,
+  );
+  if (primaryAssistantResponse.trim().isEmpty &&
+      fallbackResponse.trim().isEmpty) {
+    return false;
+  }
+
+  await conversationsNotifier
+      .updateCurrentExecutionTaskProgressFromAssistantTurn(
+        task: task,
+        assistantResponse: primaryAssistantResponse,
+        isValidationRun: false,
+        fallbackAssistantResponse: fallbackResponse,
+      );
+  return true;
 }
 
 Future<void> _awaitHarnessExecutionCleanup(
@@ -3259,47 +3365,17 @@ void main() {
         model: config.model,
         baseUrl: config.baseUrl,
       );
-      final suiteReport = buildPlanModeSuiteJsonReport(
+      final suiteReportArtifacts = await writePlanModeSuiteReportArtifacts(
+        reportDirectory: reportDirectory,
+        suiteRunDirectory: suiteRunDirectory,
+        reportPrefix: config.reportPrefix,
         config: suiteReportConfig,
         suiteResults: suiteResults,
       );
-      final suiteRunReportFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.json',
+      appLog(
+        '[ScenarioSuite] Report written to '
+        '${suiteReportArtifacts.latestJsonPath}',
       );
-      await suiteRunReportFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(suiteReport),
-      );
-      final suiteReportFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.json',
-      );
-      await suiteReportFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(suiteReport),
-      );
-      final suiteMarkdown = buildPlanModeSuiteMarkdownReport(
-        config: suiteReportConfig,
-        suiteResults: suiteResults,
-      );
-      final suiteJUnit = buildPlanModeSuiteJUnitReport(
-        config: suiteReportConfig,
-        suiteResults: suiteResults,
-      );
-      final suiteRunMarkdownFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.md',
-      );
-      await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
-      final suiteRunJUnitFile = File(
-        '${suiteRunDirectory.path}/${config.reportPrefix}_report.xml',
-      );
-      await suiteRunJUnitFile.writeAsString(suiteJUnit);
-      final suiteMarkdownFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.md',
-      );
-      await suiteMarkdownFile.writeAsString(suiteMarkdown);
-      final suiteJUnitFile = File(
-        '${reportDirectory.path}/${config.reportPrefix}_report.xml',
-      );
-      await suiteJUnitFile.writeAsString(suiteJUnit);
-      appLog('[ScenarioSuite] Report written to ${suiteReportFile.path}');
     });
 
     for (final scenario in scenarios) {

@@ -8,6 +8,9 @@ part 'mcp_tool_entity.g.dart';
 abstract class McpToolEntity with _$McpToolEntity {
   const McpToolEntity._();
 
+  static const openAiExternalToolKey = 'x-caverno-external-mcp-tool';
+  static const openAiSourceLabelKey = 'x-caverno-mcp-source-label';
+
   const factory McpToolEntity({
     required String name,
     required String description,
@@ -22,11 +25,14 @@ abstract class McpToolEntity with _$McpToolEntity {
   /// Converts the tool definition to the OpenAI tool format.
   Map<String, dynamic> toOpenAiTool() => {
     'type': 'function',
+    if (sourceUrl != null) openAiExternalToolKey: true,
+    if (sourceUrl != null)
+      openAiSourceLabelKey: formatMcpServerLabel(sourceUrl!),
     'function': {
       'name': name,
       'description': sourceUrl == null
           ? description
-          : '$description (MCP server: ${_formatMcpServerLabel(sourceUrl!)})',
+          : '$description (MCP server: ${formatMcpServerLabel(sourceUrl!)})',
       'parameters': inputSchema,
     },
   };
@@ -75,7 +81,7 @@ class McpServerConnectionInfo {
   final String? lastError;
 }
 
-String _formatMcpServerLabel(String rawIdentifier) {
+String formatMcpServerLabel(String rawIdentifier) {
   final uri = Uri.tryParse(rawIdentifier);
   if (uri == null || uri.host.isEmpty) {
     // Non-URL identifier (e.g. stdio command).

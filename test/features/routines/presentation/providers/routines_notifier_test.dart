@@ -54,6 +54,8 @@ void main() {
     required String name,
     bool enabled = true,
     bool toolsEnabled = false,
+    String workspaceDirectory = '',
+    bool allowWorkspaceWrites = false,
     bool notifyOnCompletion = true,
     RoutineCompletionAction completionAction = RoutineCompletionAction.none,
     RoutineGoogleChatRule googleChatRule = RoutineGoogleChatRule.onFailure,
@@ -71,6 +73,8 @@ void main() {
       enabled: enabled,
       notifyOnCompletion: notifyOnCompletion,
       toolsEnabled: toolsEnabled,
+      workspaceDirectory: workspaceDirectory,
+      allowWorkspaceWrites: allowWorkspaceWrites,
       completionAction: completionAction,
       googleChatRule: googleChatRule,
       intervalValue: 1,
@@ -87,6 +91,8 @@ void main() {
         id: 'routine-1',
         name: 'Morning summary',
         toolsEnabled: true,
+        workspaceDirectory: '/tmp/caverno-routines/lan-watch',
+        allowWorkspaceWrites: true,
         nextRunAt: DateTime(2026, 4, 21, 11),
         lastRunAt: DateTime(2026, 4, 21, 9),
         runs: [
@@ -113,6 +119,8 @@ void main() {
       expect(duplicate!.name, 'Copy of Morning summary');
       expect(duplicate.prompt, source.prompt);
       expect(duplicate.toolsEnabled, isTrue);
+      expect(duplicate.workspaceDirectory, source.workspaceDirectory);
+      expect(duplicate.allowWorkspaceWrites, isTrue);
       expect(duplicate.runs, isEmpty);
       expect(duplicate.lastRunAt, isNull);
       expect(duplicate.nextRunAt, isNotNull);
@@ -148,6 +156,48 @@ void main() {
         expect(cleared!.runs, isEmpty);
         expect(cleared.lastRunAt, isNull);
         expect(cleared.nextRunAt, source.nextRunAt);
+      },
+    );
+
+    test(
+      'acknowledgeLatestFailure clears attention without deleting run history',
+      () async {
+        final failedRun = RoutineRunRecord(
+          id: 'run-failed',
+          startedAt: DateTime(2026, 4, 21, 9),
+          finishedAt: DateTime(2026, 4, 21, 9, 0, 5),
+          status: RoutineRunStatus.failed,
+          preview: 'Request timed out',
+          error: 'Request timed out',
+        );
+        final previousRun = RoutineRunRecord(
+          id: 'run-previous',
+          startedAt: DateTime(2026, 4, 21, 8),
+          finishedAt: DateTime(2026, 4, 21, 8, 0, 5),
+          preview: 'Previous output',
+        );
+        final source = buildRoutine(
+          id: 'routine-1',
+          name: 'Morning summary',
+          nextRunAt: DateTime(2026, 4, 21, 11),
+          lastRunAt: DateTime(2026, 4, 21, 9),
+          runs: [failedRun, previousRun],
+        );
+        final container = await createContainer(initialRoutines: [source]);
+        addTearDown(container.dispose);
+
+        final notifier = container.read(routinesNotifierProvider.notifier);
+        await notifier.acknowledgeLatestFailure(source.id);
+
+        final updated = notifier.findRoutine(source.id);
+        expect(updated, isNotNull);
+        expect(updated!.runs, hasLength(2));
+        expect(updated.latestRun?.id, failedRun.id);
+        expect(updated.latestRun?.failureAcknowledged, isTrue);
+        expect(updated.latestRun?.requiresAttention, isFalse);
+        expect(updated.latestRun?.error, 'Request timed out');
+        expect(updated.lastRunAt, source.lastRunAt);
+        expect(updated.nextRunAt, source.nextRunAt);
       },
     );
 

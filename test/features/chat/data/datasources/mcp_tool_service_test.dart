@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_client.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
@@ -20,6 +21,13 @@ void main() {
       final function = openAiTool['function']! as Map<String, dynamic>;
       final description = function['description']! as String;
 
+      expect(openAiTool[McpToolEntity.openAiExternalToolKey], isTrue);
+      expect(
+        openAiTool[McpToolEntity.openAiSourceLabelKey],
+        'example.com:8080',
+      );
+      expect(jsonEncode(openAiTool), isNot(contains('user:secret')));
+      expect(jsonEncode(openAiTool), isNot(contains('token=abc')));
       expect(description, contains('example.com:8080'));
       expect(description, isNot(contains('secret')));
       expect(description, isNot(contains('token')));
@@ -53,6 +61,84 @@ void main() {
       if (Platform.isMacOS || Platform.isLinux) {
         expect(functionNames, contains('os_log_read'));
       }
+    });
+
+    test('includes macOS computer-use tool definitions when available', () {
+      final service = McpToolService(
+        computerUseService: _FakeMacosComputerUseService(),
+      );
+
+      final functionNames = service
+          .getOpenAiToolDefinitions()
+          .map(
+            (tool) =>
+                (tool['function']! as Map<String, dynamic>)['name']! as String,
+          )
+          .toList();
+
+      expect(functionNames, contains('computer_get_permissions'));
+      expect(functionNames, contains('computer_open_system_settings'));
+      expect(functionNames, contains('computer_vision_observe'));
+      expect(functionNames, contains('computer_list_windows'));
+      expect(functionNames, contains('computer_focus_window'));
+      expect(functionNames, contains('computer_screenshot'));
+      expect(functionNames, contains('computer_screenshot_window'));
+      expect(functionNames, contains('computer_click'));
+      expect(functionNames, contains('computer_type_text'));
+      expect(functionNames, contains('computer_start_system_audio_recording'));
+    });
+
+    test(
+      'executes macOS computer-use tools through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_click',
+          arguments: const {'x': 10, 'y': 20},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['click']);
+        expect(jsonDecode(result.result), containsPair('ok', true));
+      },
+    );
+
+    test(
+      'executes macOS computer vision observation through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_vision_observe',
+          arguments: const {'target': 'front_window', 'max_width': 640},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['visionObserve']);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(decoded, containsPair('schemaName', 'test_vision_observation'));
+        expect(decoded, containsPair('imageBase64', 'abc123'));
+      },
+    );
+
+    test('opens macOS System Settings through the native service', () async {
+      final computerUseService = _FakeMacosComputerUseService();
+      final service = McpToolService(computerUseService: computerUseService);
+
+      final result = await service.executeTool(
+        name: 'computer_open_system_settings',
+        arguments: const {'section': 'screen_recording'},
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(computerUseService.calledMethods, ['openSystemSettings']);
+      expect(
+        jsonDecode(result.result),
+        containsPair('section', 'screen_recording'),
+      );
     });
 
     test(
@@ -232,6 +318,38 @@ BuildVersion: 23F79
       });
     });
   });
+}
+
+class _FakeMacosComputerUseService extends MacosComputerUseService {
+  final List<String> calledMethods = [];
+
+  @override
+  bool get isAvailable => true;
+
+  @override
+  Future<String> click(Map<String, dynamic> arguments) async {
+    calledMethods.add('click');
+    return jsonEncode({'ok': true, 'x': arguments['x'], 'y': arguments['y']});
+  }
+
+  @override
+  Future<String> openSystemSettings({required String section}) async {
+    calledMethods.add('openSystemSettings');
+    return jsonEncode({'ok': true, 'section': section});
+  }
+
+  @override
+  Future<String> visionObserve(Map<String, dynamic> arguments) async {
+    calledMethods.add('visionObserve');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'test_vision_observation',
+      'target': arguments['target'],
+      'maxWidth': arguments['max_width'],
+      'imageBase64': 'abc123',
+      'imageMimeType': 'image/png',
+    });
+  }
 }
 
 class _FakeMcpClient extends McpClient {

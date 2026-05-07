@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'plan_mode_report_summary.dart';
 
 class PlanModeSuiteReportConfig {
@@ -22,6 +25,87 @@ class PlanModeSuiteReportConfig {
   final String suiteDirectoryPath;
   final String? model;
   final String? baseUrl;
+}
+
+class PlanModeSuiteReportWriteResult {
+  const PlanModeSuiteReportWriteResult({
+    required this.report,
+    required this.suiteRunJsonPath,
+    required this.latestJsonPath,
+    required this.suiteRunMarkdownPath,
+    required this.latestMarkdownPath,
+    required this.suiteRunJUnitPath,
+    required this.latestJUnitPath,
+  });
+
+  final Map<String, Object?> report;
+  final String suiteRunJsonPath;
+  final String latestJsonPath;
+  final String suiteRunMarkdownPath;
+  final String latestMarkdownPath;
+  final String suiteRunJUnitPath;
+  final String latestJUnitPath;
+}
+
+Future<PlanModeSuiteReportWriteResult> writePlanModeSuiteReportArtifacts({
+  required Directory reportDirectory,
+  required Directory suiteRunDirectory,
+  required String reportPrefix,
+  required PlanModeSuiteReportConfig config,
+  required List<Map<String, Object?>> suiteResults,
+}) async {
+  await reportDirectory.create(recursive: true);
+  await suiteRunDirectory.create(recursive: true);
+
+  final suiteReport = buildPlanModeSuiteJsonReport(
+    config: config,
+    suiteResults: suiteResults,
+  );
+  final suiteJson = const JsonEncoder.withIndent('  ').convert(suiteReport);
+  final suiteMarkdown = buildPlanModeSuiteMarkdownReport(
+    config: config,
+    suiteResults: suiteResults,
+  );
+  final suiteJUnit = buildPlanModeSuiteJUnitReport(
+    config: config,
+    suiteResults: suiteResults,
+  );
+
+  final suiteRunReportFile = File(
+    '${suiteRunDirectory.path}/${reportPrefix}_report.json',
+  );
+  final latestReportFile = File(
+    '${reportDirectory.path}/${reportPrefix}_report.json',
+  );
+  final suiteRunMarkdownFile = File(
+    '${suiteRunDirectory.path}/${reportPrefix}_report.md',
+  );
+  final latestMarkdownFile = File(
+    '${reportDirectory.path}/${reportPrefix}_report.md',
+  );
+  final suiteRunJUnitFile = File(
+    '${suiteRunDirectory.path}/${reportPrefix}_report.xml',
+  );
+  final latestJUnitFile = File(
+    '${reportDirectory.path}/${reportPrefix}_report.xml',
+  );
+
+  await suiteRunReportFile.writeAsString(suiteJson);
+  await latestReportFile.writeAsString(suiteJson);
+  await suiteRunMarkdownFile.writeAsString(suiteMarkdown);
+  await latestMarkdownFile.writeAsString(suiteMarkdown);
+  await suiteRunJUnitFile.writeAsString(suiteJUnit);
+  await latestJUnitFile.writeAsString(suiteJUnit);
+
+  return PlanModeSuiteReportWriteResult(
+    report: suiteReport,
+    suiteRunJsonPath: suiteRunReportFile.path,
+    latestJsonPath: latestReportFile.path,
+    suiteRunMarkdownPath: suiteRunMarkdownFile.path,
+    latestMarkdownPath: latestMarkdownFile.path,
+    suiteRunJUnitPath: suiteRunJUnitFile.path,
+    latestJUnitPath: latestJUnitFile.path,
+  );
 }
 
 Map<String, Object?> buildPlanModeSuiteJsonReport({
