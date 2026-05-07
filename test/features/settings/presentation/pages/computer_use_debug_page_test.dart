@@ -135,6 +135,14 @@ void main() {
       findsNWidgets(2),
     );
     expect(
+      find.textContaining('macos_computer_use_release_readiness_ci.md'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('macos_computer_use_release_readiness_signoff.md'),
+      findsNWidgets(2),
+    );
+    expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
       ),
@@ -143,6 +151,12 @@ void main() {
     expect(
       find.textContaining(
         '`macos_computer_use_readiness_artifact_index.md` before PR review',
+      ),
+      findsNothing,
+    );
+    expect(
+      find.textContaining(
+        '`macos_computer_use_release_readiness_ci.md`, and `macos_computer_use_release_readiness_signoff.md` before PR review',
       ),
       findsOneWidget,
     );

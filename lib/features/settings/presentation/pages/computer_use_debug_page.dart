@@ -1743,6 +1743,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexMarkdownFile}',
+      'releaseReadinessCiMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releaseReadinessCiMarkdownFile}',
+      'releaseReadinessSignoffMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releaseReadinessSignoffMarkdownFile}',
       if (liveReportPath is String) 'latestLiveSmokeReport': liveReportPath,
     };
   }
@@ -1756,6 +1760,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
+      'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
+      'Release readiness sign-off Markdown: ${paths['releaseReadinessSignoffMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)
         'Latest live smoke: ${paths['latestLiveSmokeReport']}',
     ].join(' | ');
