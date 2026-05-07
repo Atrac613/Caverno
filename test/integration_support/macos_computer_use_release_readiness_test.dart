@@ -787,6 +787,12 @@ void main() {
           '- Markdown: ${root.path}/macos_computer_use_readiness_artifact_index.md',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'Artifact index PR Review Summary: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
       expect(stdout, contains('MVP final sign-off rehearsal: blocked'));
       expect(
         stdout,

@@ -52,6 +52,7 @@ Future<void> main(List<String> args) async {
   stdout.writeln('Artifact index outputs:');
   stdout.writeln('- JSON: $outputJson');
   stdout.writeln('- Markdown: $outputMarkdown');
+  stdout.writeln('Artifact index PR Review Summary: $outputMarkdown');
   final rehearsal = index.mvpFinalSignoffRehearsal;
   stdout.writeln(
     'MVP final sign-off rehearsal: ${rehearsal.ready ? 'ready' : 'blocked'}',
