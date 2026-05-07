@@ -188,6 +188,10 @@ For PR review, inspect the generated `PR Review Artifacts` and
 - `mvp_demo_final_handoff.md`: MVP sign-off wrapper handoff.
 - `macos_computer_use_readiness_artifact_index.md`: artifact index
   `PR Review Summary`.
+- `macos_computer_use_release_readiness_ci.md`: CI readiness
+  `PR Review Summary`.
+- `macos_computer_use_release_readiness_signoff.md`: sign-off readiness
+  `PR Review Summary`.
 
 Run the report-only MVP readiness preflight to refresh the artifact index and
 dry-run handoff without running TCC, System Settings, app launch, or desktop

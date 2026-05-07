@@ -1703,6 +1703,14 @@ void main() {
     );
     expect(
       mvpFixtureRunbook,
+      contains('macos_computer_use_release_readiness_ci.md'),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains('macos_computer_use_release_readiness_signoff.md'),
+    );
+    expect(
+      mvpFixtureRunbook,
       contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
     );
     expect(
@@ -1770,6 +1778,14 @@ void main() {
     expect(
       mvpChecklist,
       contains('macos_computer_use_readiness_artifact_index.md'),
+    );
+    expect(
+      mvpChecklist,
+      contains('macos_computer_use_release_readiness_ci.md'),
+    );
+    expect(
+      mvpChecklist,
+      contains('macos_computer_use_release_readiness_signoff.md'),
     );
     expect(
       mvpChecklist,

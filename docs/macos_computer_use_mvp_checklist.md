@@ -191,6 +191,8 @@ changes do not require fresh TCC or live desktop-action verification.
 
    - `macos_computer_use_mvp_handoff.md`
    - `macos_computer_use_readiness_artifact_index.md`
+   - `macos_computer_use_release_readiness_ci.md`
+   - `macos_computer_use_release_readiness_signoff.md`
 
    ```bash
    dart run tool/macos_computer_use_readiness_artifact_index.dart \
