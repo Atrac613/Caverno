@@ -21,6 +21,7 @@ void main() {
   late String liveCanaryScript;
   late String manualTccSignoffScript;
   late String mvpSignoffScript;
+  late String mvpReadinessPreflightScript;
   late String desktopActionCanaryScript;
   late String llmDecisionCanaryScript;
   late String mvpFixtureLlmCanaryScript;
@@ -66,6 +67,9 @@ void main() {
     ).readAsStringSync();
     mvpSignoffScript = File(
       'tool/run_macos_computer_use_mvp_signoff.sh',
+    ).readAsStringSync();
+    mvpReadinessPreflightScript = File(
+      'tool/run_macos_computer_use_mvp_readiness_preflight.sh',
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
@@ -1729,6 +1733,16 @@ void main() {
       contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
     );
     expect(mvpChecklist, contains('--dry-run'));
+    expect(
+      mvpChecklist,
+      contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'does not run TCC, System Settings, app launch, or desktop actions',
+      ),
+    );
     expect(mvpChecklist, contains('PR Review Summary'));
     expect(mvpChecklist, contains('macos_computer_use_mvp_handoff.md'));
     expect(
@@ -1959,6 +1973,92 @@ void main() {
         contains(
           'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
         ),
+      );
+      expect(
+        File('${root.path}/macos_computer_use_mvp_readiness.json').existsSync(),
+        isFalse,
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP readiness preflight is report only', () async {
+    expect(
+      mvpReadinessPreflightScript,
+      contains('report-only, no TCC, no System Settings, no desktop actions'),
+    );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('macos_computer_use_readiness_artifact_index.dart'),
+    );
+    expect(mvpReadinessPreflightScript, contains('--dry-run'));
+    expect(mvpReadinessPreflightScript, contains('PR Review Summary'));
+    expect(mvpReadinessPreflightScript, contains('PR Review Artifacts'));
+
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_readiness_preflight_',
+    );
+    try {
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(
+        stdout,
+        contains('Running macOS Computer Use MVP readiness preflight'),
+      );
+      expect(
+        stdout,
+        contains('Boundary: report-only, no TCC, no System Settings'),
+      );
+      expect(stdout, contains('Readiness artifact index written under'));
+      expect(stdout, contains('MVP sign-off outputs:'));
+      expect(stdout, contains('PR review summary:'));
+      expect(stdout, contains('MVP readiness preflight outputs:'));
+      expect(
+        stdout,
+        contains(
+          'Artifact index Markdown: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'MVP handoff Markdown: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'PR Review Summary: ${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'PR Review Artifacts: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
+      expect(
+        File(
+          '${root.path}/macos_computer_use_readiness_artifact_index.json',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File(
+          '${root.path}/macos_computer_use_readiness_artifact_index.md',
+        ).existsSync(),
+        isTrue,
+      );
+      expect(
+        File('${root.path}/macos_computer_use_mvp_handoff.md').existsSync(),
+        isTrue,
       );
       expect(
         File('${root.path}/macos_computer_use_mvp_readiness.json').existsSync(),

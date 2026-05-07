@@ -177,6 +177,15 @@ changes do not require fresh TCC or live desktop-action verification.
    bash tool/run_macos_computer_use_mvp_signoff.sh --dry-run
    ```
 
+   To run the report-only MVP readiness preflight in one command, use:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_readiness_preflight.sh
+   ```
+
+   This regenerates the artifact index and writes the dry-run MVP handoff. It
+   does not run TCC, System Settings, app launch, or desktop actions.
+
    For PR review, regenerate the report-only summaries and inspect the
    `PR Review Summary` sections in:
 
