@@ -26,12 +26,14 @@ void main() {
   late String llmDecisionCanaryScript;
   late String mvpFixtureLlmCanaryScript;
   late String mvpFixtureVisionLlmCanaryScript;
+  late String realAppObserveCanaryScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
   late String mvpFixtureScript;
   late String mvpFixtureSource;
   late String mvpFixtureRunbook;
+  late String realAppObserveRunbook;
   late String existingHelperProbe;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -83,6 +85,9 @@ void main() {
     mvpFixtureVisionLlmCanaryScript = File(
       'tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh',
     ).readAsStringSync();
+    realAppObserveCanaryScript = File(
+      'tool/run_macos_computer_use_real_app_observe_canary.sh',
+    ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
     ).readAsStringSync();
@@ -109,6 +114,9 @@ void main() {
     ).readAsStringSync();
     mvpFixtureRunbook = File(
       'docs/macos_computer_use_mvp_fixture_runbook.md',
+    ).readAsStringSync();
+    realAppObserveRunbook = File(
+      'docs/macos_computer_use_real_app_observe_runbook.md',
     ).readAsStringSync();
   });
 
@@ -741,6 +749,26 @@ void main() {
     expect(mvpFixtureVisionLlmCanaryScript, contains('safe_click_plan'));
     expect(mvpFixtureVisionLlmCanaryScript, contains('type_confirm_plan'));
     expect(mvpFixtureVisionLlmCanaryScript, contains('no_execution_claim'));
+    expect(
+      realAppObserveCanaryScript,
+      contains('macos_computer_use_real_app_observe_canary_summary'),
+    );
+    expect(
+      realAppObserveCanaryScript,
+      contains('computer_use_real_app_observe'),
+    );
+    expect(realAppObserveCanaryScript, contains('--target-app NAME'));
+    expect(realAppObserveCanaryScript, contains('--target-intent TEXT'));
+    expect(realAppObserveCanaryScript, contains('no_tcc_operation'));
+    expect(realAppObserveCanaryScript, contains('no_desktop_action'));
+    expect(realAppObserveCanaryScript, contains('observationOnly'));
+    expect(
+      realAppObserveCanaryScript,
+      contains('requiresUserApprovalBeforeAction'),
+    );
+    expect(realAppObserveCanaryScript, contains('public_action'));
+    expect(realAppObserveCanaryScript, contains('executable_action_planned'));
+    expect(realAppObserveCanaryScript, contains('m12EvidenceGate'));
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
@@ -1792,6 +1820,107 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use real app observe canary validates observe-only evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_real_app_observe_canary_test_',
+      );
+      try {
+        final fixture = File('${root.path}/real_app_observe_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_real_app_observe",
+  "visionDecision": "Safari is visible on X with compose and post controls that require explicit approval before use.",
+  "targetApp": "Safari",
+  "observedApp": "Safari",
+  "visibleAppWindow": true,
+  "pageOrDocument": "X home timeline",
+  "loggedInStateVisible": "visible",
+  "observationOnly": true,
+  "requiresUserApprovalBeforeAction": true,
+  "candidateTargets": [
+    {
+      "label": "Address Bar",
+      "role": "address_bar",
+      "risk": "input",
+      "reason": "Changing the URL would navigate the browser."
+    },
+    {
+      "label": "What's happening?",
+      "role": "compose_text_field",
+      "risk": "input",
+      "reason": "Typing here prepares public content."
+    },
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action",
+      "reason": "Pressing it would publish content."
+    }
+  ],
+  "blockedActions": [
+    "Do not click any target in this observe-only canary.",
+    "Do not type into the compose field in this observe-only canary.",
+    "Do not post public content in this observe-only canary."
+  ],
+  "actionPlan": [
+    {"tool": "computer_vision_observe"}
+  ],
+  "recommendedNextStep": "Ask the user for explicit approval before any future input or public action."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_real_app_observe_canary.sh',
+          '--root',
+          root.path,
+          '--fixture-response',
+          fixture.path,
+          '--target-app',
+          'Safari',
+          '--target-intent',
+          'Observe Safari for a future X post task.',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Ready: true'));
+        expect('${result.stdout}', contains('Observed app: Safari'));
+        expect('${result.stdout}', contains('Candidate targets: 3'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('canary_summary.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_real_app_observe_canary_summary'),
+        );
+        expect(summary, contains('"milestone": "M12"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"observedApp": "Safari"'));
+        expect(summary, contains('"observationOnly": true'));
+        expect(summary, contains('"requiresUserApprovalBeforeAction": true'));
+        expect(summary, contains('"risk": "public_action"'));
+        expect(summary, contains('"m12EvidenceGate"'));
+        expect(summary, contains('"observe_only_boundary"'));
+        expect(summary, contains('"public_action_classification"'));
+        expect(summary, isNot(contains('computer_click')));
+        expect(summary, isNot(contains('computer_type_text')));
+        expect(summary, isNot(contains('no-key')));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -1881,6 +2010,33 @@ void main() {
     expect(mvpFixtureRunbook, contains('user-operated'));
     expect(mvpFixtureRunbook, contains('does not grant TCC'));
   });
+
+  test(
+    'real app observe runbook keeps M12 observe-only boundaries explicit',
+    () {
+      expect(realAppObserveRunbook, contains('Real App Observe Runbook'));
+      expect(realAppObserveRunbook, contains('M12'));
+      expect(
+        realAppObserveRunbook,
+        contains('tool/run_macos_computer_use_real_app_observe_canary.sh'),
+      );
+      expect(realAppObserveRunbook, contains('--target-app Safari'));
+      expect(realAppObserveRunbook, contains('public_action'));
+      expect(realAppObserveRunbook, contains('m12EvidenceGate'));
+      expect(
+        realAppObserveRunbook,
+        contains('It does not record the API key.'),
+      );
+      expect(
+        realAppObserveRunbook,
+        contains('TCC setup and real desktop operation remain user-operated.'),
+      );
+      expect(
+        architectureDoc,
+        contains('M12: Add real-app observe-only canaries'),
+      );
+    },
+  );
 
   test('MVP sign-off wrapper keeps user-operated boundaries explicit', () {
     final mvpChecklist = File(

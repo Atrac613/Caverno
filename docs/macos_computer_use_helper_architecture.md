@@ -267,6 +267,15 @@ Follow-on milestones:
 - M9: Lock TCC verification to a user-operated manual runbook. Automation may
   prepare artifacts and parse reports, but it must not perform release runtime
   TCC sign-off on the user's behalf.
+- M10: Stabilize helper IPC/runtime diagnostics so XPC timeout headroom, path
+  mismatches, and Open Computer Use launch results are visible without
+  re-triggering permission prompts.
+- M11: Make Live LLM fixture evidence reusable by discovering saved fixture
+  screenshots and recording non-secret LLM request metadata.
+- M12: Add real-app observe-only canaries for Safari-style workflows. These
+  canaries classify visible UI targets and public-action boundaries from
+  user-provided screenshots without opening apps, clicking, typing, submitting,
+  or posting.
 
 ## Computer Use Live Canary
 
