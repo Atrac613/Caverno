@@ -89,6 +89,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             _buildUnsupportedPlatformCard(context),
             const SizedBox(height: 12),
           ],
+          _buildRuntimeBoundaryCard(),
+          const SizedBox(height: 12),
           _buildPermissionsCard(service.permissionBackendInfo),
           const SizedBox(height: 12),
           _buildOnboardingChecklistCard(),
@@ -127,6 +129,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuntimeBoundaryCard() {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: _OnboardingNote(
+          icon: Icons.front_hand_outlined,
+          title: 'User-Operated Runtime Boundary',
+          body:
+              'Use this page to inspect helper readiness and run smoke checks. TCC grants, System Settings changes, and real desktop actions must be performed by the user.',
         ),
       ),
     );

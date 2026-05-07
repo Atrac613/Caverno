@@ -20,6 +20,13 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    expect(find.text('User-Operated Runtime Boundary'), findsOneWidget);
+    expect(
+      find.text(
+        'Use this page to inspect helper readiness and run smoke checks. TCC grants, System Settings changes, and real desktop actions must be performed by the user.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Computer Use App Boundary'), findsOneWidget);
     expect(find.text('Current executor'), findsOneWidget);
     expect(find.text('Permission owner now'), findsOneWidget);
