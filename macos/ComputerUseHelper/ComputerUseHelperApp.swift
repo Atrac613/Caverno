@@ -629,9 +629,12 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -28),
       icon.heightAnchor.constraint(equalToConstant: 68),
       icon.widthAnchor.constraint(equalToConstant: 68),
-      rows.widthAnchor.constraint(equalTo: stack.widthAnchor),
-      smokeTitle.widthAnchor.constraint(equalTo: stack.widthAnchor),
-      smokeRows.widthAnchor.constraint(equalTo: stack.widthAnchor),
+      rows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
+      rows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
+      smokeTitle.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
+      smokeTitle.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
+      smokeRows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
+      smokeRows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
     ])
 
     refreshPermissionRows()
