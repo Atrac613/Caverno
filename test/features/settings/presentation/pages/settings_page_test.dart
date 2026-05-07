@@ -52,6 +52,13 @@ void main() {
     await _tapByKey(tester, 'settings-menu-computer-use');
 
     expect(find.byType(ComputerUseSettingsPage), findsOneWidget);
+    expect(find.text('Helper-owned desktop control'), findsOneWidget);
+    expect(
+      find.text(
+        'Caverno Computer Use owns macOS permissions and desktop actions. TCC grants and real desktop operations remain user-operated.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Computer Use Ready'), findsOneWidget);
     expect(service.helperStatusCallCount, 1);
     expect(service.pingHelperCallCount, 1);

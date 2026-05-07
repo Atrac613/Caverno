@@ -348,7 +348,54 @@ class ComputerUseSettingsPage extends StatelessWidget {
     return Scaffold(
       appBar: AppBar(title: Text('settings.menu_computer_use'.tr())),
       body: ListView(
-        children: const [_ComputerUseOnboardingCard(), SizedBox(height: 16)],
+        children: const [
+          _ComputerUseSettingsHeader(),
+          _ComputerUseOnboardingCard(),
+          SizedBox(height: 16),
+        ],
+      ),
+    );
+  }
+}
+
+class _ComputerUseSettingsHeader extends StatelessWidget {
+  const _ComputerUseSettingsHeader();
+
+  @override
+  Widget build(BuildContext context) {
+    final colorScheme = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Card(
+      margin: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Icon(
+              Icons.admin_panel_settings_outlined,
+              color: colorScheme.primary,
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'settings.computer_use_header_title'.tr(),
+                    style: textTheme.titleSmall,
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'settings.computer_use_header_desc'.tr(),
+                    style: textTheme.bodySmall,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
