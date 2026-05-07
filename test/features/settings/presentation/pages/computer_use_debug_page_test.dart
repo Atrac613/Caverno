@@ -124,11 +124,19 @@ void main() {
       findsNWidgets(2),
     );
     expect(
+      find.textContaining('macos_computer_use_mvp_readiness.json'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_mvp_readiness.md'),
       findsOneWidget,
     );
     expect(
-      find.textContaining('MVP readiness (final sign-off output):'),
+      find.textContaining('MVP readiness JSON (final sign-off output):'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('MVP readiness Markdown (final sign-off output):'),
       findsOneWidget,
     );
     expect(

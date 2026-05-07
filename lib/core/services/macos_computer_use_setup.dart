@@ -76,6 +76,8 @@ class MacosComputerUseMvpGuidance {
       'macos_computer_use_release_readiness_ci.md';
   static const releaseReadinessSignoffMarkdownFile =
       'macos_computer_use_release_readiness_signoff.md';
+  static const mvpReadinessJsonFile = 'macos_computer_use_mvp_readiness.json';
+  static const mvpReadinessMarkdownFile = 'macos_computer_use_mvp_readiness.md';
   static const mvpHandoffMarkdownFile = 'macos_computer_use_mvp_handoff.md';
   static const prReviewSummarySection = 'PR Review Summary';
   static const llmCanarySummaryPlaceholder = '<llm-canary-summary.json>';

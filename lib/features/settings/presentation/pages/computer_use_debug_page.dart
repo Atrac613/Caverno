@@ -1733,8 +1733,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return <String, String>{
       'mvpHandoff':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.mvpHandoffMarkdownFile}',
-      'mvpReadiness':
-          'build/integration_test_reports/macos_computer_use_mvp_readiness.md',
+      'mvpReadinessJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.mvpReadinessJsonFile}',
+      'mvpReadinessMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.mvpReadinessMarkdownFile}',
       'manualTccSummary':
           'build/integration_test_reports/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       'desktopActionSummary':
@@ -1755,7 +1757,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     final paths = _mvpArtifactPaths();
     return [
       'MVP handoff: ${paths['mvpHandoff']}',
-      'MVP readiness (final sign-off output): ${paths['mvpReadiness']}',
+      'MVP readiness JSON (final sign-off output): ${paths['mvpReadinessJson']}',
+      'MVP readiness Markdown (final sign-off output): ${paths['mvpReadinessMarkdown']}',
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
