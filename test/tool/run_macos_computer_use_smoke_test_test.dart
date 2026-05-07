@@ -383,7 +383,8 @@ void main() {
     expect(runnerSource, contains('lateResponseElapsedMs'));
     expect(runnerSource, contains('xpc late response received'));
     expect(runnerSource, contains('sendXpcWarmup'));
-    expect(runnerSource, contains('xpcWarmupTimeout'));
+    expect(runnerSource, contains('static let xpcFallbackTimeout = 3.0'));
+    expect(runnerSource, contains('static let xpcWarmupTimeout = 1.0'));
     expect(runnerSource, contains('warmupAttempt'));
     expect(runnerSource, contains('preferredIpcWarmupAttempt'));
     expect(runnerSource, isNot(contains('replacedMismatchedHelperPath')));

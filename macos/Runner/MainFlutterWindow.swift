@@ -243,7 +243,7 @@ fileprivate enum MacosComputerUseIpcSchema {
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
-  static let xpcFallbackTimeout = 2.0
+  static let xpcFallbackTimeout = 3.0
   static let xpcWarmupTimeout = 1.0
   static let xpcWarmupReuseInterval = 30.0
   static let requestName = Notification.Name("com.caverno.computer_use.helper.request")
