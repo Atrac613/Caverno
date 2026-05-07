@@ -476,28 +476,6 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     documentView.translatesAutoresizingMaskIntoConstraints = false
     scrollView.documentView = documentView
 
-    let stack = NSStackView()
-    stack.orientation = .vertical
-    stack.alignment = .width
-    stack.spacing = 18
-    stack.translatesAutoresizingMaskIntoConstraints = false
-    documentView.addSubview(stack)
-
-    func centeredContainer(for view: NSView) -> NSView {
-      let container = NSView()
-      container.translatesAutoresizingMaskIntoConstraints = false
-      container.addSubview(view)
-      view.translatesAutoresizingMaskIntoConstraints = false
-      NSLayoutConstraint.activate([
-        view.centerXAnchor.constraint(equalTo: container.centerXAnchor),
-        view.topAnchor.constraint(equalTo: container.topAnchor),
-        view.bottomAnchor.constraint(equalTo: container.bottomAnchor),
-        view.leadingAnchor.constraint(greaterThanOrEqualTo: container.leadingAnchor),
-        view.trailingAnchor.constraint(lessThanOrEqualTo: container.trailingAnchor),
-      ])
-      return container
-    }
-
     let icon = NSImageView()
     icon.symbolConfiguration = .init(pointSize: 52, weight: .medium)
     icon.image = NSImage(
@@ -511,6 +489,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     title.font = .systemFont(ofSize: 32, weight: .bold)
     title.alignment = .center
     title.maximumNumberOfLines = 2
+    title.translatesAutoresizingMaskIntoConstraints = false
 
     let subtitle = NSTextField(
       wrappingLabelWithString:
@@ -520,6 +499,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     subtitle.textColor = .secondaryLabelColor
     subtitle.alignment = .center
     subtitle.maximumNumberOfLines = 3
+    subtitle.translatesAutoresizingMaskIntoConstraints = false
 
     let statusSummaryLabel = NSTextField(
       wrappingLabelWithString: "Refresh permissions to verify readiness."
@@ -528,6 +508,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     statusSummaryLabel.textColor = .secondaryLabelColor
     statusSummaryLabel.alignment = .center
     statusSummaryLabel.maximumNumberOfLines = 2
+    statusSummaryLabel.translatesAutoresizingMaskIntoConstraints = false
     self.statusSummaryLabel = statusSummaryLabel
 
     let rows = NSStackView()
@@ -564,6 +545,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     smokeTitle.font = .systemFont(ofSize: 15, weight: .semibold)
     smokeTitle.textColor = .secondaryLabelColor
     smokeTitle.alignment = .left
+    smokeTitle.translatesAutoresizingMaskIntoConstraints = false
 
     let smokeRows = NSStackView()
     smokeRows.orientation = .vertical
@@ -608,6 +590,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     buttonStack.orientation = .horizontal
     buttonStack.alignment = .centerY
     buttonStack.spacing = 10
+    buttonStack.translatesAutoresizingMaskIntoConstraints = false
 
     let footer = NSTextField(
       wrappingLabelWithString:
@@ -617,16 +600,19 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     footer.textColor = .tertiaryLabelColor
     footer.alignment = .center
     footer.maximumNumberOfLines = 2
+    footer.translatesAutoresizingMaskIntoConstraints = false
 
-    stack.addArrangedSubview(centeredContainer(for: icon))
-    stack.addArrangedSubview(title)
-    stack.addArrangedSubview(subtitle)
-    stack.addArrangedSubview(statusSummaryLabel)
-    stack.addArrangedSubview(rows)
-    stack.addArrangedSubview(smokeTitle)
-    stack.addArrangedSubview(smokeRows)
-    stack.addArrangedSubview(centeredContainer(for: buttonStack))
-    stack.addArrangedSubview(footer)
+    [
+      icon,
+      title,
+      subtitle,
+      statusSummaryLabel,
+      rows,
+      smokeTitle,
+      smokeRows,
+      buttonStack,
+      footer,
+    ].forEach(documentView.addSubview)
 
     NSLayoutConstraint.activate([
       scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
@@ -638,12 +624,34 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       documentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
       documentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
       documentView.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.contentView.heightAnchor),
-      stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
-      stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
-      stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 28),
-      stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -28),
+      icon.centerXAnchor.constraint(equalTo: documentView.centerXAnchor),
+      icon.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 58),
       icon.heightAnchor.constraint(equalToConstant: 68),
       icon.widthAnchor.constraint(equalToConstant: 68),
+      title.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
+      title.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
+      title.topAnchor.constraint(equalTo: icon.bottomAnchor, constant: 28),
+      subtitle.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      subtitle.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      subtitle.topAnchor.constraint(equalTo: title.bottomAnchor, constant: 22),
+      statusSummaryLabel.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      statusSummaryLabel.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      statusSummaryLabel.topAnchor.constraint(equalTo: subtitle.bottomAnchor, constant: 28),
+      rows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      rows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      rows.topAnchor.constraint(equalTo: statusSummaryLabel.bottomAnchor, constant: 44),
+      smokeTitle.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      smokeTitle.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      smokeTitle.topAnchor.constraint(equalTo: rows.bottomAnchor, constant: 44),
+      smokeRows.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      smokeRows.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      smokeRows.topAnchor.constraint(equalTo: smokeTitle.bottomAnchor, constant: 14),
+      buttonStack.centerXAnchor.constraint(equalTo: documentView.centerXAnchor),
+      buttonStack.topAnchor.constraint(equalTo: smokeRows.bottomAnchor, constant: 28),
+      footer.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 96),
+      footer.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -96),
+      footer.topAnchor.constraint(equalTo: buttonStack.bottomAnchor, constant: 14),
+      footer.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -28),
     ])
 
     refreshPermissionRows()
