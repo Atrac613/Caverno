@@ -626,7 +626,7 @@ cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
     echo "- Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
   fi
   if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-    echo "- Run or provide an MVP fixture LLM canary summary before final sign-off aggregation."
+    echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an MVP fixture LLM canary \`canary_summary.json\` before final sign-off aggregation."
   fi
   if [[ "${required_input_evidence_ready}" == "1" ]]; then
     echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
@@ -687,7 +687,7 @@ if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != 
   echo "  - Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
 fi
 if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-  echo "  - Run or provide an MVP fixture LLM canary summary before final sign-off aggregation."
+  echo "  - Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an MVP fixture LLM canary \`canary_summary.json\` before final sign-off aggregation."
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

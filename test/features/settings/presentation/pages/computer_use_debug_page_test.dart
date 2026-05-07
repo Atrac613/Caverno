@@ -88,7 +88,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'llm_canary: Run or provide an MVP fixture LLM canary summary',
+        'llm_canary: Run `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh` or provide an MVP fixture LLM canary `canary_summary.json`',
       ),
       findsOneWidget,
     );

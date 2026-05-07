@@ -1860,6 +1860,10 @@ void main() {
       mvpSignoffScript,
       contains(_desktopActionNextAction.replaceAll('`', r'\`')),
     );
+    expect(
+      mvpSignoffScript,
+      contains(_llmCanaryNextAction.replaceAll('`', r'\`')),
+    );
     expect(mvpLlmReadinessScript, contains(_manualTccNextAction));
     expect(mvpLlmReadinessScript, contains(_desktopActionNextAction));
     expect(mvpDemoReadinessScript, contains(_manualTccNextAction));

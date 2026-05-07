@@ -60,6 +60,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
   static const desktopActionCanaryCommand =
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
+  static const llmCanaryCommand =
+      'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -68,6 +70,7 @@ class MacosComputerUseMvpGuidance {
       'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
+  static const llmCanarySummaryFile = 'canary_summary.json';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
@@ -91,7 +94,7 @@ class MacosComputerUseMvpGuidance {
   static const desktopActionCanaryNextAction =
       'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
   static const llmCanaryNextAction =
-      'Run or provide an MVP fixture LLM canary summary before final sign-off aggregation.';
+      'Run `$llmCanaryCommand` or provide an MVP fixture LLM canary `$llmCanarySummaryFile` before final sign-off aggregation.';
   static const releaseArtifactNextAction =
       'Refresh safe release inputs with `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`.';
   static const canaryHistoryNextAction =
