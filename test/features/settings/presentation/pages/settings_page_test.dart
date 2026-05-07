@@ -129,7 +129,7 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
-    await _tapButton(tester, 'Open Smoke Test');
+    await _tapButton(tester, 'Open Smoke Sequence');
     expect(find.byType(ComputerUseDebugPage), findsOneWidget);
 
     final helperStatusBeforeReturn = service.helperStatusCallCount;
@@ -180,7 +180,7 @@ void main() {
 
     expect(find.text('Verify: Needs attention'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
-    expect(find.text('Open Smoke Test'), findsOneWidget);
+    expect(find.text('Open Smoke Sequence'), findsOneWidget);
     expect(
       find.byKey(const ValueKey('computer-use-settings-open-smoke-sequence')),
       findsOneWidget,
@@ -395,7 +395,7 @@ void main() {
     expect(find.text('Capture smoke: failed'), findsOneWidget);
     expect(
       find.text(
-        'Open Smoke Test, then press Run Smoke Sequence to rerun display and window capture checks.',
+        'Open Smoke Sequence, then press Run Smoke Sequence to rerun display and window capture checks.',
       ),
       findsOneWidget,
     );
