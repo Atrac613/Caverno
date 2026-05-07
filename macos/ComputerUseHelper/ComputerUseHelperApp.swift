@@ -465,12 +465,23 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     root.wantsLayer = true
     root.layer?.backgroundColor = NSColor.windowBackgroundColor.cgColor
 
+    let scrollView = NSScrollView()
+    scrollView.drawsBackground = false
+    scrollView.hasVerticalScroller = true
+    scrollView.autohidesScrollers = true
+    scrollView.translatesAutoresizingMaskIntoConstraints = false
+    root.addSubview(scrollView)
+
+    let documentView = NSView()
+    documentView.translatesAutoresizingMaskIntoConstraints = false
+    scrollView.documentView = documentView
+
     let stack = NSStackView()
     stack.orientation = .vertical
     stack.alignment = .centerX
     stack.spacing = 18
     stack.translatesAutoresizingMaskIntoConstraints = false
-    root.addSubview(stack)
+    documentView.addSubview(stack)
 
     let icon = NSImageView()
     icon.symbolConfiguration = .init(pointSize: 52, weight: .medium)
@@ -603,9 +614,19 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     stack.addArrangedSubview(footer)
 
     NSLayoutConstraint.activate([
-      stack.leadingAnchor.constraint(equalTo: root.leadingAnchor, constant: 64),
-      stack.trailingAnchor.constraint(equalTo: root.trailingAnchor, constant: -64),
-      stack.centerYAnchor.constraint(equalTo: root.centerYAnchor),
+      scrollView.leadingAnchor.constraint(equalTo: root.leadingAnchor),
+      scrollView.trailingAnchor.constraint(equalTo: root.trailingAnchor),
+      scrollView.topAnchor.constraint(equalTo: root.topAnchor),
+      scrollView.bottomAnchor.constraint(equalTo: root.bottomAnchor),
+      documentView.leadingAnchor.constraint(equalTo: scrollView.contentView.leadingAnchor),
+      documentView.trailingAnchor.constraint(equalTo: scrollView.contentView.trailingAnchor),
+      documentView.topAnchor.constraint(equalTo: scrollView.contentView.topAnchor),
+      documentView.widthAnchor.constraint(equalTo: scrollView.contentView.widthAnchor),
+      documentView.heightAnchor.constraint(greaterThanOrEqualTo: scrollView.contentView.heightAnchor),
+      stack.leadingAnchor.constraint(equalTo: documentView.leadingAnchor, constant: 64),
+      stack.trailingAnchor.constraint(equalTo: documentView.trailingAnchor, constant: -64),
+      stack.topAnchor.constraint(equalTo: documentView.topAnchor, constant: 28),
+      stack.bottomAnchor.constraint(equalTo: documentView.bottomAnchor, constant: -28),
       icon.heightAnchor.constraint(equalToConstant: 68),
       icon.widthAnchor.constraint(equalToConstant: 68),
       rows.widthAnchor.constraint(equalTo: stack.widthAnchor),
@@ -3595,18 +3616,30 @@ private final class PermissionRowView: NSView {
     textStack.orientation = .vertical
     textStack.alignment = .leading
     textStack.spacing = 4
+    textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     statusLabel.font = .systemFont(ofSize: 13, weight: .semibold)
+    statusLabel.setContentHuggingPriority(.required, for: .horizontal)
+    statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
     actionButton.target = self
     actionButton.action = #selector(runAction)
     actionButton.bezelStyle = .rounded
+    actionButton.setContentHuggingPriority(.required, for: .horizontal)
+    actionButton.setContentCompressionResistancePriority(.required, for: .horizontal)
 
     let trailingStack = NSStackView(views: [statusLabel, actionButton])
     trailingStack.orientation = .horizontal
     trailingStack.alignment = .centerY
     trailingStack.spacing = 10
+    trailingStack.setContentHuggingPriority(.required, for: .horizontal)
+    trailingStack.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    contentStack.setViews([icon, textStack, trailingStack], in: .leading)
+    let spacer = NSView()
+    spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    contentStack.setViews([icon, textStack, spacer, trailingStack], in: .leading)
     contentStack.orientation = .horizontal
     contentStack.alignment = .centerY
     contentStack.spacing = 14
@@ -3623,6 +3656,7 @@ private final class PermissionRowView: NSView {
     NSLayoutConstraint.activate([
       heightAnchor.constraint(greaterThanOrEqualToConstant: 78),
       icon.widthAnchor.constraint(equalToConstant: 36),
+      icon.heightAnchor.constraint(equalToConstant: 36),
       contentStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
       contentStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
       contentStack.topAnchor.constraint(equalTo: topAnchor, constant: 14),
@@ -3766,10 +3800,18 @@ private final class SmokeStepRowView: NSView {
     textStack.orientation = .vertical
     textStack.alignment = .leading
     textStack.spacing = 3
+    textStack.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    textStack.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
 
     statusLabel.font = .systemFont(ofSize: 12, weight: .semibold)
+    statusLabel.setContentHuggingPriority(.required, for: .horizontal)
+    statusLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
 
-    let rowStack = NSStackView(views: [icon, textStack, statusLabel])
+    let spacer = NSView()
+    spacer.setContentHuggingPriority(.defaultLow, for: .horizontal)
+    spacer.setContentCompressionResistancePriority(.defaultLow, for: .horizontal)
+
+    let rowStack = NSStackView(views: [icon, textStack, spacer, statusLabel])
     rowStack.orientation = .horizontal
     rowStack.alignment = .centerY
     rowStack.spacing = 12
@@ -3779,6 +3821,7 @@ private final class SmokeStepRowView: NSView {
     NSLayoutConstraint.activate([
       heightAnchor.constraint(greaterThanOrEqualToConstant: 58),
       icon.widthAnchor.constraint(equalToConstant: 24),
+      icon.heightAnchor.constraint(equalToConstant: 24),
       rowStack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 14),
       rowStack.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -14),
       rowStack.topAnchor.constraint(equalTo: topAnchor, constant: 10),

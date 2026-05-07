@@ -2582,8 +2582,9 @@ void main() {
       'caverno_mvp_signoff_dry_run_discovered_',
     );
     try {
-      File('${root.path}/macos_computer_use_release_artifact_signoff.json')
-        ..writeAsStringSync('''
+      File(
+        '${root.path}/macos_computer_use_release_artifact_signoff.json',
+      ).writeAsStringSync('''
 {
   "releaseSignoffGate": {
     "status": "ready",
@@ -2592,8 +2593,9 @@ void main() {
   }
 }
 ''');
-      File('${root.path}/macos_computer_use_canary_history.json')
-        ..writeAsStringSync('''
+      File(
+        '${root.path}/macos_computer_use_canary_history.json',
+      ).writeAsStringSync('''
 {
   "schemaName": "macos_computer_use_canary_history",
   "stable": true,

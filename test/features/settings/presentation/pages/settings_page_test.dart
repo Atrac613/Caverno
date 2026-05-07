@@ -35,6 +35,25 @@ void main() {
     MacosComputerUseAuditLog.instance.clear();
   });
 
+  testWidgets('keeps Computer Use behind a settings menu item', (tester) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpRootPage(tester, service);
+
+    expect(find.text('Computer Use Ready'), findsNothing);
+    expect(find.text('Computer Use'), findsOneWidget);
+    expect(service.helperStatusCallCount, 0);
+    expect(service.pingHelperCallCount, 0);
+    expect(service.getPermissionsCallCount, 0);
+
+    await _tapByKey(tester, 'settings-menu-computer-use');
+
+    expect(find.byType(ComputerUseSettingsPage), findsOneWidget);
+    expect(find.text('Computer Use Ready'), findsOneWidget);
+    expect(service.helperStatusCallCount, 1);
+    expect(service.pingHelperCallCount, 1);
+    expect(service.getPermissionsCallCount, 1);
+  });
+
   testWidgets('copies and exports diagnostics from the Settings card', (
     tester,
   ) async {
@@ -666,6 +685,25 @@ Future<void> _pumpPage(
   WidgetTester tester,
   _FakeMacosComputerUseService service,
 ) async {
+  await _pumpSettingsApp(
+    tester,
+    service,
+    home: const ComputerUseSettingsPage(),
+  );
+}
+
+Future<void> _pumpRootPage(
+  WidgetTester tester,
+  _FakeMacosComputerUseService service,
+) async {
+  await _pumpSettingsApp(tester, service, home: const SettingsPage());
+}
+
+Future<void> _pumpSettingsApp(
+  WidgetTester tester,
+  _FakeMacosComputerUseService service, {
+  required Widget home,
+}) async {
   tester.view.devicePixelRatio = 1;
   tester.view.physicalSize = const Size(1400, 2600);
   addTearDown(tester.view.resetDevicePixelRatio);
@@ -691,7 +729,7 @@ Future<void> _pumpPage(
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,
                 locale: context.locale,
-                home: const SettingsPage(),
+                home: home,
               ),
             );
           },

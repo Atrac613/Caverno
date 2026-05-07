@@ -143,8 +143,6 @@ class SettingsPage extends ConsumerWidget {
       ),
       body: ListView(
         children: [
-          const _ComputerUseOnboardingCard(),
-          const Divider(height: 1),
           ListTile(
             leading: const Icon(Icons.settings_outlined),
             title: Text('settings.menu_general'.tr()),
@@ -189,6 +187,21 @@ class SettingsPage extends ConsumerWidget {
               Navigator.push(
                 context,
                 MaterialPageRoute(builder: (_) => const ToolsSettingsPage()),
+              );
+            },
+          ),
+          const Divider(height: 1),
+          ListTile(
+            key: const ValueKey('settings-menu-computer-use'),
+            leading: const Icon(Icons.desktop_windows_outlined),
+            title: Text('settings.menu_computer_use'.tr()),
+            trailing: const Icon(Icons.chevron_right),
+            onTap: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => const ComputerUseSettingsPage(),
+                ),
               );
             },
           ),
@@ -322,6 +335,20 @@ class SettingsPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => QrExportDialog(data: data),
+    );
+  }
+}
+
+class ComputerUseSettingsPage extends StatelessWidget {
+  const ComputerUseSettingsPage({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(title: Text('settings.menu_computer_use'.tr())),
+      body: ListView(
+        children: const [_ComputerUseOnboardingCard(), SizedBox(height: 16)],
+      ),
     );
   }
 }
