@@ -87,6 +87,9 @@ class ReadinessArtifactIndex {
       )
       ..writeln(
         '- Boundary: ${mvpFinalSignoffRehearsal.prReviewSummary.operationBoundarySummary}',
+      )
+      ..writeln(
+        '- Report-only preflight command: `${_escapeMarkdownCode(mvpFinalSignoffRehearsal.reportOnlyPreflightCommand)}`',
       );
     buffer
       ..writeln()
@@ -161,6 +164,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.prReviewSummary,
     required this.nextActions,
     required this.finalAggregationCommand,
+    required this.reportOnlyPreflightCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -171,6 +175,7 @@ class ReadinessFinalSignoffRehearsal {
   final ReadinessPrReviewSummary prReviewSummary;
   final List<String> nextActions;
   final String? finalAggregationCommand;
+  final String reportOnlyPreflightCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -186,6 +191,7 @@ class ReadinessFinalSignoffRehearsal {
       'prReviewSummary': prReviewSummary.toJson(),
       'nextActions': nextActions,
       'finalAggregationCommand': finalAggregationCommand,
+      'reportOnlyPreflightCommand': reportOnlyPreflightCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -374,6 +380,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     prReviewSummary: prReviewSummary,
     nextActions: List<String>.unmodifiable(nextActions),
     finalAggregationCommand: finalAggregationCommand,
+    reportOnlyPreflightCommand: _mvpReadinessPreflightCommand(reportRoot),
   );
 }
 
@@ -422,6 +429,15 @@ String _mvpFinalAggregationCommand(
     entriesById['desktop_action_canary']?.path ?? '',
     '--llm-canary-summary',
     entriesById['llm_canary']?.path ?? '',
+  ].map(_shellQuote).join(' ');
+}
+
+String _mvpReadinessPreflightCommand(Directory reportRoot) {
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+    '--root',
+    reportRoot.path,
   ].map(_shellQuote).join(' ');
 }
 

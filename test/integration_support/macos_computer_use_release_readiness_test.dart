@@ -595,7 +595,17 @@ void main() {
       );
       expect(
         index.toMarkdown(),
+        contains(
+          '- Report-only preflight command: `bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}`',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
         contains('- Pending user-operated evidence: none'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.reportOnlyPreflightCommand,
+        'bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}',
       );
       expect(index.toMarkdown(), contains('Final MVP aggregation command:'));
       expect(
@@ -743,6 +753,10 @@ void main() {
               as Map<String, Object?>;
       expect(prReviewSummary['status'], 'blocked_pending_evidence');
       expect(
+        index.mvpFinalSignoffRehearsal.toJson()['reportOnlyPreflightCommand'],
+        'bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}',
+      );
+      expect(
         prReviewSummary['pendingUserOperatedEvidenceIds'],
         containsAll(<String>['manual_tcc', 'desktop_action_canary']),
       );
@@ -803,6 +817,12 @@ void main() {
       expect(stdout, contains('PR review summary:'));
       expect(stdout, contains('- Status: blocked_pending_evidence'));
       expect(stdout, contains('- Ready artifacts: release_artifact'));
+      expect(
+        stdout,
+        contains(
+          '- Report-only preflight command: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}',
+        ),
+      );
       expect(
         stdout,
         contains(

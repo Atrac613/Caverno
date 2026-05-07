@@ -76,6 +76,9 @@ Future<void> main(List<String> args) async {
     '- Pending automation-safe evidence: ${_joinedOrNone(prSummary.pendingAutomationSafeEvidenceIds)}',
   );
   stdout.writeln('- Boundary: ${prSummary.operationBoundarySummary}');
+  stdout.writeln(
+    '- Report-only preflight command: ${rehearsal.reportOnlyPreflightCommand}',
+  );
   stdout.writeln('Operation boundary:');
   for (final entry in rehearsal.operationBoundary.entries) {
     stdout.writeln('- ${entry.key}: ${entry.value}');
