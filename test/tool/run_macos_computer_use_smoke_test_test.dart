@@ -1591,6 +1591,20 @@ void main() {
       mvpFixtureRunbook,
       contains('does not auto-launch Caverno.app by default'),
     );
+    expect(mvpFixtureRunbook, contains('PR Review Artifacts'));
+    expect(mvpFixtureRunbook, contains('PR Review Summary'));
+    expect(mvpFixtureRunbook, contains('mvp_demo_handoff.md'));
+    expect(mvpFixtureRunbook, contains('mvp_demo_final_handoff.md'));
+    expect(
+      mvpFixtureRunbook,
+      contains('macos_computer_use_readiness_artifact_index.md'),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains(
+        'dart run tool/macos_computer_use_readiness_artifact_index.dart',
+      ),
+    );
     expect(mvpFixtureRunbook, contains('--launch-caverno'));
     expect(mvpFixtureRunbook, contains('user-operated'));
     expect(mvpFixtureRunbook, contains('does not grant TCC'));

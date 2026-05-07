@@ -180,3 +180,18 @@ bash tool/run_macos_computer_use_mvp_demo_readiness.sh \
 
 If manual evidence is missing, the handoff remains blocked and lists the next
 user-operated command to request.
+
+For PR review, inspect the generated `PR Review Artifacts` and
+`PR Review Summary` sections before final sign-off:
+
+- `mvp_demo_handoff.md`: guided wrapper handoff and next user actions.
+- `mvp_demo_final_handoff.md`: MVP sign-off wrapper handoff.
+- `macos_computer_use_readiness_artifact_index.md`: artifact index
+  `PR Review Summary`.
+
+Regenerate the artifact index without running TCC or desktop actions:
+
+```bash
+dart run tool/macos_computer_use_readiness_artifact_index.dart \
+  --root build/integration_test_reports
+```
