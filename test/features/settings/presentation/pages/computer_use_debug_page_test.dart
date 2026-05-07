@@ -110,6 +110,12 @@ void main() {
     );
     expect(find.textContaining('--llm-canary-summary'), findsOneWidget);
     expect(
+      find.textContaining(
+        'Required inputs: manual TCC manual_tcc_report_summary.json, desktop action canary_summary.json, and MVP fixture LLM canary_summary.json',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('run_macos_computer_use_manual_tcc_signoff.sh'),
       findsNWidgets(2),
     );
@@ -155,6 +161,11 @@ void main() {
       find.textContaining('macos_computer_use_release_readiness_signoff.md'),
       findsNWidgets(2),
     );
+    expect(
+      find.textContaining('macos_computer_use_mvp_fixture_llm_canary_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('MVP fixture LLM summary:'), findsOneWidget);
     expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',

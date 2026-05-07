@@ -1696,7 +1696,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     return [
       'Wrapper: ${MacosComputerUseMvpGuidance.mvpSignoffCommand}',
       'Final aggregation: ${MacosComputerUseMvpGuidance.finalAggregationCommand}',
-      'Manual inputs: ${MacosComputerUseMvpGuidance.manualTccSummaryFile} and ${MacosComputerUseMvpGuidance.desktopActionSummaryFile}',
+      'Required inputs: manual TCC ${MacosComputerUseMvpGuidance.manualTccSummaryFile}, desktop action ${MacosComputerUseMvpGuidance.desktopActionSummaryFile}, and MVP fixture LLM ${MacosComputerUseMvpGuidance.llmCanarySummaryFile}',
       'TCC and desktop action stay user-operated',
     ].join(' | ');
   }
@@ -1741,6 +1741,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       'desktopActionSummary':
           'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      'llmCanarySummary':
+          'build/integration_test_reports/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1761,6 +1763,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'MVP readiness Markdown (final sign-off output): ${paths['mvpReadinessMarkdown']}',
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
+      'MVP fixture LLM summary: ${paths['llmCanarySummary']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
