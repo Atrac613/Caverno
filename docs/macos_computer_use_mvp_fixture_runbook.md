@@ -84,6 +84,14 @@ bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
   --desktop-action-report <desktop-action-run-report.json>
 ```
 
+If the report root already contains a saved fixture screenshot from an earlier
+vision canary run, use the latest saved screenshot directly:
+
+```bash
+bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+  --latest-screenshot
+```
+
 The screenshot is user-provided. This vision canary sends the image to the live
 LLM and validates that the model can visually identify `Safe Click Target`,
 `MVP Fixture Text Field`, `Echo Text`, and the refused `Danger Zone` without

@@ -11,6 +11,7 @@ SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 SCREENSHOT_PATH=""
 DESKTOP_ACTION_REPORT=""
 FIXTURE_RESPONSE=""
+USE_LATEST_SCREENSHOT=0
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -26,6 +27,8 @@ Usage: bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh [option
 Options:
   --root PATH             Report root directory.
   --screenshot PATH       User-provided screenshot of the MVP fixture app.
+  --latest-screenshot     Use the latest saved MVP fixture screenshot under
+                          the report root.
   --desktop-action-report PATH
                           Extract the fixture screenshot from a desktop action
                           canary run report.
@@ -36,6 +39,27 @@ This canary sends a user-provided fixture-app screenshot to the configured live
 LLM and validates the Computer Use MVP visual decision. It does not capture the
 screen, grant TCC, operate System Settings, move the pointer, click, or type.
 USAGE
+}
+
+find_latest_fixture_screenshot() {
+  python3 - "${REPORT_ROOT}" <<'PY'
+import sys
+from pathlib import Path
+
+root = Path(sys.argv[1])
+patterns = (
+    "macos_computer_use_mvp_fixture_vision_llm_canary_*/desktop_action_post_click_window_capture_screenshot.png",
+    "macos_computer_use_mvp_fixture_vision_llm_canary_*/*_screenshot.png",
+)
+candidates = []
+for pattern in patterns:
+    for path in root.glob(pattern):
+        if path.is_file():
+            stat = path.stat()
+            candidates.append((stat.st_mtime, str(path)))
+if candidates:
+    print(sorted(candidates)[-1][1])
+PY
 }
 
 while [[ $# -gt 0 ]]; do
@@ -49,6 +73,10 @@ while [[ $# -gt 0 ]]; do
       require_value "$@"
       SCREENSHOT_PATH="$2"
       shift 2
+      ;;
+    --latest-screenshot)
+      USE_LATEST_SCREENSHOT=1
+      shift
       ;;
     --desktop-action-report)
       require_value "$@"
@@ -72,12 +100,21 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
+if [[ -z "${SCREENSHOT_PATH}" && -z "${DESKTOP_ACTION_REPORT}" && "${USE_LATEST_SCREENSHOT}" == "1" ]]; then
+  SCREENSHOT_PATH="$(find_latest_fixture_screenshot)"
+  if [[ -z "${SCREENSHOT_PATH}" ]]; then
+    echo "No saved MVP fixture screenshot found under ${REPORT_ROOT}." >&2
+    echo "Run with --screenshot PATH or provide --desktop-action-report PATH." >&2
+    exit 66
+  fi
+fi
+
 if [[ -z "${FIXTURE_RESPONSE}" ]]; then
   : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the MVP fixture vision LLM canary.}"
   : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the MVP fixture vision LLM canary.}"
   : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the MVP fixture vision LLM canary.}"
   if [[ -z "${SCREENSHOT_PATH}" && -z "${DESKTOP_ACTION_REPORT}" ]]; then
-    echo "--screenshot or --desktop-action-report is required when calling the live LLM." >&2
+    echo "--screenshot, --latest-screenshot, or --desktop-action-report is required when calling the live LLM." >&2
     exit 64
   fi
   if [[ -n "${SCREENSHOT_PATH}" && ! -f "${SCREENSHOT_PATH}" ]]; then

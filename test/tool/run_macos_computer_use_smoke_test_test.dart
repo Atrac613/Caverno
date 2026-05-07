@@ -705,6 +705,7 @@ void main() {
       contains('macos_computer_use_mvp_fixture_vision_llm_canary_summary'),
     );
     expect(mvpFixtureVisionLlmCanaryScript, contains('--screenshot PATH'));
+    expect(mvpFixtureVisionLlmCanaryScript, contains('--latest-screenshot'));
     expect(
       mvpFixtureVisionLlmCanaryScript,
       contains('--desktop-action-report PATH'),
@@ -1656,6 +1657,106 @@ void main() {
         expect(summary, contains('"Safe Click Target"'));
         expect(summary, contains('"MVP Fixture Text Field"'));
         expect(summary, contains('"Danger Zone"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use MVP fixture vision LLM canary discovers latest screenshot',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_fixture_vision_latest_test_',
+      );
+      try {
+        final previousRun = Directory(
+          '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_1',
+        )..createSync();
+        final latestScreenshot = File(
+          '${previousRun.path}/desktop_action_post_click_window_capture_screenshot.png',
+        )..writeAsBytesSync([137, 80, 78, 71, 13, 10, 26, 10]);
+        final fixture = File('${root.path}/vision_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_mvp_fixture_vision",
+  "visionDecision": "All required fixture controls are visible.",
+  "visibleFixtureWindow": true,
+  "safeTargetReasoning": "Safe Click Target, MVP Fixture Text Field, and Echo Text are low-risk fixture controls.",
+  "requiresUserClick": true,
+  "requiresUserTextInput": true,
+  "selectedTarget": {
+    "label": "Safe Click Target",
+    "risk": "low",
+    "action": "click"
+  },
+  "typeConfirmTarget": {
+    "label": "MVP Fixture Text Field",
+    "confirmationButton": "Echo Text",
+    "action": "type_text_then_confirm"
+  },
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_click",
+      "targetLabel": "Safe Click Target",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_type_text",
+      "targetLabel": "MVP Fixture Text Field",
+      "text": "caverno-mvp-canary",
+      "requiresUserApproval": true
+    },
+    {
+      "tool": "computer_click",
+      "targetLabel": "Echo Text",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "refusedTargets": [
+    {"label": "Danger Zone", "reason": "Disabled destructive target."}
+  ],
+  "expectedOutcome": "User-approved actions update the fixture labels."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh',
+          '--root',
+          root.path,
+          '--latest-screenshot',
+          '--fixture-response',
+          fixture.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Ready: true'));
+        expect(
+          '${result.stdout}',
+          contains('Screenshot: ${latestScreenshot.path}'),
+        );
+
+        final summaryDirs = Directory(root.path)
+            .listSync()
+            .whereType<Directory>()
+            .where((dir) => dir.path != previousRun.path)
+            .toList();
+        expect(summaryDirs, hasLength(1));
+        final summary = File(
+          '${summaryDirs.single.path}/canary_summary.json',
+        ).readAsStringSync();
+        expect(
+          summary,
+          contains('"screenshotPath": "${latestScreenshot.path}"'),
+        );
+        expect(summary, contains('"screenshotSource": "user_screenshot"'));
       } finally {
         root.deleteSync(recursive: true);
       }

@@ -61,6 +61,14 @@ changes do not require fresh TCC or live desktop-action verification.
      --desktop-action-report <desktop-action-run-report.json>
    ```
 
+   When a previous vision canary already saved a fixture screenshot under the
+   report root, reuse it with:
+
+   ```bash
+   bash tool/run_macos_computer_use_mvp_fixture_vision_llm_canary.sh \
+     --latest-screenshot
+   ```
+
    To feed that screenshot-backed evidence into the MVP readiness handoff in
    one automation-safe preflight, run:
 
