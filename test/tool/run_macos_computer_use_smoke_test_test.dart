@@ -155,6 +155,19 @@ void main() {
     );
     expect(architectureDoc, contains('xpcProductionGate'));
     expect(architectureDoc, contains('DNC fallback remains non-destructive'));
+    expect(architectureDoc, contains('## Helper IPC Protocol'));
+    expect(
+      architectureDoc,
+      contains('typed request envelope across the preferred'),
+    );
+    expect(
+      architectureDoc,
+      contains('LaunchAgent-backed named XPC transport and the observable'),
+    );
+    expect(architectureDoc, contains('distributed-notification fallback'));
+    expect(architectureDoc, contains('selected transport'));
+    expect(architectureDoc, contains('preferred transport'));
+    expect(architectureDoc, contains('fallback transport metadata'));
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {
