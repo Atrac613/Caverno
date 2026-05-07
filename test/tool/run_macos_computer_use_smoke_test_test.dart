@@ -1815,6 +1815,7 @@ void main() {
     expect(mvpSignoffScript, contains('MVP sign-off outputs:'));
     expect(mvpSignoffScript, contains('PR Review Summary'));
     expect(mvpSignoffScript, contains('PR review summary:'));
+    expect(mvpSignoffScript, contains('Release readiness PR Review Summary'));
     expect(mvpSignoffScript, contains('ready_for_final_aggregation'));
     expect(mvpSignoffScript, contains('blocked_pending_evidence'));
     expect(mvpSignoffScript, contains('Missing Input Next Actions'));
@@ -1937,6 +1938,12 @@ void main() {
       expect(
         stdout,
         contains(
+          'Release readiness PR Review Summary: ${root.path}/macos_computer_use_mvp_readiness.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
           'Artifact index PR Review Summary: ${root.path}/macos_computer_use_readiness_artifact_index.md',
         ),
       );
@@ -1992,6 +1999,12 @@ void main() {
       expect(
         handoff,
         contains('Markdown: ${root.path}/macos_computer_use_mvp_readiness.md'),
+      );
+      expect(
+        handoff,
+        contains(
+          'Release readiness PR Review Summary: ${root.path}/macos_computer_use_mvp_readiness.md',
+        ),
       );
       expect(
         handoff,
