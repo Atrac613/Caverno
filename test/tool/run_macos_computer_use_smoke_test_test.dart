@@ -1938,7 +1938,7 @@ void main() {
       expect(
         stdout,
         contains(
-          'Release readiness PR Review Summary: ${root.path}/macos_computer_use_mvp_readiness.md',
+          'Release readiness PR Review Summary (final sign-off output): ${root.path}/macos_computer_use_mvp_readiness.md',
         ),
       );
       expect(
@@ -2003,7 +2003,7 @@ void main() {
       expect(
         handoff,
         contains(
-          'Release readiness PR Review Summary: ${root.path}/macos_computer_use_mvp_readiness.md',
+          'Release readiness PR Review Summary (final sign-off output): ${root.path}/macos_computer_use_mvp_readiness.md',
         ),
       );
       expect(
@@ -2063,6 +2063,7 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('--dry-run'));
     expect(mvpReadinessPreflightScript, contains('PR Review Summary'));
     expect(mvpReadinessPreflightScript, contains('PR Review Artifacts'));
+    expect(mvpReadinessPreflightScript, contains('final sign-off output'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',

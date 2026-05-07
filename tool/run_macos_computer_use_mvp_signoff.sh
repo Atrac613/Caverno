@@ -552,7 +552,7 @@ cat >"${HANDOFF_MD}" <<EOF
 - JSON: ${OUTPUT_JSON}
 - Markdown: ${OUTPUT_MD}
 - Handoff Markdown: ${HANDOFF_MD}
-- Release readiness PR Review Summary: ${OUTPUT_MD}
+- Release readiness PR Review Summary (final sign-off output): ${OUTPUT_MD}
 - Artifact index Markdown: ${ARTIFACT_INDEX_MD}
 - Artifact index command: \`${ARTIFACT_INDEX_COMMAND}\`
 - MVP readiness preflight command: \`${MVP_READINESS_PREFLIGHT_COMMAND}\`
@@ -660,7 +660,7 @@ echo "  Markdown: ${OUTPUT_MD}"
 echo "  Handoff Markdown: ${HANDOFF_MD}"
 echo "PR review summary:"
 echo "  Handoff PR Review Summary: ${HANDOFF_MD}"
-echo "  Release readiness PR Review Summary: ${OUTPUT_MD}"
+echo "  Release readiness PR Review Summary (final sign-off output): ${OUTPUT_MD}"
 echo "  Artifact index PR Review Summary: ${ARTIFACT_INDEX_MD}"
 echo "  Artifact index command: ${ARTIFACT_INDEX_COMMAND}"
 echo "  MVP readiness preflight command: ${MVP_READINESS_PREFLIGHT_COMMAND}"
