@@ -1689,6 +1689,14 @@ void main() {
     );
     expect(
       mvpFixtureRunbook,
+      contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
+    );
+    expect(
+      mvpFixtureRunbook,
+      contains('without running TCC, System Settings, app launch, or desktop'),
+    );
+    expect(
+      mvpFixtureRunbook,
       contains(
         'dart run tool/macos_computer_use_readiness_artifact_index.dart',
       ),

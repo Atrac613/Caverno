@@ -189,7 +189,15 @@ For PR review, inspect the generated `PR Review Artifacts` and
 - `macos_computer_use_readiness_artifact_index.md`: artifact index
   `PR Review Summary`.
 
-Regenerate the artifact index without running TCC or desktop actions:
+Run the report-only MVP readiness preflight to refresh the artifact index and
+dry-run handoff without running TCC, System Settings, app launch, or desktop
+actions:
+
+```bash
+bash tool/run_macos_computer_use_mvp_readiness_preflight.sh
+```
+
+Or regenerate only the artifact index without running TCC or desktop actions:
 
 ```bash
 dart run tool/macos_computer_use_readiness_artifact_index.dart \
