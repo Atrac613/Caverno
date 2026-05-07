@@ -1450,10 +1450,24 @@ action canaries, LLM canaries, and MVP PR review artifacts.
 
 ## Verification Gates
 
-- Unit tests cover checklist state and user-facing next actions.
-- Widget tests cover missing and granted permission states.
-- `flutter analyze` passes.
-- Focused computer-use tests pass.
-- `flutter build macos --debug` passes.
-- Manual smoke tests cover missing permissions, each single-permission state,
-  both permissions granted, stale windows, and emergency stop.
+- Static verification: `flutter analyze`, focused unit/widget tests, and
+  focused script contract tests pass.
+- Release artifact verification: M7 release sign-off passes for the embedded
+  helper bundle, LaunchAgent plist, MachService declaration, bundle identity,
+  and signing checks.
+- Production IPC verification: `xpcProductionGate` is ready, command parity is
+  complete, and DNC fallback remains observable rather than accepted as
+  production readiness.
+- LLM verification: the MVP fixture LLM canary passes with safe-click,
+  type-and-confirm, observe-again, user-approval boundary, and destructive
+  target refusal evidence.
+- Manual TCC verification: `manual_tcc` comes only from a user-operated M8
+  runtime report or `manual_tcc_report_summary.json`.
+- Desktop action verification: `desktop_action_canary` comes only from a
+  user-operated safe target run.
+- MVP aggregation verification: `run_macos_computer_use_mvp_signoff.sh` or
+  `run_macos_computer_use_mvp_demo_readiness.sh` aggregates the provided
+  reports and writes blocked next actions when evidence is missing.
+- PR review verification: reviewers inspect `PR Review Summary` and
+  `PR Review Artifacts` in the MVP handoff, guided demo handoff, and artifact
+  index Markdown before final sign-off.

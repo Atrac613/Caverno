@@ -193,6 +193,18 @@ void main() {
         'Remaining work is release readiness and user-operated sign-off',
       ),
     );
+    expect(architectureDoc, contains('## Verification Gates'));
+    expect(architectureDoc, contains('Static verification'));
+    expect(architectureDoc, contains('Release artifact verification'));
+    expect(architectureDoc, contains('Production IPC verification'));
+    expect(architectureDoc, contains('LLM verification'));
+    expect(architectureDoc, contains('Manual TCC verification'));
+    expect(architectureDoc, contains('Desktop action verification'));
+    expect(architectureDoc, contains('MVP aggregation verification'));
+    expect(architectureDoc, contains('PR review verification'));
+    expect(architectureDoc, contains('manual_tcc_report_summary.json'));
+    expect(architectureDoc, contains('user-operated safe target run'));
+    expect(architectureDoc, contains('PR Review Artifacts'));
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {
