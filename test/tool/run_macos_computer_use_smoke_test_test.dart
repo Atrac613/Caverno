@@ -2174,6 +2174,25 @@ void main() {
       expect(stdout, contains('MVP sign-off outputs:'));
       expect(stdout, contains('PR review summary:'));
       expect(stdout, contains('MVP readiness preflight outputs:'));
+      expect(stdout, contains('Expected final input paths:'));
+      expect(
+        stdout,
+        contains(
+          'Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'MVP fixture LLM: macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+        ),
+      );
       expect(
         stdout,
         contains(
