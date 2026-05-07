@@ -340,6 +340,7 @@ class _ComputerUseOnboardingCardState
   bool _isLoading = false;
   Map<String, dynamic>? _helperStatus;
   Map<String, dynamic>? _permissions;
+  Map<String, dynamic>? _lastLaunchResult;
   Map<String, dynamic>? _lastStopResult;
   Map<String, dynamic>? _lastPermissionSettingsResult;
   Map<String, dynamic>? _lastPermissionOverlayResult;
@@ -698,6 +699,13 @@ class _ComputerUseOnboardingCardState
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ],
+            if (_lastLaunchResult != null) ...[
+              const SizedBox(height: 8),
+              SelectableText(
+                'Last open: ${_launchResultSummary(_lastLaunchResult!)}',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ],
             if (_lastPermissionSettingsResult != null) ...[
               const SizedBox(height: 8),
               SelectableText(
@@ -800,7 +808,10 @@ class _ComputerUseOnboardingCardState
       }
       setState(() {
         if (helper != null) {
+          _lastLaunchResult = helper;
           _helperStatus = {...?_helperStatus, ...helper};
+        } else {
+          _lastLaunchResult = {'ok': false, 'error': 'Invalid response'};
         }
       });
       final readiness = _decodeMap(await service.waitForHelperIpcReady());
@@ -809,6 +820,7 @@ class _ComputerUseOnboardingCardState
       }
       setState(() {
         if (readiness != null) {
+          _lastLaunchResult = {...?_lastLaunchResult, ...readiness};
           _helperStatus = {...?_helperStatus, ...readiness};
         }
       });
@@ -1069,6 +1081,7 @@ class _ComputerUseOnboardingCardState
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastExistingHelperProbeReport': _lastExistingHelperProbeReport,
+        'lastLaunchResult': _lastLaunchResult,
         'lastStopResult': _lastStopResult,
         'lastPermissionSettingsResult': _lastPermissionSettingsResult,
         'lastPermissionOverlayResult': _lastPermissionOverlayResult,
@@ -1403,6 +1416,12 @@ class _ComputerUseOnboardingCardState
           preferredAttempt != null &&
           preferredTransport != fallbackTransport,
       'helperPathSignoffGate': helperPathSignoffGate,
+      'helperRuntimeUseGate': _helperRuntimeUseGate(
+        helperPathMismatch: helperPathMismatch,
+        preservedMismatchedHelperPath: preservedMismatchedHelperPath,
+        runningHelperPath: runningHelperPath,
+        helperReachable: helperReachable,
+      ),
     };
     runtime['preferredFallbackSucceeded'] =
         runtime['preferredFallbackActive'] == true &&
@@ -1540,6 +1559,33 @@ class _ComputerUseOnboardingCardState
     };
   }
 
+  Map<String, dynamic> _helperRuntimeUseGate({
+    required bool helperPathMismatch,
+    required bool preservedMismatchedHelperPath,
+    required String? runningHelperPath,
+    required bool helperReachable,
+  }) {
+    final usable =
+        helperReachable &&
+        (!helperPathMismatch ||
+            (preservedMismatchedHelperPath && runningHelperPath != null));
+    return {
+      'status': usable
+          ? preservedMismatchedHelperPath
+                ? 'current_session'
+                : 'ready'
+          : 'blocked',
+      'usable': usable,
+      'releaseSignoffSafe': !helperPathMismatch,
+      'requiresRestartForReleaseSignoff': helperPathMismatch,
+      'nextAction': usable
+          ? preservedMismatchedHelperPath
+                ? 'Use the current helper for this session, then restart from Caverno before release sign-off.'
+                : 'Current helper is ready for runtime use.'
+          : 'Open Computer Use from Caverno, then recheck helper reachability.',
+    };
+  }
+
   Map<String, dynamic>? _verificationCaptureGate({
     required Map<String, dynamic>? verification,
     required Map<String, dynamic> snapshot,
@@ -1652,6 +1698,22 @@ class _ComputerUseOnboardingCardState
     return ok ? 'ok' : 'failed';
   }
 
+  String _launchResultSummary(Map<String, dynamic> result) {
+    final ok = result['ok'] == true;
+    final launched = result['launched'];
+    final helperReachable = result['helperReachable'];
+    final ipcReady = result['ipcReady'];
+    final code = result['code'];
+    final error = result['error'];
+    if (ok) {
+      return 'ok, launched: $launched, reachable: $helperReachable, ipc ready: $ipcReady';
+    }
+    if (code != null || error != null) {
+      return '${code ?? 'failed'}: ${error ?? 'Unknown error'}';
+    }
+    return 'failed';
+  }
+
   String _permissionActionSummary(Map<String, dynamic> result) {
     final section = result['section'] ?? 'unknown';
     final ok = result['ok'] == true;
@@ -1694,6 +1756,9 @@ class _ComputerUseOnboardingCardState
   String _lastActionLabel() {
     if (_lastPrimaryActionLabel != null) {
       return 'Settings primary action: $_lastPrimaryActionLabel';
+    }
+    if (_lastLaunchResult != null) {
+      return 'Settings open computer use';
     }
     if (_lastStopResult != null) {
       return 'Settings stop helper work';
@@ -2240,11 +2305,15 @@ class _IpcRuntimeSummary extends StatelessWidget {
     final preservedMismatchedHelperPath =
         runtime['preservedMismatchedHelperPath'] == true;
     final helperPathSignoffGate = _mapValue(runtime['helperPathSignoffGate']);
+    final helperRuntimeUseGate = _mapValue(runtime['helperRuntimeUseGate']);
     final helperPathSignoffBlockers = _stringList(
       helperPathSignoffGate?['blockers'],
     );
     final helperPathSignoffNextAction = _stringValue(
       helperPathSignoffGate?['nextAction'],
+    );
+    final helperRuntimeUseNextAction = _stringValue(
+      helperRuntimeUseGate?['nextAction'],
     );
     final helperPathMismatchDetails = _mapValue(
       runtime['helperPathMismatchDetails'],
@@ -2391,6 +2460,11 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Helper path sign-off',
                 value: '${helperPathSignoffGate['status']}',
               ),
+            if (helperRuntimeUseGate != null)
+              _InfoChip(
+                label: 'Helper runtime use',
+                value: '${helperRuntimeUseGate['status']}',
+              ),
             if (helperPathSignoffBlockers.isNotEmpty)
               _InfoChip(
                 label: 'Helper path blockers',
@@ -2405,6 +2479,11 @@ class _IpcRuntimeSummary extends StatelessWidget {
               _InfoChip(
                 label: 'Helper path next action',
                 value: helperPathNextAction,
+              ),
+            if (helperRuntimeUseNextAction != null)
+              _InfoChip(
+                label: 'Helper runtime next action',
+                value: helperRuntimeUseNextAction,
               ),
             if (embeddedHelperPath != null)
               _InfoChip(

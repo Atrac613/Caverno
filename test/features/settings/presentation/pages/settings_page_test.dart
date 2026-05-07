@@ -170,6 +170,10 @@ void main() {
       greaterThan(permissionsBeforeLaunch),
     );
     expect(find.text('Open Computer Use'), findsOneWidget);
+    expect(
+      find.textContaining('Last open: ok, launched: true, reachable: true'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('keeps Computer Use open action after permissions are granted', (
@@ -190,6 +194,10 @@ void main() {
 
     expect(service.launchHelperCallCount, 1);
     expect(find.text('Open Computer Use'), findsOneWidget);
+    expect(
+      find.textContaining('Last open: ok, launched: true, reachable: true'),
+      findsOneWidget,
+    );
   });
 
   testWidgets('separates helper process state from IPC readiness', (
@@ -505,6 +513,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.text('Helper path sign-off: blocked'), findsOneWidget);
+    expect(find.text('Helper runtime use: current_session'), findsOneWidget);
     expect(
       find.text(
         'Helper path blockers: helper_path_mismatch, preserved_mismatched_helper',
@@ -514,6 +523,12 @@ void main() {
     expect(
       find.text(
         'Helper path sign-off next action: Keep using the currently granted helper for this session, then restart from the installed Caverno bundle before release sign-off.',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Helper runtime next action: Use the current helper for this session, then restart from Caverno before release sign-off.',
       ),
       findsOneWidget,
     );
