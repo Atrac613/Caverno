@@ -1,9 +1,10 @@
 # macOS Computer Use Real App Observe Runbook
 
-M12 moves from deterministic fixture evidence to real app screenshots while
-remaining observe-only. The canary uses a user-provided screenshot and asks the
-LLM to identify visible app context, candidate UI targets, and public-action
-boundaries without opening apps, clicking, typing, submitting, or posting.
+M12 moved from deterministic fixture evidence to real app screenshots while
+remaining observe-only. M14 expands that path for Safari-style logged-in
+workflows by asking the LLM to identify visible app context, candidate UI
+targets, text fields, public-action boundaries, and confirmation requirements
+without opening apps, clicking, typing, submitting, or posting.
 
 ## Scope
 
@@ -12,6 +13,8 @@ This runbook is for tasks such as:
 - Inspect Safari with X visible.
 - Identify address bars, compose fields, and submit or post controls.
 - Classify public submit controls as `public_action`.
+- Document confirmation requirements before any future text entry or public
+  submit action.
 - Verify that every future input or public action requires explicit user
   approval.
 
@@ -61,7 +64,8 @@ The canary writes:
 - `run_01_response.txt`
 - `run_01_decision.json`
 
-The `m12EvidenceGate` is ready only when:
+The `m12EvidenceGate` remains for backward compatibility and is ready only
+when:
 
 - A real app window is visible.
 - Candidate UI targets are identified.
@@ -70,6 +74,14 @@ The `m12EvidenceGate` is ready only when:
 - Posting or submit-like controls are classified as `public_action`.
 - Blocked actions are documented.
 - The LLM does not claim execution.
+
+The `m14EvidenceGate` is ready only when:
+
+- A Safari-style target context is visible.
+- Text-entry targets are identified.
+- Public submit or posting boundaries are classified.
+- Confirmation requirements are documented.
+- The canary remains observe-only with no mutation.
 
 ## Manual Boundary
 

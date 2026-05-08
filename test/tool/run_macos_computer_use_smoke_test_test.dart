@@ -817,6 +817,8 @@ void main() {
     expect(realAppObserveCanaryScript, contains('public_action'));
     expect(realAppObserveCanaryScript, contains('executable_action_planned'));
     expect(realAppObserveCanaryScript, contains('m12EvidenceGate'));
+    expect(realAppObserveCanaryScript, contains('m14EvidenceGate'));
+    expect(realAppObserveCanaryScript, contains('confirmationRequirements'));
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
@@ -1912,6 +1914,10 @@ void main() {
     "Do not type into the compose field in this observe-only canary.",
     "Do not post public content in this observe-only canary."
   ],
+  "confirmationRequirements": [
+    "Ask the user to approve the exact post text before typing.",
+    "Ask the user to approve the final public Post control before publishing."
+  ],
   "actionPlan": [
     {"tool": "computer_vision_observe"}
   ],
@@ -1951,13 +1957,17 @@ void main() {
           summary,
           contains('macos_computer_use_real_app_observe_canary_summary'),
         );
-        expect(summary, contains('"milestone": "M12"'));
+        expect(summary, contains('"milestone": "M14"'));
+        expect(summary, contains('"previousMilestone": "M12"'));
         expect(summary, contains('"ready": true'));
         expect(summary, contains('"observedApp": "Safari"'));
         expect(summary, contains('"observationOnly": true'));
         expect(summary, contains('"requiresUserApprovalBeforeAction": true'));
+        expect(summary, contains('"confirmationRequirements"'));
         expect(summary, contains('"risk": "public_action"'));
         expect(summary, contains('"m12EvidenceGate"'));
+        expect(summary, contains('"m14EvidenceGate"'));
+        expect(summary, contains('"confirmation_requirements_documented"'));
         expect(summary, contains('"observe_only_boundary"'));
         expect(summary, contains('"public_action_classification"'));
         expect(summary, isNot(contains('computer_click')));
@@ -2060,10 +2070,11 @@ void main() {
   });
 
   test(
-    'real app observe runbook keeps M12 observe-only boundaries explicit',
+    'real app observe runbook keeps M14 observe-only boundaries explicit',
     () {
       expect(realAppObserveRunbook, contains('Real App Observe Runbook'));
       expect(realAppObserveRunbook, contains('M12'));
+      expect(realAppObserveRunbook, contains('M14'));
       expect(
         realAppObserveRunbook,
         contains('tool/run_macos_computer_use_real_app_observe_canary.sh'),
@@ -2071,6 +2082,8 @@ void main() {
       expect(realAppObserveRunbook, contains('--target-app Safari'));
       expect(realAppObserveRunbook, contains('public_action'));
       expect(realAppObserveRunbook, contains('m12EvidenceGate'));
+      expect(realAppObserveRunbook, contains('m14EvidenceGate'));
+      expect(realAppObserveRunbook, contains('confirmation requirements'));
       expect(
         realAppObserveRunbook,
         contains('It does not record the API key.'),
