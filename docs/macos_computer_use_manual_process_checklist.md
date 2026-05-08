@@ -49,9 +49,11 @@ Use this review pass before merging Computer Use polish changes:
    rows.
 3. Open `Computer Use` and confirm the helper-owned desktop control copy is
    visible before the detailed readiness card.
-4. Confirm no TCC grant, System Settings operation, helper foreground check, or
+4. Confirm detailed runtime fields are behind the collapsed `Diagnostics`
+   section, while primary actions remain visible.
+5. Confirm no TCC grant, System Settings operation, helper foreground check, or
    desktop action is required for the review-only pass.
-5. Run the post-merge sanity wrapper or inspect its `--print-commands` output
+6. Run the post-merge sanity wrapper or inspect its `--print-commands` output
    before asking for any manual runtime sign-off.
 
 Expected static coverage:

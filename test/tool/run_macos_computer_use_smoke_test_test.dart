@@ -448,6 +448,7 @@ void main() {
       contains('Open `Advanced` and confirm `Computer Use` and `Debug`'),
     );
     expect(manualProcessChecklist, contains('normal navigation'));
+    expect(manualProcessChecklist, contains('collapsed `Diagnostics`'));
     expect(
       manualProcessChecklist,
       contains(

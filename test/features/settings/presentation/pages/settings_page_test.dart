@@ -79,6 +79,26 @@ void main() {
     expect(service.getPermissionsCallCount, 1);
   });
 
+  testWidgets('keeps Computer Use diagnostics collapsed by default', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Computer Use Ready'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+    expect(find.text('Diagnostics'), findsOneWidget);
+    expect(find.text('Helper App: Installed'), findsNothing);
+    expect(find.textContaining('Helper status saved:'), findsNothing);
+    expect(find.text('Recent audit entries'), findsNothing);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
+    expect(find.text('Helper App: Installed'), findsOneWidget);
+    expect(find.textContaining('Helper status saved:'), findsOneWidget);
+    expect(find.text('Recent audit entries'), findsOneWidget);
+  });
+
   testWidgets('copies and exports diagnostics from the Settings card', (
     tester,
   ) async {
