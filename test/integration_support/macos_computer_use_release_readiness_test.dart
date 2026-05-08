@@ -758,6 +758,8 @@ void main() {
       expect(m15Entry.details['exactTextCandidateCount'], 1);
       expect(m15Entry.details['textEntryTargetCount'], 1);
       expect(m15Entry.details['publicActionTargetCount'], 1);
+      expect(m15Entry.details['prReviewStatus'], 'ready_for_review');
+      expect(m15Entry.details['blockedReviewEvidence'], isEmpty);
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
       expect(index.toMarkdown(), contains('Latest LLM canary summary'));
@@ -776,6 +778,11 @@ void main() {
       expect(index.toMarkdown(), contains('Exact text candidates: 1'));
       expect(index.toMarkdown(), contains('Text-entry targets: 1'));
       expect(index.toMarkdown(), contains('Public-action targets: 1'));
+      expect(
+        index.toMarkdown(),
+        contains('PR review status: ready_for_review'),
+      );
+      expect(index.toMarkdown(), contains('Blocked review evidence: none'));
     });
 
     test('artifact index surfaces MVP sign-off rehearsal blockers', () {
@@ -930,6 +937,14 @@ void main() {
         index.toMarkdown(),
         contains('| Latest M15 action proposal handoff | true | blocked |'),
       );
+      expect(
+        entry.details['prReviewStatus'],
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        entry.details['blockedReviewEvidence'],
+        contains('m14_evidence_ready'),
+      );
       expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
       expect(
         index.mvpFinalSignoffRehearsal.missingArtifactIds,
@@ -946,6 +961,10 @@ void main() {
       expect(
         index.toMarkdown(),
         contains('- Blocked review evidence: m15_action_proposal_handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('PR review status: blocked_pending_review_evidence'),
       );
     });
 
@@ -1642,6 +1661,20 @@ Map<String, dynamic> _m15ActionProposalHandoff({required bool ready}) {
         'status': 'requires_separate_user_approval',
       },
     ],
+    'prReviewSummary': <String, Object?>{
+      'status': ready ? 'ready_for_review' : 'blocked_pending_review_evidence',
+      'ready': ready,
+      'sourceEvidence': 'm14_real_app_observe_canary',
+      'blockedReviewEvidence': ready
+          ? <String>[]
+          : <String>['m14_evidence_ready'],
+      'requiredConfirmations': <String>[
+        'observe_again',
+        'confirm_exact_text',
+        'confirm_target',
+        'confirm_public_action',
+      ],
+    },
     'm15ActionProposalGate': <String, Object?>{
       'status': ready ? 'ready' : 'blocked',
       'ready': ready,

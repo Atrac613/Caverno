@@ -259,10 +259,14 @@ def cell(value):
 summary = read_json(summary_path)
 gate = summary.get("m15ActionProposalGate") if isinstance(summary, dict) else None
 gate = gate if isinstance(gate, dict) else {}
+review = summary.get("prReviewSummary") if isinstance(summary, dict) else None
+review = review if isinstance(review, dict) else {}
 status = str(gate.get("status") or ("ready" if summary and summary.get("ready") is True else "blocked"))
 next_action = str(gate.get("nextAction") or "Review the M15 action proposal handoff.")
 checks = as_list(gate.get("checks"))
 blockers = as_list(gate.get("blockers"))
+review_status = str(review.get("status") or "-")
+review_blocked_evidence = as_list(review.get("blockedReviewEvidence"))
 approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstance(summary, dict) else [])
 text_entry_targets = as_list(summary.get("textEntryTargets") if isinstance(summary, dict) else [])
 public_action_targets = as_list(summary.get("publicActionTargets") if isinstance(summary, dict) else [])
@@ -288,6 +292,12 @@ if blockers:
     lines.append("- M15 action proposal blockers: " + ", ".join(str(item) for item in blockers))
 else:
     lines.append("- M15 action proposal blockers: none")
+if review:
+    lines.extend([
+        "- M15 action proposal PR review status: " + review_status,
+        "- M15 action proposal blocked review evidence: "
+        + (", ".join(str(item) for item in review_blocked_evidence) if review_blocked_evidence else "none"),
+    ])
 if checks:
     lines.extend([
         "",

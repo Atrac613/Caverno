@@ -123,6 +123,12 @@ class ReadinessArtifactIndex {
         )
         ..writeln(
           '- Public-action targets: ${m15Entry.details['publicActionTargetCount'] ?? 0}',
+        )
+        ..writeln(
+          '- PR review status: ${m15Entry.details['prReviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blocked review evidence: ${_joinedOrNone(_detailsStringList(m15Entry.details['blockedReviewEvidence']))}',
         );
     }
     buffer
@@ -763,15 +769,35 @@ String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
 }
 
 Map<String, Object?> _m15ActionProposalDetails(Map<String, dynamic> json) {
+  final review = json['prReviewSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
   return <String, Object?>{
     'exactTextCandidateCount': _jsonList(json['exactTextCandidates']).length,
     'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
     'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
+    if (reviewMap != null) ...<String, Object?>{
+      'prReviewStatus': reviewMap['status']?.toString(),
+      'blockedReviewEvidence': _jsonStringList(
+        reviewMap['blockedReviewEvidence'],
+      ),
+    },
   };
+}
+
+List<String> _detailsStringList(Object? value) {
+  return value is List
+      ? value.map((item) => item.toString()).toList()
+      : const [];
 }
 
 List<Object?> _jsonList(Object? value) {
   return value is List ? value : const <Object?>[];
+}
+
+List<String> _jsonStringList(Object? value) {
+  return value is List
+      ? value.map((item) => item.toString()).toList(growable: false)
+      : const <String>[];
 }
 
 Map<String, dynamic>? _readJsonObject(File file) {

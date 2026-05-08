@@ -3367,6 +3367,18 @@ void main() {
       "reason": "The user must approve the final public Post control."
     }
   ],
+  "prReviewSummary": {
+    "status": "ready_for_review",
+    "ready": true,
+    "sourceEvidence": "m14_real_app_observe_canary",
+    "blockedReviewEvidence": [],
+    "requiredConfirmations": [
+      "observe_again",
+      "confirm_exact_text",
+      "confirm_target",
+      "confirm_public_action"
+    ]
+  },
   "m15ActionProposalGate": {
     "status": "ready",
     "ready": true,
@@ -3448,6 +3460,14 @@ void main() {
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
       expect(handoff, contains('M15 action proposal blockers: none'));
+      expect(
+        handoff,
+        contains('M15 action proposal PR review status: ready_for_review'),
+      );
+      expect(
+        handoff,
+        contains('M15 action proposal blocked review evidence: none'),
+      );
       expect(
         handoff,
         contains('| confirm_exact_text | requires_user_approval |'),
@@ -3560,6 +3580,18 @@ void main() {
   "llmBoundary": "no_llm_call",
   "tccBoundary": "no_tcc_operation",
   "desktopActionBoundary": "no_desktop_action",
+  "prReviewSummary": {
+    "status": "blocked_pending_review_evidence",
+    "ready": false,
+    "sourceEvidence": "m14_real_app_observe_canary",
+    "blockedReviewEvidence": ["m14_evidence_ready"],
+    "requiredConfirmations": [
+      "observe_again",
+      "confirm_exact_text",
+      "confirm_target",
+      "confirm_public_action"
+    ]
+  },
   "m15ActionProposalGate": {
     "status": "blocked",
     "ready": false,
@@ -3605,6 +3637,18 @@ void main() {
       expect(
         handoff,
         contains('M15 action proposal blockers: m14_evidence_ready'),
+      );
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal PR review status: blocked_pending_review_evidence',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal blocked review evidence: m14_evidence_ready',
+        ),
       );
       expect(handoff, contains('| m14_evidence_ready | blocked |'));
       expect(
