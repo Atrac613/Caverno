@@ -220,6 +220,25 @@ checks = [
 ]
 blockers = [check["id"] for check in checks if not check["ok"]]
 ready = not blockers
+review_summary = {
+    "status": "ready_for_review" if ready else "blocked_pending_review_evidence",
+    "ready": ready,
+    "sourceEvidence": "m14_real_app_observe_canary",
+    "blockedReviewEvidence": blockers,
+    "requiredConfirmations": [
+        "observe_again",
+        "confirm_exact_text",
+        "confirm_target",
+        "confirm_public_action",
+    ],
+    "operationBoundary": {
+        "llmCalls": "not_allowed",
+        "tccGrants": "not_allowed",
+        "desktopActions": "not_allowed",
+        "futureActions": "approval_required",
+        "publicActions": "separate_approval_required",
+    },
+}
 
 approval_bound_steps = [
     {
@@ -265,6 +284,7 @@ summary = {
     "exactTextCandidates": deduped_exact_text,
     "confirmationRequirements": confirmation_requirements,
     "approvalBoundActionProposal": approval_bound_steps,
+    "prReviewSummary": review_summary,
     "m15ActionProposalGate": {
         "status": "ready" if ready else "blocked",
         "ready": ready,
@@ -297,6 +317,16 @@ md_lines = [
     f"- Observed app: {summary.get('observedApp') or 'unknown'}",
     f"- Target intent: {target_intent or 'unknown'}",
     "- Boundary: report-only, no LLM call, no TCC, no System Settings, no desktop actions",
+    "",
+    "## PR Review Summary",
+    "",
+    f"- Status: {review_summary['status']}",
+    f"- Ready: {str(ready).lower()}",
+    f"- Source evidence: {review_summary['sourceEvidence']}",
+    "- Blocked review evidence: " + (", ".join(blockers) if blockers else "none"),
+    "- Required confirmations: "
+    + ", ".join(review_summary["requiredConfirmations"]),
+    "- Boundary: no LLM call, no TCC, no System Settings, no desktop actions; future input and public actions require explicit approval.",
     "",
     "## Gate",
     "",

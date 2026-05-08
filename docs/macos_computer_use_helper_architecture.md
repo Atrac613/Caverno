@@ -288,7 +288,9 @@ Follow-on milestones:
   proposal handoff. The handoff may describe the next observe, exact text
   confirmation, target confirmation, and public-action confirmation phases, but
   it must not call an LLM, click, type, navigate, submit, post, purchase, grant
-  TCC, or operate System Settings.
+  TCC, or operate System Settings. The generated handoff includes a
+  `PR Review Summary` that surfaces `blockedReviewEvidence` before final MVP
+  aggregation.
 
 ## Computer Use Live Canary
 

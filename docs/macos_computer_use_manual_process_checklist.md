@@ -113,6 +113,8 @@ approval-bound action plan without executing any action:
 7. Confirm exact text, target, and public-action confirmations are separated.
 8. Confirm the handoff includes review target counts or tables for
    `exactTextCandidates`, `textEntryTargets`, and `publicActionTargets`.
+9. Confirm the handoff includes `PR Review Summary` with
+   `blockedReviewEvidence: none` before treating M15 as ready.
 
 Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future

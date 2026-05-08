@@ -235,6 +235,7 @@ void main() {
       architectureDoc,
       contains('M15: Convert ready M14 observe-only evidence'),
     );
+    expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
     expect(architectureDoc, contains('## Verification Gates'));
     expect(architectureDoc, contains('Static verification'));
@@ -853,6 +854,8 @@ void main() {
     expect(m15ActionProposalHandoffScript, contains('no System Settings'));
     expect(m15ActionProposalHandoffScript, contains('no desktop actions'));
     expect(m15ActionProposalHandoffScript, contains('m15ActionProposalGate'));
+    expect(m15ActionProposalHandoffScript, contains('prReviewSummary'));
+    expect(m15ActionProposalHandoffScript, contains('blockedReviewEvidence'));
     expect(m15ActionProposalHandoffScript, contains('requires_user_approval'));
     expect(
       mvpLlmReadinessScript,
@@ -2179,6 +2182,14 @@ void main() {
         );
         expect(summary, contains('"tccBoundary": "no_tcc_operation"'));
         expect(summary, contains('"m15ActionProposalGate"'));
+        expect(summary, contains('"prReviewSummary"'));
+        expect(summary, contains('"status": "ready_for_review"'));
+        expect(summary, contains('"blockedReviewEvidence": []'));
+        expect(summary, contains('"futureActions": "approval_required"'));
+        expect(
+          summary,
+          contains('"publicActions": "separate_approval_required"'),
+        );
         expect(summary, contains('"confirm_exact_text"'));
         expect(summary, contains('"confirm_target"'));
         expect(summary, contains('"confirm_public_action"'));
@@ -2197,6 +2208,15 @@ void main() {
             .toList(growable: false);
         expect(markdownFiles, hasLength(1));
         final markdown = markdownFiles.single.readAsStringSync();
+        expect(markdown, contains('## PR Review Summary'));
+        expect(markdown, contains('- Status: ready_for_review'));
+        expect(markdown, contains('- Blocked review evidence: none'));
+        expect(
+          markdown,
+          contains(
+            '- Required confirmations: observe_again, confirm_exact_text, confirm_target, confirm_public_action',
+          ),
+        );
         expect(markdown, contains('## Review Targets'));
         expect(
           markdown,
@@ -2283,9 +2303,31 @@ void main() {
         final summary = summaryFiles.single.readAsStringSync();
         expect(summary, contains('"ready": false'));
         expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"prReviewSummary"'));
+        expect(
+          summary,
+          contains('"status": "blocked_pending_review_evidence"'),
+        );
+        expect(summary, contains('"blockedReviewEvidence"'));
         expect(summary, contains('"text_entry_targets_available"'));
         expect(summary, contains('"confirmation_requirements_available"'));
         expect(summary, contains('"no_mutating_tool_planned"'));
+
+        final markdownFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('action_proposal_handoff.md'))
+            .toList(growable: false);
+        expect(markdownFiles, hasLength(1));
+        final markdown = markdownFiles.single.readAsStringSync();
+        expect(markdown, contains('## PR Review Summary'));
+        expect(markdown, contains('- Status: blocked_pending_review_evidence'));
+        expect(
+          markdown,
+          contains(
+            '- Blocked review evidence: text_entry_targets_available, confirmation_requirements_available, no_mutating_tool_planned',
+          ),
+        );
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -2402,6 +2444,8 @@ void main() {
         contains('tool/run_macos_computer_use_m15_action_proposal_handoff.sh'),
       );
       expect(realAppObserveRunbook, contains('m15ActionProposalGate'));
+      expect(realAppObserveRunbook, contains('PR Review Summary'));
+      expect(realAppObserveRunbook, contains('blockedReviewEvidence'));
       expect(realAppObserveRunbook, contains('Review Targets'));
       expect(realAppObserveRunbook, contains('exact text candidates'));
       expect(realAppObserveRunbook, contains('text-entry targets'));
@@ -3071,6 +3115,8 @@ void main() {
     expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
+    expect(manualProcessChecklist, contains('PR Review Summary'));
+    expect(manualProcessChecklist, contains('blockedReviewEvidence: none'));
     expect(manualProcessChecklist, contains('exactTextCandidates'));
     expect(manualProcessChecklist, contains('textEntryTargets'));
     expect(manualProcessChecklist, contains('publicActionTargets'));
