@@ -97,6 +97,7 @@ TARGET_INTENT="${TARGET_INTENT}" \
 python3 - <<'PY'
 import json
 import os
+import re
 from pathlib import Path
 
 
@@ -148,6 +149,32 @@ public_targets = [
     if isinstance(target, dict)
     and str(target.get("risk", "")).lower() == "public_action"
 ]
+exact_text_sources = []
+for key in ["exactText", "requestedText", "textToType", "proposedText"]:
+    value = m14.get(key)
+    if isinstance(value, str) and value.strip():
+        exact_text_sources.append({"source": key, "text": value.strip()})
+
+quoted_text_pattern = re.compile(r'"([^"]+)"|\'([^\']+)\'')
+for match in quoted_text_pattern.finditer(target_intent):
+    text = next((group for group in match.groups() if group), "").strip()
+    if text:
+        exact_text_sources.append({"source": "targetIntent", "text": text})
+
+deduped_exact_text = []
+seen_exact_text = set()
+for item in exact_text_sources:
+    key = item["text"]
+    if key in seen_exact_text:
+        continue
+    seen_exact_text.add(key)
+    deduped_exact_text.append(
+        {
+            "source": item["source"],
+            "text": item["text"],
+            "status": "requires_user_approval",
+        }
+    )
 
 checks = [
     {
@@ -235,6 +262,7 @@ summary = {
     "candidateTargets": candidate_targets,
     "textEntryTargets": text_targets,
     "publicActionTargets": public_targets,
+    "exactTextCandidates": deduped_exact_text,
     "confirmationRequirements": confirmation_requirements,
     "approvalBoundActionProposal": approval_bound_steps,
     "m15ActionProposalGate": {
@@ -289,6 +317,62 @@ for step in approval_bound_steps:
     md_lines.append(
         f"- `{step['phase']}`: {step['status']} - {step['reason']}"
     )
+if text_targets or public_targets or deduped_exact_text:
+    md_lines.extend(
+        [
+            "",
+            "## Review Targets",
+            "",
+        ]
+    )
+    if text_targets:
+        md_lines.extend(
+            [
+                "| Text Entry Target | Role | Risk |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for target in text_targets:
+            md_lines.append(
+                "| {label} | {role} | {risk} |".format(
+                    label=str(target.get("label") or "unknown").replace("|", "\\|"),
+                    role=str(target.get("role") or "unknown").replace("|", "\\|"),
+                    risk=str(target.get("risk") or "unknown").replace("|", "\\|"),
+                )
+            )
+        md_lines.append("")
+    if public_targets:
+        md_lines.extend(
+            [
+                "| Public Action Target | Role | Risk |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for target in public_targets:
+            md_lines.append(
+                "| {label} | {role} | {risk} |".format(
+                    label=str(target.get("label") or "unknown").replace("|", "\\|"),
+                    role=str(target.get("role") or "unknown").replace("|", "\\|"),
+                    risk=str(target.get("risk") or "unknown").replace("|", "\\|"),
+                )
+            )
+        md_lines.append("")
+    if deduped_exact_text:
+        md_lines.extend(
+            [
+                "| Exact Text Candidate | Source | Status |",
+                "| --- | --- | --- |",
+            ]
+        )
+        for item in deduped_exact_text:
+            md_lines.append(
+                "| {text} | {source} | {status} |".format(
+                    text=item["text"].replace("|", "\\|"),
+                    source=item["source"].replace("|", "\\|"),
+                    status=item["status"].replace("|", "\\|"),
+                )
+            )
+        md_lines.append("")
 md_lines.extend(
     [
         "",

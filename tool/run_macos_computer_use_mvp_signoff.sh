@@ -264,6 +264,9 @@ next_action = str(gate.get("nextAction") or "Review the M15 action proposal hand
 checks = as_list(gate.get("checks"))
 blockers = as_list(gate.get("blockers"))
 approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstance(summary, dict) else [])
+text_entry_targets = as_list(summary.get("textEntryTargets") if isinstance(summary, dict) else [])
+public_action_targets = as_list(summary.get("publicActionTargets") if isinstance(summary, dict) else [])
+exact_text_candidates = as_list(summary.get("exactTextCandidates") if isinstance(summary, dict) else [])
 boundary = "report-only"
 if isinstance(summary, dict):
     boundary = (
@@ -317,6 +320,59 @@ if approval_steps:
                 reason=cell(step.get("reason")),
             )
         )
+if text_entry_targets or public_action_targets or exact_text_candidates:
+    lines.extend([
+        "",
+        "### M15 Review Targets",
+        "",
+    ])
+    if text_entry_targets:
+        lines.extend([
+            "| Text Entry Target | Role | Risk |",
+            "| --- | --- | --- |",
+        ])
+        for target in text_entry_targets:
+            if not isinstance(target, dict):
+                continue
+            lines.append(
+                "| {label} | {role} | {risk} |".format(
+                    label=cell(target.get("label")),
+                    role=cell(target.get("role")),
+                    risk=cell(target.get("risk")),
+                )
+            )
+    if public_action_targets:
+        lines.extend([
+            "",
+            "| Public Action Target | Role | Risk |",
+            "| --- | --- | --- |",
+        ])
+        for target in public_action_targets:
+            if not isinstance(target, dict):
+                continue
+            lines.append(
+                "| {label} | {role} | {risk} |".format(
+                    label=cell(target.get("label")),
+                    role=cell(target.get("role")),
+                    risk=cell(target.get("risk")),
+                )
+            )
+    if exact_text_candidates:
+        lines.extend([
+            "",
+            "| Exact Text Candidate | Source | Status |",
+            "| --- | --- | --- |",
+        ])
+        for item in exact_text_candidates:
+            if not isinstance(item, dict):
+                continue
+            lines.append(
+                "| {text} | {source} | {status} |".format(
+                    text=cell(item.get("text")),
+                    source=cell(item.get("source")),
+                    status=cell(item.get("status")),
+                )
+            )
 
 fragment_path.write_text("\n".join(lines) + "\n")
 print(f"M15_ACTION_PROPOSAL_STATUS={shlex.quote(status)}")

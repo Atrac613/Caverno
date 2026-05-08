@@ -2107,6 +2107,7 @@ void main() {
   "targetApp": "Safari",
   "observedApp": "Safari",
   "targetIntent": "Observe Safari for a future X post task.",
+  "exactText": "Good morning from Caverno",
   "tccBoundary": "no_tcc_operation",
   "desktopActionBoundary": "no_desktop_action",
   "candidateTargets": [
@@ -2145,7 +2146,7 @@ void main() {
           '--m14-summary',
           m14Summary.path,
           '--target-intent',
-          'Prepare an approval-bound plan for a future X post task.',
+          'Prepare an approval-bound plan for a future X post with exact text "Good morning from Caverno".',
         ]);
 
         expect(
@@ -2182,8 +2183,32 @@ void main() {
         expect(summary, contains('"confirm_target"'));
         expect(summary, contains('"confirm_public_action"'));
         expect(summary, contains('"requires_separate_user_approval"'));
+        expect(summary, contains('"exactTextCandidates"'));
+        expect(summary, contains('"Good morning from Caverno"'));
+        expect(summary, contains('"textEntryTargets"'));
+        expect(summary, contains('"publicActionTargets"'));
         expect(summary, isNot(contains('computer_click')));
         expect(summary, isNot(contains('computer_type_text')));
+
+        final markdownFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('action_proposal_handoff.md'))
+            .toList(growable: false);
+        expect(markdownFiles, hasLength(1));
+        final markdown = markdownFiles.single.readAsStringSync();
+        expect(markdown, contains('## Review Targets'));
+        expect(
+          markdown,
+          contains('| What\'s happening? | compose_text_field | input |'),
+        );
+        expect(markdown, contains('| Post | public_submit | public_action |'));
+        expect(
+          markdown,
+          contains(
+            '| Good morning from Caverno | exactText | requires_user_approval |',
+          ),
+        );
       } finally {
         root.deleteSync(recursive: true);
       }
@@ -3256,6 +3281,27 @@ void main() {
   "llmBoundary": "no_llm_call",
   "tccBoundary": "no_tcc_operation",
   "desktopActionBoundary": "no_desktop_action",
+  "textEntryTargets": [
+    {
+      "label": "What's happening?",
+      "role": "compose_text_field",
+      "risk": "input"
+    }
+  ],
+  "publicActionTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action"
+    }
+  ],
+  "exactTextCandidates": [
+    {
+      "source": "targetIntent",
+      "text": "Good morning from Caverno",
+      "status": "requires_user_approval"
+    }
+  ],
   "approvalBoundActionProposal": [
     {
       "phase": "confirm_exact_text",
@@ -3355,6 +3401,18 @@ void main() {
       expect(
         handoff,
         contains('| confirm_public_action | requires_separate_user_approval |'),
+      );
+      expect(handoff, contains('### M15 Review Targets'));
+      expect(
+        handoff,
+        contains('| What\'s happening? | compose_text_field | input |'),
+      );
+      expect(handoff, contains('| Post | public_submit | public_action |'));
+      expect(
+        handoff,
+        contains(
+          '| Good morning from Caverno | targetIntent | requires_user_approval |',
+        ),
       );
       expect(handoff, contains('LLM Evidence Gate'));
       expect(handoff, contains('M14 evidence gate: ready'));
