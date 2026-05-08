@@ -1979,6 +1979,83 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use real app observe canary blocks M14 unsafe evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_real_app_observe_canary_blocked_test_',
+      );
+      try {
+        final fixture = File('${root.path}/real_app_observe_blocked.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_real_app_observe",
+  "visionDecision": "Safari is visible and the Post control is available.",
+  "targetApp": "Safari",
+  "observedApp": "Safari",
+  "visibleAppWindow": true,
+  "pageOrDocument": "X home timeline",
+  "loggedInStateVisible": "visible",
+  "observationOnly": true,
+  "requiresUserApprovalBeforeAction": true,
+  "candidateTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action",
+      "reason": "Pressing it would publish content."
+    }
+  ],
+  "blockedActions": [
+    "Do not click, type, or post in this observe-only canary."
+  ],
+  "actionPlan": [
+    {"tool": "computer_click"}
+  ],
+  "recommendedNextStep": "Ask for approval before any future action."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_real_app_observe_canary.sh',
+          '--root',
+          root.path,
+          '--fixture-response',
+          fixture.path,
+          '--target-app',
+          'Safari',
+          '--target-intent',
+          'Observe Safari for a future X post task.',
+        ]);
+
+        expect(
+          result.exitCode,
+          1,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Ready: false'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('canary_summary.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"ready": false'));
+        expect(summary, contains('"m14EvidenceGate"'));
+        expect(summary, contains('"text_field_target_missing"'));
+        expect(summary, contains('"confirmation_requirements_missing"'));
+        expect(summary, contains('"executable_action_planned"'));
+        expect(summary, contains('"text_field_targets_classified"'));
+        expect(summary, contains('"confirmation_requirements_documented"'));
+        expect(summary, contains('"observe_only_no_mutation"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
