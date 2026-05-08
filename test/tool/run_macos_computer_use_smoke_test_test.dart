@@ -2676,10 +2676,17 @@ void main() {
       postMergeSanityScript,
       contains('Advanced navigation, collapsed Diagnostics'),
     );
+    expect(postMergeSanityScript, contains('M14 observe-only evidence'));
     expect(
       postMergeSanityScript,
       contains(
         'docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening',
+      ),
+    );
+    expect(
+      postMergeSanityScript,
+      contains(
+        'docs/macos_computer_use_manual_process_checklist.md#M14-Observe-Only-Evidence',
       ),
     );
     expect(postMergeSanityScript, contains('flutter analyze'));
@@ -2716,13 +2723,19 @@ void main() {
     expect(
       stdout,
       contains(
-        'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff',
+        'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence',
       ),
     );
     expect(
       stdout,
       contains(
         'Checklist: docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening',
+      ),
+    );
+    expect(
+      stdout,
+      contains(
+        'Observe checklist: docs/macos_computer_use_manual_process_checklist.md#M14-Observe-Only-Evidence',
       ),
     );
     expect(stdout, contains('flutter analyze'));
@@ -2782,6 +2795,22 @@ void main() {
     expect(
       polishReviewSummary,
       contains('must not click, type, submit, post, purchase'),
+    );
+  });
+
+  test('manual process checklist documents M14 observe-only evidence', () {
+    expect(manualProcessChecklist, contains('M14 Observe-Only Evidence'));
+    expect(manualProcessChecklist, contains('m14EvidenceGate'));
+    expect(
+      manualProcessChecklist,
+      contains('confirmation_requirements_documented'),
+    );
+    expect(manualProcessChecklist, contains('observe_only_no_mutation'));
+    expect(manualProcessChecklist, contains('confirmationRequirements'));
+    expect(manualProcessChecklist, contains('actionPlan'));
+    expect(
+      manualProcessChecklist,
+      contains('Do not automate app navigation, clicking, typing'),
     );
   });
 

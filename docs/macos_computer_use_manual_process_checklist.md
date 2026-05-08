@@ -65,6 +65,39 @@ Expected static coverage:
 - `test/features/settings/presentation/pages/computer_use_debug_page_test.dart`
 - `test/tool/run_macos_computer_use_smoke_test_test.dart`
 
+## M14 Observe-Only Evidence
+
+Use this pass after the M13 review hardening checks when the next milestone
+needs real-app visual evidence without executing desktop actions:
+
+1. Ask the user to manually prepare the target app state and screenshot. For
+   Safari-style workflows, the user opens Safari, navigates to the logged-in
+   page, and captures the screenshot.
+2. Run the real-app observe canary with the user-provided screenshot or a
+   deterministic fixture response.
+3. Confirm the summary reports `milestone: M14` and includes `m14EvidenceGate`.
+4. Confirm text-entry targets are classified before any future typing task.
+5. Confirm public submit or posting controls are classified as
+   `public_action`.
+6. Confirm confirmation requirements are documented before any future input or
+   public action.
+7. Confirm the canary remains observe-only and the action plan does not include
+   click, type, submit, post, purchase, or other mutating desktop tools.
+
+Expected M14 evidence fields:
+
+- `m14EvidenceGate.status`: `ready`
+- `m14EvidenceGate.checks`: includes
+  `safari_style_target_context`, `text_field_targets_classified`,
+  `public_submit_boundary_classified`,
+  `confirmation_requirements_documented`, and `observe_only_no_mutation`
+- `confirmationRequirements`: non-empty
+- `actionPlan`: observe-only
+
+Do not automate app navigation, clicking, typing, posting, purchases, TCC
+grants, or System Settings operations for M14 evidence. If fresh app state is
+needed, ask the user to prepare the screenshot manually.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
