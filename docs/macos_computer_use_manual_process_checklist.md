@@ -54,7 +54,9 @@ Use this review pass before merging Computer Use polish changes:
 5. Confirm no TCC grant, System Settings operation, helper foreground check, or
    desktop action is required for the review-only pass.
 6. Run the post-merge sanity wrapper or inspect its `--print-commands` output
-   before asking for any manual runtime sign-off.
+   before asking for any manual runtime sign-off. The output should name the
+   review scope as `Advanced navigation, collapsed Diagnostics, manual runtime
+   handoff`.
 
 Expected static coverage:
 

@@ -451,6 +451,10 @@ void main() {
     expect(manualProcessChecklist, contains('collapsed `Diagnostics`'));
     expect(
       manualProcessChecklist,
+      contains('Advanced navigation, collapsed Diagnostics'),
+    );
+    expect(
+      manualProcessChecklist,
       contains(
         'test/features/settings/presentation/pages/advanced_settings_page_test.dart',
       ),
@@ -2574,6 +2578,10 @@ void main() {
       postMergeSanityScript,
       contains('static checks only, no TCC, no System Settings'),
     );
+    expect(
+      postMergeSanityScript,
+      contains('Advanced navigation, collapsed Diagnostics'),
+    );
     expect(postMergeSanityScript, contains('flutter analyze'));
     expect(postMergeSanityScript, contains('flutter test'));
     expect(postMergeSanityScript, contains('flutter build macos --debug'));
@@ -2604,6 +2612,12 @@ void main() {
     expect(
       stdout,
       contains('Boundary: static checks only, no TCC, no System Settings'),
+    );
+    expect(
+      stdout,
+      contains(
+        'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff',
+      ),
     );
     expect(stdout, contains('flutter analyze'));
     expect(

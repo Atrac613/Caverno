@@ -71,6 +71,7 @@ run_step() {
 
 echo "Running macOS Computer Use post-merge sanity checks"
 echo "  Boundary: static checks only, no TCC, no System Settings, no desktop actions"
+echo "  Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff"
 
 cd "${ROOT_DIR}"
 
