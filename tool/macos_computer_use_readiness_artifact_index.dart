@@ -60,6 +60,12 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
   );
+  stdout.writeln('Required artifact paths:');
+  for (final artifact in rehearsal.requiredArtifacts) {
+    stdout.writeln(
+      '- ${artifact.id}: ${artifact.exists ? artifact.path : 'missing'}',
+    );
+  }
   final prSummary = rehearsal.prReviewSummary;
   stdout.writeln('PR review summary:');
   stdout.writeln('- Status: ${prSummary.status}');

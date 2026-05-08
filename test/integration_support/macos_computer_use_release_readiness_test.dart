@@ -915,6 +915,9 @@ void main() {
           'Missing MVP artifacts: canary_history, manual_tcc, desktop_action_canary, llm_canary',
         ),
       );
+      expect(stdout, contains('Required artifact paths:'));
+      expect(stdout, contains('- release_artifact:'));
+      expect(stdout, contains('- llm_canary: missing'));
       expect(stdout, contains('PR review summary:'));
       expect(stdout, contains('- Status: blocked_pending_evidence'));
       expect(stdout, contains('- Ready artifacts: release_artifact'));
@@ -965,6 +968,83 @@ void main() {
         ).existsSync(),
         isTrue,
       );
+    });
+
+    test('artifact index CLI prints M14 ready rehearsal evidence', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m14_ready_cli_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_manual_tcc_1/manual_tcc_report_summary.json',
+        ),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_manual_tcc_report_summary',
+          'ready': true,
+          'status': 'ready',
+          'blockers': <String>[],
+          'checks': <Object?>[],
+        },
+      );
+      final desktopSummaryPath =
+          '${root.path}/macos_computer_use_desktop_action_canary_1/canary_summary.json';
+      _writeJson(File(desktopSummaryPath), _desktopActionSummary(failed: 0));
+      final realAppObserveSummaryPath =
+          '${root.path}/macos_computer_use_real_app_observe_canary_1/canary_summary.json';
+      _writeJson(
+        File(realAppObserveSummaryPath),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+
+      final result = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_readiness_artifact_index.dart',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('MVP final sign-off rehearsal: ready'));
+      expect(stdout, contains('Missing MVP artifacts: none'));
+      expect(stdout, contains('Required artifact paths:'));
+      expect(stdout, contains('- llm_canary: $realAppObserveSummaryPath'));
+      expect(stdout, contains('- Status: ready_for_final_aggregation'));
+      expect(stdout, contains('- Missing artifacts: none'));
+      expect(stdout, contains('- Pending automation-safe evidence: none'));
+      expect(stdout, contains('Final MVP aggregation command:'));
+      expect(
+        stdout,
+        contains('--desktop-action-canary-summary $desktopSummaryPath'),
+      );
+      expect(
+        stdout,
+        contains('--llm-canary-summary $realAppObserveSummaryPath'),
+      );
+
+      final markdown = File(
+        '${root.path}/macos_computer_use_readiness_artifact_index.md',
+      ).readAsStringSync();
+      expect(markdown, contains('MVP Final Sign-Off Rehearsal'));
+      expect(markdown, contains('- Ready: true'));
+      expect(markdown, contains('Latest LLM canary summary'));
+      expect(markdown, contains(realAppObserveSummaryPath));
     });
   });
 }
