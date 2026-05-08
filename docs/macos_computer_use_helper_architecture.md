@@ -538,6 +538,14 @@ This preflight reads existing artifacts, writes the MVP handoff, and prints the
 `PR Review Summary` / `PR Review Artifacts` paths without launching apps,
 operating System Settings, granting TCC, or running desktop actions.
 
+After Computer Use changes are merged into `main`, run the post-merge sanity
+wrapper to repeat static checks, focused Computer Use tests, and the debug
+macOS build without launching apps or touching TCC:
+
+```bash
+bash tool/run_macos_computer_use_post_merge_sanity.sh
+```
+
 Use `--final-signoff` for the one-command MVP path: it refreshes only
 automation-safe evidence, refreshes the aggregate Computer Use fixture LLM
 canary when `CAVERNO_LLM_*` is set, aggregates strict readiness, and appends
@@ -1477,7 +1485,9 @@ action canaries, LLM canaries, and MVP PR review artifacts.
 ## Verification Gates
 
 - Static verification: `flutter analyze`, focused unit/widget tests, and
-  focused script contract tests pass.
+  focused script contract tests pass. After merge, use
+  `bash tool/run_macos_computer_use_post_merge_sanity.sh` to run this static
+  verification set plus the debug macOS build without TCC or desktop actions.
 - Release artifact verification: M7 release sign-off passes for the embedded
   helper bundle, LaunchAgent plist, MachService declaration, bundle identity,
   and signing checks.

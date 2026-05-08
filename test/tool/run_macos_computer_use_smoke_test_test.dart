@@ -211,6 +211,10 @@ void main() {
     );
     expect(architectureDoc, contains('## Verification Gates'));
     expect(architectureDoc, contains('Static verification'));
+    expect(
+      architectureDoc,
+      contains('bash tool/run_macos_computer_use_post_merge_sanity.sh'),
+    );
     expect(architectureDoc, contains('Release artifact verification'));
     expect(architectureDoc, contains('Production IPC verification'));
     expect(architectureDoc, contains('LLM verification'));
