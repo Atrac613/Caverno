@@ -190,12 +190,18 @@ aggregate = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_mvp_fixture_llm_canary_summary"
 )
+real_app_observe = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith("macos_computer_use_real_app_observe_canary_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_real_app_observe_canary_summary"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
     and str(decoded.get("scenario", "")).startswith("mvp-fixture")
 )
-llm = vision or aggregate or decision
+llm = real_app_observe or vision or aggregate or decision
 
 for name, path in [
     ("DISCOVERED_MANUAL_TCC_REPORT", manual),
@@ -365,7 +371,15 @@ def read_json(path):
 
 
 summary = read_json(summary_path)
-gate = summary.get("mvpEvidenceGate") if isinstance(summary, dict) else None
+gate_name = "MVP"
+gate = None
+if isinstance(summary, dict):
+    m14_gate = summary.get("m14EvidenceGate")
+    if isinstance(m14_gate, dict):
+        gate = m14_gate
+        gate_name = "M14"
+    else:
+        gate = summary.get("mvpEvidenceGate")
 gate = gate if isinstance(gate, dict) else None
 checks = gate.get("checks") if isinstance(gate, dict) else []
 checks = checks if isinstance(checks, list) else []
@@ -386,8 +400,8 @@ lines = [
     "## LLM Evidence Gate",
     "",
     f"- LLM evidence summary: `{summary_path if summary_path else 'not provided'}`",
-    f"- MVP evidence gate: {status}",
-    f"- MVP evidence blockers: {blocker_text}",
+    f"- {gate_name} evidence gate: {status}",
+    f"- {gate_name} evidence blockers: {blocker_text}",
     f"- Expected user-operated runtime phases: {phase_text}",
 ]
 if checks:
@@ -632,7 +646,7 @@ cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
     echo "- Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
   fi
   if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-    echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an MVP fixture LLM canary \`canary_summary.json\` before final sign-off aggregation."
+    echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
   fi
   if [[ "${required_input_evidence_ready}" == "1" ]]; then
     echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
@@ -697,7 +711,7 @@ if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != 
   echo "  - Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
 fi
 if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
-  echo "  - Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\` or provide an MVP fixture LLM canary \`canary_summary.json\` before final sign-off aggregation."
+  echo "  - Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

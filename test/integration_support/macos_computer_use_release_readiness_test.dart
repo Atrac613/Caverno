@@ -185,6 +185,12 @@ void main() {
         _mvpFixtureVisionLlmSummary(failed: 0),
       );
       _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_500/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      _writeJson(
         File('${root.path}/m8_old/report.json'),
         _runtimeReport(status: 'blocked'),
       );
@@ -234,7 +240,7 @@ void main() {
       expect(
         inputs.llmCanarySummaryPath,
         endsWith(
-          'macos_computer_use_mvp_fixture_vision_llm_canary_400/canary_summary.json',
+          'macos_computer_use_real_app_observe_canary_500/canary_summary.json',
         ),
       );
       final llmGate = summary.gates.singleWhere(
@@ -242,9 +248,9 @@ void main() {
       );
       expect(
         llmGate.details['purpose'],
-        'computer_use_mvp_fixture_vision_llm_canary',
+        'computer_use_real_app_observe_canary',
       );
-      expect(llmGate.details['visibleFixtureWindow'], true);
+      expect(llmGate.details['observedApp'], 'Safari');
       expect(
         inputs.desktopActionCanarySummaryPath,
         endsWith(
@@ -332,6 +338,69 @@ void main() {
       expect(summary.toMarkdown(), contains('fixture_window_visible'));
       expect(summary.toMarkdown(), contains('no_execution_claim'));
       expect(summary.toMarkdown(), contains('destructive_target_refused'));
+    });
+
+    test('surfaces M14 real app observe evidence', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _realAppObserveLlmSummary(failed: 0),
+          llmCanarySummaryPath: '/tmp/real_app_observe.json',
+        ),
+      );
+
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(summary.ready, isTrue);
+      expect(llmGate.label, 'Computer Use LLM decision canary');
+      expect(llmGate.status, 'passed');
+      expect(
+        llmGate.details,
+        containsPair('purpose', 'computer_use_real_app_observe_canary'),
+      );
+      expect(llmGate.details, containsPair('targetApp', 'Safari'));
+      expect(llmGate.details, containsPair('observedApp', 'Safari'));
+      expect(llmGate.details, containsPair('candidateTargetCount', 2));
+      expect(llmGate.details['confirmationRequirements'], isNotEmpty);
+      expect(summary.toMarkdown(), contains('M14 Evidence Gate'));
+      expect(summary.toMarkdown(), contains('M14 evidence gate: ready'));
+      expect(summary.toMarkdown(), contains('text_field_targets_classified'));
+      expect(summary.toMarkdown(), contains('observe_only_no_mutation'));
+    });
+
+    test('surfaces blocked M14 real app observe evidence', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _realAppObserveLlmSummary(failed: 1),
+          llmCanarySummaryPath: '/tmp/real_app_observe.json',
+        ),
+      );
+
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(summary.ready, isFalse);
+      expect(llmGate.status, 'blocked');
+      expect(
+        summary.toMarkdown(),
+        contains('confirmation_requirements_missing'),
+      );
     });
 
     test('prefers ready manual TCC evidence over newer blocked evidence', () {
@@ -557,6 +626,12 @@ void main() {
       final llmSummaryPath =
           '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_200/canary_summary.json';
       _writeJson(File(llmSummaryPath), _mvpFixtureVisionLlmSummary(failed: 0));
+      final realAppObserveSummaryPath =
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json';
+      _writeJson(
+        File(realAppObserveSummaryPath),
+        _realAppObserveLlmSummary(failed: 0),
+      );
       final desktopSummaryPath =
           '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json';
       _writeJson(File(desktopSummaryPath), _desktopActionSummary(failed: 0));
@@ -609,7 +684,7 @@ void main() {
       );
       expect(
         index.mvpFinalSignoffRehearsal.finalAggregationCommand,
-        contains('--llm-canary-summary $llmSummaryPath'),
+        contains('--llm-canary-summary $realAppObserveSummaryPath'),
       );
       expect(index.toMarkdown(), contains('MVP Final Sign-Off Rehearsal'));
       expect(index.toMarkdown(), contains('- Ready: true'));
@@ -648,7 +723,7 @@ void main() {
       );
       expect(
         llmEntry.path,
-        contains('macos_computer_use_mvp_fixture_vision_llm_canary_200'),
+        contains('macos_computer_use_real_app_observe_canary_250'),
       );
       final mvpLlmEntry = index.entries.singleWhere(
         (entry) => entry.id == 'mvp_llm_readiness',
@@ -668,6 +743,7 @@ void main() {
       );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
+      expect(index.toMarkdown(), contains('Latest LLM canary summary'));
     });
 
     test('artifact index surfaces MVP sign-off rehearsal blockers', () {
@@ -1149,6 +1225,75 @@ Map<String, dynamic> _mvpFixtureVisionLlmSummary({required int failed}) {
     'fixtureApp': <String, Object?>{
       'name': 'Caverno Computer Use MVP Fixture',
       'windowTitle': 'Caverno Computer Use MVP Fixture',
+    },
+  };
+}
+
+Map<String, dynamic> _realAppObserveLlmSummary({required int failed}) {
+  final ready = failed == 0;
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_real_app_observe_canary_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_real_app_observe_canary',
+    'milestone': 'M14',
+    'tccBoundary': 'no_tcc_operation',
+    'desktopActionBoundary': 'no_desktop_action',
+    'ready': ready,
+    'runCount': 1,
+    'passedCount': ready ? 1 : 0,
+    'failedCount': failed,
+    'passed': ready ? 1 : 0,
+    'failed': failed,
+    'targetApp': 'Safari',
+    'targetIntent': 'Observe Safari for a future X post task.',
+    'observedApp': 'Safari',
+    'candidateTargetCount': 2,
+    'confirmationRequirements': ready
+        ? <String>[
+            'Ask the user to approve exact text before typing.',
+            'Ask the user to approve the public submit action.',
+          ]
+        : <String>[],
+    'm14EvidenceGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'checks': <Map<String, Object?>>[
+        <String, Object?>{
+          'id': 'safari_style_target_context',
+          'ok': true,
+          'nextAction': 'No action required.',
+        },
+        <String, Object?>{
+          'id': 'text_field_targets_classified',
+          'ok': true,
+          'nextAction': 'No action required.',
+        },
+        <String, Object?>{
+          'id': 'public_submit_boundary_classified',
+          'ok': true,
+          'nextAction': 'No action required.',
+        },
+        <String, Object?>{
+          'id': 'confirmation_requirements_documented',
+          'ok': ready,
+          'nextAction': ready
+              ? 'No action required.'
+              : 'Document confirmation requirements before future actions.',
+        },
+        <String, Object?>{
+          'id': 'observe_only_no_mutation',
+          'ok': ready,
+          'nextAction': ready
+              ? 'No action required.'
+              : 'Remove executable desktop actions from the plan.',
+        },
+      ],
+      'blockers': ready
+          ? <String>[]
+          : <String>[
+              'confirmation_requirements_missing',
+              'executable_action_planned',
+            ],
     },
   };
 }

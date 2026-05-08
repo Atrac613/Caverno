@@ -2938,8 +2938,7 @@ void main() {
       final llmDir = Directory(
         '${root.path}/macos_computer_use_mvp_fixture_vision_llm_canary_1',
       )..createSync();
-      final llmSummary = File('${llmDir.path}/canary_summary.json')
-        ..writeAsStringSync('''
+      File('${llmDir.path}/canary_summary.json').writeAsStringSync('''
 {
   "schemaName": "macos_computer_use_mvp_fixture_vision_llm_canary_summary",
   "purpose": "computer_use_mvp_fixture_vision_llm_canary",
@@ -2963,6 +2962,44 @@ void main() {
     "post_observe_image",
     "destructive_target_refused"
   ]
+}
+''');
+      final realAppObserveDir = Directory(
+        '${root.path}/macos_computer_use_real_app_observe_canary_1',
+      )..createSync();
+      final realAppObserveSummary =
+          File('${realAppObserveDir.path}/canary_summary.json')
+            ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_real_app_observe_canary_summary",
+  "purpose": "computer_use_real_app_observe_canary",
+  "milestone": "M14",
+  "runCount": 1,
+  "failedCount": 0,
+  "targetApp": "Safari",
+  "observedApp": "Safari",
+  "m14EvidenceGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "text_field_targets_classified",
+        "ok": true,
+        "nextAction": "No action required."
+      },
+      {
+        "id": "confirmation_requirements_documented",
+        "ok": true,
+        "nextAction": "No action required."
+      },
+      {
+        "id": "observe_only_no_mutation",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": []
+  }
 }
 ''');
 
@@ -3002,7 +3039,10 @@ void main() {
         stdout,
         contains('--desktop-action-canary-summary ${desktopSummary.path}'),
       );
-      expect(stdout, contains('--llm-canary-summary ${llmSummary.path}'));
+      expect(
+        stdout,
+        contains('--llm-canary-summary ${realAppObserveSummary.path}'),
+      );
       expect(
         stdout,
         contains(
@@ -3017,6 +3057,7 @@ void main() {
       expect(handoff, contains('Desktop action canary status: discovered'));
       expect(handoff, contains('LLM canary status: discovered'));
       expect(handoff, contains('LLM Evidence Gate'));
+      expect(handoff, contains('M14 evidence gate: ready'));
       expect(handoff, contains('PR Review Summary'));
       expect(handoff, contains('Status: ready_for_final_aggregation'));
       expect(
@@ -3026,9 +3067,9 @@ void main() {
         ),
       );
       expect(handoff, contains('Missing input evidence: none'));
-      expect(handoff, contains('MVP evidence gate: ready'));
-      expect(handoff, contains('safe_click_plan'));
-      expect(handoff, contains('destructive_target_refused'));
+      expect(handoff, contains('text_field_targets_classified'));
+      expect(handoff, contains('confirmation_requirements_documented'));
+      expect(handoff, contains('observe_only_no_mutation'));
       expect(handoff, contains('Desktop Action Evidence'));
       expect(handoff, contains('Desktop action status: passed'));
       expect(handoff, contains('Final MVP Aggregation Command'));
@@ -3044,7 +3085,7 @@ void main() {
       expect(handoff, contains('| ready | sent | ready | observed |'));
       expect(handoff, contains(manualSummary.path));
       expect(handoff, contains(desktopSummary.path));
-      expect(handoff, contains(llmSummary.path));
+      expect(handoff, contains(realAppObserveSummary.path));
       expect(
         handoff,
         contains(

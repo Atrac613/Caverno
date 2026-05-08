@@ -488,6 +488,9 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
                   parent.startsWith(
                     'macos_computer_use_mvp_fixture_vision_llm_canary_',
                   ) ||
+                  parent.startsWith(
+                    'macos_computer_use_real_app_observe_canary_',
+                  ) ||
                   parent.startsWith('plan_mode_ping_cli_canary_');
             })
             .where((file) {
@@ -498,7 +501,9 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
                       json['schemaName'] ==
                           'macos_computer_use_mvp_fixture_llm_canary_summary' ||
                       json['schemaName'] ==
-                          'macos_computer_use_mvp_fixture_vision_llm_canary_summary');
+                          'macos_computer_use_mvp_fixture_vision_llm_canary_summary' ||
+                      json['schemaName'] ==
+                          'macos_computer_use_real_app_observe_canary_summary');
             })
             .toList(growable: false)
       : <File>[];
@@ -522,7 +527,17 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
             ).startsWith('macos_computer_use_mvp_fixture_vision_llm_canary_') ||
             _basename(
               file.parent.path,
+            ).startsWith('macos_computer_use_real_app_observe_canary_') ||
+            _basename(
+              file.parent.path,
             ).startsWith('macos_computer_use_mvp_fixture_llm_canary_');
+      })
+      .toList(growable: false);
+  final realAppObserveFiles = computerUseFiles
+      .where((file) {
+        return _basename(
+          file.parent.path,
+        ).startsWith('macos_computer_use_real_app_observe_canary_');
       })
       .toList(growable: false);
   final visionFiles = computerUseFiles
@@ -546,7 +561,9 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
         return scenario != null && scenario.startsWith('mvp-fixture');
       })
       .toList(growable: false);
-  final latest = visionFiles.isNotEmpty
+  final latest = realAppObserveFiles.isNotEmpty
+      ? realAppObserveFiles.last
+      : visionFiles.isNotEmpty
       ? visionFiles.last
       : aggregateFiles.isNotEmpty
       ? aggregateFiles.last

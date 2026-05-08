@@ -224,22 +224,29 @@ class ReleaseReadinessSummary {
       }
     }
 
+    final m14EvidenceGate = llmGate?.details['m14EvidenceGate'];
     final mvpEvidenceGate = llmGate?.details['mvpEvidenceGate'];
-    if (mvpEvidenceGate is Map && mvpEvidenceGate.isNotEmpty) {
-      final blockers = _stringList(mvpEvidenceGate['blockers']);
-      final checks = mvpEvidenceGate['checks'];
+    final evidenceGate = m14EvidenceGate is Map && m14EvidenceGate.isNotEmpty
+        ? m14EvidenceGate
+        : mvpEvidenceGate is Map && mvpEvidenceGate.isNotEmpty
+        ? mvpEvidenceGate
+        : null;
+    if (evidenceGate != null) {
+      final isM14Gate = identical(evidenceGate, m14EvidenceGate);
+      final blockers = _stringList(evidenceGate['blockers']);
+      final checks = evidenceGate['checks'];
       final phases = _stringList(
         llmGate?.details['expectedUserOperatedRuntimePhases'],
       );
       buffer
         ..writeln()
-        ..writeln('## LLM Evidence Gate')
+        ..writeln(isM14Gate ? '## M14 Evidence Gate' : '## LLM Evidence Gate')
         ..writeln()
         ..writeln(
-          '- MVP evidence gate: ${_markdownCell(mvpEvidenceGate['status'])}',
+          '- ${isM14Gate ? 'M14' : 'MVP'} evidence gate: ${_markdownCell(evidenceGate['status'])}',
         )
         ..writeln(
-          '- MVP evidence blockers: ${blockers.isEmpty ? 'none' : blockers.join(', ')}',
+          '- ${isM14Gate ? 'M14' : 'MVP'} evidence blockers: ${blockers.isEmpty ? 'none' : blockers.join(', ')}',
         );
       if (phases.isNotEmpty) {
         buffer.writeln(
@@ -410,6 +417,21 @@ File? discoverLatestDesktopActionCanarySummary(Directory reportRoot) {
 }
 
 File? discoverLatestLlmCanarySummary(Directory reportRoot) {
+  final realAppObserveCandidates =
+      _jsonFiles(reportRoot)
+          .where((file) {
+            final parent = _basename(file.parent.path);
+            return _basename(file.path) == 'canary_summary.json' &&
+                parent.startsWith(
+                  'macos_computer_use_real_app_observe_canary_',
+                );
+          })
+          .toList(growable: false)
+        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
+  if (realAppObserveCandidates.isNotEmpty) {
+    return realAppObserveCandidates.last;
+  }
+
   final visionCandidates =
       _jsonFiles(reportRoot)
           .where((file) {
@@ -642,17 +664,27 @@ ReleaseReadinessGate _llmCanaryGate(
   final runCount = _intValue(llmSummary['runCount']);
   final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
   final mvpEvidenceGate = _mapValue(llmSummary['mvpEvidenceGate']);
+  final m14EvidenceGate = _mapValue(llmSummary['m14EvidenceGate']);
   final hasMvpEvidenceGate = mvpEvidenceGate.isNotEmpty;
+  final hasM14EvidenceGate = m14EvidenceGate.isNotEmpty;
   final mvpEvidenceReady =
       !hasMvpEvidenceGate || mvpEvidenceGate['ready'] == true;
-  final ready = runCount > 0 && failed == 0 && mvpEvidenceReady;
+  final m14EvidenceReady =
+      !hasM14EvidenceGate || m14EvidenceGate['ready'] == true;
+  final ready =
+      runCount > 0 && failed == 0 && mvpEvidenceReady && m14EvidenceReady;
   final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
   final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
   final isFixtureVision =
       purpose == 'computer_use_mvp_fixture_vision_llm_canary';
+  final isRealAppObserve = purpose == 'computer_use_real_app_observe_canary';
   return ReleaseReadinessGate(
     id: 'llm_canary',
-    label: isComputerUseDecision || isMvpFixture || isFixtureVision
+    label:
+        isComputerUseDecision ||
+            isMvpFixture ||
+            isFixtureVision ||
+            isRealAppObserve
         ? 'Computer Use LLM decision canary'
         : 'LLM tool-loop canary',
     status: ready ? 'passed' : 'blocked',
@@ -671,8 +703,14 @@ ReleaseReadinessGate _llmCanaryGate(
       'scenarioCount': llmSummary['scenarioCount'],
       'scenarios': llmSummary['scenarios'],
       'mvpEvidenceGate': mvpEvidenceGate,
+      'm14EvidenceGate': m14EvidenceGate,
       'expectedUserOperatedRuntimePhases':
           llmSummary['expectedUserOperatedRuntimePhases'],
+      'targetApp': llmSummary['targetApp'],
+      'targetIntent': llmSummary['targetIntent'],
+      'observedApp': llmSummary['observedApp'],
+      'candidateTargetCount': llmSummary['candidateTargetCount'],
+      'confirmationRequirements': llmSummary['confirmationRequirements'],
       'fixtureApp': llmSummary['fixtureApp'],
       'visionDecision': llmSummary['visionDecision'],
       'safeTargetReasoning': llmSummary['safeTargetReasoning'],
