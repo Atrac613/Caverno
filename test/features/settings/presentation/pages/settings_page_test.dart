@@ -55,6 +55,7 @@ void main() {
 
     await _tapByKey(tester, 'settings-menu-advanced');
 
+    expect(find.byType(AdvancedSettingsPage), findsOneWidget);
     expect(find.text('Computer Use'), findsOneWidget);
     expect(
       find.text('Helper permissions, smoke checks, and manual sign-off'),
