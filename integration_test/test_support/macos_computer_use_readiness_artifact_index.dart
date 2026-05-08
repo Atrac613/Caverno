@@ -740,8 +740,15 @@ ReadinessArtifactEntry _latestEntry(
 
 String? _m15ActionProposalStatus(Map<String, dynamic> json) {
   final gate = json['m15ActionProposalGate'];
+  String? gateStatus;
   if (gate is Map<String, dynamic>) {
-    return gate['status']?.toString();
+    gateStatus = gate['status']?.toString();
+  }
+  if (gateStatus == 'blocked' || _m15ReviewSummaryBlocked(json)) {
+    return 'blocked';
+  }
+  if (gateStatus != null) {
+    return gateStatus;
   }
   final ready = json['ready'];
   if (ready is bool) {
@@ -752,13 +759,21 @@ String? _m15ActionProposalStatus(Map<String, dynamic> json) {
 
 String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
   final gate = json['m15ActionProposalGate'];
+  final gateStatus = gate is Map<String, dynamic>
+      ? gate['status']?.toString()
+      : null;
+  final status = _m15ActionProposalStatus(json);
+  if (status == 'blocked' &&
+      gateStatus == 'ready' &&
+      _m15ReviewSummaryBlocked(json)) {
+    return 'Resolve blocked M15 review evidence before proposing any action.';
+  }
   if (gate is Map<String, dynamic>) {
     final nextAction = gate['nextAction'];
     if (nextAction is String && nextAction.trim().isNotEmpty) {
       return nextAction;
     }
   }
-  final status = _m15ActionProposalStatus(json);
   if (status == 'ready') {
     return 'M15 action proposal handoff is ready for user review.';
   }
@@ -766,6 +781,19 @@ String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
     return 'Resolve blocked M15 handoff checks before proposing any action.';
   }
   return null;
+}
+
+bool _m15ReviewSummaryBlocked(Map<String, dynamic> json) {
+  final review = json['prReviewSummary'];
+  if (review is! Map<String, dynamic>) {
+    return false;
+  }
+  final status = review['status']?.toString();
+  final blockedReviewEvidence = _jsonStringList(
+    review['blockedReviewEvidence'],
+  );
+  return blockedReviewEvidence.isNotEmpty ||
+      (status != null && status != 'ready_for_review');
 }
 
 Map<String, Object?> _m15ActionProposalDetails(Map<String, dynamic> json) {

@@ -3672,6 +3672,90 @@ void main() {
     }
   });
 
+  test('MVP sign-off dry run blocks inconsistent M15 review evidence', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m15_review_blocked_',
+    );
+    try {
+      final m15Dir = Directory(
+        '${root.path}/macos_computer_use_m15_action_proposal_handoff_1',
+      )..createSync();
+      File('${m15Dir.path}/action_proposal_handoff.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "previousMilestone": "M14",
+  "ready": true,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "prReviewSummary": {
+    "status": "blocked_pending_review_evidence",
+    "ready": false,
+    "sourceEvidence": "m14_real_app_observe_canary",
+    "blockedReviewEvidence": ["review_consistency_failed"]
+  },
+  "m15ActionProposalGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "m14_evidence_ready",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": [],
+    "nextAction": "M15 action proposal handoff is ready for user review."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M15 action proposal status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M15 action proposal next action: Resolve blocked M15 review evidence before proposing any action.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m15_action_proposal_handoff'),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal PR review status: blocked_pending_review_evidence',
+        ),
+      );
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal blocked review evidence: review_consistency_failed',
+        ),
+      );
+      expect(
+        handoff,
+        contains('Blocked review evidence: m15_action_proposal_handoff'),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test('MVP sign-off appends blocked readiness next actions', () async {
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_signoff_final_actions_',

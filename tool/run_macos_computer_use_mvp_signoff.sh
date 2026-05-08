@@ -261,12 +261,18 @@ gate = summary.get("m15ActionProposalGate") if isinstance(summary, dict) else No
 gate = gate if isinstance(gate, dict) else {}
 review = summary.get("prReviewSummary") if isinstance(summary, dict) else None
 review = review if isinstance(review, dict) else {}
-status = str(gate.get("status") or ("ready" if summary and summary.get("ready") is True else "blocked"))
 next_action = str(gate.get("nextAction") or "Review the M15 action proposal handoff.")
 checks = as_list(gate.get("checks"))
 blockers = as_list(gate.get("blockers"))
 review_status = str(review.get("status") or "-")
 review_blocked_evidence = as_list(review.get("blockedReviewEvidence"))
+review_blocked = bool(review_blocked_evidence) or (
+    bool(review) and review_status != "ready_for_review"
+)
+status = str(gate.get("status") or ("ready" if summary and summary.get("ready") is True else "blocked"))
+if status == "ready" and review_blocked:
+    status = "blocked"
+    next_action = "Resolve blocked M15 review evidence before proposing any action."
 approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstance(summary, dict) else [])
 text_entry_targets = as_list(summary.get("textEntryTargets") if isinstance(summary, dict) else [])
 public_action_targets = as_list(summary.get("publicActionTargets") if isinstance(summary, dict) else [])

@@ -1039,6 +1039,80 @@ void main() {
       );
     });
 
+    test('artifact index blocks final aggregation on blocked M15 review', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m15_review_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m15Handoff = _m15ActionProposalHandoff(ready: true);
+      final review = m15Handoff['prReviewSummary'] as Map<String, Object?>;
+      review['status'] = 'blocked_pending_review_evidence';
+      review['blockedReviewEvidence'] = <String>['review_consistency_failed'];
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json',
+        ),
+        m15Handoff,
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_action_proposal_handoff',
+      );
+
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve blocked M15 review evidence before proposing any action.',
+      );
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        entry.details['blockedReviewEvidence'],
+        contains('review_consistency_failed'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('PR review status: blocked_pending_review_evidence'),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
