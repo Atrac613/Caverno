@@ -935,6 +935,89 @@ void main() {
         index.mvpFinalSignoffRehearsal.missingArtifactIds,
         isNot(contains('m15_action_proposal_handoff')),
       );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        contains('m15_action_proposal_handoff'),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_evidence',
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m15_action_proposal_handoff'),
+      );
+    });
+
+    test('artifact index blocks final aggregation on blocked M15 handoff', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m15_final_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      final manualSummaryPath = '${root.path}/manual/report.json';
+      _writeJson(File(manualSummaryPath), _runtimeReport(status: 'ready'));
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m15HandoffPath =
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json';
+      _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m15_action_proposal_handoff'],
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.nextActions,
+        contains(
+          'Resolve blocked M15 handoff checks before proposing any action.',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Status: blocked_pending_review_evidence'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m15_action_proposal_handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        isNot(contains('Final MVP aggregation command:')),
+      );
     });
 
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {

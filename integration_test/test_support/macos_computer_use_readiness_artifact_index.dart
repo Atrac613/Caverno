@@ -95,6 +95,9 @@ class ReadinessArtifactIndex {
         '- Pending automation-safe evidence: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.pendingAutomationSafeEvidenceIds)}',
       )
       ..writeln(
+        '- Blocked review evidence: ${_joinedOrNone(mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds)}',
+      )
+      ..writeln(
         '- Boundary: ${mvpFinalSignoffRehearsal.prReviewSummary.operationBoundarySummary}',
       )
       ..writeln(
@@ -255,6 +258,7 @@ class ReadinessPrReviewSummary {
     required this.missingArtifactIds,
     required this.pendingUserOperatedEvidenceIds,
     required this.pendingAutomationSafeEvidenceIds,
+    required this.blockedReviewEvidenceIds,
     required this.operationBoundarySummary,
   });
 
@@ -263,6 +267,7 @@ class ReadinessPrReviewSummary {
   final List<String> missingArtifactIds;
   final List<String> pendingUserOperatedEvidenceIds;
   final List<String> pendingAutomationSafeEvidenceIds;
+  final List<String> blockedReviewEvidenceIds;
   final String operationBoundarySummary;
 
   Map<String, Object?> toJson() {
@@ -272,6 +277,7 @@ class ReadinessPrReviewSummary {
       'missingArtifactIds': missingArtifactIds,
       'pendingUserOperatedEvidenceIds': pendingUserOperatedEvidenceIds,
       'pendingAutomationSafeEvidenceIds': pendingAutomationSafeEvidenceIds,
+      'blockedReviewEvidenceIds': blockedReviewEvidenceIds,
       'operationBoundarySummary': operationBoundarySummary,
     };
   }
@@ -402,25 +408,43 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
         ),
       )
       .toList(growable: false);
-  final nextActions = missingArtifactActions
-      .map((action) => action.nextAction)
+  final blockedReviewArtifacts = _blockedReviewArtifacts(entries);
+  final blockedReviewActions = blockedReviewArtifacts
+      .map(
+        (entry) => ReadinessMissingArtifactAction(
+          artifactId: entry.id,
+          label: entry.label,
+          nextAction:
+              entry.nextAction ??
+              'Resolve blocked review evidence before final aggregation.',
+        ),
+      )
       .toList(growable: false);
-  final finalAggregationCommand = missingArtifactIds.isEmpty
+  final nextActions = <String>[
+    ...missingArtifactActions.map((action) => action.nextAction),
+    ...blockedReviewActions.map((action) => action.nextAction),
+  ];
+  final ready = missingArtifactIds.isEmpty && blockedReviewArtifacts.isEmpty;
+  final finalAggregationCommand = ready
       ? _mvpFinalAggregationCommand(reportRoot, byId)
       : null;
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
+    blockedReviewArtifactIds: blockedReviewArtifacts
+        .map((entry) => entry.id)
+        .toList(growable: false),
   );
   return ReadinessFinalSignoffRehearsal(
-    ready: missingArtifactIds.isEmpty,
+    ready: ready,
     requiredArtifacts: List<ReadinessArtifactEntry>.unmodifiable(
       requiredArtifacts,
     ),
     missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
-    missingArtifactActions: List<ReadinessMissingArtifactAction>.unmodifiable(
-      missingArtifactActions,
-    ),
+    missingArtifactActions: List<ReadinessMissingArtifactAction>.unmodifiable([
+      ...missingArtifactActions,
+      ...blockedReviewActions,
+    ]),
     prReviewSummary: prReviewSummary,
     nextActions: List<String>.unmodifiable(nextActions),
     finalAggregationCommand: finalAggregationCommand,
@@ -428,9 +452,24 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   );
 }
 
+List<ReadinessArtifactEntry> _blockedReviewArtifacts(
+  List<ReadinessArtifactEntry> entries,
+) {
+  return entries
+      .where(
+        (entry) =>
+            entry.id == 'm15_action_proposal_handoff' &&
+            entry.exists &&
+            entry.status != null &&
+            entry.status != 'ready',
+      )
+      .toList(growable: false);
+}
+
 ReadinessPrReviewSummary _mvpPrReviewSummary({
   required List<String> readyArtifactIds,
   required List<String> missingArtifactIds,
+  required List<String> blockedReviewArtifactIds,
 }) {
   final userOperated = MacosComputerUseMvpGuidance.userOperatedEvidenceIds
       .toSet();
@@ -442,7 +481,9 @@ ReadinessPrReviewSummary _mvpPrReviewSummary({
       .toList(growable: false);
   return ReadinessPrReviewSummary(
     status: missingArtifactIds.isEmpty
-        ? 'ready_for_final_aggregation'
+        ? blockedReviewArtifactIds.isEmpty
+              ? 'ready_for_final_aggregation'
+              : 'blocked_pending_review_evidence'
         : 'blocked_pending_evidence',
     readyArtifactIds: List<String>.unmodifiable(readyArtifactIds),
     missingArtifactIds: List<String>.unmodifiable(missingArtifactIds),
@@ -451,6 +492,9 @@ ReadinessPrReviewSummary _mvpPrReviewSummary({
     ),
     pendingAutomationSafeEvidenceIds: List<String>.unmodifiable(
       pendingAutomationSafeEvidenceIds,
+    ),
+    blockedReviewEvidenceIds: List<String>.unmodifiable(
+      blockedReviewArtifactIds,
     ),
     operationBoundarySummary:
         'TCC grants and desktop actions remain user-operated; report-only checks may be automated.',

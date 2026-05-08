@@ -3369,6 +3369,7 @@ void main() {
       expect(stdout, contains('Missing input evidence: none'));
       expect(stdout, contains('Pending user-operated evidence: none'));
       expect(stdout, contains('Pending automation-safe evidence: none'));
+      expect(stdout, contains('Blocked review evidence: none'));
       expect(
         stdout,
         contains(
@@ -3432,6 +3433,7 @@ void main() {
         ),
       );
       expect(handoff, contains('Missing input evidence: none'));
+      expect(handoff, contains('Blocked review evidence: none'));
       expect(handoff, contains('text_field_targets_classified'));
       expect(handoff, contains('confirmation_requirements_documented'));
       expect(handoff, contains('observe_only_no_mutation'));
@@ -3544,6 +3546,10 @@ void main() {
           'M15 action proposal next action: Resolve blocked M15 handoff checks before proposing any action.',
         ),
       );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m15_action_proposal_handoff'),
+      );
 
       final handoff = File(
         '${root.path}/macos_computer_use_mvp_handoff.md',
@@ -3559,6 +3565,16 @@ void main() {
         handoff,
         contains(
           'Missing input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
+      expect(
+        handoff,
+        contains('Blocked review evidence: m15_action_proposal_handoff'),
+      );
+      expect(
+        handoff,
+        contains(
+          'Resolve blocked M15 handoff checks before proposing any action.',
         ),
       );
     } finally {

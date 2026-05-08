@@ -464,13 +464,11 @@ if [[ ("${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discov
   required_input_evidence_ready=1
 fi
 review_status="blocked_pending_evidence"
-if [[ "${required_input_evidence_ready}" == "1" ]]; then
-  review_status="ready_for_final_aggregation"
-fi
 ready_input_evidence=()
 missing_input_evidence=()
 pending_user_operated_evidence=()
 pending_automation_safe_evidence=()
+blocked_review_evidence=()
 if [[ "${manual_tcc_status}" == "provided" || "${manual_tcc_status}" == "discovered" ]]; then
   ready_input_evidence+=(manual_tcc)
 else
@@ -488,6 +486,17 @@ if [[ "${llm_canary_status}" == "provided" || "${llm_canary_status}" == "discove
 else
   missing_input_evidence+=(llm_canary)
   pending_automation_safe_evidence+=(llm_canary)
+fi
+if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m15_action_proposal_handoff)
+fi
+
+if [[ "${required_input_evidence_ready}" != "1" ]]; then
+  review_status="blocked_pending_evidence"
+elif [[ "${#blocked_review_evidence[@]}" -gt 0 ]]; then
+  review_status="blocked_pending_review_evidence"
+else
+  review_status="ready_for_final_aggregation"
 fi
 
 csv_or_none() {
@@ -525,6 +534,11 @@ if [[ "${#pending_automation_safe_evidence[@]}" -eq 0 ]]; then
   pending_automation_safe_evidence_summary="none"
 else
   pending_automation_safe_evidence_summary="$(csv_or_none "${pending_automation_safe_evidence[@]}")"
+fi
+if [[ "${#blocked_review_evidence[@]}" -eq 0 ]]; then
+  blocked_review_evidence_summary="none"
+else
+  blocked_review_evidence_summary="$(csv_or_none "${blocked_review_evidence[@]}")"
 fi
 
 LLM_EVIDENCE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_mvp_llm_evidence_handoff.md"
@@ -773,6 +787,7 @@ cat >"${HANDOFF_MD}" <<EOF
 - Missing input evidence: ${missing_input_evidence_summary}
 - Pending user-operated evidence: ${pending_user_operated_evidence_summary}
 - Pending automation-safe evidence: ${pending_automation_safe_evidence_summary}
+- Blocked review evidence: ${blocked_review_evidence_summary}
 - Boundary: TCC grants and desktop actions remain user-operated; report-only checks may be automated.
 
 ## Operation Boundary
@@ -838,8 +853,13 @@ cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
   if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
     echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
   fi
-  if [[ "${required_input_evidence_ready}" == "1" ]]; then
+  if [[ "${#blocked_review_evidence[@]}" -gt 0 ]]; then
+    echo "- ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
+  fi
+  if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
     echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
+  elif [[ "${required_input_evidence_ready}" == "1" ]]; then
+    echo "- Required input evidence is present, but blocked review evidence must be resolved before final aggregation."
   fi
 } >>"${HANDOFF_MD}"
 
@@ -887,6 +907,7 @@ echo "  Ready input evidence: ${ready_input_evidence_summary}"
 echo "  Missing input evidence: ${missing_input_evidence_summary}"
 echo "  Pending user-operated evidence: ${pending_user_operated_evidence_summary}"
 echo "  Pending automation-safe evidence: ${pending_automation_safe_evidence_summary}"
+echo "  Blocked review evidence: ${blocked_review_evidence_summary}"
 echo "  Release readiness wrapper: ${RELEASE_READINESS_WRAPPER}"
 echo "  TCC boundary: user-operated manual verification only"
 echo "  Desktop action boundary: user-operated safe click target only"
