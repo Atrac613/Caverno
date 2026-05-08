@@ -347,6 +347,20 @@ class SystemPromptBuilder {
           'calling coordinate-based computer tools.',
         );
         buffer.writeln(
+          'Read the actionProposalPolicy returned by computer_vision_observe '
+          'before proposing a desktop action. Include target metadata for '
+          'approved desktop actions when the policy requires target approval.',
+        );
+        buffer.writeln(
+          'For computer_type_text, include the exact text to type and do not '
+          'ask the user to approve a vague or summarized text action.',
+        );
+        buffer.writeln(
+          'For controls that post, send, submit, publish, purchase, order, '
+          'or checkout, set target.risk=public_action and wait for separate '
+          'public action approval before clicking or pressing the key.',
+        );
+        buffer.writeln(
           'When a desktop action returns an attached post-action observation, '
           'inspect that observation before proposing any further desktop '
           'action. Treat one observe-action-observe cycle as the smallest safe '

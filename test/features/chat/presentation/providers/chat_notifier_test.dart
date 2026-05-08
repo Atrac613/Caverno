@@ -2015,6 +2015,14 @@ void main() {
           contains('Visual observation from computer_screenshot_window'),
         );
         expect(
+          imageMessages.last.content,
+          contains('actionProposalPolicy metadata'),
+        );
+        expect(
+          imageMessages.last.content,
+          contains('public action boundaries'),
+        );
+        expect(
           toolNotifier.state.messages.last.content,
           contains('Observed the target window.'),
         );

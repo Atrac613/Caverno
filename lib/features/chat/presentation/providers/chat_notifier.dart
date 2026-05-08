@@ -6299,8 +6299,11 @@ class ChatNotifier extends Notifier<ChatState> {
           id: 'tool_image_${timestamp.microsecondsSinceEpoch}_$i',
           content:
               'Visual observation from ${toolResult.name}. '
-              'Use this screenshot to answer the user and decide any next '
-              'computer-use action. Metadata: ${jsonEncode(metadata)}',
+              'Use this screenshot and any actionProposalPolicy metadata to '
+              'answer the user and decide any next computer-use action. '
+              'Preserve required target metadata, exact text, and public '
+              'action boundaries when proposing actions. '
+              'Metadata: ${jsonEncode(metadata)}',
           role: MessageRole.user,
           timestamp: timestamp,
           imageBase64: imageBase64,
