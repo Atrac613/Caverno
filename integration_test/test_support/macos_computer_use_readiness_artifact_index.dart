@@ -9,12 +9,16 @@ class ReadinessArtifactEntry {
     required this.label,
     required this.path,
     required this.exists,
+    this.status,
+    this.nextAction,
   });
 
   final String id;
   final String label;
   final String path;
   final bool exists;
+  final String? status;
+  final String? nextAction;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -22,6 +26,8 @@ class ReadinessArtifactEntry {
       'label': label,
       'path': path,
       'exists': exists,
+      if (status != null) 'status': status,
+      if (nextAction != null) 'nextAction': nextAction,
     };
   }
 }
@@ -53,11 +59,11 @@ class ReadinessArtifactIndex {
       ..writeln()
       ..writeln('- Report root: `$reportRoot`')
       ..writeln()
-      ..writeln('| Artifact | Exists | Path |')
-      ..writeln('| --- | --- | --- |');
+      ..writeln('| Artifact | Exists | Status | Path |')
+      ..writeln('| --- | --- | --- | --- |');
     for (final entry in entries) {
       buffer.writeln(
-        '| ${_markdownCell(entry.label)} | ${entry.exists} | `${_escapeMarkdownCode(entry.path)}` |',
+        '| ${_markdownCell(entry.label)} | ${entry.exists} | ${_markdownCell(entry.status ?? (entry.exists ? 'present' : 'missing'))} | `${_escapeMarkdownCode(entry.path)}` |',
       );
     }
     buffer
@@ -319,6 +325,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
           json['schemaName'] == 'macos_computer_use_mvp_demo_readiness_summary',
       parentPrefix: 'macos_computer_use_mvp_demo_readiness_',
       fileName: 'mvp_demo_readiness_summary.json',
+    ),
+    _latestEntry(
+      'm15_action_proposal_handoff',
+      'Latest M15 action proposal handoff',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m15_action_proposal_handoff',
+      parentPrefix: 'macos_computer_use_m15_action_proposal_handoff_',
+      fileName: 'action_proposal_handoff.json',
+      status: _m15ActionProposalStatus,
+      nextAction: _m15ActionProposalNextAction,
     ),
   ];
   return ReadinessArtifactIndex(
@@ -598,6 +616,8 @@ ReadinessArtifactEntry _latestEntry(
   bool Function(Map<String, dynamic> json) matches, {
   String? parentPrefix,
   String? fileName,
+  String? Function(Map<String, dynamic> json)? status,
+  String? Function(Map<String, dynamic> json)? nextAction,
 }) {
   final files = reportRoot.existsSync()
       ? reportRoot
@@ -627,12 +647,45 @@ ReadinessArtifactEntry _latestEntry(
     return left.path.compareTo(right.path);
   });
   final latest = files.isEmpty ? null : files.last;
+  final latestJson = latest == null ? null : _readJsonObject(latest);
   return ReadinessArtifactEntry(
     id: id,
     label: label,
     path: latest?.path ?? '',
     exists: latest != null,
+    status: latestJson == null ? null : status?.call(latestJson),
+    nextAction: latestJson == null ? null : nextAction?.call(latestJson),
   );
+}
+
+String? _m15ActionProposalStatus(Map<String, dynamic> json) {
+  final gate = json['m15ActionProposalGate'];
+  if (gate is Map<String, dynamic>) {
+    return gate['status']?.toString();
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
+  final gate = json['m15ActionProposalGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m15ActionProposalStatus(json);
+  if (status == 'ready') {
+    return 'M15 action proposal handoff is ready for user review.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve blocked M15 handoff checks before proposing any action.';
+  }
+  return null;
 }
 
 Map<String, dynamic>? _readJsonObject(File file) {

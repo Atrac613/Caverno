@@ -647,6 +647,9 @@ void main() {
         ),
         _mvpDemoReadinessSummary(),
       );
+      final m15HandoffPath =
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json';
+      _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: true));
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -657,6 +660,7 @@ void main() {
       expect(entryIds, contains('llm_canary'));
       expect(entryIds, contains('mvp_llm_readiness'));
       expect(entryIds, contains('mvp_demo_readiness'));
+      expect(entryIds, contains('m15_action_proposal_handoff'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -741,9 +745,27 @@ void main() {
         mvpDemoEntry.path,
         contains('macos_computer_use_mvp_demo_readiness_400'),
       );
+      final m15Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_action_proposal_handoff',
+      );
+      expect(m15Entry.exists, isTrue);
+      expect(m15Entry.path, m15HandoffPath);
+      expect(m15Entry.status, 'ready');
+      expect(
+        m15Entry.nextAction,
+        'M15 action proposal handoff is ready for user review.',
+      );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
       expect(index.toMarkdown(), contains('Latest LLM canary summary'));
+      expect(
+        index.toMarkdown(),
+        contains('Latest M15 action proposal handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M15 action proposal handoff | true | ready |'),
+      );
     });
 
     test('artifact index surfaces MVP sign-off rehearsal blockers', () {
@@ -864,6 +886,45 @@ void main() {
       expect(index.toMarkdown(), contains(_manualTccNextAction));
       expect(index.toMarkdown(), contains(_desktopActionNextAction));
       expect(index.toMarkdown(), contains(_llmCanaryNextAction));
+    });
+
+    test('artifact index surfaces blocked M15 action proposal handoff', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m15_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m15HandoffPath =
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_1/action_proposal_handoff.json';
+      _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_action_proposal_handoff',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m15HandoffPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve blocked M15 handoff checks before proposing any action.',
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Latest M15 action proposal handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M15 action proposal handoff | true | blocked |'),
+      );
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.missingArtifactIds,
+        isNot(contains('m15_action_proposal_handoff')),
+      );
     });
 
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
@@ -1436,6 +1497,54 @@ Map<String, dynamic> _desktopActionSummary({required int failed}) {
         },
       },
     ],
+  };
+}
+
+Map<String, dynamic> _m15ActionProposalHandoff({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m15_action_proposal_handoff',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m15_action_proposal_handoff',
+    'milestone': 'M15',
+    'previousMilestone': 'M14',
+    'ready': ready,
+    'tccBoundary': 'no_tcc_operation',
+    'desktopActionBoundary': 'no_desktop_action',
+    'llmBoundary': 'no_llm_call',
+    'sourceM14Summary': '/tmp/canary_summary.json',
+    'targetApp': 'Safari',
+    'observedApp': 'Safari',
+    'targetIntent': 'Prepare an approval-bound plan.',
+    'candidateTargets': <Map<String, Object?>>[
+      <String, Object?>{
+        'label': 'Post',
+        'role': 'public_submit',
+        'risk': 'public_action',
+      },
+    ],
+    'approvalBoundActionProposal': <Map<String, Object?>>[
+      <String, Object?>{
+        'phase': 'confirm_public_action',
+        'status': 'requires_separate_user_approval',
+      },
+    ],
+    'm15ActionProposalGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'checks': <Map<String, Object?>>[
+        <String, Object?>{
+          'id': 'm14_evidence_ready',
+          'ok': ready,
+          'nextAction': ready
+              ? 'No action required.'
+              : 'Run the M14 real-app observe canary until ready.',
+        },
+      ],
+      'blockers': ready ? <String>[] : <String>['m14_evidence_ready'],
+      'nextAction': ready
+          ? 'M15 action proposal handoff is ready for user review.'
+          : 'Resolve blocked M15 handoff checks before proposing any action.',
+    },
   };
 }
 
