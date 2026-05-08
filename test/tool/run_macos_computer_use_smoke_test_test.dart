@@ -2582,6 +2582,12 @@ void main() {
       postMergeSanityScript,
       contains('Advanced navigation, collapsed Diagnostics'),
     );
+    expect(
+      postMergeSanityScript,
+      contains(
+        'docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening',
+      ),
+    );
     expect(postMergeSanityScript, contains('flutter analyze'));
     expect(postMergeSanityScript, contains('flutter test'));
     expect(postMergeSanityScript, contains('flutter build macos --debug'));
@@ -2617,6 +2623,12 @@ void main() {
       stdout,
       contains(
         'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff',
+      ),
+    );
+    expect(
+      stdout,
+      contains(
+        'Checklist: docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening',
       ),
     );
     expect(stdout, contains('flutter analyze'));
