@@ -11,6 +11,7 @@ class ReadinessArtifactEntry {
     required this.exists,
     this.status,
     this.nextAction,
+    this.details = const <String, Object?>{},
   });
 
   final String id;
@@ -19,6 +20,7 @@ class ReadinessArtifactEntry {
   final bool exists;
   final String? status;
   final String? nextAction;
+  final Map<String, Object?> details;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -28,6 +30,7 @@ class ReadinessArtifactEntry {
       'exists': exists,
       if (status != null) 'status': status,
       if (nextAction != null) 'nextAction': nextAction,
+      if (details.isNotEmpty) 'details': details,
     };
   }
 }
@@ -97,6 +100,28 @@ class ReadinessArtifactIndex {
       ..writeln(
         '- Report-only preflight command: `${_escapeMarkdownCode(mvpFinalSignoffRehearsal.reportOnlyPreflightCommand)}`',
       );
+    ReadinessArtifactEntry? m15Entry;
+    for (final entry in entries) {
+      if (entry.id == 'm15_action_proposal_handoff') {
+        m15Entry = entry;
+        break;
+      }
+    }
+    if (m15Entry != null && m15Entry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M15 Action Proposal Review Targets')
+        ..writeln()
+        ..writeln(
+          '- Exact text candidates: ${m15Entry.details['exactTextCandidateCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Text-entry targets: ${m15Entry.details['textEntryTargetCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Public-action targets: ${m15Entry.details['publicActionTargetCount'] ?? 0}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -337,6 +362,7 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       fileName: 'action_proposal_handoff.json',
       status: _m15ActionProposalStatus,
       nextAction: _m15ActionProposalNextAction,
+      details: _m15ActionProposalDetails,
     ),
   ];
   return ReadinessArtifactIndex(
@@ -618,6 +644,7 @@ ReadinessArtifactEntry _latestEntry(
   String? fileName,
   String? Function(Map<String, dynamic> json)? status,
   String? Function(Map<String, dynamic> json)? nextAction,
+  Map<String, Object?> Function(Map<String, dynamic> json)? details,
 }) {
   final files = reportRoot.existsSync()
       ? reportRoot
@@ -655,6 +682,9 @@ ReadinessArtifactEntry _latestEntry(
     exists: latest != null,
     status: latestJson == null ? null : status?.call(latestJson),
     nextAction: latestJson == null ? null : nextAction?.call(latestJson),
+    details: latestJson == null
+        ? const <String, Object?>{}
+        : details?.call(latestJson) ?? const <String, Object?>{},
   );
 }
 
@@ -686,6 +716,18 @@ String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
     return 'Resolve blocked M15 handoff checks before proposing any action.';
   }
   return null;
+}
+
+Map<String, Object?> _m15ActionProposalDetails(Map<String, dynamic> json) {
+  return <String, Object?>{
+    'exactTextCandidateCount': _jsonList(json['exactTextCandidates']).length,
+    'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
+    'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
+  };
+}
+
+List<Object?> _jsonList(Object? value) {
+  return value is List ? value : const <Object?>[];
 }
 
 Map<String, dynamic>? _readJsonObject(File file) {

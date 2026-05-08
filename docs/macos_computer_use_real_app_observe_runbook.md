@@ -112,6 +112,9 @@ submit, post, or purchase.
 The handoff is ready only when `m15ActionProposalGate.status` is `ready`.
 Blocked M14 evidence, missing text-entry targets, missing public-action targets,
 missing confirmation requirements, or inherited mutating tools must block M15.
+Review the generated `Review Targets` section before any future action step:
+it should list exact text candidates, text-entry targets, and public-action
+targets separately so the next approval can remain scoped and explicit.
 
 ## Manual Boundary
 

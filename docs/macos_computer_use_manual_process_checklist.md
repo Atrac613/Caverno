@@ -111,6 +111,8 @@ approval-bound action plan without executing any action:
 5. Confirm the handoff keeps `tccBoundary: no_tcc_operation`.
 6. Confirm the handoff keeps `llmBoundary: no_llm_call`.
 7. Confirm exact text, target, and public-action confirmations are separated.
+8. Confirm the handoff includes review target counts or tables for
+   `exactTextCandidates`, `textEntryTargets`, and `publicActionTargets`.
 
 Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future

@@ -2402,6 +2402,10 @@ void main() {
         contains('tool/run_macos_computer_use_m15_action_proposal_handoff.sh'),
       );
       expect(realAppObserveRunbook, contains('m15ActionProposalGate'));
+      expect(realAppObserveRunbook, contains('Review Targets'));
+      expect(realAppObserveRunbook, contains('exact text candidates'));
+      expect(realAppObserveRunbook, contains('text-entry targets'));
+      expect(realAppObserveRunbook, contains('public-action targets'));
       expect(realAppObserveRunbook, contains('confirmation requirements'));
       expect(
         realAppObserveRunbook,
@@ -3067,6 +3071,9 @@ void main() {
     expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
+    expect(manualProcessChecklist, contains('exactTextCandidates'));
+    expect(manualProcessChecklist, contains('textEntryTargets'));
+    expect(manualProcessChecklist, contains('publicActionTargets'));
     expect(
       manualProcessChecklist,
       contains('confirmation_requirements_documented'),

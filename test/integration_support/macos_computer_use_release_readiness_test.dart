@@ -755,6 +755,9 @@ void main() {
         m15Entry.nextAction,
         'M15 action proposal handoff is ready for user review.',
       );
+      expect(m15Entry.details['exactTextCandidateCount'], 1);
+      expect(m15Entry.details['textEntryTargetCount'], 1);
+      expect(m15Entry.details['publicActionTargetCount'], 1);
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
       expect(index.toMarkdown(), contains('Latest LLM canary summary'));
@@ -766,6 +769,13 @@ void main() {
         index.toMarkdown(),
         contains('| Latest M15 action proposal handoff | true | ready |'),
       );
+      expect(
+        index.toMarkdown(),
+        contains('## M15 Action Proposal Review Targets'),
+      );
+      expect(index.toMarkdown(), contains('Exact text candidates: 1'));
+      expect(index.toMarkdown(), contains('Text-entry targets: 1'));
+      expect(index.toMarkdown(), contains('Public-action targets: 1'));
     });
 
     test('artifact index surfaces MVP sign-off rehearsal blockers', () {
@@ -1515,6 +1525,27 @@ Map<String, dynamic> _m15ActionProposalHandoff({required bool ready}) {
     'targetApp': 'Safari',
     'observedApp': 'Safari',
     'targetIntent': 'Prepare an approval-bound plan.',
+    'exactTextCandidates': <Map<String, Object?>>[
+      <String, Object?>{
+        'source': 'targetIntent',
+        'text': 'Good morning from Caverno',
+        'status': 'requires_user_approval',
+      },
+    ],
+    'textEntryTargets': <Map<String, Object?>>[
+      <String, Object?>{
+        'label': 'What is happening?',
+        'role': 'compose_text_field',
+        'risk': 'input',
+      },
+    ],
+    'publicActionTargets': <Map<String, Object?>>[
+      <String, Object?>{
+        'label': 'Post',
+        'role': 'public_submit',
+        'risk': 'public_action',
+      },
+    ],
     'candidateTargets': <Map<String, Object?>>[
       <String, Object?>{
         'label': 'Post',
