@@ -105,4 +105,103 @@ void main() {
     expect(decision.requiresPostActionObservation, isTrue);
     expect(decision.emergencyStop, isFalse);
   });
+
+  test('keeps observation proposals inside planning', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_vision_observe',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.allowedAsObserveOnlyProposal, isTrue);
+    expect(decision.requiresUserApproval, isFalse);
+    expect(decision.boundaries, isEmpty);
+    expect(decision.blockerCodes, isEmpty);
+    expect(decision.nextAction, contains('planning phase'));
+  });
+
+  test('requires exact text and target approval for text input proposals', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_type_text',
+      target: const {
+        'label': "What's happening?",
+        'role': 'compose_text_field',
+        'risk': 'input',
+      },
+      exactText: 'Good morning',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.allowedAsObserveOnlyProposal, isFalse);
+    expect(decision.requiresUserApproval, isTrue);
+    expect(decision.requiresTargetApproval, isTrue);
+    expect(decision.requiresExactTextApproval, isTrue);
+    expect(decision.requiresSeparatePublicActionApproval, isFalse);
+    expect(
+      decision.boundaries,
+      containsAll([
+        MacosComputerUseApprovalBoundary.target,
+        MacosComputerUseApprovalBoundary.exactText,
+      ]),
+    );
+    expect(decision.blockerCodes, isEmpty);
+    expect(decision.nextAction, contains('exact text'));
+  });
+
+  test('blocks text input proposals without exact text or target', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_type_text',
+    );
+
+    expect(decision, isNotNull);
+    expect(
+      decision!.blockerCodes,
+      containsAll(['exact_text_missing', 'target_missing']),
+    );
+  });
+
+  test('requires separate approval for public action targets', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_click',
+      target: const {
+        'label': 'Post',
+        'role': 'public_submit',
+        'risk': 'public_action',
+      },
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.requiresUserApproval, isTrue);
+    expect(decision.requiresTargetApproval, isTrue);
+    expect(decision.requiresSeparatePublicActionApproval, isTrue);
+    expect(
+      decision.boundaries,
+      containsAll([
+        MacosComputerUseApprovalBoundary.target,
+        MacosComputerUseApprovalBoundary.publicAction,
+      ]),
+    );
+    expect(
+      decision.blockerCodes,
+      contains('separate_public_action_approval_required'),
+    );
+    expect(decision.nextAction, contains('separate explicit approval'));
+  });
+
+  test('classifies submit-like controls as public actions', () {
+    expect(
+      MacosComputerUseToolPolicy.isPublicActionTarget(const {
+        'label': 'Publish',
+        'role': 'button',
+      }),
+      isTrue,
+    );
+    expect(
+      MacosComputerUseToolPolicy.isPublicActionTarget(const {
+        'label': 'Search',
+        'role': 'search_field',
+        'risk': 'input',
+      }),
+      isFalse,
+    );
+  });
 }

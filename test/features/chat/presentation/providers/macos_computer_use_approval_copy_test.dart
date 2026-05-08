@@ -45,4 +45,27 @@ void main() {
     expect(copy.approveLabel, 'Run Recovery Action');
     expect(copy.warningMessage, contains('safe state'));
   });
+
+  test('builds public action approval copy', () {
+    const policy = MacosComputerUseToolPolicyDecision(
+      toolName: 'computer_public_action',
+      category: MacosComputerUseToolCategory.pointerInput,
+      riskCategory: MacosComputerUseRiskCategory.publicAction,
+      requiresUserApproval: true,
+      requiresSmokeArming: true,
+      allowedInPlanning: false,
+      requiresPostActionObservation: true,
+      emergencyStop: false,
+      policyLabel: 'public_action',
+    );
+    final copy = MacosComputerUseApprovalCopy.from(
+      toolName: policy.toolName,
+      policy: policy,
+    );
+
+    expect(copy.title, 'Approve Public Action');
+    expect(copy.riskLabel, 'Public Action');
+    expect(copy.approveLabel, 'Approve Public Action');
+    expect(copy.warningMessage, contains('post'));
+  });
 }

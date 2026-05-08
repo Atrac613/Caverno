@@ -33,6 +33,7 @@ class MacosComputerUseApprovalCopy {
         _ => switch (riskCategory) {
           MacosComputerUseRiskCategory.observe => 'Approve Screen Observation',
           MacosComputerUseRiskCategory.input => 'Approve macOS Input',
+          MacosComputerUseRiskCategory.publicAction => 'Approve Public Action',
           MacosComputerUseRiskCategory.sensitive =>
             'Approve Sensitive Recording',
           MacosComputerUseRiskCategory.recovery => 'Approve Recovery Action',
@@ -43,6 +44,7 @@ class MacosComputerUseApprovalCopy {
       riskLabel: switch (riskCategory) {
         MacosComputerUseRiskCategory.observe => 'Observation',
         MacosComputerUseRiskCategory.input => 'Input Control',
+        MacosComputerUseRiskCategory.publicAction => 'Public Action',
         MacosComputerUseRiskCategory.sensitive => 'Sensitive Recording',
         MacosComputerUseRiskCategory.recovery => 'Recovery',
         MacosComputerUseRiskCategory.setup => 'Setup',
@@ -53,6 +55,8 @@ class MacosComputerUseApprovalCopy {
           'This action can capture visible screen or window contents, but it does not send input.',
         MacosComputerUseRiskCategory.input =>
           'This action can focus windows, move the pointer, click, scroll, or send keyboard input on your Mac.',
+        MacosComputerUseRiskCategory.publicAction =>
+          'This action can submit, post, send, publish, purchase, or otherwise change external state. Approve it separately from text entry.',
         MacosComputerUseRiskCategory.sensitive =>
           'This action can capture system audio. Make sure the current audio is safe to record before approving it.',
         MacosComputerUseRiskCategory.recovery =>
@@ -65,6 +69,7 @@ class MacosComputerUseApprovalCopy {
       approveLabel: switch (riskCategory) {
         MacosComputerUseRiskCategory.observe => 'Allow Observation',
         MacosComputerUseRiskCategory.input => 'Allow Input Action',
+        MacosComputerUseRiskCategory.publicAction => 'Approve Public Action',
         MacosComputerUseRiskCategory.sensitive => 'Allow Recording',
         MacosComputerUseRiskCategory.recovery => 'Run Recovery Action',
         MacosComputerUseRiskCategory.setup => 'Continue Setup',
