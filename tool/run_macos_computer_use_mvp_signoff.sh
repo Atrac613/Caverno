@@ -196,6 +196,12 @@ real_app_observe = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_real_app_observe_canary_summary"
 )
+m15_action_proposal = latest_matching(
+    lambda path, decoded: path.name == "action_proposal_handoff.json"
+    and path.parent.name.startswith("macos_computer_use_m15_action_proposal_handoff_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m15_action_proposal_handoff"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -207,11 +213,130 @@ for name, path in [
     ("DISCOVERED_MANUAL_TCC_REPORT", manual),
     ("DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY", desktop),
     ("DISCOVERED_LLM_CANARY_SUMMARY", llm),
+    ("DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF", m15_action_proposal),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
 )"
 eval "${discovered_artifacts}"
+
+M15_ACTION_PROPOSAL_HANDOFF="${DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF:-}"
+M15_ACTION_PROPOSAL_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m15_action_proposal_handoff_fragment.md"
+M15_ACTION_PROPOSAL_STATUS="missing"
+M15_ACTION_PROPOSAL_NEXT_ACTION="Run the M15 action proposal handoff after M14 observe-only evidence is ready."
+M15_ACTION_PROPOSAL_BOUNDARY="report-only, no LLM call, no TCC, no System Settings, no desktop actions"
+if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
+  m15_action_proposal_values="$(
+    M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M15_ACTION_PROPOSAL_HANDOFF"])
+fragment_path = Path(os.environ["M15_ACTION_PROPOSAL_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m15ActionProposalGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+status = str(gate.get("status") or ("ready" if summary and summary.get("ready") is True else "blocked"))
+next_action = str(gate.get("nextAction") or "Review the M15 action proposal handoff.")
+checks = as_list(gate.get("checks"))
+blockers = as_list(gate.get("blockers"))
+approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstance(summary, dict) else [])
+boundary = "report-only"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}"
+    )
+
+lines = [
+    "",
+    "## M15 Action Proposal Evidence",
+    "",
+    f"- M15 action proposal handoff: `{summary_path}`",
+    f"- M15 action proposal status: {status}",
+    f"- M15 action proposal boundary: {boundary}",
+    f"- M15 action proposal next action: {next_action}",
+]
+if blockers:
+    lines.append("- M15 action proposal blockers: " + ", ".join(str(item) for item in blockers))
+else:
+    lines.append("- M15 action proposal blockers: none")
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+if approval_steps:
+    lines.extend([
+        "",
+        "| Approval Phase | Status | Reason |",
+        "| --- | --- | --- |",
+    ])
+    for step in approval_steps:
+        if not isinstance(step, dict):
+            continue
+        lines.append(
+            "| {phase} | {status} | {reason} |".format(
+                phase=cell(step.get("phase")),
+                status=cell(step.get("status")),
+                reason=cell(step.get("reason")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M15_ACTION_PROPOSAL_STATUS={shlex.quote(status)}")
+print(f"M15_ACTION_PROPOSAL_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M15_ACTION_PROPOSAL_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m15_action_proposal_values}"
+else
+  cat >"${M15_ACTION_PROPOSAL_FRAGMENT}" <<EOF
+
+## M15 Action Proposal Evidence
+
+- M15 action proposal handoff: \`not discovered\`
+- M15 action proposal status: missing
+- M15 action proposal boundary: ${M15_ACTION_PROPOSAL_BOUNDARY}
+- M15 action proposal next action: ${M15_ACTION_PROPOSAL_NEXT_ACTION}
+- M15 action proposal blockers: missing_m15_action_proposal_handoff
+EOF
+fi
 
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
@@ -554,12 +679,20 @@ cat >"${HANDOFF_MD}" <<EOF
 - Desktop action canary status: ${desktop_action_status}
 - LLM canary summary: ${LLM_CANARY_SUMMARY:-discovery only}
 - LLM canary status: ${llm_canary_status}
+- M15 action proposal handoff: ${M15_ACTION_PROPOSAL_HANDOFF:-not discovered}
+- M15 action proposal status: ${M15_ACTION_PROPOSAL_STATUS}
 
 ## Current Required Input Evidence Status
 
 - \`manual_tcc\`: ${manual_tcc_status}
 - \`desktop_action_canary\`: ${desktop_action_status}
 - \`llm_canary\`: ${llm_canary_status}
+
+## Optional Review Evidence
+
+- \`m15_action_proposal_handoff\`: ${M15_ACTION_PROPOSAL_STATUS}
+- M15 action proposal boundary: ${M15_ACTION_PROPOSAL_BOUNDARY}
+- M15 action proposal next action: ${M15_ACTION_PROPOSAL_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -634,6 +767,7 @@ EOF
 
 cat "${LLM_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -671,6 +805,10 @@ echo "  LLM evidence phases: ${LLM_EVIDENCE_PHASES}"
 echo "  Desktop action evidence status: ${DESKTOP_ACTION_EVIDENCE_STATUS}"
 echo "  Desktop action evidence runs: ${DESKTOP_ACTION_EVIDENCE_RUNS}"
 echo "  Desktop action evidence failures: ${DESKTOP_ACTION_EVIDENCE_FAILURES}"
+echo "  M15 action proposal handoff: ${M15_ACTION_PROPOSAL_HANDOFF:-not discovered}"
+echo "  M15 action proposal status: ${M15_ACTION_PROPOSAL_STATUS}"
+echo "  M15 action proposal boundary: ${M15_ACTION_PROPOSAL_BOUNDARY}"
+echo "  M15 action proposal next action: ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"

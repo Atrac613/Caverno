@@ -2523,6 +2523,12 @@ void main() {
       contains('DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY'),
     );
     expect(mvpSignoffScript, contains('DISCOVERED_LLM_CANARY_SUMMARY'));
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF'),
+    );
+    expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
+    expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
     expect(
@@ -2587,6 +2593,13 @@ void main() {
       expect(stdout, contains('Dry run: 1'));
       expect(stdout, contains('Manual TCC status: not provided'));
       expect(stdout, contains('Desktop action canary status: not provided'));
+      expect(stdout, contains('M15 action proposal status: missing'));
+      expect(
+        stdout,
+        contains(
+          'M15 action proposal next action: Run the M15 action proposal handoff after M14 observe-only evidence is ready.',
+        ),
+      );
       expect(stdout, contains('MVP sign-off outputs:'));
       expect(stdout, contains('PR review summary:'));
       expect(stdout, contains('Status: blocked_pending_evidence'));
@@ -2676,6 +2689,15 @@ void main() {
       ).readAsStringSync();
       expect(handoff, contains('Manual TCC status: not provided'));
       expect(handoff, contains('Desktop action canary status: not provided'));
+      expect(handoff, contains('M15 action proposal status: missing'));
+      expect(handoff, contains('Optional Review Evidence'));
+      expect(handoff, contains('M15 Action Proposal Evidence'));
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal blockers: missing_m15_action_proposal_handoff',
+        ),
+      );
       expect(
         handoff,
         contains(
@@ -3221,6 +3243,46 @@ void main() {
   }
 }
 ''');
+      final m15Dir = Directory(
+        '${root.path}/macos_computer_use_m15_action_proposal_handoff_1',
+      )..createSync();
+      final m15Handoff = File('${m15Dir.path}/action_proposal_handoff.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "previousMilestone": "M14",
+  "ready": true,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "approvalBoundActionProposal": [
+    {
+      "phase": "confirm_exact_text",
+      "status": "requires_user_approval",
+      "reason": "The user must approve the exact text before typing."
+    },
+    {
+      "phase": "confirm_public_action",
+      "status": "requires_separate_user_approval",
+      "reason": "The user must approve the final public Post control."
+    }
+  ],
+  "m15ActionProposalGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "m14_evidence_ready",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": [],
+    "nextAction": "M15 action proposal handoff is ready for user review."
+  }
+}
+''');
 
       final result = await Process.run('bash', [
         'tool/run_macos_computer_use_mvp_signoff.sh',
@@ -3234,6 +3296,13 @@ void main() {
       expect(stdout, contains('Manual TCC status: discovered'));
       expect(stdout, contains('Desktop action canary status: discovered'));
       expect(stdout, contains('LLM canary status: discovered'));
+      expect(stdout, contains('M15 action proposal status: ready'));
+      expect(
+        stdout,
+        contains(
+          'M15 action proposal next action: M15 action proposal handoff is ready for user review.',
+        ),
+      );
       expect(stdout, contains('LLM evidence gate: ready'));
       expect(stdout, contains('LLM evidence blockers: none'));
       expect(stdout, contains('Final MVP aggregation command:'));
@@ -3275,6 +3344,18 @@ void main() {
       expect(handoff, contains('Manual TCC status: discovered'));
       expect(handoff, contains('Desktop action canary status: discovered'));
       expect(handoff, contains('LLM canary status: discovered'));
+      expect(handoff, contains('M15 action proposal status: ready'));
+      expect(handoff, contains('Optional Review Evidence'));
+      expect(handoff, contains('M15 Action Proposal Evidence'));
+      expect(handoff, contains('M15 action proposal blockers: none'));
+      expect(
+        handoff,
+        contains('| confirm_exact_text | requires_user_approval |'),
+      );
+      expect(
+        handoff,
+        contains('| confirm_public_action | requires_separate_user_approval |'),
+      );
       expect(handoff, contains('LLM Evidence Gate'));
       expect(handoff, contains('M14 evidence gate: ready'));
       expect(handoff, contains('PR Review Summary'));
@@ -3305,6 +3386,7 @@ void main() {
       expect(handoff, contains(manualSummary.path));
       expect(handoff, contains(desktopSummary.path));
       expect(handoff, contains(realAppObserveSummary.path));
+      expect(handoff, contains(m15Handoff.path));
       expect(
         handoff,
         contains(
@@ -3343,6 +3425,77 @@ void main() {
           artifactIndex['mvpFinalSignoffRehearsal'] as Map<String, dynamic>;
       expect(rehearsal['ready'], isTrue);
       expect(rehearsal['finalAggregationCommand'], handoffCommand);
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run surfaces blocked M15 proposal evidence', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m15_blocked_',
+    );
+    try {
+      final m15Dir = Directory(
+        '${root.path}/macos_computer_use_m15_action_proposal_handoff_1',
+      )..createSync();
+      File('${m15Dir.path}/action_proposal_handoff.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "previousMilestone": "M14",
+  "ready": false,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "m15ActionProposalGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "m14_evidence_ready",
+        "ok": false,
+        "nextAction": "Run the M14 real-app observe canary until ready."
+      }
+    ],
+    "blockers": ["m14_evidence_ready"],
+    "nextAction": "Resolve blocked M15 handoff checks before proposing any action."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M15 action proposal status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M15 action proposal next action: Resolve blocked M15 handoff checks before proposing any action.',
+        ),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M15 Action Proposal Evidence'));
+      expect(handoff, contains('M15 action proposal status: blocked'));
+      expect(
+        handoff,
+        contains('M15 action proposal blockers: m14_evidence_ready'),
+      );
+      expect(handoff, contains('| m14_evidence_ready | blocked |'));
+      expect(
+        handoff,
+        contains(
+          'Missing input evidence: manual_tcc, desktop_action_canary, llm_canary',
+        ),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }
