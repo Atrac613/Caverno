@@ -220,8 +220,15 @@ checks = [
 ]
 blockers = [check["id"] for check in checks if not check["ok"]]
 ready = not blockers
+review_status = "ready_for_review" if ready else "blocked_pending_review_evidence"
+gate_status = "ready" if ready else "blocked"
+gate_next_action = (
+    "M15 action proposal handoff is ready for user review."
+    if ready
+    else "Resolve blocked M15 handoff checks before proposing any action."
+)
 review_summary = {
-    "status": "ready_for_review" if ready else "blocked_pending_review_evidence",
+    "status": review_status,
     "ready": ready,
     "sourceEvidence": "m14_real_app_observe_canary",
     "blockedReviewEvidence": blockers,
@@ -238,6 +245,20 @@ review_summary = {
         "futureActions": "approval_required",
         "publicActions": "separate_approval_required",
     },
+}
+review_gate_consistency_ok = (
+    review_summary["ready"] == ready
+    and (review_summary["status"] == "ready_for_review") == (gate_status == "ready")
+    and review_summary["blockedReviewEvidence"] == blockers
+)
+review_gate_consistency = {
+    "ok": review_gate_consistency_ok,
+    "status": "consistent" if review_gate_consistency_ok else "inconsistent",
+    "nextAction": (
+        "No action required."
+        if review_gate_consistency_ok
+        else "Resolve inconsistent M15 review and gate evidence before proposing any action."
+    ),
 }
 
 approval_bound_steps = [
@@ -285,16 +306,13 @@ summary = {
     "confirmationRequirements": confirmation_requirements,
     "approvalBoundActionProposal": approval_bound_steps,
     "prReviewSummary": review_summary,
+    "reviewGateConsistency": review_gate_consistency,
     "m15ActionProposalGate": {
-        "status": "ready" if ready else "blocked",
+        "status": gate_status,
         "ready": ready,
         "checks": checks,
         "blockers": blockers,
-        "nextAction": (
-            "M15 action proposal handoff is ready for user review."
-            if ready
-            else "Resolve blocked M15 handoff checks before proposing any action."
-        ),
+        "nextAction": gate_next_action,
     },
     "manualBoundary": [
         "Do not click, type, submit, post, purchase, or navigate from this handoff.",
@@ -326,6 +344,7 @@ md_lines = [
     "- Blocked review evidence: " + (", ".join(blockers) if blockers else "none"),
     "- Required confirmations: "
     + ", ".join(review_summary["requiredConfirmations"]),
+    f"- Review/gate consistency: {review_gate_consistency['status']}",
     "- Boundary: no LLM call, no TCC, no System Settings, no desktop actions; future input and public actions require explicit approval.",
     "",
     "## Gate",

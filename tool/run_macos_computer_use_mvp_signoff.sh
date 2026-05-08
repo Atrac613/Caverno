@@ -261,6 +261,8 @@ gate = summary.get("m15ActionProposalGate") if isinstance(summary, dict) else No
 gate = gate if isinstance(gate, dict) else {}
 review = summary.get("prReviewSummary") if isinstance(summary, dict) else None
 review = review if isinstance(review, dict) else {}
+consistency = summary.get("reviewGateConsistency") if isinstance(summary, dict) else None
+consistency = consistency if isinstance(consistency, dict) else {}
 next_action = str(gate.get("nextAction") or "Review the M15 action proposal handoff.")
 checks = as_list(gate.get("checks"))
 blockers = as_list(gate.get("blockers"))
@@ -269,10 +271,18 @@ review_blocked_evidence = as_list(review.get("blockedReviewEvidence"))
 review_blocked = bool(review_blocked_evidence) or (
     bool(review) and review_status != "ready_for_review"
 )
+consistency_status = str(consistency.get("status") or "-")
+consistency_ok = consistency.get("ok")
+consistency_blocked = consistency_ok is False or (
+    bool(consistency) and consistency_status != "consistent"
+)
 status = str(gate.get("status") or ("ready" if summary and summary.get("ready") is True else "blocked"))
 if status == "ready" and review_blocked:
     status = "blocked"
     next_action = "Resolve blocked M15 review evidence before proposing any action."
+if consistency_blocked:
+    status = "blocked"
+    next_action = "Resolve inconsistent M15 review and gate evidence before proposing any action."
 approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstance(summary, dict) else [])
 text_entry_targets = as_list(summary.get("textEntryTargets") if isinstance(summary, dict) else [])
 public_action_targets = as_list(summary.get("publicActionTargets") if isinstance(summary, dict) else [])
@@ -304,6 +314,8 @@ if review:
         "- M15 action proposal blocked review evidence: "
         + (", ".join(str(item) for item in review_blocked_evidence) if review_blocked_evidence else "none"),
     ])
+if consistency:
+    lines.append("- M15 action proposal review/gate consistency: " + consistency_status)
 if checks:
     lines.extend([
         "",

@@ -128,6 +128,9 @@ class ReadinessArtifactIndex {
           '- PR review status: ${m15Entry.details['prReviewStatus'] ?? 'unknown'}',
         )
         ..writeln(
+          '- Review/gate consistency: ${m15Entry.details['reviewGateConsistencyStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
           '- Blocked review evidence: ${_joinedOrNone(_detailsStringList(m15Entry.details['blockedReviewEvidence']))}',
         );
     }
@@ -744,7 +747,9 @@ String? _m15ActionProposalStatus(Map<String, dynamic> json) {
   if (gate is Map<String, dynamic>) {
     gateStatus = gate['status']?.toString();
   }
-  if (gateStatus == 'blocked' || _m15ReviewSummaryBlocked(json)) {
+  if (gateStatus == 'blocked' ||
+      _m15ReviewSummaryBlocked(json) ||
+      _m15ReviewGateConsistencyBlocked(json)) {
     return 'blocked';
   }
   if (gateStatus != null) {
@@ -767,6 +772,9 @@ String? _m15ActionProposalNextAction(Map<String, dynamic> json) {
       gateStatus == 'ready' &&
       _m15ReviewSummaryBlocked(json)) {
     return 'Resolve blocked M15 review evidence before proposing any action.';
+  }
+  if (status == 'blocked' && _m15ReviewGateConsistencyBlocked(json)) {
+    return 'Resolve inconsistent M15 review and gate evidence before proposing any action.';
   }
   if (gate is Map<String, dynamic>) {
     final nextAction = gate['nextAction'];
@@ -796,13 +804,31 @@ bool _m15ReviewSummaryBlocked(Map<String, dynamic> json) {
       (status != null && status != 'ready_for_review');
 }
 
+bool _m15ReviewGateConsistencyBlocked(Map<String, dynamic> json) {
+  final consistency = json['reviewGateConsistency'];
+  if (consistency is! Map<String, dynamic>) {
+    return false;
+  }
+  final ok = consistency['ok'];
+  final status = consistency['status']?.toString();
+  return ok == false || (status != null && status != 'consistent');
+}
+
 Map<String, Object?> _m15ActionProposalDetails(Map<String, dynamic> json) {
   final review = json['prReviewSummary'];
   final reviewMap = review is Map<String, dynamic> ? review : null;
+  final consistency = json['reviewGateConsistency'];
+  final consistencyMap = consistency is Map<String, dynamic>
+      ? consistency
+      : null;
   return <String, Object?>{
     'exactTextCandidateCount': _jsonList(json['exactTextCandidates']).length,
     'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
     'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
+    if (consistencyMap != null) ...<String, Object?>{
+      'reviewGateConsistencyStatus': consistencyMap['status']?.toString(),
+      'reviewGateConsistencyOk': consistencyMap['ok'],
+    },
     if (reviewMap != null) ...<String, Object?>{
       'prReviewStatus': reviewMap['status']?.toString(),
       'blockedReviewEvidence': _jsonStringList(

@@ -759,6 +759,8 @@ void main() {
       expect(m15Entry.details['textEntryTargetCount'], 1);
       expect(m15Entry.details['publicActionTargetCount'], 1);
       expect(m15Entry.details['prReviewStatus'], 'ready_for_review');
+      expect(m15Entry.details['reviewGateConsistencyStatus'], 'consistent');
+      expect(m15Entry.details['reviewGateConsistencyOk'], isTrue);
       expect(m15Entry.details['blockedReviewEvidence'], isEmpty);
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
@@ -781,6 +783,10 @@ void main() {
       expect(
         index.toMarkdown(),
         contains('PR review status: ready_for_review'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Review/gate consistency: consistent'),
       );
       expect(index.toMarkdown(), contains('Blocked review evidence: none'));
     });
@@ -1111,6 +1117,73 @@ void main() {
         index.toMarkdown(),
         contains('PR review status: blocked_pending_review_evidence'),
       );
+    });
+
+    test('artifact index blocks final aggregation on inconsistent M15 gate', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m15_consistency_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m15Handoff = _m15ActionProposalHandoff(ready: true);
+      m15Handoff['reviewGateConsistency'] = <String, Object?>{
+        'ok': false,
+        'status': 'inconsistent',
+        'nextAction':
+            'Resolve inconsistent M15 review and gate evidence before proposing any action.',
+      };
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json',
+        ),
+        m15Handoff,
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_action_proposal_handoff',
+      );
+
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve inconsistent M15 review and gate evidence before proposing any action.',
+      );
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(entry.details['reviewGateConsistencyOk'], isFalse);
+      expect(entry.details['reviewGateConsistencyStatus'], 'inconsistent');
     });
 
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
@@ -1748,6 +1821,11 @@ Map<String, dynamic> _m15ActionProposalHandoff({required bool ready}) {
         'confirm_target',
         'confirm_public_action',
       ],
+    },
+    'reviewGateConsistency': <String, Object?>{
+      'ok': true,
+      'status': 'consistent',
+      'nextAction': 'No action required.',
     },
     'm15ActionProposalGate': <String, Object?>{
       'status': ready ? 'ready' : 'blocked',
