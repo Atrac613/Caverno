@@ -25,6 +25,16 @@ It is not for executing actions. TCC setup and real desktop operation remain use
 First, manually prepare the screen and capture a screenshot. For example, open
 Safari yourself, navigate to the target site yourself, and save a screenshot.
 
+To generate the M14 handoff without calling the LLM or operating the desktop,
+run:
+
+```bash
+bash tool/run_macos_computer_use_m14_real_app_handoff.sh \
+  --screenshot <real-app-screenshot.png> \
+  --target-app Safari \
+  --target-intent "Observe Safari for a future X post task."
+```
+
 Then run:
 
 ```bash

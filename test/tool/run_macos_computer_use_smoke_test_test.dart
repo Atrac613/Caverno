@@ -28,6 +28,7 @@ void main() {
   late String mvpFixtureLlmCanaryScript;
   late String mvpFixtureVisionLlmCanaryScript;
   late String realAppObserveCanaryScript;
+  late String m14RealAppHandoffScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -92,6 +93,9 @@ void main() {
     ).readAsStringSync();
     realAppObserveCanaryScript = File(
       'tool/run_macos_computer_use_real_app_observe_canary.sh',
+    ).readAsStringSync();
+    m14RealAppHandoffScript = File(
+      'tool/run_macos_computer_use_m14_real_app_handoff.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -819,6 +823,22 @@ void main() {
     expect(realAppObserveCanaryScript, contains('m12EvidenceGate'));
     expect(realAppObserveCanaryScript, contains('m14EvidenceGate'));
     expect(realAppObserveCanaryScript, contains('confirmationRequirements'));
+    expect(m14RealAppHandoffScript, contains('report-only'));
+    expect(m14RealAppHandoffScript, contains('no TCC'));
+    expect(m14RealAppHandoffScript, contains('no System Settings'));
+    expect(m14RealAppHandoffScript, contains('no desktop actions'));
+    expect(
+      m14RealAppHandoffScript,
+      contains('tool/run_macos_computer_use_real_app_observe_canary.sh'),
+    );
+    expect(
+      m14RealAppHandoffScript,
+      contains('tool/macos_computer_use_readiness_artifact_index.dart'),
+    );
+    expect(
+      m14RealAppHandoffScript,
+      contains('tool/run_macos_computer_use_mvp_signoff.sh'),
+    );
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
