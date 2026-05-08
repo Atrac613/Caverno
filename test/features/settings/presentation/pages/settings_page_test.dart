@@ -35,19 +35,31 @@ void main() {
     MacosComputerUseAuditLog.instance.clear();
   });
 
-  testWidgets('keeps Computer Use behind a settings menu item', (tester) async {
+  testWidgets('keeps Computer Use behind the advanced settings menu', (
+    tester,
+  ) async {
     final service = _FakeMacosComputerUseService();
     await _pumpRootPage(tester, service);
 
     expect(find.text('Computer Use Ready'), findsNothing);
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(find.text('Computer Use and diagnostics'), findsOneWidget);
+    expect(find.text('Computer Use'), findsNothing);
+    expect(
+      find.text('Helper permissions, smoke checks, and manual sign-off'),
+      findsNothing,
+    );
+    expect(service.helperStatusCallCount, 0);
+    expect(service.pingHelperCallCount, 0);
+    expect(service.getPermissionsCallCount, 0);
+
+    await _tapByKey(tester, 'settings-menu-advanced');
+
     expect(find.text('Computer Use'), findsOneWidget);
     expect(
       find.text('Helper permissions, smoke checks, and manual sign-off'),
       findsOneWidget,
     );
-    expect(service.helperStatusCallCount, 0);
-    expect(service.pingHelperCallCount, 0);
-    expect(service.getPermissionsCallCount, 0);
 
     await _tapByKey(tester, 'settings-menu-computer-use');
 

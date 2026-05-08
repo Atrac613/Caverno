@@ -191,32 +191,51 @@ class SettingsPage extends ConsumerWidget {
             },
           ),
           const Divider(height: 1),
-          ListTile(
-            key: const ValueKey('settings-menu-computer-use'),
-            leading: const Icon(Icons.desktop_windows_outlined),
-            title: Text('settings.menu_computer_use'.tr()),
-            subtitle: Text('settings.menu_computer_use_desc'.tr()),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ComputerUseSettingsPage(),
+          ExpansionTile(
+            key: const ValueKey('settings-menu-advanced'),
+            leading: const Icon(Icons.tune_outlined),
+            title: Text('settings.menu_advanced'.tr()),
+            subtitle: Text('settings.menu_advanced_desc'.tr()),
+            children: [
+              ListTile(
+                key: const ValueKey('settings-menu-computer-use'),
+                contentPadding: const EdgeInsetsDirectional.only(
+                  start: 72,
+                  end: 16,
                 ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          ListTile(
-            leading: const Icon(Icons.bug_report_outlined),
-            title: Text('settings.menu_debug'.tr()),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebugSettingsPage()),
-              );
-            },
+                leading: const Icon(Icons.desktop_windows_outlined),
+                title: Text('settings.menu_computer_use'.tr()),
+                subtitle: Text('settings.menu_computer_use_desc'.tr()),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const ComputerUseSettingsPage(),
+                    ),
+                  );
+                },
+              ),
+              const Divider(height: 1, indent: 72),
+              ListTile(
+                key: const ValueKey('settings-menu-debug'),
+                contentPadding: const EdgeInsetsDirectional.only(
+                  start: 72,
+                  end: 16,
+                ),
+                leading: const Icon(Icons.bug_report_outlined),
+                title: Text('settings.menu_debug'.tr()),
+                trailing: const Icon(Icons.chevron_right),
+                onTap: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => const DebugSettingsPage(),
+                    ),
+                  );
+                },
+              ),
+            ],
           ),
         ],
       ),

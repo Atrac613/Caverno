@@ -332,6 +332,8 @@
     "menu_chat": "Chat & Memory",
     "menu_voice": "Voice",
     "menu_tools": "Tools (MCP)",
+    "menu_advanced": "Advanced",
+    "menu_advanced_desc": "Computer Use and diagnostics",
     "menu_computer_use": "Computer Use",
     "menu_computer_use_desc": "Helper permissions, smoke checks, and manual sign-off",
     "computer_use_header_title": "Helper-owned desktop control",
