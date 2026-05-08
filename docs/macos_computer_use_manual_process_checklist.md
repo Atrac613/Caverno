@@ -115,6 +115,8 @@ approval-bound action plan without executing any action:
    `exactTextCandidates`, `textEntryTargets`, and `publicActionTargets`.
 9. Confirm the handoff includes `PR Review Summary` with
    `blockedReviewEvidence: none` before treating M15 as ready.
+10. Confirm the handoff includes `reviewGateConsistency.status: consistent`
+    before treating M15 as ready.
 
 Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future

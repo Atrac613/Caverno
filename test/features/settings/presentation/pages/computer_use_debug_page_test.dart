@@ -213,6 +213,7 @@ void main() {
       find.textContaining('blocked M15 action-proposal review evidence'),
       findsOneWidget,
     );
+    expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);
     expect(
       find.textContaining('manual_tcc_report_summary.json'),
       findsNWidgets(3),

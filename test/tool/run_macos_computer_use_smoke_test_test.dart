@@ -3123,6 +3123,10 @@ void main() {
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(manualProcessChecklist, contains('PR Review Summary'));
     expect(manualProcessChecklist, contains('blockedReviewEvidence: none'));
+    expect(
+      manualProcessChecklist,
+      contains('reviewGateConsistency.status: consistent'),
+    );
     expect(manualProcessChecklist, contains('exactTextCandidates'));
     expect(manualProcessChecklist, contains('textEntryTargets'));
     expect(manualProcessChecklist, contains('publicActionTargets'));

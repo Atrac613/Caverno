@@ -107,7 +107,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, and blocked M15 action-proposal review evidence.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {

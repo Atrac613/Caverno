@@ -100,6 +100,17 @@ void main() {
     );
   });
 
+  test('documents MVP PR review consistency guidance', () {
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M15 action-proposal review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('M15 review/gate consistency'),
+    );
+  });
+
   test('builds the onboarding diagnostics schema', () {
     const checklist = MacosComputerUseSetupChecklist(
       backend: MacosComputerUseBackends.helperIpc,
