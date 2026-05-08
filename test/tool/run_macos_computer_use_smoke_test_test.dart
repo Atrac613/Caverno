@@ -35,6 +35,7 @@ void main() {
   late String mvpFixtureSource;
   late String mvpFixtureRunbook;
   late String realAppObserveRunbook;
+  late String polishReviewSummary;
   late String existingHelperProbe;
   late String architectureDoc;
   late String manualProcessChecklist;
@@ -121,6 +122,9 @@ void main() {
     ).readAsStringSync();
     realAppObserveRunbook = File(
       'docs/macos_computer_use_real_app_observe_runbook.md',
+    ).readAsStringSync();
+    polishReviewSummary = File(
+      'docs/macos_computer_use_polish_review_summary.md',
     ).readAsStringSync();
   });
 
@@ -2658,6 +2662,36 @@ void main() {
     expect(
       stdout,
       contains('macOS Computer Use post-merge sanity checks complete'),
+    );
+  });
+
+  test('M13 polish review summary keeps merge boundaries explicit', () {
+    expect(
+      polishReviewSummary,
+      contains('macOS Computer Use Polish Review Summary'),
+    );
+    expect(polishReviewSummary, contains('Settings > Advanced'));
+    expect(
+      polishReviewSummary,
+      contains('not a top-level Computer Use status'),
+    );
+    expect(polishReviewSummary, contains('collapsed `Diagnostics` section'));
+    expect(polishReviewSummary, contains('Caverno Computer Use.app'));
+    expect(
+      polishReviewSummary,
+      contains('run_macos_computer_use_post_merge_sanity.sh'),
+    );
+    expect(polishReviewSummary, contains('--print-commands'));
+    expect(
+      polishReviewSummary,
+      contains('must not grant TCC, edit TCC, operate System Settings'),
+    );
+    expect(polishReviewSummary, contains('Manual TCC runtime sign-off'));
+    expect(polishReviewSummary, contains('Desktop action canary'));
+    expect(polishReviewSummary, contains('M14 expands real-app observe-only'));
+    expect(
+      polishReviewSummary,
+      contains('must not click, type, submit, post, purchase'),
     );
   });
 
