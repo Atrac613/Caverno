@@ -39,6 +39,28 @@ desktop action canaries as user-operated follow-ups. Ask the user to run the
 manual commands and provide the generated report when runtime evidence is
 needed.
 
+## M13 Review Hardening
+
+Use this review pass before merging Computer Use polish changes:
+
+1. Open Settings and confirm the root list shows `Advanced`, not a top-level
+   Computer Use status panel.
+2. Open `Advanced` and confirm `Computer Use` and `Debug` are normal navigation
+   rows.
+3. Open `Computer Use` and confirm the helper-owned desktop control copy is
+   visible before the detailed readiness card.
+4. Confirm no TCC grant, System Settings operation, helper foreground check, or
+   desktop action is required for the review-only pass.
+5. Run the post-merge sanity wrapper or inspect its `--print-commands` output
+   before asking for any manual runtime sign-off.
+
+Expected static coverage:
+
+- `test/features/settings/presentation/pages/advanced_settings_page_test.dart`
+- `test/features/settings/presentation/pages/settings_page_test.dart`
+- `test/features/settings/presentation/pages/computer_use_debug_page_test.dart`
+- `test/tool/run_macos_computer_use_smoke_test_test.dart`
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

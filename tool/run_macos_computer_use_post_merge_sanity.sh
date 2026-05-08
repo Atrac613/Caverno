@@ -81,6 +81,7 @@ fi
 if [[ "${RUN_TESTS}" == "true" ]]; then
   run_step "Focused tests" \
     flutter test \
+    test/features/settings/presentation/pages/advanced_settings_page_test.dart \
     test/features/settings/presentation/pages/settings_page_test.dart \
     test/features/settings/presentation/pages/computer_use_debug_page_test.dart \
     test/tool/run_macos_computer_use_smoke_test_test.dart \

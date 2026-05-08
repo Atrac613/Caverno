@@ -438,6 +438,22 @@ void main() {
     );
     expect(architectureDoc, contains('helperRunningProcessCount'));
     expect(architectureDoc, contains('helperDockPolicy'));
+    expect(manualProcessChecklist, contains('M13 Review Hardening'));
+    expect(
+      manualProcessChecklist,
+      contains('root list shows `Advanced`, not a top-level'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('Open `Advanced` and confirm `Computer Use` and `Debug`'),
+    );
+    expect(manualProcessChecklist, contains('normal navigation'));
+    expect(
+      manualProcessChecklist,
+      contains(
+        'test/features/settings/presentation/pages/advanced_settings_page_test.dart',
+      ),
+    );
     expect(manualProcessChecklist, contains('Hidden Helper'));
     expect(manualProcessChecklist, contains('Path Mismatch'));
     expect(manualProcessChecklist, contains('Permission Overlay'));
@@ -2589,6 +2605,12 @@ void main() {
       contains('Boundary: static checks only, no TCC, no System Settings'),
     );
     expect(stdout, contains('flutter analyze'));
+    expect(
+      stdout,
+      contains(
+        'test/features/settings/presentation/pages/advanced_settings_page_test.dart',
+      ),
+    );
     expect(
       stdout,
       contains(
