@@ -1759,6 +1759,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
       'llmCanarySummary':
           'build/integration_test_reports/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+      'm15ActionProposalHandoff':
+          'build/integration_test_reports/macos_computer_use_m15_action_proposal_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m15ActionProposalHandoffFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1780,6 +1782,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'MVP fixture LLM summary: ${paths['llmCanarySummary']}',
+      'M15 action proposal handoff: ${paths['m15ActionProposalHandoff']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',

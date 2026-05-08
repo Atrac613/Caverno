@@ -95,7 +95,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'llm_canary: Run `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh` or provide an MVP fixture LLM canary `canary_summary.json`',
+        'llm_canary: Run `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh`, run `bash tool/run_macos_computer_use_real_app_observe_canary.sh`',
       ),
       findsOneWidget,
     );
@@ -174,6 +174,12 @@ void main() {
     );
     expect(find.textContaining('MVP fixture LLM summary:'), findsOneWidget);
     expect(
+      find.textContaining('macos_computer_use_m15_action_proposal_handoff_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M15 action proposal handoff:'), findsOneWidget);
+    expect(find.textContaining('action_proposal_handoff.json'), findsOneWidget);
+    expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
       ),
@@ -201,6 +207,10 @@ void main() {
       find.textContaining(
         'ready artifacts, missing evidence, user-operated blockers',
       ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M15 action-proposal review evidence'),
       findsOneWidget,
     );
     expect(
