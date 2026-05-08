@@ -276,6 +276,14 @@ Follow-on milestones:
   canaries classify visible UI targets and public-action boundaries from
   user-provided screenshots without opening apps, clicking, typing, submitting,
   or posting.
+- M13: Complete review and merge hardening after the Computer Use MVP merge.
+  Keep Computer Use behind the Advanced settings flow, reduce the default
+  settings surface area, verify the post-merge sanity runner, and keep the
+  PR-review evidence handoff easy to inspect before merging polish changes.
+- M14: Expand real-app observe-only canaries after M13. Use Safari-style
+  logged-in workflows only for visual classification of targets, text fields,
+  submission boundaries, and confirmation requirements. These canaries must not
+  click, type, submit, post, purchase, or otherwise mutate external state.
 
 ## Computer Use Live Canary
 
@@ -1478,9 +1486,11 @@ migration plan has been converted into these completion checks:
   report `mainAppUnsafeOsActionsAllowed=false`,
   `helperOwnsUnsafeOsActions=true`, and the helper-owned action categories.
 
-Remaining work is release readiness and user-operated sign-off rather than
-migration: release artifacts, manual TCC runtime reports, user-operated desktop
-action canaries, LLM canaries, and MVP PR review artifacts.
+Remaining work is review hardening and user-operated sign-off rather than
+migration: the Advanced settings flow, post-merge sanity checks, release
+artifacts, manual TCC runtime reports, user-operated desktop action canaries,
+LLM canaries, MVP PR review artifacts, and future observe-only real-app
+canaries.
 
 ## Verification Gates
 

@@ -205,10 +205,21 @@ void main() {
     expect(architectureDoc, contains('helperOwnsUnsafeOsActions=true'));
     expect(
       architectureDoc,
-      contains(
-        'Remaining work is release readiness and user-operated sign-off',
-      ),
+      contains('Remaining work is review hardening and user-operated sign-off'),
     );
+    expect(
+      architectureDoc,
+      contains('M13: Complete review and merge hardening'),
+    );
+    expect(
+      architectureDoc,
+      contains('Keep Computer Use behind the Advanced settings flow'),
+    );
+    expect(
+      architectureDoc,
+      contains('M14: Expand real-app observe-only canaries'),
+    );
+    expect(architectureDoc, contains('otherwise mutate external state'));
     expect(architectureDoc, contains('## Verification Gates'));
     expect(architectureDoc, contains('Static verification'));
     expect(
