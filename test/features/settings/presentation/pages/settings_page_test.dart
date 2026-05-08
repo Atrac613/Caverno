@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
+import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
 import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
 import 'package:easy_localization/easy_localization.dart';

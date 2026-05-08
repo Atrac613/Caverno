@@ -13,8 +13,8 @@ import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../providers/settings_notifier.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 import '../widgets/qr_export_dialog.dart';
+import 'advanced_settings_page.dart';
 import 'computer_use_debug_page.dart';
-import 'debug_settings_page.dart';
 import 'general_settings_page.dart';
 import 'chat_settings_page.dart';
 import 'voice_settings_page.dart';
@@ -200,7 +200,11 @@ class SettingsPage extends ConsumerWidget {
             onTap: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (_) => const AdvancedSettingsPage()),
+                MaterialPageRoute(
+                  builder: (_) => AdvancedSettingsPage(
+                    computerUseBuilder: (_) => const ComputerUseSettingsPage(),
+                  ),
+                ),
               );
             },
           ),
@@ -322,49 +326,6 @@ class SettingsPage extends ConsumerWidget {
     showDialog(
       context: context,
       builder: (context) => QrExportDialog(data: data),
-    );
-  }
-}
-
-class AdvancedSettingsPage extends StatelessWidget {
-  const AdvancedSettingsPage({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: Text('settings.menu_advanced'.tr())),
-      body: ListView(
-        children: [
-          ListTile(
-            key: const ValueKey('settings-menu-computer-use'),
-            leading: const Icon(Icons.desktop_windows_outlined),
-            title: Text('settings.menu_computer_use'.tr()),
-            subtitle: Text('settings.menu_computer_use_desc'.tr()),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => const ComputerUseSettingsPage(),
-                ),
-              );
-            },
-          ),
-          const Divider(height: 1),
-          ListTile(
-            key: const ValueKey('settings-menu-debug'),
-            leading: const Icon(Icons.bug_report_outlined),
-            title: Text('settings.menu_debug'.tr()),
-            trailing: const Icon(Icons.chevron_right),
-            onTap: () {
-              Navigator.push(
-                context,
-                MaterialPageRoute(builder: (_) => const DebugSettingsPage()),
-              );
-            },
-          ),
-        ],
-      ),
     );
   }
 }
