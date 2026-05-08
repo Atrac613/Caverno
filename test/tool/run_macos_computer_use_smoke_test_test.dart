@@ -22,6 +22,7 @@ void main() {
   late String manualTccSignoffScript;
   late String mvpSignoffScript;
   late String mvpReadinessPreflightScript;
+  late String postMergeSanityScript;
   late String desktopActionCanaryScript;
   late String llmDecisionCanaryScript;
   late String mvpFixtureLlmCanaryScript;
@@ -72,6 +73,9 @@ void main() {
     ).readAsStringSync();
     mvpReadinessPreflightScript = File(
       'tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+    ).readAsStringSync();
+    postMergeSanityScript = File(
+      'tool/run_macos_computer_use_post_merge_sanity.sh',
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
@@ -316,6 +320,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_computer_use_post_merge_sanity.sh'),
     );
   });
 
@@ -2527,6 +2535,66 @@ void main() {
     } finally {
       root.deleteSync(recursive: true);
     }
+  });
+
+  test('post-merge sanity runner avoids TCC and desktop actions', () async {
+    expect(
+      postMergeSanityScript,
+      contains('static checks only, no TCC, no System Settings'),
+    );
+    expect(postMergeSanityScript, contains('flutter analyze'));
+    expect(postMergeSanityScript, contains('flutter test'));
+    expect(postMergeSanityScript, contains('flutter build macos --debug'));
+    expect(
+      postMergeSanityScript,
+      isNot(contains('run_macos_computer_use_manual_tcc_signoff.sh')),
+    );
+    expect(
+      postMergeSanityScript,
+      isNot(contains('run_macos_computer_use_desktop_action_canary.sh')),
+    );
+    expect(
+      postMergeSanityScript,
+      isNot(contains('run_macos_computer_use_live_canary.sh')),
+    );
+
+    final result = await Process.run('bash', [
+      'tool/run_macos_computer_use_post_merge_sanity.sh',
+      '--print-commands',
+    ]);
+
+    expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+    final stdout = '${result.stdout}';
+    expect(
+      stdout,
+      contains('Running macOS Computer Use post-merge sanity checks'),
+    );
+    expect(
+      stdout,
+      contains('Boundary: static checks only, no TCC, no System Settings'),
+    );
+    expect(stdout, contains('flutter analyze'));
+    expect(
+      stdout,
+      contains(
+        'test/features/settings/presentation/pages/settings_page_test.dart',
+      ),
+    );
+    expect(
+      stdout,
+      contains(
+        'test/features/settings/presentation/pages/computer_use_debug_page_test.dart',
+      ),
+    );
+    expect(
+      stdout,
+      contains('test/tool/run_macos_computer_use_smoke_test_test.dart'),
+    );
+    expect(stdout, contains('flutter build macos --debug'));
+    expect(
+      stdout,
+      contains('macOS Computer Use post-merge sanity checks complete'),
+    );
   });
 
   test(

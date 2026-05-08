@@ -31,14 +31,7 @@ grant TCC permissions, operate System Settings, launch the helper UI, or perform
 desktop actions:
 
 ```bash
-flutter analyze
-flutter test test/features/settings/presentation/pages/settings_page_test.dart \
-  test/features/settings/presentation/pages/computer_use_debug_page_test.dart \
-  test/tool/run_macos_computer_use_smoke_test_test.dart \
-  test/core/services/macos_computer_use_service_test.dart \
-  test/core/services/macos_computer_use_setup_test.dart \
-  test/core/services/macos_computer_use_transport_test.dart -r compact
-flutter build macos --debug
+bash tool/run_macos_computer_use_post_merge_sanity.sh
 ```
 
 Treat TCC grants, helper foreground checks, smoke sequence execution, and
