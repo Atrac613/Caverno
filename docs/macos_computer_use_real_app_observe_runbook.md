@@ -93,6 +93,26 @@ The `m14EvidenceGate` is ready only when:
 - Confirmation requirements are documented.
 - The canary remains observe-only with no mutation.
 
+## M15 Action Proposal Handoff
+
+After a ready M14 summary exists, generate the M15 handoff:
+
+```bash
+bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh \
+  --m14-summary <macos_computer_use_real_app_observe_canary_summary.json> \
+  --target-intent "Prepare an approval-bound plan for a future X post task."
+```
+
+The M15 handoff remains report-only. It reads M14 evidence and writes an
+approval-bound checklist for observe refresh, exact text confirmation, target
+confirmation, and separate public-action confirmation. It does not call the
+LLM, grant TCC, open apps, operate System Settings, click, type, navigate,
+submit, post, or purchase.
+
+The handoff is ready only when `m15ActionProposalGate.status` is `ready`.
+Blocked M14 evidence, missing text-entry targets, missing public-action targets,
+missing confirmation requirements, or inherited mutating tools must block M15.
+
 ## Manual Boundary
 
 The canary never grants TCC, opens Safari, navigates to X, moves the pointer,

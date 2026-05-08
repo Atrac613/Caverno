@@ -98,6 +98,24 @@ Do not automate app navigation, clicking, typing, posting, purchases, TCC
 grants, or System Settings operations for M14 evidence. If fresh app state is
 needed, ask the user to prepare the screenshot manually.
 
+## M15 Action Proposal Handoff
+
+Use this pass after M14 evidence is ready and the next milestone needs an
+approval-bound action plan without executing any action:
+
+1. Select the ready M14 `canary_summary.json`.
+2. Run
+   `bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --m14-summary <canary_summary.json>`.
+3. Confirm `m15ActionProposalGate.status` is `ready`.
+4. Confirm the handoff keeps `desktopActionBoundary: no_desktop_action`.
+5. Confirm the handoff keeps `tccBoundary: no_tcc_operation`.
+6. Confirm the handoff keeps `llmBoundary: no_llm_call`.
+7. Confirm exact text, target, and public-action confirmations are separated.
+
+Do not use this handoff to click, type, navigate, submit, post, purchase, grant
+TCC, or operate System Settings. It is only the review artifact for a future
+user-approved action step.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

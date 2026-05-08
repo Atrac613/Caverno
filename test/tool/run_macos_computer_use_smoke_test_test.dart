@@ -29,6 +29,7 @@ void main() {
   late String mvpFixtureVisionLlmCanaryScript;
   late String realAppObserveCanaryScript;
   late String m14RealAppHandoffScript;
+  late String m15ActionProposalHandoffScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -96,6 +97,9 @@ void main() {
     ).readAsStringSync();
     m14RealAppHandoffScript = File(
       'tool/run_macos_computer_use_m14_real_app_handoff.sh',
+    ).readAsStringSync();
+    m15ActionProposalHandoffScript = File(
+      'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -226,6 +230,10 @@ void main() {
     expect(
       architectureDoc,
       contains('M14: Expand real-app observe-only canaries'),
+    );
+    expect(
+      architectureDoc,
+      contains('M15: Convert ready M14 observe-only evidence'),
     );
     expect(architectureDoc, contains('otherwise mutate external state'));
     expect(architectureDoc, contains('## Verification Gates'));
@@ -839,6 +847,13 @@ void main() {
       m14RealAppHandoffScript,
       contains('tool/run_macos_computer_use_mvp_signoff.sh'),
     );
+    expect(m15ActionProposalHandoffScript, contains('report-only'));
+    expect(m15ActionProposalHandoffScript, contains('no LLM call'));
+    expect(m15ActionProposalHandoffScript, contains('no TCC'));
+    expect(m15ActionProposalHandoffScript, contains('no System Settings'));
+    expect(m15ActionProposalHandoffScript, contains('no desktop actions'));
+    expect(m15ActionProposalHandoffScript, contains('m15ActionProposalGate'));
+    expect(m15ActionProposalHandoffScript, contains('requires_user_approval'));
     expect(
       mvpLlmReadinessScript,
       contains('macos_computer_use_mvp_llm_readiness_summary'),
@@ -2076,6 +2091,182 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M15 action proposal handoff consumes ready M14 evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m15_action_proposal_handoff_test_',
+      );
+      try {
+        final m14Summary = File('${root.path}/m14_canary_summary.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_real_app_observe_canary_summary",
+  "milestone": "M14",
+  "ready": true,
+  "targetApp": "Safari",
+  "observedApp": "Safari",
+  "targetIntent": "Observe Safari for a future X post task.",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "candidateTargets": [
+    {
+      "label": "What's happening?",
+      "role": "compose_text_field",
+      "risk": "input",
+      "reason": "Typing here prepares public content."
+    },
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action",
+      "reason": "Pressing it would publish content."
+    }
+  ],
+  "confirmationRequirements": [
+    "Ask the user to approve the exact post text before typing.",
+    "Ask the user to approve the final public Post control before publishing."
+  ],
+  "actionPlan": [
+    {"tool": "computer_vision_observe"}
+  ],
+  "m14EvidenceGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+          '--root',
+          root.path,
+          '--m14-summary',
+          m14Summary.path,
+          '--target-intent',
+          'Prepare an approval-bound plan for a future X post task.',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Ready: true'));
+        expect('${result.stdout}', contains('Text-entry targets: 1'));
+        expect('${result.stdout}', contains('Public-action targets: 1'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('action_proposal_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m15_action_proposal_handoff'),
+        );
+        expect(summary, contains('"milestone": "M15"'));
+        expect(summary, contains('"previousMilestone": "M14"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"llmBoundary": "no_llm_call"'));
+        expect(
+          summary,
+          contains('"desktopActionBoundary": "no_desktop_action"'),
+        );
+        expect(summary, contains('"tccBoundary": "no_tcc_operation"'));
+        expect(summary, contains('"m15ActionProposalGate"'));
+        expect(summary, contains('"confirm_exact_text"'));
+        expect(summary, contains('"confirm_target"'));
+        expect(summary, contains('"confirm_public_action"'));
+        expect(summary, contains('"requires_separate_user_approval"'));
+        expect(summary, isNot(contains('computer_click')));
+        expect(summary, isNot(contains('computer_type_text')));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M15 action proposal handoff blocks unsafe M14 evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m15_action_proposal_blocked_test_',
+      );
+      try {
+        final m14Summary = File('${root.path}/m14_blocked_summary.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_real_app_observe_canary_summary",
+  "milestone": "M14",
+  "ready": true,
+  "targetApp": "Safari",
+  "observedApp": "Safari",
+  "targetIntent": "Observe Safari for a future X post task.",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "candidateTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action",
+      "reason": "Pressing it would publish content."
+    }
+  ],
+  "confirmationRequirements": [],
+  "actionPlan": [
+    {"tool": "computer_click"}
+  ],
+  "m14EvidenceGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+          '--root',
+          root.path,
+          '--m14-summary',
+          m14Summary.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Ready: false'));
+        expect('${result.stdout}', contains('text_entry_targets_available'));
+        expect(
+          '${result.stdout}',
+          contains('confirmation_requirements_available'),
+        );
+        expect('${result.stdout}', contains('no_mutating_tool_planned'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('action_proposal_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"ready": false'));
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"text_entry_targets_available"'));
+        expect(summary, contains('"confirmation_requirements_available"'));
+        expect(summary, contains('"no_mutating_tool_planned"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -2180,6 +2371,12 @@ void main() {
       expect(realAppObserveRunbook, contains('public_action'));
       expect(realAppObserveRunbook, contains('m12EvidenceGate'));
       expect(realAppObserveRunbook, contains('m14EvidenceGate'));
+      expect(realAppObserveRunbook, contains('M15 Action Proposal Handoff'));
+      expect(
+        realAppObserveRunbook,
+        contains('tool/run_macos_computer_use_m15_action_proposal_handoff.sh'),
+      );
+      expect(realAppObserveRunbook, contains('m15ActionProposalGate'));
       expect(realAppObserveRunbook, contains('confirmation requirements'));
       expect(
         realAppObserveRunbook,
@@ -2820,7 +3017,9 @@ void main() {
 
   test('manual process checklist documents M14 observe-only evidence', () {
     expect(manualProcessChecklist, contains('M14 Observe-Only Evidence'));
+    expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
+    expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(
       manualProcessChecklist,
       contains('confirmation_requirements_documented'),

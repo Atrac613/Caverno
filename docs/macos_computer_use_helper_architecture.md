@@ -284,6 +284,11 @@ Follow-on milestones:
   logged-in workflows only for visual classification of targets, text fields,
   submission boundaries, and confirmation requirements. These canaries must not
   click, type, submit, post, purchase, or otherwise mutate external state.
+- M15: Convert ready M14 observe-only evidence into an approval-bound action
+  proposal handoff. The handoff may describe the next observe, exact text
+  confirmation, target confirmation, and public-action confirmation phases, but
+  it must not call an LLM, click, type, navigate, submit, post, purchase, grant
+  TCC, or operate System Settings.
 
 ## Computer Use Live Canary
 
