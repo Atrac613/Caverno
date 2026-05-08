@@ -1950,6 +1950,7 @@ class McpToolService {
               'type': 'string',
               'description': 'Why this click is needed.',
             },
+            ..._computerActionTargetMetadataProperties,
           },
         },
       },
@@ -1972,6 +1973,7 @@ class McpToolService {
               'type': 'integer',
               'description': 'Drag duration in milliseconds.',
             },
+            ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
           'required': ['from_x', 'from_y', 'to_x', 'to_y'],
@@ -1993,6 +1995,7 @@ class McpToolService {
               'type': 'integer',
               'description': 'Positive scrolls up, negative scrolls down.',
             },
+            ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
         },
@@ -2008,6 +2011,7 @@ class McpToolService {
           'type': 'object',
           'properties': {
             'text': {'type': 'string'},
+            ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
           'required': ['text'],
@@ -2028,6 +2032,7 @@ class McpToolService {
               'type': 'array',
               'items': {'type': 'string'},
             },
+            ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
           'required': ['key'],
@@ -2117,6 +2122,34 @@ class McpToolService {
       'type': 'string',
       'description':
           'Observation ID from the latest computer_vision_observe result used to choose this action.',
+    },
+  };
+
+  static Map<String, dynamic> get _computerActionTargetMetadataProperties => {
+    'target': {
+      'type': 'object',
+      'description':
+          'Optional visible UI target metadata used only for Caverno approval. Mark public posting, sending, submitting, purchasing, or publishing controls with risk=public_action.',
+      'properties': {
+        'label': {
+          'type': 'string',
+          'description': 'Visible label or accessible name of the target.',
+        },
+        'role': {
+          'type': 'string',
+          'description': 'Visible or accessibility role of the target.',
+        },
+        'action': {
+          'type': 'string',
+          'description': 'Intended action, such as click, submit, or publish.',
+        },
+        'risk': {
+          'type': 'string',
+          'enum': ['input', 'public_action', 'sensitive', 'unknown'],
+          'description':
+              'Use public_action for controls that post, send, submit, publish, purchase, or otherwise change external state.',
+        },
+      },
     },
   };
 

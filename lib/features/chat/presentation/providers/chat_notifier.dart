@@ -8128,6 +8128,12 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     final policy = MacosComputerUseToolPolicy.decision(toolCall.name);
+    final actionProposalPolicy =
+        MacosComputerUseToolPolicy.actionProposalDecision(
+          toolName: toolCall.name,
+          target: _computerUseActionTarget(toolCall),
+          exactText: _computerUseExactText(toolCall),
+        );
     final approvalCopy = MacosComputerUseApprovalCopy.from(
       toolName: toolCall.name,
       policy: policy,
@@ -8144,6 +8150,12 @@ class ChatNotifier extends Notifier<ChatState> {
         'Requires post-action observation: ${policy.requiresPostActionObservation}',
         if (policy.emergencyStop) 'Emergency stop: true',
       ],
+      if (actionProposalPolicy != null) ...[
+        'Approval boundaries: ${actionProposalPolicy.boundaries.map((boundary) => boundary.name).join(', ')}',
+        'Action proposal next action: ${actionProposalPolicy.nextAction}',
+        if (actionProposalPolicy.blockerCodes.isNotEmpty)
+          'Action proposal blockers: ${actionProposalPolicy.blockerCodes.join(', ')}',
+      ],
       ..._computerUseActionDetails(toolCall),
     ];
 
@@ -8157,6 +8169,13 @@ class ChatNotifier extends Notifier<ChatState> {
       requiresUserApproval: policy?.requiresUserApproval ?? false,
       requiresSmokeArming: policy?.requiresSmokeArming ?? false,
       emergencyStop: policy?.emergencyStop ?? false,
+      approvalBoundaries:
+          actionProposalPolicy?.boundaries
+              .map((boundary) => boundary.name)
+              .toList(growable: false) ??
+          const [],
+      approvalBlockerCodes: actionProposalPolicy?.blockerCodes ?? const [],
+      actionProposalNextAction: actionProposalPolicy?.nextAction,
       summary: _describeComputerUseAction(toolCall),
       details: details,
       visionObservationSummary: visionObservationContext.summary,
@@ -8411,6 +8430,9 @@ class ChatNotifier extends Notifier<ChatState> {
     required bool requiresUserApproval,
     required bool requiresSmokeArming,
     required bool emergencyStop,
+    required List<String> approvalBoundaries,
+    required List<String> approvalBlockerCodes,
+    String? actionProposalNextAction,
     required String summary,
     required List<String> details,
     String? visionObservationSummary,
@@ -8432,6 +8454,9 @@ class ChatNotifier extends Notifier<ChatState> {
         emergencyStop: emergencyStop,
         summary: summary,
         details: details,
+        approvalBoundaries: approvalBoundaries,
+        approvalBlockerCodes: approvalBlockerCodes,
+        actionProposalNextAction: actionProposalNextAction,
         visionObservationSummary: visionObservationSummary,
         visionObservationDetails: visionObservationDetails,
         reason: reason,
@@ -8496,6 +8521,84 @@ class ChatNotifier extends Notifier<ChatState> {
           'Verify this action against the latest vision observation before approving.',
       details: details,
     );
+  }
+
+  Map<String, dynamic>? _computerUseActionTarget(ToolCallInfo toolCall) {
+    final args = toolCall.arguments;
+    final target = args['target'];
+    if (target is Map) {
+      return Map<String, dynamic>.from(target);
+    }
+
+    final explicitLabel = (args['target_label'] as String?)?.trim();
+    final explicitRole = (args['target_role'] as String?)?.trim();
+    final explicitRisk = (args['target_risk'] as String?)?.trim();
+    final explicitAction = (args['target_action'] as String?)?.trim();
+    if ([
+      explicitLabel,
+      explicitRole,
+      explicitRisk,
+      explicitAction,
+    ].any((value) => value != null && value.isNotEmpty)) {
+      return {
+        if (explicitLabel != null && explicitLabel.isNotEmpty)
+          'label': explicitLabel,
+        if (explicitRole != null && explicitRole.isNotEmpty)
+          'role': explicitRole,
+        if (explicitRisk != null && explicitRisk.isNotEmpty)
+          'risk': explicitRisk,
+        if (explicitAction != null && explicitAction.isNotEmpty)
+          'action': explicitAction,
+      };
+    }
+
+    return switch (toolCall.name) {
+      'computer_focus_window' => {
+        'label': 'Window ${args['window_id']}',
+        'role': 'window',
+        'action': 'focus',
+      },
+      'computer_move_mouse' => {
+        'label': 'Pointer target (${args['x']}, ${args['y']})',
+        'role': 'coordinate',
+        'action': 'move',
+      },
+      'computer_click' => {
+        'label': 'Click target (${args['x']}, ${args['y']})',
+        'role': 'coordinate',
+        'action': 'click',
+      },
+      'computer_drag' => {
+        'label':
+            'Drag target (${args['from_x']}, ${args['from_y']}) to (${args['to_x']}, ${args['to_y']})',
+        'role': 'coordinate_range',
+        'action': 'drag',
+      },
+      'computer_scroll' => {
+        'label':
+            'Scroll target (${args['x'] ?? 'current'}, ${args['y'] ?? 'current'})',
+        'role': 'scroll_target',
+        'action': 'scroll',
+      },
+      'computer_type_text' => {
+        'label': 'Focused text input',
+        'role': 'text_input',
+        'action': 'type_text',
+      },
+      'computer_press_key' => {
+        'label': _formatComputerUseKey(args['key'], args['modifiers']),
+        'role': 'keyboard_shortcut',
+        'action': 'press_key',
+      },
+      _ => null,
+    };
+  }
+
+  String? _computerUseExactText(ToolCallInfo toolCall) {
+    if (toolCall.name != 'computer_type_text') {
+      return null;
+    }
+    return toolCall.arguments['text'] as String?;
   }
 
   String _describeComputerUseAction(ToolCallInfo toolCall) {

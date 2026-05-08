@@ -88,6 +88,35 @@ void main() {
       expect(functionNames, contains('computer_start_system_audio_recording'));
     });
 
+    test('exposes computer-use action target metadata for approvals', () {
+      final service = McpToolService(
+        computerUseService: _FakeMacosComputerUseService(),
+      );
+      final tools = service.getOpenAiToolDefinitions();
+
+      Map<String, dynamic> parametersFor(String toolName) {
+        final tool = tools.singleWhere(
+          (tool) =>
+              (tool['function']! as Map<String, dynamic>)['name'] == toolName,
+        );
+        return (tool['function']! as Map<String, dynamic>)['parameters']!
+            as Map<String, dynamic>;
+      }
+
+      final clickProperties =
+          parametersFor('computer_click')['properties']!
+              as Map<String, dynamic>;
+      final typeTextProperties =
+          parametersFor('computer_type_text')['properties']!
+              as Map<String, dynamic>;
+
+      expect(clickProperties['target'], isA<Map<String, dynamic>>());
+      expect(typeTextProperties['target'], isA<Map<String, dynamic>>());
+      final target = clickProperties['target'] as Map<String, dynamic>;
+      expect(jsonEncode(target), contains('public_action'));
+      expect(jsonEncode(target), contains('publish'));
+    });
+
     test(
       'executes macOS computer-use tools through the native service',
       () async {
