@@ -130,6 +130,15 @@ void main() {
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(text, contains('"lastPermissionOverlayResult"'));
+
+    expect(find.text('Diagnostics'), findsOneWidget);
+    expect(
+      find.text('Runtime status, saved smoke reports, and redacted audit log.'),
+      findsOneWidget,
+    );
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(
       find.textContaining('Helper status saved:', skipOffstage: false),
       findsOneWidget,
@@ -226,6 +235,8 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(find.text('Verify: Needs attention'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Open Smoke Sequence'), findsOneWidget);
@@ -250,9 +261,6 @@ void main() {
     final service = _FakeMacosComputerUseService(helperReachable: false);
     await _pumpPage(tester, service);
 
-    expect(find.text('Helper App: Installed'), findsOneWidget);
-    expect(find.text('Helper Process: Running'), findsOneWidget);
-    expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(find.text('Restart Helper'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Computer Use action plan'), findsOneWidget);
@@ -262,8 +270,14 @@ void main() {
     expect(find.text('Capture smoke: blocked'), findsOneWidget);
     expect(find.text('Input smoke: not_armed'), findsOneWidget);
     expect(find.text('System audio smoke: not_armed'), findsOneWidget);
-    expect(find.text('Overlay smoke: ready'), findsAtLeastNWidgets(1));
+    expect(find.text('Overlay smoke: ready'), findsOneWidget);
     expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
+    expect(find.text('Helper App: Installed'), findsOneWidget);
+    expect(find.text('Helper Process: Running'), findsOneWidget);
+    expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
       findsOneWidget,
@@ -429,6 +443,7 @@ void main() {
       find.text('Display and window capture passed in helper verification.'),
       findsOneWidget,
     );
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('Capture gate: ready'), findsOneWidget);
     expect(
       find.text('Capture blockers: screen_capture_permission_missing'),
@@ -482,6 +497,8 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(find.text('Recent audit entries'), findsOneWidget);
     expect(find.text('computer_click'), findsOneWidget);
     expect(find.text('approved • input'), findsOneWidget);
@@ -518,6 +535,7 @@ void main() {
     await _tapByKey(tester, 'computer-use-settings-primary-action');
 
     expect(service.restartHelperCallCount, 1);
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('IPC Ready: Reachable'), findsOneWidget);
   });
 
@@ -540,6 +558,8 @@ void main() {
   ) async {
     final service = _FakeMacosComputerUseService(helperPathMismatch: true);
     await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
 
     expect(find.text('Helper path: mismatch'), findsOneWidget);
     expect(
@@ -586,6 +606,8 @@ void main() {
       xpcLaunchAgentEnabled: true,
     );
     await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
 
     expect(find.text('XPC gate: ready'), findsOneWidget);
     expect(
@@ -643,6 +665,7 @@ void main() {
     final service = _FakeMacosComputerUseService(helperWorkActive: true);
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('Helper Work: Active'), findsOneWidget);
 
     await _tapByKey(tester, 'computer-use-settings-stop-helper-work');

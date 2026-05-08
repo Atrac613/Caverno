@@ -557,81 +557,6 @@ class _ComputerUseOnboardingCardState
               hasLiveSmokeReport: _lastLiveSmokeReport != null,
             ),
             const SizedBox(height: 12),
-            Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                _StatusChip(
-                  label: 'Helper App',
-                  value: helperInstalled,
-                  trueText: 'Installed',
-                  falseText: 'Missing',
-                ),
-                _StatusChip(
-                  label: 'Helper Process',
-                  value: helperRunning,
-                  trueText: 'Running',
-                  falseText: helperInstalled ? 'Stopped' : 'Missing',
-                ),
-                _StatusChip(
-                  label: 'IPC Ready',
-                  value: helperIpcReady,
-                  trueText: 'Reachable',
-                  falseText: helperRunning ? 'Timeout' : 'Not ready',
-                ),
-                _StatusChip(
-                  label: 'Accessibility',
-                  value: accessibilityGranted,
-                ),
-                _StatusChip(
-                  label: 'Screen & System Audio',
-                  value: screenCaptureGranted,
-                ),
-                _StatusChip(
-                  label: 'XPC Attempt',
-                  value: MacosComputerUseIpc.current.xpcReady,
-                  trueText: 'Enabled',
-                  falseText: 'Disabled',
-                ),
-                _StatusChip(
-                  label: 'Verify',
-                  value: verificationOk,
-                  trueText: 'Passed',
-                  falseText: verificationRan ? 'Needs attention' : 'Not run',
-                ),
-                _StatusChip(
-                  label: 'Helper Work',
-                  value: !helperWorkActive,
-                  trueText: 'Idle',
-                  falseText: 'Active',
-                ),
-              ],
-            ),
-            if (onboardingVerification != null) ...[
-              const SizedBox(height: 8),
-              _VerificationSummary(verification: onboardingVerification),
-            ],
-            if (helperStatusPersistence != null) ...[
-              const SizedBox(height: 8),
-              _PersistenceSummary(persistence: helperStatusPersistence),
-            ],
-            const SizedBox(height: 8),
-            _IpcRuntimeSummary(runtime: helperIpcRuntime),
-            if (xpcTimingSummary['classification'] !=
-                'missing_preferred_attempt') ...[
-              const SizedBox(height: 8),
-              _XpcTimingSummary(summary: xpcTimingSummary),
-            ],
-            if (_lastLiveSmokeReport != null) ...[
-              const SizedBox(height: 8),
-              _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
-            ],
-            const SizedBox(height: 8),
-            ComputerUseAuditLogSummary(
-              entries: MacosComputerUseAuditLog.instance.redactedEntries,
-              maxEntries: 3,
-            ),
-            const SizedBox(height: 12),
             Text(
               'Next action: ${primaryAction.detail}',
               style: Theme.of(context).textTheme.bodySmall,
@@ -667,6 +592,98 @@ class _ComputerUseOnboardingCardState
                 ],
               ),
             ],
+            const SizedBox(height: 12),
+            ExpansionTile(
+              key: const ValueKey('computer-use-settings-diagnostics'),
+              tilePadding: EdgeInsets.zero,
+              childrenPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.query_stats_outlined),
+              title: const Text('Diagnostics'),
+              subtitle: const Text(
+                'Runtime status, saved smoke reports, and redacted audit log.',
+              ),
+              children: [
+                Align(
+                  alignment: AlignmentDirectional.centerStart,
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      _StatusChip(
+                        label: 'Helper App',
+                        value: helperInstalled,
+                        trueText: 'Installed',
+                        falseText: 'Missing',
+                      ),
+                      _StatusChip(
+                        label: 'Helper Process',
+                        value: helperRunning,
+                        trueText: 'Running',
+                        falseText: helperInstalled ? 'Stopped' : 'Missing',
+                      ),
+                      _StatusChip(
+                        label: 'IPC Ready',
+                        value: helperIpcReady,
+                        trueText: 'Reachable',
+                        falseText: helperRunning ? 'Timeout' : 'Not ready',
+                      ),
+                      _StatusChip(
+                        label: 'Accessibility',
+                        value: accessibilityGranted,
+                      ),
+                      _StatusChip(
+                        label: 'Screen & System Audio',
+                        value: screenCaptureGranted,
+                      ),
+                      _StatusChip(
+                        label: 'XPC Attempt',
+                        value: MacosComputerUseIpc.current.xpcReady,
+                        trueText: 'Enabled',
+                        falseText: 'Disabled',
+                      ),
+                      _StatusChip(
+                        label: 'Verify',
+                        value: verificationOk,
+                        trueText: 'Passed',
+                        falseText: verificationRan
+                            ? 'Needs attention'
+                            : 'Not run',
+                      ),
+                      _StatusChip(
+                        label: 'Helper Work',
+                        value: !helperWorkActive,
+                        trueText: 'Idle',
+                        falseText: 'Active',
+                      ),
+                    ],
+                  ),
+                ),
+                if (onboardingVerification != null) ...[
+                  const SizedBox(height: 8),
+                  _VerificationSummary(verification: onboardingVerification),
+                ],
+                if (helperStatusPersistence != null) ...[
+                  const SizedBox(height: 8),
+                  _PersistenceSummary(persistence: helperStatusPersistence),
+                ],
+                const SizedBox(height: 8),
+                _IpcRuntimeSummary(runtime: helperIpcRuntime),
+                if (xpcTimingSummary['classification'] !=
+                    'missing_preferred_attempt') ...[
+                  const SizedBox(height: 8),
+                  _XpcTimingSummary(summary: xpcTimingSummary),
+                ],
+                if (_lastLiveSmokeReport != null) ...[
+                  const SizedBox(height: 8),
+                  _LiveSmokeSummary(reportEnvelope: _lastLiveSmokeReport!),
+                ],
+                const SizedBox(height: 8),
+                ComputerUseAuditLogSummary(
+                  entries: MacosComputerUseAuditLog.instance.redactedEntries,
+                  maxEntries: 3,
+                ),
+              ],
+            ),
             const SizedBox(height: 12),
             Wrap(
               spacing: 8,
