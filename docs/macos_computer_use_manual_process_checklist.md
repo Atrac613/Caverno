@@ -56,13 +56,14 @@ Use this review pass before merging Computer Use polish changes:
 6. Run the post-merge sanity wrapper or inspect its `--print-commands` output
    before asking for any manual runtime sign-off. The output should name the
    review scope as `Advanced navigation, collapsed Diagnostics, manual runtime
-   handoff`.
+   handoff, M14 observe-only evidence, M15 review/gate consistency`.
 
 Expected static coverage:
 
 - `test/features/settings/presentation/pages/advanced_settings_page_test.dart`
 - `test/features/settings/presentation/pages/settings_page_test.dart`
 - `test/features/settings/presentation/pages/computer_use_debug_page_test.dart`
+- `test/integration_support/macos_computer_use_release_readiness_test.dart`
 - `test/tool/run_macos_computer_use_smoke_test_test.dart`
 
 ## M14 Observe-Only Evidence

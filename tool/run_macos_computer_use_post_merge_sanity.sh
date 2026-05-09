@@ -71,7 +71,7 @@ run_step() {
 
 echo "Running macOS Computer Use post-merge sanity checks"
 echo "  Boundary: static checks only, no TCC, no System Settings, no desktop actions"
-echo "  Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence"
+echo "  Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence, M15 review/gate consistency"
 echo "  Checklist: docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening"
 echo "  Observe checklist: docs/macos_computer_use_manual_process_checklist.md#M14-Observe-Only-Evidence"
 
@@ -87,6 +87,7 @@ if [[ "${RUN_TESTS}" == "true" ]]; then
     test/features/settings/presentation/pages/advanced_settings_page_test.dart \
     test/features/settings/presentation/pages/settings_page_test.dart \
     test/features/settings/presentation/pages/computer_use_debug_page_test.dart \
+    test/integration_support/macos_computer_use_release_readiness_test.dart \
     test/tool/run_macos_computer_use_smoke_test_test.dart \
     test/core/services/macos_computer_use_service_test.dart \
     test/core/services/macos_computer_use_setup_test.dart \

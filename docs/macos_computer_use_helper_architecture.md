@@ -556,8 +556,9 @@ operating System Settings, granting TCC, or running desktop actions.
 After Computer Use changes are merged into `main`, run the post-merge sanity
 wrapper to repeat static checks, focused Computer Use tests, and the debug
 macOS build without launching apps or touching TCC. The runner prints the M13
-review scope, the M14 observe-only evidence scope, and links back to the manual
-review checklist:
+review scope, the M14 observe-only evidence scope, and the
+M15 review/gate consistency scope. It links back to the manual review
+checklist:
 
 ```bash
 bash tool/run_macos_computer_use_post_merge_sanity.sh

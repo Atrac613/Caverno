@@ -235,6 +235,7 @@ void main() {
       architectureDoc,
       contains('M15: Convert ready M14 observe-only evidence'),
     );
+    expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
     expect(architectureDoc, contains('## Verification Gates'));
@@ -2995,6 +2996,7 @@ void main() {
       contains('Advanced navigation, collapsed Diagnostics'),
     );
     expect(postMergeSanityScript, contains('M14 observe-only evidence'));
+    expect(postMergeSanityScript, contains('M15 review/gate consistency'));
     expect(
       postMergeSanityScript,
       contains(
@@ -3041,7 +3043,7 @@ void main() {
     expect(
       stdout,
       contains(
-        'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence',
+        'Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence, M15 review/gate consistency',
       ),
     );
     expect(
@@ -3073,6 +3075,12 @@ void main() {
       stdout,
       contains(
         'test/features/settings/presentation/pages/computer_use_debug_page_test.dart',
+      ),
+    );
+    expect(
+      stdout,
+      contains(
+        'test/integration_support/macos_computer_use_release_readiness_test.dart',
       ),
     );
     expect(
@@ -3119,6 +3127,7 @@ void main() {
   test('manual process checklist documents M14 observe-only evidence', () {
     expect(manualProcessChecklist, contains('M14 Observe-Only Evidence'));
     expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
+    expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(manualProcessChecklist, contains('PR Review Summary'));
