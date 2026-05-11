@@ -315,6 +315,13 @@ Follow-on milestones:
   or call an LLM. MVP sign-off and the readiness artifact index surface the
   latest rehearsal as optional review evidence and block final aggregation when
   a discovered rehearsal is not ready.
+- M18: Convert a ready M17 execution rehearsal into a user-operated execution
+  handoff. The handoff records the fresh observation, target confirmation,
+  exact-text confirmation, optional public-action confirmation, runtime action,
+  and post-action observation checklist for a future manual execution step. It
+  still must not call an LLM, click, type, navigate, submit, post, purchase,
+  grant TCC, or operate System Settings; it only prepares the action-time
+  confirmations that the user must perform before any runtime action.
 
 ## Computer Use Live Canary
 

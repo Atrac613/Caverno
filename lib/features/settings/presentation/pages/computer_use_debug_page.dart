@@ -1735,6 +1735,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
+      'M18 execution handoff command: ${MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand}',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
   }
@@ -1771,6 +1772,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_m16_approval_packet_<timestamp>/${MacosComputerUseMvpGuidance.m16ApprovalPacketFile}',
       'm17ExecutionRehearsal':
           'build/integration_test_reports/macos_computer_use_m17_execution_rehearsal_<timestamp>/${MacosComputerUseMvpGuidance.m17ExecutionRehearsalFile}',
+      'm18ExecutionHandoff':
+          'build/integration_test_reports/macos_computer_use_m18_execution_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m18ExecutionHandoffFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1796,6 +1799,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M15 LLM review summary: ${paths['m15LlmReviewCanarySummary']}',
       'M16 approval packet: ${paths['m16ApprovalPacket']}',
       'M17 execution rehearsal: ${paths['m17ExecutionRehearsal']}',
+      'M18 execution handoff: ${paths['m18ExecutionHandoff']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',

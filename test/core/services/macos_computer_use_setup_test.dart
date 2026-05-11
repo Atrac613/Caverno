@@ -133,6 +133,10 @@ void main() {
       MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand,
       contains('run_macos_computer_use_m17_execution_rehearsal.sh'),
     );
+    expect(
+      MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand,
+      contains('run_macos_computer_use_m18_execution_handoff.sh'),
+    );
   });
 
   test('builds the onboarding diagnostics schema', () {

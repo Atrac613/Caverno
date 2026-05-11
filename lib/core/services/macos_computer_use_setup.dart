@@ -70,6 +70,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_m16_approval_packet.sh --m15-handoff <action_proposal_handoff.json> --m15-llm-review <canary_summary.json>';
   static const m17ExecutionRehearsalCommand =
       'bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --m16-packet <approval_packet.json>';
+  static const m18ExecutionHandoffCommand =
+      'bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -82,6 +84,7 @@ class MacosComputerUseMvpGuidance {
   static const m15LlmReviewCanarySummaryFile = 'canary_summary.json';
   static const m16ApprovalPacketFile = 'approval_packet.json';
   static const m17ExecutionRehearsalFile = 'execution_rehearsal.json';
+  static const m18ExecutionHandoffFile = 'execution_handoff.json';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =

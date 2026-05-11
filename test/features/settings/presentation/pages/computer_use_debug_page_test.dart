@@ -100,6 +100,12 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining(
+        'M18 execution handoff command: bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('release_artifact: Refresh safe release inputs'),
       findsOneWidget,
     );
@@ -222,7 +228,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('M17 execution rehearsal:'), findsOneWidget);
-    expect(find.textContaining('execution_rehearsal.json'), findsOneWidget);
+    expect(find.textContaining('execution_rehearsal.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m18_execution_handoff_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M18 execution handoff:'), findsOneWidget);
+    expect(find.textContaining('execution_handoff.json'), findsOneWidget);
     expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',

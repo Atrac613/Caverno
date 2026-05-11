@@ -185,6 +185,29 @@ Do not use this rehearsal to click, type, navigate, submit, post, purchase,
 grant TCC, operate System Settings, or call an LLM. It is only the report-only
 execution checklist for a future user-operated milestone.
 
+## M18 Execution Handoff
+
+Use this pass after the M17 execution rehearsal is ready:
+
+1. Select the ready M17 `execution_rehearsal.json`.
+2. Run
+   `bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>`.
+3. Confirm `m18ExecutionHandoffGate.status` is `ready`.
+4. Confirm `executionBoundary` is `user_operated_runtime_handoff`.
+5. Confirm `desktopActionBoundary` is `user_operated_only`.
+6. Confirm `tccBoundary` is `no_tcc_operation`.
+7. Confirm `llmBoundary` is `no_llm_call`.
+8. Confirm `actionTimeConfirmations` separates fresh observation, target
+   label, exact text, and any public action label.
+9. Confirm `executionChecklist` keeps pre-action observation, runtime action,
+   and post-action observation as separate user-operated phases.
+10. If the handoff is blocked, return to M17 and resolve the rehearsal blocker
+    before preparing runtime instructions again.
+
+Do not use this handoff to click, type, navigate, submit, post, purchase,
+grant TCC, operate System Settings, or call an LLM. It is only the final
+report-only checklist before a separately user-operated runtime step.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
