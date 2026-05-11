@@ -287,6 +287,14 @@ approval_steps = as_list(summary.get("approvalBoundActionProposal") if isinstanc
 text_entry_targets = as_list(summary.get("textEntryTargets") if isinstance(summary, dict) else [])
 public_action_targets = as_list(summary.get("publicActionTargets") if isinstance(summary, dict) else [])
 exact_text_candidates = as_list(summary.get("exactTextCandidates") if isinstance(summary, dict) else [])
+review_target_counts = summary.get("reviewTargetCounts") if isinstance(summary, dict) else None
+review_target_counts = review_target_counts if isinstance(review_target_counts, dict) else {}
+if not review_target_counts:
+    review_target_counts = {
+        "textEntryTargets": len(text_entry_targets),
+        "publicActionTargets": len(public_action_targets),
+        "exactTextCandidates": len(exact_text_candidates),
+    }
 boundary = "report-only"
 if isinstance(summary, dict):
     boundary = (
@@ -316,6 +324,11 @@ if review:
     ])
 if consistency:
     lines.append("- M15 action proposal review/gate consistency: " + consistency_status)
+if review_target_counts:
+    lines.append(
+        "- M15 action proposal review target counts: "
+        + ", ".join(f"{key}={value}" for key, value in review_target_counts.items())
+    )
 if checks:
     lines.extend([
         "",

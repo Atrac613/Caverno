@@ -117,7 +117,8 @@ evidence from `blockedReviewEvidence` before final MVP aggregation can continue.
 Then review the generated `Review Targets` section before any future action
 step: it should list exact text candidates, text-entry targets, and
 public-action targets separately so the next approval can remain scoped and
-explicit.
+explicit. The JSON also includes `reviewTargetCounts` so reviewers and
+readiness checks can compare the target counts without parsing Markdown tables.
 
 ## Manual Boundary
 

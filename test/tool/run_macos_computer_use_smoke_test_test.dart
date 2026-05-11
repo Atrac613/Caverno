@@ -2161,6 +2161,7 @@ void main() {
         expect('${result.stdout}', contains('Ready: true'));
         expect('${result.stdout}', contains('Text-entry targets: 1'));
         expect('${result.stdout}', contains('Public-action targets: 1'));
+        expect('${result.stdout}', contains('Exact text candidates: 1'));
 
         final summaryFiles = Directory(root.path)
             .listSync(recursive: true)
@@ -2198,6 +2199,11 @@ void main() {
         expect(summary, contains('"confirm_public_action"'));
         expect(summary, contains('"requires_separate_user_approval"'));
         expect(summary, contains('"exactTextCandidates"'));
+        expect(summary, contains('"reviewTargetCounts"'));
+        expect(summary, contains('"textEntryTargets": 1'));
+        expect(summary, contains('"publicActionTargets": 1'));
+        expect(summary, contains('"exactTextCandidates": 1'));
+        expect(summary, contains('"confirmationRequirements": 2'));
         expect(summary, contains('"Good morning from Caverno"'));
         expect(summary, contains('"textEntryTargets"'));
         expect(summary, contains('"publicActionTargets"'));
@@ -2215,6 +2221,12 @@ void main() {
         expect(markdown, contains('- Status: ready_for_review'));
         expect(markdown, contains('- Blocked review evidence: none'));
         expect(markdown, contains('- Review/gate consistency: consistent'));
+        expect(
+          markdown,
+          contains(
+            '- Review target counts: candidateTargets=2, textEntryTargets=1, publicActionTargets=1, exactTextCandidates=1, confirmationRequirements=2',
+          ),
+        );
         expect(
           markdown,
           contains(
@@ -2309,6 +2321,10 @@ void main() {
         expect(summary, contains('"status": "blocked"'));
         expect(summary, contains('"prReviewSummary"'));
         expect(summary, contains('"reviewGateConsistency"'));
+        expect(summary, contains('"reviewTargetCounts"'));
+        expect(summary, contains('"candidateTargets": 1'));
+        expect(summary, contains('"textEntryTargets": 0'));
+        expect(summary, contains('"publicActionTargets": 1'));
         expect(
           summary,
           contains('"status": "blocked_pending_review_evidence"'),
@@ -2453,6 +2469,7 @@ void main() {
       expect(realAppObserveRunbook, contains('m15ActionProposalGate'));
       expect(realAppObserveRunbook, contains('PR Review Summary'));
       expect(realAppObserveRunbook, contains('blockedReviewEvidence'));
+      expect(realAppObserveRunbook, contains('reviewTargetCounts'));
       expect(realAppObserveRunbook, contains('Review Targets'));
       expect(realAppObserveRunbook, contains('exact text candidates'));
       expect(realAppObserveRunbook, contains('text-entry targets'));
@@ -3143,6 +3160,7 @@ void main() {
       manualProcessChecklist,
       contains('reviewGateConsistency.status: consistent'),
     );
+    expect(manualProcessChecklist, contains('reviewTargetCounts'));
     expect(manualProcessChecklist, contains('exactTextCandidates'));
     expect(manualProcessChecklist, contains('textEntryTargets'));
     expect(manualProcessChecklist, contains('publicActionTargets'));
@@ -3493,6 +3511,12 @@ void main() {
       expect(
         handoff,
         contains('M15 action proposal blocked review evidence: none'),
+      );
+      expect(
+        handoff,
+        contains(
+          'M15 action proposal review target counts: textEntryTargets=1, publicActionTargets=1, exactTextCandidates=1',
+        ),
       );
       expect(
         handoff,

@@ -176,6 +176,14 @@ for item in exact_text_sources:
         }
     )
 
+review_target_counts = {
+    "candidateTargets": len(candidate_targets),
+    "textEntryTargets": len(text_targets),
+    "publicActionTargets": len(public_targets),
+    "exactTextCandidates": len(deduped_exact_text),
+    "confirmationRequirements": len(confirmation_requirements),
+}
+
 checks = [
     {
         "id": "m14_evidence_ready",
@@ -238,6 +246,7 @@ review_summary = {
         "confirm_target",
         "confirm_public_action",
     ],
+    "reviewTargetCounts": review_target_counts,
     "operationBoundary": {
         "llmCalls": "not_allowed",
         "tccGrants": "not_allowed",
@@ -303,6 +312,7 @@ summary = {
     "textEntryTargets": text_targets,
     "publicActionTargets": public_targets,
     "exactTextCandidates": deduped_exact_text,
+    "reviewTargetCounts": review_target_counts,
     "confirmationRequirements": confirmation_requirements,
     "approvalBoundActionProposal": approval_bound_steps,
     "prReviewSummary": review_summary,
@@ -344,6 +354,10 @@ md_lines = [
     "- Blocked review evidence: " + (", ".join(blockers) if blockers else "none"),
     "- Required confirmations: "
     + ", ".join(review_summary["requiredConfirmations"]),
+    "- Review target counts: "
+    + ", ".join(
+        f"{key}={value}" for key, value in review_target_counts.items()
+    ),
     f"- Review/gate consistency: {review_gate_consistency['status']}",
     "- Boundary: no LLM call, no TCC, no System Settings, no desktop actions; future input and public actions require explicit approval.",
     "",
@@ -441,6 +455,7 @@ print(f"Ready: {str(ready).lower()}")
 print(f"Candidate targets: {len(candidate_targets)}")
 print(f"Text-entry targets: {len(text_targets)}")
 print(f"Public-action targets: {len(public_targets)}")
+print(f"Exact text candidates: {len(deduped_exact_text)}")
 if blockers:
     print("Blockers: " + ", ".join(blockers))
 PY
