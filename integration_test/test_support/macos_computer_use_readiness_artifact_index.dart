@@ -105,12 +105,16 @@ class ReadinessArtifactIndex {
       );
     ReadinessArtifactEntry? m15Entry;
     ReadinessArtifactEntry? m15LlmReviewEntry;
+    ReadinessArtifactEntry? m16ApprovalPacketEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
       }
       if (entry.id == 'm15_llm_review_canary') {
         m15LlmReviewEntry = entry;
+      }
+      if (entry.id == 'm16_approval_packet') {
+        m16ApprovalPacketEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -158,6 +162,25 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m15LlmReviewEntry.details['blockers']))}',
         );
     }
+    if (m16ApprovalPacketEntry != null &&
+        m16ApprovalPacketEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M16 Approval Packet Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m16ApprovalPacketEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Approval status: ${m16ApprovalPacketEntry.details['approvalStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Approval blockers: ${_joinedOrNone(_detailsStringList(m16ApprovalPacketEntry.details['approvalBlockers']))}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m16ApprovalPacketEntry.details['executionBoundary'] ?? 'unknown'}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -199,6 +222,15 @@ class ReadinessArtifactIndex {
         ..writeln()
         ..writeln('```bash')
         ..writeln(mvpFinalSignoffRehearsal.m15LlmReviewCommand)
+        ..writeln('```');
+    }
+    if (mvpFinalSignoffRehearsal.m16ApprovalPacketCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M16 approval packet command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m16ApprovalPacketCommand)
         ..writeln('```');
     }
     buffer
@@ -252,6 +284,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.reportOnlyPreflightCommand,
     this.m15ActionProposalCommand,
     this.m15LlmReviewCommand,
+    this.m16ApprovalPacketCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -265,6 +298,7 @@ class ReadinessFinalSignoffRehearsal {
   final String reportOnlyPreflightCommand;
   final String? m15ActionProposalCommand;
   final String? m15LlmReviewCommand;
+  final String? m16ApprovalPacketCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -283,6 +317,7 @@ class ReadinessFinalSignoffRehearsal {
       'reportOnlyPreflightCommand': reportOnlyPreflightCommand,
       'm15ActionProposalCommand': m15ActionProposalCommand,
       'm15LlmReviewCommand': m15LlmReviewCommand,
+      'm16ApprovalPacketCommand': m16ApprovalPacketCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -440,6 +475,17 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m15LlmReviewNextAction,
       details: _m15LlmReviewDetails,
     ),
+    _latestEntry(
+      'm16_approval_packet',
+      'Latest M16 approval packet',
+      reportRoot,
+      (json) => json['schemaName'] == 'macos_computer_use_m16_approval_packet',
+      parentPrefix: 'macos_computer_use_m16_approval_packet_',
+      fileName: 'approval_packet.json',
+      status: _m16ApprovalPacketStatus,
+      nextAction: _m16ApprovalPacketNextAction,
+      details: _m16ApprovalPacketDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -500,6 +546,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       : null;
   final m15ActionProposalCommand = _m15ActionProposalCommand(reportRoot, byId);
   final m15LlmReviewCommand = _m15LlmReviewCommand(reportRoot, byId);
+  final m16ApprovalPacketCommand = _m16ApprovalPacketCommand(reportRoot, byId);
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -523,6 +570,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportOnlyPreflightCommand: _mvpReadinessPreflightCommand(reportRoot),
     m15ActionProposalCommand: m15ActionProposalCommand,
     m15LlmReviewCommand: m15LlmReviewCommand,
+    m16ApprovalPacketCommand: m16ApprovalPacketCommand,
   );
 }
 
@@ -533,7 +581,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
       .where(
         (entry) =>
             (entry.id == 'm15_action_proposal_handoff' ||
-                entry.id == 'm15_llm_review_canary') &&
+                entry.id == 'm15_llm_review_canary' ||
+                entry.id == 'm16_approval_packet') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -641,6 +690,31 @@ String? _m15LlmReviewCommand(
     '--handoff',
     handoffPath,
   ].map(_shellQuote).join(' ');
+}
+
+String? _m16ApprovalPacketCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final handoffEntry = entriesById['m15_action_proposal_handoff'];
+  final handoffPath = handoffEntry?.path ?? '';
+  if (handoffPath.isEmpty || handoffEntry?.status != 'ready') {
+    return null;
+  }
+  final command = <String>[
+    'bash',
+    'tool/run_macos_computer_use_m16_approval_packet.sh',
+    '--root',
+    reportRoot.path,
+    '--m15-handoff',
+    handoffPath,
+  ];
+  final reviewEntry = entriesById['m15_llm_review_canary'];
+  final reviewPath = reviewEntry?.path ?? '';
+  if (reviewPath.isNotEmpty && reviewEntry?.status == 'ready') {
+    command.addAll(<String>['--m15-llm-review', reviewPath]);
+  }
+  return command.map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -988,6 +1062,61 @@ Map<String, Object?> _m15LlmReviewDetails(Map<String, dynamic> json) {
       'gateStatus': gateMap['status']?.toString(),
       'gateReady': gateMap['ready'],
       'blockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m16ApprovalPacketStatus(Map<String, dynamic> json) {
+  final gate = json['m16ApprovalPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m16ApprovalPacketNextAction(Map<String, dynamic> json) {
+  final gate = json['m16ApprovalPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m16ApprovalPacketStatus(json);
+  if (status == 'ready') {
+    return 'M16 approval packet is ready for user approval review.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve blocked M15 evidence before preparing the M16 approval packet.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m16ApprovalPacketDetails(Map<String, dynamic> json) {
+  final gate = json['m16ApprovalPacketGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  return <String, Object?>{
+    'approvalStatus': json['approvalStatus']?.toString(),
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'requiredApprovalCount': _jsonList(json['requiredApprovals']).length,
+    'exactTextCandidateCount': _jsonList(json['exactTextCandidates']).length,
+    'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
+    'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
+    'approvalBlockers': _jsonStringList(json['approvalBlockers']),
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
     },
   };
 }

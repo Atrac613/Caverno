@@ -101,6 +101,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M15 LLM review command:');
     stdout.writeln(rehearsal.m15LlmReviewCommand);
   }
+  if (rehearsal.m16ApprovalPacketCommand != null) {
+    stdout.writeln('M16 approval packet command:');
+    stdout.writeln(rehearsal.m16ApprovalPacketCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

@@ -653,6 +653,9 @@ void main() {
       final m15LlmReviewPath =
           '${root.path}/macos_computer_use_m15_llm_review_canary_600/canary_summary.json';
       _writeJson(File(m15LlmReviewPath), _m15LlmReviewSummary(ready: true));
+      final m16ApprovalPacketPath =
+          '${root.path}/macos_computer_use_m16_approval_packet_700/approval_packet.json';
+      _writeJson(File(m16ApprovalPacketPath), _m16ApprovalPacket(ready: true));
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -665,6 +668,7 @@ void main() {
       expect(entryIds, contains('mvp_demo_readiness'));
       expect(entryIds, contains('m15_action_proposal_handoff'));
       expect(entryIds, contains('m15_llm_review_canary'));
+      expect(entryIds, contains('m16_approval_packet'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -770,6 +774,10 @@ void main() {
         index.mvpFinalSignoffRehearsal.m15LlmReviewCommand,
         'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
       );
+      expect(
+        index.mvpFinalSignoffRehearsal.m16ApprovalPacketCommand,
+        'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath --m15-llm-review $m15LlmReviewPath',
+      );
       final m15LlmEntry = index.entries.singleWhere(
         (entry) => entry.id == 'm15_llm_review_canary',
       );
@@ -786,6 +794,30 @@ void main() {
       expect(
         m15LlmEntry.details['boundaryDecision'],
         'approval_required_before_action',
+      );
+      final m16Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm16_approval_packet',
+      );
+      expect(m16Entry.exists, isTrue);
+      expect(m16Entry.path, m16ApprovalPacketPath);
+      expect(m16Entry.status, 'ready');
+      expect(
+        m16Entry.nextAction,
+        'Ask the user to approve exact text, target, and any public action before the future execution milestone.',
+      );
+      expect(m16Entry.details['gateStatus'], 'ready');
+      expect(m16Entry.details['approvalStatus'], 'pending_user_approval');
+      expect(m16Entry.details['requiredApprovalCount'], 5);
+      expect(m16Entry.details['exactTextCandidateCount'], 1);
+      expect(m16Entry.details['textEntryTargetCount'], 1);
+      expect(m16Entry.details['publicActionTargetCount'], 1);
+      expect(
+        m16Entry.details['approvalBlockers'],
+        containsAll(<String>[
+          'exact_text',
+          'target_label',
+          'public_action_label',
+        ]),
       );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
@@ -805,6 +837,11 @@ void main() {
       expect(
         index.toMarkdown(),
         contains('| Latest M15 LLM review canary summary | true | ready |'),
+      );
+      expect(index.toMarkdown(), contains('Latest M16 approval packet'));
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M16 approval packet | true | ready |'),
       );
       expect(
         index.toMarkdown(),
@@ -828,11 +865,34 @@ void main() {
         index.toMarkdown(),
         contains('Boundary decision: approval_required_before_action'),
       );
+      expect(index.toMarkdown(), contains('## M16 Approval Packet Evidence'));
+      expect(index.toMarkdown(), contains('Gate status: ready'));
+      expect(
+        index.toMarkdown(),
+        contains('Approval status: pending_user_approval'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          'Approval blockers: exact_text, target_label, public_action_label',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Execution boundary: no_desktop_action_report_only'),
+      );
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
         contains(
           'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
+        ),
+      );
+      expect(index.toMarkdown(), contains('M16 approval packet command:'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath --m15-llm-review $m15LlmReviewPath',
         ),
       );
     });
@@ -1316,6 +1376,91 @@ void main() {
       );
     });
 
+    test('artifact index blocks final aggregation on blocked M16 packet', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m16_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json',
+        ),
+        _m15ActionProposalHandoff(ready: true),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m15_llm_review_canary_600/canary_summary.json',
+        ),
+        _m15LlmReviewSummary(ready: true),
+      );
+      final m16ApprovalPacketPath =
+          '${root.path}/macos_computer_use_m16_approval_packet_700/approval_packet.json';
+      _writeJson(File(m16ApprovalPacketPath), _m16ApprovalPacket(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm16_approval_packet',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m16ApprovalPacketPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve blocked M15 evidence before preparing the M16 approval packet.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('m15_handoff_ready'));
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m16_approval_packet'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m16_approval_packet'),
+      );
+      expect(index.toMarkdown(), contains('## M16 Approval Packet Evidence'));
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -1504,6 +1649,13 @@ void main() {
           'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
         ),
       );
+      expect(stdout, contains('M16 approval packet command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1526,6 +1678,13 @@ void main() {
           'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
         ),
       );
+      expect(markdown, contains('M16 approval packet command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -1543,6 +1702,10 @@ void main() {
       expect(
         rehearsal['m15LlmReviewCommand'],
         contains('run_macos_computer_use_m15_llm_review_canary.sh'),
+      );
+      expect(
+        rehearsal['m16ApprovalPacketCommand'],
+        contains('run_macos_computer_use_m16_approval_packet.sh'),
       );
     });
   });
@@ -2049,6 +2212,85 @@ Map<String, dynamic> _m15LlmReviewSummary({required bool ready}) {
       'nextAction': ready
           ? 'M15 LLM review canary is ready for user review.'
           : 'Resolve M15 LLM review boundary failures before any action proposal execution.',
+    },
+  };
+}
+
+Map<String, dynamic> _m16ApprovalPacket({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m16_approval_packet',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m16_approval_packet',
+    'milestone': 'M16',
+    'previousMilestone': 'M15',
+    'ready': ready,
+    'approvalStatus': ready ? 'pending_user_approval' : 'blocked',
+    'executionBoundary': 'no_desktop_action_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'exactTextCandidates': <Map<String, Object?>>[
+      <String, Object?>{
+        'source': 'targetIntent',
+        'text': 'Good morning from Caverno',
+        'status': 'requires_user_approval',
+      },
+    ],
+    'textEntryTargets': <Map<String, Object?>>[
+      <String, Object?>{
+        'label': 'What is happening?',
+        'role': 'compose_text_field',
+        'risk': 'input',
+      },
+    ],
+    'publicActionTargets': <Map<String, Object?>>[
+      <String, Object?>{
+        'label': 'Post',
+        'role': 'public_submit',
+        'risk': 'public_action',
+      },
+    ],
+    'requiredApprovals': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'observe_again',
+        'required': true,
+        'status': 'read_only_allowed',
+      },
+      <String, Object?>{
+        'id': 'exact_text',
+        'required': true,
+        'status': 'pending_user_approval',
+      },
+      <String, Object?>{
+        'id': 'target_label',
+        'required': true,
+        'status': 'pending_user_approval',
+      },
+      <String, Object?>{
+        'id': 'public_action_label',
+        'required': true,
+        'status': 'pending_separate_user_approval',
+      },
+      <String, Object?>{
+        'id': 'post_action_observation',
+        'required': true,
+        'status': 'required_after_future_action',
+      },
+    ],
+    'approvalBlockers': ready
+        ? <String>['exact_text', 'target_label', 'public_action_label']
+        : <String>['m15_handoff_ready'],
+    'm16ApprovalPacketGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['m15_handoff_ready'],
+      'approvalStatus': ready ? 'pending_user_approval' : 'blocked',
+      'approvalBlockers': ready
+          ? <String>['exact_text', 'target_label', 'public_action_label']
+          : <String>['m15_handoff_ready'],
+      'nextAction': ready
+          ? 'Ask the user to approve exact text, target, and any public action before the future execution milestone.'
+          : 'Resolve blocked M15 evidence before preparing the M16 approval packet.',
     },
   };
 }
