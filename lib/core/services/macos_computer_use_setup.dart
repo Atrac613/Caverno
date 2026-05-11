@@ -64,6 +64,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh';
   static const realAppObserveCanaryCommand =
       'bash tool/run_macos_computer_use_real_app_observe_canary.sh';
+  static const m15LlmReviewCanaryCommand =
+      'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -73,6 +75,7 @@ class MacosComputerUseMvpGuidance {
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
   static const llmCanarySummaryFile = 'canary_summary.json';
+  static const m15LlmReviewCanarySummaryFile = 'canary_summary.json';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
@@ -107,7 +110,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, and M15 review/gate consistency.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {

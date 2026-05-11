@@ -70,8 +70,18 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining('Optional review evidence: m15_llm_review_canary'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining(
         'Report-only preflight: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M15 LLM review command: bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>',
       ),
       findsOneWidget,
     );
@@ -178,7 +188,15 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('M15 action proposal handoff:'), findsOneWidget);
-    expect(find.textContaining('action_proposal_handoff.json'), findsOneWidget);
+    expect(
+      find.textContaining('action_proposal_handoff.json'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('macos_computer_use_m15_llm_review_canary_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M15 LLM review summary:'), findsOneWidget);
     expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
@@ -211,6 +229,10 @@ void main() {
     );
     expect(
       find.textContaining('blocked M15 action-proposal review evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M15 LLM review evidence'),
       findsOneWidget,
     );
     expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);

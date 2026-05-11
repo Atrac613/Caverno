@@ -1729,8 +1729,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
+      'Optional review evidence: m15_llm_review_canary',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
+      'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
   }
@@ -1761,6 +1763,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
       'm15ActionProposalHandoff':
           'build/integration_test_reports/macos_computer_use_m15_action_proposal_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m15ActionProposalHandoffFile}',
+      'm15LlmReviewCanarySummary':
+          'build/integration_test_reports/macos_computer_use_m15_llm_review_canary_<timestamp>/${MacosComputerUseMvpGuidance.m15LlmReviewCanarySummaryFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1783,6 +1787,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'MVP fixture LLM summary: ${paths['llmCanarySummary']}',
       'M15 action proposal handoff: ${paths['m15ActionProposalHandoff']}',
+      'M15 LLM review summary: ${paths['m15LlmReviewCanarySummary']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',

@@ -107,7 +107,15 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M15 LLM review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand,
+      contains('run_macos_computer_use_m15_llm_review_canary.sh'),
     );
   });
 
