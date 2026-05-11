@@ -127,6 +127,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M22 post-action review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
@@ -148,6 +152,10 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand,
       contains('run_macos_computer_use_m20_execution_result_intake.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m22PostActionReviewCommand,
+      contains('run_macos_computer_use_m22_post_action_review.sh'),
     );
   });
 

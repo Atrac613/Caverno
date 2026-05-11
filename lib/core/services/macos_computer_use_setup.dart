@@ -74,6 +74,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>';
   static const m20ExecutionResultIntakeCommand =
       'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --m18-handoff <execution_handoff.json> --fresh-observation done --target-confirmed yes --exact-text-confirmed yes --public-action-confirmed <yes-or-not-applicable> --runtime-action succeeded --post-action-observation done';
+  static const m22PostActionReviewCommand =
+      'bash tool/run_macos_computer_use_m22_post_action_review.sh --m20-intake <execution_result_intake.json> --result-reviewed yes --post-action-state <stable-or-needs-follow-up> --follow-up-required <yes-or-no>';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -88,6 +90,7 @@ class MacosComputerUseMvpGuidance {
   static const m17ExecutionRehearsalFile = 'execution_rehearsal.json';
   static const m18ExecutionHandoffFile = 'execution_handoff.json';
   static const m20ExecutionResultIntakeFile = 'execution_result_intake.json';
+  static const m22PostActionReviewFile = 'post_action_review.json';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
@@ -122,7 +125,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, and M15 review/gate consistency.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {

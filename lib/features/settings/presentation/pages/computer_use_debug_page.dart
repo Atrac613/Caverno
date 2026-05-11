@@ -1729,7 +1729,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
-      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake',
+      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
@@ -1737,6 +1737,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
       'M18 execution handoff command: ${MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand}',
       'M20 execution result intake command: ${MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand}',
+      'M22 post-action review command: ${MacosComputerUseMvpGuidance.m22PostActionReviewCommand}',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
   }
@@ -1777,6 +1778,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_m18_execution_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m18ExecutionHandoffFile}',
       'm20ExecutionResultIntake':
           'build/integration_test_reports/macos_computer_use_m20_execution_result_intake_<timestamp>/${MacosComputerUseMvpGuidance.m20ExecutionResultIntakeFile}',
+      'm22PostActionReview':
+          'build/integration_test_reports/macos_computer_use_m22_post_action_review_<timestamp>/${MacosComputerUseMvpGuidance.m22PostActionReviewFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1804,6 +1807,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M17 execution rehearsal: ${paths['m17ExecutionRehearsal']}',
       'M18 execution handoff: ${paths['m18ExecutionHandoff']}',
       'M20 execution result intake: ${paths['m20ExecutionResultIntake']}',
+      'M22 post-action review: ${paths['m22PostActionReview']}',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
