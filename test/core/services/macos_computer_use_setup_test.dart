@@ -111,11 +111,27 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M16 approval packet evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M17 execution rehearsal evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
       MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand,
       contains('run_macos_computer_use_m15_llm_review_canary.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m16ApprovalPacketCommand,
+      contains('run_macos_computer_use_m16_approval_packet.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand,
+      contains('run_macos_computer_use_m17_execution_rehearsal.sh'),
     );
   });
 

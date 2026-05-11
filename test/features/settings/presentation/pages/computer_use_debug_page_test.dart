@@ -70,7 +70,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('Optional review evidence: m15_llm_review_canary'),
+      find.textContaining(
+        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal',
+      ),
       findsOneWidget,
     );
     expect(
@@ -82,6 +84,18 @@ void main() {
     expect(
       find.textContaining(
         'M15 LLM review command: bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M16 approval packet command: bash tool/run_macos_computer_use_m16_approval_packet.sh --m15-handoff <action_proposal_handoff.json> --m15-llm-review <canary_summary.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M17 execution rehearsal command: bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --m16-packet <approval_packet.json>',
       ),
       findsOneWidget,
     );
@@ -198,6 +212,18 @@ void main() {
     );
     expect(find.textContaining('M15 LLM review summary:'), findsOneWidget);
     expect(
+      find.textContaining('macos_computer_use_m16_approval_packet_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M16 approval packet:'), findsOneWidget);
+    expect(find.textContaining('approval_packet.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m17_execution_rehearsal_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M17 execution rehearsal:'), findsOneWidget);
+    expect(find.textContaining('execution_rehearsal.json'), findsOneWidget);
+    expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
       ),
@@ -235,12 +261,20 @@ void main() {
       find.textContaining('blocked M15 LLM review evidence'),
       findsOneWidget,
     );
+    expect(
+      find.textContaining('blocked M16 approval packet evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M17 execution rehearsal evidence'),
+      findsOneWidget,
+    );
     expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);
     expect(
       find.textContaining('manual_tcc_report_summary.json'),
       findsNWidgets(3),
     );
-    expect(find.textContaining('canary_summary.json'), findsNWidgets(3));
+    expect(find.textContaining('canary_summary.json'), findsNWidgets(4));
     expect(
       find.textContaining('/tmp/caverno-macos-computer-use-smoke.json'),
       findsOneWidget,
