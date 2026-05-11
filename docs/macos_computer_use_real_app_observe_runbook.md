@@ -120,6 +120,19 @@ public-action targets separately so the next approval can remain scoped and
 explicit. The JSON also includes `reviewTargetCounts` so reviewers and
 readiness checks can compare the target counts without parsing Markdown tables.
 
+After the handoff is ready, validate the same boundary with the live LLM:
+
+```bash
+bash tool/run_macos_computer_use_m15_llm_review_canary.sh \
+  --handoff <macos_computer_use_m15_action_proposal_handoff.json>
+```
+
+This canary is still report-only. It asks the configured live LLM to review the
+handoff and return a JSON decision that keeps `no_desktop_action`,
+`no_tcc_operation`, and approval-required phases intact. A passing canary means
+`m15LlmReviewGate.status` is `ready` and the model can explain the next
+approval steps; it does not authorize execution.
+
 ## Manual Boundary
 
 The canary never grants TCC, opens Safari, navigates to X, moves the pointer,

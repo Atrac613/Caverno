@@ -118,6 +118,10 @@ approval-bound action plan without executing any action:
    `blockedReviewEvidence: none` before treating M15 as ready.
 10. Confirm the handoff includes `reviewGateConsistency.status: consistent`
     before treating M15 as ready.
+11. When live LLM settings are available, run
+    `bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>`.
+12. Confirm `m15LlmReviewGate.status` is `ready` before using LLM review
+    evidence for the next milestone.
 
 Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future

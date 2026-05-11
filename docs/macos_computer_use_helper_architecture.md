@@ -290,7 +290,9 @@ Follow-on milestones:
   it must not call an LLM, click, type, navigate, submit, post, purchase, grant
   TCC, or operate System Settings. The generated handoff includes a
   `PR Review Summary` that surfaces `blockedReviewEvidence` before final MVP
-  aggregation.
+  aggregation. After the handoff is ready, the report-only M15 LLM review
+  canary can ask the configured live LLM to preserve those approval boundaries
+  without executing any desktop action.
 
 ## Computer Use Live Canary
 
