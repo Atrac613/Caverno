@@ -327,6 +327,13 @@ Follow-on milestones:
   and final aggregation without crossing the TCC, LLM, System Settings, or
   desktop-action boundary. A discovered blocked M18 handoff stops final
   aggregation until its gate next action is resolved.
+- M20: Record user-operated runtime result evidence after an M18 handoff. The
+  result intake is report-only and accepts user-reported fresh observation,
+  action-time confirmations, runtime action status, and post-action
+  observation. It blocks unless the M18 handoff is ready, the required
+  confirmations are present, the runtime action is recorded as succeeded, and
+  the post-action observation is recorded. It still must not call an LLM, grant
+  TCC, operate System Settings, or perform desktop actions.
 
 ## Computer Use Live Canary
 

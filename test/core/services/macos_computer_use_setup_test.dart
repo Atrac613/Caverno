@@ -123,6 +123,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M20 execution result intake evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
@@ -140,6 +144,10 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand,
       contains('run_macos_computer_use_m18_execution_handoff.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand,
+      contains('run_macos_computer_use_m20_execution_result_intake.sh'),
     );
   });
 

@@ -71,7 +71,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff',
+        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake',
       ),
       findsOneWidget,
     );
@@ -102,6 +102,12 @@ void main() {
     expect(
       find.textContaining(
         'M18 execution handoff command: bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M20 execution result intake command: bash tool/run_macos_computer_use_m20_execution_result_intake.sh --m18-handoff <execution_handoff.json>',
       ),
       findsOneWidget,
     );
@@ -234,7 +240,13 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('M18 execution handoff:'), findsOneWidget);
-    expect(find.textContaining('execution_handoff.json'), findsOneWidget);
+    expect(find.textContaining('execution_handoff.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m20_execution_result_intake_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M20 execution result intake:'), findsOneWidget);
+    expect(find.textContaining('execution_result_intake.json'), findsOneWidget);
     expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
@@ -283,6 +295,10 @@ void main() {
     );
     expect(
       find.textContaining('blocked M18 execution handoff evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M20 execution result intake evidence'),
       findsOneWidget,
     );
     expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);

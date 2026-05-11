@@ -34,6 +34,7 @@ void main() {
   late String m16ApprovalPacketScript;
   late String m17ExecutionRehearsalScript;
   late String m18ExecutionHandoffScript;
+  late String m20ExecutionResultIntakeScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -116,6 +117,9 @@ void main() {
     ).readAsStringSync();
     m18ExecutionHandoffScript = File(
       'tool/run_macos_computer_use_m18_execution_handoff.sh',
+    ).readAsStringSync();
+    m20ExecutionResultIntakeScript = File(
+      'tool/run_macos_computer_use_m20_execution_result_intake.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -274,6 +278,10 @@ void main() {
     expect(
       architectureDoc,
       contains('M19: Surface the latest M18 execution handoff'),
+    );
+    expect(
+      architectureDoc,
+      contains('M20: Record user-operated runtime result evidence'),
     );
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
@@ -3205,6 +3213,239 @@ void main() {
     }
   });
 
+  test(
+    'Computer Use M20 execution result intake consumes manual result',
+    () async {
+      expect(
+        m20ExecutionResultIntakeScript,
+        contains('macos_computer_use_m20_execution_result_intake'),
+      );
+      expect(m20ExecutionResultIntakeScript, contains('report-only'));
+      expect(m20ExecutionResultIntakeScript, contains('user-reported'));
+      expect(m20ExecutionResultIntakeScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m20_execution_result_intake_test_',
+      );
+      try {
+        final handoffDir = Directory(
+          '${root.path}/macos_computer_use_m18_execution_handoff_1',
+        )..createSync();
+        final handoff = File('${handoffDir.path}/execution_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m18_execution_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m18_execution_handoff",
+  "milestone": "M18",
+  "previousMilestone": "M17",
+  "ready": true,
+  "executionBoundary": "user_operated_runtime_handoff",
+  "desktopActionBoundary": "user_operated_only",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "publicActionRequiresSeparateApproval": true,
+  "approvedValues": {
+    "exactText": "Good morning from Caverno",
+    "targetLabel": "Post text field",
+    "publicActionLabel": "Post"
+  },
+  "actionTimeConfirmations": [
+    {
+      "id": "fresh_observation",
+      "required": true,
+      "approvedBeforeRun": false
+    },
+    {
+      "id": "target_label",
+      "required": true,
+      "approvedBeforeRun": true,
+      "approvedValue": "Post text field"
+    },
+    {
+      "id": "exact_text",
+      "required": true,
+      "approvedBeforeRun": true,
+      "approvedValue": "Good morning from Caverno"
+    },
+    {
+      "id": "public_action_label",
+      "required": true,
+      "approvedBeforeRun": true,
+      "approvedValue": "Post"
+    }
+  ],
+  "executionChecklist": [
+    {
+      "id": "pre_execution_observe"
+    },
+    {
+      "id": "focus_target"
+    },
+    {
+      "id": "type_exact_text"
+    },
+    {
+      "id": "public_action"
+    },
+    {
+      "id": "post_action_observation"
+    }
+  ],
+  "m18ExecutionHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m20_execution_result_intake.sh',
+          '--root',
+          root.path,
+          '--m18-handoff',
+          handoff.path,
+          '--fresh-observation',
+          'done',
+          '--target-confirmed',
+          'yes',
+          '--exact-text-confirmed',
+          'yes',
+          '--public-action-confirmed',
+          'yes',
+          '--runtime-action',
+          'succeeded',
+          '--post-action-observation',
+          'done',
+          '--operator-note',
+          'Manual runtime step completed by the user.',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Execution boundary: manual_result_intake_report_only'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('execution_result_intake.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m20_execution_result_intake'),
+        );
+        expect(summary, contains('"milestone": "M20"'));
+        expect(summary, contains('"previousMilestone": "M18"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m20ExecutionResultIntakeGate"'));
+        expect(summary, contains('"runtimeAction": "succeeded"'));
+        expect(summary, contains('"postActionObservation": "done"'));
+        expect(summary, contains('"Good morning from Caverno"'));
+        expect(summary, contains('"Post text field"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M20 Execution Result Intake'));
+        expect(markdown, contains('User-Reported Result Sequence'));
+        expect(
+          markdown,
+          contains('Manual runtime step completed by the user.'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M20 execution result intake blocks missing result',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m20_execution_result_intake_blocked_test_',
+      );
+      try {
+        final handoff = File('${root.path}/execution_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m18_execution_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m18_execution_handoff",
+  "milestone": "M18",
+  "ready": true,
+  "executionBoundary": "user_operated_runtime_handoff",
+  "desktopActionBoundary": "user_operated_only",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "publicActionRequiresSeparateApproval": false,
+  "approvedValues": {
+    "exactText": "Good morning from Caverno",
+    "targetLabel": "Post text field"
+  },
+  "actionTimeConfirmations": [
+    {
+      "id": "target_label",
+      "required": true,
+      "approvedBeforeRun": true
+    },
+    {
+      "id": "exact_text",
+      "required": true,
+      "approvedBeforeRun": true
+    }
+  ],
+  "executionChecklist": [],
+  "m18ExecutionHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m20_execution_result_intake.sh',
+          '--root',
+          root.path,
+          '--m18-handoff',
+          handoff.path,
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('fresh_observation_recorded'));
+        expect('${result.stdout}', contains('runtime_action_succeeded'));
+        expect(
+          '${result.stdout}',
+          contains('post_action_observation_recorded'),
+        );
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('execution_result_intake.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"fresh_observation_recorded"'));
+        expect(summary, contains('"target_confirmation_recorded"'));
+        expect(summary, contains('"runtimeAction": "not-run"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4119,6 +4360,7 @@ void main() {
     expect(manualProcessChecklist, contains('M16 Approval Packet'));
     expect(manualProcessChecklist, contains('M17 Execution Rehearsal'));
     expect(manualProcessChecklist, contains('M18 Execution Handoff'));
+    expect(manualProcessChecklist, contains('M20 Execution Result Intake'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -4126,6 +4368,7 @@ void main() {
     expect(manualProcessChecklist, contains('m16ApprovalPacketGate'));
     expect(manualProcessChecklist, contains('m17ExecutionRehearsalGate'));
     expect(manualProcessChecklist, contains('m18ExecutionHandoffGate'));
+    expect(manualProcessChecklist, contains('m20ExecutionResultIntakeGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -4145,6 +4388,10 @@ void main() {
     );
     expect(
       manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m20_execution_result_intake.sh'),
+    );
+    expect(
+      manualProcessChecklist,
       contains('tool/run_macos_computer_use_m17_execution_rehearsal.sh'),
     );
     expect(manualProcessChecklist, contains('PR Review Summary'));
@@ -4157,6 +4404,8 @@ void main() {
     expect(manualProcessChecklist, contains('exactTextCandidates'));
     expect(manualProcessChecklist, contains('textEntryTargets'));
     expect(manualProcessChecklist, contains('publicActionTargets'));
+    expect(manualProcessChecklist, contains('user-reported'));
+    expect(manualProcessChecklist, contains('runtime result evidence'));
     expect(
       manualProcessChecklist,
       contains('confirmation_requirements_documented'),

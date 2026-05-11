@@ -208,6 +208,29 @@ Do not use this handoff to click, type, navigate, submit, post, purchase,
 grant TCC, operate System Settings, or call an LLM. It is only the final
 report-only checklist before a separately user-operated runtime step.
 
+## M20 Execution Result Intake
+
+Use this pass after the user has completed the M18-guided runtime step
+manually:
+
+1. Select the ready M18 `execution_handoff.json`.
+2. Ask the user to confirm whether fresh observation, target confirmation,
+   exact-text confirmation, public-action confirmation, runtime action, and
+   post-action observation were completed.
+3. Run
+   `bash tool/run_macos_computer_use_m20_execution_result_intake.sh --m18-handoff <execution_handoff.json> --fresh-observation done --target-confirmed yes --exact-text-confirmed yes --public-action-confirmed <yes-or-not-applicable> --runtime-action succeeded --post-action-observation done`.
+4. Confirm `m20ExecutionResultIntakeGate.status` is `ready`.
+5. Confirm `executionBoundary` is `manual_result_intake_report_only`.
+6. Confirm `desktopActionBoundary` is `user_operated_evidence_only`.
+7. Confirm `tccBoundary` is `no_tcc_operation`.
+8. Confirm `llmBoundary` is `no_llm_call`.
+9. If the intake is blocked, resolve the listed result evidence blocker before
+   accepting the runtime result.
+
+Do not use this intake to click, type, navigate, submit, post, purchase, grant
+TCC, operate System Settings, or call an LLM. It records only user-reported
+runtime result evidence. Follow-up actions require a new approval-bound cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
