@@ -216,9 +216,9 @@ fresh runtime evidence is required.
    treated as `blocked_review_evidence` and must be resolved before final
    aggregation.
    The same optional review-evidence rule applies to discovered M16 approval
-   packets and M17 execution rehearsals. Ready artifacts are surfaced in the
-   handoff; discovered blocked artifacts stop final aggregation until their
-   gate next action is resolved.
+   packets, M17 execution rehearsals, and M18 execution handoffs. Ready
+   artifacts are surfaced in the handoff; discovered blocked artifacts stop
+   final aggregation until their gate next action is resolved.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:

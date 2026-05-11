@@ -662,6 +662,12 @@ void main() {
         File(m17ExecutionRehearsalPath),
         _m17ExecutionRehearsal(ready: true),
       );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_900/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: true),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -676,6 +682,7 @@ void main() {
       expect(entryIds, contains('m15_llm_review_canary'));
       expect(entryIds, contains('m16_approval_packet'));
       expect(entryIds, contains('m17_execution_rehearsal'));
+      expect(entryIds, contains('m18_execution_handoff'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -911,6 +918,26 @@ void main() {
         contains('## M17 Execution Rehearsal Evidence'),
       );
       expect(index.toMarkdown(), contains('Execution phases: 4'));
+      final m18Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm18_execution_handoff',
+      );
+      expect(m18Entry.exists, isTrue);
+      expect(m18Entry.path, m18ExecutionHandoffPath);
+      expect(m18Entry.status, 'ready');
+      expect(
+        m18Entry.nextAction,
+        'Ask the user to perform the runtime step manually with fresh observation and action-time confirmations.',
+      );
+      expect(m18Entry.details['gateStatus'], 'ready');
+      expect(m18Entry.details['actionTimeConfirmationCount'], 3);
+      expect(m18Entry.details['executionChecklistCount'], 7);
+      expect(index.toMarkdown(), contains('Latest M18 execution handoff'));
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M18 execution handoff | true | ready |'),
+      );
+      expect(index.toMarkdown(), contains('## M18 Execution Handoff Evidence'));
+      expect(index.toMarkdown(), contains('Action-time confirmations: 3'));
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
@@ -923,6 +950,13 @@ void main() {
         index.toMarkdown(),
         contains(
           'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath --m15-llm-review $m15LlmReviewPath',
+        ),
+      );
+      expect(index.toMarkdown(), contains('M18 execution handoff command:'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
         ),
       );
     });
@@ -1577,6 +1611,83 @@ void main() {
       );
     });
 
+    test('artifact index blocks final aggregation on blocked M18 handoff', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m18_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_900/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm18_execution_handoff',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m18ExecutionHandoffPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M18 handoff blockers before preparing any runtime execution step.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('target_confirmation'));
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m18_execution_handoff'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m18_execution_handoff'),
+      );
+      expect(index.toMarkdown(), contains('## M18 Execution Handoff Evidence'));
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(index.toMarkdown(), contains('Blockers: target_confirmation'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -1731,6 +1842,12 @@ void main() {
         File(m16ApprovalPacketPath),
         _m16ApprovalPacket(ready: true, approved: true),
       );
+      final m17ExecutionRehearsalPath =
+          '${root.path}/macos_computer_use_m17_execution_rehearsal_1/execution_rehearsal.json';
+      _writeJson(
+        File(m17ExecutionRehearsalPath),
+        _m17ExecutionRehearsal(ready: true),
+      );
 
       final result = await Process.run('dart', [
         'run',
@@ -1785,6 +1902,13 @@ void main() {
           'bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --root ${root.path} --m16-packet $m16ApprovalPacketPath',
         ),
       );
+      expect(stdout, contains('M18 execution handoff command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1821,6 +1945,13 @@ void main() {
           'bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --root ${root.path} --m16-packet $m16ApprovalPacketPath',
         ),
       );
+      expect(markdown, contains('M18 execution handoff command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -1846,6 +1977,10 @@ void main() {
       expect(
         rehearsal['m17ExecutionRehearsalCommand'],
         contains('run_macos_computer_use_m17_execution_rehearsal.sh'),
+      );
+      expect(
+        rehearsal['m18ExecutionHandoffCommand'],
+        contains('run_macos_computer_use_m18_execution_handoff.sh'),
       );
     });
   });
@@ -2504,6 +2639,63 @@ Map<String, dynamic> _m17ExecutionRehearsal({required bool ready}) {
       'nextAction': ready
           ? 'M17 execution rehearsal is ready for future user-operated execution review.'
           : 'Resolve blocked M17 rehearsal checks before future execution.',
+    },
+  };
+}
+
+Map<String, dynamic> _m18ExecutionHandoff({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m18_execution_handoff',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m18_execution_handoff',
+    'milestone': 'M18',
+    'previousMilestone': 'M17',
+    'ready': ready,
+    'executionBoundary': 'user_operated_runtime_handoff',
+    'desktopActionBoundary': 'user_operated_only',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'publicActionRequiresSeparateApproval': true,
+    'approvedValues': <String, Object?>{
+      'exactText': ready ? 'Good morning from Caverno' : null,
+      'targetLabel': ready ? 'What is happening?' : null,
+      'publicActionLabel': ready ? 'Post' : null,
+    },
+    'actionTimeConfirmations': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'confirm_fresh_observation',
+        'required': true,
+        'approvedBeforeRun': ready,
+      },
+      <String, Object?>{
+        'id': 'confirm_target_label',
+        'required': true,
+        'approvedBeforeRun': ready,
+        if (ready) 'approvedValue': 'What is happening?',
+      },
+      <String, Object?>{
+        'id': 'confirm_exact_text',
+        'required': true,
+        'approvedBeforeRun': ready,
+        if (ready) 'approvedValue': 'Good morning from Caverno',
+      },
+    ],
+    'executionChecklist': <Map<String, Object?>>[
+      <String, Object?>{'id': 'fresh_observation'},
+      <String, Object?>{'id': 'confirm_target_at_action_time'},
+      <String, Object?>{'id': 'focus_target'},
+      <String, Object?>{'id': 'confirm_exact_text_at_action_time'},
+      <String, Object?>{'id': 'type_exact_text'},
+      <String, Object?>{'id': 'public_action'},
+      <String, Object?>{'id': 'post_action_observation'},
+    ],
+    'm18ExecutionHandoffGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['target_confirmation'],
+      'nextAction': ready
+          ? 'Ask the user to perform the runtime step manually with fresh observation and action-time confirmations.'
+          : 'Resolve M18 handoff blockers before preparing any runtime execution step.',
     },
   };
 }

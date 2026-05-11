@@ -322,6 +322,11 @@ Follow-on milestones:
   still must not call an LLM, click, type, navigate, submit, post, purchase,
   grant TCC, or operate System Settings; it only prepares the action-time
   confirmations that the user must perform before any runtime action.
+- M19: Surface the latest M18 execution handoff in the readiness artifact index
+  and MVP sign-off handoff. This keeps the runtime handoff visible to PR review
+  and final aggregation without crossing the TCC, LLM, System Settings, or
+  desktop-action boundary. A discovered blocked M18 handoff stops final
+  aggregation until its gate next action is resolved.
 
 ## Computer Use Live Canary
 

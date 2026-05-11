@@ -107,6 +107,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m15LlmReviewEntry;
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
     ReadinessArtifactEntry? m17ExecutionRehearsalEntry;
+    ReadinessArtifactEntry? m18ExecutionHandoffEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -119,6 +120,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm17_execution_rehearsal') {
         m17ExecutionRehearsalEntry = entry;
+      }
+      if (entry.id == 'm18_execution_handoff') {
+        m18ExecutionHandoffEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -207,6 +211,28 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m17ExecutionRehearsalEntry.details['gateBlockers']))}',
         );
     }
+    if (m18ExecutionHandoffEntry != null &&
+        m18ExecutionHandoffEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M18 Execution Handoff Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m18ExecutionHandoffEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Action-time confirmations: ${m18ExecutionHandoffEntry.details['actionTimeConfirmationCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Execution checklist steps: ${m18ExecutionHandoffEntry.details['executionChecklistCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m18ExecutionHandoffEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m18ExecutionHandoffEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -268,6 +294,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m17ExecutionRehearsalCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m18ExecutionHandoffCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M18 execution handoff command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m18ExecutionHandoffCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -321,6 +356,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m15LlmReviewCommand,
     this.m16ApprovalPacketCommand,
     this.m17ExecutionRehearsalCommand,
+    this.m18ExecutionHandoffCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -336,6 +372,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m15LlmReviewCommand;
   final String? m16ApprovalPacketCommand;
   final String? m17ExecutionRehearsalCommand;
+  final String? m18ExecutionHandoffCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -356,6 +393,7 @@ class ReadinessFinalSignoffRehearsal {
       'm15LlmReviewCommand': m15LlmReviewCommand,
       'm16ApprovalPacketCommand': m16ApprovalPacketCommand,
       'm17ExecutionRehearsalCommand': m17ExecutionRehearsalCommand,
+      'm18ExecutionHandoffCommand': m18ExecutionHandoffCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -536,6 +574,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m17ExecutionRehearsalNextAction,
       details: _m17ExecutionRehearsalDetails,
     ),
+    _latestEntry(
+      'm18_execution_handoff',
+      'Latest M18 execution handoff',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m18_execution_handoff',
+      parentPrefix: 'macos_computer_use_m18_execution_handoff_',
+      fileName: 'execution_handoff.json',
+      status: _m18ExecutionHandoffStatus,
+      nextAction: _m18ExecutionHandoffNextAction,
+      details: _m18ExecutionHandoffDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -601,6 +651,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m18ExecutionHandoffCommand = _m18ExecutionHandoffCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -626,6 +680,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m15LlmReviewCommand: m15LlmReviewCommand,
     m16ApprovalPacketCommand: m16ApprovalPacketCommand,
     m17ExecutionRehearsalCommand: m17ExecutionRehearsalCommand,
+    m18ExecutionHandoffCommand: m18ExecutionHandoffCommand,
   );
 }
 
@@ -638,7 +693,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
             (entry.id == 'm15_action_proposal_handoff' ||
                 entry.id == 'm15_llm_review_canary' ||
                 entry.id == 'm16_approval_packet' ||
-                entry.id == 'm17_execution_rehearsal') &&
+                entry.id == 'm17_execution_rehearsal' ||
+                entry.id == 'm18_execution_handoff') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -792,6 +848,25 @@ String? _m17ExecutionRehearsalCommand(
     reportRoot.path,
     '--m16-packet',
     packetPath,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m18ExecutionHandoffCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final rehearsalEntry = entriesById['m17_execution_rehearsal'];
+  final rehearsalPath = rehearsalEntry?.path ?? '';
+  if (rehearsalPath.isEmpty || rehearsalEntry?.status != 'ready') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m18_execution_handoff.sh',
+    '--root',
+    reportRoot.path,
+    '--m17-rehearsal',
+    rehearsalPath,
   ].map(_shellQuote).join(' ');
 }
 
@@ -1246,6 +1321,71 @@ Map<String, Object?> _m17ExecutionRehearsalDetails(Map<String, dynamic> json) {
     'tccBoundary': json['tccBoundary']?.toString(),
     'llmBoundary': json['llmBoundary']?.toString(),
     'executionPhaseCount': _jsonList(json['executionPhases']).length,
+    if (approvedValuesMap != null) ...<String, Object?>{
+      'approvedExactText': approvedValuesMap['exactText']?.toString(),
+      'approvedTargetLabel': approvedValuesMap['targetLabel']?.toString(),
+      'approvedPublicActionLabel': approvedValuesMap['publicActionLabel']
+          ?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m18ExecutionHandoffStatus(Map<String, dynamic> json) {
+  final gate = json['m18ExecutionHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m18ExecutionHandoffNextAction(Map<String, dynamic> json) {
+  final gate = json['m18ExecutionHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m18ExecutionHandoffStatus(json);
+  if (status == 'ready') {
+    return 'Ask the user to perform the runtime step manually with fresh observation and action-time confirmations.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M18 handoff blockers before preparing any runtime execution step.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m18ExecutionHandoffDetails(Map<String, dynamic> json) {
+  final gate = json['m18ExecutionHandoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final approvedValues = json['approvedValues'];
+  final approvedValuesMap = approvedValues is Map<String, dynamic>
+      ? approvedValues
+      : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'publicActionRequiresSeparateApproval':
+        json['publicActionRequiresSeparateApproval'],
+    'actionTimeConfirmationCount': _jsonList(
+      json['actionTimeConfirmations'],
+    ).length,
+    'executionChecklistCount': _jsonList(json['executionChecklist']).length,
     if (approvedValuesMap != null) ...<String, Object?>{
       'approvedExactText': approvedValuesMap['exactText']?.toString(),
       'approvedTargetLabel': approvedValuesMap['targetLabel']?.toString(),

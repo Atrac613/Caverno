@@ -109,6 +109,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M17 execution rehearsal command:');
     stdout.writeln(rehearsal.m17ExecutionRehearsalCommand);
   }
+  if (rehearsal.m18ExecutionHandoffCommand != null) {
+    stdout.writeln('M18 execution handoff command:');
+    stdout.writeln(rehearsal.m18ExecutionHandoffCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

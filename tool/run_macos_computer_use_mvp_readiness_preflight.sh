@@ -83,6 +83,7 @@ echo "  M15 action proposal: inspect the artifact index for the report-only comm
 echo "  M15 LLM review: inspect the artifact index for the report-only review command after M15 handoff is ready; blocked m15_llm_review_canary evidence stops final aggregation"
 echo "  M16 approval packet: inspect the artifact index for the report-only approval packet command after M15 evidence is ready; blocked m16_approval_packet evidence stops final aggregation"
 echo "  M17 execution rehearsal: inspect the artifact index for the report-only rehearsal command after M16 approval is approved; blocked m17_execution_rehearsal evidence stops final aggregation"
+echo "  M18 execution handoff: inspect the artifact index for the report-only handoff command after M17 rehearsal is ready; blocked m18_execution_handoff evidence stops final aggregation"
 echo "Expected final input paths:"
 echo "  Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json"
 echo "  Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json"

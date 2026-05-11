@@ -220,6 +220,12 @@ m17_execution_rehearsal = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m17_execution_rehearsal"
 )
+m18_execution_handoff = latest_matching(
+    lambda path, decoded: path.name == "execution_handoff.json"
+    and path.parent.name.startswith("macos_computer_use_m18_execution_handoff_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m18_execution_handoff"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -235,6 +241,7 @@ for name, path in [
     ("DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY", m15_llm_review),
     ("DISCOVERED_M16_APPROVAL_PACKET", m16_approval_packet),
     ("DISCOVERED_M17_EXECUTION_REHEARSAL", m17_execution_rehearsal),
+    ("DISCOVERED_M18_EXECUTION_HANDOFF", m18_execution_handoff),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -263,6 +270,11 @@ M17_EXECUTION_REHEARSAL_STATUS="missing"
 M17_EXECUTION_REHEARSAL_APPROVAL_STATUS="missing"
 M17_EXECUTION_REHEARSAL_NEXT_ACTION="Run the M17 execution rehearsal after the M16 approval packet is approved."
 M17_EXECUTION_REHEARSAL_BOUNDARY="report-only, no LLM call, no TCC, no System Settings, no desktop actions"
+M18_EXECUTION_HANDOFF="${DISCOVERED_M18_EXECUTION_HANDOFF:-}"
+M18_EXECUTION_HANDOFF_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m18_execution_handoff_fragment.md"
+M18_EXECUTION_HANDOFF_STATUS="missing"
+M18_EXECUTION_HANDOFF_NEXT_ACTION="Run the M18 execution handoff after the M17 execution rehearsal is ready."
+M18_EXECUTION_HANDOFF_BOUNDARY="report-only handoff, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -881,6 +893,140 @@ else
 EOF
 fi
 
+if [[ -n "${M18_EXECUTION_HANDOFF}" && -f "${M18_EXECUTION_HANDOFF}" ]]; then
+  m18_execution_handoff_values="$(
+    M18_EXECUTION_HANDOFF="${M18_EXECUTION_HANDOFF}" M18_EXECUTION_HANDOFF_FRAGMENT="${M18_EXECUTION_HANDOFF_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M18_EXECUTION_HANDOFF"])
+fragment_path = Path(os.environ["M18_EXECUTION_HANDOFF_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m18ExecutionHandoffGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    next_action = (
+        "Ask the user to perform the runtime step manually with fresh observation and action-time confirmations."
+        if status == "ready"
+        else "Resolve M18 handoff blockers before preparing any runtime execution step."
+    )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m18_execution_handoff_unreadable"]
+boundary = "report-only handoff"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+confirmations = as_list(
+    summary.get("actionTimeConfirmations") if isinstance(summary, dict) else []
+)
+checklist = as_list(
+    summary.get("executionChecklist") if isinstance(summary, dict) else []
+)
+
+lines = [
+    "",
+    "## M18 Execution Handoff Evidence",
+    "",
+    f"- M18 execution handoff: `{summary_path}`",
+    f"- M18 execution handoff status: {status}",
+    f"- M18 execution handoff boundary: {boundary}",
+    f"- M18 execution handoff next action: {next_action}",
+    f"- M18 execution handoff blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M18 action-time confirmations: {len(confirmations)}",
+    f"- M18 execution checklist steps: {len(checklist)}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+if confirmations:
+    lines.extend([
+        "",
+        "| Confirmation | Required | Approved Before Run | Value |",
+        "| --- | --- | --- | --- |",
+    ])
+    for confirmation in confirmations:
+        if not isinstance(confirmation, dict):
+            continue
+        lines.append(
+            "| {id} | {required} | {approved} | {value} |".format(
+                id=cell(confirmation.get("id")),
+                required=cell(str(confirmation.get("required", False)).lower()),
+                approved=cell(str(confirmation.get("approvedBeforeRun", False)).lower()),
+                value=cell(confirmation.get("approvedValue")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M18_EXECUTION_HANDOFF_STATUS={shlex.quote(status)}")
+print(f"M18_EXECUTION_HANDOFF_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M18_EXECUTION_HANDOFF_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m18_execution_handoff_values}"
+else
+  cat >"${M18_EXECUTION_HANDOFF_FRAGMENT}" <<EOF
+
+## M18 Execution Handoff Evidence
+
+- M18 execution handoff: \`not discovered\`
+- M18 execution handoff status: missing
+- M18 execution handoff boundary: ${M18_EXECUTION_HANDOFF_BOUNDARY}
+- M18 execution handoff next action: ${M18_EXECUTION_HANDOFF_NEXT_ACTION}
+- M18 execution handoff blockers: missing_m18_execution_handoff
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -985,6 +1131,9 @@ if [[ -n "${M16_APPROVAL_PACKET}" && "${M16_APPROVAL_PACKET_STATUS}" != "ready" 
 fi
 if [[ -n "${M17_EXECUTION_REHEARSAL}" && "${M17_EXECUTION_REHEARSAL_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m17_execution_rehearsal)
+fi
+if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m18_execution_handoff)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -1255,6 +1404,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M17 execution rehearsal: ${M17_EXECUTION_REHEARSAL:-not discovered}
 - M17 execution rehearsal status: ${M17_EXECUTION_REHEARSAL_STATUS}
 - M17 execution rehearsal approval status: ${M17_EXECUTION_REHEARSAL_APPROVAL_STATUS}
+- M18 execution handoff: ${M18_EXECUTION_HANDOFF:-not discovered}
+- M18 execution handoff status: ${M18_EXECUTION_HANDOFF_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -1278,6 +1429,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - M17 execution rehearsal approval status: ${M17_EXECUTION_REHEARSAL_APPROVAL_STATUS}
 - M17 execution rehearsal boundary: ${M17_EXECUTION_REHEARSAL_BOUNDARY}
 - M17 execution rehearsal next action: ${M17_EXECUTION_REHEARSAL_NEXT_ACTION}
+- \`m18_execution_handoff\`: ${M18_EXECUTION_HANDOFF_STATUS}
+- M18 execution handoff boundary: ${M18_EXECUTION_HANDOFF_BOUNDARY}
+- M18 execution handoff next action: ${M18_EXECUTION_HANDOFF_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -1357,6 +1511,7 @@ cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M15_LLM_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M16_APPROVAL_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M17_EXECUTION_REHEARSAL_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M18_EXECUTION_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -1383,6 +1538,9 @@ cat "${M17_EXECUTION_REHEARSAL_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M17_EXECUTION_REHEARSAL}" && "${M17_EXECUTION_REHEARSAL_STATUS}" != "ready" ]]; then
       echo "- ${M17_EXECUTION_REHEARSAL_NEXT_ACTION}"
+    fi
+    if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
+      echo "- ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -1428,6 +1586,10 @@ echo "  M17 execution rehearsal status: ${M17_EXECUTION_REHEARSAL_STATUS}"
 echo "  M17 execution rehearsal approval status: ${M17_EXECUTION_REHEARSAL_APPROVAL_STATUS}"
 echo "  M17 execution rehearsal boundary: ${M17_EXECUTION_REHEARSAL_BOUNDARY}"
 echo "  M17 execution rehearsal next action: ${M17_EXECUTION_REHEARSAL_NEXT_ACTION}"
+echo "  M18 execution handoff: ${M18_EXECUTION_HANDOFF:-not discovered}"
+echo "  M18 execution handoff status: ${M18_EXECUTION_HANDOFF_STATUS}"
+echo "  M18 execution handoff boundary: ${M18_EXECUTION_HANDOFF_BOUNDARY}"
+echo "  M18 execution handoff next action: ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -1482,6 +1644,9 @@ if [[ -n "${M16_APPROVAL_PACKET}" && "${M16_APPROVAL_PACKET_STATUS}" != "ready" 
 fi
 if [[ -n "${M17_EXECUTION_REHEARSAL}" && "${M17_EXECUTION_REHEARSAL_STATUS}" != "ready" ]]; then
   echo "  - ${M17_EXECUTION_REHEARSAL_NEXT_ACTION}"
+fi
+if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
+  echo "  - ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

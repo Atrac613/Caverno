@@ -71,7 +71,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal',
+        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff',
       ),
       findsOneWidget,
     );
@@ -279,6 +279,10 @@ void main() {
     );
     expect(
       find.textContaining('blocked M17 execution rehearsal evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M18 execution handoff evidence'),
       findsOneWidget,
     );
     expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);

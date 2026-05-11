@@ -119,6 +119,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M18 execution handoff evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(

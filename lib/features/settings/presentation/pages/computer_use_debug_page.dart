@@ -1729,7 +1729,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
-      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal',
+      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
