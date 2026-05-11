@@ -209,6 +209,12 @@ fresh runtime evidence is required.
    `tool/run_macos_computer_use_mvp_llm_readiness.sh` is the automation-safe
    preflight for this step: it proves the LLM gate is ready and leaves
    `manual_tcc` plus `desktop_action_canary` as user-operated blockers.
+   When M15 action proposal evidence exists, the wrapper also discovers the
+   latest `macos_computer_use_m15_llm_review_canary_<timestamp>/canary_summary.json`
+   and appends its `M15 LLM Review Evidence` to the handoff. A ready review
+   canary is optional review evidence; a discovered blocked review canary is
+   treated as `blocked_review_evidence` and must be resolved before final
+   aggregation.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:
@@ -255,6 +261,9 @@ fresh runtime evidence is required.
   LLM summary provides one. The gate must include safe click planning,
   type-and-confirm planning when applicable, user approval boundaries,
   observe-again behavior, and `destructive_target_refused` evidence.
+- `m15_llm_review_canary`: optional review evidence. If present, it must have a
+  ready `m15LlmReviewGate` and must keep `review_only_no_tool_execution`,
+  `no_tcc_operation`, and `no_desktop_action`.
 
 ## MVP Fixture App
 

@@ -133,6 +133,12 @@ handoff and return a JSON decision that keeps `no_desktop_action`,
 `m15LlmReviewGate.status` is `ready` and the model can explain the next
 approval steps; it does not authorize execution.
 
+MVP sign-off and the readiness artifact index discover the latest
+`macos_computer_use_m15_llm_review_canary_<timestamp>/canary_summary.json`.
+Ready review evidence is appended to the handoff for PR review. Blocked review
+evidence is surfaced as `m15_llm_review_canary` in `blocked_review_evidence`
+and must be fixed before final aggregation or any future action execution.
+
 ## Manual Boundary
 
 The canary never grants TCC, opens Safari, navigates to X, moves the pointer,

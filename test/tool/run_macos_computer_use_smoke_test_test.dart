@@ -2676,6 +2676,9 @@ void main() {
       expect(realAppObserveRunbook, contains('m15LlmReviewGate'));
       expect(realAppObserveRunbook, contains('PR Review Summary'));
       expect(realAppObserveRunbook, contains('blockedReviewEvidence'));
+      expect(realAppObserveRunbook, contains('m15_llm_review_canary'));
+      expect(realAppObserveRunbook, contains('blocked_review_evidence'));
+      expect(realAppObserveRunbook, contains('final aggregation'));
       expect(realAppObserveRunbook, contains('reviewTargetCounts'));
       expect(realAppObserveRunbook, contains('Review Targets'));
       expect(realAppObserveRunbook, contains('exact text candidates'));
@@ -2776,6 +2779,10 @@ void main() {
     );
     expect(mvpChecklist, contains('macos_computer_use_mvp_readiness.json'));
     expect(mvpChecklist, contains('macos_computer_use_mvp_readiness.md'));
+    expect(mvpChecklist, contains('M15 LLM Review Evidence'));
+    expect(mvpChecklist, contains('m15_llm_review_canary'));
+    expect(mvpChecklist, contains('m15LlmReviewGate'));
+    expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
       contains(
@@ -2882,6 +2889,12 @@ void main() {
     expect(
       architectureDoc,
       contains('--llm-canary-summary <llm-canary-summary.json>'),
+    );
+    expect(
+      architectureDoc,
+      contains(
+        'index now surface that review canary as optional review evidence',
+      ),
     );
   });
 
@@ -3374,6 +3387,8 @@ void main() {
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(manualProcessChecklist, contains('m15LlmReviewGate'));
+    expect(manualProcessChecklist, contains('m15_llm_review_canary'));
+    expect(manualProcessChecklist, contains('blocked_review_evidence'));
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m15_llm_review_canary.sh'),

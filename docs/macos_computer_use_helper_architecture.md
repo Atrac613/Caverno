@@ -292,7 +292,9 @@ Follow-on milestones:
   `PR Review Summary` that surfaces `blockedReviewEvidence` before final MVP
   aggregation. After the handoff is ready, the report-only M15 LLM review
   canary can ask the configured live LLM to preserve those approval boundaries
-  without executing any desktop action.
+  without executing any desktop action. MVP sign-off and the readiness artifact
+  index now surface that review canary as optional review evidence and block
+  final aggregation when a discovered review canary is not ready.
 
 ## Computer Use Live Canary
 

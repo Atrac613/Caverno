@@ -122,6 +122,9 @@ approval-bound action plan without executing any action:
     `bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>`.
 12. Confirm `m15LlmReviewGate.status` is `ready` before using LLM review
     evidence for the next milestone.
+13. Confirm MVP sign-off or the artifact index surfaces the review summary as
+    `m15_llm_review_canary`. If it appears in `blocked_review_evidence`, resolve
+    the review canary before final aggregation.
 
 Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future
