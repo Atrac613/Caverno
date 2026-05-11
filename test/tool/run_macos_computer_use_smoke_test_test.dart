@@ -3225,6 +3225,7 @@ void main() {
     expect(mvpChecklist, contains('M15 LLM Review Evidence'));
     expect(mvpChecklist, contains('m15_llm_review_canary'));
     expect(mvpChecklist, contains('m15LlmReviewGate'));
+    expect(mvpChecklist, contains('M17 execution rehearsals'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -3285,8 +3286,12 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY'),
     );
+    expect(mvpSignoffScript, contains('DISCOVERED_M16_APPROVAL_PACKET'));
+    expect(mvpSignoffScript, contains('DISCOVERED_M17_EXECUTION_REHEARSAL'));
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
+    expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
+    expect(mvpSignoffScript, contains('M17 Execution Rehearsal Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -3361,6 +3366,7 @@ void main() {
       expect(stdout, contains('M15 action proposal status: missing'));
       expect(stdout, contains('M15 LLM review status: missing'));
       expect(stdout, contains('M16 approval packet status: missing'));
+      expect(stdout, contains('M17 execution rehearsal status: missing'));
       expect(
         stdout,
         contains(
@@ -3371,6 +3377,12 @@ void main() {
         stdout,
         contains(
           'M16 approval packet next action: Run the M16 approval packet after the M15 action proposal handoff and M15 LLM review are ready.',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'M17 execution rehearsal next action: Run the M17 execution rehearsal after the M16 approval packet is approved.',
         ),
       );
       expect(stdout, contains('MVP sign-off outputs:'));
@@ -3465,10 +3477,12 @@ void main() {
       expect(handoff, contains('M15 action proposal status: missing'));
       expect(handoff, contains('M15 LLM review status: missing'));
       expect(handoff, contains('M16 approval packet status: missing'));
+      expect(handoff, contains('M17 execution rehearsal status: missing'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
       expect(handoff, contains('M15 LLM Review Evidence'));
       expect(handoff, contains('M16 Approval Packet Evidence'));
+      expect(handoff, contains('M17 Execution Rehearsal Evidence'));
       expect(
         handoff,
         contains(
@@ -3482,6 +3496,12 @@ void main() {
       expect(
         handoff,
         contains('M16 approval packet blockers: missing_m16_approval_packet'),
+      );
+      expect(
+        handoff,
+        contains(
+          'M17 execution rehearsal blockers: missing_m17_execution_rehearsal',
+        ),
       );
       expect(
         handoff,
@@ -3603,6 +3623,8 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('m15_llm_review_canary'));
     expect(mvpReadinessPreflightScript, contains('M16 approval packet'));
     expect(mvpReadinessPreflightScript, contains('m16_approval_packet'));
+    expect(mvpReadinessPreflightScript, contains('M17 execution rehearsal'));
+    expect(mvpReadinessPreflightScript, contains('m17_execution_rehearsal'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -3691,6 +3713,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m16_approval_packet evidence'));
+      expect(
+        stdout,
+        contains(
+          'M17 execution rehearsal: inspect the artifact index for the report-only rehearsal command after M16 approval is approved',
+        ),
+      );
+      expect(stdout, contains('blocked m17_execution_rehearsal evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -3866,6 +3895,7 @@ void main() {
     expect(manualProcessChecklist, contains('m16ApprovalPacketGate'));
     expect(manualProcessChecklist, contains('m17ExecutionRehearsalGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
+    expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('approvalBlockers'));
     expect(manualProcessChecklist, contains('blocked_review_evidence'));
     expect(
@@ -4303,6 +4333,7 @@ void main() {
       expect(stdout, contains('M15 action proposal status: ready'));
       expect(stdout, contains('M15 LLM review status: ready'));
       expect(stdout, contains('M16 approval packet status: ready'));
+      expect(stdout, contains('M17 execution rehearsal status: missing'));
       expect(
         stdout,
         contains('M16 approval packet approval status: pending_user_approval'),
@@ -4358,13 +4389,21 @@ void main() {
       expect(handoff, contains('M15 action proposal status: ready'));
       expect(handoff, contains('M15 LLM review status: ready'));
       expect(handoff, contains('M16 approval packet status: ready'));
+      expect(handoff, contains('M17 execution rehearsal status: missing'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
       expect(handoff, contains('M15 LLM Review Evidence'));
       expect(handoff, contains('M16 Approval Packet Evidence'));
+      expect(handoff, contains('M17 Execution Rehearsal Evidence'));
       expect(handoff, contains('M15 action proposal blockers: none'));
       expect(handoff, contains('M15 LLM review blockers: none'));
       expect(handoff, contains('M16 approval packet blockers: none'));
+      expect(
+        handoff,
+        contains(
+          'M17 execution rehearsal blockers: missing_m17_execution_rehearsal',
+        ),
+      );
       expect(
         handoff,
         contains(
@@ -4970,6 +5009,95 @@ void main() {
       );
       expect(handoff, contains('| m15_handoff_ready | blocked |'));
       expect(handoff, contains('Blocked review evidence: m16_approval_packet'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run surfaces blocked M17 execution rehearsal', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m17_blocked_',
+    );
+    try {
+      final m17Dir = Directory(
+        '${root.path}/macos_computer_use_m17_execution_rehearsal_1',
+      )..createSync();
+      File('${m17Dir.path}/execution_rehearsal.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m17_execution_rehearsal",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m17_execution_rehearsal",
+  "milestone": "M17",
+  "previousMilestone": "M16",
+  "ready": false,
+  "approvalStatus": "pending_user_approval",
+  "executionBoundary": "no_desktop_action_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "executionPhases": [
+    {
+      "id": "observe_again",
+      "mode": "read_only",
+      "approved": true
+    },
+    {
+      "id": "type_exact_text",
+      "mode": "future_user_approved_input",
+      "approved": false
+    }
+  ],
+  "m17ExecutionRehearsalGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "approval_status_approved",
+        "ok": false,
+        "nextAction": "Ask the user to approve every required M16 approval before any execution rehearsal advances."
+      }
+    ],
+    "blockers": ["approval_status_approved"],
+    "nextAction": "Resolve blocked M17 rehearsal checks before future execution."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M17 execution rehearsal status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M17 execution rehearsal next action: Resolve blocked M17 rehearsal checks before future execution.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m17_execution_rehearsal'),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M17 Execution Rehearsal Evidence'));
+      expect(handoff, contains('M17 execution rehearsal status: blocked'));
+      expect(
+        handoff,
+        contains('M17 execution rehearsal blockers: approval_status_approved'),
+      );
+      expect(handoff, contains('| approval_status_approved | blocked |'));
+      expect(
+        handoff,
+        contains('Blocked review evidence: m17_execution_rehearsal'),
+      );
     } finally {
       root.deleteSync(recursive: true);
     }

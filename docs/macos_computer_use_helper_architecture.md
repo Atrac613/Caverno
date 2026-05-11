@@ -312,7 +312,9 @@ Follow-on milestones:
   `no_tcc_operation`, and `no_llm_call`. It blocks unless the source M16 packet
   is ready and `approvalStatus` is `approved`, and it still must not click,
   type, navigate, submit, post, purchase, grant TCC, operate System Settings,
-  or call an LLM.
+  or call an LLM. MVP sign-off and the readiness artifact index surface the
+  latest rehearsal as optional review evidence and block final aggregation when
+  a discovered rehearsal is not ready.
 
 ## Computer Use Live Canary
 

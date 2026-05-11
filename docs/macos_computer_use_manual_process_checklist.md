@@ -177,6 +177,9 @@ Use this pass after the M16 approval packet is ready and explicitly approved:
 9. If the rehearsal is blocked, return to M16 and collect explicit user
    approval for the exact text, target label, and public action label before
    preparing the rehearsal again.
+10. Review the MVP sign-off handoff or readiness artifact index before final
+    aggregation; blocked discovered `m17_execution_rehearsal` evidence stops
+    final aggregation until the rehearsal is ready.
 
 Do not use this rehearsal to click, type, navigate, submit, post, purchase,
 grant TCC, operate System Settings, or call an LLM. It is only the report-only

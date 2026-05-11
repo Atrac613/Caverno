@@ -106,6 +106,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m15Entry;
     ReadinessArtifactEntry? m15LlmReviewEntry;
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
+    ReadinessArtifactEntry? m17ExecutionRehearsalEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -115,6 +116,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm16_approval_packet') {
         m16ApprovalPacketEntry = entry;
+      }
+      if (entry.id == 'm17_execution_rehearsal') {
+        m17ExecutionRehearsalEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -181,6 +185,28 @@ class ReadinessArtifactIndex {
           '- Execution boundary: ${m16ApprovalPacketEntry.details['executionBoundary'] ?? 'unknown'}',
         );
     }
+    if (m17ExecutionRehearsalEntry != null &&
+        m17ExecutionRehearsalEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M17 Execution Rehearsal Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m17ExecutionRehearsalEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Approval status: ${m17ExecutionRehearsalEntry.details['approvalStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution phases: ${m17ExecutionRehearsalEntry.details['executionPhaseCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m17ExecutionRehearsalEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m17ExecutionRehearsalEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -231,6 +257,15 @@ class ReadinessArtifactIndex {
         ..writeln()
         ..writeln('```bash')
         ..writeln(mvpFinalSignoffRehearsal.m16ApprovalPacketCommand)
+        ..writeln('```');
+    }
+    if (mvpFinalSignoffRehearsal.m17ExecutionRehearsalCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M17 execution rehearsal command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m17ExecutionRehearsalCommand)
         ..writeln('```');
     }
     buffer
@@ -285,6 +320,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m15ActionProposalCommand,
     this.m15LlmReviewCommand,
     this.m16ApprovalPacketCommand,
+    this.m17ExecutionRehearsalCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -299,6 +335,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m15ActionProposalCommand;
   final String? m15LlmReviewCommand;
   final String? m16ApprovalPacketCommand;
+  final String? m17ExecutionRehearsalCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -318,6 +355,7 @@ class ReadinessFinalSignoffRehearsal {
       'm15ActionProposalCommand': m15ActionProposalCommand,
       'm15LlmReviewCommand': m15LlmReviewCommand,
       'm16ApprovalPacketCommand': m16ApprovalPacketCommand,
+      'm17ExecutionRehearsalCommand': m17ExecutionRehearsalCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -486,6 +524,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m16ApprovalPacketNextAction,
       details: _m16ApprovalPacketDetails,
     ),
+    _latestEntry(
+      'm17_execution_rehearsal',
+      'Latest M17 execution rehearsal',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m17_execution_rehearsal',
+      parentPrefix: 'macos_computer_use_m17_execution_rehearsal_',
+      fileName: 'execution_rehearsal.json',
+      status: _m17ExecutionRehearsalStatus,
+      nextAction: _m17ExecutionRehearsalNextAction,
+      details: _m17ExecutionRehearsalDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -547,6 +597,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   final m15ActionProposalCommand = _m15ActionProposalCommand(reportRoot, byId);
   final m15LlmReviewCommand = _m15LlmReviewCommand(reportRoot, byId);
   final m16ApprovalPacketCommand = _m16ApprovalPacketCommand(reportRoot, byId);
+  final m17ExecutionRehearsalCommand = _m17ExecutionRehearsalCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -571,6 +625,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m15ActionProposalCommand: m15ActionProposalCommand,
     m15LlmReviewCommand: m15LlmReviewCommand,
     m16ApprovalPacketCommand: m16ApprovalPacketCommand,
+    m17ExecutionRehearsalCommand: m17ExecutionRehearsalCommand,
   );
 }
 
@@ -582,7 +637,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
         (entry) =>
             (entry.id == 'm15_action_proposal_handoff' ||
                 entry.id == 'm15_llm_review_canary' ||
-                entry.id == 'm16_approval_packet') &&
+                entry.id == 'm16_approval_packet' ||
+                entry.id == 'm17_execution_rehearsal') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -715,6 +771,28 @@ String? _m16ApprovalPacketCommand(
     command.addAll(<String>['--m15-llm-review', reviewPath]);
   }
   return command.map(_shellQuote).join(' ');
+}
+
+String? _m17ExecutionRehearsalCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final packetEntry = entriesById['m16_approval_packet'];
+  final packetPath = packetEntry?.path ?? '';
+  if (packetPath.isEmpty || packetEntry?.status != 'ready') {
+    return null;
+  }
+  if (packetEntry?.details['approvalStatus'] != 'approved') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m17_execution_rehearsal.sh',
+    '--root',
+    reportRoot.path,
+    '--m16-packet',
+    packetPath,
+  ].map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -1113,6 +1191,67 @@ Map<String, Object?> _m16ApprovalPacketDetails(Map<String, dynamic> json) {
     'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
     'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
     'approvalBlockers': _jsonStringList(json['approvalBlockers']),
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m17ExecutionRehearsalStatus(Map<String, dynamic> json) {
+  final gate = json['m17ExecutionRehearsalGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m17ExecutionRehearsalNextAction(Map<String, dynamic> json) {
+  final gate = json['m17ExecutionRehearsalGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m17ExecutionRehearsalStatus(json);
+  if (status == 'ready') {
+    return 'M17 execution rehearsal is ready for future user-operated execution review.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve blocked M17 rehearsal checks before future execution.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m17ExecutionRehearsalDetails(Map<String, dynamic> json) {
+  final gate = json['m17ExecutionRehearsalGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final approvedValues = json['approvedValues'];
+  final approvedValuesMap = approvedValues is Map<String, dynamic>
+      ? approvedValues
+      : null;
+  return <String, Object?>{
+    'approvalStatus': json['approvalStatus']?.toString(),
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'executionPhaseCount': _jsonList(json['executionPhases']).length,
+    if (approvedValuesMap != null) ...<String, Object?>{
+      'approvedExactText': approvedValuesMap['exactText']?.toString(),
+      'approvedTargetLabel': approvedValuesMap['targetLabel']?.toString(),
+      'approvedPublicActionLabel': approvedValuesMap['publicActionLabel']
+          ?.toString(),
+    },
     if (gateMap != null) ...<String, Object?>{
       'gateStatus': gateMap['status']?.toString(),
       'gateReady': gateMap['ready'],

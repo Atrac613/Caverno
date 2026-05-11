@@ -656,6 +656,12 @@ void main() {
       final m16ApprovalPacketPath =
           '${root.path}/macos_computer_use_m16_approval_packet_700/approval_packet.json';
       _writeJson(File(m16ApprovalPacketPath), _m16ApprovalPacket(ready: true));
+      final m17ExecutionRehearsalPath =
+          '${root.path}/macos_computer_use_m17_execution_rehearsal_800/execution_rehearsal.json';
+      _writeJson(
+        File(m17ExecutionRehearsalPath),
+        _m17ExecutionRehearsal(ready: true),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -669,6 +675,7 @@ void main() {
       expect(entryIds, contains('m15_action_proposal_handoff'));
       expect(entryIds, contains('m15_llm_review_canary'));
       expect(entryIds, contains('m16_approval_packet'));
+      expect(entryIds, contains('m17_execution_rehearsal'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -881,6 +888,29 @@ void main() {
         index.toMarkdown(),
         contains('Execution boundary: no_desktop_action_report_only'),
       );
+      final m17Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm17_execution_rehearsal',
+      );
+      expect(m17Entry.exists, isTrue);
+      expect(m17Entry.path, m17ExecutionRehearsalPath);
+      expect(m17Entry.status, 'ready');
+      expect(
+        m17Entry.nextAction,
+        'M17 execution rehearsal is ready for future user-operated execution review.',
+      );
+      expect(m17Entry.details['gateStatus'], 'ready');
+      expect(m17Entry.details['approvalStatus'], 'approved');
+      expect(m17Entry.details['executionPhaseCount'], 4);
+      expect(index.toMarkdown(), contains('Latest M17 execution rehearsal'));
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M17 execution rehearsal | true | ready |'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M17 Execution Rehearsal Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Execution phases: 4'));
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
@@ -1461,6 +1491,92 @@ void main() {
       expect(index.toMarkdown(), contains('Gate status: blocked'));
     });
 
+    test('artifact index blocks final aggregation on blocked M17 rehearsal', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m17_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m17ExecutionRehearsalPath =
+          '${root.path}/macos_computer_use_m17_execution_rehearsal_800/execution_rehearsal.json';
+      _writeJson(
+        File(m17ExecutionRehearsalPath),
+        _m17ExecutionRehearsal(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm17_execution_rehearsal',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m17ExecutionRehearsalPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve blocked M17 rehearsal checks before future execution.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(
+        entry.details['gateBlockers'],
+        contains('approval_status_approved'),
+      );
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m17_execution_rehearsal'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m17_execution_rehearsal'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M17 Execution Rehearsal Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(
+        index.toMarkdown(),
+        contains('Blockers: approval_status_approved'),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -1609,6 +1725,12 @@ void main() {
       final m15HandoffPath =
           '${root.path}/macos_computer_use_m15_action_proposal_handoff_1/action_proposal_handoff.json';
       _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: true));
+      final m16ApprovalPacketPath =
+          '${root.path}/macos_computer_use_m16_approval_packet_1/approval_packet.json';
+      _writeJson(
+        File(m16ApprovalPacketPath),
+        _m16ApprovalPacket(ready: true, approved: true),
+      );
 
       final result = await Process.run('dart', [
         'run',
@@ -1656,6 +1778,13 @@ void main() {
           'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath',
         ),
       );
+      expect(stdout, contains('M17 execution rehearsal command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --root ${root.path} --m16-packet $m16ApprovalPacketPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1685,6 +1814,13 @@ void main() {
           'bash tool/run_macos_computer_use_m16_approval_packet.sh --root ${root.path} --m15-handoff $m15HandoffPath',
         ),
       );
+      expect(markdown, contains('M17 execution rehearsal command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --root ${root.path} --m16-packet $m16ApprovalPacketPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -1706,6 +1842,10 @@ void main() {
       expect(
         rehearsal['m16ApprovalPacketCommand'],
         contains('run_macos_computer_use_m16_approval_packet.sh'),
+      );
+      expect(
+        rehearsal['m17ExecutionRehearsalCommand'],
+        contains('run_macos_computer_use_m17_execution_rehearsal.sh'),
       );
     });
   });
@@ -2216,7 +2356,20 @@ Map<String, dynamic> _m15LlmReviewSummary({required bool ready}) {
   };
 }
 
-Map<String, dynamic> _m16ApprovalPacket({required bool ready}) {
+Map<String, dynamic> _m16ApprovalPacket({
+  required bool ready,
+  bool approved = false,
+}) {
+  final approvalStatus = ready
+      ? approved
+            ? 'approved'
+            : 'pending_user_approval'
+      : 'blocked';
+  final approvalBlockers = ready
+      ? approved
+            ? <String>[]
+            : <String>['exact_text', 'target_label', 'public_action_label']
+      : <String>['m15_handoff_ready'];
   return <String, dynamic>{
     'schemaName': 'macos_computer_use_m16_approval_packet',
     'schemaVersion': 1,
@@ -2224,7 +2377,7 @@ Map<String, dynamic> _m16ApprovalPacket({required bool ready}) {
     'milestone': 'M16',
     'previousMilestone': 'M15',
     'ready': ready,
-    'approvalStatus': ready ? 'pending_user_approval' : 'blocked',
+    'approvalStatus': approvalStatus,
     'executionBoundary': 'no_desktop_action_report_only',
     'desktopActionBoundary': 'no_desktop_action',
     'tccBoundary': 'no_tcc_operation',
@@ -2259,17 +2412,20 @@ Map<String, dynamic> _m16ApprovalPacket({required bool ready}) {
       <String, Object?>{
         'id': 'exact_text',
         'required': true,
-        'status': 'pending_user_approval',
+        'status': approved ? 'approved' : 'pending_user_approval',
+        if (approved) 'approvedValue': 'Good morning from Caverno',
       },
       <String, Object?>{
         'id': 'target_label',
         'required': true,
-        'status': 'pending_user_approval',
+        'status': approved ? 'approved' : 'pending_user_approval',
+        if (approved) 'approvedValue': 'What is happening?',
       },
       <String, Object?>{
         'id': 'public_action_label',
         'required': true,
-        'status': 'pending_separate_user_approval',
+        'status': approved ? 'approved' : 'pending_separate_user_approval',
+        if (approved) 'approvedValue': 'Post',
       },
       <String, Object?>{
         'id': 'post_action_observation',
@@ -2277,20 +2433,77 @@ Map<String, dynamic> _m16ApprovalPacket({required bool ready}) {
         'status': 'required_after_future_action',
       },
     ],
-    'approvalBlockers': ready
-        ? <String>['exact_text', 'target_label', 'public_action_label']
-        : <String>['m15_handoff_ready'],
+    if (approved)
+      'approvedValues': <String, Object?>{
+        'exactText': 'Good morning from Caverno',
+        'targetLabel': 'What is happening?',
+        'publicActionLabel': 'Post',
+      },
+    'approvalBlockers': approvalBlockers,
     'm16ApprovalPacketGate': <String, Object?>{
       'status': ready ? 'ready' : 'blocked',
       'ready': ready,
       'blockers': ready ? <String>[] : <String>['m15_handoff_ready'],
-      'approvalStatus': ready ? 'pending_user_approval' : 'blocked',
-      'approvalBlockers': ready
-          ? <String>['exact_text', 'target_label', 'public_action_label']
-          : <String>['m15_handoff_ready'],
+      'approvalStatus': approvalStatus,
+      'approvalBlockers': approvalBlockers,
       'nextAction': ready
-          ? 'Ask the user to approve exact text, target, and any public action before the future execution milestone.'
+          ? approved
+                ? 'M16 approval packet is approved for M17 execution rehearsal.'
+                : 'Ask the user to approve exact text, target, and any public action before the future execution milestone.'
           : 'Resolve blocked M15 evidence before preparing the M16 approval packet.',
+    },
+  };
+}
+
+Map<String, dynamic> _m17ExecutionRehearsal({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m17_execution_rehearsal',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m17_execution_rehearsal',
+    'milestone': 'M17',
+    'previousMilestone': 'M16',
+    'ready': ready,
+    'approvalStatus': ready ? 'approved' : 'pending_user_approval',
+    'executionBoundary': 'no_desktop_action_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'approvedValues': <String, Object?>{
+      'exactText': ready ? 'Good morning from Caverno' : null,
+      'targetLabel': ready ? 'What is happening?' : null,
+      'publicActionLabel': ready ? 'Post' : null,
+    },
+    'executionPhases': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'observe_again',
+        'mode': 'read_only',
+        'approved': true,
+      },
+      <String, Object?>{
+        'id': 'focus_target',
+        'mode': 'future_user_approved_desktop_action',
+        'approved': ready,
+        if (ready) 'approvedValue': 'What is happening?',
+      },
+      <String, Object?>{
+        'id': 'type_exact_text',
+        'mode': 'future_user_approved_input',
+        'approved': ready,
+        if (ready) 'approvedValue': 'Good morning from Caverno',
+      },
+      <String, Object?>{
+        'id': 'post_action_observation',
+        'mode': 'read_only_after_future_action',
+        'approved': true,
+      },
+    ],
+    'm17ExecutionRehearsalGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['approval_status_approved'],
+      'nextAction': ready
+          ? 'M17 execution rehearsal is ready for future user-operated execution review.'
+          : 'Resolve blocked M17 rehearsal checks before future execution.',
     },
   };
 }

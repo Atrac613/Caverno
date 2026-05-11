@@ -105,6 +105,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M16 approval packet command:');
     stdout.writeln(rehearsal.m16ApprovalPacketCommand);
   }
+  if (rehearsal.m17ExecutionRehearsalCommand != null) {
+    stdout.writeln('M17 execution rehearsal command:');
+    stdout.writeln(rehearsal.m17ExecutionRehearsalCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {
