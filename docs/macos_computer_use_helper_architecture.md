@@ -302,6 +302,9 @@ Follow-on milestones:
   navigate, submit, post, purchase, grant TCC, or operate System Settings.
   Missing approvals are surfaced as `approvalBlockers`, while the packet gate
   remains focused on whether the M15 evidence is ready and boundary-preserving.
+  MVP sign-off and the readiness artifact index surface the latest packet as
+  optional review evidence and block final aggregation when a discovered packet
+  is not ready.
 
 ## Computer Use Live Canary
 

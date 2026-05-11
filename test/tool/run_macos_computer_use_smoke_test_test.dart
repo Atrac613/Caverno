@@ -3129,10 +3129,17 @@ void main() {
       expect(stdout, contains('Desktop action canary status: not provided'));
       expect(stdout, contains('M15 action proposal status: missing'));
       expect(stdout, contains('M15 LLM review status: missing'));
+      expect(stdout, contains('M16 approval packet status: missing'));
       expect(
         stdout,
         contains(
           'M15 action proposal next action: Run the M15 action proposal handoff after M14 observe-only evidence is ready.',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'M16 approval packet next action: Run the M16 approval packet after the M15 action proposal handoff and M15 LLM review are ready.',
         ),
       );
       expect(stdout, contains('MVP sign-off outputs:'));
@@ -3226,9 +3233,11 @@ void main() {
       expect(handoff, contains('Desktop action canary status: not provided'));
       expect(handoff, contains('M15 action proposal status: missing'));
       expect(handoff, contains('M15 LLM review status: missing'));
+      expect(handoff, contains('M16 approval packet status: missing'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
       expect(handoff, contains('M15 LLM Review Evidence'));
+      expect(handoff, contains('M16 Approval Packet Evidence'));
       expect(
         handoff,
         contains(
@@ -3238,6 +3247,10 @@ void main() {
       expect(
         handoff,
         contains('M15 LLM review blockers: missing_m15_llm_review_canary'),
+      );
+      expect(
+        handoff,
+        contains('M16 approval packet blockers: missing_m16_approval_packet'),
       );
       expect(
         handoff,
@@ -3357,6 +3370,8 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('M15 action proposal'));
     expect(mvpReadinessPreflightScript, contains('M15 LLM review'));
     expect(mvpReadinessPreflightScript, contains('m15_llm_review_canary'));
+    expect(mvpReadinessPreflightScript, contains('M16 approval packet'));
+    expect(mvpReadinessPreflightScript, contains('m16_approval_packet'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -3438,6 +3453,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m15_llm_review_canary evidence'));
+      expect(
+        stdout,
+        contains(
+          'M16 approval packet: inspect the artifact index for the report-only approval packet command after M15 evidence is ready',
+        ),
+      );
+      expect(stdout, contains('blocked m16_approval_packet evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -3940,6 +3962,94 @@ void main() {
   ]
 }
 ''');
+      final m16Dir = Directory(
+        '${root.path}/macos_computer_use_m16_approval_packet_1',
+      )..createSync();
+      final m16ApprovalPacket = File('${m16Dir.path}/approval_packet.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m16_approval_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m16_approval_packet",
+  "milestone": "M16",
+  "previousMilestone": "M15",
+  "ready": true,
+  "approvalStatus": "pending_user_approval",
+  "executionBoundary": "no_desktop_action_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "sourceM15Handoff": "${m15Handoff.path}",
+  "sourceM15LlmReview": "${m15LlmReviewSummary.path}",
+  "exactTextCandidates": [
+    {
+      "source": "targetIntent",
+      "text": "Good morning from Caverno",
+      "status": "requires_user_approval"
+    }
+  ],
+  "textEntryTargets": [
+    {
+      "label": "What's happening?",
+      "role": "compose_text_field",
+      "risk": "input"
+    }
+  ],
+  "publicActionTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action"
+    }
+  ],
+  "requiredApprovals": [
+    {
+      "id": "observe_again",
+      "required": true,
+      "status": "read_only_allowed"
+    },
+    {
+      "id": "exact_text",
+      "required": true,
+      "status": "pending_user_approval"
+    },
+    {
+      "id": "target_label",
+      "required": true,
+      "status": "pending_user_approval"
+    },
+    {
+      "id": "public_action_label",
+      "required": true,
+      "status": "pending_separate_user_approval"
+    }
+  ],
+  "approvalBlockers": [
+    "exact_text",
+    "target_label",
+    "public_action_label"
+  ],
+  "m16ApprovalPacketGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "m15_handoff_ready",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": [],
+    "approvalStatus": "pending_user_approval",
+    "approvalBlockers": [
+      "exact_text",
+      "target_label",
+      "public_action_label"
+    ],
+    "nextAction": "Ask the user to approve exact text, target, and any public action before the future execution milestone."
+  }
+}
+''');
 
       final result = await Process.run('bash', [
         'tool/run_macos_computer_use_mvp_signoff.sh',
@@ -3955,6 +4065,11 @@ void main() {
       expect(stdout, contains('LLM canary status: discovered'));
       expect(stdout, contains('M15 action proposal status: ready'));
       expect(stdout, contains('M15 LLM review status: ready'));
+      expect(stdout, contains('M16 approval packet status: ready'));
+      expect(
+        stdout,
+        contains('M16 approval packet approval status: pending_user_approval'),
+      );
       expect(
         stdout,
         contains(
@@ -4005,11 +4120,24 @@ void main() {
       expect(handoff, contains('LLM canary status: discovered'));
       expect(handoff, contains('M15 action proposal status: ready'));
       expect(handoff, contains('M15 LLM review status: ready'));
+      expect(handoff, contains('M16 approval packet status: ready'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
       expect(handoff, contains('M15 LLM Review Evidence'));
+      expect(handoff, contains('M16 Approval Packet Evidence'));
       expect(handoff, contains('M15 action proposal blockers: none'));
       expect(handoff, contains('M15 LLM review blockers: none'));
+      expect(handoff, contains('M16 approval packet blockers: none'));
+      expect(
+        handoff,
+        contains(
+          'M16 approval packet approval blockers: exact_text, target_label, public_action_label',
+        ),
+      );
+      expect(
+        handoff,
+        contains('| exact_text | true | pending_user_approval | - |'),
+      );
       expect(
         handoff,
         contains(
@@ -4083,6 +4211,7 @@ void main() {
       expect(handoff, contains(realAppObserveSummary.path));
       expect(handoff, contains(m15Handoff.path));
       expect(handoff, contains(m15LlmReviewSummary.path));
+      expect(handoff, contains(m16ApprovalPacket.path));
       expect(
         handoff,
         contains(
@@ -4526,6 +4655,84 @@ void main() {
           'Resolve M15 LLM review boundary failures before any action proposal execution.',
         ),
       );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run surfaces blocked M16 approval packet', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m16_blocked_',
+    );
+    try {
+      final m16Dir = Directory(
+        '${root.path}/macos_computer_use_m16_approval_packet_1',
+      )..createSync();
+      File('${m16Dir.path}/approval_packet.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m16_approval_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m16_approval_packet",
+  "milestone": "M16",
+  "previousMilestone": "M15",
+  "ready": false,
+  "approvalStatus": "blocked",
+  "executionBoundary": "no_desktop_action_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "approvalBlockers": ["m15_handoff_ready"],
+  "m16ApprovalPacketGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "m15_handoff_ready",
+        "ok": false,
+        "nextAction": "Run the M15 action proposal handoff until m15ActionProposalGate.status is ready."
+      }
+    ],
+    "blockers": ["m15_handoff_ready"],
+    "approvalStatus": "blocked",
+    "approvalBlockers": ["m15_handoff_ready"],
+    "nextAction": "Resolve blocked M15 evidence before preparing the M16 approval packet."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M16 approval packet status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M16 approval packet next action: Resolve blocked M15 evidence before preparing the M16 approval packet.',
+        ),
+      );
+      expect(stdout, contains('Blocked review evidence: m16_approval_packet'));
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M16 Approval Packet Evidence'));
+      expect(handoff, contains('M16 approval packet status: blocked'));
+      expect(
+        handoff,
+        contains('M16 approval packet blockers: m15_handoff_ready'),
+      );
+      expect(
+        handoff,
+        contains('M16 approval packet approval blockers: m15_handoff_ready'),
+      );
+      expect(handoff, contains('| m15_handoff_ready | blocked |'));
+      expect(handoff, contains('Blocked review evidence: m16_approval_packet'));
     } finally {
       root.deleteSync(recursive: true);
     }

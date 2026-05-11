@@ -208,6 +208,12 @@ m15_llm_review = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m15_llm_review_canary_summary"
 )
+m16_approval_packet = latest_matching(
+    lambda path, decoded: path.name == "approval_packet.json"
+    and path.parent.name.startswith("macos_computer_use_m16_approval_packet_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m16_approval_packet"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -221,6 +227,7 @@ for name, path in [
     ("DISCOVERED_LLM_CANARY_SUMMARY", llm),
     ("DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF", m15_action_proposal),
     ("DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY", m15_llm_review),
+    ("DISCOVERED_M16_APPROVAL_PACKET", m16_approval_packet),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -237,6 +244,12 @@ M15_LLM_REVIEW_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m15_llm_review_fragme
 M15_LLM_REVIEW_STATUS="missing"
 M15_LLM_REVIEW_NEXT_ACTION="Run the M15 LLM review canary after the M15 action proposal handoff is ready."
 M15_LLM_REVIEW_BOUNDARY="review-only, no tool execution, no TCC, no System Settings, no desktop actions"
+M16_APPROVAL_PACKET="${DISCOVERED_M16_APPROVAL_PACKET:-}"
+M16_APPROVAL_PACKET_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m16_approval_packet_fragment.md"
+M16_APPROVAL_PACKET_STATUS="missing"
+M16_APPROVAL_PACKET_APPROVAL_STATUS="missing"
+M16_APPROVAL_PACKET_NEXT_ACTION="Run the M16 approval packet after the M15 action proposal handoff and M15 LLM review are ready."
+M16_APPROVAL_PACKET_BOUNDARY="report-only, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -564,6 +577,160 @@ else
 EOF
 fi
 
+if [[ -n "${M16_APPROVAL_PACKET}" && -f "${M16_APPROVAL_PACKET}" ]]; then
+  m16_approval_packet_values="$(
+    M16_APPROVAL_PACKET="${M16_APPROVAL_PACKET}" M16_APPROVAL_PACKET_FRAGMENT="${M16_APPROVAL_PACKET_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M16_APPROVAL_PACKET"])
+fragment_path = Path(os.environ["M16_APPROVAL_PACKET_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m16ApprovalPacketGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+approval_status = str(
+    (summary.get("approvalStatus") if isinstance(summary, dict) else None)
+    or gate.get("approvalStatus")
+    or "unknown"
+)
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    next_action = (
+        "M16 approval packet is ready for user approval review."
+        if status == "ready"
+        else "Resolve blocked M15 evidence before preparing the M16 approval packet."
+    )
+blockers = as_list(gate.get("blockers"))
+approval_blockers = as_list(
+    (summary.get("approvalBlockers") if isinstance(summary, dict) else None)
+    or gate.get("approvalBlockers")
+)
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m16_approval_packet_unreadable"]
+boundary = "report-only"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+required_approvals = as_list(
+    summary.get("requiredApprovals") if isinstance(summary, dict) else []
+)
+exact_text_candidates = as_list(
+    summary.get("exactTextCandidates") if isinstance(summary, dict) else []
+)
+text_entry_targets = as_list(
+    summary.get("textEntryTargets") if isinstance(summary, dict) else []
+)
+public_action_targets = as_list(
+    summary.get("publicActionTargets") if isinstance(summary, dict) else []
+)
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M16 Approval Packet Evidence",
+    "",
+    f"- M16 approval packet: `{summary_path}`",
+    f"- M16 approval packet status: {status}",
+    f"- M16 approval packet approval status: {approval_status}",
+    f"- M16 approval packet boundary: {boundary}",
+    f"- M16 approval packet next action: {next_action}",
+    f"- M16 approval packet blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M16 approval packet approval blockers: {', '.join(str(item) for item in approval_blockers) if approval_blockers else 'none'}",
+    f"- M16 exact text candidates: {len(exact_text_candidates)}",
+    f"- M16 text-entry targets: {len(text_entry_targets)}",
+    f"- M16 public-action targets: {len(public_action_targets)}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+if required_approvals:
+    lines.extend([
+        "",
+        "| Approval | Required | Status | Value |",
+        "| --- | --- | --- | --- |",
+    ])
+    for approval in required_approvals:
+        if not isinstance(approval, dict):
+            continue
+        lines.append(
+            "| {id} | {required} | {status} | {value} |".format(
+                id=cell(approval.get("id")),
+                required=cell(str(approval.get("required", False)).lower()),
+                status=cell(approval.get("status")),
+                value=cell(approval.get("approvedValue")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M16_APPROVAL_PACKET_STATUS={shlex.quote(status)}")
+print(f"M16_APPROVAL_PACKET_APPROVAL_STATUS={shlex.quote(approval_status)}")
+print(f"M16_APPROVAL_PACKET_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M16_APPROVAL_PACKET_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m16_approval_packet_values}"
+else
+  cat >"${M16_APPROVAL_PACKET_FRAGMENT}" <<EOF
+
+## M16 Approval Packet Evidence
+
+- M16 approval packet: \`not discovered\`
+- M16 approval packet status: missing
+- M16 approval packet approval status: ${M16_APPROVAL_PACKET_APPROVAL_STATUS}
+- M16 approval packet boundary: ${M16_APPROVAL_PACKET_BOUNDARY}
+- M16 approval packet next action: ${M16_APPROVAL_PACKET_NEXT_ACTION}
+- M16 approval packet blockers: missing_m16_approval_packet
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -662,6 +829,9 @@ if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != 
 fi
 if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m15_llm_review_canary)
+fi
+if [[ -n "${M16_APPROVAL_PACKET}" && "${M16_APPROVAL_PACKET_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m16_approval_packet)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -926,6 +1096,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - M15 action proposal status: ${M15_ACTION_PROPOSAL_STATUS}
 - M15 LLM review canary: ${M15_LLM_REVIEW_CANARY_SUMMARY:-not discovered}
 - M15 LLM review status: ${M15_LLM_REVIEW_STATUS}
+- M16 approval packet: ${M16_APPROVAL_PACKET:-not discovered}
+- M16 approval packet status: ${M16_APPROVAL_PACKET_STATUS}
+- M16 approval packet approval status: ${M16_APPROVAL_PACKET_APPROVAL_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -941,6 +1114,10 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m15_llm_review_canary\`: ${M15_LLM_REVIEW_STATUS}
 - M15 LLM review boundary: ${M15_LLM_REVIEW_BOUNDARY}
 - M15 LLM review next action: ${M15_LLM_REVIEW_NEXT_ACTION}
+- \`m16_approval_packet\`: ${M16_APPROVAL_PACKET_STATUS}
+- M16 approval packet approval status: ${M16_APPROVAL_PACKET_APPROVAL_STATUS}
+- M16 approval packet boundary: ${M16_APPROVAL_PACKET_BOUNDARY}
+- M16 approval packet next action: ${M16_APPROVAL_PACKET_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -1018,6 +1195,7 @@ cat "${LLM_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M15_LLM_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M16_APPROVAL_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -1038,6 +1216,9 @@ cat "${M15_LLM_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
       echo "- ${M15_LLM_REVIEW_NEXT_ACTION}"
+    fi
+    if [[ -n "${M16_APPROVAL_PACKET}" && "${M16_APPROVAL_PACKET_STATUS}" != "ready" ]]; then
+      echo "- ${M16_APPROVAL_PACKET_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -1073,6 +1254,11 @@ echo "  M15 LLM review canary: ${M15_LLM_REVIEW_CANARY_SUMMARY:-not discovered}"
 echo "  M15 LLM review status: ${M15_LLM_REVIEW_STATUS}"
 echo "  M15 LLM review boundary: ${M15_LLM_REVIEW_BOUNDARY}"
 echo "  M15 LLM review next action: ${M15_LLM_REVIEW_NEXT_ACTION}"
+echo "  M16 approval packet: ${M16_APPROVAL_PACKET:-not discovered}"
+echo "  M16 approval packet status: ${M16_APPROVAL_PACKET_STATUS}"
+echo "  M16 approval packet approval status: ${M16_APPROVAL_PACKET_APPROVAL_STATUS}"
+echo "  M16 approval packet boundary: ${M16_APPROVAL_PACKET_BOUNDARY}"
+echo "  M16 approval packet next action: ${M16_APPROVAL_PACKET_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -1121,6 +1307,9 @@ if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != 
 fi
 if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
   echo "  - ${M15_LLM_REVIEW_NEXT_ACTION}"
+fi
+if [[ -n "${M16_APPROVAL_PACKET}" && "${M16_APPROVAL_PACKET_STATUS}" != "ready" ]]; then
+  echo "  - ${M16_APPROVAL_PACKET_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

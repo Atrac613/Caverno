@@ -151,6 +151,9 @@ milestone needs explicit user approvals before any execution step:
     milestone.
 11. If all required approvals are supplied with the command flags, confirm
     `approvalStatus: approved`.
+12. Review the MVP sign-off handoff or readiness artifact index before final
+    aggregation; blocked discovered `m16_approval_packet` evidence stops final
+    aggregation until the packet is ready.
 
 Do not use this approval packet to click, type, navigate, submit, post,
 purchase, grant TCC, or operate System Settings. It is only the report-only
