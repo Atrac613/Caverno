@@ -159,6 +159,29 @@ Do not use this approval packet to click, type, navigate, submit, post,
 purchase, grant TCC, or operate System Settings. It is only the report-only
 approval artifact for a future execution milestone.
 
+## M17 Execution Rehearsal
+
+Use this pass after the M16 approval packet is ready and explicitly approved:
+
+1. Select the approved M16 `approval_packet.json`.
+2. Run
+   `bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --m16-packet <approval_packet.json>`.
+3. Confirm `m17ExecutionRehearsalGate.status` is `ready`.
+4. Confirm `executionBoundary` is `no_desktop_action_report_only`.
+5. Confirm `desktopActionBoundary: no_desktop_action`.
+6. Confirm `tccBoundary: no_tcc_operation`.
+7. Confirm `llmBoundary: no_llm_call`.
+8. Confirm `executionPhases` separates `observe_again`, `focus_target`,
+   `type_exact_text`, any `confirm_public_action`, and
+   `post_action_observation`.
+9. If the rehearsal is blocked, return to M16 and collect explicit user
+   approval for the exact text, target label, and public action label before
+   preparing the rehearsal again.
+
+Do not use this rehearsal to click, type, navigate, submit, post, purchase,
+grant TCC, operate System Settings, or call an LLM. It is only the report-only
+execution checklist for a future user-operated milestone.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

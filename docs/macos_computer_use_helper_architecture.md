@@ -305,6 +305,14 @@ Follow-on milestones:
   MVP sign-off and the readiness artifact index surface the latest packet as
   optional review evidence and block final aggregation when a discovered packet
   is not ready.
+- M17: Convert an approved M16 approval packet into a report-only execution
+  rehearsal. The M17 execution rehearsal turns the approved exact text, target,
+  public-action label, and post-action observation boundary into a future
+  execution checklist while preserving `no_desktop_action`,
+  `no_tcc_operation`, and `no_llm_call`. It blocks unless the source M16 packet
+  is ready and `approvalStatus` is `approved`, and it still must not click,
+  type, navigate, submit, post, purchase, grant TCC, operate System Settings,
+  or call an LLM.
 
 ## Computer Use Live Canary
 

@@ -32,6 +32,7 @@ void main() {
   late String m15ActionProposalHandoffScript;
   late String m15LlmReviewCanaryScript;
   late String m16ApprovalPacketScript;
+  late String m17ExecutionRehearsalScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -108,6 +109,9 @@ void main() {
     ).readAsStringSync();
     m16ApprovalPacketScript = File(
       'tool/run_macos_computer_use_m16_approval_packet.sh',
+    ).readAsStringSync();
+    m17ExecutionRehearsalScript = File(
+      'tool/run_macos_computer_use_m17_execution_rehearsal.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -249,6 +253,11 @@ void main() {
       contains('M16: Convert ready M15 action-proposal and review evidence'),
     );
     expect(architectureDoc, contains('approvalBlockers'));
+    expect(
+      architectureDoc,
+      contains('M17: Convert an approved M16 approval packet'),
+    );
+    expect(architectureDoc, contains('M17 execution rehearsal'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -2771,6 +2780,228 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M17 execution rehearsal consumes approved M16 packet',
+    () async {
+      expect(
+        m17ExecutionRehearsalScript,
+        contains('macos_computer_use_m17_execution_rehearsal'),
+      );
+      expect(m17ExecutionRehearsalScript, contains('report-only'));
+      expect(m17ExecutionRehearsalScript, contains('no desktop actions'));
+      expect(m17ExecutionRehearsalScript, contains('approval_status_approved'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m17_execution_rehearsal_test_',
+      );
+      try {
+        final packetDir = Directory(
+          '${root.path}/macos_computer_use_m16_approval_packet_1',
+        )..createSync();
+        final packet = File('${packetDir.path}/approval_packet.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m16_approval_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m16_approval_packet",
+  "milestone": "M16",
+  "previousMilestone": "M15",
+  "ready": true,
+  "approvalStatus": "approved",
+  "executionBoundary": "no_desktop_action_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "exactTextCandidates": [
+    {
+      "source": "targetIntent",
+      "text": "Good morning from Caverno",
+      "status": "requires_user_approval"
+    }
+  ],
+  "textEntryTargets": [
+    {
+      "label": "Post text field",
+      "role": "text_entry",
+      "risk": "low"
+    }
+  ],
+  "publicActionTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action"
+    }
+  ],
+  "approvedValues": {
+    "exactText": "Good morning from Caverno",
+    "targetLabel": "Post text field",
+    "publicActionLabel": "Post"
+  },
+  "requiredApprovals": [
+    {
+      "id": "exact_text",
+      "required": true,
+      "status": "approved",
+      "approvedValue": "Good morning from Caverno"
+    },
+    {
+      "id": "target_label",
+      "required": true,
+      "status": "approved",
+      "approvedValue": "Post text field"
+    },
+    {
+      "id": "public_action_label",
+      "required": true,
+      "status": "approved",
+      "approvedValue": "Post"
+    }
+  ],
+  "approvalBlockers": [],
+  "m16ApprovalPacketGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": [],
+    "approvalStatus": "approved",
+    "approvalBlockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m17_execution_rehearsal.sh',
+          '--root',
+          root.path,
+          '--m16-packet',
+          packet.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Execution boundary: no_desktop_action_report_only'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('execution_rehearsal.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('macos_computer_use_m17_execution_rehearsal'));
+        expect(summary, contains('"milestone": "M17"'));
+        expect(summary, contains('"previousMilestone": "M16"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m17ExecutionRehearsalGate"'));
+        expect(summary, contains('"status": "ready"'));
+        expect(summary, contains('"executionPhases"'));
+        expect(summary, contains('"type_exact_text"'));
+        expect(summary, contains('"confirm_public_action"'));
+        expect(summary, contains('"Good morning from Caverno"'));
+        expect(summary, contains('"Post text field"'));
+        expect(summary, contains('"Post"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M17 Execution Rehearsal'));
+        expect(markdown, contains('Report-Only Boundary'));
+        expect(markdown, contains('Good morning from Caverno'));
+        expect(markdown, contains('future_user_approved_input'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M17 execution rehearsal blocks pending approvals',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m17_execution_rehearsal_blocked_test_',
+      );
+      try {
+        final packet = File('${root.path}/approval_packet.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m16_approval_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m16_approval_packet",
+  "milestone": "M16",
+  "ready": true,
+  "approvalStatus": "pending_user_approval",
+  "executionBoundary": "no_desktop_action_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "exactTextCandidates": [
+    {
+      "source": "targetIntent",
+      "text": "Good morning from Caverno",
+      "status": "requires_user_approval"
+    }
+  ],
+  "textEntryTargets": [
+    {
+      "label": "Post text field",
+      "role": "text_entry",
+      "risk": "low"
+    }
+  ],
+  "publicActionTargets": [
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action"
+    }
+  ],
+  "approvalBlockers": ["exact_text", "target_label", "public_action_label"],
+  "m16ApprovalPacketGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": [],
+    "approvalStatus": "pending_user_approval",
+    "approvalBlockers": ["exact_text", "target_label", "public_action_label"]
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m17_execution_rehearsal.sh',
+          '--root',
+          root.path,
+          '--m16-packet',
+          packet.path,
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('approval_status_approved'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('execution_rehearsal.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"approval_status_approved"'));
+        expect(summary, contains('"exact_text_approved"'));
+        expect(summary, contains('"target_label_approved"'));
+        expect(summary, contains('"public_action_label_approved"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -3627,11 +3858,13 @@ void main() {
     expect(manualProcessChecklist, contains('M14 Observe-Only Evidence'));
     expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
     expect(manualProcessChecklist, contains('M16 Approval Packet'));
+    expect(manualProcessChecklist, contains('M17 Execution Rehearsal'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(manualProcessChecklist, contains('m15LlmReviewGate'));
     expect(manualProcessChecklist, contains('m16ApprovalPacketGate'));
+    expect(manualProcessChecklist, contains('m17ExecutionRehearsalGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('approvalBlockers'));
     expect(manualProcessChecklist, contains('blocked_review_evidence'));
@@ -3642,6 +3875,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m16_approval_packet.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m17_execution_rehearsal.sh'),
     );
     expect(manualProcessChecklist, contains('PR Review Summary'));
     expect(manualProcessChecklist, contains('blockedReviewEvidence: none'));
