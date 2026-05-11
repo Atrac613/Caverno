@@ -130,6 +130,32 @@ Do not use this handoff to click, type, navigate, submit, post, purchase, grant
 TCC, or operate System Settings. It is only the review artifact for a future
 user-approved action step.
 
+## M16 Approval Packet
+
+Use this pass after M15 action-proposal evidence is ready and the next
+milestone needs explicit user approvals before any execution step:
+
+1. Select the ready M15 `action_proposal_handoff.json`.
+2. Select the ready M15 LLM review `canary_summary.json` when available.
+3. Run
+   `bash tool/run_macos_computer_use_m16_approval_packet.sh --m15-handoff <action_proposal_handoff.json> --m15-llm-review <canary_summary.json>`.
+4. Confirm `m16ApprovalPacketGate.status` is `ready`.
+5. Confirm `executionBoundary` is `no_desktop_action_report_only`.
+6. Confirm `desktopActionBoundary: no_desktop_action`.
+7. Confirm `tccBoundary: no_tcc_operation`.
+8. Confirm `llmBoundary: no_llm_call`.
+9. Confirm `requiredApprovals` separates `exact_text`, `target_label`,
+   `public_action_label`, and `post_action_observation`.
+10. If `approvalBlockers` is not empty, ask the user to approve the exact
+    text, target, and public action labels before any future execution
+    milestone.
+11. If all required approvals are supplied with the command flags, confirm
+    `approvalStatus: approved`.
+
+Do not use this approval packet to click, type, navigate, submit, post,
+purchase, grant TCC, or operate System Settings. It is only the report-only
+approval artifact for a future execution milestone.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

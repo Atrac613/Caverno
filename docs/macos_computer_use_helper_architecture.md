@@ -295,6 +295,13 @@ Follow-on milestones:
   without executing any desktop action. MVP sign-off and the readiness artifact
   index now surface that review canary as optional review evidence and block
   final aggregation when a discovered review canary is not ready.
+- M16: Convert ready M15 action-proposal and review evidence into a
+  report-only user approval packet. The packet records the exact text, target,
+  public-action, and post-action observation approvals needed by a future
+  execution milestone, but it still must not call an LLM, click, type,
+  navigate, submit, post, purchase, grant TCC, or operate System Settings.
+  Missing approvals are surfaced as `approvalBlockers`, while the packet gate
+  remains focused on whether the M15 evidence is ready and boundary-preserving.
 
 ## Computer Use Live Canary
 

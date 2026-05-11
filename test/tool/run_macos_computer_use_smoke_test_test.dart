@@ -31,6 +31,7 @@ void main() {
   late String m14RealAppHandoffScript;
   late String m15ActionProposalHandoffScript;
   late String m15LlmReviewCanaryScript;
+  late String m16ApprovalPacketScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -104,6 +105,9 @@ void main() {
     ).readAsStringSync();
     m15LlmReviewCanaryScript = File(
       'tool/run_macos_computer_use_m15_llm_review_canary.sh',
+    ).readAsStringSync();
+    m16ApprovalPacketScript = File(
+      'tool/run_macos_computer_use_m16_approval_packet.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -240,6 +244,11 @@ void main() {
       contains('M15: Convert ready M14 observe-only evidence'),
     );
     expect(architectureDoc, contains('M15 LLM review'));
+    expect(
+      architectureDoc,
+      contains('M16: Convert ready M15 action-proposal and review evidence'),
+    );
+    expect(architectureDoc, contains('approvalBlockers'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -2559,6 +2568,209 @@ void main() {
     }
   });
 
+  test(
+    'Computer Use M16 approval packet consumes ready M15 evidence',
+    () async {
+      expect(
+        m16ApprovalPacketScript,
+        contains('macos_computer_use_m16_approval_packet'),
+      );
+      expect(m16ApprovalPacketScript, contains('report-only'));
+      expect(m16ApprovalPacketScript, contains('no desktop actions'));
+      expect(m16ApprovalPacketScript, contains('approvalBlockers'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m16_approval_packet_test_',
+      );
+      try {
+        final handoffDir = Directory(
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_1',
+        )..createSync();
+        final handoff = File('${handoffDir.path}/action_proposal_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "ready": true,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "targetIntent": "Prepare an approval-bound X post.",
+  "candidateTargets": [
+    {"label": "Post text field", "role": "text_entry", "risk": "low"},
+    {"label": "Post", "role": "public_submit", "risk": "public_action"}
+  ],
+  "textEntryTargets": [
+    {"label": "Post text field", "role": "text_entry", "risk": "low"}
+  ],
+  "publicActionTargets": [
+    {"label": "Post", "role": "public_submit", "risk": "public_action"}
+  ],
+  "exactTextCandidates": [
+    {
+      "source": "targetIntent",
+      "text": "Good morning from Caverno",
+      "status": "requires_user_approval"
+    }
+  ],
+  "confirmationRequirements": [
+    "Ask the user to approve the exact post text.",
+    "Ask the user to approve the public submit action."
+  ],
+  "reviewTargetCounts": {
+    "candidateTargets": 2,
+    "textEntryTargets": 1,
+    "publicActionTargets": 1,
+    "exactTextCandidates": 1,
+    "confirmationRequirements": 2
+  },
+  "prReviewSummary": {
+    "status": "ready_for_review",
+    "ready": true,
+    "blockedReviewEvidence": []
+  },
+  "reviewGateConsistency": {
+    "ok": true,
+    "status": "consistent"
+  },
+  "m15ActionProposalGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+        final reviewDir = Directory(
+          '${root.path}/macos_computer_use_m15_llm_review_canary_1',
+        )..createSync();
+        final llmReview = File('${reviewDir.path}/canary_summary.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_llm_review_canary_summary",
+  "milestone": "M15",
+  "ready": true,
+  "m15LlmReviewGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m16_approval_packet.sh',
+          '--root',
+          root.path,
+          '--m15-handoff',
+          handoff.path,
+          '--m15-llm-review',
+          llmReview.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Approval status: pending_user_approval'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('approval_packet.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('macos_computer_use_m16_approval_packet'));
+        expect(summary, contains('"milestone": "M16"'));
+        expect(summary, contains('"previousMilestone": "M15"'));
+        expect(
+          summary,
+          contains('"executionBoundary": "no_desktop_action_report_only"'),
+        );
+        expect(summary, contains('"approvalStatus": "pending_user_approval"'));
+        expect(summary, contains('"m16ApprovalPacketGate"'));
+        expect(summary, contains('"status": "ready"'));
+        expect(summary, contains('"approvalBlockers"'));
+        expect(summary, contains('"exact_text"'));
+        expect(summary, contains('"target_label"'));
+        expect(summary, contains('"public_action_label"'));
+        expect(summary, contains('"post_action_observation"'));
+        expect(summary, contains('"Good morning from Caverno"'));
+        expect(summary, contains('"Post text field"'));
+        expect(summary, contains('"Post"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M16 Approval Packet'));
+        expect(markdown, contains('Required Approvals'));
+        expect(markdown, contains('pending_user_approval'));
+        expect(markdown, contains('Manual Boundary'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M16 approval packet blocks unready M15 evidence',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m16_approval_packet_blocked_test_',
+      );
+      try {
+        final handoff = File('${root.path}/action_proposal_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "ready": false,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "reviewGateConsistency": {
+    "ok": false,
+    "status": "inconsistent"
+  },
+  "m15ActionProposalGate": {
+    "status": "blocked",
+    "ready": false,
+    "blockers": ["m14_evidence_ready"]
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m16_approval_packet.sh',
+          '--root',
+          root.path,
+          '--m15-handoff',
+          handoff.path,
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('approval_packet.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"m15_handoff_ready"'));
+        expect(summary, contains('"m15_review_gate_consistent"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -3392,15 +3604,22 @@ void main() {
   test('manual process checklist documents M14 observe-only evidence', () {
     expect(manualProcessChecklist, contains('M14 Observe-Only Evidence'));
     expect(manualProcessChecklist, contains('M15 Action Proposal Handoff'));
+    expect(manualProcessChecklist, contains('M16 Approval Packet'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
     expect(manualProcessChecklist, contains('m15LlmReviewGate'));
+    expect(manualProcessChecklist, contains('m16ApprovalPacketGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
+    expect(manualProcessChecklist, contains('approvalBlockers'));
     expect(manualProcessChecklist, contains('blocked_review_evidence'));
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m15_llm_review_canary.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m16_approval_packet.sh'),
     );
     expect(manualProcessChecklist, contains('PR Review Summary'));
     expect(manualProcessChecklist, contains('blockedReviewEvidence: none'));
