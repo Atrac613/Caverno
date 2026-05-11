@@ -3143,6 +3143,8 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('PR Review Artifacts'));
     expect(mvpReadinessPreflightScript, contains('final sign-off output'));
     expect(mvpReadinessPreflightScript, contains('M15 action proposal'));
+    expect(mvpReadinessPreflightScript, contains('M15 LLM review'));
+    expect(mvpReadinessPreflightScript, contains('m15_llm_review_canary'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -3217,6 +3219,13 @@ void main() {
           'M15 action proposal: inspect the artifact index for the report-only command when M14 observe-only evidence is present',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'M15 LLM review: inspect the artifact index for the report-only review command after M15 handoff is ready',
+        ),
+      );
+      expect(stdout, contains('blocked m15_llm_review_canary evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
