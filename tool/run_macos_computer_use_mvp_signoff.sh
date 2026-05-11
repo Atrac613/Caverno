@@ -232,6 +232,12 @@ m20_execution_result_intake = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m20_execution_result_intake"
 )
+m22_post_action_review = latest_matching(
+    lambda path, decoded: path.name == "post_action_review.json"
+    and path.parent.name.startswith("macos_computer_use_m22_post_action_review_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m22_post_action_review"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -249,6 +255,7 @@ for name, path in [
     ("DISCOVERED_M17_EXECUTION_REHEARSAL", m17_execution_rehearsal),
     ("DISCOVERED_M18_EXECUTION_HANDOFF", m18_execution_handoff),
     ("DISCOVERED_M20_EXECUTION_RESULT_INTAKE", m20_execution_result_intake),
+    ("DISCOVERED_M22_POST_ACTION_REVIEW", m22_post_action_review),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -287,6 +294,11 @@ M20_EXECUTION_RESULT_INTAKE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m20_exec
 M20_EXECUTION_RESULT_INTAKE_STATUS="missing"
 M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION="Run the M20 execution result intake after the user completes the M18-guided runtime step."
 M20_EXECUTION_RESULT_INTAKE_BOUNDARY="report-only result intake, no LLM call, no TCC, no System Settings, no desktop actions"
+M22_POST_ACTION_REVIEW="${DISCOVERED_M22_POST_ACTION_REVIEW:-}"
+M22_POST_ACTION_REVIEW_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m22_post_action_review_fragment.md"
+M22_POST_ACTION_REVIEW_STATUS="missing"
+M22_POST_ACTION_REVIEW_NEXT_ACTION="Run the M22 post-action review after M20 result intake is ready."
+M22_POST_ACTION_REVIEW_BOUNDARY="report-only post-action review, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -1172,6 +1184,133 @@ else
 EOF
 fi
 
+if [[ -n "${M22_POST_ACTION_REVIEW}" && -f "${M22_POST_ACTION_REVIEW}" ]]; then
+  m22_post_action_review_values="$(
+    M22_POST_ACTION_REVIEW="${M22_POST_ACTION_REVIEW}" M22_POST_ACTION_REVIEW_FRAGMENT="${M22_POST_ACTION_REVIEW_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M22_POST_ACTION_REVIEW"])
+fragment_path = Path(os.environ["M22_POST_ACTION_REVIEW_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m22PostActionReviewGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+review_inputs = summary.get("reviewInputs") if isinstance(summary, dict) else None
+review_inputs = review_inputs if isinstance(review_inputs, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    recommendation = (
+        summary.get("nextCycleRecommendation") if isinstance(summary, dict) else None
+    )
+    if status == "ready" and recommendation == "start_new_observe_action_cycle":
+        next_action = (
+            "Return to M14 observe-only evidence before proposing any follow-up action."
+        )
+    elif status == "ready":
+        next_action = (
+            "Archive the reviewed M20 result as the completed action cycle evidence."
+        )
+    else:
+        next_action = (
+            "Resolve M22 post-action review blockers before closing the action cycle."
+        )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m22_post_action_review_unreadable"]
+boundary = "report-only post-action review"
+recommendation = "unknown"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+    recommendation = str(summary.get("nextCycleRecommendation") or "unknown")
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M22 Post-Action Review Evidence",
+    "",
+    f"- M22 post-action review: `{summary_path}`",
+    f"- M22 post-action review status: {status}",
+    f"- M22 post-action review boundary: {boundary}",
+    f"- M22 post-action review next action: {next_action}",
+    f"- M22 post-action review blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M22 result reviewed: {review_inputs.get('resultReviewed', 'unknown')}",
+    f"- M22 post-action state: {review_inputs.get('postActionState', 'unknown')}",
+    f"- M22 follow-up required: {review_inputs.get('followUpRequired', 'unknown')}",
+    f"- M22 next cycle recommendation: {recommendation}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M22_POST_ACTION_REVIEW_STATUS={shlex.quote(status)}")
+print(f"M22_POST_ACTION_REVIEW_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M22_POST_ACTION_REVIEW_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m22_post_action_review_values}"
+else
+  cat >"${M22_POST_ACTION_REVIEW_FRAGMENT}" <<EOF
+
+## M22 Post-Action Review Evidence
+
+- M22 post-action review: \`not discovered\`
+- M22 post-action review status: missing
+- M22 post-action review boundary: ${M22_POST_ACTION_REVIEW_BOUNDARY}
+- M22 post-action review next action: ${M22_POST_ACTION_REVIEW_NEXT_ACTION}
+- M22 post-action review blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -1282,6 +1421,9 @@ if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "rea
 fi
 if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m20_execution_result_intake)
+fi
+if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m22_post_action_review)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -1556,6 +1698,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M18 execution handoff status: ${M18_EXECUTION_HANDOFF_STATUS}
 - M20 execution result intake: ${M20_EXECUTION_RESULT_INTAKE:-not discovered}
 - M20 execution result intake status: ${M20_EXECUTION_RESULT_INTAKE_STATUS}
+- M22 post-action review: ${M22_POST_ACTION_REVIEW:-not discovered}
+- M22 post-action review status: ${M22_POST_ACTION_REVIEW_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -1585,6 +1729,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m20_execution_result_intake\`: ${M20_EXECUTION_RESULT_INTAKE_STATUS}
 - M20 execution result intake boundary: ${M20_EXECUTION_RESULT_INTAKE_BOUNDARY}
 - M20 execution result intake next action: ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}
+- \`m22_post_action_review\`: ${M22_POST_ACTION_REVIEW_STATUS}
+- M22 post-action review boundary: ${M22_POST_ACTION_REVIEW_BOUNDARY}
+- M22 post-action review next action: ${M22_POST_ACTION_REVIEW_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -1666,6 +1813,7 @@ cat "${M16_APPROVAL_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M17_EXECUTION_REHEARSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M18_EXECUTION_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M22_POST_ACTION_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -1698,6 +1846,9 @@ cat "${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
       echo "- ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
+    fi
+    if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
+      echo "- ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -1751,6 +1902,10 @@ echo "  M20 execution result intake: ${M20_EXECUTION_RESULT_INTAKE:-not discover
 echo "  M20 execution result intake status: ${M20_EXECUTION_RESULT_INTAKE_STATUS}"
 echo "  M20 execution result intake boundary: ${M20_EXECUTION_RESULT_INTAKE_BOUNDARY}"
 echo "  M20 execution result intake next action: ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
+echo "  M22 post-action review: ${M22_POST_ACTION_REVIEW:-not discovered}"
+echo "  M22 post-action review status: ${M22_POST_ACTION_REVIEW_STATUS}"
+echo "  M22 post-action review boundary: ${M22_POST_ACTION_REVIEW_BOUNDARY}"
+echo "  M22 post-action review next action: ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -1811,6 +1966,9 @@ if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "rea
 fi
 if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
   echo "  - ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
+fi
+if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
+  echo "  - ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

@@ -109,6 +109,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m17ExecutionRehearsalEntry;
     ReadinessArtifactEntry? m18ExecutionHandoffEntry;
     ReadinessArtifactEntry? m20ExecutionResultIntakeEntry;
+    ReadinessArtifactEntry? m22PostActionReviewEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -127,6 +128,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm20_execution_result_intake') {
         m20ExecutionResultIntakeEntry = entry;
+      }
+      if (entry.id == 'm22_post_action_review') {
+        m22PostActionReviewEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -259,6 +263,31 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m20ExecutionResultIntakeEntry.details['gateBlockers']))}',
         );
     }
+    if (m22PostActionReviewEntry != null &&
+        m22PostActionReviewEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M22 Post-Action Review Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m22PostActionReviewEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Result reviewed: ${m22PostActionReviewEntry.details['resultReviewed'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Post-action state: ${m22PostActionReviewEntry.details['postActionState'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Next cycle recommendation: ${m22PostActionReviewEntry.details['nextCycleRecommendation'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m22PostActionReviewEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m22PostActionReviewEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -338,6 +367,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m20ExecutionResultIntakeCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m22PostActionReviewCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M22 post-action review command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m22PostActionReviewCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -393,6 +431,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m17ExecutionRehearsalCommand,
     this.m18ExecutionHandoffCommand,
     this.m20ExecutionResultIntakeCommand,
+    this.m22PostActionReviewCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -410,6 +449,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m17ExecutionRehearsalCommand;
   final String? m18ExecutionHandoffCommand;
   final String? m20ExecutionResultIntakeCommand;
+  final String? m22PostActionReviewCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -432,6 +472,7 @@ class ReadinessFinalSignoffRehearsal {
       'm17ExecutionRehearsalCommand': m17ExecutionRehearsalCommand,
       'm18ExecutionHandoffCommand': m18ExecutionHandoffCommand,
       'm20ExecutionResultIntakeCommand': m20ExecutionResultIntakeCommand,
+      'm22PostActionReviewCommand': m22PostActionReviewCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -637,6 +678,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m20ExecutionResultIntakeNextAction,
       details: _m20ExecutionResultIntakeDetails,
     ),
+    _latestEntry(
+      'm22_post_action_review',
+      'Latest M22 post-action review',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m22_post_action_review',
+      parentPrefix: 'macos_computer_use_m22_post_action_review_',
+      fileName: 'post_action_review.json',
+      status: _m22PostActionReviewStatus,
+      nextAction: _m22PostActionReviewNextAction,
+      details: _m22PostActionReviewDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -710,6 +763,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m22PostActionReviewCommand = _m22PostActionReviewCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -737,6 +794,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m17ExecutionRehearsalCommand: m17ExecutionRehearsalCommand,
     m18ExecutionHandoffCommand: m18ExecutionHandoffCommand,
     m20ExecutionResultIntakeCommand: m20ExecutionResultIntakeCommand,
+    m22PostActionReviewCommand: m22PostActionReviewCommand,
   );
 }
 
@@ -751,7 +809,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm16_approval_packet' ||
                 entry.id == 'm17_execution_rehearsal' ||
                 entry.id == 'm18_execution_handoff' ||
-                entry.id == 'm20_execution_result_intake') &&
+                entry.id == 'm20_execution_result_intake' ||
+                entry.id == 'm22_post_action_review') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -955,6 +1014,31 @@ String? _m20ExecutionResultIntakeCommand(
     'succeeded',
     '--post-action-observation',
     'done',
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m22PostActionReviewCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final intakeEntry = entriesById['m20_execution_result_intake'];
+  final intakePath = intakeEntry?.path ?? '';
+  if (intakePath.isEmpty || intakeEntry?.status != 'ready') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m22_post_action_review.sh',
+    '--root',
+    reportRoot.path,
+    '--m20-intake',
+    intakePath,
+    '--result-reviewed',
+    'yes',
+    '--post-action-state',
+    '<stable-or-needs-follow-up>',
+    '--follow-up-required',
+    '<yes-or-no>',
   ].map(_shellQuote).join(' ');
 }
 
@@ -1545,6 +1629,80 @@ Map<String, Object?> _m20ExecutionResultIntakeDetails(
           ?.toString(),
       'runtimeAction': manualInputsMap['runtimeAction']?.toString(),
       'postActionObservation': manualInputsMap['postActionObservation']
+          ?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m22PostActionReviewStatus(Map<String, dynamic> json) {
+  final gate = json['m22PostActionReviewGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m22PostActionReviewNextAction(Map<String, dynamic> json) {
+  final gate = json['m22PostActionReviewGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m22PostActionReviewStatus(json);
+  if (status == 'ready') {
+    final recommendation = json['nextCycleRecommendation']?.toString();
+    if (recommendation == 'start_new_observe_action_cycle') {
+      return 'Return to M14 observe-only evidence before proposing any follow-up action.';
+    }
+    return 'Archive the reviewed M20 result as the completed action cycle evidence.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M22 post-action review blockers before closing the action cycle.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m22PostActionReviewDetails(Map<String, dynamic> json) {
+  final gate = json['m22PostActionReviewGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final reviewInputs = json['reviewInputs'];
+  final reviewInputsMap = reviewInputs is Map<String, dynamic>
+      ? reviewInputs
+      : null;
+  final sourceManualInputs = json['sourceManualInputs'];
+  final sourceManualInputsMap = sourceManualInputs is Map<String, dynamic>
+      ? sourceManualInputs
+      : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM20ExecutionResultIntake': json['sourceM20ExecutionResultIntake']
+        ?.toString(),
+    'nextCycleRecommendation': json['nextCycleRecommendation']?.toString(),
+    if (reviewInputsMap != null) ...<String, Object?>{
+      'resultReviewed': reviewInputsMap['resultReviewed']?.toString(),
+      'postActionState': reviewInputsMap['postActionState']?.toString(),
+      'followUpRequired': reviewInputsMap['followUpRequired']?.toString(),
+    },
+    if (sourceManualInputsMap != null) ...<String, Object?>{
+      'runtimeAction': sourceManualInputsMap['runtimeAction']?.toString(),
+      'postActionObservation': sourceManualInputsMap['postActionObservation']
           ?.toString(),
     },
     if (gateMap != null) ...<String, Object?>{

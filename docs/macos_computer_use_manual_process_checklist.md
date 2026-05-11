@@ -234,6 +234,32 @@ Do not use this intake to click, type, navigate, submit, post, purchase, grant
 TCC, operate System Settings, or call an LLM. It records only user-reported
 runtime result evidence. Follow-up actions require a new approval-bound cycle.
 
+## M22 Post-Action Review
+
+Use this pass after the M20 execution result intake is ready:
+
+1. Select the ready M20 `execution_result_intake.json`.
+2. Ask the user to review the runtime result and classify the post-action
+   state as `stable` or `needs-follow-up`.
+3. Ask whether a follow-up action cycle is required. If yes, record a short
+   follow-up note.
+4. Run
+   `bash tool/run_macos_computer_use_m22_post_action_review.sh --m20-intake <execution_result_intake.json> --result-reviewed yes --post-action-state <stable-or-needs-follow-up> --follow-up-required <yes-or-no>`.
+5. Confirm `m22PostActionReviewGate.status` is `ready`.
+6. Confirm `executionBoundary` is `post_action_review_report_only`.
+7. Confirm `desktopActionBoundary` is `no_desktop_action`.
+8. Confirm `tccBoundary` is `no_tcc_operation`.
+9. Confirm `llmBoundary` is `no_llm_call`.
+10. If `nextCycleRecommendation` is `start_new_observe_action_cycle`, return
+    to M14 observe-only evidence before proposing any follow-up action.
+11. Review the MVP sign-off handoff or readiness artifact index before final
+    aggregation; blocked discovered `m22_post_action_review` evidence stops
+    final aggregation until the review is ready.
+
+Do not use this review to click, type, navigate, submit, post, purchase, grant
+TCC, operate System Settings, or call an LLM. It records only review evidence
+for a completed user-operated runtime step.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

@@ -35,6 +35,7 @@ void main() {
   late String m17ExecutionRehearsalScript;
   late String m18ExecutionHandoffScript;
   late String m20ExecutionResultIntakeScript;
+  late String m22PostActionReviewScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -120,6 +121,9 @@ void main() {
     ).readAsStringSync();
     m20ExecutionResultIntakeScript = File(
       'tool/run_macos_computer_use_m20_execution_result_intake.sh',
+    ).readAsStringSync();
+    m22PostActionReviewScript = File(
+      'tool/run_macos_computer_use_m22_post_action_review.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -283,6 +287,7 @@ void main() {
       architectureDoc,
       contains('M20: Record user-operated runtime result evidence'),
     );
+    expect(architectureDoc, contains('M22: Convert ready M20 result intake'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -3446,6 +3451,178 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M22 post-action review consumes ready M20 result',
+    () async {
+      expect(
+        m22PostActionReviewScript,
+        contains('macos_computer_use_m22_post_action_review'),
+      );
+      expect(m22PostActionReviewScript, contains('report-only'));
+      expect(m22PostActionReviewScript, contains('user-reported'));
+      expect(m22PostActionReviewScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m22_post_action_review_test_',
+      );
+      try {
+        final intake = File('${root.path}/execution_result_intake.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m20_execution_result_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m20_execution_result_intake",
+  "milestone": "M20",
+  "ready": true,
+  "executionBoundary": "manual_result_intake_report_only",
+  "desktopActionBoundary": "user_operated_evidence_only",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "approvedValues": {
+    "exactText": "Good morning from Caverno",
+    "targetLabel": "Post text field",
+    "publicActionLabel": "Post"
+  },
+  "manualInputs": {
+    "runtimeAction": "succeeded",
+    "postActionObservation": "done"
+  },
+  "m20ExecutionResultIntakeGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m22_post_action_review.sh',
+          '--root',
+          root.path,
+          '--m20-intake',
+          intake.path,
+          '--result-reviewed',
+          'yes',
+          '--post-action-state',
+          'stable',
+          '--follow-up-required',
+          'no',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Execution boundary: post_action_review_report_only'),
+        );
+        expect(
+          '${result.stdout}',
+          contains('Next cycle recommendation: no_follow_up'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('post_action_review.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('macos_computer_use_m22_post_action_review'));
+        expect(summary, contains('"milestone": "M22"'));
+        expect(summary, contains('"previousMilestone": "M20"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m22PostActionReviewGate"'));
+        expect(summary, contains('"resultReviewed": "yes"'));
+        expect(summary, contains('"postActionState": "stable"'));
+        expect(summary, contains('"nextCycleRecommendation": "no_follow_up"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M22 Post-Action Review'));
+        expect(markdown, contains('Review Inputs'));
+        expect(markdown, contains('Source Result'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M22 post-action review blocks unreviewed result',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m22_post_action_review_blocked_test_',
+      );
+      try {
+        final intake = File('${root.path}/execution_result_intake.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m20_execution_result_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m20_execution_result_intake",
+  "milestone": "M20",
+  "ready": true,
+  "executionBoundary": "manual_result_intake_report_only",
+  "desktopActionBoundary": "user_operated_evidence_only",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "manualInputs": {
+    "runtimeAction": "succeeded",
+    "postActionObservation": "done"
+  },
+  "m20ExecutionResultIntakeGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m22_post_action_review.sh',
+          '--root',
+          root.path,
+          '--m20-intake',
+          intake.path,
+          '--follow-up-required',
+          'yes',
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('result_reviewed'));
+        expect('${result.stdout}', contains('post_action_state_known'));
+        expect(
+          '${result.stdout}',
+          contains('follow_up_note_recorded_when_required'),
+        );
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('post_action_review.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"resultReviewed": "no"'));
+        expect(summary, contains('"postActionState": "unknown"'));
+        expect(
+          summary,
+          contains(
+            '"nextCycleRecommendation": "start_new_observe_action_cycle"',
+          ),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -3673,6 +3850,7 @@ void main() {
     expect(mvpChecklist, contains('M18 execution handoffs'));
     expect(mvpChecklist, contains('M20 execution'));
     expect(mvpChecklist, contains('result intake reports'));
+    expect(mvpChecklist, contains('M22 post-action reviews'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -3740,12 +3918,14 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M20_EXECUTION_RESULT_INTAKE'),
     );
+    expect(mvpSignoffScript, contains('DISCOVERED_M22_POST_ACTION_REVIEW'));
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
     expect(mvpSignoffScript, contains('M17 Execution Rehearsal Evidence'));
     expect(mvpSignoffScript, contains('M18 Execution Handoff Evidence'));
     expect(mvpSignoffScript, contains('M20 Execution Result Intake Evidence'));
+    expect(mvpSignoffScript, contains('M22 Post-Action Review Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -4104,6 +4284,8 @@ void main() {
       mvpReadinessPreflightScript,
       contains('m20_execution_result_intake'),
     );
+    expect(mvpReadinessPreflightScript, contains('M22 post-action review'));
+    expect(mvpReadinessPreflightScript, contains('m22_post_action_review'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -4213,6 +4395,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m20_execution_result_intake evidence'));
+      expect(
+        stdout,
+        contains(
+          'M22 post-action review: inspect the artifact index for the report-only post-action review command after M20 is ready',
+        ),
+      );
+      expect(stdout, contains('blocked m22_post_action_review evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -4383,6 +4572,7 @@ void main() {
     expect(manualProcessChecklist, contains('M17 Execution Rehearsal'));
     expect(manualProcessChecklist, contains('M18 Execution Handoff'));
     expect(manualProcessChecklist, contains('M20 Execution Result Intake'));
+    expect(manualProcessChecklist, contains('M22 Post-Action Review'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -4391,6 +4581,7 @@ void main() {
     expect(manualProcessChecklist, contains('m17ExecutionRehearsalGate'));
     expect(manualProcessChecklist, contains('m18ExecutionHandoffGate'));
     expect(manualProcessChecklist, contains('m20ExecutionResultIntakeGate'));
+    expect(manualProcessChecklist, contains('m22PostActionReviewGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -4411,6 +4602,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m20_execution_result_intake.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m22_post_action_review.sh'),
     );
     expect(
       manualProcessChecklist,
@@ -5789,6 +5984,90 @@ void main() {
       expect(
         handoff,
         contains('Blocked review evidence: m20_execution_result_intake'),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run surfaces blocked M22 post-action review', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m22_blocked_',
+    );
+    try {
+      final m22Dir = Directory(
+        '${root.path}/macos_computer_use_m22_post_action_review_1',
+      )..createSync();
+      File('${m22Dir.path}/post_action_review.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m22_post_action_review",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m22_post_action_review",
+  "milestone": "M22",
+  "previousMilestone": "M20",
+  "ready": false,
+  "sourceM20ExecutionResultIntake": "/tmp/execution_result_intake.json",
+  "executionBoundary": "post_action_review_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "reviewInputs": {
+    "resultReviewed": "no",
+    "postActionState": "unknown",
+    "followUpRequired": "yes",
+    "followUpNote": ""
+  },
+  "nextCycleRecommendation": "start_new_observe_action_cycle",
+  "m22PostActionReviewGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "result_reviewed",
+        "ok": false,
+        "nextAction": "Ask the user to review the M20 runtime result before marking M22 ready."
+      }
+    ],
+    "blockers": ["result_reviewed"],
+    "nextAction": "Resolve M22 post-action review blockers before closing the action cycle."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M22 post-action review status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M22 post-action review next action: Resolve M22 post-action review blockers before closing the action cycle.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m22_post_action_review'),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M22 Post-Action Review Evidence'));
+      expect(handoff, contains('M22 post-action review status: blocked'));
+      expect(
+        handoff,
+        contains('M22 post-action review blockers: result_reviewed'),
+      );
+      expect(handoff, contains('| result_reviewed | blocked |'));
+      expect(
+        handoff,
+        contains('Blocked review evidence: m22_post_action_review'),
       );
     } finally {
       root.deleteSync(recursive: true);

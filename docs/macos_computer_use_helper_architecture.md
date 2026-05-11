@@ -339,6 +339,13 @@ Follow-on milestones:
   review evidence and stops final aggregation until the result-intake gate next
   action is resolved. Missing M20 intake remains optional because the runtime
   step is user-operated and may not have happened yet.
+- M22: Convert ready M20 result intake into a report-only post-action review.
+  The review records that the user reviewed the runtime result, classifies the
+  post-action state, and decides whether a new observe/action approval cycle is
+  required. It must not call an LLM, grant TCC, operate System Settings, or
+  perform desktop actions. MVP sign-off and the readiness artifact index
+  surface discovered M22 reviews as optional review evidence and block final
+  aggregation when a discovered review is not ready.
 
 ## Computer Use Live Canary
 

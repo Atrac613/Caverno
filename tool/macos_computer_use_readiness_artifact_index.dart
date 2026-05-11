@@ -117,6 +117,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M20 execution result intake command:');
     stdout.writeln(rehearsal.m20ExecutionResultIntakeCommand);
   }
+  if (rehearsal.m22PostActionReviewCommand != null) {
+    stdout.writeln('M22 post-action review command:');
+    stdout.writeln(rehearsal.m22PostActionReviewCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

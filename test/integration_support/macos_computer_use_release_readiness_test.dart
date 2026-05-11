@@ -677,6 +677,15 @@ void main() {
           sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
         ),
       );
+      final m22PostActionReviewPath =
+          '${root.path}/macos_computer_use_m22_post_action_review_990/post_action_review.json';
+      _writeJson(
+        File(m22PostActionReviewPath),
+        _m22PostActionReview(
+          ready: true,
+          sourceM20ExecutionResultIntake: m20ExecutionResultIntakePath,
+        ),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -693,6 +702,7 @@ void main() {
       expect(entryIds, contains('m17_execution_rehearsal'));
       expect(entryIds, contains('m18_execution_handoff'));
       expect(entryIds, contains('m20_execution_result_intake'));
+      expect(entryIds, contains('m22_post_action_review'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -968,6 +978,12 @@ void main() {
         ),
       );
       expect(
+        index.mvpFinalSignoffRehearsal.m22PostActionReviewCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
+        ),
+      );
+      expect(
         index.toMarkdown(),
         contains('Latest M20 execution result intake'),
       );
@@ -980,6 +996,33 @@ void main() {
         contains('## M20 Execution Result Intake Evidence'),
       );
       expect(index.toMarkdown(), contains('Runtime action: succeeded'));
+      final m22Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm22_post_action_review',
+      );
+      expect(m22Entry.exists, isTrue);
+      expect(m22Entry.path, m22PostActionReviewPath);
+      expect(m22Entry.status, 'ready');
+      expect(
+        m22Entry.nextAction,
+        'Archive the reviewed M20 result as the completed action cycle evidence.',
+      );
+      expect(m22Entry.details['gateStatus'], 'ready');
+      expect(m22Entry.details['resultReviewed'], 'yes');
+      expect(m22Entry.details['postActionState'], 'stable');
+      expect(m22Entry.details['nextCycleRecommendation'], 'no_follow_up');
+      expect(index.toMarkdown(), contains('Latest M22 post-action review'));
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M22 post-action review | true | ready |'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M22 Post-Action Review Evidence'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Next cycle recommendation: no_follow_up'),
+      );
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
@@ -1009,6 +1052,13 @@ void main() {
         index.toMarkdown(),
         contains(
           'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
+        ),
+      );
+      expect(index.toMarkdown(), contains('M22 post-action review command:'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
         ),
       );
     });
@@ -1838,6 +1888,110 @@ void main() {
       );
     });
 
+    test('artifact index blocks final aggregation on blocked M22 review', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m22_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_900/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: true),
+      );
+      final m20ExecutionResultIntakePath =
+          '${root.path}/macos_computer_use_m20_execution_result_intake_950/execution_result_intake.json';
+      _writeJson(
+        File(m20ExecutionResultIntakePath),
+        _m20ExecutionResultIntake(
+          ready: true,
+          sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
+        ),
+      );
+      final m22PostActionReviewPath =
+          '${root.path}/macos_computer_use_m22_post_action_review_990/post_action_review.json';
+      _writeJson(
+        File(m22PostActionReviewPath),
+        _m22PostActionReview(
+          ready: false,
+          sourceM20ExecutionResultIntake: m20ExecutionResultIntakePath,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm22_post_action_review',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m22PostActionReviewPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M22 post-action review blockers before closing the action cycle.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('result_reviewed'));
+      expect(entry.details['resultReviewed'], 'no');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m22_post_action_review'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m22_post_action_review'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M22 Post-Action Review Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'Blockers: result_reviewed, post_action_state_known, follow_up_note_recorded_when_required',
+        ),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -2004,6 +2158,15 @@ void main() {
         File(m18ExecutionHandoffPath),
         _m18ExecutionHandoff(ready: true),
       );
+      final m20ExecutionResultIntakePath =
+          '${root.path}/macos_computer_use_m20_execution_result_intake_1/execution_result_intake.json';
+      _writeJson(
+        File(m20ExecutionResultIntakePath),
+        _m20ExecutionResultIntake(
+          ready: true,
+          sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
+        ),
+      );
 
       final result = await Process.run('dart', [
         'run',
@@ -2072,6 +2235,13 @@ void main() {
           'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
         ),
       );
+      expect(stdout, contains('M22 post-action review command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -2122,6 +2292,13 @@ void main() {
           'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
         ),
       );
+      expect(markdown, contains('M22 post-action review command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -2155,6 +2332,10 @@ void main() {
       expect(
         rehearsal['m20ExecutionResultIntakeCommand'],
         contains('run_macos_computer_use_m20_execution_result_intake.sh'),
+      );
+      expect(
+        rehearsal['m22PostActionReviewCommand'],
+        contains('run_macos_computer_use_m22_post_action_review.sh'),
       );
     });
   });
@@ -2923,6 +3104,52 @@ Map<String, dynamic> _m20ExecutionResultIntake({
       'nextAction': ready
           ? 'Review the user-operated runtime result evidence before any follow-up action.'
           : 'Resolve M20 result intake blockers before accepting runtime evidence.',
+    },
+  };
+}
+
+Map<String, dynamic> _m22PostActionReview({
+  required bool ready,
+  required String sourceM20ExecutionResultIntake,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m22_post_action_review',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m22_post_action_review',
+    'milestone': 'M22',
+    'previousMilestone': 'M20',
+    'ready': ready,
+    'sourceM20ExecutionResultIntake': sourceM20ExecutionResultIntake,
+    'executionBoundary': 'post_action_review_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'sourceManualInputs': <String, Object?>{
+      'runtimeAction': 'succeeded',
+      'postActionObservation': 'done',
+    },
+    'reviewInputs': <String, Object?>{
+      'resultReviewed': ready ? 'yes' : 'no',
+      'postActionState': ready ? 'stable' : 'unknown',
+      'followUpRequired': ready ? 'no' : 'yes',
+      'followUpNote': ready ? '' : '',
+    },
+    'nextCycleRecommendation': ready
+        ? 'no_follow_up'
+        : 'start_new_observe_action_cycle',
+    'm22PostActionReviewGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready
+          ? <String>[]
+          : <String>[
+              'result_reviewed',
+              'post_action_state_known',
+              'follow_up_note_recorded_when_required',
+            ],
+      'nextAction': ready
+          ? 'Archive the reviewed M20 result as the completed action cycle evidence.'
+          : 'Resolve M22 post-action review blockers before closing the action cycle.',
     },
   };
 }
