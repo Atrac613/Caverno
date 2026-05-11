@@ -650,6 +650,9 @@ void main() {
       final m15HandoffPath =
           '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json';
       _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: true));
+      final m15LlmReviewPath =
+          '${root.path}/macos_computer_use_m15_llm_review_canary_600/canary_summary.json';
+      _writeJson(File(m15LlmReviewPath), _m15LlmReviewSummary(ready: true));
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -661,6 +664,7 @@ void main() {
       expect(entryIds, contains('mvp_llm_readiness'));
       expect(entryIds, contains('mvp_demo_readiness'));
       expect(entryIds, contains('m15_action_proposal_handoff'));
+      expect(entryIds, contains('m15_llm_review_canary'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -762,6 +766,27 @@ void main() {
       expect(m15Entry.details['reviewGateConsistencyStatus'], 'consistent');
       expect(m15Entry.details['reviewGateConsistencyOk'], isTrue);
       expect(m15Entry.details['blockedReviewEvidence'], isEmpty);
+      expect(
+        index.mvpFinalSignoffRehearsal.m15LlmReviewCommand,
+        'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
+      );
+      final m15LlmEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_llm_review_canary',
+      );
+      expect(m15LlmEntry.exists, isTrue);
+      expect(m15LlmEntry.path, m15LlmReviewPath);
+      expect(m15LlmEntry.status, 'ready');
+      expect(
+        m15LlmEntry.nextAction,
+        'M15 LLM review canary is ready for user review.',
+      );
+      expect(m15LlmEntry.details['passedCount'], 1);
+      expect(m15LlmEntry.details['failedCount'], 0);
+      expect(m15LlmEntry.details['gateStatus'], 'ready');
+      expect(
+        m15LlmEntry.details['boundaryDecision'],
+        'approval_required_before_action',
+      );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
       expect(index.toMarkdown(), contains('Latest LLM canary summary'));
@@ -772,6 +797,14 @@ void main() {
       expect(
         index.toMarkdown(),
         contains('| Latest M15 action proposal handoff | true | ready |'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Latest M15 LLM review canary summary'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M15 LLM review canary summary | true | ready |'),
       );
       expect(
         index.toMarkdown(),
@@ -789,6 +822,19 @@ void main() {
         contains('Review/gate consistency: consistent'),
       );
       expect(index.toMarkdown(), contains('Blocked review evidence: none'));
+      expect(index.toMarkdown(), contains('## M15 LLM Review Evidence'));
+      expect(index.toMarkdown(), contains('Gate status: ready'));
+      expect(
+        index.toMarkdown(),
+        contains('Boundary decision: approval_required_before_action'),
+      );
+      expect(index.toMarkdown(), contains('M15 LLM review command:'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
+        ),
+      );
     });
 
     test('artifact index surfaces MVP sign-off rehearsal blockers', () {
@@ -1186,6 +1232,90 @@ void main() {
       expect(entry.details['reviewGateConsistencyStatus'], 'inconsistent');
     });
 
+    test('artifact index blocks final aggregation on blocked M15 LLM review', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m15_llm_review_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_500/action_proposal_handoff.json',
+        ),
+        _m15ActionProposalHandoff(ready: true),
+      );
+      final m15LlmReviewPath =
+          '${root.path}/macos_computer_use_m15_llm_review_canary_600/canary_summary.json';
+      _writeJson(File(m15LlmReviewPath), _m15LlmReviewSummary(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm15_llm_review_canary',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m15LlmReviewPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M15 LLM review boundary failures before any action proposal execution.',
+      );
+      expect(entry.details['failedCount'], 1);
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['blockers'], contains('approval_boundary_missing'));
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        contains('m15_llm_review_canary'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m15_llm_review_canary'),
+      );
+      expect(index.toMarkdown(), contains('## M15 LLM Review Evidence'));
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(
+        index.toMarkdown(),
+        contains('Blockers: approval_boundary_missing'),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -1331,6 +1461,9 @@ void main() {
         File(realAppObserveSummaryPath),
         _realAppObserveLlmSummary(failed: 0),
       );
+      final m15HandoffPath =
+          '${root.path}/macos_computer_use_m15_action_proposal_handoff_1/action_proposal_handoff.json';
+      _writeJson(File(m15HandoffPath), _m15ActionProposalHandoff(ready: true));
 
       final result = await Process.run('dart', [
         'run',
@@ -1364,6 +1497,13 @@ void main() {
           'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $realAppObserveSummaryPath',
         ),
       );
+      expect(stdout, contains('M15 LLM review command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1379,6 +1519,13 @@ void main() {
           'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $realAppObserveSummaryPath',
         ),
       );
+      expect(markdown, contains('M15 LLM review command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m15_llm_review_canary.sh --root ${root.path} --handoff $m15HandoffPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -1392,6 +1539,10 @@ void main() {
       expect(
         rehearsal['m15ActionProposalCommand'],
         contains('run_macos_computer_use_m15_action_proposal_handoff.sh'),
+      );
+      expect(
+        rehearsal['m15LlmReviewCommand'],
+        contains('run_macos_computer_use_m15_llm_review_canary.sh'),
       );
     });
   });
@@ -1871,6 +2022,33 @@ Map<String, dynamic> _m15ActionProposalHandoff({required bool ready}) {
       'nextAction': ready
           ? 'M15 action proposal handoff is ready for user review.'
           : 'Resolve blocked M15 handoff checks before proposing any action.',
+    },
+  };
+}
+
+Map<String, dynamic> _m15LlmReviewSummary({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m15_llm_review_canary_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m15_llm_review_canary',
+    'milestone': 'M15',
+    'sourceHandoff': '/tmp/action_proposal_handoff.json',
+    'tccBoundary': 'no_tcc_operation',
+    'desktopActionBoundary': 'no_desktop_action',
+    'llmBoundary': 'review_only_no_tool_execution',
+    'runCount': 1,
+    'passedCount': ready ? 1 : 0,
+    'failedCount': ready ? 0 : 1,
+    'boundaryDecision': ready
+        ? 'approval_required_before_action'
+        : 'execute_now',
+    'm15LlmReviewGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['approval_boundary_missing'],
+      'nextAction': ready
+          ? 'M15 LLM review canary is ready for user review.'
+          : 'Resolve M15 LLM review boundary failures before any action proposal execution.',
     },
   };
 }

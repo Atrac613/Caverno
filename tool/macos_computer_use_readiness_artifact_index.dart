@@ -97,6 +97,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M15 action proposal command:');
     stdout.writeln(rehearsal.m15ActionProposalCommand);
   }
+  if (rehearsal.m15LlmReviewCommand != null) {
+    stdout.writeln('M15 LLM review command:');
+    stdout.writeln(rehearsal.m15LlmReviewCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

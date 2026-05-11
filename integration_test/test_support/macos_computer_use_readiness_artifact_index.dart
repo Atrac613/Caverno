@@ -104,10 +104,13 @@ class ReadinessArtifactIndex {
         '- Report-only preflight command: `${_escapeMarkdownCode(mvpFinalSignoffRehearsal.reportOnlyPreflightCommand)}`',
       );
     ReadinessArtifactEntry? m15Entry;
+    ReadinessArtifactEntry? m15LlmReviewEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
-        break;
+      }
+      if (entry.id == 'm15_llm_review_canary') {
+        m15LlmReviewEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -132,6 +135,27 @@ class ReadinessArtifactIndex {
         )
         ..writeln(
           '- Blocked review evidence: ${_joinedOrNone(_detailsStringList(m15Entry.details['blockedReviewEvidence']))}',
+        );
+    }
+    if (m15LlmReviewEntry != null && m15LlmReviewEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M15 LLM Review Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m15LlmReviewEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Passed runs: ${m15LlmReviewEntry.details['passedCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Failed runs: ${m15LlmReviewEntry.details['failedCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Boundary decision: ${m15LlmReviewEntry.details['boundaryDecision'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m15LlmReviewEntry.details['blockers']))}',
         );
     }
     buffer
@@ -166,6 +190,15 @@ class ReadinessArtifactIndex {
         ..writeln()
         ..writeln('```bash')
         ..writeln(mvpFinalSignoffRehearsal.m15ActionProposalCommand)
+        ..writeln('```');
+    }
+    if (mvpFinalSignoffRehearsal.m15LlmReviewCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M15 LLM review command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m15LlmReviewCommand)
         ..writeln('```');
     }
     buffer
@@ -218,6 +251,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.finalAggregationCommand,
     required this.reportOnlyPreflightCommand,
     this.m15ActionProposalCommand,
+    this.m15LlmReviewCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -230,6 +264,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? finalAggregationCommand;
   final String reportOnlyPreflightCommand;
   final String? m15ActionProposalCommand;
+  final String? m15LlmReviewCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -247,6 +282,7 @@ class ReadinessFinalSignoffRehearsal {
       'finalAggregationCommand': finalAggregationCommand,
       'reportOnlyPreflightCommand': reportOnlyPreflightCommand,
       'm15ActionProposalCommand': m15ActionProposalCommand,
+      'm15LlmReviewCommand': m15LlmReviewCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -391,6 +427,19 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m15ActionProposalNextAction,
       details: _m15ActionProposalDetails,
     ),
+    _latestEntry(
+      'm15_llm_review_canary',
+      'Latest M15 LLM review canary summary',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m15_llm_review_canary_summary',
+      parentPrefix: 'macos_computer_use_m15_llm_review_canary_',
+      fileName: 'canary_summary.json',
+      status: _m15LlmReviewStatus,
+      nextAction: _m15LlmReviewNextAction,
+      details: _m15LlmReviewDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -450,6 +499,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       ? _mvpFinalAggregationCommand(reportRoot, byId)
       : null;
   final m15ActionProposalCommand = _m15ActionProposalCommand(reportRoot, byId);
+  final m15LlmReviewCommand = _m15LlmReviewCommand(reportRoot, byId);
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -472,6 +522,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     finalAggregationCommand: finalAggregationCommand,
     reportOnlyPreflightCommand: _mvpReadinessPreflightCommand(reportRoot),
     m15ActionProposalCommand: m15ActionProposalCommand,
+    m15LlmReviewCommand: m15LlmReviewCommand,
   );
 }
 
@@ -481,7 +532,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
   return entries
       .where(
         (entry) =>
-            entry.id == 'm15_action_proposal_handoff' &&
+            (entry.id == 'm15_action_proposal_handoff' ||
+                entry.id == 'm15_llm_review_canary') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -569,6 +621,25 @@ String? _m15ActionProposalCommand(
     reportRoot.path,
     '--m14-summary',
     m14SummaryPath,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m15LlmReviewCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final handoffEntry = entriesById['m15_action_proposal_handoff'];
+  final handoffPath = handoffEntry?.path ?? '';
+  if (handoffPath.isEmpty || handoffEntry?.status != 'ready') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m15_llm_review_canary.sh',
+    '--root',
+    reportRoot.path,
+    '--handoff',
+    handoffPath,
   ].map(_shellQuote).join(' ');
 }
 
@@ -868,6 +939,55 @@ Map<String, Object?> _m15ActionProposalDetails(Map<String, dynamic> json) {
       'blockedReviewEvidence': _jsonStringList(
         reviewMap['blockedReviewEvidence'],
       ),
+    },
+  };
+}
+
+String? _m15LlmReviewStatus(Map<String, dynamic> json) {
+  final gate = json['m15LlmReviewGate'];
+  String? gateStatus;
+  if (gate is Map<String, dynamic>) {
+    gateStatus = gate['status']?.toString();
+  }
+  if (gateStatus != null) {
+    return gateStatus;
+  }
+  final failedCount = json['failedCount'];
+  if (failedCount is num) {
+    return failedCount == 0 ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m15LlmReviewNextAction(Map<String, dynamic> json) {
+  final gate = json['m15LlmReviewGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m15LlmReviewStatus(json);
+  if (status == 'ready') {
+    return 'M15 LLM review canary is ready for user review.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M15 LLM review boundary failures before any action proposal execution.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m15LlmReviewDetails(Map<String, dynamic> json) {
+  final gate = json['m15LlmReviewGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  return <String, Object?>{
+    'passedCount': json['passedCount'],
+    'failedCount': json['failedCount'],
+    'boundaryDecision': json['boundaryDecision']?.toString(),
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'blockers': _jsonStringList(gateMap['blockers']),
     },
   };
 }
