@@ -93,6 +93,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('Final MVP aggregation command:');
     stdout.writeln(rehearsal.finalAggregationCommand);
   }
+  if (rehearsal.m15ActionProposalCommand != null) {
+    stdout.writeln('M15 action proposal command:');
+    stdout.writeln(rehearsal.m15ActionProposalCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

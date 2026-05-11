@@ -159,6 +159,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.finalAggregationCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m15ActionProposalCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M15 action proposal command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m15ActionProposalCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -208,6 +217,7 @@ class ReadinessFinalSignoffRehearsal {
     required this.nextActions,
     required this.finalAggregationCommand,
     required this.reportOnlyPreflightCommand,
+    this.m15ActionProposalCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -219,6 +229,7 @@ class ReadinessFinalSignoffRehearsal {
   final List<String> nextActions;
   final String? finalAggregationCommand;
   final String reportOnlyPreflightCommand;
+  final String? m15ActionProposalCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -235,6 +246,7 @@ class ReadinessFinalSignoffRehearsal {
       'nextActions': nextActions,
       'finalAggregationCommand': finalAggregationCommand,
       'reportOnlyPreflightCommand': reportOnlyPreflightCommand,
+      'm15ActionProposalCommand': m15ActionProposalCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -437,6 +449,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   final finalAggregationCommand = ready
       ? _mvpFinalAggregationCommand(reportRoot, byId)
       : null;
+  final m15ActionProposalCommand = _m15ActionProposalCommand(reportRoot, byId);
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -458,6 +471,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     nextActions: List<String>.unmodifiable(nextActions),
     finalAggregationCommand: finalAggregationCommand,
     reportOnlyPreflightCommand: _mvpReadinessPreflightCommand(reportRoot),
+    m15ActionProposalCommand: m15ActionProposalCommand,
   );
 }
 
@@ -535,6 +549,26 @@ String _mvpReadinessPreflightCommand(Directory reportRoot) {
     'tool/run_macos_computer_use_mvp_readiness_preflight.sh',
     '--root',
     reportRoot.path,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m15ActionProposalCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final llmEntry = entriesById['llm_canary'];
+  final m14SummaryPath = llmEntry?.path ?? '';
+  if (m14SummaryPath.isEmpty ||
+      !m14SummaryPath.contains('macos_computer_use_real_app_observe_canary_')) {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+    '--root',
+    reportRoot.path,
+    '--m14-summary',
+    m14SummaryPath,
   ].map(_shellQuote).join(' ');
 }
 

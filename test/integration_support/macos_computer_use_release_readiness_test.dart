@@ -1357,6 +1357,13 @@ void main() {
         stdout,
         contains('--llm-canary-summary $realAppObserveSummaryPath'),
       );
+      expect(stdout, contains('M15 action proposal command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $realAppObserveSummaryPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1365,6 +1372,27 @@ void main() {
       expect(markdown, contains('- Ready: true'));
       expect(markdown, contains('Latest LLM canary summary'));
       expect(markdown, contains(realAppObserveSummaryPath));
+      expect(markdown, contains('M15 action proposal command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $realAppObserveSummaryPath',
+        ),
+      );
+
+      final indexJson =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_readiness_artifact_index.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final rehearsal =
+          indexJson['mvpFinalSignoffRehearsal'] as Map<String, dynamic>;
+      expect(
+        rehearsal['m15ActionProposalCommand'],
+        contains('run_macos_computer_use_m15_action_proposal_handoff.sh'),
+      );
     });
   });
 }
