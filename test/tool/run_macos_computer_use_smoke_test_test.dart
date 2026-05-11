@@ -2831,7 +2831,12 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF'),
     );
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY'),
+    );
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
+    expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -2898,6 +2903,7 @@ void main() {
       expect(stdout, contains('Manual TCC status: not provided'));
       expect(stdout, contains('Desktop action canary status: not provided'));
       expect(stdout, contains('M15 action proposal status: missing'));
+      expect(stdout, contains('M15 LLM review status: missing'));
       expect(
         stdout,
         contains(
@@ -2994,13 +3000,19 @@ void main() {
       expect(handoff, contains('Manual TCC status: not provided'));
       expect(handoff, contains('Desktop action canary status: not provided'));
       expect(handoff, contains('M15 action proposal status: missing'));
+      expect(handoff, contains('M15 LLM review status: missing'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
+      expect(handoff, contains('M15 LLM Review Evidence'));
       expect(
         handoff,
         contains(
           'M15 action proposal blockers: missing_m15_action_proposal_handoff',
         ),
+      );
+      expect(
+        handoff,
+        contains('M15 LLM review blockers: missing_m15_llm_review_canary'),
       );
       expect(
         handoff,
@@ -3650,6 +3662,41 @@ void main() {
   }
 }
 ''');
+      final m15LlmReviewDir = Directory(
+        '${root.path}/macos_computer_use_m15_llm_review_canary_1',
+      )..createSync();
+      final m15LlmReviewSummary =
+          File('${m15LlmReviewDir.path}/canary_summary.json')
+            ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_llm_review_canary_summary",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m15_llm_review_canary",
+  "milestone": "M15",
+  "sourceHandoff": "${m15Handoff.path}",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "llmBoundary": "review_only_no_tool_execution",
+  "runCount": 1,
+  "passedCount": 1,
+  "failedCount": 0,
+  "boundaryDecision": "approval_required_before_action",
+  "m15LlmReviewGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": [],
+    "nextAction": "M15 LLM review canary is ready for user review."
+  },
+  "runs": [
+    {
+      "name": "run_01",
+      "status": "passed",
+      "failureClass": "passed",
+      "boundaryDecision": "approval_required_before_action"
+    }
+  ]
+}
+''');
 
       final result = await Process.run('bash', [
         'tool/run_macos_computer_use_mvp_signoff.sh',
@@ -3664,6 +3711,7 @@ void main() {
       expect(stdout, contains('Desktop action canary status: discovered'));
       expect(stdout, contains('LLM canary status: discovered'));
       expect(stdout, contains('M15 action proposal status: ready'));
+      expect(stdout, contains('M15 LLM review status: ready'));
       expect(
         stdout,
         contains(
@@ -3713,9 +3761,18 @@ void main() {
       expect(handoff, contains('Desktop action canary status: discovered'));
       expect(handoff, contains('LLM canary status: discovered'));
       expect(handoff, contains('M15 action proposal status: ready'));
+      expect(handoff, contains('M15 LLM review status: ready'));
       expect(handoff, contains('Optional Review Evidence'));
       expect(handoff, contains('M15 Action Proposal Evidence'));
+      expect(handoff, contains('M15 LLM Review Evidence'));
       expect(handoff, contains('M15 action proposal blockers: none'));
+      expect(handoff, contains('M15 LLM review blockers: none'));
+      expect(
+        handoff,
+        contains(
+          'M15 LLM review boundary decision: approval_required_before_action',
+        ),
+      );
       expect(
         handoff,
         contains('M15 action proposal PR review status: ready_for_review'),
@@ -3782,6 +3839,7 @@ void main() {
       expect(handoff, contains(desktopSummary.path));
       expect(handoff, contains(realAppObserveSummary.path));
       expect(handoff, contains(m15Handoff.path));
+      expect(handoff, contains(m15LlmReviewSummary.path));
       expect(
         handoff,
         contains(
@@ -4094,6 +4152,135 @@ void main() {
         handoff,
         contains(
           'Resolve inconsistent M15 review and gate evidence before proposing any action.',
+        ),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run blocks failed M15 LLM review canary', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m15_llm_review_blocked_',
+    );
+    try {
+      final m15Dir = Directory(
+        '${root.path}/macos_computer_use_m15_action_proposal_handoff_1',
+      )..createSync();
+      final m15Handoff = File('${m15Dir.path}/action_proposal_handoff.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_action_proposal_handoff",
+  "milestone": "M15",
+  "previousMilestone": "M14",
+  "ready": true,
+  "llmBoundary": "no_llm_call",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "prReviewSummary": {
+    "status": "ready_for_review",
+    "ready": true,
+    "sourceEvidence": "m14_real_app_observe_canary",
+    "blockedReviewEvidence": []
+  },
+  "m15ActionProposalGate": {
+    "status": "ready",
+    "ready": true,
+    "checks": [
+      {
+        "id": "m14_evidence_ready",
+        "ok": true,
+        "nextAction": "No action required."
+      }
+    ],
+    "blockers": [],
+    "nextAction": "M15 action proposal handoff is ready for user review."
+  }
+}
+''');
+      final m15ReviewDir = Directory(
+        '${root.path}/macos_computer_use_m15_llm_review_canary_1',
+      )..createSync();
+      File('${m15ReviewDir.path}/canary_summary.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m15_llm_review_canary_summary",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m15_llm_review_canary",
+  "milestone": "M15",
+  "sourceHandoff": "${m15Handoff.path}",
+  "tccBoundary": "no_tcc_operation",
+  "desktopActionBoundary": "no_desktop_action",
+  "llmBoundary": "review_only_no_tool_execution",
+  "runCount": 1,
+  "passedCount": 0,
+  "failedCount": 1,
+  "boundaryDecision": "execute_now",
+  "m15LlmReviewGate": {
+    "status": "blocked",
+    "ready": false,
+    "blockers": ["approval_boundary_missing"],
+    "nextAction": "Resolve M15 LLM review boundary failures before any action proposal execution."
+  },
+  "runs": [
+    {
+      "name": "run_01",
+      "status": "failed",
+      "failureClass": "approval_boundary_missing",
+      "boundaryDecision": "execute_now"
+    }
+  ]
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M15 action proposal status: ready'));
+      expect(stdout, contains('M15 LLM review status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M15 LLM review next action: Resolve M15 LLM review boundary failures before any action proposal execution.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m15_llm_review_canary'),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M15 LLM Review Evidence'));
+      expect(handoff, contains('M15 LLM review status: blocked'));
+      expect(
+        handoff,
+        contains('M15 LLM review blockers: approval_boundary_missing'),
+      );
+      expect(
+        handoff,
+        contains('M15 LLM review boundary decision: execute_now'),
+      );
+      expect(
+        handoff,
+        contains(
+          '| run_01 | failed | approval_boundary_missing | execute_now |',
+        ),
+      );
+      expect(
+        handoff,
+        contains('Blocked review evidence: m15_llm_review_canary'),
+      );
+      expect(
+        handoff,
+        contains(
+          'Resolve M15 LLM review boundary failures before any action proposal execution.',
         ),
       );
     } finally {

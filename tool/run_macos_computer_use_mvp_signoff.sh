@@ -202,6 +202,12 @@ m15_action_proposal = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m15_action_proposal_handoff"
 )
+m15_llm_review = latest_matching(
+    lambda path, decoded: path.name == "canary_summary.json"
+    and path.parent.name.startswith("macos_computer_use_m15_llm_review_canary_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m15_llm_review_canary_summary"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -214,6 +220,7 @@ for name, path in [
     ("DISCOVERED_DESKTOP_ACTION_CANARY_SUMMARY", desktop),
     ("DISCOVERED_LLM_CANARY_SUMMARY", llm),
     ("DISCOVERED_M15_ACTION_PROPOSAL_HANDOFF", m15_action_proposal),
+    ("DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY", m15_llm_review),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -225,6 +232,11 @@ M15_ACTION_PROPOSAL_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m15_action_propo
 M15_ACTION_PROPOSAL_STATUS="missing"
 M15_ACTION_PROPOSAL_NEXT_ACTION="Run the M15 action proposal handoff after M14 observe-only evidence is ready."
 M15_ACTION_PROPOSAL_BOUNDARY="report-only, no LLM call, no TCC, no System Settings, no desktop actions"
+M15_LLM_REVIEW_CANARY_SUMMARY="${DISCOVERED_M15_LLM_REVIEW_CANARY_SUMMARY:-}"
+M15_LLM_REVIEW_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m15_llm_review_fragment.md"
+M15_LLM_REVIEW_STATUS="missing"
+M15_LLM_REVIEW_NEXT_ACTION="Run the M15 LLM review canary after the M15 action proposal handoff is ready."
+M15_LLM_REVIEW_BOUNDARY="review-only, no tool execution, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -435,6 +447,123 @@ else
 EOF
 fi
 
+if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && -f "${M15_LLM_REVIEW_CANARY_SUMMARY}" ]]; then
+  m15_llm_review_values="$(
+    M15_LLM_REVIEW_CANARY_SUMMARY="${M15_LLM_REVIEW_CANARY_SUMMARY}" M15_LLM_REVIEW_FRAGMENT="${M15_LLM_REVIEW_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M15_LLM_REVIEW_CANARY_SUMMARY"])
+fragment_path = Path(os.environ["M15_LLM_REVIEW_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m15LlmReviewGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+failed_count = summary.get("failedCount") if isinstance(summary, dict) else None
+passed_count = summary.get("passedCount") if isinstance(summary, dict) else None
+run_count = summary.get("runCount") if isinstance(summary, dict) else None
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(failed_count, (int, float)):
+        status = "ready" if failed_count == 0 else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    next_action = (
+        "M15 LLM review canary is ready for user review."
+        if status == "ready"
+        else "Resolve M15 LLM review boundary failures before any action proposal execution."
+    )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m15_llm_review_summary_unreadable"]
+boundary = "review-only"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}"
+    )
+runs = as_list(summary.get("runs") if isinstance(summary, dict) else [])
+
+lines = [
+    "",
+    "## M15 LLM Review Evidence",
+    "",
+    f"- M15 LLM review canary: `{summary_path}`",
+    f"- M15 LLM review status: {status}",
+    f"- M15 LLM review boundary: {boundary}",
+    f"- M15 LLM review next action: {next_action}",
+    f"- M15 LLM review blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M15 LLM review runs: {run_count if run_count is not None else 'not available'}",
+    f"- M15 LLM review passed: {passed_count if passed_count is not None else 'not available'}",
+    f"- M15 LLM review failed: {failed_count if failed_count is not None else 'not available'}",
+]
+if isinstance(summary, dict) and summary.get("boundaryDecision"):
+    lines.append(f"- M15 LLM review boundary decision: {summary.get('boundaryDecision')}")
+if runs:
+    lines.extend([
+        "",
+        "| Run | Status | Failure Class | Boundary Decision |",
+        "| --- | --- | --- | --- |",
+    ])
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        lines.append(
+            "| {name} | {status} | {failure} | {decision} |".format(
+                name=cell(run.get("name")),
+                status=cell(run.get("status")),
+                failure=cell(run.get("failureClass")),
+                decision=cell(run.get("boundaryDecision")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M15_LLM_REVIEW_STATUS={shlex.quote(status)}")
+print(f"M15_LLM_REVIEW_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M15_LLM_REVIEW_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m15_llm_review_values}"
+else
+  cat >"${M15_LLM_REVIEW_FRAGMENT}" <<EOF
+
+## M15 LLM Review Evidence
+
+- M15 LLM review canary: \`not discovered\`
+- M15 LLM review status: missing
+- M15 LLM review boundary: ${M15_LLM_REVIEW_BOUNDARY}
+- M15 LLM review next action: ${M15_LLM_REVIEW_NEXT_ACTION}
+- M15 LLM review blockers: missing_m15_llm_review_canary
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -530,6 +659,9 @@ else
 fi
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m15_action_proposal_handoff)
+fi
+if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m15_llm_review_canary)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -792,6 +924,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - LLM canary status: ${llm_canary_status}
 - M15 action proposal handoff: ${M15_ACTION_PROPOSAL_HANDOFF:-not discovered}
 - M15 action proposal status: ${M15_ACTION_PROPOSAL_STATUS}
+- M15 LLM review canary: ${M15_LLM_REVIEW_CANARY_SUMMARY:-not discovered}
+- M15 LLM review status: ${M15_LLM_REVIEW_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -804,6 +938,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m15_action_proposal_handoff\`: ${M15_ACTION_PROPOSAL_STATUS}
 - M15 action proposal boundary: ${M15_ACTION_PROPOSAL_BOUNDARY}
 - M15 action proposal next action: ${M15_ACTION_PROPOSAL_NEXT_ACTION}
+- \`m15_llm_review_canary\`: ${M15_LLM_REVIEW_STATUS}
+- M15 LLM review boundary: ${M15_LLM_REVIEW_BOUNDARY}
+- M15 LLM review next action: ${M15_LLM_REVIEW_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -880,6 +1017,7 @@ EOF
 cat "${LLM_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${DESKTOP_ACTION_EVIDENCE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M15_LLM_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -895,7 +1033,12 @@ cat "${M15_ACTION_PROPOSAL_FRAGMENT}" >>"${HANDOFF_MD}"
     echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
   fi
   if [[ "${#blocked_review_evidence[@]}" -gt 0 ]]; then
-    echo "- ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
+    if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != "ready" ]]; then
+      echo "- ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
+    fi
+    if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
+      echo "- ${M15_LLM_REVIEW_NEXT_ACTION}"
+    fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
     echo "- No required input evidence is missing from this wrapper invocation. If readiness still fails, inspect the blocked gate details in the Markdown report."
@@ -926,6 +1069,10 @@ echo "  M15 action proposal handoff: ${M15_ACTION_PROPOSAL_HANDOFF:-not discover
 echo "  M15 action proposal status: ${M15_ACTION_PROPOSAL_STATUS}"
 echo "  M15 action proposal boundary: ${M15_ACTION_PROPOSAL_BOUNDARY}"
 echo "  M15 action proposal next action: ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
+echo "  M15 LLM review canary: ${M15_LLM_REVIEW_CANARY_SUMMARY:-not discovered}"
+echo "  M15 LLM review status: ${M15_LLM_REVIEW_STATUS}"
+echo "  M15 LLM review boundary: ${M15_LLM_REVIEW_BOUNDARY}"
+echo "  M15 LLM review next action: ${M15_LLM_REVIEW_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -968,6 +1115,12 @@ if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != 
 fi
 if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
   echo "  - Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
+fi
+if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && "${M15_ACTION_PROPOSAL_STATUS}" != "ready" ]]; then
+  echo "  - ${M15_ACTION_PROPOSAL_NEXT_ACTION}"
+fi
+if [[ -n "${M15_LLM_REVIEW_CANARY_SUMMARY}" && "${M15_LLM_REVIEW_STATUS}" != "ready" ]]; then
+  echo "  - ${M15_LLM_REVIEW_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"
