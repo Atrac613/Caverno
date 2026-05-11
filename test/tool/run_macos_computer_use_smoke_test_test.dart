@@ -3671,6 +3671,8 @@ void main() {
     expect(mvpChecklist, contains('m15LlmReviewGate'));
     expect(mvpChecklist, contains('M17 execution rehearsals'));
     expect(mvpChecklist, contains('M18 execution handoffs'));
+    expect(mvpChecklist, contains('M20 execution'));
+    expect(mvpChecklist, contains('result intake reports'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -3734,11 +3736,16 @@ void main() {
     expect(mvpSignoffScript, contains('DISCOVERED_M16_APPROVAL_PACKET'));
     expect(mvpSignoffScript, contains('DISCOVERED_M17_EXECUTION_REHEARSAL'));
     expect(mvpSignoffScript, contains('DISCOVERED_M18_EXECUTION_HANDOFF'));
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M20_EXECUTION_RESULT_INTAKE'),
+    );
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
     expect(mvpSignoffScript, contains('M17 Execution Rehearsal Evidence'));
     expect(mvpSignoffScript, contains('M18 Execution Handoff Evidence'));
+    expect(mvpSignoffScript, contains('M20 Execution Result Intake Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -4089,6 +4096,14 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('m17_execution_rehearsal'));
     expect(mvpReadinessPreflightScript, contains('M18 execution handoff'));
     expect(mvpReadinessPreflightScript, contains('m18_execution_handoff'));
+    expect(
+      mvpReadinessPreflightScript,
+      contains('M20 execution result intake'),
+    );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('m20_execution_result_intake'),
+    );
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -4191,6 +4206,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m18_execution_handoff evidence'));
+      expect(
+        stdout,
+        contains(
+          'M20 execution result intake: inspect the artifact index for the report-only result intake command after the user completes the M18-guided runtime step',
+        ),
+      );
+      expect(stdout, contains('blocked m20_execution_result_intake evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -5673,6 +5695,100 @@ void main() {
       expect(
         handoff,
         contains('Blocked review evidence: m18_execution_handoff'),
+      );
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test('MVP sign-off dry run surfaces blocked M20 result intake', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_mvp_signoff_dry_run_m20_blocked_',
+    );
+    try {
+      final m20Dir = Directory(
+        '${root.path}/macos_computer_use_m20_execution_result_intake_1',
+      )..createSync();
+      File('${m20Dir.path}/execution_result_intake.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m20_execution_result_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m20_execution_result_intake",
+  "milestone": "M20",
+  "previousMilestone": "M18",
+  "ready": false,
+  "sourceM18ExecutionHandoff": "/tmp/execution_handoff.json",
+  "executionBoundary": "manual_result_intake_report_only",
+  "desktopActionBoundary": "user_operated_evidence_only",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "manualInputs": {
+    "freshObservation": "done",
+    "targetConfirmed": "yes",
+    "exactTextConfirmed": "yes",
+    "publicActionConfirmed": "yes",
+    "runtimeAction": "failed",
+    "postActionObservation": "missing"
+  },
+  "resultSequence": [
+    {
+      "id": "runtime_action",
+      "required": true,
+      "status": "failed"
+    }
+  ],
+  "m20ExecutionResultIntakeGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "runtime_action_succeeded",
+        "ok": false,
+        "nextAction": "Record a succeeded user-operated runtime action before marking M20 ready."
+      }
+    ],
+    "blockers": ["runtime_action_succeeded"],
+    "nextAction": "Resolve M20 result intake blockers before accepting runtime evidence."
+  }
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_mvp_signoff.sh',
+        '--dry-run',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('M20 execution result intake status: blocked'));
+      expect(
+        stdout,
+        contains(
+          'M20 execution result intake next action: Resolve M20 result intake blockers before accepting runtime evidence.',
+        ),
+      );
+      expect(
+        stdout,
+        contains('Blocked review evidence: m20_execution_result_intake'),
+      );
+
+      final handoff = File(
+        '${root.path}/macos_computer_use_mvp_handoff.md',
+      ).readAsStringSync();
+      expect(handoff, contains('M20 Execution Result Intake Evidence'));
+      expect(handoff, contains('M20 execution result intake status: blocked'));
+      expect(
+        handoff,
+        contains(
+          'M20 execution result intake blockers: runtime_action_succeeded',
+        ),
+      );
+      expect(handoff, contains('| runtime_action_succeeded | blocked |'));
+      expect(
+        handoff,
+        contains('Blocked review evidence: m20_execution_result_intake'),
       );
     } finally {
       root.deleteSync(recursive: true);

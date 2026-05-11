@@ -334,6 +334,11 @@ Follow-on milestones:
   confirmations are present, the runtime action is recorded as succeeded, and
   the post-action observation is recorded. It still must not call an LLM, grant
   TCC, operate System Settings, or perform desktop actions.
+- M21: Surface M20 execution result intake in the readiness artifact index and
+  MVP sign-off handoff. A discovered blocked M20 intake is treated as blocked
+  review evidence and stops final aggregation until the result-intake gate next
+  action is resolved. Missing M20 intake remains optional because the runtime
+  step is user-operated and may not have happened yet.
 
 ## Computer Use Live Canary
 

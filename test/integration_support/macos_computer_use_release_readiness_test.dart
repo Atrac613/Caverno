@@ -668,6 +668,15 @@ void main() {
         File(m18ExecutionHandoffPath),
         _m18ExecutionHandoff(ready: true),
       );
+      final m20ExecutionResultIntakePath =
+          '${root.path}/macos_computer_use_m20_execution_result_intake_950/execution_result_intake.json';
+      _writeJson(
+        File(m20ExecutionResultIntakePath),
+        _m20ExecutionResultIntake(
+          ready: true,
+          sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
+        ),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -683,6 +692,7 @@ void main() {
       expect(entryIds, contains('m16_approval_packet'));
       expect(entryIds, contains('m17_execution_rehearsal'));
       expect(entryIds, contains('m18_execution_handoff'));
+      expect(entryIds, contains('m20_execution_result_intake'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -938,6 +948,38 @@ void main() {
       );
       expect(index.toMarkdown(), contains('## M18 Execution Handoff Evidence'));
       expect(index.toMarkdown(), contains('Action-time confirmations: 3'));
+      final m20Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm20_execution_result_intake',
+      );
+      expect(m20Entry.exists, isTrue);
+      expect(m20Entry.path, m20ExecutionResultIntakePath);
+      expect(m20Entry.status, 'ready');
+      expect(
+        m20Entry.nextAction,
+        'Review the user-operated runtime result evidence before any follow-up action.',
+      );
+      expect(m20Entry.details['gateStatus'], 'ready');
+      expect(m20Entry.details['runtimeAction'], 'succeeded');
+      expect(m20Entry.details['resultSequenceCount'], 2);
+      expect(
+        index.mvpFinalSignoffRehearsal.m20ExecutionResultIntakeCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('Latest M20 execution result intake'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M20 execution result intake | true | ready |'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M20 Execution Result Intake Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Runtime action: succeeded'));
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
@@ -957,6 +999,16 @@ void main() {
         index.toMarkdown(),
         contains(
           'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M20 execution result intake command:'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
         ),
       );
     });
@@ -1688,6 +1740,104 @@ void main() {
       expect(index.toMarkdown(), contains('Blockers: target_confirmation'));
     });
 
+    test('artifact index blocks final aggregation on blocked M20 intake', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m20_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_900/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: true),
+      );
+      final m20ExecutionResultIntakePath =
+          '${root.path}/macos_computer_use_m20_execution_result_intake_950/execution_result_intake.json';
+      _writeJson(
+        File(m20ExecutionResultIntakePath),
+        _m20ExecutionResultIntake(
+          ready: false,
+          sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm20_execution_result_intake',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m20ExecutionResultIntakePath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M20 result intake blockers before accepting runtime evidence.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(
+        entry.details['gateBlockers'],
+        contains('runtime_action_succeeded'),
+      );
+      expect(entry.details['runtimeAction'], 'failed');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m20_execution_result_intake'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m20_execution_result_intake'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M20 Execution Result Intake Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'Blockers: fresh_observation_recorded, runtime_action_succeeded, post_action_observation_recorded',
+        ),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -1848,6 +1998,12 @@ void main() {
         File(m17ExecutionRehearsalPath),
         _m17ExecutionRehearsal(ready: true),
       );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_1/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: true),
+      );
 
       final result = await Process.run('dart', [
         'run',
@@ -1909,6 +2065,13 @@ void main() {
           'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
         ),
       );
+      expect(stdout, contains('M20 execution result intake command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -1952,6 +2115,13 @@ void main() {
           'bash tool/run_macos_computer_use_m18_execution_handoff.sh --root ${root.path} --m17-rehearsal $m17ExecutionRehearsalPath',
         ),
       );
+      expect(markdown, contains('M20 execution result intake command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --root ${root.path} --m18-handoff $m18ExecutionHandoffPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -1981,6 +2151,10 @@ void main() {
       expect(
         rehearsal['m18ExecutionHandoffCommand'],
         contains('run_macos_computer_use_m18_execution_handoff.sh'),
+      );
+      expect(
+        rehearsal['m20ExecutionResultIntakeCommand'],
+        contains('run_macos_computer_use_m20_execution_result_intake.sh'),
       );
     });
   });
@@ -2696,6 +2870,59 @@ Map<String, dynamic> _m18ExecutionHandoff({required bool ready}) {
       'nextAction': ready
           ? 'Ask the user to perform the runtime step manually with fresh observation and action-time confirmations.'
           : 'Resolve M18 handoff blockers before preparing any runtime execution step.',
+    },
+  };
+}
+
+Map<String, dynamic> _m20ExecutionResultIntake({
+  required bool ready,
+  required String sourceM18ExecutionHandoff,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m20_execution_result_intake',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m20_execution_result_intake',
+    'milestone': 'M20',
+    'previousMilestone': 'M18',
+    'ready': ready,
+    'sourceM18ExecutionHandoff': sourceM18ExecutionHandoff,
+    'executionBoundary': 'manual_result_intake_report_only',
+    'desktopActionBoundary': 'user_operated_evidence_only',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'manualInputs': <String, Object?>{
+      'freshObservation': ready ? 'done' : 'missing',
+      'targetConfirmed': ready ? 'yes' : 'no',
+      'exactTextConfirmed': ready ? 'yes' : 'no',
+      'publicActionConfirmed': 'yes',
+      'runtimeAction': ready ? 'succeeded' : 'failed',
+      'postActionObservation': ready ? 'done' : 'missing',
+    },
+    'resultSequence': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'runtime_action',
+        'required': true,
+        'status': ready ? 'succeeded' : 'failed',
+      },
+      <String, Object?>{
+        'id': 'post_action_observation',
+        'required': true,
+        'status': ready ? 'done' : 'missing',
+      },
+    ],
+    'm20ExecutionResultIntakeGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready
+          ? <String>[]
+          : <String>[
+              'fresh_observation_recorded',
+              'runtime_action_succeeded',
+              'post_action_observation_recorded',
+            ],
+      'nextAction': ready
+          ? 'Review the user-operated runtime result evidence before any follow-up action.'
+          : 'Resolve M20 result intake blockers before accepting runtime evidence.',
     },
   };
 }

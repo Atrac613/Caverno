@@ -108,6 +108,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
     ReadinessArtifactEntry? m17ExecutionRehearsalEntry;
     ReadinessArtifactEntry? m18ExecutionHandoffEntry;
+    ReadinessArtifactEntry? m20ExecutionResultIntakeEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -123,6 +124,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm18_execution_handoff') {
         m18ExecutionHandoffEntry = entry;
+      }
+      if (entry.id == 'm20_execution_result_intake') {
+        m20ExecutionResultIntakeEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -233,6 +237,28 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m18ExecutionHandoffEntry.details['gateBlockers']))}',
         );
     }
+    if (m20ExecutionResultIntakeEntry != null &&
+        m20ExecutionResultIntakeEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M20 Execution Result Intake Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m20ExecutionResultIntakeEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Runtime action: ${m20ExecutionResultIntakeEntry.details['runtimeAction'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Result sequence steps: ${m20ExecutionResultIntakeEntry.details['resultSequenceCount'] ?? 0}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m20ExecutionResultIntakeEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m20ExecutionResultIntakeEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -303,6 +329,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m18ExecutionHandoffCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m20ExecutionResultIntakeCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M20 execution result intake command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m20ExecutionResultIntakeCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -357,6 +392,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m16ApprovalPacketCommand,
     this.m17ExecutionRehearsalCommand,
     this.m18ExecutionHandoffCommand,
+    this.m20ExecutionResultIntakeCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -373,6 +409,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m16ApprovalPacketCommand;
   final String? m17ExecutionRehearsalCommand;
   final String? m18ExecutionHandoffCommand;
+  final String? m20ExecutionResultIntakeCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -394,6 +431,7 @@ class ReadinessFinalSignoffRehearsal {
       'm16ApprovalPacketCommand': m16ApprovalPacketCommand,
       'm17ExecutionRehearsalCommand': m17ExecutionRehearsalCommand,
       'm18ExecutionHandoffCommand': m18ExecutionHandoffCommand,
+      'm20ExecutionResultIntakeCommand': m20ExecutionResultIntakeCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -586,6 +624,19 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m18ExecutionHandoffNextAction,
       details: _m18ExecutionHandoffDetails,
     ),
+    _latestEntry(
+      'm20_execution_result_intake',
+      'Latest M20 execution result intake',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m20_execution_result_intake',
+      parentPrefix: 'macos_computer_use_m20_execution_result_intake_',
+      fileName: 'execution_result_intake.json',
+      status: _m20ExecutionResultIntakeStatus,
+      nextAction: _m20ExecutionResultIntakeNextAction,
+      details: _m20ExecutionResultIntakeDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -655,6 +706,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m20ExecutionResultIntakeCommand = _m20ExecutionResultIntakeCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -681,6 +736,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m16ApprovalPacketCommand: m16ApprovalPacketCommand,
     m17ExecutionRehearsalCommand: m17ExecutionRehearsalCommand,
     m18ExecutionHandoffCommand: m18ExecutionHandoffCommand,
+    m20ExecutionResultIntakeCommand: m20ExecutionResultIntakeCommand,
   );
 }
 
@@ -694,7 +750,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm15_llm_review_canary' ||
                 entry.id == 'm16_approval_packet' ||
                 entry.id == 'm17_execution_rehearsal' ||
-                entry.id == 'm18_execution_handoff') &&
+                entry.id == 'm18_execution_handoff' ||
+                entry.id == 'm20_execution_result_intake') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -867,6 +924,37 @@ String? _m18ExecutionHandoffCommand(
     reportRoot.path,
     '--m17-rehearsal',
     rehearsalPath,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m20ExecutionResultIntakeCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final handoffEntry = entriesById['m18_execution_handoff'];
+  final handoffPath = handoffEntry?.path ?? '';
+  if (handoffPath.isEmpty || handoffEntry?.status != 'ready') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m20_execution_result_intake.sh',
+    '--root',
+    reportRoot.path,
+    '--m18-handoff',
+    handoffPath,
+    '--fresh-observation',
+    'done',
+    '--target-confirmed',
+    'yes',
+    '--exact-text-confirmed',
+    'yes',
+    '--public-action-confirmed',
+    '<yes-or-not-applicable>',
+    '--runtime-action',
+    'succeeded',
+    '--post-action-observation',
+    'done',
   ].map(_shellQuote).join(' ');
 }
 
@@ -1390,6 +1478,73 @@ Map<String, Object?> _m18ExecutionHandoffDetails(Map<String, dynamic> json) {
       'approvedExactText': approvedValuesMap['exactText']?.toString(),
       'approvedTargetLabel': approvedValuesMap['targetLabel']?.toString(),
       'approvedPublicActionLabel': approvedValuesMap['publicActionLabel']
+          ?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m20ExecutionResultIntakeStatus(Map<String, dynamic> json) {
+  final gate = json['m20ExecutionResultIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m20ExecutionResultIntakeNextAction(Map<String, dynamic> json) {
+  final gate = json['m20ExecutionResultIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m20ExecutionResultIntakeStatus(json);
+  if (status == 'ready') {
+    return 'Review the user-operated runtime result evidence before any follow-up action.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M20 result intake blockers before accepting runtime evidence.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m20ExecutionResultIntakeDetails(
+  Map<String, dynamic> json,
+) {
+  final gate = json['m20ExecutionResultIntakeGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final manualInputs = json['manualInputs'];
+  final manualInputsMap = manualInputs is Map<String, dynamic>
+      ? manualInputs
+      : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM18ExecutionHandoff': json['sourceM18ExecutionHandoff']?.toString(),
+    'resultSequenceCount': _jsonList(json['resultSequence']).length,
+    if (manualInputsMap != null) ...<String, Object?>{
+      'freshObservation': manualInputsMap['freshObservation']?.toString(),
+      'targetConfirmed': manualInputsMap['targetConfirmed']?.toString(),
+      'exactTextConfirmed': manualInputsMap['exactTextConfirmed']?.toString(),
+      'publicActionConfirmed': manualInputsMap['publicActionConfirmed']
+          ?.toString(),
+      'runtimeAction': manualInputsMap['runtimeAction']?.toString(),
+      'postActionObservation': manualInputsMap['postActionObservation']
           ?.toString(),
     },
     if (gateMap != null) ...<String, Object?>{

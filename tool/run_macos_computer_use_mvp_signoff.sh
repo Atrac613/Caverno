@@ -226,6 +226,12 @@ m18_execution_handoff = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m18_execution_handoff"
 )
+m20_execution_result_intake = latest_matching(
+    lambda path, decoded: path.name == "execution_result_intake.json"
+    and path.parent.name.startswith("macos_computer_use_m20_execution_result_intake_")
+    and decoded.get("schemaName")
+    == "macos_computer_use_m20_execution_result_intake"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -242,6 +248,7 @@ for name, path in [
     ("DISCOVERED_M16_APPROVAL_PACKET", m16_approval_packet),
     ("DISCOVERED_M17_EXECUTION_REHEARSAL", m17_execution_rehearsal),
     ("DISCOVERED_M18_EXECUTION_HANDOFF", m18_execution_handoff),
+    ("DISCOVERED_M20_EXECUTION_RESULT_INTAKE", m20_execution_result_intake),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -275,6 +282,11 @@ M18_EXECUTION_HANDOFF_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m18_execution_
 M18_EXECUTION_HANDOFF_STATUS="missing"
 M18_EXECUTION_HANDOFF_NEXT_ACTION="Run the M18 execution handoff after the M17 execution rehearsal is ready."
 M18_EXECUTION_HANDOFF_BOUNDARY="report-only handoff, no LLM call, no TCC, no System Settings, no desktop actions"
+M20_EXECUTION_RESULT_INTAKE="${DISCOVERED_M20_EXECUTION_RESULT_INTAKE:-}"
+M20_EXECUTION_RESULT_INTAKE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m20_execution_result_intake_fragment.md"
+M20_EXECUTION_RESULT_INTAKE_STATUS="missing"
+M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION="Run the M20 execution result intake after the user completes the M18-guided runtime step."
+M20_EXECUTION_RESULT_INTAKE_BOUNDARY="report-only result intake, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -1027,6 +1039,139 @@ else
 EOF
 fi
 
+if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && -f "${M20_EXECUTION_RESULT_INTAKE}" ]]; then
+  m20_execution_result_intake_values="$(
+    M20_EXECUTION_RESULT_INTAKE="${M20_EXECUTION_RESULT_INTAKE}" M20_EXECUTION_RESULT_INTAKE_FRAGMENT="${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M20_EXECUTION_RESULT_INTAKE"])
+fragment_path = Path(os.environ["M20_EXECUTION_RESULT_INTAKE_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m20ExecutionResultIntakeGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+manual_inputs = summary.get("manualInputs") if isinstance(summary, dict) else None
+manual_inputs = manual_inputs if isinstance(manual_inputs, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    next_action = (
+        "Review the user-operated runtime result evidence before any follow-up action."
+        if status == "ready"
+        else "Resolve M20 result intake blockers before accepting runtime evidence."
+    )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m20_execution_result_intake_unreadable"]
+boundary = "report-only result intake"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+result_sequence = as_list(summary.get("resultSequence") if isinstance(summary, dict) else [])
+runtime_action = str(manual_inputs.get("runtimeAction") or "unknown")
+post_action_observation = str(manual_inputs.get("postActionObservation") or "unknown")
+
+lines = [
+    "",
+    "## M20 Execution Result Intake Evidence",
+    "",
+    f"- M20 execution result intake: `{summary_path}`",
+    f"- M20 execution result intake status: {status}",
+    f"- M20 execution result intake boundary: {boundary}",
+    f"- M20 execution result intake next action: {next_action}",
+    f"- M20 execution result intake blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M20 runtime action: {runtime_action}",
+    f"- M20 post-action observation: {post_action_observation}",
+    f"- M20 result sequence steps: {len(result_sequence)}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+if result_sequence:
+    lines.extend([
+        "",
+        "| Result Step | Required | Status |",
+        "| --- | --- | --- |",
+    ])
+    for step in result_sequence:
+        if not isinstance(step, dict):
+            continue
+        lines.append(
+            "| {id} | {required} | {status} |".format(
+                id=cell(step.get("id")),
+                required=cell(str(step.get("required", False)).lower()),
+                status=cell(step.get("status")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M20_EXECUTION_RESULT_INTAKE_STATUS={shlex.quote(status)}")
+print(f"M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M20_EXECUTION_RESULT_INTAKE_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m20_execution_result_intake_values}"
+else
+  cat >"${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" <<EOF
+
+## M20 Execution Result Intake Evidence
+
+- M20 execution result intake: \`not discovered\`
+- M20 execution result intake status: missing
+- M20 execution result intake boundary: ${M20_EXECUTION_RESULT_INTAKE_BOUNDARY}
+- M20 execution result intake next action: ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}
+- M20 execution result intake blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -1134,6 +1279,9 @@ if [[ -n "${M17_EXECUTION_REHEARSAL}" && "${M17_EXECUTION_REHEARSAL_STATUS}" != 
 fi
 if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m18_execution_handoff)
+fi
+if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m20_execution_result_intake)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -1406,6 +1554,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M17 execution rehearsal approval status: ${M17_EXECUTION_REHEARSAL_APPROVAL_STATUS}
 - M18 execution handoff: ${M18_EXECUTION_HANDOFF:-not discovered}
 - M18 execution handoff status: ${M18_EXECUTION_HANDOFF_STATUS}
+- M20 execution result intake: ${M20_EXECUTION_RESULT_INTAKE:-not discovered}
+- M20 execution result intake status: ${M20_EXECUTION_RESULT_INTAKE_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -1432,6 +1582,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m18_execution_handoff\`: ${M18_EXECUTION_HANDOFF_STATUS}
 - M18 execution handoff boundary: ${M18_EXECUTION_HANDOFF_BOUNDARY}
 - M18 execution handoff next action: ${M18_EXECUTION_HANDOFF_NEXT_ACTION}
+- \`m20_execution_result_intake\`: ${M20_EXECUTION_RESULT_INTAKE_STATUS}
+- M20 execution result intake boundary: ${M20_EXECUTION_RESULT_INTAKE_BOUNDARY}
+- M20 execution result intake next action: ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -1512,6 +1665,7 @@ cat "${M15_LLM_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M16_APPROVAL_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M17_EXECUTION_REHEARSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M18_EXECUTION_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -1541,6 +1695,9 @@ cat "${M18_EXECUTION_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
       echo "- ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
+    fi
+    if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+      echo "- ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -1590,6 +1747,10 @@ echo "  M18 execution handoff: ${M18_EXECUTION_HANDOFF:-not discovered}"
 echo "  M18 execution handoff status: ${M18_EXECUTION_HANDOFF_STATUS}"
 echo "  M18 execution handoff boundary: ${M18_EXECUTION_HANDOFF_BOUNDARY}"
 echo "  M18 execution handoff next action: ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
+echo "  M20 execution result intake: ${M20_EXECUTION_RESULT_INTAKE:-not discovered}"
+echo "  M20 execution result intake status: ${M20_EXECUTION_RESULT_INTAKE_STATUS}"
+echo "  M20 execution result intake boundary: ${M20_EXECUTION_RESULT_INTAKE_BOUNDARY}"
+echo "  M20 execution result intake next action: ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -1647,6 +1808,9 @@ if [[ -n "${M17_EXECUTION_REHEARSAL}" && "${M17_EXECUTION_REHEARSAL_STATUS}" != 
 fi
 if [[ -n "${M18_EXECUTION_HANDOFF}" && "${M18_EXECUTION_HANDOFF_STATUS}" != "ready" ]]; then
   echo "  - ${M18_EXECUTION_HANDOFF_NEXT_ACTION}"
+fi
+if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+  echo "  - ${M20_EXECUTION_RESULT_INTAKE_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

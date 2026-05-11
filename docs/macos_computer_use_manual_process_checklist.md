@@ -226,6 +226,9 @@ manually:
 8. Confirm `llmBoundary` is `no_llm_call`.
 9. If the intake is blocked, resolve the listed result evidence blocker before
    accepting the runtime result.
+10. Review the MVP sign-off handoff or readiness artifact index before final
+    aggregation; blocked discovered `m20_execution_result_intake` evidence
+    stops final aggregation until the intake is ready.
 
 Do not use this intake to click, type, navigate, submit, post, purchase, grant
 TCC, operate System Settings, or call an LLM. It records only user-reported
