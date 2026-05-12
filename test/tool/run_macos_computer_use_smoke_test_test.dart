@@ -38,6 +38,7 @@ void main() {
   late String m22PostActionReviewScript;
   late String m23CycleOutcomeHandoffScript;
   late String m25NextCycleSeedHandoffScript;
+  late String m26ObserveRestartPacketScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -132,6 +133,9 @@ void main() {
     ).readAsStringSync();
     m25NextCycleSeedHandoffScript = File(
       'tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh',
+    ).readAsStringSync();
+    m26ObserveRestartPacketScript = File(
+      'tool/run_macos_computer_use_m26_observe_restart_packet.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -305,6 +309,7 @@ void main() {
       contains('M24: Surface M23 cycle outcome handoffs'),
     );
     expect(architectureDoc, contains('M25: Convert a ready M23'));
+    expect(architectureDoc, contains('M26: Convert a ready M25'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -3985,6 +3990,189 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M26 observe restart packet prepares M14 commands',
+    () async {
+      expect(
+        m26ObserveRestartPacketScript,
+        contains('macos_computer_use_m26_observe_restart_packet'),
+      );
+      expect(m26ObserveRestartPacketScript, contains('report-only'));
+      expect(m26ObserveRestartPacketScript, contains('ready M25'));
+      expect(m26ObserveRestartPacketScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m26_observe_restart_packet_test_',
+      );
+      try {
+        final handoff = File('${root.path}/next_cycle_seed_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m25_next_cycle_seed_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m25_next_cycle_seed_handoff",
+  "milestone": "M25",
+  "previousMilestone": "M23",
+  "ready": true,
+  "executionBoundary": "next_cycle_seed_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "seedInputs": {
+    "seedAccepted": "yes"
+  },
+  "nextCycleSeed": {
+    "required": true,
+    "source": "m25_next_cycle_seed_handoff",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "note": "Observe the fresh compose target before proposing text.",
+    "requiresNewApprovalCycle": true
+  },
+  "m25NextCycleSeedHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m26_observe_restart_packet.sh',
+          '--root',
+          root.path,
+          '--m25-handoff',
+          handoff.path,
+          '--target-app',
+          'Safari',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains(
+            'Execution boundary: m14_observe_restart_packet_report_only',
+          ),
+        );
+        expect(
+          '${result.stdout}',
+          contains('tool/run_macos_computer_use_real_app_observe_canary.sh'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('observe_restart_packet.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m26_observe_restart_packet'),
+        );
+        expect(summary, contains('"milestone": "M26"'));
+        expect(summary, contains('"previousMilestone": "M25"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m26ObserveRestartPacketGate"'));
+        expect(summary, contains('"returnMilestone": "M14"'));
+        expect(summary, contains('"targetApp": "Safari"'));
+        expect(
+          summary,
+          contains('Observe the fresh compose target before proposing text.'),
+        );
+        expect(
+          summary,
+          contains('tool/run_macos_computer_use_m14_real_app_handoff.sh'),
+        );
+        expect(
+          summary,
+          contains('tool/run_macos_computer_use_real_app_observe_canary.sh'),
+        );
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M26 Observe Restart Packet'));
+        expect(markdown, contains('M14 observe-only canary'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M26 observe restart packet blocks unready M25 seed',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m26_observe_restart_packet_blocked_test_',
+      );
+      try {
+        final handoff = File('${root.path}/next_cycle_seed_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m25_next_cycle_seed_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m25_next_cycle_seed_handoff",
+  "milestone": "M25",
+  "previousMilestone": "M23",
+  "ready": false,
+  "executionBoundary": "next_cycle_seed_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "seedInputs": {
+    "seedAccepted": "no"
+  },
+  "nextCycleSeed": {
+    "required": true,
+    "source": "m25_next_cycle_seed_handoff",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "note": "Observe the next target.",
+    "requiresNewApprovalCycle": true
+  },
+  "m25NextCycleSeedHandoffGate": {
+    "status": "blocked",
+    "ready": false,
+    "blockers": ["seed_accepted"]
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m26_observe_restart_packet.sh',
+          '--root',
+          root.path,
+          '--m25-handoff',
+          handoff.path,
+          '--target-app',
+          'Safari',
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('m25_handoff_ready'));
+        expect('${result.stdout}', contains('m25_seed_accepted'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('observe_restart_packet.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"seedAccepted": "no"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4215,8 +4403,10 @@ void main() {
     expect(mvpChecklist, contains('M22 post-action reviews'));
     expect(mvpChecklist, contains('M23 cycle outcome'));
     expect(mvpChecklist, contains('M25 next-cycle seed'));
+    expect(mvpChecklist, contains('M26 observe restart packet'));
     expect(mvpChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(mvpChecklist, contains('m25NextCycleSeedHandoffGate'));
+    expect(mvpChecklist, contains('m26ObserveRestartPacketGate'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -4290,6 +4480,7 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M25_NEXT_CYCLE_SEED_HANDOFF'),
     );
+    expect(mvpSignoffScript, contains('DISCOVERED_M26_OBSERVE_RESTART_PACKET'));
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
@@ -4299,6 +4490,7 @@ void main() {
     expect(mvpSignoffScript, contains('M22 Post-Action Review Evidence'));
     expect(mvpSignoffScript, contains('M23 Cycle Outcome Handoff Evidence'));
     expect(mvpSignoffScript, contains('M25 Next-Cycle Seed Handoff Evidence'));
+    expect(mvpSignoffScript, contains('M26 Observe Restart Packet Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -4669,6 +4861,8 @@ void main() {
       mvpReadinessPreflightScript,
       contains('m25_next_cycle_seed_handoff'),
     );
+    expect(mvpReadinessPreflightScript, contains('M26 observe restart packet'));
+    expect(mvpReadinessPreflightScript, contains('m26_observe_restart_packet'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -4799,6 +4993,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m25_next_cycle_seed_handoff evidence'));
+      expect(
+        stdout,
+        contains(
+          'M26 observe restart packet: inspect the artifact index for the report-only M14 observe restart packet command after M25 is ready',
+        ),
+      );
+      expect(stdout, contains('blocked m26_observe_restart_packet evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -4972,6 +5173,7 @@ void main() {
     expect(manualProcessChecklist, contains('M22 Post-Action Review'));
     expect(manualProcessChecklist, contains('M23 Cycle Outcome Handoff'));
     expect(manualProcessChecklist, contains('M25 Next-Cycle Seed Handoff'));
+    expect(manualProcessChecklist, contains('M26 Observe Restart Packet'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -4983,6 +5185,7 @@ void main() {
     expect(manualProcessChecklist, contains('m22PostActionReviewGate'));
     expect(manualProcessChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(manualProcessChecklist, contains('m25NextCycleSeedHandoffGate'));
+    expect(manualProcessChecklist, contains('m26ObserveRestartPacketGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -5015,6 +5218,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m26_observe_restart_packet.sh'),
     );
     expect(
       manualProcessChecklist,
@@ -6666,6 +6873,98 @@ void main() {
         expect(
           handoff,
           contains('Blocked review evidence: m25_next_cycle_seed_handoff'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'MVP sign-off dry run surfaces blocked M26 observe restart packet',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_m26_blocked_',
+      );
+      try {
+        final m26Dir = Directory(
+          '${root.path}/macos_computer_use_m26_observe_restart_packet_1',
+        )..createSync();
+        File('${m26Dir.path}/observe_restart_packet.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m26_observe_restart_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m26_observe_restart_packet",
+  "milestone": "M26",
+  "previousMilestone": "M25",
+  "ready": false,
+  "sourceM25NextCycleSeedHandoff": "/tmp/next_cycle_seed_handoff.json",
+  "executionBoundary": "m14_observe_restart_packet_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "",
+  "targetIntent": "Observe the next target.",
+  "nextObservePreparation": {
+    "required": true,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "screenshotRequired": true,
+    "screenshotProvided": false
+  },
+  "commands": {
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot <user-provided-real-app-screenshot.png>"
+  },
+  "m26ObserveRestartPacketGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "target_app_present",
+        "ok": false,
+        "nextAction": "Provide the target app name for the next M14 observe pass."
+      }
+    ],
+    "blockers": ["target_app_present"],
+    "nextAction": "Resolve M26 observe restart packet blockers before asking for a new M14 screenshot."
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(stdout, contains('M26 observe restart packet status: blocked'));
+        expect(
+          stdout,
+          contains(
+            'M26 observe restart packet next action: Resolve M26 observe restart packet blockers before asking for a new M14 screenshot.',
+          ),
+        );
+        expect(
+          stdout,
+          contains('Blocked review evidence: m26_observe_restart_packet'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('M26 Observe Restart Packet Evidence'));
+        expect(handoff, contains('M26 observe restart packet status: blocked'));
+        expect(
+          handoff,
+          contains('M26 observe restart packet blockers: target_app_present'),
+        );
+        expect(handoff, contains('| target_app_present | blocked |'));
+        expect(
+          handoff,
+          contains('Blocked review evidence: m26_observe_restart_packet'),
         );
       } finally {
         root.deleteSync(recursive: true);

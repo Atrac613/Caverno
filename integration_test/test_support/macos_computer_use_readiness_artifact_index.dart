@@ -112,6 +112,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m22PostActionReviewEntry;
     ReadinessArtifactEntry? m23CycleOutcomeHandoffEntry;
     ReadinessArtifactEntry? m25NextCycleSeedHandoffEntry;
+    ReadinessArtifactEntry? m26ObserveRestartPacketEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -139,6 +140,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm25_next_cycle_seed_handoff') {
         m25NextCycleSeedHandoffEntry = entry;
+      }
+      if (entry.id == 'm26_observe_restart_packet') {
+        m26ObserveRestartPacketEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -346,6 +350,31 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m25NextCycleSeedHandoffEntry.details['gateBlockers']))}',
         );
     }
+    if (m26ObserveRestartPacketEntry != null &&
+        m26ObserveRestartPacketEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M26 Observe Restart Packet Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m26ObserveRestartPacketEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target app: ${m26ObserveRestartPacketEntry.details['targetApp'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target intent: ${m26ObserveRestartPacketEntry.details['targetIntent'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Return milestone: ${m26ObserveRestartPacketEntry.details['returnMilestone'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m26ObserveRestartPacketEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m26ObserveRestartPacketEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -452,6 +481,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m25NextCycleSeedHandoffCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m26ObserveRestartPacketCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M26 observe restart packet command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m26ObserveRestartPacketCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -510,6 +548,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m22PostActionReviewCommand,
     this.m23CycleOutcomeHandoffCommand,
     this.m25NextCycleSeedHandoffCommand,
+    this.m26ObserveRestartPacketCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -530,6 +569,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m22PostActionReviewCommand;
   final String? m23CycleOutcomeHandoffCommand;
   final String? m25NextCycleSeedHandoffCommand;
+  final String? m26ObserveRestartPacketCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -555,6 +595,7 @@ class ReadinessFinalSignoffRehearsal {
       'm22PostActionReviewCommand': m22PostActionReviewCommand,
       'm23CycleOutcomeHandoffCommand': m23CycleOutcomeHandoffCommand,
       'm25NextCycleSeedHandoffCommand': m25NextCycleSeedHandoffCommand,
+      'm26ObserveRestartPacketCommand': m26ObserveRestartPacketCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -797,6 +838,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m25NextCycleSeedHandoffNextAction,
       details: _m25NextCycleSeedHandoffDetails,
     ),
+    _latestEntry(
+      'm26_observe_restart_packet',
+      'Latest M26 observe restart packet',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m26_observe_restart_packet',
+      parentPrefix: 'macos_computer_use_m26_observe_restart_packet_',
+      fileName: 'observe_restart_packet.json',
+      status: _m26ObserveRestartPacketStatus,
+      nextAction: _m26ObserveRestartPacketNextAction,
+      details: _m26ObserveRestartPacketDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -882,6 +935,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m26ObserveRestartPacketCommand = _m26ObserveRestartPacketCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -912,6 +969,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m22PostActionReviewCommand: m22PostActionReviewCommand,
     m23CycleOutcomeHandoffCommand: m23CycleOutcomeHandoffCommand,
     m25NextCycleSeedHandoffCommand: m25NextCycleSeedHandoffCommand,
+    m26ObserveRestartPacketCommand: m26ObserveRestartPacketCommand,
   );
 }
 
@@ -929,7 +987,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm20_execution_result_intake' ||
                 entry.id == 'm22_post_action_review' ||
                 entry.id == 'm23_cycle_outcome_handoff' ||
-                entry.id == 'm25_next_cycle_seed_handoff') &&
+                entry.id == 'm25_next_cycle_seed_handoff' ||
+                entry.id == 'm26_observe_restart_packet') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1217,6 +1276,35 @@ String? _m25NextCycleSeedHandoffCommand(
     '--seed-accepted',
     'yes',
   ].map(_shellQuote).join(' ');
+}
+
+String? _m26ObserveRestartPacketCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final m25Entry = entriesById['m25_next_cycle_seed_handoff'];
+  final m25Path = m25Entry?.path ?? '';
+  if (m25Path.isEmpty || m25Entry?.status != 'ready') {
+    return null;
+  }
+  if (m25Entry?.details['returnMilestone'] != 'M14') {
+    return null;
+  }
+  final command = <String>[
+    'bash',
+    'tool/run_macos_computer_use_m26_observe_restart_packet.sh',
+    '--root',
+    reportRoot.path,
+    '--m25-handoff',
+    m25Path,
+    '--target-app',
+    'Safari',
+  ];
+  final seedNote = m25Entry?.details['seedNote']?.toString();
+  if (seedNote != null && seedNote.isNotEmpty) {
+    command.addAll(<String>['--target-intent', seedNote]);
+  }
+  return command.map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -2025,6 +2113,82 @@ Map<String, Object?> _m25NextCycleSeedHandoffDetails(
       'seedBoundary': nextCycleSeedMap['boundary']?.toString(),
       'seedNote': nextCycleSeedMap['note']?.toString(),
       'requiresNewApprovalCycle': nextCycleSeedMap['requiresNewApprovalCycle'],
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m26ObserveRestartPacketStatus(Map<String, dynamic> json) {
+  final gate = json['m26ObserveRestartPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m26ObserveRestartPacketNextAction(Map<String, dynamic> json) {
+  final gate = json['m26ObserveRestartPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m26ObserveRestartPacketStatus(json);
+  if (status == 'ready') {
+    return 'Ask the user to manually prepare the target app, capture a screenshot, and run the M14 observe-only canary command.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M26 observe restart packet blockers before asking for a new M14 screenshot.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m26ObserveRestartPacketDetails(
+  Map<String, dynamic> json,
+) {
+  final gate = json['m26ObserveRestartPacketGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final nextObservePreparation = json['nextObservePreparation'];
+  final nextObservePreparationMap =
+      nextObservePreparation is Map<String, dynamic>
+      ? nextObservePreparation
+      : null;
+  final commands = json['commands'];
+  final commandsMap = commands is Map<String, dynamic> ? commands : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM25NextCycleSeedHandoff': json['sourceM25NextCycleSeedHandoff']
+        ?.toString(),
+    'targetApp': json['targetApp']?.toString(),
+    'targetIntent': json['targetIntent']?.toString(),
+    'screenshotPath': json['screenshotPath']?.toString(),
+    if (nextObservePreparationMap != null) ...<String, Object?>{
+      'returnMilestone': nextObservePreparationMap['returnMilestone']
+          ?.toString(),
+      'observeBoundary': nextObservePreparationMap['boundary']?.toString(),
+      'screenshotRequired': nextObservePreparationMap['screenshotRequired'],
+      'screenshotProvided': nextObservePreparationMap['screenshotProvided'],
+    },
+    if (commandsMap != null) ...<String, Object?>{
+      'm14RealAppHandoffCommand': commandsMap['m14RealAppHandoff']?.toString(),
+      'm14ObserveCanaryCommand': commandsMap['m14ObserveCanary']?.toString(),
+      'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
+      'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
     },
     if (gateMap != null) ...<String, Object?>{
       'gateStatus': gateMap['status']?.toString(),

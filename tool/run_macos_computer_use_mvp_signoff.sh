@@ -254,6 +254,14 @@ m25_next_cycle_seed_handoff = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m25_next_cycle_seed_handoff"
 )
+m26_observe_restart_packet = latest_matching(
+    lambda path, decoded: path.name == "observe_restart_packet.json"
+    and path.parent.name.startswith(
+        "macos_computer_use_m26_observe_restart_packet_"
+    )
+    and decoded.get("schemaName")
+    == "macos_computer_use_m26_observe_restart_packet"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -274,6 +282,7 @@ for name, path in [
     ("DISCOVERED_M22_POST_ACTION_REVIEW", m22_post_action_review),
     ("DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF", m23_cycle_outcome_handoff),
     ("DISCOVERED_M25_NEXT_CYCLE_SEED_HANDOFF", m25_next_cycle_seed_handoff),
+    ("DISCOVERED_M26_OBSERVE_RESTART_PACKET", m26_observe_restart_packet),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -327,6 +336,11 @@ M25_NEXT_CYCLE_SEED_HANDOFF_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m25_next
 M25_NEXT_CYCLE_SEED_HANDOFF_STATUS="missing"
 M25_NEXT_CYCLE_SEED_HANDOFF_NEXT_ACTION="Run the M25 next-cycle seed handoff after an M23 restart outcome is ready."
 M25_NEXT_CYCLE_SEED_HANDOFF_BOUNDARY="report-only next-cycle seed handoff, no LLM call, no TCC, no System Settings, no desktop actions"
+M26_OBSERVE_RESTART_PACKET="${DISCOVERED_M26_OBSERVE_RESTART_PACKET:-}"
+M26_OBSERVE_RESTART_PACKET_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m26_observe_restart_packet_fragment.md"
+M26_OBSERVE_RESTART_PACKET_STATUS="missing"
+M26_OBSERVE_RESTART_PACKET_NEXT_ACTION="Run the M26 observe restart packet after an M25 next-cycle seed is ready."
+M26_OBSERVE_RESTART_PACKET_BOUNDARY="report-only M14 observe restart packet, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -1587,6 +1601,127 @@ else
 EOF
 fi
 
+if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && -f "${M26_OBSERVE_RESTART_PACKET}" ]]; then
+  m26_observe_restart_packet_values="$(
+    M26_OBSERVE_RESTART_PACKET="${M26_OBSERVE_RESTART_PACKET}" M26_OBSERVE_RESTART_PACKET_FRAGMENT="${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M26_OBSERVE_RESTART_PACKET"])
+fragment_path = Path(os.environ["M26_OBSERVE_RESTART_PACKET_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m26ObserveRestartPacketGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+next_observe = summary.get("nextObservePreparation") if isinstance(summary, dict) else None
+next_observe = next_observe if isinstance(next_observe, dict) else {}
+commands = summary.get("commands") if isinstance(summary, dict) else None
+commands = commands if isinstance(commands, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    if status == "ready":
+        next_action = (
+            "Ask the user to manually prepare the target app, capture a screenshot, and run the M14 observe-only canary command."
+        )
+    else:
+        next_action = (
+            "Resolve M26 observe restart packet blockers before asking for a new M14 screenshot."
+        )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m26_observe_restart_packet_unreadable"]
+boundary = "report-only M14 observe restart packet"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M26 Observe Restart Packet Evidence",
+    "",
+    f"- M26 observe restart packet: `{summary_path}`",
+    f"- M26 observe restart packet status: {status}",
+    f"- M26 observe restart packet boundary: {boundary}",
+    f"- M26 observe restart packet next action: {next_action}",
+    f"- M26 observe restart packet blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M26 target app: {summary.get('targetApp', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M26 target intent: {summary.get('targetIntent', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M26 return milestone: {next_observe.get('returnMilestone', 'unknown')}",
+    f"- M26 observe boundary: {next_observe.get('boundary', 'unknown')}",
+    f"- M26 M14 observe command: `{commands.get('m14ObserveCanary', '-')}`",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M26_OBSERVE_RESTART_PACKET_STATUS={shlex.quote(status)}")
+print(f"M26_OBSERVE_RESTART_PACKET_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M26_OBSERVE_RESTART_PACKET_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m26_observe_restart_packet_values}"
+else
+  cat >"${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" <<EOF
+
+## M26 Observe Restart Packet Evidence
+
+- M26 observe restart packet: \`not discovered\`
+- M26 observe restart packet status: missing
+- M26 observe restart packet boundary: ${M26_OBSERVE_RESTART_PACKET_BOUNDARY}
+- M26 observe restart packet next action: ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}
+- M26 observe restart packet blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -1706,6 +1841,9 @@ if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && "${M23_CYCLE_OUTCOME_HANDOFF_STATUS}"
 fi
 if [[ -n "${M25_NEXT_CYCLE_SEED_HANDOFF}" && "${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m25_next_cycle_seed_handoff)
+fi
+if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m26_observe_restart_packet)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -1986,6 +2124,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M23 cycle outcome handoff status: ${M23_CYCLE_OUTCOME_HANDOFF_STATUS}
 - M25 next-cycle seed handoff: ${M25_NEXT_CYCLE_SEED_HANDOFF:-not discovered}
 - M25 next-cycle seed handoff status: ${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}
+- M26 observe restart packet: ${M26_OBSERVE_RESTART_PACKET:-not discovered}
+- M26 observe restart packet status: ${M26_OBSERVE_RESTART_PACKET_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -2024,6 +2164,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m25_next_cycle_seed_handoff\`: ${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}
 - M25 next-cycle seed handoff boundary: ${M25_NEXT_CYCLE_SEED_HANDOFF_BOUNDARY}
 - M25 next-cycle seed handoff next action: ${M25_NEXT_CYCLE_SEED_HANDOFF_NEXT_ACTION}
+- \`m26_observe_restart_packet\`: ${M26_OBSERVE_RESTART_PACKET_STATUS}
+- M26 observe restart packet boundary: ${M26_OBSERVE_RESTART_PACKET_BOUNDARY}
+- M26 observe restart packet next action: ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -2108,6 +2251,7 @@ cat "${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M22_POST_ACTION_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M25_NEXT_CYCLE_SEED_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -2149,6 +2293,9 @@ cat "${M25_NEXT_CYCLE_SEED_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M25_NEXT_CYCLE_SEED_HANDOFF}" && "${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}" != "ready" ]]; then
       echo "- ${M25_NEXT_CYCLE_SEED_HANDOFF_NEXT_ACTION}"
+    fi
+    if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
+      echo "- ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -2214,6 +2361,10 @@ echo "  M25 next-cycle seed handoff: ${M25_NEXT_CYCLE_SEED_HANDOFF:-not discover
 echo "  M25 next-cycle seed handoff status: ${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}"
 echo "  M25 next-cycle seed handoff boundary: ${M25_NEXT_CYCLE_SEED_HANDOFF_BOUNDARY}"
 echo "  M25 next-cycle seed handoff next action: ${M25_NEXT_CYCLE_SEED_HANDOFF_NEXT_ACTION}"
+echo "  M26 observe restart packet: ${M26_OBSERVE_RESTART_PACKET:-not discovered}"
+echo "  M26 observe restart packet status: ${M26_OBSERVE_RESTART_PACKET_STATUS}"
+echo "  M26 observe restart packet boundary: ${M26_OBSERVE_RESTART_PACKET_BOUNDARY}"
+echo "  M26 observe restart packet next action: ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -2283,6 +2434,9 @@ if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && "${M23_CYCLE_OUTCOME_HANDOFF_STATUS}"
 fi
 if [[ -n "${M25_NEXT_CYCLE_SEED_HANDOFF}" && "${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}" != "ready" ]]; then
   echo "  - ${M25_NEXT_CYCLE_SEED_HANDOFF_NEXT_ACTION}"
+fi
+if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
+  echo "  - ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

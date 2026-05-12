@@ -360,6 +360,11 @@ Follow-on milestones:
   milestone, and `observe_only_no_desktop_action` boundary for the next
   observe pass. It does not start M14, call an LLM, grant TCC, operate System
   Settings, or perform desktop actions.
+- M26: Convert a ready M25 next-cycle seed into a report-only M14 observe
+  restart packet. The packet prepares the target app, target intent,
+  user-operated screenshot preparation steps, and M14 observe-only commands
+  without starting M14, calling an LLM, granting TCC, opening apps, operating
+  System Settings, capturing screens, or performing desktop actions.
 
 ## Computer Use Live Canary
 

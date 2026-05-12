@@ -714,6 +714,7 @@ void main() {
       expect(entryIds, contains('m22_post_action_review'));
       expect(entryIds, contains('m23_cycle_outcome_handoff'));
       expect(entryIds, contains('m25_next_cycle_seed_handoff'));
+      expect(entryIds, contains('m26_observe_restart_packet'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -1053,6 +1054,14 @@ void main() {
       expect(m25Entry.exists, isFalse);
       expect(
         index.mvpFinalSignoffRehearsal.m25NextCycleSeedHandoffCommand,
+        isNull,
+      );
+      final m26Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm26_observe_restart_packet',
+      );
+      expect(m26Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m26ObserveRestartPacketCommand,
         isNull,
       );
       expect(index.toMarkdown(), contains('Latest M23 cycle outcome handoff'));
@@ -2300,6 +2309,161 @@ void main() {
       );
       expect(index.toMarkdown(), contains('Gate status: blocked'));
       expect(index.toMarkdown(), contains('Blockers: seed_accepted'));
+    });
+
+    test('artifact index surfaces M26 observe restart packet command', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m26_command_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m23CycleOutcomeHandoffPath =
+          '${root.path}/macos_computer_use_m23_cycle_outcome_handoff_995/cycle_outcome_handoff.json';
+      _writeJson(
+        File(m23CycleOutcomeHandoffPath),
+        _m23CycleOutcomeHandoff(
+          ready: true,
+          restartCycle: true,
+          sourceM22PostActionReview: '/tmp/post_action_review.json',
+        ),
+      );
+      final m25NextCycleSeedHandoffPath =
+          '${root.path}/macos_computer_use_m25_next_cycle_seed_handoff_996/next_cycle_seed_handoff.json';
+      _writeJson(
+        File(m25NextCycleSeedHandoffPath),
+        _m25NextCycleSeedHandoff(
+          ready: true,
+          sourceM23CycleOutcomeHandoff: m23CycleOutcomeHandoffPath,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final m25Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm25_next_cycle_seed_handoff',
+      );
+      final m26Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm26_observe_restart_packet',
+      );
+
+      expect(m25Entry.status, 'ready');
+      expect(m25Entry.details['returnMilestone'], 'M14');
+      expect(m26Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m26ObserveRestartPacketCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m26_observe_restart_packet.sh --root ${root.path} --m25-handoff $m25NextCycleSeedHandoffPath --target-app Safari --target-intent',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M26 observe restart packet command:'),
+      );
+    });
+
+    test('artifact index blocks final aggregation on blocked M26 packet', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m26_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m23CycleOutcomeHandoffPath =
+          '${root.path}/macos_computer_use_m23_cycle_outcome_handoff_995/cycle_outcome_handoff.json';
+      _writeJson(
+        File(m23CycleOutcomeHandoffPath),
+        _m23CycleOutcomeHandoff(
+          ready: true,
+          restartCycle: true,
+          sourceM22PostActionReview: '/tmp/post_action_review.json',
+        ),
+      );
+      final m25NextCycleSeedHandoffPath =
+          '${root.path}/macos_computer_use_m25_next_cycle_seed_handoff_996/next_cycle_seed_handoff.json';
+      _writeJson(
+        File(m25NextCycleSeedHandoffPath),
+        _m25NextCycleSeedHandoff(
+          ready: true,
+          sourceM23CycleOutcomeHandoff: m23CycleOutcomeHandoffPath,
+        ),
+      );
+      final m26ObserveRestartPacketPath =
+          '${root.path}/macos_computer_use_m26_observe_restart_packet_997/observe_restart_packet.json';
+      _writeJson(
+        File(m26ObserveRestartPacketPath),
+        _m26ObserveRestartPacket(
+          ready: false,
+          sourceM25NextCycleSeedHandoff: m25NextCycleSeedHandoffPath,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm26_observe_restart_packet',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m26ObserveRestartPacketPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M26 observe restart packet blockers before asking for a new M14 screenshot.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('target_app_present'));
+      expect(entry.details['returnMilestone'], 'M14');
+      expect(entry.details['targetIntent'], 'Observe the next target.');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m26_observe_restart_packet'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m26_observe_restart_packet'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M26 Observe Restart Packet Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(index.toMarkdown(), contains('Blockers: target_app_present'));
     });
 
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
@@ -3575,6 +3739,50 @@ Map<String, dynamic> _m25NextCycleSeedHandoff({
       'nextAction': ready
           ? 'Start a new M14 observe-only evidence pass using the recorded next-cycle seed.'
           : 'Resolve M25 next-cycle seed blockers before starting the next observe-only pass.',
+    },
+  };
+}
+
+Map<String, dynamic> _m26ObserveRestartPacket({
+  required bool ready,
+  required String sourceM25NextCycleSeedHandoff,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m26_observe_restart_packet',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m26_observe_restart_packet',
+    'milestone': 'M26',
+    'previousMilestone': 'M25',
+    'ready': ready,
+    'sourceM25NextCycleSeedHandoff': sourceM25NextCycleSeedHandoff,
+    'executionBoundary': 'm14_observe_restart_packet_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'targetApp': ready ? 'Safari' : '',
+    'targetIntent': 'Observe the next target.',
+    'nextObservePreparation': <String, Object?>{
+      'required': true,
+      'returnMilestone': 'M14',
+      'boundary': 'observe_only_no_desktop_action',
+      'targetApp': ready ? 'Safari' : '',
+      'targetIntent': 'Observe the next target.',
+      'screenshotRequired': true,
+      'screenshotProvided': false,
+    },
+    'commands': <String, Object?>{
+      'm14RealAppHandoff':
+          'bash tool/run_macos_computer_use_m14_real_app_handoff.sh',
+      'm14ObserveCanary':
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot <user-provided-real-app-screenshot.png>',
+    },
+    'm26ObserveRestartPacketGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['target_app_present'],
+      'nextAction': ready
+          ? 'Ask the user to manually prepare the target app, capture a screenshot, and run the M14 observe-only canary command.'
+          : 'Resolve M26 observe restart packet blockers before asking for a new M14 screenshot.',
     },
   };
 }

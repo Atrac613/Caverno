@@ -308,6 +308,33 @@ navigate, submit, post, purchase, grant TCC, operate System Settings, or call
 an LLM. It only freezes the next observe-only seed for a new approval-bound
 cycle.
 
+## M26 Observe Restart Packet
+
+Use this pass after M25 is ready and the next M14 observe-only pass needs a
+report-only preparation packet:
+
+1. Select the ready M25 `next_cycle_seed_handoff.json`.
+2. Confirm `nextCycleSeed.returnMilestone` is `M14`.
+3. Confirm `nextCycleSeed.boundary` is `observe_only_no_desktop_action`.
+4. Confirm `seedInputs.seedAccepted` is `yes`.
+5. Choose the target app for the next observe pass.
+6. Use the M25 seed note as the target intent unless a clearer intent is
+   needed.
+7. Run
+   `bash tool/run_macos_computer_use_m26_observe_restart_packet.sh --m25-handoff <next_cycle_seed_handoff.json> --target-app <target-app>`.
+8. Confirm `m26ObserveRestartPacketGate.status` is `ready`.
+9. Confirm `executionBoundary` is `m14_observe_restart_packet_report_only`.
+10. Confirm `desktopActionBoundary` is `no_desktop_action`.
+11. Confirm `tccBoundary` is `no_tcc_operation`.
+12. Confirm `llmBoundary` is `no_llm_call`.
+13. Ask the user to manually prepare the target app state and screenshot before
+    running the generated M14 observe-only canary command.
+
+Do not use this packet to start M14, open apps, capture screens, click, type,
+navigate, submit, post, purchase, grant TCC, operate System Settings, or call
+an LLM. It only prepares the command set and user-operated screenshot
+instructions for the next observe-only cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
