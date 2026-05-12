@@ -355,6 +355,11 @@ Follow-on milestones:
   handoffs. Ready handoffs are visible review evidence, and discovered blocked
   handoffs stop final aggregation until the recorded M23 next action is
   resolved.
+- M25: Convert a ready M23 `restart_observe_action_cycle` outcome into a
+  report-only next-cycle seed handoff. The seed freezes the note, M14 return
+  milestone, and `observe_only_no_desktop_action` boundary for the next
+  observe pass. It does not start M14, call an LLM, grant TCC, operate System
+  Settings, or perform desktop actions.
 
 ## Computer Use Live Canary
 

@@ -111,6 +111,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m20ExecutionResultIntakeEntry;
     ReadinessArtifactEntry? m22PostActionReviewEntry;
     ReadinessArtifactEntry? m23CycleOutcomeHandoffEntry;
+    ReadinessArtifactEntry? m25NextCycleSeedHandoffEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -135,6 +136,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm23_cycle_outcome_handoff') {
         m23CycleOutcomeHandoffEntry = entry;
+      }
+      if (entry.id == 'm25_next_cycle_seed_handoff') {
+        m25NextCycleSeedHandoffEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -317,6 +321,31 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m23CycleOutcomeHandoffEntry.details['gateBlockers']))}',
         );
     }
+    if (m25NextCycleSeedHandoffEntry != null &&
+        m25NextCycleSeedHandoffEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M25 Next-Cycle Seed Handoff Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m25NextCycleSeedHandoffEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Return milestone: ${m25NextCycleSeedHandoffEntry.details['returnMilestone'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Seed boundary: ${m25NextCycleSeedHandoffEntry.details['seedBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Seed accepted: ${m25NextCycleSeedHandoffEntry.details['seedAccepted'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m25NextCycleSeedHandoffEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m25NextCycleSeedHandoffEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -414,6 +443,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m23CycleOutcomeHandoffCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m25NextCycleSeedHandoffCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M25 next-cycle seed handoff command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m25NextCycleSeedHandoffCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -471,6 +509,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m20ExecutionResultIntakeCommand,
     this.m22PostActionReviewCommand,
     this.m23CycleOutcomeHandoffCommand,
+    this.m25NextCycleSeedHandoffCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -490,6 +529,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m20ExecutionResultIntakeCommand;
   final String? m22PostActionReviewCommand;
   final String? m23CycleOutcomeHandoffCommand;
+  final String? m25NextCycleSeedHandoffCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -514,6 +554,7 @@ class ReadinessFinalSignoffRehearsal {
       'm20ExecutionResultIntakeCommand': m20ExecutionResultIntakeCommand,
       'm22PostActionReviewCommand': m22PostActionReviewCommand,
       'm23CycleOutcomeHandoffCommand': m23CycleOutcomeHandoffCommand,
+      'm25NextCycleSeedHandoffCommand': m25NextCycleSeedHandoffCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -743,6 +784,19 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m23CycleOutcomeHandoffNextAction,
       details: _m23CycleOutcomeHandoffDetails,
     ),
+    _latestEntry(
+      'm25_next_cycle_seed_handoff',
+      'Latest M25 next-cycle seed handoff',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m25_next_cycle_seed_handoff',
+      parentPrefix: 'macos_computer_use_m25_next_cycle_seed_handoff_',
+      fileName: 'next_cycle_seed_handoff.json',
+      status: _m25NextCycleSeedHandoffStatus,
+      nextAction: _m25NextCycleSeedHandoffNextAction,
+      details: _m25NextCycleSeedHandoffDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -824,6 +878,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m25NextCycleSeedHandoffCommand = _m25NextCycleSeedHandoffCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -853,6 +911,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m20ExecutionResultIntakeCommand: m20ExecutionResultIntakeCommand,
     m22PostActionReviewCommand: m22PostActionReviewCommand,
     m23CycleOutcomeHandoffCommand: m23CycleOutcomeHandoffCommand,
+    m25NextCycleSeedHandoffCommand: m25NextCycleSeedHandoffCommand,
   );
 }
 
@@ -869,7 +928,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm18_execution_handoff' ||
                 entry.id == 'm20_execution_result_intake' ||
                 entry.id == 'm22_post_action_review' ||
-                entry.id == 'm23_cycle_outcome_handoff') &&
+                entry.id == 'm23_cycle_outcome_handoff' ||
+                entry.id == 'm25_next_cycle_seed_handoff') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1133,6 +1193,30 @@ String? _m23CycleOutcomeHandoffCommand(
     command.addAll(<String>['--next-observe-note', '<follow-up-note>']);
   }
   return command.map(_shellQuote).join(' ');
+}
+
+String? _m25NextCycleSeedHandoffCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final m23Entry = entriesById['m23_cycle_outcome_handoff'];
+  final m23Path = m23Entry?.path ?? '';
+  if (m23Path.isEmpty || m23Entry?.status != 'ready') {
+    return null;
+  }
+  if (m23Entry?.details['cycleOutcome'] != 'restart_observe_action_cycle') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh',
+    '--root',
+    reportRoot.path,
+    '--m23-handoff',
+    m23Path,
+    '--seed-accepted',
+    'yes',
+  ].map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -1872,6 +1956,75 @@ Map<String, Object?> _m23CycleOutcomeHandoffDetails(Map<String, dynamic> json) {
       'nextObserveReturnMilestone': nextObserveSeedMap['returnMilestone']
           ?.toString(),
       'nextObserveBoundary': nextObserveSeedMap['boundary']?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m25NextCycleSeedHandoffStatus(Map<String, dynamic> json) {
+  final gate = json['m25NextCycleSeedHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m25NextCycleSeedHandoffNextAction(Map<String, dynamic> json) {
+  final gate = json['m25NextCycleSeedHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m25NextCycleSeedHandoffStatus(json);
+  if (status == 'ready') {
+    return 'Start a new M14 observe-only evidence pass using the recorded next-cycle seed.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M25 next-cycle seed blockers before starting the next observe-only pass.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m25NextCycleSeedHandoffDetails(
+  Map<String, dynamic> json,
+) {
+  final gate = json['m25NextCycleSeedHandoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final seedInputs = json['seedInputs'];
+  final seedInputsMap = seedInputs is Map<String, dynamic> ? seedInputs : null;
+  final nextCycleSeed = json['nextCycleSeed'];
+  final nextCycleSeedMap = nextCycleSeed is Map<String, dynamic>
+      ? nextCycleSeed
+      : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM23CycleOutcomeHandoff': json['sourceM23CycleOutcomeHandoff']
+        ?.toString(),
+    'sourceCycleOutcome': json['sourceCycleOutcome']?.toString(),
+    if (seedInputsMap != null) ...<String, Object?>{
+      'seedAccepted': seedInputsMap['seedAccepted']?.toString(),
+    },
+    if (nextCycleSeedMap != null) ...<String, Object?>{
+      'returnMilestone': nextCycleSeedMap['returnMilestone']?.toString(),
+      'seedBoundary': nextCycleSeedMap['boundary']?.toString(),
+      'seedNote': nextCycleSeedMap['note']?.toString(),
+      'requiresNewApprovalCycle': nextCycleSeedMap['requiresNewApprovalCycle'],
     },
     if (gateMap != null) ...<String, Object?>{
       'gateStatus': gateMap['status']?.toString(),

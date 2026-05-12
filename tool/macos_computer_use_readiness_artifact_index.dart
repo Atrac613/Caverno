@@ -125,6 +125,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M23 cycle outcome handoff command:');
     stdout.writeln(rehearsal.m23CycleOutcomeHandoffCommand);
   }
+  if (rehearsal.m25NextCycleSeedHandoffCommand != null) {
+    stdout.writeln('M25 next-cycle seed handoff command:');
+    stdout.writeln(rehearsal.m25NextCycleSeedHandoffCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

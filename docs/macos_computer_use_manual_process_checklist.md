@@ -284,6 +284,30 @@ TCC, operate System Settings, or call an LLM. It records only whether the
 completed user-operated action cycle is closed or needs a new observe-only
 cycle.
 
+## M25 Next-Cycle Seed Handoff
+
+Use this pass after M23 is ready and `cycleOutcome` is
+`restart_observe_action_cycle`:
+
+1. Select the ready M23 `cycle_outcome_handoff.json`.
+2. Confirm `nextObserveSeed.required` is `true`.
+3. Confirm `nextObserveSeed.returnMilestone` is `M14`.
+4. Confirm `nextObserveSeed.boundary` is `observe_only_no_desktop_action`.
+5. Ask the user to accept the next M14 observe seed.
+6. Run
+   `bash tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh --m23-handoff <cycle_outcome_handoff.json> --seed-accepted yes`.
+7. Confirm `m25NextCycleSeedHandoffGate.status` is `ready`.
+8. Confirm `executionBoundary` is `next_cycle_seed_report_only`.
+9. Confirm `desktopActionBoundary` is `no_desktop_action`.
+10. Confirm `tccBoundary` is `no_tcc_operation`.
+11. Confirm `llmBoundary` is `no_llm_call`.
+12. Use `nextCycleSeed.note` as the seed for the next M14 observe-only pass.
+
+Do not use this handoff to start M14, open apps, capture screens, click, type,
+navigate, submit, post, purchase, grant TCC, operate System Settings, or call
+an LLM. It only freezes the next observe-only seed for a new approval-bound
+cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

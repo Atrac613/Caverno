@@ -87,6 +87,7 @@ echo "  M18 execution handoff: inspect the artifact index for the report-only ha
 echo "  M20 execution result intake: inspect the artifact index for the report-only result intake command after the user completes the M18-guided runtime step; blocked m20_execution_result_intake evidence stops final aggregation"
 echo "  M22 post-action review: inspect the artifact index for the report-only post-action review command after M20 is ready; blocked m22_post_action_review evidence stops final aggregation"
 echo "  M23 cycle outcome handoff: inspect the artifact index for the report-only cycle outcome handoff command after M22 is ready; blocked m23_cycle_outcome_handoff evidence stops final aggregation"
+echo "  M25 next-cycle seed handoff: inspect the artifact index for the report-only next-cycle seed command after M23 restarts the cycle; blocked m25_next_cycle_seed_handoff evidence stops final aggregation"
 echo "Expected final input paths:"
 echo "  Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json"
 echo "  Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json"

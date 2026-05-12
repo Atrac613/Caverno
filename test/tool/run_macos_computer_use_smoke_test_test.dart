@@ -37,6 +37,7 @@ void main() {
   late String m20ExecutionResultIntakeScript;
   late String m22PostActionReviewScript;
   late String m23CycleOutcomeHandoffScript;
+  late String m25NextCycleSeedHandoffScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -128,6 +129,9 @@ void main() {
     ).readAsStringSync();
     m23CycleOutcomeHandoffScript = File(
       'tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh',
+    ).readAsStringSync();
+    m25NextCycleSeedHandoffScript = File(
+      'tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -300,6 +304,7 @@ void main() {
       architectureDoc,
       contains('M24: Surface M23 cycle outcome handoffs'),
     );
+    expect(architectureDoc, contains('M25: Convert a ready M23'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -3808,6 +3813,178 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M25 next-cycle seed handoff freezes M14 restart seed',
+    () async {
+      expect(
+        m25NextCycleSeedHandoffScript,
+        contains('macos_computer_use_m25_next_cycle_seed_handoff'),
+      );
+      expect(m25NextCycleSeedHandoffScript, contains('report-only'));
+      expect(m25NextCycleSeedHandoffScript, contains('ready M23'));
+      expect(m25NextCycleSeedHandoffScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m25_next_cycle_seed_handoff_test_',
+      );
+      try {
+        final handoff = File('${root.path}/cycle_outcome_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m23_cycle_outcome_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m23_cycle_outcome_handoff",
+  "milestone": "M23",
+  "previousMilestone": "M22",
+  "ready": true,
+  "executionBoundary": "cycle_outcome_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "cycleOutcome": "restart_observe_action_cycle",
+  "handoffInputs": {
+    "outcomeAccepted": "yes",
+    "nextObserveNeeded": "yes"
+  },
+  "nextObserveSeed": {
+    "required": true,
+    "source": "m23_cycle_outcome_handoff",
+    "note": "Observe the fresh compose target before proposing text.",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action"
+  },
+  "m23CycleOutcomeHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh',
+          '--root',
+          root.path,
+          '--m23-handoff',
+          handoff.path,
+          '--seed-accepted',
+          'yes',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Execution boundary: next_cycle_seed_report_only'),
+        );
+        expect(
+          '${result.stdout}',
+          contains('Observe the fresh compose target before proposing text.'),
+        );
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('next_cycle_seed_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m25_next_cycle_seed_handoff'),
+        );
+        expect(summary, contains('"milestone": "M25"'));
+        expect(summary, contains('"previousMilestone": "M23"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m25NextCycleSeedHandoffGate"'));
+        expect(summary, contains('"seedAccepted": "yes"'));
+        expect(summary, contains('"returnMilestone": "M14"'));
+        expect(summary, contains('"observe_only_no_desktop_action"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M25 Next-Cycle Seed Handoff'));
+        expect(markdown, contains('Next-Cycle Seed'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M25 next-cycle seed handoff blocks closed cycles',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m25_next_cycle_seed_handoff_blocked_test_',
+      );
+      try {
+        final handoff = File('${root.path}/cycle_outcome_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m23_cycle_outcome_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m23_cycle_outcome_handoff",
+  "milestone": "M23",
+  "previousMilestone": "M22",
+  "ready": true,
+  "executionBoundary": "cycle_outcome_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "cycleOutcome": "closed",
+  "handoffInputs": {
+    "outcomeAccepted": "yes",
+    "nextObserveNeeded": "no"
+  },
+  "nextObserveSeed": {
+    "required": false,
+    "source": "m23_cycle_outcome_handoff",
+    "note": "",
+    "returnMilestone": null,
+    "boundary": "observe_only_no_desktop_action"
+  },
+  "m23CycleOutcomeHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh',
+          '--root',
+          root.path,
+          '--m23-handoff',
+          handoff.path,
+          '--seed-accepted',
+          'yes',
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('m23_restart_cycle'));
+        expect('${result.stdout}', contains('next_observe_seed_required'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('next_cycle_seed_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"sourceCycleOutcome": "closed"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4037,7 +4214,9 @@ void main() {
     expect(mvpChecklist, contains('result intake reports'));
     expect(mvpChecklist, contains('M22 post-action reviews'));
     expect(mvpChecklist, contains('M23 cycle outcome'));
+    expect(mvpChecklist, contains('M25 next-cycle seed'));
     expect(mvpChecklist, contains('m23CycleOutcomeHandoffGate'));
+    expect(mvpChecklist, contains('m25NextCycleSeedHandoffGate'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -4107,6 +4286,10 @@ void main() {
     );
     expect(mvpSignoffScript, contains('DISCOVERED_M22_POST_ACTION_REVIEW'));
     expect(mvpSignoffScript, contains('DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF'));
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M25_NEXT_CYCLE_SEED_HANDOFF'),
+    );
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
@@ -4115,6 +4298,7 @@ void main() {
     expect(mvpSignoffScript, contains('M20 Execution Result Intake Evidence'));
     expect(mvpSignoffScript, contains('M22 Post-Action Review Evidence'));
     expect(mvpSignoffScript, contains('M23 Cycle Outcome Handoff Evidence'));
+    expect(mvpSignoffScript, contains('M25 Next-Cycle Seed Handoff Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -4477,6 +4661,14 @@ void main() {
     expect(mvpReadinessPreflightScript, contains('m22_post_action_review'));
     expect(mvpReadinessPreflightScript, contains('M23 cycle outcome handoff'));
     expect(mvpReadinessPreflightScript, contains('m23_cycle_outcome_handoff'));
+    expect(
+      mvpReadinessPreflightScript,
+      contains('M25 next-cycle seed handoff'),
+    );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('m25_next_cycle_seed_handoff'),
+    );
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -4600,6 +4792,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m23_cycle_outcome_handoff evidence'));
+      expect(
+        stdout,
+        contains(
+          'M25 next-cycle seed handoff: inspect the artifact index for the report-only next-cycle seed command after M23 restarts the cycle',
+        ),
+      );
+      expect(stdout, contains('blocked m25_next_cycle_seed_handoff evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -4772,6 +4971,7 @@ void main() {
     expect(manualProcessChecklist, contains('M20 Execution Result Intake'));
     expect(manualProcessChecklist, contains('M22 Post-Action Review'));
     expect(manualProcessChecklist, contains('M23 Cycle Outcome Handoff'));
+    expect(manualProcessChecklist, contains('M25 Next-Cycle Seed Handoff'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -4782,6 +4982,7 @@ void main() {
     expect(manualProcessChecklist, contains('m20ExecutionResultIntakeGate'));
     expect(manualProcessChecklist, contains('m22PostActionReviewGate'));
     expect(manualProcessChecklist, contains('m23CycleOutcomeHandoffGate'));
+    expect(manualProcessChecklist, contains('m25NextCycleSeedHandoffGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -4810,6 +5011,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh'),
     );
     expect(
       manualProcessChecklist,
@@ -6364,6 +6569,103 @@ void main() {
         expect(
           handoff,
           contains('Blocked review evidence: m23_cycle_outcome_handoff'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'MVP sign-off dry run surfaces blocked M25 next-cycle seed handoff',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_m25_blocked_',
+      );
+      try {
+        final m25Dir = Directory(
+          '${root.path}/macos_computer_use_m25_next_cycle_seed_handoff_1',
+        )..createSync();
+        File('${m25Dir.path}/next_cycle_seed_handoff.json').writeAsStringSync(
+          '''
+{
+  "schemaName": "macos_computer_use_m25_next_cycle_seed_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m25_next_cycle_seed_handoff",
+  "milestone": "M25",
+  "previousMilestone": "M23",
+  "ready": false,
+  "sourceM23CycleOutcomeHandoff": "/tmp/cycle_outcome_handoff.json",
+  "executionBoundary": "next_cycle_seed_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "sourceCycleOutcome": "restart_observe_action_cycle",
+  "seedInputs": {
+    "seedAccepted": "no"
+  },
+  "nextCycleSeed": {
+    "required": true,
+    "source": "m25_next_cycle_seed_handoff",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "note": "Observe the next target.",
+    "requiresNewApprovalCycle": true
+  },
+  "m25NextCycleSeedHandoffGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "seed_accepted",
+        "ok": false,
+        "nextAction": "Ask the user to accept the next M14 seed before preparing follow-up evidence."
+      }
+    ],
+    "blockers": ["seed_accepted"],
+    "nextAction": "Resolve M25 next-cycle seed blockers before starting the next observe-only pass."
+  }
+}
+''',
+        );
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(stdout, contains('M25 next-cycle seed handoff status: blocked'));
+        expect(
+          stdout,
+          contains(
+            'M25 next-cycle seed handoff next action: Resolve M25 next-cycle seed blockers before starting the next observe-only pass.',
+          ),
+        );
+        expect(
+          stdout,
+          contains('Blocked review evidence: m25_next_cycle_seed_handoff'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('M25 Next-Cycle Seed Handoff Evidence'));
+        expect(
+          handoff,
+          contains('M25 next-cycle seed handoff status: blocked'),
+        );
+        expect(
+          handoff,
+          contains('M25 next-cycle seed handoff blockers: seed_accepted'),
+        );
+        expect(handoff, contains('| seed_accepted | blocked |'));
+        expect(
+          handoff,
+          contains('Blocked review evidence: m25_next_cycle_seed_handoff'),
         );
       } finally {
         root.deleteSync(recursive: true);
