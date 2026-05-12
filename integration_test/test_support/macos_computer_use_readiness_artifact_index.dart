@@ -110,6 +110,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m18ExecutionHandoffEntry;
     ReadinessArtifactEntry? m20ExecutionResultIntakeEntry;
     ReadinessArtifactEntry? m22PostActionReviewEntry;
+    ReadinessArtifactEntry? m23CycleOutcomeHandoffEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -131,6 +132,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm22_post_action_review') {
         m22PostActionReviewEntry = entry;
+      }
+      if (entry.id == 'm23_cycle_outcome_handoff') {
+        m23CycleOutcomeHandoffEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -288,6 +292,31 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m22PostActionReviewEntry.details['gateBlockers']))}',
         );
     }
+    if (m23CycleOutcomeHandoffEntry != null &&
+        m23CycleOutcomeHandoffEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M23 Cycle Outcome Handoff Evidence')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m23CycleOutcomeHandoffEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Cycle outcome: ${m23CycleOutcomeHandoffEntry.details['cycleOutcome'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Next observe needed: ${m23CycleOutcomeHandoffEntry.details['nextObserveNeeded'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Source recommendation: ${m23CycleOutcomeHandoffEntry.details['sourceNextCycleRecommendation'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m23CycleOutcomeHandoffEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m23CycleOutcomeHandoffEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -376,6 +405,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m22PostActionReviewCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m23CycleOutcomeHandoffCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M23 cycle outcome handoff command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m23CycleOutcomeHandoffCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -432,6 +470,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m18ExecutionHandoffCommand,
     this.m20ExecutionResultIntakeCommand,
     this.m22PostActionReviewCommand,
+    this.m23CycleOutcomeHandoffCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -450,6 +489,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m18ExecutionHandoffCommand;
   final String? m20ExecutionResultIntakeCommand;
   final String? m22PostActionReviewCommand;
+  final String? m23CycleOutcomeHandoffCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -473,6 +513,7 @@ class ReadinessFinalSignoffRehearsal {
       'm18ExecutionHandoffCommand': m18ExecutionHandoffCommand,
       'm20ExecutionResultIntakeCommand': m20ExecutionResultIntakeCommand,
       'm22PostActionReviewCommand': m22PostActionReviewCommand,
+      'm23CycleOutcomeHandoffCommand': m23CycleOutcomeHandoffCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -690,6 +731,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m22PostActionReviewNextAction,
       details: _m22PostActionReviewDetails,
     ),
+    _latestEntry(
+      'm23_cycle_outcome_handoff',
+      'Latest M23 cycle outcome handoff',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m23_cycle_outcome_handoff',
+      parentPrefix: 'macos_computer_use_m23_cycle_outcome_handoff_',
+      fileName: 'cycle_outcome_handoff.json',
+      status: _m23CycleOutcomeHandoffStatus,
+      nextAction: _m23CycleOutcomeHandoffNextAction,
+      details: _m23CycleOutcomeHandoffDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -767,6 +820,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m23CycleOutcomeHandoffCommand = _m23CycleOutcomeHandoffCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -795,6 +852,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m18ExecutionHandoffCommand: m18ExecutionHandoffCommand,
     m20ExecutionResultIntakeCommand: m20ExecutionResultIntakeCommand,
     m22PostActionReviewCommand: m22PostActionReviewCommand,
+    m23CycleOutcomeHandoffCommand: m23CycleOutcomeHandoffCommand,
   );
 }
 
@@ -810,7 +868,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm17_execution_rehearsal' ||
                 entry.id == 'm18_execution_handoff' ||
                 entry.id == 'm20_execution_result_intake' ||
-                entry.id == 'm22_post_action_review') &&
+                entry.id == 'm22_post_action_review' ||
+                entry.id == 'm23_cycle_outcome_handoff') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1040,6 +1099,40 @@ String? _m22PostActionReviewCommand(
     '--follow-up-required',
     '<yes-or-no>',
   ].map(_shellQuote).join(' ');
+}
+
+String? _m23CycleOutcomeHandoffCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final reviewEntry = entriesById['m22_post_action_review'];
+  final reviewPath = reviewEntry?.path ?? '';
+  if (reviewPath.isEmpty || reviewEntry?.status != 'ready') {
+    return null;
+  }
+  final nextCycleRecommendation = reviewEntry
+      ?.details['nextCycleRecommendation']
+      ?.toString();
+  final nextObserveNeeded =
+      nextCycleRecommendation == 'start_new_observe_action_cycle'
+      ? 'yes'
+      : 'no';
+  final command = <String>[
+    'bash',
+    'tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh',
+    '--root',
+    reportRoot.path,
+    '--m22-review',
+    reviewPath,
+    '--outcome-accepted',
+    'yes',
+    '--next-observe-needed',
+    nextObserveNeeded,
+  ];
+  if (nextObserveNeeded == 'yes') {
+    command.addAll(<String>['--next-observe-note', '<follow-up-note>']);
+  }
+  return command.map(_shellQuote).join(' ');
 }
 
 String _mvpMissingArtifactNextAction(String artifactId) {
@@ -1704,6 +1797,81 @@ Map<String, Object?> _m22PostActionReviewDetails(Map<String, dynamic> json) {
       'runtimeAction': sourceManualInputsMap['runtimeAction']?.toString(),
       'postActionObservation': sourceManualInputsMap['postActionObservation']
           ?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m23CycleOutcomeHandoffStatus(Map<String, dynamic> json) {
+  final gate = json['m23CycleOutcomeHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m23CycleOutcomeHandoffNextAction(Map<String, dynamic> json) {
+  final gate = json['m23CycleOutcomeHandoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m23CycleOutcomeHandoffStatus(json);
+  if (status == 'ready') {
+    final cycleOutcome = json['cycleOutcome']?.toString();
+    if (cycleOutcome == 'restart_observe_action_cycle') {
+      return 'Start a new M14 observe-only evidence pass with the recorded follow-up note.';
+    }
+    return 'Archive the completed action cycle evidence.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M23 cycle outcome blockers before closing or restarting the action cycle.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m23CycleOutcomeHandoffDetails(Map<String, dynamic> json) {
+  final gate = json['m23CycleOutcomeHandoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final handoffInputs = json['handoffInputs'];
+  final handoffInputsMap = handoffInputs is Map<String, dynamic>
+      ? handoffInputs
+      : null;
+  final nextObserveSeed = json['nextObserveSeed'];
+  final nextObserveSeedMap = nextObserveSeed is Map<String, dynamic>
+      ? nextObserveSeed
+      : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM22PostActionReview': json['sourceM22PostActionReview']?.toString(),
+    'sourceNextCycleRecommendation': json['sourceNextCycleRecommendation']
+        ?.toString(),
+    'cycleOutcome': json['cycleOutcome']?.toString(),
+    if (handoffInputsMap != null) ...<String, Object?>{
+      'outcomeAccepted': handoffInputsMap['outcomeAccepted']?.toString(),
+      'nextObserveNeeded': handoffInputsMap['nextObserveNeeded']?.toString(),
+    },
+    if (nextObserveSeedMap != null) ...<String, Object?>{
+      'nextObserveRequired': nextObserveSeedMap['required'],
+      'nextObserveReturnMilestone': nextObserveSeedMap['returnMilestone']
+          ?.toString(),
+      'nextObserveBoundary': nextObserveSeedMap['boundary']?.toString(),
     },
     if (gateMap != null) ...<String, Object?>{
       'gateStatus': gateMap['status']?.toString(),

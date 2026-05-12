@@ -36,6 +36,7 @@ void main() {
   late String m18ExecutionHandoffScript;
   late String m20ExecutionResultIntakeScript;
   late String m22PostActionReviewScript;
+  late String m23CycleOutcomeHandoffScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -124,6 +125,9 @@ void main() {
     ).readAsStringSync();
     m22PostActionReviewScript = File(
       'tool/run_macos_computer_use_m22_post_action_review.sh',
+    ).readAsStringSync();
+    m23CycleOutcomeHandoffScript = File(
+      'tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -288,6 +292,10 @@ void main() {
       contains('M20: Record user-operated runtime result evidence'),
     );
     expect(architectureDoc, contains('M22: Convert ready M20 result intake'));
+    expect(
+      architectureDoc,
+      contains('M23: Convert ready M22 post-action review evidence'),
+    );
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -3623,6 +3631,179 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M23 cycle outcome handoff closes reviewed cycles',
+    () async {
+      expect(
+        m23CycleOutcomeHandoffScript,
+        contains('macos_computer_use_m23_cycle_outcome_handoff'),
+      );
+      expect(m23CycleOutcomeHandoffScript, contains('report-only'));
+      expect(m23CycleOutcomeHandoffScript, contains('ready M22'));
+      expect(m23CycleOutcomeHandoffScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m23_cycle_outcome_handoff_test_',
+      );
+      try {
+        final review = File('${root.path}/post_action_review.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m22_post_action_review",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m22_post_action_review",
+  "milestone": "M22",
+  "ready": true,
+  "executionBoundary": "post_action_review_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "nextCycleRecommendation": "no_follow_up",
+  "reviewInputs": {
+    "resultReviewed": "yes",
+    "postActionState": "stable",
+    "followUpRequired": "no"
+  },
+  "sourceManualInputs": {
+    "runtimeAction": "succeeded",
+    "postActionObservation": "done"
+  },
+  "m22PostActionReviewGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh',
+          '--root',
+          root.path,
+          '--m22-review',
+          review.path,
+          '--outcome-accepted',
+          'yes',
+          '--next-observe-needed',
+          'no',
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains('Execution boundary: cycle_outcome_report_only'),
+        );
+        expect('${result.stdout}', contains('Cycle outcome: closed'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('cycle_outcome_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m23_cycle_outcome_handoff'),
+        );
+        expect(summary, contains('"milestone": "M23"'));
+        expect(summary, contains('"previousMilestone": "M22"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m23CycleOutcomeHandoffGate"'));
+        expect(summary, contains('"outcomeAccepted": "yes"'));
+        expect(summary, contains('"nextObserveNeeded": "no"'));
+        expect(summary, contains('"cycleOutcome": "closed"'));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M23 Cycle Outcome Handoff'));
+        expect(markdown, contains('Handoff Inputs'));
+        expect(markdown, contains('Next Observe Seed'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M23 cycle outcome handoff blocks inconsistent restart',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m23_cycle_outcome_handoff_blocked_test_',
+      );
+      try {
+        final review = File('${root.path}/post_action_review.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m22_post_action_review",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m22_post_action_review",
+  "milestone": "M22",
+  "ready": true,
+  "executionBoundary": "post_action_review_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "nextCycleRecommendation": "start_new_observe_action_cycle",
+  "reviewInputs": {
+    "resultReviewed": "yes",
+    "postActionState": "needs-follow-up",
+    "followUpRequired": "yes"
+  },
+  "sourceManualInputs": {
+    "runtimeAction": "succeeded",
+    "postActionObservation": "done"
+  },
+  "m22PostActionReviewGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh',
+          '--root',
+          root.path,
+          '--m22-review',
+          review.path,
+          '--outcome-accepted',
+          'no',
+          '--next-observe-needed',
+          'no',
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('outcome_accepted'));
+        expect(
+          '${result.stdout}',
+          contains('next_observe_matches_m22_recommendation'),
+        );
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('cycle_outcome_handoff.json'))
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"outcomeAccepted": "no"'));
+        expect(summary, contains('"nextObserveNeeded": "no"'));
+        expect(summary, contains('"cycleOutcome": "unknown"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4573,6 +4754,7 @@ void main() {
     expect(manualProcessChecklist, contains('M18 Execution Handoff'));
     expect(manualProcessChecklist, contains('M20 Execution Result Intake'));
     expect(manualProcessChecklist, contains('M22 Post-Action Review'));
+    expect(manualProcessChecklist, contains('M23 Cycle Outcome Handoff'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -4582,6 +4764,7 @@ void main() {
     expect(manualProcessChecklist, contains('m18ExecutionHandoffGate'));
     expect(manualProcessChecklist, contains('m20ExecutionResultIntakeGate'));
     expect(manualProcessChecklist, contains('m22PostActionReviewGate'));
+    expect(manualProcessChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -4606,6 +4789,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m22_post_action_review.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh'),
     );
     expect(
       manualProcessChecklist,

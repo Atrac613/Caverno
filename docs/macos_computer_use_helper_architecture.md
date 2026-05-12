@@ -346,6 +346,11 @@ Follow-on milestones:
   perform desktop actions. MVP sign-off and the readiness artifact index
   surface discovered M22 reviews as optional review evidence and block final
   aggregation when a discovered review is not ready.
+- M23: Convert ready M22 post-action review evidence into a report-only cycle
+  outcome handoff. The handoff records whether the completed action cycle is
+  closed or whether a new observe-only pass is required, keeps any follow-up
+  note as the seed for the next M14 observe pass, and preserves the
+  `no_desktop_action`, `no_tcc_operation`, and `no_llm_call` boundaries.
 
 ## Computer Use Live Canary
 

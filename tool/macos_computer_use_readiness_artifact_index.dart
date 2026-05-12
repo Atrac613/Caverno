@@ -121,6 +121,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M22 post-action review command:');
     stdout.writeln(rehearsal.m22PostActionReviewCommand);
   }
+  if (rehearsal.m23CycleOutcomeHandoffCommand != null) {
+    stdout.writeln('M23 cycle outcome handoff command:');
+    stdout.writeln(rehearsal.m23CycleOutcomeHandoffCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

@@ -686,6 +686,15 @@ void main() {
           sourceM20ExecutionResultIntake: m20ExecutionResultIntakePath,
         ),
       );
+      final m23CycleOutcomeHandoffPath =
+          '${root.path}/macos_computer_use_m23_cycle_outcome_handoff_995/cycle_outcome_handoff.json';
+      _writeJson(
+        File(m23CycleOutcomeHandoffPath),
+        _m23CycleOutcomeHandoff(
+          ready: true,
+          sourceM22PostActionReview: m22PostActionReviewPath,
+        ),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -703,6 +712,7 @@ void main() {
       expect(entryIds, contains('m18_execution_handoff'));
       expect(entryIds, contains('m20_execution_result_intake'));
       expect(entryIds, contains('m22_post_action_review'));
+      expect(entryIds, contains('m23_cycle_outcome_handoff'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -1023,6 +1033,29 @@ void main() {
         index.toMarkdown(),
         contains('Next cycle recommendation: no_follow_up'),
       );
+      final m23Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm23_cycle_outcome_handoff',
+      );
+      expect(m23Entry.exists, isTrue);
+      expect(m23Entry.path, m23CycleOutcomeHandoffPath);
+      expect(m23Entry.status, 'ready');
+      expect(
+        m23Entry.nextAction,
+        'Archive the completed action cycle evidence.',
+      );
+      expect(m23Entry.details['gateStatus'], 'ready');
+      expect(m23Entry.details['cycleOutcome'], 'closed');
+      expect(m23Entry.details['nextObserveNeeded'], 'no');
+      expect(index.toMarkdown(), contains('Latest M23 cycle outcome handoff'));
+      expect(
+        index.toMarkdown(),
+        contains('| Latest M23 cycle outcome handoff | true | ready |'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M23 Cycle Outcome Handoff Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Cycle outcome: closed'));
       expect(index.toMarkdown(), contains('M15 LLM review command:'));
       expect(
         index.toMarkdown(),
@@ -1059,6 +1092,16 @@ void main() {
         index.toMarkdown(),
         contains(
           'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M23 cycle outcome handoff command:'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --root ${root.path} --m22-review $m22PostActionReviewPath',
         ),
       );
     });
@@ -1992,6 +2035,117 @@ void main() {
       );
     });
 
+    test('artifact index blocks final aggregation on blocked M23 handoff', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m23_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m18ExecutionHandoffPath =
+          '${root.path}/macos_computer_use_m18_execution_handoff_900/execution_handoff.json';
+      _writeJson(
+        File(m18ExecutionHandoffPath),
+        _m18ExecutionHandoff(ready: true),
+      );
+      final m20ExecutionResultIntakePath =
+          '${root.path}/macos_computer_use_m20_execution_result_intake_950/execution_result_intake.json';
+      _writeJson(
+        File(m20ExecutionResultIntakePath),
+        _m20ExecutionResultIntake(
+          ready: true,
+          sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
+        ),
+      );
+      final m22PostActionReviewPath =
+          '${root.path}/macos_computer_use_m22_post_action_review_990/post_action_review.json';
+      _writeJson(
+        File(m22PostActionReviewPath),
+        _m22PostActionReview(
+          ready: true,
+          sourceM20ExecutionResultIntake: m20ExecutionResultIntakePath,
+        ),
+      );
+      final m23CycleOutcomeHandoffPath =
+          '${root.path}/macos_computer_use_m23_cycle_outcome_handoff_995/cycle_outcome_handoff.json';
+      _writeJson(
+        File(m23CycleOutcomeHandoffPath),
+        _m23CycleOutcomeHandoff(
+          ready: false,
+          sourceM22PostActionReview: m22PostActionReviewPath,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm23_cycle_outcome_handoff',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m23CycleOutcomeHandoffPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M23 cycle outcome blockers before closing or restarting the action cycle.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('outcome_accepted'));
+      expect(entry.details['cycleOutcome'], 'unknown');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m23_cycle_outcome_handoff'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m23_cycle_outcome_handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M23 Cycle Outcome Handoff Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(
+        index.toMarkdown(),
+        contains('Blockers: outcome_accepted, next_observe_needed_known'),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -2167,6 +2321,15 @@ void main() {
           sourceM18ExecutionHandoff: m18ExecutionHandoffPath,
         ),
       );
+      final m22PostActionReviewPath =
+          '${root.path}/macos_computer_use_m22_post_action_review_1/post_action_review.json';
+      _writeJson(
+        File(m22PostActionReviewPath),
+        _m22PostActionReview(
+          ready: true,
+          sourceM20ExecutionResultIntake: m20ExecutionResultIntakePath,
+        ),
+      );
 
       final result = await Process.run('dart', [
         'run',
@@ -2242,6 +2405,13 @@ void main() {
           'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
         ),
       );
+      expect(stdout, contains('M23 cycle outcome handoff command:'));
+      expect(
+        stdout,
+        contains(
+          'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --root ${root.path} --m22-review $m22PostActionReviewPath',
+        ),
+      );
 
       final markdown = File(
         '${root.path}/macos_computer_use_readiness_artifact_index.md',
@@ -2299,6 +2469,13 @@ void main() {
           'bash tool/run_macos_computer_use_m22_post_action_review.sh --root ${root.path} --m20-intake $m20ExecutionResultIntakePath',
         ),
       );
+      expect(markdown, contains('M23 cycle outcome handoff command:'));
+      expect(
+        markdown,
+        contains(
+          'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --root ${root.path} --m22-review $m22PostActionReviewPath',
+        ),
+      );
 
       final indexJson =
           jsonDecode(
@@ -2336,6 +2513,10 @@ void main() {
       expect(
         rehearsal['m22PostActionReviewCommand'],
         contains('run_macos_computer_use_m22_post_action_review.sh'),
+      );
+      expect(
+        rehearsal['m23CycleOutcomeHandoffCommand'],
+        contains('run_macos_computer_use_m23_cycle_outcome_handoff.sh'),
       );
     });
   });
@@ -3150,6 +3331,50 @@ Map<String, dynamic> _m22PostActionReview({
       'nextAction': ready
           ? 'Archive the reviewed M20 result as the completed action cycle evidence.'
           : 'Resolve M22 post-action review blockers before closing the action cycle.',
+    },
+  };
+}
+
+Map<String, dynamic> _m23CycleOutcomeHandoff({
+  required bool ready,
+  required String sourceM22PostActionReview,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m23_cycle_outcome_handoff',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m23_cycle_outcome_handoff',
+    'milestone': 'M23',
+    'previousMilestone': 'M22',
+    'ready': ready,
+    'sourceM22PostActionReview': sourceM22PostActionReview,
+    'executionBoundary': 'cycle_outcome_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'sourceNextCycleRecommendation': ready
+        ? 'no_follow_up'
+        : 'start_new_observe_action_cycle',
+    'cycleOutcome': ready ? 'closed' : 'unknown',
+    'handoffInputs': <String, Object?>{
+      'outcomeAccepted': ready ? 'yes' : 'no',
+      'nextObserveNeeded': ready ? 'no' : 'unknown',
+    },
+    'nextObserveSeed': <String, Object?>{
+      'required': false,
+      'source': 'm23_cycle_outcome_handoff',
+      'note': '',
+      'returnMilestone': null,
+      'boundary': 'observe_only_no_desktop_action',
+    },
+    'm23CycleOutcomeHandoffGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready
+          ? <String>[]
+          : <String>['outcome_accepted', 'next_observe_needed_known'],
+      'nextAction': ready
+          ? 'Archive the completed action cycle evidence.'
+          : 'Resolve M23 cycle outcome blockers before closing or restarting the action cycle.',
     },
   };
 }

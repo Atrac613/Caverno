@@ -260,6 +260,30 @@ Do not use this review to click, type, navigate, submit, post, purchase, grant
 TCC, operate System Settings, or call an LLM. It records only review evidence
 for a completed user-operated runtime step.
 
+## M23 Cycle Outcome Handoff
+
+Use this pass after the M22 post-action review is ready:
+
+1. Select the ready M22 `post_action_review.json`.
+2. Ask the user to accept the reviewed cycle outcome.
+3. If M22 recommends `start_new_observe_action_cycle`, ask for the next
+   observe note and confirm `--next-observe-needed yes`.
+4. If M22 recommends `no_follow_up`, confirm `--next-observe-needed no`.
+5. Run
+   `bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --m22-review <post_action_review.json> --outcome-accepted yes --next-observe-needed <yes-or-no>`.
+6. Confirm `m23CycleOutcomeHandoffGate.status` is `ready`.
+7. Confirm `executionBoundary` is `cycle_outcome_report_only`.
+8. Confirm `desktopActionBoundary` is `no_desktop_action`.
+9. Confirm `tccBoundary` is `no_tcc_operation`.
+10. Confirm `llmBoundary` is `no_llm_call`.
+11. If `cycleOutcome` is `restart_observe_action_cycle`, return to M14
+    observe-only evidence before proposing or approving the follow-up action.
+
+Do not use this handoff to click, type, navigate, submit, post, purchase, grant
+TCC, operate System Settings, or call an LLM. It records only whether the
+completed user-operated action cycle is closed or needs a new observe-only
+cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
