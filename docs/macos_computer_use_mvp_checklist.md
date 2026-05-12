@@ -217,9 +217,9 @@ fresh runtime evidence is required.
    aggregation.
    The same optional review-evidence rule applies to discovered M16 approval
    packets, M17 execution rehearsals, M18 execution handoffs, M20 execution
-   result intake reports, and M22 post-action reviews. Ready artifacts are
-   surfaced in the handoff; discovered blocked artifacts stop final aggregation
-   until their gate next action is resolved.
+   result intake reports, M22 post-action reviews, and M23 cycle outcome
+   handoffs. Ready artifacts are surfaced in the handoff; discovered blocked
+   artifacts stop final aggregation until their gate next action is resolved.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:
@@ -269,6 +269,10 @@ fresh runtime evidence is required.
 - `m15_llm_review_canary`: optional review evidence. If present, it must have a
   ready `m15LlmReviewGate` and must keep `review_only_no_tool_execution`,
   `no_tcc_operation`, and `no_desktop_action`.
+- `m23_cycle_outcome_handoff`: optional review evidence. If present, it must
+  have a ready `m23CycleOutcomeHandoffGate` and must keep
+  `cycle_outcome_report_only`, `no_tcc_operation`, `no_llm_call`, and
+  `no_desktop_action`.
 
 ## MVP Fixture App
 

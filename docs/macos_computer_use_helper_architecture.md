@@ -351,6 +351,10 @@ Follow-on milestones:
   closed or whether a new observe-only pass is required, keeps any follow-up
   note as the seed for the next M14 observe pass, and preserves the
   `no_desktop_action`, `no_tcc_operation`, and `no_llm_call` boundaries.
+- M24: Surface M23 cycle outcome handoffs in MVP sign-off and preflight
+  handoffs. Ready handoffs are visible review evidence, and discovered blocked
+  handoffs stop final aggregation until the recorded M23 next action is
+  resolved.
 
 ## Computer Use Live Canary
 

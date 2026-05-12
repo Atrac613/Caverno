@@ -296,6 +296,10 @@ void main() {
       architectureDoc,
       contains('M23: Convert ready M22 post-action review evidence'),
     );
+    expect(
+      architectureDoc,
+      contains('M24: Surface M23 cycle outcome handoffs'),
+    );
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -4032,6 +4036,8 @@ void main() {
     expect(mvpChecklist, contains('M20 execution'));
     expect(mvpChecklist, contains('result intake reports'));
     expect(mvpChecklist, contains('M22 post-action reviews'));
+    expect(mvpChecklist, contains('M23 cycle outcome'));
+    expect(mvpChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -4100,6 +4106,7 @@ void main() {
       contains('DISCOVERED_M20_EXECUTION_RESULT_INTAKE'),
     );
     expect(mvpSignoffScript, contains('DISCOVERED_M22_POST_ACTION_REVIEW'));
+    expect(mvpSignoffScript, contains('DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF'));
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
@@ -4107,6 +4114,7 @@ void main() {
     expect(mvpSignoffScript, contains('M18 Execution Handoff Evidence'));
     expect(mvpSignoffScript, contains('M20 Execution Result Intake Evidence'));
     expect(mvpSignoffScript, contains('M22 Post-Action Review Evidence'));
+    expect(mvpSignoffScript, contains('M23 Cycle Outcome Handoff Evidence'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -4467,6 +4475,8 @@ void main() {
     );
     expect(mvpReadinessPreflightScript, contains('M22 post-action review'));
     expect(mvpReadinessPreflightScript, contains('m22_post_action_review'));
+    expect(mvpReadinessPreflightScript, contains('M23 cycle outcome handoff'));
+    expect(mvpReadinessPreflightScript, contains('m23_cycle_outcome_handoff'));
 
     final root = Directory.systemTemp.createTempSync(
       'caverno_mvp_readiness_preflight_',
@@ -4583,6 +4593,13 @@ void main() {
         ),
       );
       expect(stdout, contains('blocked m22_post_action_review evidence'));
+      expect(
+        stdout,
+        contains(
+          'M23 cycle outcome handoff: inspect the artifact index for the report-only cycle outcome handoff command after M22 is ready',
+        ),
+      );
+      expect(stdout, contains('blocked m23_cycle_outcome_handoff evidence'));
       expect(
         File(
           '${root.path}/macos_computer_use_readiness_artifact_index.json',
@@ -6260,6 +6277,99 @@ void main() {
       root.deleteSync(recursive: true);
     }
   });
+
+  test(
+    'MVP sign-off dry run surfaces blocked M23 cycle outcome handoff',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_m23_blocked_',
+      );
+      try {
+        final m23Dir = Directory(
+          '${root.path}/macos_computer_use_m23_cycle_outcome_handoff_1',
+        )..createSync();
+        File('${m23Dir.path}/cycle_outcome_handoff.json').writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m23_cycle_outcome_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m23_cycle_outcome_handoff",
+  "milestone": "M23",
+  "previousMilestone": "M22",
+  "ready": false,
+  "sourceM22PostActionReview": "/tmp/post_action_review.json",
+  "executionBoundary": "cycle_outcome_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "sourceNextCycleRecommendation": "start_new_observe_action_cycle",
+  "cycleOutcome": "unknown",
+  "handoffInputs": {
+    "outcomeAccepted": "no",
+    "nextObserveNeeded": "unknown"
+  },
+  "nextObserveSeed": {
+    "required": false,
+    "source": "m23_cycle_outcome_handoff",
+    "note": "",
+    "returnMilestone": null,
+    "boundary": "observe_only_no_desktop_action"
+  },
+  "m23CycleOutcomeHandoffGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "outcome_accepted",
+        "ok": false,
+        "nextAction": "Ask the user to accept the reviewed M22 outcome before closing or restarting the cycle."
+      }
+    ],
+    "blockers": ["outcome_accepted"],
+    "nextAction": "Resolve M23 cycle outcome blockers before closing or restarting the action cycle."
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(stdout, contains('M23 cycle outcome handoff status: blocked'));
+        expect(
+          stdout,
+          contains(
+            'M23 cycle outcome handoff next action: Resolve M23 cycle outcome blockers before closing or restarting the action cycle.',
+          ),
+        );
+        expect(
+          stdout,
+          contains('Blocked review evidence: m23_cycle_outcome_handoff'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('M23 Cycle Outcome Handoff Evidence'));
+        expect(handoff, contains('M23 cycle outcome handoff status: blocked'));
+        expect(
+          handoff,
+          contains('M23 cycle outcome handoff blockers: outcome_accepted'),
+        );
+        expect(handoff, contains('| outcome_accepted | blocked |'));
+        expect(
+          handoff,
+          contains('Blocked review evidence: m23_cycle_outcome_handoff'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
 
   test('MVP sign-off appends blocked readiness next actions', () async {
     final root = Directory.systemTemp.createTempSync(

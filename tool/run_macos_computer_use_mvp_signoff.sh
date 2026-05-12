@@ -238,6 +238,14 @@ m22_post_action_review = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m22_post_action_review"
 )
+m23_cycle_outcome_handoff = latest_matching(
+    lambda path, decoded: path.name == "cycle_outcome_handoff.json"
+    and path.parent.name.startswith(
+        "macos_computer_use_m23_cycle_outcome_handoff_"
+    )
+    and decoded.get("schemaName")
+    == "macos_computer_use_m23_cycle_outcome_handoff"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -256,6 +264,7 @@ for name, path in [
     ("DISCOVERED_M18_EXECUTION_HANDOFF", m18_execution_handoff),
     ("DISCOVERED_M20_EXECUTION_RESULT_INTAKE", m20_execution_result_intake),
     ("DISCOVERED_M22_POST_ACTION_REVIEW", m22_post_action_review),
+    ("DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF", m23_cycle_outcome_handoff),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -299,6 +308,11 @@ M22_POST_ACTION_REVIEW_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m22_post_acti
 M22_POST_ACTION_REVIEW_STATUS="missing"
 M22_POST_ACTION_REVIEW_NEXT_ACTION="Run the M22 post-action review after M20 result intake is ready."
 M22_POST_ACTION_REVIEW_BOUNDARY="report-only post-action review, no LLM call, no TCC, no System Settings, no desktop actions"
+M23_CYCLE_OUTCOME_HANDOFF="${DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF:-}"
+M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m23_cycle_outcome_handoff_fragment.md"
+M23_CYCLE_OUTCOME_HANDOFF_STATUS="missing"
+M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION="Run the M23 cycle outcome handoff after M22 post-action review is ready."
+M23_CYCLE_OUTCOME_HANDOFF_BOUNDARY="report-only cycle outcome handoff, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -1311,6 +1325,134 @@ else
 EOF
 fi
 
+if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && -f "${M23_CYCLE_OUTCOME_HANDOFF}" ]]; then
+  m23_cycle_outcome_handoff_values="$(
+    M23_CYCLE_OUTCOME_HANDOFF="${M23_CYCLE_OUTCOME_HANDOFF}" M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT="${M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M23_CYCLE_OUTCOME_HANDOFF"])
+fragment_path = Path(os.environ["M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m23CycleOutcomeHandoffGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+handoff_inputs = summary.get("handoffInputs") if isinstance(summary, dict) else None
+handoff_inputs = handoff_inputs if isinstance(handoff_inputs, dict) else {}
+next_observe_seed = summary.get("nextObserveSeed") if isinstance(summary, dict) else None
+next_observe_seed = next_observe_seed if isinstance(next_observe_seed, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+cycle_outcome = "unknown"
+recommendation = "unknown"
+if isinstance(summary, dict):
+    cycle_outcome = str(summary.get("cycleOutcome") or "unknown")
+    recommendation = str(summary.get("sourceNextCycleRecommendation") or "unknown")
+if not next_action:
+    if status == "ready" and cycle_outcome == "restart_observe_action_cycle":
+        next_action = (
+            "Start a new M14 observe-only evidence pass with the recorded follow-up note."
+        )
+    elif status == "ready":
+        next_action = "Archive the completed action cycle evidence."
+    else:
+        next_action = (
+            "Resolve M23 cycle outcome blockers before closing or restarting the action cycle."
+        )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m23_cycle_outcome_handoff_unreadable"]
+boundary = "report-only cycle outcome handoff"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M23 Cycle Outcome Handoff Evidence",
+    "",
+    f"- M23 cycle outcome handoff: `{summary_path}`",
+    f"- M23 cycle outcome handoff status: {status}",
+    f"- M23 cycle outcome handoff boundary: {boundary}",
+    f"- M23 cycle outcome handoff next action: {next_action}",
+    f"- M23 cycle outcome handoff blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M23 source next cycle recommendation: {recommendation}",
+    f"- M23 cycle outcome: {cycle_outcome}",
+    f"- M23 next observe needed: {handoff_inputs.get('nextObserveNeeded', 'unknown')}",
+    f"- M23 next observe required: {next_observe_seed.get('required', 'unknown')}",
+    f"- M23 next observe return milestone: {next_observe_seed.get('returnMilestone', '-')}",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M23_CYCLE_OUTCOME_HANDOFF_STATUS={shlex.quote(status)}")
+print(f"M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M23_CYCLE_OUTCOME_HANDOFF_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m23_cycle_outcome_handoff_values}"
+else
+  cat >"${M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT}" <<EOF
+
+## M23 Cycle Outcome Handoff Evidence
+
+- M23 cycle outcome handoff: \`not discovered\`
+- M23 cycle outcome handoff status: missing
+- M23 cycle outcome handoff boundary: ${M23_CYCLE_OUTCOME_HANDOFF_BOUNDARY}
+- M23 cycle outcome handoff next action: ${M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION}
+- M23 cycle outcome handoff blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -1424,6 +1566,9 @@ if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STAT
 fi
 if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m22_post_action_review)
+fi
+if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && "${M23_CYCLE_OUTCOME_HANDOFF_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m23_cycle_outcome_handoff)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -1700,6 +1845,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M20 execution result intake status: ${M20_EXECUTION_RESULT_INTAKE_STATUS}
 - M22 post-action review: ${M22_POST_ACTION_REVIEW:-not discovered}
 - M22 post-action review status: ${M22_POST_ACTION_REVIEW_STATUS}
+- M23 cycle outcome handoff: ${M23_CYCLE_OUTCOME_HANDOFF:-not discovered}
+- M23 cycle outcome handoff status: ${M23_CYCLE_OUTCOME_HANDOFF_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -1732,6 +1879,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m22_post_action_review\`: ${M22_POST_ACTION_REVIEW_STATUS}
 - M22 post-action review boundary: ${M22_POST_ACTION_REVIEW_BOUNDARY}
 - M22 post-action review next action: ${M22_POST_ACTION_REVIEW_NEXT_ACTION}
+- \`m23_cycle_outcome_handoff\`: ${M23_CYCLE_OUTCOME_HANDOFF_STATUS}
+- M23 cycle outcome handoff boundary: ${M23_CYCLE_OUTCOME_HANDOFF_BOUNDARY}
+- M23 cycle outcome handoff next action: ${M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -1814,6 +1964,7 @@ cat "${M17_EXECUTION_REHEARSAL_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M18_EXECUTION_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M20_EXECUTION_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M22_POST_ACTION_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -1849,6 +2000,9 @@ cat "${M22_POST_ACTION_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
       echo "- ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
+    fi
+    if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && "${M23_CYCLE_OUTCOME_HANDOFF_STATUS}" != "ready" ]]; then
+      echo "- ${M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -1906,6 +2060,10 @@ echo "  M22 post-action review: ${M22_POST_ACTION_REVIEW:-not discovered}"
 echo "  M22 post-action review status: ${M22_POST_ACTION_REVIEW_STATUS}"
 echo "  M22 post-action review boundary: ${M22_POST_ACTION_REVIEW_BOUNDARY}"
 echo "  M22 post-action review next action: ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
+echo "  M23 cycle outcome handoff: ${M23_CYCLE_OUTCOME_HANDOFF:-not discovered}"
+echo "  M23 cycle outcome handoff status: ${M23_CYCLE_OUTCOME_HANDOFF_STATUS}"
+echo "  M23 cycle outcome handoff boundary: ${M23_CYCLE_OUTCOME_HANDOFF_BOUNDARY}"
+echo "  M23 cycle outcome handoff next action: ${M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -1969,6 +2127,9 @@ if [[ -n "${M20_EXECUTION_RESULT_INTAKE}" && "${M20_EXECUTION_RESULT_INTAKE_STAT
 fi
 if [[ -n "${M22_POST_ACTION_REVIEW}" && "${M22_POST_ACTION_REVIEW_STATUS}" != "ready" ]]; then
   echo "  - ${M22_POST_ACTION_REVIEW_NEXT_ACTION}"
+fi
+if [[ -n "${M23_CYCLE_OUTCOME_HANDOFF}" && "${M23_CYCLE_OUTCOME_HANDOFF_STATUS}" != "ready" ]]; then
+  echo "  - ${M23_CYCLE_OUTCOME_HANDOFF_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"
