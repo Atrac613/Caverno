@@ -89,6 +89,7 @@ echo "  M22 post-action review: inspect the artifact index for the report-only p
 echo "  M23 cycle outcome handoff: inspect the artifact index for the report-only cycle outcome handoff command after M22 is ready; blocked m23_cycle_outcome_handoff evidence stops final aggregation"
 echo "  M25 next-cycle seed handoff: inspect the artifact index for the report-only next-cycle seed command after M23 restarts the cycle; blocked m25_next_cycle_seed_handoff evidence stops final aggregation"
 echo "  M26 observe restart packet: inspect the artifact index for the report-only M14 observe restart packet command after M25 is ready; blocked m26_observe_restart_packet evidence stops final aggregation"
+echo "  M27 screenshot request handoff: inspect the artifact index for the report-only manual screenshot request command after M26 is ready; blocked m27_screenshot_request_handoff evidence stops final aggregation"
 echo "Expected final input paths:"
 echo "  Manual TCC: macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json"
 echo "  Desktop action: macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json"

@@ -133,6 +133,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M26 observe restart packet command:');
     stdout.writeln(rehearsal.m26ObserveRestartPacketCommand);
   }
+  if (rehearsal.m27ScreenshotRequestHandoffCommand != null) {
+    stdout.writeln('M27 screenshot request handoff command:');
+    stdout.writeln(rehearsal.m27ScreenshotRequestHandoffCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

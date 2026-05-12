@@ -365,6 +365,10 @@ Follow-on milestones:
   user-operated screenshot preparation steps, and M14 observe-only commands
   without starting M14, calling an LLM, granting TCC, opening apps, operating
   System Settings, capturing screens, or performing desktop actions.
+- M27: Convert a ready M26 observe restart packet into a report-only manual
+  screenshot request handoff. The handoff freezes the target app, target
+  intent, requested screenshot state, and M14 observe-only command so the next
+  pass can stay user-operated until screenshot evidence exists.
 
 ## Computer Use Live Canary
 

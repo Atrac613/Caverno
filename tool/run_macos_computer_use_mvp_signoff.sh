@@ -262,6 +262,14 @@ m26_observe_restart_packet = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m26_observe_restart_packet"
 )
+m27_screenshot_request_handoff = latest_matching(
+    lambda path, decoded: path.name == "screenshot_request_handoff.json"
+    and path.parent.name.startswith(
+        "macos_computer_use_m27_screenshot_request_handoff_"
+    )
+    and decoded.get("schemaName")
+    == "macos_computer_use_m27_screenshot_request_handoff"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -283,6 +291,7 @@ for name, path in [
     ("DISCOVERED_M23_CYCLE_OUTCOME_HANDOFF", m23_cycle_outcome_handoff),
     ("DISCOVERED_M25_NEXT_CYCLE_SEED_HANDOFF", m25_next_cycle_seed_handoff),
     ("DISCOVERED_M26_OBSERVE_RESTART_PACKET", m26_observe_restart_packet),
+    ("DISCOVERED_M27_SCREENSHOT_REQUEST_HANDOFF", m27_screenshot_request_handoff),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -341,6 +350,11 @@ M26_OBSERVE_RESTART_PACKET_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m26_obser
 M26_OBSERVE_RESTART_PACKET_STATUS="missing"
 M26_OBSERVE_RESTART_PACKET_NEXT_ACTION="Run the M26 observe restart packet after an M25 next-cycle seed is ready."
 M26_OBSERVE_RESTART_PACKET_BOUNDARY="report-only M14 observe restart packet, no LLM call, no TCC, no System Settings, no desktop actions"
+M27_SCREENSHOT_REQUEST_HANDOFF="${DISCOVERED_M27_SCREENSHOT_REQUEST_HANDOFF:-}"
+M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m27_screenshot_request_handoff_fragment.md"
+M27_SCREENSHOT_REQUEST_HANDOFF_STATUS="missing"
+M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION="Run the M27 screenshot request handoff after an M26 observe restart packet is ready."
+M27_SCREENSHOT_REQUEST_HANDOFF_BOUNDARY="report-only manual screenshot request, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -1722,6 +1736,126 @@ else
 EOF
 fi
 
+if [[ -n "${M27_SCREENSHOT_REQUEST_HANDOFF}" && -f "${M27_SCREENSHOT_REQUEST_HANDOFF}" ]]; then
+  m27_screenshot_request_handoff_values="$(
+    M27_SCREENSHOT_REQUEST_HANDOFF="${M27_SCREENSHOT_REQUEST_HANDOFF}" M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT="${M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M27_SCREENSHOT_REQUEST_HANDOFF"])
+fragment_path = Path(os.environ["M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m27ScreenshotRequestHandoffGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+request = summary.get("userScreenshotRequest") if isinstance(summary, dict) else None
+request = request if isinstance(request, dict) else {}
+commands = summary.get("commands") if isinstance(summary, dict) else None
+commands = commands if isinstance(commands, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    if status == "ready":
+        next_action = (
+            "Ask the user to manually prepare the target app, capture the requested screenshot, and run the M14 observe-only canary command."
+        )
+    else:
+        next_action = (
+            "Resolve M27 screenshot request handoff blockers before asking for the manual screenshot."
+        )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m27_screenshot_request_handoff_unreadable"]
+boundary = "report-only manual screenshot request"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M27 Screenshot Request Handoff Evidence",
+    "",
+    f"- M27 screenshot request handoff: `{summary_path}`",
+    f"- M27 screenshot request handoff status: {status}",
+    f"- M27 screenshot request handoff boundary: {boundary}",
+    f"- M27 screenshot request handoff next action: {next_action}",
+    f"- M27 screenshot request handoff blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M27 target app: {summary.get('targetApp', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M27 target intent: {summary.get('targetIntent', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M27 screenshot provided: {request.get('provided', 'unknown')}",
+    f"- M27 M14 observe command: `{commands.get('m14ObserveCanary', '-')}`",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M27_SCREENSHOT_REQUEST_HANDOFF_STATUS={shlex.quote(status)}")
+print(f"M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M27_SCREENSHOT_REQUEST_HANDOFF_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m27_screenshot_request_handoff_values}"
+else
+  cat >"${M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT}" <<EOF
+
+## M27 Screenshot Request Handoff Evidence
+
+- M27 screenshot request handoff: \`not discovered\`
+- M27 screenshot request handoff status: missing
+- M27 screenshot request handoff boundary: ${M27_SCREENSHOT_REQUEST_HANDOFF_BOUNDARY}
+- M27 screenshot request handoff next action: ${M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION}
+- M27 screenshot request handoff blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -1844,6 +1978,9 @@ if [[ -n "${M25_NEXT_CYCLE_SEED_HANDOFF}" && "${M25_NEXT_CYCLE_SEED_HANDOFF_STAT
 fi
 if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m26_observe_restart_packet)
+fi
+if [[ -n "${M27_SCREENSHOT_REQUEST_HANDOFF}" && "${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m27_screenshot_request_handoff)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -2126,6 +2263,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M25 next-cycle seed handoff status: ${M25_NEXT_CYCLE_SEED_HANDOFF_STATUS}
 - M26 observe restart packet: ${M26_OBSERVE_RESTART_PACKET:-not discovered}
 - M26 observe restart packet status: ${M26_OBSERVE_RESTART_PACKET_STATUS}
+- M27 screenshot request handoff: ${M27_SCREENSHOT_REQUEST_HANDOFF:-not discovered}
+- M27 screenshot request handoff status: ${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -2167,6 +2306,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m26_observe_restart_packet\`: ${M26_OBSERVE_RESTART_PACKET_STATUS}
 - M26 observe restart packet boundary: ${M26_OBSERVE_RESTART_PACKET_BOUNDARY}
 - M26 observe restart packet next action: ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}
+- \`m27_screenshot_request_handoff\`: ${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}
+- M27 screenshot request handoff boundary: ${M27_SCREENSHOT_REQUEST_HANDOFF_BOUNDARY}
+- M27 screenshot request handoff next action: ${M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -2252,6 +2394,7 @@ cat "${M22_POST_ACTION_REVIEW_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M23_CYCLE_OUTCOME_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M25_NEXT_CYCLE_SEED_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -2296,6 +2439,9 @@ cat "${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
       echo "- ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
+    fi
+    if [[ -n "${M27_SCREENSHOT_REQUEST_HANDOFF}" && "${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}" != "ready" ]]; then
+      echo "- ${M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -2365,6 +2511,10 @@ echo "  M26 observe restart packet: ${M26_OBSERVE_RESTART_PACKET:-not discovered
 echo "  M26 observe restart packet status: ${M26_OBSERVE_RESTART_PACKET_STATUS}"
 echo "  M26 observe restart packet boundary: ${M26_OBSERVE_RESTART_PACKET_BOUNDARY}"
 echo "  M26 observe restart packet next action: ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
+echo "  M27 screenshot request handoff: ${M27_SCREENSHOT_REQUEST_HANDOFF:-not discovered}"
+echo "  M27 screenshot request handoff status: ${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}"
+echo "  M27 screenshot request handoff boundary: ${M27_SCREENSHOT_REQUEST_HANDOFF_BOUNDARY}"
+echo "  M27 screenshot request handoff next action: ${M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -2437,6 +2587,9 @@ if [[ -n "${M25_NEXT_CYCLE_SEED_HANDOFF}" && "${M25_NEXT_CYCLE_SEED_HANDOFF_STAT
 fi
 if [[ -n "${M26_OBSERVE_RESTART_PACKET}" && "${M26_OBSERVE_RESTART_PACKET_STATUS}" != "ready" ]]; then
   echo "  - ${M26_OBSERVE_RESTART_PACKET_NEXT_ACTION}"
+fi
+if [[ -n "${M27_SCREENSHOT_REQUEST_HANDOFF}" && "${M27_SCREENSHOT_REQUEST_HANDOFF_STATUS}" != "ready" ]]; then
+  echo "  - ${M27_SCREENSHOT_REQUEST_HANDOFF_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

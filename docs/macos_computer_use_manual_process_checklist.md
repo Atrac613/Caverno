@@ -335,6 +335,32 @@ navigate, submit, post, purchase, grant TCC, operate System Settings, or call
 an LLM. It only prepares the command set and user-operated screenshot
 instructions for the next observe-only cycle.
 
+## M27 Screenshot Request Handoff
+
+Use this pass after M26 is ready and the next M14 observe-only pass needs a
+frozen manual screenshot request:
+
+1. Select the ready M26 `observe_restart_packet.json`.
+2. Confirm `m26ObserveRestartPacketGate.status` is `ready`.
+3. Confirm `nextObservePreparation.returnMilestone` is `M14`.
+4. Confirm `nextObservePreparation.boundary` is
+   `observe_only_no_desktop_action`.
+5. Confirm `nextObservePreparation.screenshotRequired` is `true`.
+6. Run
+   `bash tool/run_macos_computer_use_m27_screenshot_request_handoff.sh --m26-packet <observe_restart_packet.json>`.
+7. Confirm `m27ScreenshotRequestHandoffGate.status` is `ready`.
+8. Confirm `executionBoundary` is `manual_screenshot_request_report_only`.
+9. Confirm `desktopActionBoundary` is `no_desktop_action`.
+10. Confirm `tccBoundary` is `no_tcc_operation`.
+11. Confirm `llmBoundary` is `no_llm_call`.
+12. Ask the user to manually prepare the target app, capture the requested
+    screenshot, and run the generated M14 observe-only canary command.
+
+Do not use this handoff to start M14, open apps, capture screens, click, type,
+navigate, submit, post, purchase, grant TCC, operate System Settings, or call
+an LLM. It only freezes the manual screenshot request for the next
+observe-only cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

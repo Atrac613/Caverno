@@ -715,6 +715,7 @@ void main() {
       expect(entryIds, contains('m23_cycle_outcome_handoff'));
       expect(entryIds, contains('m25_next_cycle_seed_handoff'));
       expect(entryIds, contains('m26_observe_restart_packet'));
+      expect(entryIds, contains('m27_screenshot_request_handoff'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -1062,6 +1063,14 @@ void main() {
       expect(m26Entry.exists, isFalse);
       expect(
         index.mvpFinalSignoffRehearsal.m26ObserveRestartPacketCommand,
+        isNull,
+      );
+      final m27Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm27_screenshot_request_handoff',
+      );
+      expect(m27Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m27ScreenshotRequestHandoffCommand,
         isNull,
       );
       expect(index.toMarkdown(), contains('Latest M23 cycle outcome handoff'));
@@ -2466,6 +2475,129 @@ void main() {
       expect(index.toMarkdown(), contains('Blockers: target_app_present'));
     });
 
+    test('artifact index surfaces M27 screenshot request handoff command', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m27_command_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m26ObserveRestartPacketPath =
+          '${root.path}/macos_computer_use_m26_observe_restart_packet_997/observe_restart_packet.json';
+      _writeJson(
+        File(m26ObserveRestartPacketPath),
+        _m26ObserveRestartPacket(
+          ready: true,
+          sourceM25NextCycleSeedHandoff: '/tmp/next_cycle_seed_handoff.json',
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final m26Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm26_observe_restart_packet',
+      );
+      final m27Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm27_screenshot_request_handoff',
+      );
+
+      expect(m26Entry.status, 'ready');
+      expect(m26Entry.details['returnMilestone'], 'M14');
+      expect(m27Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m27ScreenshotRequestHandoffCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m27_screenshot_request_handoff.sh --root ${root.path} --m26-packet $m26ObserveRestartPacketPath',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M27 screenshot request handoff command:'),
+      );
+    });
+
+    test('artifact index blocks final aggregation on blocked M27 handoff', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m27_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m27ScreenshotRequestHandoffPath =
+          '${root.path}/macos_computer_use_m27_screenshot_request_handoff_998/screenshot_request_handoff.json';
+      _writeJson(
+        File(m27ScreenshotRequestHandoffPath),
+        _m27ScreenshotRequestHandoff(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm27_screenshot_request_handoff',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m27ScreenshotRequestHandoffPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M27 screenshot request handoff blockers before asking for the manual screenshot.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('target_app_present'));
+      expect(entry.details['returnMilestone'], 'M14');
+      expect(entry.details['targetIntent'], 'Observe the next target.');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m27_screenshot_request_handoff'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m27_screenshot_request_handoff'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M27 Screenshot Request Handoff Evidence'),
+      );
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(index.toMarkdown(), contains('Blockers: target_app_present'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -3783,6 +3915,46 @@ Map<String, dynamic> _m26ObserveRestartPacket({
       'nextAction': ready
           ? 'Ask the user to manually prepare the target app, capture a screenshot, and run the M14 observe-only canary command.'
           : 'Resolve M26 observe restart packet blockers before asking for a new M14 screenshot.',
+    },
+  };
+}
+
+Map<String, dynamic> _m27ScreenshotRequestHandoff({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m27_screenshot_request_handoff',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m27_screenshot_request_handoff',
+    'milestone': 'M27',
+    'previousMilestone': 'M26',
+    'ready': ready,
+    'sourceM26ObserveRestartPacket': '/tmp/observe_restart_packet.json',
+    'executionBoundary': 'manual_screenshot_request_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'targetApp': ready ? 'Safari' : '',
+    'targetIntent': 'Observe the next target.',
+    'userScreenshotRequest': <String, Object?>{
+      'required': true,
+      'provided': false,
+      'targetApp': ready ? 'Safari' : '',
+      'targetIntent': 'Observe the next target.',
+      'returnMilestone': 'M14',
+      'boundary': 'observe_only_no_desktop_action',
+    },
+    'commands': <String, Object?>{
+      'm14RealAppHandoff':
+          'bash tool/run_macos_computer_use_m14_real_app_handoff.sh',
+      'm14ObserveCanary':
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot <user-provided-real-app-screenshot.png>',
+    },
+    'm27ScreenshotRequestHandoffGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['target_app_present'],
+      'nextAction': ready
+          ? 'Ask the user to manually prepare the target app, capture the requested screenshot, and run the M14 observe-only canary command.'
+          : 'Resolve M27 screenshot request handoff blockers before asking for the manual screenshot.',
     },
   };
 }
