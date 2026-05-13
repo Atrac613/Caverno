@@ -4891,7 +4891,7 @@ void main() {
   });
 
   test(
-    'Computer Use M30 return command generates ready M15 handoff and review',
+    'Computer Use M30 return command generates M15 review and M16 packet',
     () async {
       final root = Directory.systemTemp.createTempSync(
         'caverno_m30_to_m15_handoff_test_',
@@ -5158,6 +5158,74 @@ void main() {
           reviewSummary['blockedActions'],
           contains('operate_system_settings'),
         );
+
+        final m16Result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m16_approval_packet.sh',
+          '--root',
+          root.path,
+          '--m15-handoff',
+          m15SummaryFile.path,
+          '--m15-llm-review',
+          reviewSummaryFile.path,
+        ]);
+
+        expect(
+          m16Result.exitCode,
+          0,
+          reason: '${m16Result.stdout}\n${m16Result.stderr}',
+        );
+        expect('${m16Result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${m16Result.stdout}',
+          contains('Approval status: pending_user_approval'),
+        );
+        final m16SummaryFile = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('approval_packet.json'))
+            .where(
+              (file) =>
+                  file.path.contains('macos_computer_use_m16_approval_packet_'),
+            )
+            .single;
+        final m16Summary =
+            jsonDecode(m16SummaryFile.readAsStringSync())
+                as Map<String, dynamic>;
+        final m16Gate =
+            m16Summary['m16ApprovalPacketGate'] as Map<String, dynamic>;
+        final requiredApprovals =
+            (m16Summary['requiredApprovals'] as List<dynamic>)
+                .cast<Map<String, dynamic>>();
+        final approvalIds = requiredApprovals
+            .map((approval) => approval['id'] as String)
+            .toSet();
+
+        expect(m16Summary['milestone'], 'M16');
+        expect(m16Summary['previousMilestone'], 'M15');
+        expect(m16Summary['sourceM15Handoff'], m15SummaryFile.path);
+        expect(m16Summary['sourceM15LlmReview'], reviewSummaryFile.path);
+        expect(
+          m16Summary['executionBoundary'],
+          'no_desktop_action_report_only',
+        );
+        expect(m16Summary['desktopActionBoundary'], 'no_desktop_action');
+        expect(m16Summary['tccBoundary'], 'no_tcc_operation');
+        expect(m16Summary['llmBoundary'], 'no_llm_call');
+        expect(m16Summary['approvalStatus'], 'pending_user_approval');
+        expect(m16Gate['status'], 'ready');
+        expect(m16Gate['ready'], isTrue);
+        expect(m16Gate['approvalStatus'], 'pending_user_approval');
+        expect(m16Summary['exactTextCandidates'], isNotEmpty);
+        expect(m16Summary['textEntryTargets'], isNotEmpty);
+        expect(m16Summary['publicActionTargets'], isNotEmpty);
+        expect(approvalIds, contains('observe_again'));
+        expect(approvalIds, contains('exact_text'));
+        expect(approvalIds, contains('target_label'));
+        expect(approvalIds, contains('public_action_label'));
+        expect(approvalIds, contains('post_action_observation'));
+        expect(m16Summary['approvalBlockers'], contains('exact_text'));
+        expect(m16Summary['approvalBlockers'], contains('target_label'));
+        expect(m16Summary['approvalBlockers'], contains('public_action_label'));
       } finally {
         root.deleteSync(recursive: true);
       }
