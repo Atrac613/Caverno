@@ -75,6 +75,7 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('m36_live_llm_eval'), findsNWidgets(2));
     expect(
       find.textContaining(
         'Report-only preflight: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh',
@@ -315,6 +316,12 @@ void main() {
       ),
       findsOneWidget,
     );
+    expect(find.textContaining('M36 Live LLM eval command:'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_m36_live_llm_eval_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M36 Live LLM eval summary:'), findsOneWidget);
     expect(
       find.textContaining(
         'M23-M29 restart artifact paths are listed by the artifact index',

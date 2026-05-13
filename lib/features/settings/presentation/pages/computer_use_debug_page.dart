@@ -1732,7 +1732,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
-      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake',
+      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake, m36_live_llm_eval',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
@@ -1745,6 +1745,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M20 execution result intake command: ${MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand}',
       'M22 post-action review command: ${MacosComputerUseMvpGuidance.m22PostActionReviewCommand}',
       'M30 observe result intake command: ${MacosComputerUseMvpGuidance.m30ObserveResultIntakeCommand}',
+      'M36 Live LLM eval command: ${MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand}',
       'M30 returns ready observe evidence to the M15 action proposal handoff; use the artifact index for exact M23-M29 restart commands.',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
@@ -1801,6 +1802,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_m22_post_action_review_<timestamp>/${MacosComputerUseMvpGuidance.m22PostActionReviewFile}',
       'm30ObserveResultIntake':
           'build/integration_test_reports/macos_computer_use_m30_observe_result_intake_<timestamp>/${MacosComputerUseMvpGuidance.m30ObserveResultIntakeFile}',
+      'm36LiveLlmEvalSummary':
+          'build/integration_test_reports/macos_computer_use_m36_live_llm_eval_<timestamp>/${MacosComputerUseMvpGuidance.m36LiveLlmEvalSummaryFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1838,6 +1841,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M20 execution result intake: ${paths['m20ExecutionResultIntake']}',
       'M22 post-action review: ${paths['m22PostActionReview']}',
       'M30 observe result intake: ${paths['m30ObserveResultIntake']}',
+      'M36 Live LLM eval summary: ${paths['m36LiveLlmEvalSummary']}',
       'M23-M29 restart artifact paths are listed by the artifact index when those optional reports exist',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',

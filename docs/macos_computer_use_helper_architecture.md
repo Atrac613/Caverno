@@ -452,6 +452,12 @@ surface until the user intentionally enables it.
   fixture screenshots, saved real-app screenshots, refusal cases, target
   ambiguity, exact-text preservation, public-action boundary preservation, and
   recovery from stale or blocked evidence without executing desktop actions.
+  Implemented as
+  `bash tool/run_macos_computer_use_m36_live_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>`.
+  The report schema is `macos_computer_use_m36_live_llm_eval_summary`; it
+  records `m36LiveLlmEvaluationGate`, per-scenario failures, coverage status,
+  `tccBoundary: no_tcc_operation`, and `desktopActionBoundary:
+  no_desktop_action`.
 - M37: Add product-grade audit and privacy controls. The helper and main app
   should record local, user-exportable audit events for observe, approval,
   execution handoff, emergency stop, and result review while redacting secrets,
@@ -647,6 +653,16 @@ screenshot is provided by the user or extracted from a user-operated desktop
 action canary report through `--desktop-action-report <path>`, so the canary
 does not capture the screen, grant TCC, operate System Settings, move the
 pointer, click, or type.
+
+Use `tool/run_macos_computer_use_m36_live_llm_eval.sh` when the broader
+Computer Use LLM evaluation needs refresh before product sign-off. It combines
+fixture screenshot target inventory, saved real-app public-action boundary
+preservation, refusal without approval, target ambiguity, exact-text
+preservation, and stale or blocked evidence recovery into one report-only
+gate. The runner accepts `--fixture-suite <path>` for deterministic regression
+tests; production runs should provide saved fixture and real-app screenshots
+and the configured `CAVERNO_LLM_*` endpoint. It never captures the desktop,
+grants TCC, clicks, types, submits, posts, or operates System Settings.
 
 The fixture app is built with:
 

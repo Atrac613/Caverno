@@ -131,6 +131,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M36 Live LLM evaluation evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
@@ -156,6 +160,10 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m22PostActionReviewCommand,
       contains('run_macos_computer_use_m22_post_action_review.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand,
+      contains('run_macos_computer_use_m36_live_llm_eval.sh'),
     );
   });
 
