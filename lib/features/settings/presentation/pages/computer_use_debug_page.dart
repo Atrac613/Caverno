@@ -8,6 +8,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 
@@ -1479,6 +1480,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       ),
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
+      productionActionPolicy:
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       helperStatus: _helperStatus,
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
@@ -1734,6 +1737,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
       'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
+      _productionActionPolicySummary(),
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
@@ -1743,6 +1747,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M30 observe result intake command: ${MacosComputerUseMvpGuidance.m30ObserveResultIntakeCommand}',
       'M30 returns ready observe evidence to the M15 action proposal handoff; use the artifact index for exact M23-M29 restart commands.',
       'Final aggregation waits for all required evidence',
+    ].join(' | ');
+  }
+
+  String _productionActionPolicySummary() {
+    final policy = MacosComputerUseToolPolicy.productionActionPolicy();
+    return [
+      'M35 production action policy: ${policy.status}',
+      'phases ${policy.phaseOrder.join(' > ')}',
+      'public actions require separate approval: ${policy.publicActionSeparateApprovalRequired}',
+      'emergency stop required: ${policy.emergencyStopRequired}',
+      'post-action review required: ${policy.postActionReviewRequired}',
     ].join(' | ');
   }
 

@@ -273,6 +273,27 @@ void main() {
       jsonEncode(actionProposalPolicy),
       contains('target.risk=public_action'),
     );
+    final productionActionPolicy =
+        result['productionActionPolicy'] as Map<String, dynamic>;
+    expect(
+      productionActionPolicy,
+      containsPair('schemaName', 'macos_computer_use_production_action_policy'),
+    );
+    expect(
+      productionActionPolicy['phaseOrder'],
+      containsAll([
+        'observe',
+        'approval_packet',
+        'action_time_confirmation',
+        'emergency_stop_available',
+        'execution_result_intake',
+        'post_action_review',
+      ]),
+    );
+    expect(
+      actionProposalPolicy['productionActionPolicy'],
+      containsPair('publicActionSeparateApprovalRequired', true),
+    );
     final toolPolicies = actionProposalPolicy['toolPolicies'] as List<dynamic>;
     final clickPolicy = toolPolicies.cast<Map<String, dynamic>>().singleWhere(
       (policy) => policy['toolName'] == 'computer_click',

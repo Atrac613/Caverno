@@ -9,6 +9,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 import 'computer_use_debug_page.dart';
@@ -848,6 +849,8 @@ class _ComputerUseOnboardingCardState
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
       permissionRecoverySummary: permissionRecoverySummary.toJson(),
+      productionActionPolicy:
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       helperStatus: _helperStatus,
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,

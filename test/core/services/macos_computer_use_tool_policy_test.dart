@@ -187,6 +187,50 @@ void main() {
     expect(decision.nextAction, contains('separate explicit approval'));
   });
 
+  test('defines the production action policy gates', () {
+    final policy = MacosComputerUseToolPolicy.productionActionPolicy();
+
+    expect(policy.status, 'defined');
+    expect(policy.phaseOrder, [
+      'observe',
+      'approval_packet',
+      'action_time_confirmation',
+      'emergency_stop_available',
+      'execution_result_intake',
+      'post_action_review',
+    ]);
+    expect(policy.publicActionSeparateApprovalRequired, isTrue);
+    expect(policy.emergencyStopRequired, isTrue);
+    expect(policy.postActionReviewRequired, isTrue);
+    expect(
+      policy.requiredApprovals,
+      containsAll([
+        'target_label',
+        'exact_text_for_typing',
+        'public_action_label_for_public_actions',
+        'post_action_observation',
+      ]),
+    );
+    expect(
+      policy.hardBlocks,
+      containsAll([
+        'fresh_observation_missing',
+        'approval_packet_missing_or_unapproved',
+        'action_time_confirmation_missing',
+        'emergency_stop_unavailable',
+        'execution_result_intake_missing',
+        'post_action_review_missing',
+        'public_action_missing_separate_approval',
+      ]),
+    );
+    final json = policy.toJson();
+    expect(
+      json,
+      containsPair('schemaName', 'macos_computer_use_production_action_policy'),
+    );
+    expect(json['phases'], isA<List<Map<String, dynamic>>>());
+  });
+
   test('classifies submit-like controls as public actions', () {
     expect(
       MacosComputerUseToolPolicy.isPublicActionTarget(const {

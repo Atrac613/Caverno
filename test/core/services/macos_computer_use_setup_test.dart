@@ -193,6 +193,10 @@ void main() {
         'status': 'needs_recovery',
         'issueIds': ['missing_permissions'],
       },
+      productionActionPolicy: const {
+        'status': 'defined',
+        'phaseOrder': ['observe', 'approval_packet'],
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -222,6 +226,10 @@ void main() {
     expect(
       diagnostics['permissionRecoverySummary'],
       containsPair('status', 'needs_recovery'),
+    );
+    expect(
+      diagnostics['productionActionPolicy'],
+      containsPair('status', 'defined'),
     );
     expect(diagnostics['helperStatusPersistence'], contains('activeWork'));
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', true));

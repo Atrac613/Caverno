@@ -352,6 +352,12 @@ class SystemPromptBuilder {
           'approved desktop actions when the policy requires target approval.',
         );
         buffer.writeln(
+          'Treat productionActionPolicy as the required production gate: every '
+          'desktop action needs fresh observation, an approval packet, '
+          'action-time confirmation, emergency stop availability, execution '
+          'result intake, and post-action review.',
+        );
+        buffer.writeln(
           'For computer_type_text, include the exact text to type and do not '
           'ask the user to approve a vague or summarized text action.',
         );

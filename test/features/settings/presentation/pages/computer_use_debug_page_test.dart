@@ -94,6 +94,16 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining('M35 production action policy: defined'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'observe > approval_packet > action_time_confirmation > emergency_stop_available > execution_result_intake > post_action_review',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining(
         'M15 LLM review command: bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>',
       ),

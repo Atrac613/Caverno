@@ -301,6 +301,28 @@ Do not use this review to click, type, navigate, submit, post, purchase, grant
 TCC, operate System Settings, or call an LLM. It records only review evidence
 for a completed user-operated runtime step.
 
+## M35 Production Action Policy
+
+Use this static pass before any production desktop action is considered ready:
+
+1. Confirm `computer_vision_observe` returns `productionActionPolicy`.
+2. Confirm the policy `phaseOrder` is `observe`, `approval_packet`,
+   `action_time_confirmation`, `emergency_stop_available`,
+   `execution_result_intake`, and `post_action_review`.
+3. Confirm public actions require a separate `public_action_label` approval
+   even when `target_label` and exact text have already been approved.
+4. Confirm `emergencyStopRequired` and `postActionReviewRequired` are true.
+5. Confirm the debug evidence summary shows
+   `M35 production action policy: defined`.
+6. Confirm production hard blocks include missing fresh observation, missing or
+   unapproved approval packet, missing action-time confirmation, unavailable
+   emergency stop, missing execution result intake, missing post-action review,
+   and missing separate public-action approval.
+
+Do not treat this static policy as runtime permission to click, type, submit,
+post, purchase, grant TCC, operate System Settings, or call an LLM. It defines
+the mandatory gates that future user-operated production actions must satisfy.
+
 ## M23 Cycle Outcome Handoff
 
 Use this pass after the M22 post-action review is ready:

@@ -518,6 +518,8 @@ class MacosComputerUseService {
       'approvalRequiredTools': _visionApprovalRequiredTools,
       'armingRequiredTools': _visionArmingRequiredTools,
       'actionProposalPolicy': _visionActionProposalPolicy(),
+      'productionActionPolicy':
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       'nextAction': _visionNextAction(
         captureOk: captureOk,
         imageAttached: imageBase64 is String && imageBase64.isNotEmpty,
@@ -564,6 +566,8 @@ class MacosComputerUseService {
     return {
       'schemaName': 'macos_computer_use_action_proposal_policy',
       'schemaVersion': 1,
+      'productionActionPolicy':
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       'targetMetadataKey': 'target',
       'rules': [
         'Observation tools can remain in planning without approval.',

@@ -446,6 +446,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.helperIpcRuntime,
     this.onboardingVerification,
     this.permissionRecoverySummary,
+    this.productionActionPolicy,
     this.helperStatus,
     this.helperStatusPersistence,
     this.permissions,
@@ -483,6 +484,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Map<String, dynamic>? helperIpcRuntime;
   final Map<String, dynamic>? onboardingVerification;
   final Map<String, dynamic>? permissionRecoverySummary;
+  final Map<String, dynamic>? productionActionPolicy;
   final Map<String, dynamic>? helperStatus;
   final Map<String, dynamic>? helperStatusPersistence;
   final Map<String, dynamic>? permissions;
@@ -518,6 +520,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'operationBoundary': operationBoundary,
       'onboardingVerification': onboardingVerification,
       'permissionRecoverySummary': permissionRecoverySummary,
+      'productionActionPolicy': productionActionPolicy,
       'helperStatus': helperStatus,
       'helperStatusPersistence': helperStatusPersistence,
       'permissions': permissions,

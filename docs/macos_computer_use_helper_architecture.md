@@ -441,6 +441,13 @@ surface until the user intentionally enables it.
   execution result intake, and post-action review boundaries. Public actions
   such as post, send, publish, purchase, or delete require separate approval
   even when text and target approvals are already present.
+  The policy is now exposed as `productionActionPolicy` alongside the
+  `computer_vision_observe` action proposal policy, in the system prompt, and
+  in the Computer Use debug evidence summary. It defines the required phase
+  order as observe, approval packet, action-time confirmation, emergency stop
+  availability, execution result intake, and post-action review, with separate
+  hard blockers for missing public-action approval and missing post-action
+  review evidence.
 - M36: Expand Live LLM evaluation for Computer Use. The suite should cover
   fixture screenshots, saved real-app screenshots, refusal cases, target
   ambiguity, exact-text preservation, public-action boundary preservation, and

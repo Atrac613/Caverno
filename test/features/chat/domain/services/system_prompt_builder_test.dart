@@ -208,6 +208,8 @@ void main() {
       ),
     );
     expect(prompt, contains('Read the actionProposalPolicy'));
+    expect(prompt, contains('Treat productionActionPolicy'));
+    expect(prompt, contains('execution result intake'));
     expect(prompt, contains('include the exact text to type'));
     expect(prompt, contains('target.risk=public_action'));
     expect(prompt, contains('observe-action-observe cycle'));
