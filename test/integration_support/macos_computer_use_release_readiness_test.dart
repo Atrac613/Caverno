@@ -3041,6 +3041,137 @@ void main() {
       );
     });
 
+    test('M31 navigator recommends M15 after ready M30 intake', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m30_to_m15_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m14SummaryPath =
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json';
+      final m30ObserveResultIntakePath =
+          '${root.path}/macos_computer_use_m30_observe_result_intake_999/observe_result_intake.json';
+      final m30Intake = _m30ObserveResultIntake(ready: true)
+        ..['sourceM14ObserveCanarySummary'] = m14SummaryPath
+        ..['commands'] = <String, Object?>{
+          'm15ActionProposalHandoff':
+              'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+        };
+      _writeJson(File(m30ObserveResultIntakePath), m30Intake);
+
+      final index = buildReadinessArtifactIndex(root);
+      final navigator = index.nextStepNavigator;
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m15_action_proposal_handoff');
+      expect(recommendation.artifactId, 'm15_action_proposal_handoff');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.evidencePath, isEmpty);
+      expect(recommendation.requiresUserOperation, isFalse);
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+      );
+      expect(index.toJson()['nextStepNavigator'], isA<Map<String, Object?>>());
+      expect(index.toMarkdown(), contains('## M31 Next Step Navigator'));
+      expect(index.toMarkdown(), contains('Recommended next command:'));
+    });
+
+    test('M31 navigator prioritizes blocked review evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m28ScreenshotEvidenceIntakePath =
+          '${root.path}/macos_computer_use_m28_screenshot_evidence_intake_999/screenshot_evidence_intake.json';
+      _writeJson(
+        File(m28ScreenshotEvidenceIntakePath),
+        _m28ScreenshotEvidenceIntake(ready: false),
+      );
+
+      final navigator = buildReadinessNextStepNavigator(root);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm28_screenshot_evidence_intake');
+      expect(recommendation.artifactStatus, 'blocked');
+      expect(recommendation.evidencePath, m28ScreenshotEvidenceIntakePath);
+      expect(
+        recommendation.nextAction,
+        'Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.',
+      );
+      expect(
+        recommendation.recommendedCommand,
+        'dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
+      );
+    });
+
+    test('M31 navigator CLI writes JSON and Markdown outputs', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_cli_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m14SummaryPath =
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json';
+      final m30ObserveResultIntakePath =
+          '${root.path}/macos_computer_use_m30_observe_result_intake_999/observe_result_intake.json';
+      final m30Intake = _m30ObserveResultIntake(ready: true)
+        ..['sourceM14ObserveCanarySummary'] = m14SummaryPath
+        ..['commands'] = <String, Object?>{
+          'm15ActionProposalHandoff':
+              'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+        };
+      _writeJson(File(m30ObserveResultIntakePath), m30Intake);
+
+      final result = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_next_step_navigator.dart',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0);
+      expect('${result.stdout}', contains('M31 next-step navigator'));
+      expect(
+        '${result.stdout}',
+        contains('Priority: run_m15_action_proposal_handoff'),
+      );
+      expect('${result.stdout}', contains('Recommended next command:'));
+      final summary =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_next_step_navigator.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final recommendation = summary['recommendation'] as Map<String, dynamic>;
+      expect(
+        summary['schemaName'],
+        'macos_computer_use_m31_next_step_navigator',
+      );
+      expect(summary['milestone'], 'M31');
+      expect(recommendation['artifactId'], 'm15_action_proposal_handoff');
+      expect(
+        recommendation['recommendedCommand'],
+        contains('run_macos_computer_use_m15_action_proposal_handoff.sh'),
+      );
+      final markdown = File(
+        '${root.path}/macos_computer_use_next_step_navigator.md',
+      ).readAsStringSync();
+      expect(markdown, contains('M31 Next Step Navigator'));
+      expect(markdown, contains('Recommended next command:'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',

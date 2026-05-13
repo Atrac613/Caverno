@@ -83,6 +83,12 @@ void main() {
     );
     expect(
       find.textContaining(
+        'M31 next-step navigator: dart run tool/macos_computer_use_next_step_navigator.dart',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
         'M15 LLM review command: bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>',
       ),
       findsOneWidget,
@@ -201,6 +207,14 @@ void main() {
     expect(
       find.textContaining('macos_computer_use_readiness_artifact_index.md'),
       findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('macos_computer_use_next_step_navigator.json'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_next_step_navigator.md'),
+      findsOneWidget,
     );
     expect(
       find.textContaining('macos_computer_use_release_readiness_ci.md'),
@@ -1148,4 +1162,4 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 String _json(Map<String, dynamic> value) => jsonEncode(value);
 
 const _png1x1Base64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP8z8BQDwAFgwJ/lzWj8QAAAABJRU5ErkJggg==';
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=';

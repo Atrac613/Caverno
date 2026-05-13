@@ -1732,6 +1732,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
+      'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
@@ -1788,6 +1789,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexMarkdownFile}',
+      'nextStepNavigatorJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
+      'nextStepNavigatorMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile}',
       'releaseReadinessCiMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.releaseReadinessCiMarkdownFile}',
       'releaseReadinessSignoffMarkdown':
@@ -1816,6 +1821,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M23-M29 restart artifact paths are listed by the artifact index when those optional reports exist',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
+      'Next-step navigator JSON: ${paths['nextStepNavigatorJson']}',
+      'Next-step navigator Markdown: ${paths['nextStepNavigatorMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
       'Release readiness sign-off Markdown: ${paths['releaseReadinessSignoffMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)

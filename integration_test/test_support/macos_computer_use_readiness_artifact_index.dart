@@ -40,11 +40,13 @@ class ReadinessArtifactIndex {
     required this.reportRoot,
     required this.entries,
     required this.mvpFinalSignoffRehearsal,
+    required this.nextStepNavigator,
   });
 
   final String reportRoot;
   final List<ReadinessArtifactEntry> entries;
   final ReadinessFinalSignoffRehearsal mvpFinalSignoffRehearsal;
+  final ReadinessNextStepNavigator nextStepNavigator;
 
   Map<String, Object?> toJson() {
     return <String, Object?>{
@@ -53,6 +55,7 @@ class ReadinessArtifactIndex {
       'reportRoot': reportRoot,
       'entries': entries.map((entry) => entry.toJson()).toList(growable: false),
       'mvpFinalSignoffRehearsal': mvpFinalSignoffRehearsal.toJson(),
+      'nextStepNavigator': nextStepNavigator.toJson(),
     };
   }
 
@@ -103,6 +106,33 @@ class ReadinessArtifactIndex {
       ..writeln(
         '- Report-only preflight command: `${_escapeMarkdownCode(mvpFinalSignoffRehearsal.reportOnlyPreflightCommand)}`',
       );
+    buffer
+      ..writeln()
+      ..writeln('## M31 Next Step Navigator')
+      ..writeln()
+      ..writeln('- Status: ${nextStepNavigator.status}')
+      ..writeln('- Priority: ${nextStepNavigator.recommendation.priority}')
+      ..writeln(
+        '- Artifact: `${_escapeMarkdownCode(nextStepNavigator.recommendation.artifactId)}`',
+      )
+      ..writeln(
+        '- Evidence path: `${_escapeMarkdownCode(nextStepNavigator.recommendation.evidencePath)}`',
+      )
+      ..writeln(
+        '- Next action: ${_markdownCell(nextStepNavigator.recommendation.nextAction)}',
+      )
+      ..writeln(
+        '- Requires user operation: ${nextStepNavigator.recommendation.requiresUserOperation}',
+      );
+    if (nextStepNavigator.recommendation.recommendedCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('Recommended next command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(nextStepNavigator.recommendation.recommendedCommand)
+        ..writeln('```');
+    }
     ReadinessArtifactEntry? m15Entry;
     ReadinessArtifactEntry? m15LlmReviewEntry;
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
@@ -829,6 +859,105 @@ class ReadinessPrReviewSummary {
   }
 }
 
+class ReadinessNextStepNavigator {
+  const ReadinessNextStepNavigator({
+    required this.status,
+    required this.reportRoot,
+    required this.recommendation,
+    required this.operationBoundary,
+  });
+
+  final String status;
+  final String reportRoot;
+  final ReadinessNextStepRecommendation recommendation;
+  final Map<String, Object?> operationBoundary;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'schemaName': 'macos_computer_use_m31_next_step_navigator',
+      'schemaVersion': 1,
+      'milestone': 'M31',
+      'status': status,
+      'reportRoot': reportRoot,
+      'recommendation': recommendation.toJson(),
+      'operationBoundary': operationBoundary,
+    };
+  }
+
+  String toMarkdown() {
+    final buffer = StringBuffer()
+      ..writeln('# macOS Computer Use M31 Next Step Navigator')
+      ..writeln()
+      ..writeln('- Status: $status')
+      ..writeln('- Report root: `$reportRoot`')
+      ..writeln('- Priority: ${recommendation.priority}')
+      ..writeln('- Artifact: `${recommendation.artifactId}`')
+      ..writeln('- Artifact status: ${recommendation.artifactStatus}')
+      ..writeln(
+        '- Evidence path: `${_escapeMarkdownCode(recommendation.evidencePath)}`',
+      )
+      ..writeln('- Next action: ${recommendation.nextAction}')
+      ..writeln(
+        '- Requires user operation: ${recommendation.requiresUserOperation}',
+      )
+      ..writeln('- Boundary: ${recommendation.boundary}');
+    if (recommendation.recommendedCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('Recommended next command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(recommendation.recommendedCommand)
+        ..writeln('```');
+    }
+    buffer
+      ..writeln()
+      ..writeln('Operation boundary:')
+      ..writeln()
+      ..writeln('- `tccGrants`: ${operationBoundary['tccGrants']}')
+      ..writeln('- `desktopActions`: ${operationBoundary['desktopActions']}');
+    return buffer.toString();
+  }
+}
+
+class ReadinessNextStepRecommendation {
+  const ReadinessNextStepRecommendation({
+    required this.priority,
+    required this.artifactId,
+    required this.artifactLabel,
+    required this.artifactStatus,
+    required this.evidencePath,
+    required this.nextAction,
+    required this.boundary,
+    required this.requiresUserOperation,
+    this.recommendedCommand,
+  });
+
+  final String priority;
+  final String artifactId;
+  final String artifactLabel;
+  final String artifactStatus;
+  final String evidencePath;
+  final String nextAction;
+  final String boundary;
+  final bool requiresUserOperation;
+  final String? recommendedCommand;
+
+  Map<String, Object?> toJson() {
+    return <String, Object?>{
+      'priority': priority,
+      'artifactId': artifactId,
+      'artifactLabel': artifactLabel,
+      'artifactStatus': artifactStatus,
+      'evidencePath': evidencePath,
+      'nextAction': nextAction,
+      'boundary': boundary,
+      'requiresUserOperation': requiresUserOperation,
+      if (recommendedCommand != null) 'recommendedCommand': recommendedCommand,
+    };
+  }
+}
+
 ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
   final entries = <ReadinessArtifactEntry>[
     _entry(
@@ -1082,6 +1211,28 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
     reportRoot: reportRoot.path,
     entries: List<ReadinessArtifactEntry>.unmodifiable(entries),
     mvpFinalSignoffRehearsal: _mvpFinalSignoffRehearsal(reportRoot, entries),
+    nextStepNavigator: buildReadinessNextStepNavigator(reportRoot, entries),
+  );
+}
+
+ReadinessNextStepNavigator buildReadinessNextStepNavigator(
+  Directory reportRoot, [
+  List<ReadinessArtifactEntry>? entries,
+]) {
+  final indexEntries =
+      entries ?? buildReadinessArtifactIndex(reportRoot).entries;
+  final rehearsal = _mvpFinalSignoffRehearsal(reportRoot, indexEntries);
+  final byId = <String, ReadinessArtifactEntry>{
+    for (final entry in indexEntries) entry.id: entry,
+  };
+  final recommendation = _nextStepRecommendation(reportRoot, byId, rehearsal);
+  return ReadinessNextStepNavigator(
+    status: recommendation.artifactId == 'none'
+        ? 'no_action_available'
+        : 'ready',
+    reportRoot: reportRoot.path,
+    recommendation: recommendation,
+    operationBoundary: MacosComputerUseOperationBoundary.values,
   );
 }
 
@@ -1241,6 +1392,307 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
             entry.status != 'ready',
       )
       .toList(growable: false);
+}
+
+ReadinessNextStepRecommendation _nextStepRecommendation(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+  ReadinessFinalSignoffRehearsal rehearsal,
+) {
+  final blocked = _firstEntryByPriority(
+    entriesById,
+    const <String>[
+      'm15_action_proposal_handoff',
+      'm15_llm_review_canary',
+      'm16_approval_packet',
+      'm17_execution_rehearsal',
+      'm18_execution_handoff',
+      'm20_execution_result_intake',
+      'm22_post_action_review',
+      'm23_cycle_outcome_handoff',
+      'm25_next_cycle_seed_handoff',
+      'm26_observe_restart_packet',
+      'm27_screenshot_request_handoff',
+      'm28_screenshot_evidence_intake',
+      'm29_observe_canary_run_packet',
+      'm30_observe_result_intake',
+    ],
+    (entry) => entry.exists && entry.status != null && entry.status != 'ready',
+  );
+  if (blocked != null) {
+    return _recommendationForEntry(
+      priority: 'resolve_blocked_evidence',
+      entry: blocked,
+      nextAction:
+          blocked.nextAction ??
+          'Resolve blocked ${blocked.label} evidence before continuing.',
+      recommendedCommand: MacosComputerUseMvpGuidance.artifactIndexCommand
+          .replaceFirst('build/integration_test_reports', reportRoot.path),
+    );
+  }
+
+  final m16Entry = entriesById['m16_approval_packet'];
+  if (m16Entry?.status == 'ready' &&
+      m16Entry?.details['approvalStatus'] != 'approved') {
+    return _recommendationForEntry(
+      priority: 'collect_m16_user_approvals',
+      entry: m16Entry!,
+      nextAction:
+          m16Entry.nextAction ??
+          'Ask the user to approve exact text, target, and public action before the future execution milestone.',
+      recommendedCommand: rehearsal.m16ApprovalPacketCommand,
+      requiresUserOperation: true,
+    );
+  }
+
+  for (final candidate in _commandCandidates(rehearsal)) {
+    final entry = entriesById[candidate.artifactId];
+    if (entry == null || entry.exists) {
+      continue;
+    }
+    return _recommendationForEntry(
+      priority: candidate.priority,
+      entry: entry,
+      nextAction: candidate.nextAction,
+      recommendedCommand: candidate.command,
+      requiresUserOperation: candidate.requiresUserOperation,
+    );
+  }
+
+  final missing = _firstEntryByPriority(
+    entriesById,
+    MacosComputerUseMvpGuidance.requiredEvidenceIds,
+    (entry) => !entry.exists,
+  );
+  if (missing != null) {
+    return _recommendationForEntry(
+      priority: 'collect_required_evidence',
+      entry: missing,
+      nextAction: MacosComputerUseMvpGuidance.missingArtifactNextAction(
+        missing.id,
+      ),
+      recommendedCommand: _requiredEvidenceCommand(missing.id, reportRoot),
+      requiresUserOperation: MacosComputerUseMvpGuidance.userOperatedEvidenceIds
+          .contains(missing.id),
+    );
+  }
+
+  if (rehearsal.finalAggregationCommand != null) {
+    return ReadinessNextStepRecommendation(
+      priority: 'final_aggregation',
+      artifactId: 'mvp_final_signoff',
+      artifactLabel: 'MVP final sign-off aggregation',
+      artifactStatus: 'ready',
+      evidencePath: reportRoot.path,
+      nextAction: 'Run final MVP sign-off aggregation.',
+      recommendedCommand: rehearsal.finalAggregationCommand,
+      boundary:
+          'report-only aggregation; TCC and desktop actions remain user-operated',
+      requiresUserOperation: false,
+    );
+  }
+
+  return ReadinessNextStepRecommendation(
+    priority: 'none',
+    artifactId: 'none',
+    artifactLabel: 'No recommended next step',
+    artifactStatus: 'missing',
+    evidencePath: reportRoot.path,
+    nextAction: 'Produce Computer Use readiness evidence before continuing.',
+    recommendedCommand: _mvpReadinessPreflightCommand(reportRoot),
+    boundary:
+        'report-only navigation; TCC and desktop actions remain user-operated',
+    requiresUserOperation: false,
+  );
+}
+
+ReadinessArtifactEntry? _firstEntryByPriority(
+  Map<String, ReadinessArtifactEntry> entriesById,
+  List<String> priority,
+  bool Function(ReadinessArtifactEntry entry) matches,
+) {
+  for (final id in priority) {
+    final entry = entriesById[id];
+    if (entry != null && matches(entry)) {
+      return entry;
+    }
+  }
+  return null;
+}
+
+ReadinessNextStepRecommendation _recommendationForEntry({
+  required String priority,
+  required ReadinessArtifactEntry entry,
+  required String nextAction,
+  String? recommendedCommand,
+  bool requiresUserOperation = false,
+}) {
+  return ReadinessNextStepRecommendation(
+    priority: priority,
+    artifactId: entry.id,
+    artifactLabel: entry.label,
+    artifactStatus: entry.status ?? (entry.exists ? 'present' : 'missing'),
+    evidencePath: entry.path,
+    nextAction: nextAction,
+    recommendedCommand: recommendedCommand,
+    boundary:
+        'report-only navigation; TCC and desktop actions remain user-operated',
+    requiresUserOperation: requiresUserOperation,
+  );
+}
+
+List<_NextStepCommandCandidate> _commandCandidates(
+  ReadinessFinalSignoffRehearsal rehearsal,
+) {
+  return <_NextStepCommandCandidate>[
+    if (rehearsal.m15ActionProposalCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m15_action_proposal_handoff',
+        artifactId: 'm15_action_proposal_handoff',
+        command: rehearsal.m15ActionProposalCommand!,
+        nextAction:
+            'Run the M15 action proposal handoff from the latest ready observe evidence.',
+      ),
+    if (rehearsal.m15LlmReviewCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m15_llm_review_canary',
+        artifactId: 'm15_llm_review_canary',
+        command: rehearsal.m15LlmReviewCommand!,
+        nextAction:
+            'Run the M15 LLM review canary before preparing the approval packet.',
+      ),
+    if (rehearsal.m16ApprovalPacketCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m16_approval_packet',
+        artifactId: 'm16_approval_packet',
+        command: rehearsal.m16ApprovalPacketCommand!,
+        nextAction:
+            'Run the M16 approval packet generator from ready M15 evidence.',
+      ),
+    if (rehearsal.m17ExecutionRehearsalCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m17_execution_rehearsal',
+        artifactId: 'm17_execution_rehearsal',
+        command: rehearsal.m17ExecutionRehearsalCommand!,
+        nextAction:
+            'Run the M17 execution rehearsal from the approved M16 packet.',
+      ),
+    if (rehearsal.m18ExecutionHandoffCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m18_execution_handoff',
+        artifactId: 'm18_execution_handoff',
+        command: rehearsal.m18ExecutionHandoffCommand!,
+        nextAction:
+            'Run the M18 execution handoff before any user-operated runtime step.',
+      ),
+    if (rehearsal.m20ExecutionResultIntakeCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m20_execution_result_intake',
+        artifactId: 'm20_execution_result_intake',
+        command: rehearsal.m20ExecutionResultIntakeCommand!,
+        nextAction:
+            'Run the M20 result intake after the user-operated runtime step.',
+        requiresUserOperation: true,
+      ),
+    if (rehearsal.m22PostActionReviewCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m22_post_action_review',
+        artifactId: 'm22_post_action_review',
+        command: rehearsal.m22PostActionReviewCommand!,
+        nextAction: 'Run the M22 post-action review from ready M20 evidence.',
+      ),
+    if (rehearsal.m23CycleOutcomeHandoffCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m23_cycle_outcome_handoff',
+        artifactId: 'm23_cycle_outcome_handoff',
+        command: rehearsal.m23CycleOutcomeHandoffCommand!,
+        nextAction:
+            'Run the M23 cycle outcome handoff to close or restart the cycle.',
+      ),
+    if (rehearsal.m25NextCycleSeedHandoffCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m25_next_cycle_seed_handoff',
+        artifactId: 'm25_next_cycle_seed_handoff',
+        command: rehearsal.m25NextCycleSeedHandoffCommand!,
+        nextAction:
+            'Run the M25 next-cycle seed handoff before preparing the next observe pass.',
+      ),
+    if (rehearsal.m26ObserveRestartPacketCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m26_observe_restart_packet',
+        artifactId: 'm26_observe_restart_packet',
+        command: rehearsal.m26ObserveRestartPacketCommand!,
+        nextAction:
+            'Run the M26 observe restart packet for the next M14 observe pass.',
+      ),
+    if (rehearsal.m27ScreenshotRequestHandoffCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m27_screenshot_request_handoff',
+        artifactId: 'm27_screenshot_request_handoff',
+        command: rehearsal.m27ScreenshotRequestHandoffCommand!,
+        nextAction:
+            'Run the M27 screenshot request handoff before asking for a manual screenshot.',
+      ),
+    if (rehearsal.m28ScreenshotEvidenceIntakeCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m28_screenshot_evidence_intake',
+        artifactId: 'm28_screenshot_evidence_intake',
+        command: rehearsal.m28ScreenshotEvidenceIntakeCommand!,
+        nextAction:
+            'Run the M28 screenshot evidence intake after the user provides a screenshot.',
+        requiresUserOperation: true,
+      ),
+    if (rehearsal.m29ObserveCanaryRunPacketCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m29_observe_canary_run_packet',
+        artifactId: 'm29_observe_canary_run_packet',
+        command: rehearsal.m29ObserveCanaryRunPacketCommand!,
+        nextAction:
+            'Run the M29 observe canary run packet before asking the user to run M14.',
+      ),
+    if (rehearsal.m30ObserveResultIntakeCommand != null)
+      _NextStepCommandCandidate(
+        priority: 'run_m30_observe_result_intake',
+        artifactId: 'm30_observe_result_intake',
+        command: rehearsal.m30ObserveResultIntakeCommand!,
+        nextAction:
+            'Run the M30 observe result intake after the user-produced M14 summary is ready.',
+        requiresUserOperation: true,
+      ),
+  ];
+}
+
+String? _requiredEvidenceCommand(String artifactId, Directory reportRoot) {
+  switch (artifactId) {
+    case 'release_artifact':
+      return 'bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs';
+    case 'canary_history':
+      return 'bash tool/run_macos_computer_use_live_canary.sh --ci';
+    case 'manual_tcc':
+      return MacosComputerUseMvpGuidance.manualTccCommand;
+    case 'desktop_action_canary':
+      return MacosComputerUseMvpGuidance.desktopActionCanaryCommand;
+    case 'llm_canary':
+      return MacosComputerUseMvpGuidance.llmCanaryCommand;
+    default:
+      return _mvpReadinessPreflightCommand(reportRoot);
+  }
+}
+
+class _NextStepCommandCandidate {
+  const _NextStepCommandCandidate({
+    required this.priority,
+    required this.artifactId,
+    required this.command,
+    required this.nextAction,
+    this.requiresUserOperation = false,
+  });
+
+  final String priority;
+  final String artifactId;
+  final String command;
+  final String nextAction;
+  final bool requiresUserOperation;
 }
 
 ReadinessPrReviewSummary _mvpPrReviewSummary({

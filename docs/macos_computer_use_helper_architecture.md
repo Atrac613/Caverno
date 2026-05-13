@@ -397,6 +397,13 @@ surface until the user intentionally enables it.
   ready milestone, and show exactly one recommended next command plus the
   evidence path it consumes. This keeps the M14-M30 cycle usable without asking
   operators to manually remember the milestone graph.
+  The initial M31 implementation writes
+  `macos_computer_use_next_step_navigator.json` and
+  `macos_computer_use_next_step_navigator.md` through
+  `dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports`.
+  The readiness artifact index also embeds the same recommendation under
+  `nextStepNavigator` so PR review can see the current command, evidence path,
+  priority, and user-operation boundary in one place.
 - M32: Move Computer Use from the default settings surface into an Advanced
   Computer Use page. The normal settings page should show only a compact
   enabled/disabled summary, while the dedicated page owns permission status,

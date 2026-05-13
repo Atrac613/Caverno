@@ -85,6 +85,18 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     '- Report-only preflight command: ${rehearsal.reportOnlyPreflightCommand}',
   );
+  final navigator = index.nextStepNavigator;
+  final recommendation = navigator.recommendation;
+  stdout.writeln('M31 next-step navigator:');
+  stdout.writeln('- Status: ${navigator.status}');
+  stdout.writeln('- Priority: ${recommendation.priority}');
+  stdout.writeln('- Artifact: ${recommendation.artifactId}');
+  stdout.writeln('- Evidence path: ${recommendation.evidencePath}');
+  stdout.writeln('- Next action: ${recommendation.nextAction}');
+  if (recommendation.recommendedCommand != null) {
+    stdout.writeln('Recommended next command:');
+    stdout.writeln(recommendation.recommendedCommand);
+  }
   stdout.writeln('Operation boundary:');
   for (final entry in rehearsal.operationBoundary.entries) {
     stdout.writeln('- ${entry.key}: ${entry.value}');

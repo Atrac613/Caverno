@@ -96,6 +96,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_mvp_readiness_preflight.sh';
   static const artifactIndexCommand =
       'dart run tool/macos_computer_use_readiness_artifact_index.dart --root build/integration_test_reports';
+  static const nextStepNavigatorCommand =
+      'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
   static const llmCanarySummaryFile = 'canary_summary.json';
@@ -118,6 +120,10 @@ class MacosComputerUseMvpGuidance {
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
       'macos_computer_use_readiness_artifact_index.md';
+  static const nextStepNavigatorJsonFile =
+      'macos_computer_use_next_step_navigator.json';
+  static const nextStepNavigatorMarkdownFile =
+      'macos_computer_use_next_step_navigator.md';
   static const releaseReadinessCiMarkdownFile =
       'macos_computer_use_release_readiness_ci.md';
   static const releaseReadinessSignoffMarkdownFile =
