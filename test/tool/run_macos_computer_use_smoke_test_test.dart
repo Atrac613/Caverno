@@ -328,6 +328,28 @@ void main() {
     expect(architectureDoc, contains('M26: Convert a ready M25'));
     expect(architectureDoc, contains('M27: Convert a ready M26'));
     expect(architectureDoc, contains('M28: Convert a ready M27'));
+    expect(architectureDoc, contains('## Production Roadmap After M30'));
+    expect(
+      architectureDoc,
+      contains('M31: Add a next-step navigator for Computer Use artifacts'),
+    );
+    expect(
+      architectureDoc,
+      contains('M32: Move Computer Use from the default settings surface'),
+    );
+    expect(
+      architectureDoc,
+      contains('M33: Establish the signed release packaging lane'),
+    );
+    expect(
+      architectureDoc,
+      contains('M35: Define the production action policy'),
+    );
+    expect(
+      architectureDoc,
+      contains('M36: Expand Live LLM evaluation for Computer Use'),
+    );
+    expect(architectureDoc, contains('M40: Cut the production launch gate'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));

@@ -384,6 +384,57 @@ Follow-on milestones:
   next M15 action proposal command without calling an LLM, granting TCC,
   capturing screens, opening apps, or performing desktop actions.
 
+## Production Roadmap After M30
+
+M1-M30 prove the helper boundary, manual TCC workflow, observe-only evidence,
+approval packets, user-operated execution handoffs, post-action review, and
+cycle restart path. The product roadmap turns that evidence chain into a
+releasable Computer Use feature that remains hidden from the default chat
+surface until the user intentionally enables it.
+
+- M31: Add a next-step navigator for Computer Use artifacts. It should inspect
+  the latest readiness artifact index, identify the highest-priority blocked or
+  ready milestone, and show exactly one recommended next command plus the
+  evidence path it consumes. This keeps the M14-M30 cycle usable without asking
+  operators to manually remember the milestone graph.
+- M32: Move Computer Use from the default settings surface into an Advanced
+  Computer Use page. The normal settings page should show only a compact
+  enabled/disabled summary, while the dedicated page owns permission status,
+  helper launch controls, artifact links, smoke checks, and diagnostic export.
+- M33: Establish the signed release packaging lane. The release build must
+  embed the helper, LaunchAgent plist, MachService declaration, entitlements,
+  signing identity, hardened runtime settings, and notarization evidence that
+  match the helper bundle path used for TCC grants.
+- M34: Harden permission recovery and revocation UX. The app should clearly
+  distinguish missing permissions, revoked permissions, stale helper paths,
+  mismatched debug and release helpers, and the user action needed to recover
+  without triggering extra macOS permission prompts from the main app.
+- M35: Define the production action policy. Every desktop action must pass
+  through observe, approval packet, action-time confirmation, emergency stop,
+  execution result intake, and post-action review boundaries. Public actions
+  such as post, send, publish, purchase, or delete require separate approval
+  even when text and target approvals are already present.
+- M36: Expand Live LLM evaluation for Computer Use. The suite should cover
+  fixture screenshots, saved real-app screenshots, refusal cases, target
+  ambiguity, exact-text preservation, public-action boundary preservation, and
+  recovery from stale or blocked evidence without executing desktop actions.
+- M37: Add product-grade audit and privacy controls. The helper and main app
+  should record local, user-exportable audit events for observe, approval,
+  execution handoff, emergency stop, and result review while redacting secrets,
+  screenshots, tokens, and typed text unless the user explicitly exports them.
+- M38: Build install, update, and migration guardrails. Upgrades must preserve
+  the helper identity when possible, detect when TCC must be regranted, explain
+  why regranting is needed, and prevent old helper processes from handling new
+  action requests.
+- M39: Run an internal beta sign-off. The beta gate should include clean
+  install, upgrade, permission grant, permission revocation, helper restart,
+  XPC fallback observability, Live LLM observe-only canaries, and at least one
+  full user-operated observe-approve-execute-review cycle.
+- M40: Cut the production launch gate. Release is allowed only when the signed
+  artifact, notarization, helper identity, manual TCC runbook, Live LLM evidence,
+  audit export, emergency stop, privacy copy, and support diagnostics all have
+  passing evidence attached to the release checklist.
+
 ## Computer Use Live Canary
 
 The live canary for this milestone is scoped to Computer Use helper readiness,
