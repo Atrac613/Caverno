@@ -43,8 +43,8 @@ needed.
 
 Use this review pass before merging Computer Use polish changes:
 
-1. Open Settings and confirm the root list shows `Advanced`, not a top-level
-   Computer Use status panel.
+1. Open Settings and confirm the root list shows `Advanced` with a compact
+   Computer Use availability summary, not a top-level Computer Use status panel.
 2. Open `Advanced` and confirm `Computer Use` and `Debug` are normal navigation
    rows.
 3. Open `Computer Use` and confirm the helper-owned desktop control copy is

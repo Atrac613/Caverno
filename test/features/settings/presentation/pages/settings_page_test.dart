@@ -6,6 +6,7 @@ import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
 import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
+import 'package:caverno/features/settings/presentation/pages/computer_use_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -44,7 +45,7 @@ void main() {
 
     expect(find.text('Computer Use Ready'), findsNothing);
     expect(find.text('Advanced'), findsOneWidget);
-    expect(find.text('Computer Use and diagnostics'), findsOneWidget);
+    expect(find.text('Computer Use available in Advanced'), findsOneWidget);
     expect(find.text('Computer Use'), findsNothing);
     expect(
       find.text('Helper permissions, smoke checks, and manual sign-off'),
@@ -77,6 +78,22 @@ void main() {
     expect(service.helperStatusCallCount, 1);
     expect(service.pingHelperCallCount, 1);
     expect(service.getPermissionsCallCount, 1);
+  });
+
+  testWidgets('shows unavailable Computer Use summary without helper probes', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(isAvailable: false);
+    await _pumpRootPage(tester, service);
+
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(
+      find.text('Computer Use unavailable on this device'),
+      findsOneWidget,
+    );
+    expect(service.helperStatusCallCount, 0);
+    expect(service.pingHelperCallCount, 0);
+    expect(service.getPermissionsCallCount, 0);
   });
 
   testWidgets('keeps Computer Use diagnostics collapsed by default', (
@@ -861,6 +878,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool liveSmokeReportAvailable = true,
     bool preferredXpcTimeoutWithFallback = false,
     bool xpcLaunchAgentEnabled = false,
+    bool isAvailable = true,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
@@ -869,7 +887,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
        _helperPathMismatch = helperPathMismatch,
        _liveSmokeReportAvailable = liveSmokeReportAvailable,
        _preferredXpcTimeoutWithFallback = preferredXpcTimeoutWithFallback,
-       _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled;
+       _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled,
+       _isAvailable = isAvailable;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -882,6 +901,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final List<String> openedSettingsSections = [];
   final List<String> permissionOverlays = [];
   bool _helperWorkActive;
+  final bool _isAvailable;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
   final bool _verificationOk;
@@ -899,7 +919,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       : _embeddedHelperPath;
 
   @override
-  bool get isAvailable => true;
+  bool get isAvailable => _isAvailable;
 
   @override
   Future<String> getHelperStatus() async {

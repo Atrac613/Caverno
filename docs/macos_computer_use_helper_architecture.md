@@ -408,6 +408,11 @@ surface until the user intentionally enables it.
   Computer Use page. The normal settings page should show only a compact
   enabled/disabled summary, while the dedicated page owns permission status,
   helper launch controls, artifact links, smoke checks, and diagnostic export.
+  The initial M32 implementation keeps the root Settings list limited to an
+  Advanced row with a compact Computer Use availability summary. The
+  full `ComputerUseSettingsPage` lives in its own page module and is reachable
+  only from Advanced, where it owns helper permission status, launch controls,
+  smoke sequence navigation, artifact links, and diagnostic export.
 - M33: Establish the signed release packaging lane. The release build must
   embed the helper, LaunchAgent plist, MachService declaration, entitlements,
   signing identity, hardened runtime settings, and notarization evidence that
