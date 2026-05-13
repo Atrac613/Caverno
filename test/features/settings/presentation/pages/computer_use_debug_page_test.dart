@@ -263,6 +263,28 @@ void main() {
     expect(find.textContaining('M22 post-action review:'), findsOneWidget);
     expect(find.textContaining('post_action_review.json'), findsOneWidget);
     expect(
+      find.textContaining('macos_computer_use_m30_observe_result_intake_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M30 observe result intake:'), findsOneWidget);
+    expect(
+      find.textContaining('M30 observe result intake command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M30 returns ready observe evidence to the M15 action proposal handoff',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M23-M29 restart artifact paths are listed by the artifact index',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('observe_result_intake.json'), findsOneWidget);
+    expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
       ),
@@ -318,6 +340,34 @@ void main() {
     );
     expect(
       find.textContaining('blocked M22 post-action review evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M23 cycle outcome evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M25 next-cycle seed evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M26 observe restart evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M27 screenshot request evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M28 screenshot evidence intake'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M29 observe run packet evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M30 observe result intake evidence'),
       findsOneWidget,
     );
     expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);

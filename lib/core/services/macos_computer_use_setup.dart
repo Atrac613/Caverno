@@ -76,6 +76,20 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_m20_execution_result_intake.sh --m18-handoff <execution_handoff.json> --fresh-observation done --target-confirmed yes --exact-text-confirmed yes --public-action-confirmed <yes-or-not-applicable> --runtime-action succeeded --post-action-observation done';
   static const m22PostActionReviewCommand =
       'bash tool/run_macos_computer_use_m22_post_action_review.sh --m20-intake <execution_result_intake.json> --result-reviewed yes --post-action-state <stable-or-needs-follow-up> --follow-up-required <yes-or-no>';
+  static const m23CycleOutcomeHandoffCommand =
+      'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --m22-review <post_action_review.json> --user-accepted yes';
+  static const m25NextCycleSeedHandoffCommand =
+      'bash tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh --m23-handoff <cycle_outcome_handoff.json> --seed-accepted yes';
+  static const m26ObserveRestartPacketCommand =
+      'bash tool/run_macos_computer_use_m26_observe_restart_packet.sh --m25-handoff <next_cycle_seed_handoff.json> --target-app <target-app>';
+  static const m27ScreenshotRequestHandoffCommand =
+      'bash tool/run_macos_computer_use_m27_screenshot_request_handoff.sh --m26-packet <observe_restart_packet.json>';
+  static const m28ScreenshotEvidenceIntakeCommand =
+      'bash tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh --m27-handoff <screenshot_request_handoff.json> --screenshot <user-provided-real-app-screenshot.png>';
+  static const m29ObserveCanaryRunPacketCommand =
+      'bash tool/run_macos_computer_use_m29_observe_canary_run_packet.sh --m28-intake <screenshot_evidence_intake.json>';
+  static const m30ObserveResultIntakeCommand =
+      'bash tool/run_macos_computer_use_m30_observe_result_intake.sh --m29-packet <observe_canary_run_packet.json> --m14-summary <canary_summary.json>';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -91,6 +105,15 @@ class MacosComputerUseMvpGuidance {
   static const m18ExecutionHandoffFile = 'execution_handoff.json';
   static const m20ExecutionResultIntakeFile = 'execution_result_intake.json';
   static const m22PostActionReviewFile = 'post_action_review.json';
+  static const m23CycleOutcomeHandoffFile = 'cycle_outcome_handoff.json';
+  static const m25NextCycleSeedHandoffFile = 'next_cycle_seed_handoff.json';
+  static const m26ObserveRestartPacketFile = 'observe_restart_packet.json';
+  static const m27ScreenshotRequestHandoffFile =
+      'screenshot_request_handoff.json';
+  static const m28ScreenshotEvidenceIntakeFile =
+      'screenshot_evidence_intake.json';
+  static const m29ObserveCanaryRunPacketFile = 'observe_canary_run_packet.json';
+  static const m30ObserveResultIntakeFile = 'observe_result_intake.json';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
@@ -125,7 +148,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, and M15 review/gate consistency.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, blocked M23 cycle outcome evidence, blocked M25 next-cycle seed evidence, blocked M26 observe restart evidence, blocked M27 screenshot request evidence, blocked M28 screenshot evidence intake, blocked M29 observe run packet evidence, blocked M30 observe result intake evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {
