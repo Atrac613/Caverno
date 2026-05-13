@@ -596,6 +596,18 @@ void main() {
     final service = _FakeMacosComputerUseService(helperPathMismatch: true);
     await _pumpPage(tester, service);
 
+    expect(find.text('Recovery guidance'), findsOneWidget);
+    expect(
+      find.text('debug/release or standalone helper mismatch'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Restart Caverno Computer Use from Caverno, then recheck helper reachability before sign-off.',
+      ),
+      findsOneWidget,
+    );
+
     await _tapByKey(tester, 'computer-use-settings-diagnostics');
 
     expect(find.text('Helper path: mismatch'), findsOneWidget);
@@ -764,6 +776,30 @@ void main() {
       findsOneWidget,
     );
   });
+
+  testWidgets('distinguishes revoked permissions from missing permissions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      accessibilityGranted: false,
+      screenCaptureGranted: false,
+      previousAccessibilityGranted: true,
+      previousScreenCaptureGranted: true,
+    );
+    await _pumpPage(tester, service);
+
+    expect(find.text('Recovery guidance'), findsOneWidget);
+    expect(find.text('Revoked permissions'), findsOneWidget);
+    expect(
+      find.text('Accessibility, Screen & System Audio Recording'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('blocked; use helper-owned permission overlay'),
+      findsOneWidget,
+    );
+    expect(find.text('Next recovery action'), findsOneWidget);
+  });
 }
 
 Future<void> _pumpPage(
@@ -879,6 +915,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool preferredXpcTimeoutWithFallback = false,
     bool xpcLaunchAgentEnabled = false,
     bool isAvailable = true,
+    bool previousAccessibilityGranted = false,
+    bool previousScreenCaptureGranted = false,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
@@ -888,6 +926,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
        _liveSmokeReportAvailable = liveSmokeReportAvailable,
        _preferredXpcTimeoutWithFallback = preferredXpcTimeoutWithFallback,
        _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled,
+       _previousAccessibilityGranted = previousAccessibilityGranted,
+       _previousScreenCaptureGranted = previousScreenCaptureGranted,
        _isAvailable = isAvailable;
 
   int helperStatusCallCount = 0;
@@ -908,6 +948,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final bool _helperPathMismatch;
   final bool _liveSmokeReportAvailable;
   final bool _preferredXpcTimeoutWithFallback;
+  final bool _previousAccessibilityGranted;
+  final bool _previousScreenCaptureGranted;
   bool _helperReachable;
   bool _xpcLaunchAgentEnabled;
 
@@ -1323,6 +1365,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     'summary': _verificationOk
         ? 'Verification complete'
         : 'Verification incomplete',
+    'permissions': {
+      'accessibilityGranted': _previousAccessibilityGranted,
+      'screenCaptureGranted': _previousScreenCaptureGranted,
+      'systemAudioRecordingSupported': true,
+    },
     'steps': [
       {
         'id': 'permissions',

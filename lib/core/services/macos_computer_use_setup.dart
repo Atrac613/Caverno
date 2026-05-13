@@ -1,3 +1,5 @@
+import 'dart:collection';
+
 class MacosComputerUseBackendInfo {
   const MacosComputerUseBackendInfo({
     required this.displayName,
@@ -443,6 +445,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
     this.helperIpcRuntime,
     this.onboardingVerification,
+    this.permissionRecoverySummary,
     this.helperStatus,
     this.helperStatusPersistence,
     this.permissions,
@@ -479,6 +482,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Map<String, Object?> operationBoundary;
   final Map<String, dynamic>? helperIpcRuntime;
   final Map<String, dynamic>? onboardingVerification;
+  final Map<String, dynamic>? permissionRecoverySummary;
   final Map<String, dynamic>? helperStatus;
   final Map<String, dynamic>? helperStatusPersistence;
   final Map<String, dynamic>? permissions;
@@ -513,6 +517,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'onboardingSmokeChecklist': onboardingSmokeChecklist,
       'operationBoundary': operationBoundary,
       'onboardingVerification': onboardingVerification,
+      'permissionRecoverySummary': permissionRecoverySummary,
       'helperStatus': helperStatus,
       'helperStatusPersistence': helperStatusPersistence,
       'permissions': permissions,
@@ -541,6 +546,360 @@ class MacosComputerUseOnboardingDiagnostics {
       if (lastDiagnosticExportPath != null)
         'lastDiagnosticExportPath': lastDiagnosticExportPath,
     };
+  }
+}
+
+class MacosComputerUsePermissionRecoverySummary {
+  const MacosComputerUsePermissionRecoverySummary({
+    required this.status,
+    required this.issueIds,
+    required this.missingPermissionLabels,
+    required this.revokedPermissionLabels,
+    required this.helperSharedDiagnosticsStale,
+    required this.helperSharedDiagnosticsStaleReasons,
+    required this.helperPathMismatch,
+    required this.debugReleaseHelperMismatch,
+    required this.helperUnreachable,
+    required this.mainAppPermissionPromptsBlocked,
+    required this.mainAppPermissionPromptBoundary,
+    required this.nextAction,
+  });
+
+  factory MacosComputerUsePermissionRecoverySummary.fromState({
+    required MacosComputerUseBackendInfo backend,
+    MacosComputerUsePermissionSnapshot? permissions,
+    Map<String, dynamic>? helperStatus,
+    Map<String, dynamic>? helperIpcRuntime,
+    Map<String, dynamic>? onboardingVerification,
+    Map<String, dynamic>? helperStatusPersistence,
+  }) {
+    final helperUnreachable =
+        permissions?.helperReachable == false ||
+        _boolFromMaps('helperReachable', [helperStatus, helperIpcRuntime]) ==
+            false;
+    final previousAccessibilityGrant = _previousPermissionGrant(
+      'accessibilityGranted',
+      helperStatus: helperStatus,
+      helperIpcRuntime: helperIpcRuntime,
+      onboardingVerification: onboardingVerification,
+      helperStatusPersistence: helperStatusPersistence,
+    );
+    final previousScreenCaptureGrant = _previousPermissionGrant(
+      'screenCaptureGranted',
+      helperStatus: helperStatus,
+      helperIpcRuntime: helperIpcRuntime,
+      onboardingVerification: onboardingVerification,
+      helperStatusPersistence: helperStatusPersistence,
+    );
+
+    final revokedPermissionLabels = <String>[
+      if (permissions?.accessibilityGranted == false &&
+          previousAccessibilityGrant)
+        'Accessibility',
+      if (permissions?.screenCaptureGranted == false &&
+          previousScreenCaptureGrant)
+        'Screen & System Audio Recording',
+    ];
+    final missingPermissionLabels = <String>[
+      if (!helperUnreachable &&
+          permissions?.accessibilityGranted != true &&
+          !revokedPermissionLabels.contains('Accessibility'))
+        'Accessibility',
+      if (!helperUnreachable &&
+          permissions?.screenCaptureGranted != true &&
+          !revokedPermissionLabels.contains('Screen & System Audio Recording'))
+        'Screen & System Audio Recording',
+    ];
+
+    final staleReasons = _uniqueStrings([
+      ..._stringListFromMaps('helperSharedDiagnosticsStaleReasons', [
+        helperStatus,
+        helperIpcRuntime,
+      ]),
+      ..._stringListFromMaps('helperDiagnosticsLatestStaleReasons', [
+        _mapValue(helperIpcRuntime?['xpcRuntimeDiagnostics']),
+      ]),
+    ]);
+    final helperSharedDiagnosticsStale =
+        _boolFromMaps('helperSharedDiagnosticsStale', [
+              helperStatus,
+              helperIpcRuntime,
+            ]) ==
+            true ||
+        _boolFromMaps('helperDiagnosticsLatestStale', [
+              _mapValue(helperIpcRuntime?['xpcRuntimeDiagnostics']),
+            ]) ==
+            true ||
+        staleReasons.isNotEmpty;
+    final helperPathMismatch =
+        _boolFromMaps('helperPathMismatch', [helperStatus, helperIpcRuntime]) ==
+            true ||
+        _boolFromMaps('preservedMismatchedHelperPath', [
+              helperStatus,
+              helperIpcRuntime,
+            ]) ==
+            true ||
+        _pathsDiffer(helperStatus, helperIpcRuntime);
+    final debugReleaseHelperMismatch =
+        helperPathMismatch &&
+        _pathsSuggestBuildMismatch(helperStatus, helperIpcRuntime);
+
+    final issueIds = <String>[
+      if (helperUnreachable) 'helper_unreachable',
+      if (helperSharedDiagnosticsStale) 'stale_helper_diagnostics',
+      if (debugReleaseHelperMismatch) 'debug_release_helper_mismatch',
+      if (helperPathMismatch && !debugReleaseHelperMismatch)
+        'helper_path_mismatch',
+      if (revokedPermissionLabels.isNotEmpty) 'revoked_permissions',
+      if (missingPermissionLabels.isNotEmpty) 'missing_permissions',
+    ];
+    final mainAppPermissionPromptsBlocked = backend.usesSeparateHelper;
+    final nextAction = _nextAction(
+      backend: backend,
+      helperUnreachable: helperUnreachable,
+      helperSharedDiagnosticsStale: helperSharedDiagnosticsStale,
+      helperPathMismatch: helperPathMismatch,
+      revokedPermissionLabels: revokedPermissionLabels,
+      missingPermissionLabels: missingPermissionLabels,
+    );
+
+    return MacosComputerUsePermissionRecoverySummary(
+      status: issueIds.isEmpty ? 'ready' : 'needs_recovery',
+      issueIds: issueIds,
+      missingPermissionLabels: missingPermissionLabels,
+      revokedPermissionLabels: revokedPermissionLabels,
+      helperSharedDiagnosticsStale: helperSharedDiagnosticsStale,
+      helperSharedDiagnosticsStaleReasons: staleReasons,
+      helperPathMismatch: helperPathMismatch,
+      debugReleaseHelperMismatch: debugReleaseHelperMismatch,
+      helperUnreachable: helperUnreachable,
+      mainAppPermissionPromptsBlocked: mainAppPermissionPromptsBlocked,
+      mainAppPermissionPromptBoundary: mainAppPermissionPromptsBlocked
+          ? 'helper_owned_only'
+          : 'in_process_compatibility',
+      nextAction: nextAction,
+    );
+  }
+
+  final String status;
+  final List<String> issueIds;
+  final List<String> missingPermissionLabels;
+  final List<String> revokedPermissionLabels;
+  final bool helperSharedDiagnosticsStale;
+  final List<String> helperSharedDiagnosticsStaleReasons;
+  final bool helperPathMismatch;
+  final bool debugReleaseHelperMismatch;
+  final bool helperUnreachable;
+  final bool mainAppPermissionPromptsBlocked;
+  final String mainAppPermissionPromptBoundary;
+  final String nextAction;
+
+  bool get isReady => status == 'ready';
+
+  Map<String, dynamic> toJson() {
+    return {
+      'status': status,
+      'ready': isReady,
+      'issueIds': issueIds,
+      'missingPermissionLabels': missingPermissionLabels,
+      'revokedPermissionLabels': revokedPermissionLabels,
+      'helperSharedDiagnosticsStale': helperSharedDiagnosticsStale,
+      'helperSharedDiagnosticsStaleReasons':
+          helperSharedDiagnosticsStaleReasons,
+      'helperPathMismatch': helperPathMismatch,
+      'debugReleaseHelperMismatch': debugReleaseHelperMismatch,
+      'helperUnreachable': helperUnreachable,
+      'mainAppPermissionPromptsBlocked': mainAppPermissionPromptsBlocked,
+      'mainAppPermissionPromptBoundary': mainAppPermissionPromptBoundary,
+      'nextAction': nextAction,
+    };
+  }
+
+  static String _nextAction({
+    required MacosComputerUseBackendInfo backend,
+    required bool helperUnreachable,
+    required bool helperSharedDiagnosticsStale,
+    required bool helperPathMismatch,
+    required List<String> revokedPermissionLabels,
+    required List<String> missingPermissionLabels,
+  }) {
+    if (helperUnreachable) {
+      return 'Launch ${backend.permissionOwnerName}, then recheck permissions.';
+    }
+    if (helperPathMismatch) {
+      return 'Restart ${backend.permissionOwnerName} from Caverno, then recheck helper reachability before sign-off.';
+    }
+    if (helperSharedDiagnosticsStale) {
+      return 'Refresh or restart ${backend.permissionOwnerName} so Caverno reads current helper diagnostics.';
+    }
+    if (revokedPermissionLabels.isNotEmpty) {
+      return 'Ask the user to re-enable ${backend.permissionOwnerName} in System Settings, then recheck permissions.';
+    }
+    if (missingPermissionLabels.isNotEmpty) {
+      return 'Open the helper-owned permission overlay, grant ${backend.permissionOwnerName}, then recheck permissions.';
+    }
+    return 'No recovery action is needed.';
+  }
+
+  static bool _previousPermissionGrant(
+    String key, {
+    Map<String, dynamic>? helperStatus,
+    Map<String, dynamic>? helperIpcRuntime,
+    Map<String, dynamic>? onboardingVerification,
+    Map<String, dynamic>? helperStatusPersistence,
+  }) {
+    final candidates = <Map<String, dynamic>?>[
+      onboardingVerification,
+      helperStatusPersistence?['onboardingVerification'] is Map
+          ? Map<String, dynamic>.from(
+              helperStatusPersistence!['onboardingVerification'] as Map,
+            )
+          : null,
+      helperStatus?['onboardingVerification'] is Map
+          ? Map<String, dynamic>.from(
+              helperStatus!['onboardingVerification'] as Map,
+            )
+          : null,
+      helperStatus?['helperStatusPersistence'] is Map
+          ? _mapValue(
+              (helperStatus!['helperStatusPersistence']
+                  as Map)['onboardingVerification'],
+            )
+          : null,
+      helperIpcRuntime?['onboardingVerification'] is Map
+          ? Map<String, dynamic>.from(
+              helperIpcRuntime!['onboardingVerification'] as Map,
+            )
+          : null,
+      helperIpcRuntime?['helperStatusPersistence'] is Map
+          ? _mapValue(
+              (helperIpcRuntime!['helperStatusPersistence']
+                  as Map)['onboardingVerification'],
+            )
+          : null,
+    ];
+    for (final candidate in candidates) {
+      final permissions = _mapValue(candidate?['permissions']);
+      if (permissions?[key] == true) {
+        return true;
+      }
+    }
+    return false;
+  }
+
+  static bool _pathsDiffer(
+    Map<String, dynamic>? helperStatus,
+    Map<String, dynamic>? helperIpcRuntime,
+  ) {
+    final explicitMatch = _boolFromMaps('helperPathMatchesRunningHelper', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    if (explicitMatch == false) {
+      return true;
+    }
+    final embedded = _stringFromMaps('embeddedHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final running = _stringFromMaps('runningHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    return embedded != null && running != null && embedded != running;
+  }
+
+  static bool _pathsSuggestBuildMismatch(
+    Map<String, dynamic>? helperStatus,
+    Map<String, dynamic>? helperIpcRuntime,
+  ) {
+    final embeddedPath = _stringFromMaps('embeddedHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final runningPath = _stringFromMaps('runningHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final mismatchedPath = _stringFromMaps('mismatchedHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final paths = <String>[
+      ..._stringListFromMaps('mismatchedHelperPaths', [
+        helperStatus,
+        helperIpcRuntime,
+      ]),
+      ?embeddedPath,
+      ?runningPath,
+      ?mismatchedPath,
+    ];
+    final hasDebug = paths.any(
+      (path) => path.contains('/Build/Products/Debug/'),
+    );
+    final hasRelease = paths.any(
+      (path) =>
+          path.contains('/Build/Products/Release/') ||
+          path.startsWith('/Applications/'),
+    );
+    final hasEmbedded = paths.any(
+      (path) => path.contains('/Contents/Helpers/'),
+    );
+    final hasStandaloneDebug = paths.any(
+      (path) =>
+          path.contains('/Build/Products/Debug/') &&
+          !path.contains('/Contents/Helpers/'),
+    );
+    return (hasDebug && hasRelease) || (hasEmbedded && hasStandaloneDebug);
+  }
+
+  static bool? _boolFromMaps(String key, List<Map<String, dynamic>?> sources) {
+    for (final source in sources) {
+      final value = source?[key];
+      if (value is bool) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static String? _stringFromMaps(
+    String key,
+    List<Map<String, dynamic>?> sources,
+  ) {
+    for (final source in sources) {
+      final value = source?[key];
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static List<String> _stringListFromMaps(
+    String key,
+    List<Map<String, dynamic>?> sources,
+  ) {
+    return [
+      for (final source in sources)
+        if (source?[key] is Iterable)
+          for (final value in source![key] as Iterable)
+            if (value is String && value.isNotEmpty) value,
+    ];
+  }
+
+  static Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  static List<String> _uniqueStrings(Iterable<String> values) {
+    return LinkedHashSet<String>.from(values).toList(growable: false);
   }
 }
 

@@ -59,6 +59,27 @@ launch System Settings, or perform desktop actions. Signing identity,
 notarization ticket, stapler validation, TCC grants, and real desktop evidence
 remain user-operated release evidence.
 
+## M34 Permission Recovery UX
+
+Use this review pass when validating permission recovery without granting TCC
+from automation:
+
+1. Open `Settings > Advanced > Computer Use`.
+2. Confirm the `Recovery guidance` section is visible below `Permission flow`.
+3. Confirm first-time missing grants are labeled as `Missing permissions`.
+4. Confirm previously granted but now disabled TCC entries are labeled as
+   `Revoked permissions`.
+5. Confirm stale helper diagnostics or helper path mismatches produce a restart
+   action before any permission prompt instruction.
+6. Confirm `Main app prompts` says to use the helper-owned permission overlay
+   for helper IPC mode.
+7. Confirm copied or exported diagnostics contain
+   `permissionRecoverySummary`.
+
+Do not automate TCC grants, System Settings toggles, helper foreground checks,
+or desktop actions for this pass. Ask the user to perform those steps manually
+when fresh runtime evidence is required.
+
 ## M13 Review Hardening
 
 Use this review pass before merging Computer Use polish changes:

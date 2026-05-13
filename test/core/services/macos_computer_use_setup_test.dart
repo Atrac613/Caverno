@@ -189,6 +189,10 @@ void main() {
         'updatedAt': '2026-04-25T12:00:30Z',
         'activeWork': {'systemAudioRecording': false},
       },
+      permissionRecoverySummary: const {
+        'status': 'needs_recovery',
+        'issueIds': ['missing_permissions'],
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -215,6 +219,10 @@ void main() {
     expect(diagnostics['generatedAt'], '2026-04-25T12:00:00.000Z');
     expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
     expect(diagnostics['onboardingVerification'], containsPair('ok', false));
+    expect(
+      diagnostics['permissionRecoverySummary'],
+      containsPair('status', 'needs_recovery'),
+    );
     expect(diagnostics['helperStatusPersistence'], contains('activeWork'));
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', true));
     expect(
@@ -240,6 +248,67 @@ void main() {
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
     expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));
+  });
+
+  test('classifies revoked helper permissions as recovery issues', () {
+    final summary = MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: const MacosComputerUsePermissionSnapshot(
+        helperReachable: true,
+        accessibilityGranted: false,
+        screenCaptureGranted: false,
+        systemAudioRecordingSupported: true,
+      ),
+      onboardingVerification: const {
+        'permissions': {
+          'accessibilityGranted': true,
+          'screenCaptureGranted': true,
+        },
+      },
+    );
+
+    expect(summary.isReady, isFalse);
+    expect(summary.issueIds, contains('revoked_permissions'));
+    expect(summary.missingPermissionLabels, isEmpty);
+    expect(summary.revokedPermissionLabels, [
+      'Accessibility',
+      'Screen & System Audio Recording',
+    ]);
+    expect(summary.mainAppPermissionPromptsBlocked, isTrue);
+    expect(
+      summary.nextAction,
+      'Ask the user to re-enable Caverno Computer Use in System Settings, then recheck permissions.',
+    );
+  });
+
+  test('classifies stale helper path mismatches before permission prompts', () {
+    final summary = MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: const MacosComputerUsePermissionSnapshot(
+        helperReachable: true,
+        accessibilityGranted: true,
+        screenCaptureGranted: true,
+        systemAudioRecordingSupported: true,
+      ),
+      helperStatus: const {
+        'helperSharedDiagnosticsStale': true,
+        'helperSharedDiagnosticsStaleReasons': ['helper_bundle_path_mismatch'],
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/macos/Build/Products/Debug/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': false,
+      },
+    );
+
+    expect(summary.issueIds, contains('stale_helper_diagnostics'));
+    expect(summary.issueIds, contains('debug_release_helper_mismatch'));
+    expect(summary.helperPathMismatch, isTrue);
+    expect(summary.debugReleaseHelperMismatch, isTrue);
+    expect(
+      summary.nextAction,
+      'Restart Caverno Computer Use from Caverno, then recheck helper reachability before sign-off.',
+    );
   });
 
   test('reports missing permissions before a snapshot is loaded', () {

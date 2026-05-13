@@ -157,6 +157,13 @@ class _ComputerUseOnboardingCardState
       screenCaptureGranted: screenCaptureGranted,
     );
     final helperIpcRuntime = _helperIpcRuntime();
+    final permissionRecoverySummary = _permissionRecoverySummary(
+      backend: service.permissionBackendInfo,
+      permissions: checklist.permissions,
+      helperIpcRuntime: helperIpcRuntime,
+      onboardingVerification: onboardingVerification,
+      helperStatusPersistence: helperStatusPersistence,
+    );
     final captureGate = _mapValue(helperIpcRuntime['captureGate']);
     final inputGate = _mapValue(helperIpcRuntime['inputGate']);
     final audioGate = _mapValue(helperIpcRuntime['audioGate']);
@@ -225,6 +232,8 @@ class _ComputerUseOnboardingCardState
                   _openPermissionSettings('screen_recording'),
               onRecheck: () => _refresh(force: true),
             ),
+            const SizedBox(height: 12),
+            _PermissionRecoverySummary(summary: permissionRecoverySummary),
             const SizedBox(height: 12),
             _ComputerUseGatePlan(
               helperInstalled: helperInstalled,
@@ -824,13 +833,21 @@ class _ComputerUseOnboardingCardState
 
   Map<String, dynamic> _diagnosticsMap() {
     final helperIpcRuntime = _helperIpcRuntime();
+    final service = ref.read(macosComputerUseServiceProvider);
+    final setupChecklist = _setupChecklist(service.permissionBackendInfo);
+    final permissionRecoverySummary = _permissionRecoverySummary(
+      backend: service.permissionBackendInfo,
+      permissions: setupChecklist.permissions,
+      helperIpcRuntime: helperIpcRuntime,
+      onboardingVerification: _onboardingVerification(),
+      helperStatusPersistence: _helperStatusPersistence(),
+    );
     final diagnostics = MacosComputerUseOnboardingDiagnostics(
       generatedAt: DateTime.now(),
-      setupChecklist: _setupChecklist(
-        ref.read(macosComputerUseServiceProvider).permissionBackendInfo,
-      ),
+      setupChecklist: setupChecklist,
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
+      permissionRecoverySummary: permissionRecoverySummary.toJson(),
       helperStatus: _helperStatus,
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
@@ -843,6 +860,7 @@ class _ComputerUseOnboardingCardState
         'helperStatusPersistence': _helperStatusPersistence(),
         'permissions': _permissions,
         'helperIpcRuntime': helperIpcRuntime,
+        'permissionRecoverySummary': permissionRecoverySummary.toJson(),
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastExistingHelperProbeReport': _lastExistingHelperProbeReport,
@@ -910,6 +928,23 @@ class _ComputerUseOnboardingCardState
       permissions: snapshot.isEmpty
           ? null
           : MacosComputerUsePermissionSnapshot.fromMap(snapshot),
+    );
+  }
+
+  MacosComputerUsePermissionRecoverySummary _permissionRecoverySummary({
+    required MacosComputerUseBackendInfo backend,
+    required MacosComputerUsePermissionSnapshot? permissions,
+    required Map<String, dynamic> helperIpcRuntime,
+    required Map<String, dynamic>? onboardingVerification,
+    required Map<String, dynamic>? helperStatusPersistence,
+  }) {
+    return MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: backend,
+      permissions: permissions,
+      helperStatus: _helperStatus,
+      helperIpcRuntime: helperIpcRuntime,
+      onboardingVerification: onboardingVerification,
+      helperStatusPersistence: helperStatusPersistence,
     );
   }
 
@@ -1612,6 +1647,126 @@ class _InfoChip extends StatelessWidget {
     return Chip(
       avatar: Icon(Icons.info_outline, size: 18, color: colorScheme.primary),
       label: Text('$label: $value'),
+    );
+  }
+}
+
+class _PermissionRecoverySummary extends StatelessWidget {
+  const _PermissionRecoverySummary({required this.summary});
+
+  final MacosComputerUsePermissionRecoverySummary summary;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    final statusColor = summary.isReady
+        ? colorScheme.primary
+        : colorScheme.error;
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        color: colorScheme.surface,
+        border: Border.all(color: colorScheme.outlineVariant),
+        borderRadius: BorderRadius.circular(8),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.all(12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  summary.isReady
+                      ? Icons.verified_outlined
+                      : Icons.warning_amber_outlined,
+                  size: 18,
+                  color: statusColor,
+                ),
+                const SizedBox(width: 8),
+                Text('Recovery guidance', style: textTheme.labelLarge),
+                const Spacer(),
+                Text(
+                  summary.isReady ? 'Ready' : 'Needs recovery',
+                  style: textTheme.labelMedium?.copyWith(color: statusColor),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            if (summary.missingPermissionLabels.isNotEmpty)
+              _RecoveryDetailRow(
+                label: 'Missing permissions',
+                value: summary.missingPermissionLabels.join(', '),
+              ),
+            if (summary.revokedPermissionLabels.isNotEmpty)
+              _RecoveryDetailRow(
+                label: 'Revoked permissions',
+                value: summary.revokedPermissionLabels.join(', '),
+              ),
+            if (summary.helperSharedDiagnosticsStale)
+              _RecoveryDetailRow(
+                label: 'Helper diagnostics',
+                value: summary.helperSharedDiagnosticsStaleReasons.isEmpty
+                    ? 'stale'
+                    : 'stale: ${summary.helperSharedDiagnosticsStaleReasons.join(', ')}',
+              ),
+            if (summary.helperPathMismatch)
+              _RecoveryDetailRow(
+                label: 'Helper path',
+                value: summary.debugReleaseHelperMismatch
+                    ? 'debug/release or standalone helper mismatch'
+                    : 'mismatch',
+              ),
+            if (summary.helperUnreachable)
+              const _RecoveryDetailRow(
+                label: 'Helper reachability',
+                value: 'unreachable',
+              ),
+            _RecoveryDetailRow(
+              label: 'Main app prompts',
+              value: summary.mainAppPermissionPromptsBlocked
+                  ? 'blocked; use helper-owned permission overlay'
+                  : 'available for compatibility backend',
+            ),
+            _RecoveryDetailRow(
+              label: 'Next recovery action',
+              value: summary.nextAction,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _RecoveryDetailRow extends StatelessWidget {
+  const _RecoveryDetailRow({required this.label, required this.value});
+
+  final String label;
+  final String value;
+
+  @override
+  Widget build(BuildContext context) {
+    final textTheme = Theme.of(context).textTheme;
+    final colorScheme = Theme.of(context).colorScheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: 6),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(
+            width: 160,
+            child: Text(
+              label,
+              style: textTheme.bodySmall?.copyWith(
+                color: colorScheme.onSurfaceVariant,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(child: Text(value, style: textTheme.bodySmall)),
+        ],
+      ),
     );
   }
 }

@@ -430,6 +430,12 @@ surface until the user intentionally enables it.
   distinguish missing permissions, revoked permissions, stale helper paths,
   mismatched debug and release helpers, and the user action needed to recover
   without triggering extra macOS permission prompts from the main app.
+  The implementation is tracked through a shared permission recovery summary
+  that is rendered in Settings and exported in onboarding diagnostics. It
+  separates first-time missing grants from previously granted but now revoked
+  TCC permissions, reports stale helper diagnostics and helper path mismatches,
+  and keeps recovery instructions on the helper-owned permission overlay path
+  so `Caverno.app` does not request screen or accessibility grants itself.
 - M35: Define the production action policy. Every desktop action must pass
   through observe, approval packet, action-time confirmation, emergency stop,
   execution result intake, and post-action review boundaries. Public actions
