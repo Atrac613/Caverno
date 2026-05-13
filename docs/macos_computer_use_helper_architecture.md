@@ -369,6 +369,11 @@ Follow-on milestones:
   screenshot request handoff. The handoff freezes the target app, target
   intent, requested screenshot state, and M14 observe-only command so the next
   pass can stay user-operated until screenshot evidence exists.
+- M28: Convert a ready M27 screenshot request handoff plus a user-provided
+  screenshot file into a report-only screenshot evidence intake. The intake
+  binds the screenshot path to the next M14 observe-only command without
+  opening apps, capturing screens, calling an LLM, granting TCC, or performing
+  desktop actions.
 
 ## Computer Use Live Canary
 

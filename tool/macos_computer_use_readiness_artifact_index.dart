@@ -137,6 +137,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M27 screenshot request handoff command:');
     stdout.writeln(rehearsal.m27ScreenshotRequestHandoffCommand);
   }
+  if (rehearsal.m28ScreenshotEvidenceIntakeCommand != null) {
+    stdout.writeln('M28 screenshot evidence intake command:');
+    stdout.writeln(rehearsal.m28ScreenshotEvidenceIntakeCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

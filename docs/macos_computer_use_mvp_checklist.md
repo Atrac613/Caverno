@@ -219,10 +219,10 @@ fresh runtime evidence is required.
    packets, M17 execution rehearsals, M18 execution handoffs, M20 execution
    result intake reports, M22 post-action reviews, and M23 cycle outcome
    handoffs. When M23 restarts the observe/action cycle, the same rule applies
-   to the M25 next-cycle seed handoff, M26 observe restart packet, and M27
-   screenshot request handoff. Ready artifacts are surfaced in the handoff;
-   discovered blocked artifacts stop final aggregation until their gate next
-   action is resolved.
+   to the M25 next-cycle seed handoff, M26 observe restart packet, M27
+   screenshot request handoff, and M28 screenshot evidence intake. Ready
+   artifacts are surfaced in the handoff; discovered blocked artifacts stop
+   final aggregation until their gate next action is resolved.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:
@@ -288,6 +288,11 @@ fresh runtime evidence is required.
   must have a ready `m27ScreenshotRequestHandoffGate`, request a user-provided
   screenshot for M14, and keep `manual_screenshot_request_report_only`,
   `no_tcc_operation`, `no_llm_call`, and `no_desktop_action`.
+- `m28_screenshot_evidence_intake`: optional review evidence. If present, it
+  must have a ready `m28ScreenshotEvidenceIntakeGate`, bind a user-provided
+  screenshot to M14 observe-only input, and keep
+  `manual_screenshot_evidence_intake_report_only`, `no_tcc_operation`,
+  `no_llm_call`, and `no_desktop_action`.
 
 ## MVP Fixture App
 

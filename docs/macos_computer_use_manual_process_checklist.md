@@ -361,6 +361,33 @@ navigate, submit, post, purchase, grant TCC, operate System Settings, or call
 an LLM. It only freezes the manual screenshot request for the next
 observe-only cycle.
 
+## M28 Screenshot Evidence Intake
+
+Use this pass after M27 is ready and the user has manually captured the target
+app screenshot for the next M14 observe-only pass:
+
+1. Select the ready M27 `screenshot_request_handoff.json`.
+2. Confirm `m27ScreenshotRequestHandoffGate.status` is `ready`.
+3. Confirm `userScreenshotRequest.returnMilestone` is `M14`.
+4. Confirm `userScreenshotRequest.boundary` is
+   `observe_only_no_desktop_action`.
+5. Confirm the user-provided screenshot file exists.
+6. Run
+   `bash tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh --m27-handoff <screenshot_request_handoff.json> --screenshot <user-provided-real-app-screenshot.png>`.
+7. Confirm `m28ScreenshotEvidenceIntakeGate.status` is `ready`.
+8. Confirm `executionBoundary` is
+   `manual_screenshot_evidence_intake_report_only`.
+9. Confirm `desktopActionBoundary` is `no_desktop_action`.
+10. Confirm `tccBoundary` is `no_tcc_operation`.
+11. Confirm `llmBoundary` is `no_llm_call`.
+12. Use the generated M14 observe-only canary command when the next observe
+    pass is ready to run.
+
+Do not use this intake to start M14, open apps, capture screens, click, type,
+navigate, submit, post, purchase, grant TCC, operate System Settings, or call
+an LLM. It only binds a user-provided screenshot path to the next
+observe-only cycle.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

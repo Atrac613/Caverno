@@ -40,6 +40,7 @@ void main() {
   late String m25NextCycleSeedHandoffScript;
   late String m26ObserveRestartPacketScript;
   late String m27ScreenshotRequestHandoffScript;
+  late String m28ScreenshotEvidenceIntakeScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -140,6 +141,9 @@ void main() {
     ).readAsStringSync();
     m27ScreenshotRequestHandoffScript = File(
       'tool/run_macos_computer_use_m27_screenshot_request_handoff.sh',
+    ).readAsStringSync();
+    m28ScreenshotEvidenceIntakeScript = File(
+      'tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -315,6 +319,7 @@ void main() {
     expect(architectureDoc, contains('M25: Convert a ready M23'));
     expect(architectureDoc, contains('M26: Convert a ready M25'));
     expect(architectureDoc, contains('M27: Convert a ready M26'));
+    expect(architectureDoc, contains('M28: Convert a ready M27'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
     expect(architectureDoc, contains('otherwise mutate external state'));
@@ -4357,6 +4362,187 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M28 screenshot evidence intake prepares M14 input',
+    () async {
+      expect(
+        m28ScreenshotEvidenceIntakeScript,
+        contains('macos_computer_use_m28_screenshot_evidence_intake'),
+      );
+      expect(m28ScreenshotEvidenceIntakeScript, contains('report-only'));
+      expect(m28ScreenshotEvidenceIntakeScript, contains('ready M27'));
+      expect(m28ScreenshotEvidenceIntakeScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m28_screenshot_evidence_intake_test_',
+      );
+      try {
+        final screenshot = File('${root.path}/target.png')
+          ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+        final handoff = File('${root.path}/screenshot_request_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m27_screenshot_request_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m27_screenshot_request_handoff",
+  "milestone": "M27",
+  "previousMilestone": "M26",
+  "ready": true,
+  "executionBoundary": "manual_screenshot_request_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "Safari",
+  "targetIntent": "Observe the fresh compose target before proposing text.",
+  "userScreenshotRequest": {
+    "required": true,
+    "provided": false,
+    "targetApp": "Safari",
+    "targetIntent": "Observe the fresh compose target before proposing text.",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action"
+  },
+  "commands": {
+    "m14RealAppHandoff": "bash tool/run_macos_computer_use_m14_real_app_handoff.sh --root ${root.path}",
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --root ${root.path} --screenshot <user-provided-real-app-screenshot.png>"
+  },
+  "m27ScreenshotRequestHandoffGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh',
+          '--root',
+          root.path,
+          '--m27-handoff',
+          handoff.path,
+          '--screenshot',
+          screenshot.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains(
+            'Execution boundary: manual_screenshot_evidence_intake_report_only',
+          ),
+        );
+        expect('${result.stdout}', contains('Screenshot bytes: 8'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (file) => file.path.endsWith('screenshot_evidence_intake.json'),
+            )
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m28_screenshot_evidence_intake'),
+        );
+        expect(summary, contains('"milestone": "M28"'));
+        expect(summary, contains('"previousMilestone": "M27"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m28ScreenshotEvidenceIntakeGate"'));
+        expect(summary, contains('"returnMilestone": "M14"'));
+        expect(summary, contains('"targetApp": "Safari"'));
+        expect(summary, contains('"sizeBytes": 8'));
+        expect(summary, contains(screenshot.path));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M28 Screenshot Evidence Intake'));
+        expect(markdown, contains('Next Observe Input'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M28 screenshot evidence intake blocks unready M27 handoff',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m28_screenshot_evidence_intake_blocked_test_',
+      );
+      try {
+        final screenshot = File('${root.path}/target.png')
+          ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+        final handoff = File('${root.path}/screenshot_request_handoff.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m27_screenshot_request_handoff",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m27_screenshot_request_handoff",
+  "milestone": "M27",
+  "previousMilestone": "M26",
+  "ready": false,
+  "executionBoundary": "manual_screenshot_request_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "",
+  "targetIntent": "Observe the next target.",
+  "userScreenshotRequest": {
+    "required": true,
+    "provided": false,
+    "targetApp": "",
+    "targetIntent": "Observe the next target.",
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action"
+  },
+  "commands": {},
+  "m27ScreenshotRequestHandoffGate": {
+    "status": "blocked",
+    "ready": false,
+    "blockers": ["target_app_present"]
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh',
+          '--root',
+          root.path,
+          '--m27-handoff',
+          handoff.path,
+          '--screenshot',
+          screenshot.path,
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('m27_handoff_ready'));
+        expect('${result.stdout}', contains('target_app_present'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (file) => file.path.endsWith('screenshot_evidence_intake.json'),
+            )
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"target_app_present"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4589,10 +4775,12 @@ void main() {
     expect(mvpChecklist, contains('M25 next-cycle seed'));
     expect(mvpChecklist, contains('M26 observe restart packet'));
     expect(mvpChecklist, contains('m27_screenshot_request_handoff'));
+    expect(mvpChecklist, contains('m28_screenshot_evidence_intake'));
     expect(mvpChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(mvpChecklist, contains('m25NextCycleSeedHandoffGate'));
     expect(mvpChecklist, contains('m26ObserveRestartPacketGate'));
     expect(mvpChecklist, contains('m27ScreenshotRequestHandoffGate'));
+    expect(mvpChecklist, contains('m28ScreenshotEvidenceIntakeGate'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -4671,6 +4859,10 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M27_SCREENSHOT_REQUEST_HANDOFF'),
     );
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M28_SCREENSHOT_EVIDENCE_INTAKE'),
+    );
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
@@ -4685,6 +4877,7 @@ void main() {
       mvpSignoffScript,
       contains('M27 Screenshot Request Handoff Evidence'),
     );
+    expect(mvpSignoffScript, contains('M28 Screenshot Evidence Intake'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -5064,6 +5257,14 @@ void main() {
       mvpReadinessPreflightScript,
       contains('m27_screenshot_request_handoff'),
     );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('M28 screenshot evidence intake'),
+    );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('m28_screenshot_evidence_intake'),
+    );
     expect(mvpReadinessPreflightScript, contains('m26_observe_restart_packet'));
 
     final root = Directory.systemTemp.createTempSync(
@@ -5377,6 +5578,7 @@ void main() {
     expect(manualProcessChecklist, contains('M25 Next-Cycle Seed Handoff'));
     expect(manualProcessChecklist, contains('M26 Observe Restart Packet'));
     expect(manualProcessChecklist, contains('M27 Screenshot Request Handoff'));
+    expect(manualProcessChecklist, contains('M28 Screenshot Evidence Intake'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -5390,6 +5592,7 @@ void main() {
     expect(manualProcessChecklist, contains('m25NextCycleSeedHandoffGate'));
     expect(manualProcessChecklist, contains('m26ObserveRestartPacketGate'));
     expect(manualProcessChecklist, contains('m27ScreenshotRequestHandoffGate'));
+    expect(manualProcessChecklist, contains('m28ScreenshotEvidenceIntakeGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -5430,6 +5633,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m27_screenshot_request_handoff.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh'),
     );
     expect(
       manualProcessChecklist,
@@ -7276,6 +7483,117 @@ void main() {
         expect(
           handoff,
           contains('Blocked review evidence: m27_screenshot_request_handoff'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'MVP sign-off dry run surfaces blocked M28 screenshot evidence intake',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_m28_blocked_',
+      );
+      try {
+        final m28Dir = Directory(
+          '${root.path}/macos_computer_use_m28_screenshot_evidence_intake_1',
+        )..createSync();
+        File(
+          '${m28Dir.path}/screenshot_evidence_intake.json',
+        ).writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m28_screenshot_evidence_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m28_screenshot_evidence_intake",
+  "milestone": "M28",
+  "previousMilestone": "M27",
+  "ready": false,
+  "sourceM27ScreenshotRequestHandoff": "/tmp/screenshot_request_handoff.json",
+  "executionBoundary": "manual_screenshot_evidence_intake_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "",
+  "targetIntent": "Observe the next target.",
+  "screenshotEvidence": {
+    "path": "/tmp/user-provided-real-app-screenshot.png",
+    "exists": true,
+    "sizeBytes": 0,
+    "extension": ".png",
+    "source": "user_provided"
+  },
+  "nextObserveInput": {
+    "required": true,
+    "provided": false,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "targetApp": "",
+    "targetIntent": "Observe the next target.",
+    "screenshotPath": "/tmp/user-provided-real-app-screenshot.png"
+  },
+  "commands": {
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png"
+  },
+  "m28ScreenshotEvidenceIntakeGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "target_app_present",
+        "ok": false,
+        "nextAction": "Keep the target app from the M27 screenshot request."
+      }
+    ],
+    "blockers": ["target_app_present"],
+    "nextAction": "Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary."
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(
+          stdout,
+          contains('M28 screenshot evidence intake status: blocked'),
+        );
+        expect(
+          stdout,
+          contains(
+            'M28 screenshot evidence intake next action: Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.',
+          ),
+        );
+        expect(
+          stdout,
+          contains('Blocked review evidence: m28_screenshot_evidence_intake'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('M28 Screenshot Evidence Intake'));
+        expect(
+          handoff,
+          contains('M28 screenshot evidence intake status: blocked'),
+        );
+        expect(
+          handoff,
+          contains(
+            'M28 screenshot evidence intake blockers: target_app_present',
+          ),
+        );
+        expect(handoff, contains('| target_app_present | blocked |'));
+        expect(
+          handoff,
+          contains('Blocked review evidence: m28_screenshot_evidence_intake'),
         );
       } finally {
         root.deleteSync(recursive: true);

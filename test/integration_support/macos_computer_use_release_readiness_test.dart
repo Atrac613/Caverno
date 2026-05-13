@@ -716,6 +716,7 @@ void main() {
       expect(entryIds, contains('m25_next_cycle_seed_handoff'));
       expect(entryIds, contains('m26_observe_restart_packet'));
       expect(entryIds, contains('m27_screenshot_request_handoff'));
+      expect(entryIds, contains('m28_screenshot_evidence_intake'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -1071,6 +1072,14 @@ void main() {
       expect(m27Entry.exists, isFalse);
       expect(
         index.mvpFinalSignoffRehearsal.m27ScreenshotRequestHandoffCommand,
+        isNull,
+      );
+      final m28Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm28_screenshot_evidence_intake',
+      );
+      expect(m28Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand,
         isNull,
       );
       expect(index.toMarkdown(), contains('Latest M23 cycle outcome handoff'));
@@ -2598,6 +2607,123 @@ void main() {
       expect(index.toMarkdown(), contains('Blockers: target_app_present'));
     });
 
+    test('artifact index surfaces M28 screenshot evidence intake command', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m28_command_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m27ScreenshotRequestHandoffPath =
+          '${root.path}/macos_computer_use_m27_screenshot_request_handoff_998/screenshot_request_handoff.json';
+      _writeJson(
+        File(m27ScreenshotRequestHandoffPath),
+        _m27ScreenshotRequestHandoff(ready: true),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final m27Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm27_screenshot_request_handoff',
+      );
+      final m28Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm28_screenshot_evidence_intake',
+      );
+
+      expect(m27Entry.status, 'ready');
+      expect(m27Entry.details['returnMilestone'], 'M14');
+      expect(m28Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh --root ${root.path} --m27-handoff $m27ScreenshotRequestHandoffPath --screenshot',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M28 screenshot evidence intake command:'),
+      );
+    });
+
+    test('artifact index blocks final aggregation on blocked M28 intake', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m28_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m28ScreenshotEvidenceIntakePath =
+          '${root.path}/macos_computer_use_m28_screenshot_evidence_intake_999/screenshot_evidence_intake.json';
+      _writeJson(
+        File(m28ScreenshotEvidenceIntakePath),
+        _m28ScreenshotEvidenceIntake(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm28_screenshot_evidence_intake',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m28ScreenshotEvidenceIntakePath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('target_app_present'));
+      expect(entry.details['returnMilestone'], 'M14');
+      expect(entry.details['targetIntent'], 'Observe the next target.');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m28_screenshot_evidence_intake'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m28_screenshot_evidence_intake'),
+      );
+      expect(index.toMarkdown(), contains('## M28 Screenshot Evidence Intake'));
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(index.toMarkdown(), contains('Blockers: target_app_present'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -3955,6 +4081,54 @@ Map<String, dynamic> _m27ScreenshotRequestHandoff({required bool ready}) {
       'nextAction': ready
           ? 'Ask the user to manually prepare the target app, capture the requested screenshot, and run the M14 observe-only canary command.'
           : 'Resolve M27 screenshot request handoff blockers before asking for the manual screenshot.',
+    },
+  };
+}
+
+Map<String, dynamic> _m28ScreenshotEvidenceIntake({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m28_screenshot_evidence_intake',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m28_screenshot_evidence_intake',
+    'milestone': 'M28',
+    'previousMilestone': 'M27',
+    'ready': ready,
+    'sourceM27ScreenshotRequestHandoff': '/tmp/screenshot_request_handoff.json',
+    'executionBoundary': 'manual_screenshot_evidence_intake_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'targetApp': ready ? 'Safari' : '',
+    'targetIntent': 'Observe the next target.',
+    'screenshotEvidence': <String, Object?>{
+      'path': '/tmp/user-provided-real-app-screenshot.png',
+      'exists': true,
+      'sizeBytes': ready ? 8 : 0,
+      'extension': '.png',
+      'source': 'user_provided',
+    },
+    'nextObserveInput': <String, Object?>{
+      'required': true,
+      'provided': ready,
+      'returnMilestone': 'M14',
+      'boundary': 'observe_only_no_desktop_action',
+      'targetApp': ready ? 'Safari' : '',
+      'targetIntent': 'Observe the next target.',
+      'screenshotPath': '/tmp/user-provided-real-app-screenshot.png',
+    },
+    'commands': <String, Object?>{
+      'm14RealAppHandoff':
+          'bash tool/run_macos_computer_use_m14_real_app_handoff.sh',
+      'm14ObserveCanary':
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png',
+    },
+    'm28ScreenshotEvidenceIntakeGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['target_app_present'],
+      'nextAction': ready
+          ? 'Run the M14 observe-only canary with the user-provided screenshot, then continue the approval-bound observe/action cycle.'
+          : 'Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.',
     },
   };
 }

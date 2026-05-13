@@ -114,6 +114,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m25NextCycleSeedHandoffEntry;
     ReadinessArtifactEntry? m26ObserveRestartPacketEntry;
     ReadinessArtifactEntry? m27ScreenshotRequestHandoffEntry;
+    ReadinessArtifactEntry? m28ScreenshotEvidenceIntakeEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -147,6 +148,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm27_screenshot_request_handoff') {
         m27ScreenshotRequestHandoffEntry = entry;
+      }
+      if (entry.id == 'm28_screenshot_evidence_intake') {
+        m28ScreenshotEvidenceIntakeEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -404,6 +408,34 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m27ScreenshotRequestHandoffEntry.details['gateBlockers']))}',
         );
     }
+    if (m28ScreenshotEvidenceIntakeEntry != null &&
+        m28ScreenshotEvidenceIntakeEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M28 Screenshot Evidence Intake')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m28ScreenshotEvidenceIntakeEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target app: ${m28ScreenshotEvidenceIntakeEntry.details['targetApp'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target intent: ${m28ScreenshotEvidenceIntakeEntry.details['targetIntent'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Screenshot path: ${m28ScreenshotEvidenceIntakeEntry.details['screenshotPath'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Screenshot bytes: ${m28ScreenshotEvidenceIntakeEntry.details['screenshotSizeBytes'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m28ScreenshotEvidenceIntakeEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m28ScreenshotEvidenceIntakeEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -528,6 +560,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m27ScreenshotRequestHandoffCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M28 screenshot evidence intake command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -588,6 +629,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m25NextCycleSeedHandoffCommand,
     this.m26ObserveRestartPacketCommand,
     this.m27ScreenshotRequestHandoffCommand,
+    this.m28ScreenshotEvidenceIntakeCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -610,6 +652,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m25NextCycleSeedHandoffCommand;
   final String? m26ObserveRestartPacketCommand;
   final String? m27ScreenshotRequestHandoffCommand;
+  final String? m28ScreenshotEvidenceIntakeCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -637,6 +680,7 @@ class ReadinessFinalSignoffRehearsal {
       'm25NextCycleSeedHandoffCommand': m25NextCycleSeedHandoffCommand,
       'm26ObserveRestartPacketCommand': m26ObserveRestartPacketCommand,
       'm27ScreenshotRequestHandoffCommand': m27ScreenshotRequestHandoffCommand,
+      'm28ScreenshotEvidenceIntakeCommand': m28ScreenshotEvidenceIntakeCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -904,6 +948,19 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m27ScreenshotRequestHandoffNextAction,
       details: _m27ScreenshotRequestHandoffDetails,
     ),
+    _latestEntry(
+      'm28_screenshot_evidence_intake',
+      'Latest M28 screenshot evidence intake',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m28_screenshot_evidence_intake',
+      parentPrefix: 'macos_computer_use_m28_screenshot_evidence_intake_',
+      fileName: 'screenshot_evidence_intake.json',
+      status: _m28ScreenshotEvidenceIntakeStatus,
+      nextAction: _m28ScreenshotEvidenceIntakeNextAction,
+      details: _m28ScreenshotEvidenceIntakeDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -995,6 +1052,8 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
   );
   final m27ScreenshotRequestHandoffCommand =
       _m27ScreenshotRequestHandoffCommand(reportRoot, byId);
+  final m28ScreenshotEvidenceIntakeCommand =
+      _m28ScreenshotEvidenceIntakeCommand(reportRoot, byId);
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -1027,6 +1086,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m25NextCycleSeedHandoffCommand: m25NextCycleSeedHandoffCommand,
     m26ObserveRestartPacketCommand: m26ObserveRestartPacketCommand,
     m27ScreenshotRequestHandoffCommand: m27ScreenshotRequestHandoffCommand,
+    m28ScreenshotEvidenceIntakeCommand: m28ScreenshotEvidenceIntakeCommand,
   );
 }
 
@@ -1046,7 +1106,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm23_cycle_outcome_handoff' ||
                 entry.id == 'm25_next_cycle_seed_handoff' ||
                 entry.id == 'm26_observe_restart_packet' ||
-                entry.id == 'm27_screenshot_request_handoff') &&
+                entry.id == 'm27_screenshot_request_handoff' ||
+                entry.id == 'm28_screenshot_evidence_intake') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1384,6 +1445,30 @@ String? _m27ScreenshotRequestHandoffCommand(
     reportRoot.path,
     '--m26-packet',
     m26Path,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m28ScreenshotEvidenceIntakeCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final m27Entry = entriesById['m27_screenshot_request_handoff'];
+  final m27Path = m27Entry?.path ?? '';
+  if (m27Path.isEmpty || m27Entry?.status != 'ready') {
+    return null;
+  }
+  if (m27Entry?.details['returnMilestone'] != 'M14') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh',
+    '--root',
+    reportRoot.path,
+    '--m27-handoff',
+    m27Path,
+    '--screenshot',
+    '<user-provided-real-app-screenshot.png>',
   ].map(_shellQuote).join(' ');
 }
 
@@ -2335,6 +2420,86 @@ Map<String, Object?> _m27ScreenshotRequestHandoffDetails(
       'observeBoundary': requestMap['boundary']?.toString(),
       'screenshotRequired': requestMap['required'],
       'screenshotProvided': requestMap['provided'],
+    },
+    if (commandsMap != null) ...<String, Object?>{
+      'm14RealAppHandoffCommand': commandsMap['m14RealAppHandoff']?.toString(),
+      'm14ObserveCanaryCommand': commandsMap['m14ObserveCanary']?.toString(),
+      'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
+      'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m28ScreenshotEvidenceIntakeStatus(Map<String, dynamic> json) {
+  final gate = json['m28ScreenshotEvidenceIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m28ScreenshotEvidenceIntakeNextAction(Map<String, dynamic> json) {
+  final gate = json['m28ScreenshotEvidenceIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m28ScreenshotEvidenceIntakeStatus(json);
+  if (status == 'ready') {
+    return 'Run the M14 observe-only canary with the user-provided screenshot, then continue the approval-bound observe/action cycle.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m28ScreenshotEvidenceIntakeDetails(
+  Map<String, dynamic> json,
+) {
+  final gate = json['m28ScreenshotEvidenceIntakeGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final evidence = json['screenshotEvidence'];
+  final evidenceMap = evidence is Map<String, dynamic> ? evidence : null;
+  final nextObserveInput = json['nextObserveInput'];
+  final nextObserveInputMap = nextObserveInput is Map<String, dynamic>
+      ? nextObserveInput
+      : null;
+  final commands = json['commands'];
+  final commandsMap = commands is Map<String, dynamic> ? commands : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM27ScreenshotRequestHandoff':
+        json['sourceM27ScreenshotRequestHandoff']?.toString(),
+    'targetApp': json['targetApp']?.toString(),
+    'targetIntent': json['targetIntent']?.toString(),
+    if (evidenceMap != null) ...<String, Object?>{
+      'screenshotPath': evidenceMap['path']?.toString(),
+      'screenshotExists': evidenceMap['exists'],
+      'screenshotSizeBytes': evidenceMap['sizeBytes'],
+      'screenshotExtension': evidenceMap['extension']?.toString(),
+    },
+    if (nextObserveInputMap != null) ...<String, Object?>{
+      'returnMilestone': nextObserveInputMap['returnMilestone']?.toString(),
+      'observeBoundary': nextObserveInputMap['boundary']?.toString(),
+      'screenshotProvided': nextObserveInputMap['provided'],
     },
     if (commandsMap != null) ...<String, Object?>{
       'm14RealAppHandoffCommand': commandsMap['m14RealAppHandoff']?.toString(),
