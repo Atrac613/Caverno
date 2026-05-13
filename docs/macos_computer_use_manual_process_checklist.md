@@ -554,6 +554,34 @@ Do not include raw screenshots, audio payloads, tokens, secrets, typed text, or
 raw tool payloads in ordinary diagnostics. Export those artifacts only through a
 separate explicit user-approved artifact flow.
 
+## M38 Install And Migration Guardrails
+
+Use this pass before validating an upgraded or newly installed Computer Use
+build:
+
+1. Open the Computer Use setup or debug surface.
+2. Confirm exported diagnostics include
+   `installMigrationGuardrails.schemaName:
+   macos_computer_use_install_migration_guardrails`.
+3. Confirm `installMigrationGuardrails.milestone` is `M38`.
+4. Confirm `installMigrationGuardrails.oldHelperActionRequestsBlocked` is
+   `true`.
+5. If `helperPathMismatch` or stale helper path diagnostics are present,
+   confirm the UI explains that macOS TCC grants are tied to the helper app
+   identity and that regrant may be required only after the user restarts from
+   the installed Caverno bundle.
+6. Confirm old or mismatched helpers can still report status, show permission
+   recovery UI, and accept emergency stop, but do not handle screenshot,
+   window, pointer, keyboard, or system-audio action requests.
+
+Expected M38 fields:
+
+- `installMigrationGuardrails.status`: `ready` or `blocked`
+- `installMigrationGuardrails.m38InstallMigrationGate.blockers`
+- `installMigrationGuardrails.tccRegrantRequired`
+- `installMigrationGuardrails.tccRegrantReason`
+- `installMigrationGuardrails.oldHelperActionRequestsBlocked`: `true`
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

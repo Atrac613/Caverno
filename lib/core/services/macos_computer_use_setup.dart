@@ -439,6 +439,178 @@ class MacosComputerUseIpc {
   );
 }
 
+class MacosComputerUseInstallMigrationGuardrails {
+  const MacosComputerUseInstallMigrationGuardrails._();
+
+  static const schemaName = 'macos_computer_use_install_migration_guardrails';
+  static const schemaVersion = 1;
+  static const milestone = 'M38';
+  static const requiredGuardrailIds = [
+    'preserve_helper_identity_when_possible',
+    'detect_tcc_regrant_required',
+    'explain_regrant_reason',
+    'block_old_helper_action_requests',
+    'surface_restart_before_release_signoff',
+  ];
+
+  static Map<String, dynamic> fromState({
+    Map<String, dynamic>? helperStatus,
+    Map<String, dynamic>? helperIpcRuntime,
+  }) {
+    final embeddedHelperPath = _stringFromMaps('embeddedHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final runningHelperPath = _stringFromMaps('runningHelperPath', [
+      helperStatus,
+      helperIpcRuntime,
+    ]);
+    final helperPathMismatch =
+        _boolFromMaps('helperPathMismatch', [helperStatus, helperIpcRuntime]) ==
+            true ||
+        _boolFromMaps('preservedMismatchedHelperPath', [
+              helperStatus,
+              helperIpcRuntime,
+            ]) ==
+            true ||
+        (embeddedHelperPath != null &&
+            runningHelperPath != null &&
+            embeddedHelperPath != runningHelperPath);
+    final helperPathMatchesRunning =
+        _boolFromMaps('helperPathMatchesRunningHelper', [
+          helperStatus,
+          helperIpcRuntime,
+        ]) ==
+        true;
+    final staleReasons = _uniqueStrings([
+      ..._stringListFromMaps('helperSharedDiagnosticsStaleReasons', [
+        helperStatus,
+        helperIpcRuntime,
+      ]),
+      ..._stringListFromMaps('helperDiagnosticsLatestStaleReasons', [
+        _mapValue(helperIpcRuntime?['xpcRuntimeDiagnostics']),
+      ]),
+    ]);
+    final helperDiagnosticsStale =
+        staleReasons.isNotEmpty ||
+        _boolFromMaps('helperSharedDiagnosticsStale', [
+              helperStatus,
+              helperIpcRuntime,
+            ]) ==
+            true;
+    final oldHelperActionRequestsBlocked =
+        _boolFromMaps('oldHelperActionRequestsBlocked', [
+          helperStatus,
+          helperIpcRuntime,
+        ]) ??
+        true;
+    final tccRegrantRequired =
+        helperPathMismatch ||
+        staleReasons.contains('helper_bundle_path_mismatch') ||
+        staleReasons.contains('helper_executable_path_mismatch');
+    final blockers = <String>[
+      if (helperPathMismatch) 'helper_path_mismatch',
+      if (helperDiagnosticsStale) 'stale_helper_diagnostics',
+      if (!oldHelperActionRequestsBlocked)
+        'old_helper_action_requests_not_blocked',
+    ];
+    final status = blockers.isEmpty ? 'ready' : 'blocked';
+    final regrantReason = tccRegrantRequired
+        ? 'macOS TCC grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes.'
+        : 'The current helper identity matches the expected embedded helper path.';
+
+    return {
+      'schemaName': schemaName,
+      'schemaVersion': schemaVersion,
+      'milestone': milestone,
+      'status': status,
+      'ready': blockers.isEmpty,
+      'requiredGuardrailIds': requiredGuardrailIds,
+      'm38InstallMigrationGate': {
+        'status': status,
+        'ready': blockers.isEmpty,
+        'blockers': blockers,
+      },
+      'helperIdentityPreservedWhenPossible': true,
+      'expectedHelperPath': embeddedHelperPath,
+      'runningHelperPath': runningHelperPath,
+      'helperPathMatchesRunningHelper': helperPathMatchesRunning,
+      'helperPathMismatch': helperPathMismatch,
+      'helperDiagnosticsStale': helperDiagnosticsStale,
+      'helperDiagnosticsStaleReasons': staleReasons,
+      'tccRegrantRequired': tccRegrantRequired,
+      'tccRegrantReason': regrantReason,
+      'oldHelperActionRequestsBlocked': oldHelperActionRequestsBlocked,
+      'allowedDuringMigration': [
+        'status',
+        'open_helper_ui',
+        'permission_recovery',
+        'emergency_stop',
+      ],
+      'blockedDuringMigration': [
+        'screenshot',
+        'window_capture',
+        'focus',
+        'pointer_input',
+        'keyboard_input',
+        'system_audio_recording',
+      ],
+      'nextAction': blockers.isEmpty
+          ? 'Install and migration guardrails are ready.'
+          : 'Restart Caverno Computer Use from the installed Caverno bundle, recheck helper identity, and ask the user to regrant TCC only if macOS reports the new helper as missing permissions.',
+    };
+  }
+
+  static bool? _boolFromMaps(String key, List<Map<String, dynamic>?> sources) {
+    for (final source in sources) {
+      final value = source?[key];
+      if (value is bool) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static String? _stringFromMaps(
+    String key,
+    List<Map<String, dynamic>?> sources,
+  ) {
+    for (final source in sources) {
+      final value = source?[key];
+      if (value is String && value.isNotEmpty) {
+        return value;
+      }
+    }
+    return null;
+  }
+
+  static List<String> _stringListFromMaps(
+    String key,
+    List<Map<String, dynamic>?> sources,
+  ) {
+    return [
+      for (final source in sources)
+        if (source?[key] is Iterable)
+          for (final value in source![key] as Iterable)
+            if (value is String && value.isNotEmpty) value,
+    ];
+  }
+
+  static Map<String, dynamic>? _mapValue(Object? value) {
+    if (value is Map<String, dynamic>) {
+      return value;
+    }
+    if (value is Map) {
+      return Map<String, dynamic>.from(value);
+    }
+    return null;
+  }
+
+  static List<String> _uniqueStrings(Iterable<String> values) {
+    return LinkedHashSet<String>.from(values).toList(growable: false);
+  }
+}
+
 class MacosComputerUseOnboardingDiagnostics {
   const MacosComputerUseOnboardingDiagnostics({
     required this.generatedAt,
@@ -472,6 +644,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.lastResult,
     this.auditLog = const [],
     this.auditPrivacyControls,
+    this.installMigrationGuardrails,
     this.lastLiveSmokeReport,
     this.lastExistingHelperProbeReport,
     this.lastDiagnosticExportPath,
@@ -511,6 +684,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final Object? lastResult;
   final List<Map<String, dynamic>> auditLog;
   final Map<String, dynamic>? auditPrivacyControls;
+  final Map<String, dynamic>? installMigrationGuardrails;
   final Map<String, dynamic>? lastLiveSmokeReport;
   final Map<String, dynamic>? lastExistingHelperProbeReport;
   final String? lastDiagnosticExportPath;
@@ -550,6 +724,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'lastResult': lastResult,
       'auditLog': auditLog,
       'auditPrivacyControls': auditPrivacyControls,
+      'installMigrationGuardrails': installMigrationGuardrails,
       'lastLiveSmokeReport': lastLiveSmokeReport,
       'lastExistingHelperProbeReport': lastExistingHelperProbeReport,
       if (lastDiagnosticExportPath != null)

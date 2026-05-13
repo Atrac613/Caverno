@@ -470,7 +470,12 @@ surface until the user intentionally enables it.
 - M38: Build install, update, and migration guardrails. Upgrades must preserve
   the helper identity when possible, detect when TCC must be regranted, explain
   why regranting is needed, and prevent old helper processes from handling new
-  action requests.
+  action requests. Implemented as `installMigrationGuardrails` in exported
+  diagnostics with schema `macos_computer_use_install_migration_guardrails`.
+  The M38 gate records helper path match status, stale helper diagnostics,
+  whether TCC regrant may be required, and the policy that blocks old helper
+  processes from screenshot, window, input, and audio action requests while
+  keeping status, permission recovery, helper UI, and emergency stop available.
 - M39: Run an internal beta sign-off. The beta gate should include clean
   install, upgrade, permission grant, permission revocation, helper restart,
   XPC fallback observability, Live LLM observe-only canaries, and at least one

@@ -636,6 +636,10 @@ void main() {
     );
     expect(find.text('Helper path sign-off: blocked'), findsOneWidget);
     expect(find.text('Helper runtime use: current_session'), findsOneWidget);
+    expect(find.text('M38 migration gate: blocked'), findsOneWidget);
+    expect(find.text('TCC regrant: may be required'), findsOneWidget);
+    expect(find.text('Old helper actions: blocked'), findsOneWidget);
+    expect(find.text('M38 blockers: helper_path_mismatch'), findsOneWidget);
     expect(
       find.text(
         'Helper path blockers: helper_path_mismatch, preserved_mismatched_helper',

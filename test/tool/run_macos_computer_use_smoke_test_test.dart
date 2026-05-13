@@ -386,6 +386,14 @@ void main() {
       architectureDoc,
       contains('macos_computer_use_audit_privacy_controls'),
     );
+    expect(
+      architectureDoc,
+      contains('M38: Build install, update, and migration guardrails'),
+    );
+    expect(
+      architectureDoc,
+      contains('macos_computer_use_install_migration_guardrails'),
+    );
     expect(architectureDoc, contains('M40: Cut the production launch gate'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
@@ -616,6 +624,9 @@ void main() {
     expect(runnerSource, contains('forceTerminateProcess'));
     expect(runnerSource, contains('forceTerminatedStaleHelperProcess'));
     expect(runnerSource, contains('preservedMismatchedHelperPath'));
+    expect(runnerSource, contains('blocksOnHelperPathMismatch'));
+    expect(runnerSource, contains('old_helper_process_blocked'));
+    expect(runnerSource, contains('installMigrationGuardrails'));
     expect(runnerSource, contains('responseReceivedBeforeTimeout'));
     expect(runnerSource, contains('responseReceivedAfterTimeout'));
     expect(runnerSource, contains('lateResponseElapsedMs'));
@@ -6667,6 +6678,14 @@ void main() {
     expect(manualProcessChecklist, contains('M30 Observe Result Intake'));
     expect(manualProcessChecklist, contains('M36 Live LLM Evaluation'));
     expect(manualProcessChecklist, contains('M37 Audit Privacy Controls'));
+    expect(
+      manualProcessChecklist,
+      contains('M38 Install And Migration Guardrails'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('installMigrationGuardrails.oldHelperActionRequestsBlocked'),
+    );
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));

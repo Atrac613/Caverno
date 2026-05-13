@@ -1505,6 +1505,11 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastResult: _lastResultForDiagnostics,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       auditPrivacyControls: MacosComputerUseAuditLog.instance.privacyControls,
+      installMigrationGuardrails:
+          MacosComputerUseInstallMigrationGuardrails.fromState(
+            helperStatus: _helperStatus,
+            helperIpcRuntime: _helperIpcProtocol(),
+          ),
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
@@ -1744,6 +1749,23 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     ].join(' | ');
   }
 
+  String _installMigrationGuardrailsSummary() {
+    final guardrails = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: _helperStatus,
+      helperIpcRuntime: _helperIpcProtocol(),
+    );
+    final gate = guardrails['m38InstallMigrationGate'];
+    final blockers = gate is Map ? gate['blockers'] : null;
+    return [
+      'M38 install/migration guardrails: ${guardrails['status']}',
+      'TCC regrant required: ${guardrails['tccRegrantRequired']}',
+      'Old helper action requests blocked: ${guardrails['oldHelperActionRequestsBlocked']}',
+      if (blockers is List && blockers.isNotEmpty)
+        'Blockers: ${blockers.join(', ')}',
+      '${guardrails['nextAction']}',
+    ].join(' | ');
+  }
+
   String _mvpEvidencePreflightSummary() {
     return [
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
@@ -1756,6 +1778,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
       _productionActionPolicySummary(),
       _auditPrivacyControlsSummary(),
+      _installMigrationGuardrailsSummary(),
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',

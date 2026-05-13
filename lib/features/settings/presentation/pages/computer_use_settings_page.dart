@@ -858,6 +858,11 @@ class _ComputerUseOnboardingCardState
       helperIpcRuntime: helperIpcRuntime,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
       auditPrivacyControls: MacosComputerUseAuditLog.instance.privacyControls,
+      installMigrationGuardrails:
+          MacosComputerUseInstallMigrationGuardrails.fromState(
+            helperStatus: _helperStatus,
+            helperIpcRuntime: helperIpcRuntime,
+          ),
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,
@@ -865,6 +870,11 @@ class _ComputerUseOnboardingCardState
         'permissions': _permissions,
         'helperIpcRuntime': helperIpcRuntime,
         'permissionRecoverySummary': permissionRecoverySummary.toJson(),
+        'installMigrationGuardrails':
+            MacosComputerUseInstallMigrationGuardrails.fromState(
+              helperStatus: _helperStatus,
+              helperIpcRuntime: helperIpcRuntime,
+            ),
         'onboardingVerification': _onboardingVerification(),
         'lastLiveSmokeReport': _lastLiveSmokeReport,
         'lastExistingHelperProbeReport': _lastExistingHelperProbeReport,
@@ -1227,6 +1237,11 @@ class _ComputerUseOnboardingCardState
         helperReachable: helperReachable,
       ),
     };
+    runtime['installMigrationGuardrails'] =
+        MacosComputerUseInstallMigrationGuardrails.fromState(
+          helperStatus: snapshot,
+          helperIpcRuntime: runtime,
+        );
     runtime['preferredFallbackSucceeded'] =
         runtime['preferredFallbackActive'] == true &&
         (snapshot['ok'] == true || snapshot['helperReachable'] == true) &&
@@ -2230,6 +2245,20 @@ class _IpcRuntimeSummary extends StatelessWidget {
         runtime['preservedMismatchedHelperPath'] == true;
     final helperPathSignoffGate = _mapValue(runtime['helperPathSignoffGate']);
     final helperRuntimeUseGate = _mapValue(runtime['helperRuntimeUseGate']);
+    final installMigrationGuardrails = _mapValue(
+      runtime['installMigrationGuardrails'],
+    );
+    final installMigrationGate = _mapValue(
+      installMigrationGuardrails?['m38InstallMigrationGate'],
+    );
+    final migrationBlockers = _stringList(installMigrationGate?['blockers']);
+    final migrationNextAction = _stringValue(
+      installMigrationGuardrails?['nextAction'],
+    );
+    final migrationTccRegrantRequired =
+        installMigrationGuardrails?['tccRegrantRequired'];
+    final migrationOldHelperBlocked =
+        installMigrationGuardrails?['oldHelperActionRequestsBlocked'];
     final helperPathSignoffBlockers = _stringList(
       helperPathSignoffGate?['blockers'],
     );
@@ -2389,6 +2418,28 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Helper runtime use',
                 value: '${helperRuntimeUseGate['status']}',
               ),
+            if (installMigrationGuardrails != null)
+              _InfoChip(
+                label: 'M38 migration gate',
+                value: '${installMigrationGuardrails['status']}',
+              ),
+            if (migrationTccRegrantRequired is bool)
+              _InfoChip(
+                label: 'TCC regrant',
+                value: migrationTccRegrantRequired ? 'may be required' : 'no',
+              ),
+            if (migrationOldHelperBlocked is bool)
+              _InfoChip(
+                label: 'Old helper actions',
+                value: migrationOldHelperBlocked ? 'blocked' : 'not blocked',
+              ),
+            if (migrationBlockers.isNotEmpty)
+              _InfoChip(
+                label: 'M38 blockers',
+                value: migrationBlockers.join(', '),
+              ),
+            if (migrationNextAction != null)
+              _InfoChip(label: 'M38 next action', value: migrationNextAction),
             if (helperPathSignoffBlockers.isNotEmpty)
               _InfoChip(
                 label: 'Helper path blockers',

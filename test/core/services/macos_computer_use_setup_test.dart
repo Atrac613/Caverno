@@ -209,6 +209,10 @@ void main() {
         'schemaName': 'macos_computer_use_audit_privacy_controls',
         'm37AuditPrivacyGate': {'status': 'ready'},
       },
+      installMigrationGuardrails: const {
+        'schemaName': 'macos_computer_use_install_migration_guardrails',
+        'm38InstallMigrationGate': {'status': 'ready'},
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -268,6 +272,13 @@ void main() {
     expect(
       diagnostics['auditPrivacyControls'],
       containsPair('schemaName', 'macos_computer_use_audit_privacy_controls'),
+    );
+    expect(
+      diagnostics['installMigrationGuardrails'],
+      containsPair(
+        'schemaName',
+        'macos_computer_use_install_migration_guardrails',
+      ),
     );
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
@@ -333,6 +344,50 @@ void main() {
       summary.nextAction,
       'Restart Caverno Computer Use from Caverno, then recheck helper reachability before sign-off.',
     );
+  });
+
+  test('builds M38 install and migration guardrails', () {
+    final ready = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: const {
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': true,
+        'oldHelperActionRequestsBlocked': true,
+      },
+    );
+
+    expect(
+      ready['schemaName'],
+      'macos_computer_use_install_migration_guardrails',
+    );
+    expect(ready['milestone'], 'M38');
+    expect(ready['status'], 'ready');
+    expect(ready['tccRegrantRequired'], isFalse);
+    expect(ready['oldHelperActionRequestsBlocked'], isTrue);
+
+    final blocked = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: const {
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/macos/Build/Products/Debug/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': false,
+        'helperPathMismatch': true,
+        'helperSharedDiagnosticsStaleReasons': ['helper_bundle_path_mismatch'],
+      },
+    );
+
+    expect(blocked['status'], 'blocked');
+    expect(blocked['tccRegrantRequired'], isTrue);
+    expect(
+      blocked['tccRegrantReason'],
+      contains('TCC grants are tied to the helper app identity'),
+    );
+    final gate = blocked['m38InstallMigrationGate'] as Map<String, dynamic>;
+    expect(gate['blockers'], contains('helper_path_mismatch'));
+    expect(gate['blockers'], contains('stale_helper_diagnostics'));
   });
 
   test('reports missing permissions before a snapshot is loaded', () {

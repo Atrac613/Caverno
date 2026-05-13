@@ -69,6 +69,14 @@ void main() {
     );
     expect(find.textContaining('Redacts: secrets, api_keys'), findsOneWidget);
     expect(
+      find.textContaining('M38 install/migration guardrails: ready'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Old helper action requests blocked: true'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining(
         'release_artifact, canary_history, manual_tcc, desktop_action_canary, llm_canary',
       ),
