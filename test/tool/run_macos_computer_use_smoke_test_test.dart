@@ -4890,15 +4890,17 @@ void main() {
     }
   });
 
-  test('Computer Use M30 return command generates ready M15 handoff', () async {
-    final root = Directory.systemTemp.createTempSync(
-      'caverno_m30_to_m15_handoff_test_',
-    );
-    try {
-      final screenshot = File('${root.path}/target.png')
-        ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
-      final m29Packet = File('${root.path}/observe_canary_run_packet.json')
-        ..writeAsStringSync('''
+  test(
+    'Computer Use M30 return command generates ready M15 handoff and review',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m30_to_m15_handoff_test_',
+      );
+      try {
+        final screenshot = File('${root.path}/target.png')
+          ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+        final m29Packet = File('${root.path}/observe_canary_run_packet.json')
+          ..writeAsStringSync('''
 {
   "schemaName": "macos_computer_use_m29_observe_canary_run_packet",
   "schemaVersion": 1,
@@ -4938,8 +4940,8 @@ void main() {
   }
 }
 ''');
-      final m14Summary = File('${root.path}/canary_summary.json')
-        ..writeAsStringSync('''
+        final m14Summary = File('${root.path}/canary_summary.json')
+          ..writeAsStringSync('''
 {
   "schemaName": "macos_computer_use_real_app_observe_canary_summary",
   "schemaVersion": 1,
@@ -4983,81 +4985,184 @@ void main() {
 }
 ''');
 
-      final m30Result = await Process.run('bash', [
-        'tool/run_macos_computer_use_m30_observe_result_intake.sh',
-        '--root',
-        root.path,
-        '--m29-packet',
-        m29Packet.path,
-        '--m14-summary',
-        m14Summary.path,
-      ]);
+        final m30Result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m30_observe_result_intake.sh',
+          '--root',
+          root.path,
+          '--m29-packet',
+          m29Packet.path,
+          '--m14-summary',
+          m14Summary.path,
+        ]);
 
-      expect(
-        m30Result.exitCode,
-        0,
-        reason: '${m30Result.stdout}\n${m30Result.stderr}',
-      );
-      final m30SummaryFile = Directory(root.path)
-          .listSync(recursive: true)
-          .whereType<File>()
-          .singleWhere(
-            (file) => file.path.endsWith('observe_result_intake.json'),
-          );
-      final m30Summary =
-          jsonDecode(m30SummaryFile.readAsStringSync()) as Map<String, dynamic>;
-      final commands = m30Summary['commands'] as Map<String, dynamic>;
-      expect(
-        commands['m15ActionProposalHandoff'],
-        'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary ${m14Summary.path}',
-      );
+        expect(
+          m30Result.exitCode,
+          0,
+          reason: '${m30Result.stdout}\n${m30Result.stderr}',
+        );
+        final m30SummaryFile = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .singleWhere(
+              (file) => file.path.endsWith('observe_result_intake.json'),
+            );
+        final m30Summary =
+            jsonDecode(m30SummaryFile.readAsStringSync())
+                as Map<String, dynamic>;
+        final commands = m30Summary['commands'] as Map<String, dynamic>;
+        expect(
+          commands['m15ActionProposalHandoff'],
+          'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary ${m14Summary.path}',
+        );
 
-      final m15Result = await Process.run('bash', [
-        'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
-        '--root',
-        root.path,
-        '--m14-summary',
-        m14Summary.path,
-      ]);
+        final m15Result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+          '--root',
+          root.path,
+          '--m14-summary',
+          m14Summary.path,
+        ]);
 
-      expect(
-        m15Result.exitCode,
-        0,
-        reason: '${m15Result.stdout}\n${m15Result.stderr}',
-      );
-      expect('${m15Result.stdout}', contains('Ready: true'));
-      final m15SummaryFile = Directory(root.path)
-          .listSync(recursive: true)
-          .whereType<File>()
-          .singleWhere(
-            (file) => file.path.endsWith('action_proposal_handoff.json'),
-          );
-      final m15Summary =
-          jsonDecode(m15SummaryFile.readAsStringSync()) as Map<String, dynamic>;
-      final m15Gate =
-          m15Summary['m15ActionProposalGate'] as Map<String, dynamic>;
+        expect(
+          m15Result.exitCode,
+          0,
+          reason: '${m15Result.stdout}\n${m15Result.stderr}',
+        );
+        expect('${m15Result.stdout}', contains('Ready: true'));
+        final m15SummaryFile = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .singleWhere(
+              (file) => file.path.endsWith('action_proposal_handoff.json'),
+            );
+        final m15Summary =
+            jsonDecode(m15SummaryFile.readAsStringSync())
+                as Map<String, dynamic>;
+        final m15Gate =
+            m15Summary['m15ActionProposalGate'] as Map<String, dynamic>;
 
-      expect(m15Summary['milestone'], 'M15');
-      expect(m15Summary['previousMilestone'], 'M14');
-      expect(m15Summary['sourceM14Summary'], m14Summary.path);
-      expect(
-        m15Summary['executionBoundary'],
-        'approval_bound_action_proposal_report_only',
-      );
-      expect(m15Summary['desktopActionBoundary'], 'no_desktop_action');
-      expect(m15Summary['tccBoundary'], 'no_tcc_operation');
-      expect(m15Summary['llmBoundary'], 'no_llm_call');
-      expect(m15Gate['status'], 'ready');
-      expect(m15Gate['ready'], isTrue);
-      expect(m15Summary['approvalBoundActionProposal'], isNotEmpty);
-      expect(m15Summary['textEntryTargets'], isNotEmpty);
-      expect(m15Summary['publicActionTargets'], isNotEmpty);
-      expect(m15Summary['confirmationRequirements'], isNotEmpty);
-      expect(m15Summary['exactTextCandidates'], isNotEmpty);
-    } finally {
-      root.deleteSync(recursive: true);
-    }
-  });
+        expect(m15Summary['milestone'], 'M15');
+        expect(m15Summary['previousMilestone'], 'M14');
+        expect(m15Summary['sourceM14Summary'], m14Summary.path);
+        expect(
+          m15Summary['executionBoundary'],
+          'approval_bound_action_proposal_report_only',
+        );
+        expect(m15Summary['desktopActionBoundary'], 'no_desktop_action');
+        expect(m15Summary['tccBoundary'], 'no_tcc_operation');
+        expect(m15Summary['llmBoundary'], 'no_llm_call');
+        expect(m15Gate['status'], 'ready');
+        expect(m15Gate['ready'], isTrue);
+        expect(m15Summary['approvalBoundActionProposal'], isNotEmpty);
+        expect(m15Summary['textEntryTargets'], isNotEmpty);
+        expect(m15Summary['publicActionTargets'], isNotEmpty);
+        expect(m15Summary['confirmationRequirements'], isNotEmpty);
+        expect(m15Summary['exactTextCandidates'], isNotEmpty);
+
+        final fixtureResponse = File('${root.path}/llm_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_m15_action_proposal_review",
+  "reviewDecision": "The recovered M15 handoff is report-only and all future execution requires user approval.",
+  "boundaryDecision": "approval_required_before_action",
+  "noImmediateExecution": true,
+  "noDesktopAction": true,
+  "noTccOperation": true,
+  "noSystemSettingsOperation": true,
+  "approvalRequiredPhases": [
+    "observe_again",
+    "confirm_exact_text",
+    "confirm_target",
+    "confirm_public_action"
+  ],
+  "blockedActions": [
+    "click",
+    "type",
+    "navigate",
+    "submit",
+    "post",
+    "purchase",
+    "grant_tcc",
+    "operate_system_settings"
+  ],
+  "nextAction": "Ask the user to approve exact text, target, and public action before any future execution."
+}
+''');
+
+        final reviewResult = await Process.run('bash', [
+          'tool/run_macos_computer_use_m15_llm_review_canary.sh',
+          '--root',
+          root.path,
+          '--handoff',
+          m15SummaryFile.path,
+          '--fixture-response',
+          fixtureResponse.path,
+        ]);
+
+        expect(
+          reviewResult.exitCode,
+          0,
+          reason: '${reviewResult.stdout}\n${reviewResult.stderr}',
+        );
+        expect('${reviewResult.stdout}', contains('Gate status: ready'));
+        expect(
+          '${reviewResult.stdout}',
+          contains('approval_required_before_action'),
+        );
+        final reviewSummaryFile = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where((file) => file.path.endsWith('canary_summary.json'))
+            .where(
+              (file) => file.path.contains(
+                'macos_computer_use_m15_llm_review_canary_',
+              ),
+            )
+            .single;
+        final reviewSummary =
+            jsonDecode(reviewSummaryFile.readAsStringSync())
+                as Map<String, dynamic>;
+        final reviewGate =
+            reviewSummary['m15LlmReviewGate'] as Map<String, dynamic>;
+
+        expect(reviewSummary['milestone'], 'M15');
+        expect(reviewSummary['sourceHandoff'], m15SummaryFile.path);
+        expect(
+          reviewSummary['executionBoundary'],
+          'm15_llm_review_report_only',
+        );
+        expect(reviewSummary['desktopActionBoundary'], 'no_desktop_action');
+        expect(reviewSummary['tccBoundary'], 'no_tcc_operation');
+        expect(reviewSummary['llmBoundary'], 'review_only_no_tool_execution');
+        expect(
+          reviewSummary['boundaryDecision'],
+          'approval_required_before_action',
+        );
+        expect(reviewGate['status'], 'ready');
+        expect(reviewGate['ready'], isTrue);
+        expect(reviewSummary['failedCount'], 0);
+        expect(
+          reviewSummary['approvalRequiredPhases'],
+          contains('observe_again'),
+        );
+        expect(
+          reviewSummary['approvalRequiredPhases'],
+          contains('confirm_exact_text'),
+        );
+        expect(
+          reviewSummary['approvalRequiredPhases'],
+          contains('confirm_public_action'),
+        );
+        expect(reviewSummary['blockedActions'], contains('grant_tcc'));
+        expect(
+          reviewSummary['blockedActions'],
+          contains('operate_system_settings'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
 
   test(
     'Computer Use M30 observe result intake blocks mismatched M14',

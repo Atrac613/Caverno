@@ -431,6 +431,7 @@ summary = {
     "purpose": "computer_use_m15_llm_review_canary",
     "milestone": "M15",
     "sourceHandoff": str(handoff_path),
+    "executionBoundary": "m15_llm_review_report_only",
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
     "llmBoundary": "review_only_no_tool_execution",
