@@ -582,6 +582,33 @@ Expected M38 fields:
 - `installMigrationGuardrails.tccRegrantReason`
 - `installMigrationGuardrails.oldHelperActionRequestsBlocked`: `true`
 
+## M39 Internal Beta Sign-Off
+
+Use this pass after M36 Live LLM evaluation and at least one complete
+user-operated observe-approve-execute-review cycle are available:
+
+1. Write or refresh the manual beta checklist template:
+   `bash tool/run_macos_computer_use_m39_beta_signoff.sh --write-template`.
+2. Ask the user to complete clean install, upgrade, permission grant,
+   permission revocation, helper restart, and XPC fallback observability checks.
+3. Save the completed checklist with
+   `schemaName: macos_computer_use_m39_manual_beta_checklist`.
+4. Confirm M36 produced a ready
+   `macos_computer_use_m36_live_llm_eval_summary` with
+   `desktopActionBoundary: no_desktop_action`.
+5. Confirm M23 produced a ready
+   `macos_computer_use_m23_cycle_outcome_handoff` for one reviewed
+   user-operated action cycle.
+6. Run
+   `bash tool/run_macos_computer_use_m39_beta_signoff.sh --manual-beta-checklist <m39-manual-beta-checklist.json> --m36-live-llm-eval <canary_summary.json> --m23-cycle-outcome <cycle_outcome_handoff.json>`.
+7. Confirm `schemaName` is `macos_computer_use_m39_beta_signoff`.
+8. Confirm `betaReviewSummary.status` is `ready_for_internal_beta`.
+9. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M39 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, or operate desktop apps. M39 only reads
+existing reports and user-provided beta checklist evidence.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

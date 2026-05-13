@@ -479,7 +479,11 @@ surface until the user intentionally enables it.
 - M39: Run an internal beta sign-off. The beta gate should include clean
   install, upgrade, permission grant, permission revocation, helper restart,
   XPC fallback observability, Live LLM observe-only canaries, and at least one
-  full user-operated observe-approve-execute-review cycle.
+  full user-operated observe-approve-execute-review cycle. Implemented as
+  `bash tool/run_macos_computer_use_m39_beta_signoff.sh`. The report schema is
+  `macos_computer_use_m39_beta_signoff`; it records `betaReviewSummary`,
+  user-operated beta gates, M36 observe-only LLM evidence, M23 cycle outcome
+  evidence, and `automationBoundary: read_reports_only`.
 - M40: Cut the production launch gate. Release is allowed only when the signed
   artifact, notarization, helper identity, manual TCC runbook, Live LLM evidence,
   audit export, emergency stop, privacy copy, and support diagnostics all have

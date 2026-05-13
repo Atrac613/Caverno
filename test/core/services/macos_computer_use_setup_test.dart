@@ -135,6 +135,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M39 beta sign-off evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
@@ -164,6 +168,10 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand,
       contains('run_macos_computer_use_m36_live_llm_eval.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m39BetaSignoffCommand,
+      contains('run_macos_computer_use_m39_beta_signoff.sh'),
     );
   });
 

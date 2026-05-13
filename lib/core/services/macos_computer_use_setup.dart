@@ -94,6 +94,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_m30_observe_result_intake.sh --m29-packet <observe_canary_run_packet.json> --m14-summary <canary_summary.json>';
   static const m36LiveLlmEvalCommand =
       'bash tool/run_macos_computer_use_m36_live_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>';
+  static const m39BetaSignoffCommand =
+      'bash tool/run_macos_computer_use_m39_beta_signoff.sh --manual-beta-checklist <m39-manual-beta-checklist.json> --m36-live-llm-eval <canary_summary.json> --m23-cycle-outcome <cycle_outcome_handoff.json>';
   static const mvpSignoffCommand =
       'bash tool/run_macos_computer_use_mvp_signoff.sh';
   static const mvpReadinessPreflightCommand =
@@ -123,6 +125,10 @@ class MacosComputerUseMvpGuidance {
   static const m29ObserveCanaryRunPacketFile = 'observe_canary_run_packet.json';
   static const m30ObserveResultIntakeFile = 'observe_result_intake.json';
   static const m36LiveLlmEvalSummaryFile = 'canary_summary.json';
+  static const m39BetaSignoffJsonFile =
+      'macos_computer_use_m39_beta_signoff.json';
+  static const m39BetaSignoffMarkdownFile =
+      'macos_computer_use_m39_beta_signoff.md';
   static const artifactIndexJsonFile =
       'macos_computer_use_readiness_artifact_index.json';
   static const artifactIndexMarkdownFile =
@@ -165,7 +171,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, blocked M23 cycle outcome evidence, blocked M25 next-cycle seed evidence, blocked M26 observe restart evidence, blocked M27 screenshot request evidence, blocked M28 screenshot evidence intake, blocked M29 observe run packet evidence, blocked M30 observe result intake evidence, blocked M36 Live LLM evaluation evidence, and M15 review/gate consistency.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, blocked M23 cycle outcome evidence, blocked M25 next-cycle seed evidence, blocked M26 observe restart evidence, blocked M27 screenshot request evidence, blocked M28 screenshot evidence intake, blocked M29 observe run packet evidence, blocked M30 observe result intake evidence, blocked M36 Live LLM evaluation evidence, blocked M39 beta sign-off evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {
