@@ -286,6 +286,14 @@ m29_observe_canary_run_packet = latest_matching(
     and decoded.get("schemaName")
     == "macos_computer_use_m29_observe_canary_run_packet"
 )
+m30_observe_result_intake = latest_matching(
+    lambda path, decoded: path.name == "observe_result_intake.json"
+    and path.parent.name.startswith(
+        "macos_computer_use_m30_observe_result_intake_"
+    )
+    and decoded.get("schemaName")
+    == "macos_computer_use_m30_observe_result_intake"
+)
 decision = latest_matching(
     lambda path, decoded: path.name == "canary_summary.json"
     and path.parent.name.startswith("macos_computer_use_llm_decision_canary_")
@@ -310,6 +318,7 @@ for name, path in [
     ("DISCOVERED_M27_SCREENSHOT_REQUEST_HANDOFF", m27_screenshot_request_handoff),
     ("DISCOVERED_M28_SCREENSHOT_EVIDENCE_INTAKE", m28_screenshot_evidence_intake),
     ("DISCOVERED_M29_OBSERVE_CANARY_RUN_PACKET", m29_observe_canary_run_packet),
+    ("DISCOVERED_M30_OBSERVE_RESULT_INTAKE", m30_observe_result_intake),
 ]:
     print(f"{name}={shlex.quote(str(path) if path else '')}")
 PY
@@ -383,6 +392,11 @@ M29_OBSERVE_CANARY_RUN_PACKET_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m29_ob
 M29_OBSERVE_CANARY_RUN_PACKET_STATUS="missing"
 M29_OBSERVE_CANARY_RUN_PACKET_NEXT_ACTION="Run the M29 observe canary run packet after M28 screenshot evidence intake is ready."
 M29_OBSERVE_CANARY_RUN_PACKET_BOUNDARY="report-only M14 observe canary run packet, no LLM call, no TCC, no System Settings, no desktop actions"
+M30_OBSERVE_RESULT_INTAKE="${DISCOVERED_M30_OBSERVE_RESULT_INTAKE:-}"
+M30_OBSERVE_RESULT_INTAKE_FRAGMENT="${REPORT_ROOT}/macos_computer_use_m30_observe_result_intake_fragment.md"
+M30_OBSERVE_RESULT_INTAKE_STATUS="missing"
+M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION="Run the M30 observe result intake after the user-produced M14 observe summary is ready."
+M30_OBSERVE_RESULT_INTAKE_BOUNDARY="report-only M14 observe result intake, no LLM call, no TCC, no System Settings, no desktop actions"
 if [[ -n "${M15_ACTION_PROPOSAL_HANDOFF}" && -f "${M15_ACTION_PROPOSAL_HANDOFF}" ]]; then
   m15_action_proposal_values="$(
     M15_ACTION_PROPOSAL_HANDOFF="${M15_ACTION_PROPOSAL_HANDOFF}" M15_ACTION_PROPOSAL_FRAGMENT="${M15_ACTION_PROPOSAL_FRAGMENT}" python3 - <<'PY'
@@ -2126,6 +2140,125 @@ else
 EOF
 fi
 
+if [[ -n "${M30_OBSERVE_RESULT_INTAKE}" && -f "${M30_OBSERVE_RESULT_INTAKE}" ]]; then
+  m30_observe_result_intake_values="$(
+    M30_OBSERVE_RESULT_INTAKE="${M30_OBSERVE_RESULT_INTAKE}" M30_OBSERVE_RESULT_INTAKE_FRAGMENT="${M30_OBSERVE_RESULT_INTAKE_FRAGMENT}" python3 - <<'PY'
+import json
+import os
+import shlex
+from pathlib import Path
+
+
+summary_path = Path(os.environ["M30_OBSERVE_RESULT_INTAKE"])
+fragment_path = Path(os.environ["M30_OBSERVE_RESULT_INTAKE_FRAGMENT"])
+fragment_path.parent.mkdir(parents=True, exist_ok=True)
+
+
+def read_json(path):
+    try:
+        decoded = json.loads(path.read_text())
+    except Exception:
+        return None
+    return decoded if isinstance(decoded, dict) else None
+
+
+def as_list(value):
+    return value if isinstance(value, list) else []
+
+
+def cell(value):
+    text = "-" if value is None else str(value)
+    return text.replace("|", "\\|").replace("\n", "<br>")
+
+
+summary = read_json(summary_path)
+gate = summary.get("m30ObserveResultIntakeGate") if isinstance(summary, dict) else None
+gate = gate if isinstance(gate, dict) else {}
+m14_evidence = summary.get("m14ObserveEvidence") if isinstance(summary, dict) else None
+m14_evidence = m14_evidence if isinstance(m14_evidence, dict) else {}
+commands = summary.get("commands") if isinstance(summary, dict) else None
+commands = commands if isinstance(commands, dict) else {}
+status = str(gate.get("status") or "")
+if not status:
+    if isinstance(summary, dict) and isinstance(summary.get("ready"), bool):
+        status = "ready" if summary.get("ready") is True else "blocked"
+    elif summary is None:
+        status = "blocked"
+    else:
+        status = "unknown"
+next_action = str(gate.get("nextAction") or "")
+if not next_action:
+    next_action = (
+        "Return to M15 action proposal handoff using the ready M14 observe evidence from this intake."
+        if status == "ready"
+        else "Resolve M30 observe result intake blockers before returning to M15."
+    )
+blockers = as_list(gate.get("blockers"))
+if status != "ready" and not blockers and summary is None:
+    blockers = ["m30_observe_result_intake_unreadable"]
+boundary = "report-only M14 observe result intake"
+if isinstance(summary, dict):
+    boundary = (
+        f"{summary.get('llmBoundary', 'unknown_llm_boundary')}, "
+        f"{summary.get('tccBoundary', 'unknown_tcc_boundary')}, "
+        f"{summary.get('desktopActionBoundary', 'unknown_desktop_boundary')}, "
+        f"{summary.get('executionBoundary', 'unknown_execution_boundary')}"
+    )
+checks = as_list(gate.get("checks"))
+
+lines = [
+    "",
+    "## M30 Observe Result Intake",
+    "",
+    f"- M30 observe result intake: `{summary_path}`",
+    f"- M30 observe result intake status: {status}",
+    f"- M30 observe result intake boundary: {boundary}",
+    f"- M30 observe result intake next action: {next_action}",
+    f"- M30 observe result intake blockers: {', '.join(str(item) for item in blockers) if blockers else 'none'}",
+    f"- M30 target app: {summary.get('targetApp', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M30 target intent: {summary.get('targetIntent', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M30 screenshot path: {summary.get('screenshotPath', 'unknown') if isinstance(summary, dict) else 'unknown'}",
+    f"- M30 M14 evidence gate: {m14_evidence.get('gateStatus', 'unknown')}",
+    f"- M30 candidate targets: {m14_evidence.get('candidateTargetCount', 'unknown')}",
+    f"- M30 M15 action proposal command: `{commands.get('m15ActionProposalHandoff', '-')}`",
+]
+if checks:
+    lines.extend([
+        "",
+        "| Check | Status | Next Action |",
+        "| --- | --- | --- |",
+    ])
+    for check in checks:
+        if not isinstance(check, dict):
+            continue
+        lines.append(
+            "| {id} | {status} | {next_action} |".format(
+                id=cell(check.get("id")),
+                status="passed" if check.get("ok") is True else "blocked",
+                next_action=cell(check.get("nextAction")),
+            )
+        )
+
+fragment_path.write_text("\n".join(lines) + "\n")
+print(f"M30_OBSERVE_RESULT_INTAKE_STATUS={shlex.quote(status)}")
+print(f"M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION={shlex.quote(next_action)}")
+print(f"M30_OBSERVE_RESULT_INTAKE_BOUNDARY={shlex.quote(boundary)}")
+PY
+  )"
+  eval "${m30_observe_result_intake_values}"
+else
+  cat >"${M30_OBSERVE_RESULT_INTAKE_FRAGMENT}" <<EOF
+
+## M30 Observe Result Intake
+
+- M30 observe result intake: \`not discovered\`
+- M30 observe result intake status: missing
+- M30 observe result intake boundary: ${M30_OBSERVE_RESULT_INTAKE_BOUNDARY}
+- M30 observe result intake next action: ${M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION}
+- M30 observe result intake blockers: none
+EOF
+fi
+
 manual_tcc_status="not provided"
 if [[ -n "${MANUAL_TCC_REPORT}" ]]; then
   if [[ -f "${MANUAL_TCC_REPORT}" ]]; then
@@ -2257,6 +2390,9 @@ if [[ -n "${M28_SCREENSHOT_EVIDENCE_INTAKE}" && "${M28_SCREENSHOT_EVIDENCE_INTAK
 fi
 if [[ -n "${M29_OBSERVE_CANARY_RUN_PACKET}" && "${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}" != "ready" ]]; then
   blocked_review_evidence+=(m29_observe_canary_run_packet)
+fi
+if [[ -n "${M30_OBSERVE_RESULT_INTAKE}" && "${M30_OBSERVE_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+  blocked_review_evidence+=(m30_observe_result_intake)
 fi
 
 if [[ "${required_input_evidence_ready}" != "1" ]]; then
@@ -2545,6 +2681,8 @@ cat >"${HANDOFF_MD}" <<EOF
 - M28 screenshot evidence intake status: ${M28_SCREENSHOT_EVIDENCE_INTAKE_STATUS}
 - M29 observe canary run packet: ${M29_OBSERVE_CANARY_RUN_PACKET:-not discovered}
 - M29 observe canary run packet status: ${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}
+- M30 observe result intake: ${M30_OBSERVE_RESULT_INTAKE:-not discovered}
+- M30 observe result intake status: ${M30_OBSERVE_RESULT_INTAKE_STATUS}
 
 ## Current Required Input Evidence Status
 
@@ -2595,6 +2733,9 @@ cat >"${HANDOFF_MD}" <<EOF
 - \`m29_observe_canary_run_packet\`: ${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}
 - M29 observe canary run packet boundary: ${M29_OBSERVE_CANARY_RUN_PACKET_BOUNDARY}
 - M29 observe canary run packet next action: ${M29_OBSERVE_CANARY_RUN_PACKET_NEXT_ACTION}
+- \`m30_observe_result_intake\`: ${M30_OBSERVE_RESULT_INTAKE_STATUS}
+- M30 observe result intake boundary: ${M30_OBSERVE_RESULT_INTAKE_BOUNDARY}
+- M30 observe result intake next action: ${M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION}
 
 ## Expected Final Input Paths
 
@@ -2683,6 +2824,7 @@ cat "${M26_OBSERVE_RESTART_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M27_SCREENSHOT_REQUEST_HANDOFF_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M28_SCREENSHOT_EVIDENCE_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
 cat "${M29_OBSERVE_CANARY_RUN_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
+cat "${M30_OBSERVE_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
 
 {
   echo
@@ -2736,6 +2878,9 @@ cat "${M29_OBSERVE_CANARY_RUN_PACKET_FRAGMENT}" >>"${HANDOFF_MD}"
     fi
     if [[ -n "${M29_OBSERVE_CANARY_RUN_PACKET}" && "${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}" != "ready" ]]; then
       echo "- ${M29_OBSERVE_CANARY_RUN_PACKET_NEXT_ACTION}"
+    fi
+    if [[ -n "${M30_OBSERVE_RESULT_INTAKE}" && "${M30_OBSERVE_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+      echo "- ${M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION}"
     fi
   fi
   if [[ "${required_input_evidence_ready}" == "1" && "${#blocked_review_evidence[@]}" -eq 0 ]]; then
@@ -2817,6 +2962,10 @@ echo "  M29 observe canary run packet: ${M29_OBSERVE_CANARY_RUN_PACKET:-not disc
 echo "  M29 observe canary run packet status: ${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}"
 echo "  M29 observe canary run packet boundary: ${M29_OBSERVE_CANARY_RUN_PACKET_BOUNDARY}"
 echo "  M29 observe canary run packet next action: ${M29_OBSERVE_CANARY_RUN_PACKET_NEXT_ACTION}"
+echo "  M30 observe result intake: ${M30_OBSERVE_RESULT_INTAKE:-not discovered}"
+echo "  M30 observe result intake status: ${M30_OBSERVE_RESULT_INTAKE_STATUS}"
+echo "  M30 observe result intake boundary: ${M30_OBSERVE_RESULT_INTAKE_BOUNDARY}"
+echo "  M30 observe result intake next action: ${M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION}"
 echo "  Refresh safe inputs: ${REFRESH_SAFE_INPUTS}"
 echo "  Refresh LLM canary: ${REFRESH_LLM_CANARY}"
 echo "  Final sign-off mode: ${FINAL_SIGNOFF}"
@@ -2898,6 +3047,9 @@ if [[ -n "${M28_SCREENSHOT_EVIDENCE_INTAKE}" && "${M28_SCREENSHOT_EVIDENCE_INTAK
 fi
 if [[ -n "${M29_OBSERVE_CANARY_RUN_PACKET}" && "${M29_OBSERVE_CANARY_RUN_PACKET_STATUS}" != "ready" ]]; then
   echo "  - ${M29_OBSERVE_CANARY_RUN_PACKET_NEXT_ACTION}"
+fi
+if [[ -n "${M30_OBSERVE_RESULT_INTAKE}" && "${M30_OBSERVE_RESULT_INTAKE_STATUS}" != "ready" ]]; then
+  echo "  - ${M30_OBSERVE_RESULT_INTAKE_NEXT_ACTION}"
 fi
 if [[ "${required_input_evidence_ready}" == "1" ]]; then
   echo "  all required input evidence was provided or discovered by this wrapper"

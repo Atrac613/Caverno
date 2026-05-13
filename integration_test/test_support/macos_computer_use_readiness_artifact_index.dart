@@ -116,6 +116,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m27ScreenshotRequestHandoffEntry;
     ReadinessArtifactEntry? m28ScreenshotEvidenceIntakeEntry;
     ReadinessArtifactEntry? m29ObserveCanaryRunPacketEntry;
+    ReadinessArtifactEntry? m30ObserveResultIntakeEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -155,6 +156,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm29_observe_canary_run_packet') {
         m29ObserveCanaryRunPacketEntry = entry;
+      }
+      if (entry.id == 'm30_observe_result_intake') {
+        m30ObserveResultIntakeEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -468,6 +472,37 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m29ObserveCanaryRunPacketEntry.details['gateBlockers']))}',
         );
     }
+    if (m30ObserveResultIntakeEntry != null &&
+        m30ObserveResultIntakeEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M30 Observe Result Intake')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m30ObserveResultIntakeEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target app: ${m30ObserveResultIntakeEntry.details['targetApp'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target intent: ${m30ObserveResultIntakeEntry.details['targetIntent'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Screenshot path: ${m30ObserveResultIntakeEntry.details['screenshotPath'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- M14 evidence gate: ${m30ObserveResultIntakeEntry.details['m14EvidenceGateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- M15 command: ${m30ObserveResultIntakeEntry.details['m15ActionProposalHandoffCommand'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m30ObserveResultIntakeEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m30ObserveResultIntakeEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -610,6 +645,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m29ObserveCanaryRunPacketCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m30ObserveResultIntakeCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M30 observe result intake command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m30ObserveResultIntakeCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -672,6 +716,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m27ScreenshotRequestHandoffCommand,
     this.m28ScreenshotEvidenceIntakeCommand,
     this.m29ObserveCanaryRunPacketCommand,
+    this.m30ObserveResultIntakeCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -696,6 +741,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m27ScreenshotRequestHandoffCommand;
   final String? m28ScreenshotEvidenceIntakeCommand;
   final String? m29ObserveCanaryRunPacketCommand;
+  final String? m30ObserveResultIntakeCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -725,6 +771,7 @@ class ReadinessFinalSignoffRehearsal {
       'm27ScreenshotRequestHandoffCommand': m27ScreenshotRequestHandoffCommand,
       'm28ScreenshotEvidenceIntakeCommand': m28ScreenshotEvidenceIntakeCommand,
       'm29ObserveCanaryRunPacketCommand': m29ObserveCanaryRunPacketCommand,
+      'm30ObserveResultIntakeCommand': m30ObserveResultIntakeCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -1018,6 +1065,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m29ObserveCanaryRunPacketNextAction,
       details: _m29ObserveCanaryRunPacketDetails,
     ),
+    _latestEntry(
+      'm30_observe_result_intake',
+      'Latest M30 observe result intake',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m30_observe_result_intake',
+      parentPrefix: 'macos_computer_use_m30_observe_result_intake_',
+      fileName: 'observe_result_intake.json',
+      status: _m30ObserveResultIntakeStatus,
+      nextAction: _m30ObserveResultIntakeNextAction,
+      details: _m30ObserveResultIntakeDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -1115,6 +1174,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     reportRoot,
     byId,
   );
+  final m30ObserveResultIntakeCommand = _m30ObserveResultIntakeCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -1149,6 +1212,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m27ScreenshotRequestHandoffCommand: m27ScreenshotRequestHandoffCommand,
     m28ScreenshotEvidenceIntakeCommand: m28ScreenshotEvidenceIntakeCommand,
     m29ObserveCanaryRunPacketCommand: m29ObserveCanaryRunPacketCommand,
+    m30ObserveResultIntakeCommand: m30ObserveResultIntakeCommand,
   );
 }
 
@@ -1170,7 +1234,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm26_observe_restart_packet' ||
                 entry.id == 'm27_screenshot_request_handoff' ||
                 entry.id == 'm28_screenshot_evidence_intake' ||
-                entry.id == 'm29_observe_canary_run_packet') &&
+                entry.id == 'm29_observe_canary_run_packet' ||
+                entry.id == 'm30_observe_result_intake') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1554,6 +1619,45 @@ String? _m29ObserveCanaryRunPacketCommand(
     reportRoot.path,
     '--m28-intake',
     m28Path,
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m30ObserveResultIntakeCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final m29Entry = entriesById['m29_observe_canary_run_packet'];
+  final m29Path = m29Entry?.path ?? '';
+  if (m29Path.isEmpty || m29Entry?.status != 'ready') {
+    return null;
+  }
+  if (m29Entry?.details['returnMilestone'] != 'M14') {
+    return null;
+  }
+  final llmEntry = entriesById['llm_canary'];
+  final m14Path = llmEntry?.path ?? '';
+  final hasM14ObserveSummary =
+      m14Path.isNotEmpty &&
+      _basename(
+        File(m14Path).parent.path,
+      ).startsWith('macos_computer_use_real_app_observe_canary_');
+  final m14Json = hasM14ObserveSummary ? _readJsonObject(File(m14Path)) : null;
+  final m14Gate = m14Json?['m14EvidenceGate'];
+  final m14Ready =
+      m14Json?['ready'] == true &&
+      m14Gate is Map &&
+      m14Gate['status'] == 'ready';
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m30_observe_result_intake.sh',
+    '--root',
+    reportRoot.path,
+    '--m29-packet',
+    m29Path,
+    '--m14-summary',
+    hasM14ObserveSummary && m14Ready
+        ? m14Path
+        : '<user-produced-m14-canary-summary.json>',
   ].map(_shellQuote).join(' ');
 }
 
@@ -2668,6 +2772,103 @@ Map<String, Object?> _m29ObserveCanaryRunPacketDetails(
     },
     if (commandsMap != null) ...<String, Object?>{
       'm14ObserveCanaryCommand': commandsMap['m14ObserveCanary']?.toString(),
+      'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
+      'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m30ObserveResultIntakeStatus(Map<String, dynamic> json) {
+  final gate = json['m30ObserveResultIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m30ObserveResultIntakeNextAction(Map<String, dynamic> json) {
+  final gate = json['m30ObserveResultIntakeGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m30ObserveResultIntakeStatus(json);
+  if (status == 'ready') {
+    return 'Return to M15 action proposal handoff using the ready M14 observe evidence from this intake.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M30 observe result intake blockers before returning to M15.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m30ObserveResultIntakeDetails(Map<String, dynamic> json) {
+  final gate = json['m30ObserveResultIntakeGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final sourceAlignment = json['sourceAlignment'];
+  final sourceAlignmentMap = sourceAlignment is Map<String, dynamic>
+      ? sourceAlignment
+      : null;
+  final m14Evidence = json['m14ObserveEvidence'];
+  final m14EvidenceMap = m14Evidence is Map<String, dynamic>
+      ? m14Evidence
+      : null;
+  final nextHandoff = json['nextHandoff'];
+  final nextHandoffMap = nextHandoff is Map<String, dynamic>
+      ? nextHandoff
+      : null;
+  final commands = json['commands'];
+  final commandsMap = commands is Map<String, dynamic> ? commands : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM29ObserveCanaryRunPacket': json['sourceM29ObserveCanaryRunPacket']
+        ?.toString(),
+    'sourceM14ObserveCanarySummary': json['sourceM14ObserveCanarySummary']
+        ?.toString(),
+    'returnToMilestone': json['returnToMilestone']?.toString(),
+    'targetApp': json['targetApp']?.toString(),
+    'targetIntent': json['targetIntent']?.toString(),
+    'screenshotPath': json['screenshotPath']?.toString(),
+    if (sourceAlignmentMap != null) ...<String, Object?>{
+      'targetAppMatches': sourceAlignmentMap['targetAppMatches'],
+      'targetIntentMatches': sourceAlignmentMap['targetIntentMatches'],
+      'screenshotPathMatches': sourceAlignmentMap['screenshotPathMatches'],
+    },
+    if (m14EvidenceMap != null) ...<String, Object?>{
+      'm14EvidenceGateStatus': m14EvidenceMap['gateStatus']?.toString(),
+      'candidateTargetCount': m14EvidenceMap['candidateTargetCount'],
+      'textEntryTargetCount': m14EvidenceMap['textEntryTargetCount'],
+      'publicActionTargetCount': m14EvidenceMap['publicActionTargetCount'],
+      'confirmationRequirementCount':
+          m14EvidenceMap['confirmationRequirementCount'],
+      'observationOnly': m14EvidenceMap['observationOnly'],
+    },
+    if (nextHandoffMap != null) ...<String, Object?>{
+      'nextHandoffReturnMilestone': nextHandoffMap['returnMilestone']
+          ?.toString(),
+      'nextHandoffBoundary': nextHandoffMap['boundary']?.toString(),
+      'nextHandoffCommand': nextHandoffMap['command']?.toString(),
+    },
+    if (commandsMap != null) ...<String, Object?>{
+      'm15ActionProposalHandoffCommand': commandsMap['m15ActionProposalHandoff']
+          ?.toString(),
       'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
       'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
     },

@@ -414,6 +414,36 @@ navigate, submit, post, purchase, grant TCC, operate System Settings, or call
 an LLM. It only freezes the user-operated M14 command and keeps the next step
 explicit.
 
+## M30 Observe Result Intake
+
+Use this pass after the user has manually run the M14 observe-only canary from
+the ready M29 run packet:
+
+1. Select the ready M29 `observe_canary_run_packet.json`.
+2. Select the user-produced M14 real-app observe `canary_summary.json`.
+3. Confirm `m29ObserveCanaryRunPacketGate.status` is `ready`.
+4. Confirm the M29 run packet returns to `M14` and keeps
+   `observe_only_no_desktop_action`.
+5. Confirm the M14 summary reports `milestone: M14`.
+6. Confirm `m14EvidenceGate.status` is `ready`.
+7. Confirm the M14 target app, target intent, and screenshot path match the
+   M29 run packet.
+8. Run
+   `bash tool/run_macos_computer_use_m30_observe_result_intake.sh --m29-packet <observe_canary_run_packet.json> --m14-summary <canary_summary.json>`.
+9. Confirm `m30ObserveResultIntakeGate.status` is `ready`.
+10. Confirm `executionBoundary` is
+    `m14_observe_result_intake_report_only`.
+11. Confirm `desktopActionBoundary` is `no_desktop_action`.
+12. Confirm `tccBoundary` is `no_tcc_operation`.
+13. Confirm `llmBoundary` is `no_llm_call`.
+14. Use the generated M15 action proposal command for the next report-only
+    approval-bound handoff.
+
+Do not use this intake to rerun M14, call an LLM, open apps, capture screens,
+click, type, navigate, submit, post, purchase, grant TCC, or operate System
+Settings. It only validates the user-produced M14 result and prepares the next
+M15 command.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

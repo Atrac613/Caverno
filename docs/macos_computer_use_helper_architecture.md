@@ -378,6 +378,11 @@ Follow-on milestones:
   canary run packet. The packet freezes the exact command the user can run
   next, rechecks the screenshot file, and still avoids LLM calls, TCC,
   System Settings, app launches, screen capture, and desktop actions.
+- M30: Convert the ready M29 run packet plus the user-produced M14 observe
+  summary into a report-only result intake. The intake validates source
+  alignment, the ready M14 evidence gate, observe-only boundaries, and the
+  next M15 action proposal command without calling an LLM, granting TCC,
+  capturing screens, opening apps, or performing desktop actions.
 
 ## Computer Use Live Canary
 

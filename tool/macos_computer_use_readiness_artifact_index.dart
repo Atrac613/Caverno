@@ -145,6 +145,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M29 observe canary run packet command:');
     stdout.writeln(rehearsal.m29ObserveCanaryRunPacketCommand);
   }
+  if (rehearsal.m30ObserveResultIntakeCommand != null) {
+    stdout.writeln('M30 observe result intake command:');
+    stdout.writeln(rehearsal.m30ObserveResultIntakeCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

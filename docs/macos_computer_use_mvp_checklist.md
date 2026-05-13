@@ -221,9 +221,9 @@ fresh runtime evidence is required.
    handoffs. When M23 restarts the observe/action cycle, the same rule applies
    to the M25 next-cycle seed handoff, M26 observe restart packet, M27
    screenshot request handoff, M28 screenshot evidence intake, and M29
-   observe canary run packet. Ready artifacts are surfaced in the handoff;
-   discovered blocked artifacts stop final aggregation until their gate next
-   action is resolved.
+   observe canary run packet, and M30 observe result intake. Ready artifacts
+   are surfaced in the handoff; discovered blocked artifacts stop final
+   aggregation until their gate next action is resolved.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:
@@ -299,6 +299,11 @@ fresh runtime evidence is required.
   M14 observe-only command from M28 screenshot evidence, and keep
   `m14_observe_canary_run_packet_report_only`, `no_tcc_operation`,
   `no_llm_call`, and `no_desktop_action`.
+- `m30_observe_result_intake`: optional review evidence. If present, it must
+  have a ready `m30ObserveResultIntakeGate`, validate the user-produced M14
+  observe result against the M29 run packet, prepare the M15 action proposal
+  handoff command, and keep `m14_observe_result_intake_report_only`,
+  `no_tcc_operation`, `no_llm_call`, and `no_desktop_action`.
 
 ## MVP Fixture App
 
