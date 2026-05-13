@@ -3774,7 +3774,7 @@ class ChatNotifier extends Notifier<ChatState> {
 
   bool _isReasoningTaskProposalPlausible(WorkflowTaskProposalDraft proposal) {
     final suspiciousPattern = RegExp(
-      "(recent context|current state|self-correction|(?:title|targetfiles|validationcommand|notes|tasks)\\s*:|[`'\\\"]\\s*(title|targetfiles|validationcommand|notes|tasks)\\s*[`'\\\"]\\s*:)",
+      "(recent context|current state|self-correction|the prompt says|saved task|task id|(?:title|targetfiles|validationcommand|notes|tasks)\\s*:|[`'\\\"]\\s*(title|targetfiles|validationcommand|notes|tasks)\\s*[`'\\\"]\\s*:)",
       caseSensitive: false,
     );
     for (final task in proposal.tasks) {
@@ -4130,6 +4130,9 @@ class ChatNotifier extends Notifier<ChatState> {
       'or just pick one',
       'what would you like to do next',
       'i will assume',
+      'the prompt says',
+      'saved task',
+      'task id',
     ];
     return blockedFragments.any(normalized.contains);
   }
@@ -4329,10 +4332,85 @@ class ChatNotifier extends Notifier<ChatState> {
     bool projectLooksEmpty,
     ConversationWorkflowSpec workflowSpec,
   ) {
+    final violatesExplicitFirstSlice =
+        _taskProposalViolatesExplicitFirstSliceTargets(
+          finalized.tasks,
+          workflowSpec,
+          projectLooksEmpty: projectLooksEmpty,
+        );
+    if (violatesExplicitFirstSlice) {
+      return true;
+    }
+
     if (!_taskProposalNeedsRetry(original, finalized, projectLooksEmpty)) {
       return false;
     }
     return !_workflowAllowsSingleReadmeTask(finalized, workflowSpec);
+  }
+
+  bool _taskProposalViolatesExplicitFirstSliceTargets(
+    List<ConversationWorkflowTask> tasks,
+    ConversationWorkflowSpec workflowSpec, {
+    required bool projectLooksEmpty,
+  }) {
+    if (!projectLooksEmpty || tasks.isEmpty) {
+      return false;
+    }
+
+    final requiredTargets = _explicitFirstSliceTargetFiles(workflowSpec);
+    if (requiredTargets.isEmpty) {
+      return false;
+    }
+
+    final firstTask = tasks.first;
+    if (_looksLikeVerificationTaskProposal(firstTask)) {
+      return true;
+    }
+
+    final firstTaskTargets = firstTask.targetFiles
+        .map((path) => path.trim().replaceAll('\\', '/').toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    return requiredTargets.any((target) => !firstTaskTargets.contains(target));
+  }
+
+  Set<String> _explicitFirstSliceTargetFiles(
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    final context = [
+      workflowSpec.goal,
+      ...workflowSpec.constraints,
+      ...workflowSpec.acceptanceCriteria,
+      ...workflowSpec.openQuestions,
+    ].join(' ').toLowerCase();
+    if (context.isEmpty) {
+      return const <String>{};
+    }
+
+    final mentionsFirstSlice =
+        context.contains('first slice') ||
+        context.contains('initial slice') ||
+        context.contains('first implementation slice') ||
+        context.contains('initial implementation slice');
+    final constrainsSlice =
+        mentionsFirstSlice &&
+        (context.contains(' only') ||
+            context.contains('limited to') ||
+            context.contains('create only') ||
+            context.contains('contain exactly') ||
+            context.contains('must contain'));
+    if (!constrainsSlice) {
+      return const <String>{};
+    }
+
+    const knownFirstSliceFiles = <String>{
+      'requirements.txt',
+      'readme.md',
+      'pyproject.toml',
+      '.gitignore',
+      'main.py',
+    };
+    return knownFirstSliceFiles.where((path) => context.contains(path)).toSet();
   }
 
   bool _workflowAllowsSingleReadmeTask(

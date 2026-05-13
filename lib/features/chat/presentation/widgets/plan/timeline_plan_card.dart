@@ -57,6 +57,18 @@ class TimelinePlanCard extends StatelessWidget {
         showApproveAction &&
         !canApprove &&
         (isGenerating || chatState.isLoading);
+    final approvalBlockerMessage =
+        showApproveAction &&
+            !canApprove &&
+            !showApproveProgress &&
+            planValidation != null
+        ? 'chat.plan_document_approval_blocked'.tr(
+            namedArgs: {
+              'error':
+                  planValidation.errorMessage ?? 'Plan document is incomplete.',
+            },
+          )
+        : null;
     final canCancel =
         isDraftState ||
         chatState.workflowProposalError != null ||
@@ -164,6 +176,40 @@ class TimelinePlanCard extends StatelessWidget {
               chatState.taskProposalError!,
               style: theme.textTheme.bodySmall?.copyWith(
                 color: theme.colorScheme.error,
+              ),
+            ),
+          ],
+          if (approvalBlockerMessage != null) ...[
+            const SizedBox(height: 10),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: theme.colorScheme.error.withValues(alpha: 0.25),
+                ),
+              ),
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Icon(
+                    Icons.error_outline,
+                    size: 18,
+                    color: theme.colorScheme.error,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      approvalBlockerMessage,
+                      style: theme.textTheme.bodySmall?.copyWith(
+                        color: theme.colorScheme.onErrorContainer,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],

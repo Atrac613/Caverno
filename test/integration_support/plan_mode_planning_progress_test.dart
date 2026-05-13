@@ -158,6 +158,20 @@ void main() {
   });
 
   group('resolvePlanningSubphase', () {
+    test('returns decision while a workflow decision is pending', () {
+      final subphase = resolvePlanningSubphase(
+        hasPendingDecision: true,
+        hasWorkflowDraft: true,
+        hasTaskDraft: true,
+        approvalUiVisible: true,
+        isGeneratingWorkflowProposal: false,
+        isGeneratingTaskProposal: false,
+        logs: const <String>[],
+      );
+
+      expect(subphase, 'decision');
+    });
+
     test('returns taskDraftReady when logs show both drafts are ready', () {
       final subphase = resolvePlanningSubphase(
         hasPendingDecision: false,
@@ -231,5 +245,44 @@ void main() {
         expect(subphase, 'workflowDraftReady');
       },
     );
+
+    test('falls back to generation phases before generic proposal', () {
+      expect(
+        resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          approvalUiVisible: false,
+          isGeneratingWorkflowProposal: false,
+          isGeneratingTaskProposal: true,
+          logs: const <String>[],
+        ),
+        'taskProposal',
+      );
+      expect(
+        resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          approvalUiVisible: false,
+          isGeneratingWorkflowProposal: true,
+          isGeneratingTaskProposal: false,
+          logs: const <String>[],
+        ),
+        'workflowProposal',
+      );
+      expect(
+        resolvePlanningSubphase(
+          hasPendingDecision: false,
+          hasWorkflowDraft: false,
+          hasTaskDraft: false,
+          approvalUiVisible: false,
+          isGeneratingWorkflowProposal: false,
+          isGeneratingTaskProposal: false,
+          logs: const <String>[],
+        ),
+        'proposal',
+      );
+    });
   });
 }

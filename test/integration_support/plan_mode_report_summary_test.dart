@@ -12,6 +12,13 @@ void main() {
           'warnings': const <String>['allowed warning'],
           'allowedWarnings': const <String>['allowed warning'],
           'unexpectedWarnings': const <String>[],
+          'warningDetails': const <Map<String, String>>[
+            <String, String>{
+              'warning': 'allowed warning',
+              'disposition': 'allowed',
+              'reason': 'allowedPattern',
+            },
+          ],
           'scenarioReport': '/tmp/green/report.json',
         },
         <String, Object?>{
@@ -20,6 +27,13 @@ void main() {
           'warnings': const <String>['unexpected warning'],
           'allowedWarnings': const <String>[],
           'unexpectedWarnings': const <String>['unexpected warning'],
+          'warningDetails': const <Map<String, String>>[
+            <String, String>{
+              'warning': 'unexpected warning',
+              'disposition': 'unexpected',
+              'reason': 'requiresInvestigation',
+            },
+          ],
           'scenarioLog': '/tmp/red/log.txt',
         },
       ];
@@ -45,6 +59,107 @@ void main() {
       expect(
         buildPlanModeSuiteWarningSummary(results),
         containsPair('scenariosWithUnexpectedWarnings', 1),
+      );
+
+      final detailSummary = buildPlanModeSuiteWarningDetailSummary(results);
+      expect(detailSummary['totalDetails'], 2);
+      expect(detailSummary['unexpectedDetails'], 1);
+      expect(
+        detailSummary['unexpectedByReason'],
+        containsPair('requiresInvestigation', 1),
+      );
+    });
+
+    test('summarizes report quality blockers with scenario reasons', () {
+      final results = <Map<String, Object?>>[
+        <String, Object?>{
+          'scenario': 'green',
+          'status': 'passed',
+          'approvalPath': planModeApprovalPathUi,
+          'postScenarioSettled': true,
+          'warnings': const <String>['allowed warning'],
+          'allowedWarnings': const <String>['allowed warning'],
+          'unexpectedWarnings': const <String>[],
+          'warningDetails': const <Map<String, String>>[
+            <String, String>{
+              'warning': 'allowed warning',
+              'disposition': 'allowed',
+              'reason': 'allowedPattern',
+            },
+          ],
+        },
+        <String, Object?>{
+          'scenario': 'red',
+          'status': 'failed',
+          'failureClass': 'workflowBlocked',
+          'approvalPath': planModeApprovalPathUnknown,
+          'lastKnownPhase': 'execution',
+          'postScenarioSettled': false,
+          'error': 'No final answer',
+          'warnings': const <String>['unexpected warning'],
+          'allowedWarnings': const <String>[],
+          'unexpectedWarnings': const <String>['unexpected warning'],
+          'warningSummary': const <String, Object>{
+            'details': <Map<String, String>>[
+              <String, String>{
+                'warning': 'unexpected warning',
+                'disposition': 'unexpected',
+                'reason': 'requiresInvestigation',
+              },
+            ],
+          },
+          'taskDrift': const <String, Object?>{
+            'driftDetected': true,
+            'driftReason': 'unexpectedChangedFiles',
+          },
+          'scenarioReport': '/tmp/red/report.json',
+          'scenarioLog': '/tmp/red/log.txt',
+        },
+      ];
+
+      final summary = buildPlanModeSuiteReportQualitySummary(results);
+
+      expect(summary['ready'], isFalse);
+      expect(summary['blockerCount'], 5);
+      expect(summary['blockedScenarioCount'], 1);
+      expect(summary['byReason'], containsPair('workflowBlocked', 1));
+      expect(summary['byReason'], containsPair('requiresInvestigation', 1));
+      expect(summary['byReason'], containsPair('unexpectedChangedFiles', 1));
+      expect(summary['byReason'], containsPair('approvalPathUnknown', 1));
+      expect(summary['byReason'], containsPair('postScenarioDidNotSettle', 1));
+
+      final blockers = summary['blockers'] as List<Object?>;
+      expect(
+        blockers,
+        contains(
+          allOf(
+            containsPair('scenario', 'red'),
+            containsPair('kind', 'unexpectedWarning'),
+            containsPair('reason', 'requiresInvestigation'),
+            containsPair('warning', 'unexpected warning'),
+          ),
+        ),
+      );
+    });
+
+    test('does not require approval path for pre-approval failures', () {
+      final summary = buildPlanModeSuiteReportQualitySummary(const [
+        <String, Object?>{
+          'scenario': 'early_timeout',
+          'status': 'failed',
+          'failureClass': 'overallTimeout',
+          'approvalPath': planModeApprovalPathUnknown,
+          'error': 'Scenario run timed out after 500s.',
+          'phaseTimings': <String, Object?>{},
+        },
+      ]);
+
+      expect(summary['ready'], isFalse);
+      expect(summary['blockerCount'], 1);
+      expect(summary['byReason'], containsPair('overallTimeout', 1));
+      expect(
+        summary['byReason'] as Map<String, Object?>,
+        isNot(containsPair('approvalPathUnknown', 1)),
       );
     });
 

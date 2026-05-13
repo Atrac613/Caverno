@@ -14,6 +14,9 @@ class PlanModeCanaryRunSummary {
     this.lastUpdatedAt,
     this.phaseTimings = const <String, Object?>{},
     this.budgets = const <String, Object?>{},
+    this.reportQualityReady,
+    this.reportQualityBlockerCount = 0,
+    this.reportQualityBlockerReasons = const <String>[],
     this.reportPath,
     this.logPath,
   });
@@ -29,6 +32,9 @@ class PlanModeCanaryRunSummary {
   final String? lastUpdatedAt;
   final Map<String, Object?> phaseTimings;
   final Map<String, Object?> budgets;
+  final bool? reportQualityReady;
+  final int reportQualityBlockerCount;
+  final List<String> reportQualityBlockerReasons;
   final String? reportPath;
   final String? logPath;
 
@@ -45,6 +51,9 @@ class PlanModeCanaryRunSummary {
       'lastUpdatedAt': lastUpdatedAt,
       'phaseTimings': phaseTimings,
       'budgets': budgets,
+      'reportQualityReady': reportQualityReady,
+      'reportQualityBlockerCount': reportQualityBlockerCount,
+      'reportQualityBlockerReasons': reportQualityBlockerReasons,
       'reportPath': reportPath,
       'logPath': logPath,
     };
@@ -170,7 +179,19 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
     final scenarios =
         (suiteReport['scenarios'] as List<dynamic>? ?? const <dynamic>[])
             .whereType<Map<String, dynamic>>();
+    final qualityBlockersByScenario = _qualityBlockersByScenario(suiteReport);
     for (final scenario in scenarios) {
+      final scenarioName = scenario['scenario'] as String? ?? 'unknown';
+      final qualityBlockers =
+          qualityBlockersByScenario[scenarioName] ??
+          const <Map<String, dynamic>>[];
+      final qualityBlockerReasons =
+          qualityBlockers
+              .map((blocker) => blocker['reason']?.toString() ?? 'unknown')
+              .toSet()
+              .toList(growable: false)
+            ..sort();
+      final qualityBlocked = qualityBlockers.isNotEmpty;
       final diagnostics =
           scenario['diagnostics'] as Map<String, dynamic>? ??
           const <String, dynamic>{};
@@ -208,12 +229,18 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
           (scenario['failureClass'] as String?)?.trim().isNotEmpty == true
           ? scenario['failureClass'] as String
           : (scenario['status'] == 'passed' ? 'passed' : 'unclassified');
-      final failureClass = _resolveLogAwareFailureClass(
+      final logAwareFailureClass = _resolveLogAwareFailureClass(
         rawFailureClass,
         logLines,
         lastKnownPhase: resolvedLastKnownPhase,
         activeTaskTitle: resolvedActiveTaskTitle,
       );
+      final failureClass = qualityBlocked && logAwareFailureClass == 'passed'
+          ? 'reportQualityBlocked'
+          : logAwareFailureClass;
+      final status = qualityBlocked && scenario['status'] == 'passed'
+          ? 'failed'
+          : scenario['status'] as String? ?? 'failed';
       failureClassCounts.update(
         failureClass,
         (count) => count + 1,
@@ -221,11 +248,13 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
       );
       runs.add(
         PlanModeCanaryRunSummary(
-          name: scenario['scenario'] as String? ?? 'unknown',
-          status: scenario['status'] as String? ?? 'failed',
+          name: scenarioName,
+          status: status,
           failureClass: failureClass,
           durationMs: scenario['durationMs'] as int? ?? 0,
-          error: scenario['error'] as String?,
+          error:
+              scenario['error'] as String? ??
+              _reportQualityError(qualityBlockerReasons),
           budgetPhase:
               scenario['budgetPhase'] as String? ??
               diagnostics['budgetPhase'] as String?,
@@ -245,6 +274,9 @@ PlanModeCanarySummary buildPlanModeCanarySummary(
                 diagnostics['budgets'] as Map<String, dynamic>? ??
                 const <String, dynamic>{},
           ),
+          reportQualityReady: qualityBlocked ? false : true,
+          reportQualityBlockerCount: qualityBlockers.length,
+          reportQualityBlockerReasons: qualityBlockerReasons,
           reportPath: scenario['scenarioReport'] as String?,
           logPath: logPath,
         ),
@@ -385,4 +417,30 @@ List<Map<String, dynamic>> decodeCanarySuiteReports(List<String> jsonContents) {
   return jsonContents
       .map((content) => jsonDecode(content) as Map<String, dynamic>)
       .toList(growable: false);
+}
+
+Map<String, List<Map<String, dynamic>>> _qualityBlockersByScenario(
+  Map<String, dynamic> suiteReport,
+) {
+  final reportQualitySummary =
+      suiteReport['reportQualitySummary'] as Map<String, dynamic>? ??
+      const <String, dynamic>{};
+  final blockers =
+      (reportQualitySummary['blockers'] as List<dynamic>? ?? const <dynamic>[])
+          .whereType<Map<String, dynamic>>();
+  final byScenario = <String, List<Map<String, dynamic>>>{};
+  for (final blocker in blockers) {
+    final scenario = blocker['scenario']?.toString() ?? 'unknown';
+    byScenario
+        .putIfAbsent(scenario, () => <Map<String, dynamic>>[])
+        .add(blocker);
+  }
+  return byScenario;
+}
+
+String? _reportQualityError(List<String> reasons) {
+  if (reasons.isEmpty) {
+    return null;
+  }
+  return 'Report quality blocked: ${reasons.join(', ')}';
 }

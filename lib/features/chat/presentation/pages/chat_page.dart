@@ -2702,6 +2702,29 @@ class _ChatPageState extends ConsumerState<ChatPage>
     final subtitleKey = projectionIsCurrent
         ? 'chat.plan_document_hydrated_subtitle'
         : 'chat.plan_document_hydrated_stale_subtitle';
+    final completedCount = tasks
+        .where(
+          (task) => task.status == ConversationWorkflowTaskStatus.completed,
+        )
+        .length;
+    final inProgressCount = tasks
+        .where(
+          (task) => task.status == ConversationWorkflowTaskStatus.inProgress,
+        )
+        .length;
+    final blockedCount = tasks
+        .where((task) => task.status == ConversationWorkflowTaskStatus.blocked)
+        .length;
+    final pendingCount = tasks
+        .where((task) => task.status == ConversationWorkflowTaskStatus.pending)
+        .length;
+    final overview = _planExecutionOverview(
+      totalCount: tasks.length,
+      completedCount: completedCount,
+      inProgressCount: inProgressCount,
+      blockedCount: blockedCount,
+      pendingCount: pendingCount,
+    );
 
     return Container(
       width: double.infinity,
@@ -2730,6 +2753,23 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ),
           ),
           const SizedBox(height: 10),
+          _PlanExecutionOverviewCard(
+            title: overview.titleKey.tr(),
+            description: overview.descriptionKey.tr(),
+            completedLabel: 'chat.plan_document_hydrated_summary_completed'.tr(
+              namedArgs: {
+                'completed': completedCount.toString(),
+                'total': tasks.length.toString(),
+              },
+            ),
+            pendingLabel: 'chat.workflow_task_status_pending'.tr(),
+            pendingCount: pendingCount,
+            inProgressLabel: 'chat.workflow_task_status_in_progress'.tr(),
+            inProgressCount: inProgressCount,
+            blockedLabel: 'chat.workflow_task_status_blocked'.tr(),
+            blockedCount: blockedCount,
+          ),
+          const SizedBox(height: 10),
           for (final task in tasks) ...[
             PlanHydratedTaskRow(
               task: task,
@@ -2739,6 +2779,44 @@ class _ChatPageState extends ConsumerState<ChatPage>
           ],
         ],
       ),
+    );
+  }
+
+  _PlanExecutionOverview _planExecutionOverview({
+    required int totalCount,
+    required int completedCount,
+    required int inProgressCount,
+    required int blockedCount,
+    required int pendingCount,
+  }) {
+    if (blockedCount > 0) {
+      return const _PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_blocked_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_blocked_description',
+      );
+    }
+    if (inProgressCount > 0) {
+      return const _PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_active_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_active_description',
+      );
+    }
+    if (pendingCount > 0) {
+      return const _PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_ready_title',
+        descriptionKey: 'chat.plan_document_hydrated_state_ready_description',
+      );
+    }
+    if (totalCount > 0 && completedCount == totalCount) {
+      return const _PlanExecutionOverview(
+        titleKey: 'chat.plan_document_hydrated_state_complete_title',
+        descriptionKey:
+            'chat.plan_document_hydrated_state_complete_description',
+      );
+    }
+    return const _PlanExecutionOverview(
+      titleKey: 'chat.plan_document_hydrated_state_empty_title',
+      descriptionKey: 'chat.plan_document_hydrated_state_empty_description',
     );
   }
 
@@ -9290,6 +9368,97 @@ class _ChatPageState extends ConsumerState<ChatPage>
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _PlanExecutionOverview {
+  const _PlanExecutionOverview({
+    required this.titleKey,
+    required this.descriptionKey,
+  });
+
+  final String titleKey;
+  final String descriptionKey;
+}
+
+class _PlanExecutionOverviewCard extends StatelessWidget {
+  const _PlanExecutionOverviewCard({
+    required this.title,
+    required this.description,
+    required this.completedLabel,
+    required this.pendingLabel,
+    required this.pendingCount,
+    required this.inProgressLabel,
+    required this.inProgressCount,
+    required this.blockedLabel,
+    required this.blockedCount,
+  });
+
+  final String title;
+  final String description;
+  final String completedLabel;
+  final String pendingLabel;
+  final int pendingCount;
+  final String inProgressLabel;
+  final int inProgressCount;
+  final String blockedLabel;
+  final int blockedCount;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          title,
+          style: theme.textTheme.bodyMedium?.copyWith(
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          description,
+          style: theme.textTheme.bodySmall?.copyWith(
+            color: theme.colorScheme.onSurfaceVariant,
+          ),
+        ),
+        const SizedBox(height: 8),
+        Wrap(
+          spacing: 6,
+          runSpacing: 6,
+          children: [
+            _PlanExecutionCountChip(label: completedLabel),
+            _PlanExecutionCountChip(
+              label: '$inProgressLabel: $inProgressCount',
+            ),
+            _PlanExecutionCountChip(label: '$blockedLabel: $blockedCount'),
+            _PlanExecutionCountChip(label: '$pendingLabel: $pendingCount'),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _PlanExecutionCountChip extends StatelessWidget {
+  const _PlanExecutionCountChip({required this.label});
+
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Chip(
+      label: Text(label),
+      visualDensity: VisualDensity.compact,
+      side: BorderSide.none,
+      backgroundColor: theme.colorScheme.surfaceContainerHigh,
+      labelStyle: theme.textTheme.labelSmall?.copyWith(
+        color: theme.colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.w600,
       ),
     );
   }

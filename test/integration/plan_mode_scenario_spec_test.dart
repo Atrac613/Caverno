@@ -66,6 +66,125 @@ void main() {
     );
   });
 
+  test('PM10 live scenario classes stay explicit', () {
+    final scenarios = buildLivePlanModeScenarios();
+    final smokeScenarios = scenarios
+        .where((item) => item.tags.contains('smoke'))
+        .map((item) => item.name)
+        .toSet();
+    final canaryScenarios = scenarios
+        .where((item) => item.tags.contains('canary'))
+        .map((item) => item.name)
+        .toSet();
+
+    expect(smokeScenarios, {
+      'live_host_health_scaffold',
+      'live_cli_entrypoint_decision',
+      'live_clarify_recovery',
+    });
+    expect(canaryScenarios, contains('live_readme_first_canary'));
+    expect(smokeScenarios, isNot(contains('live_readme_first_canary')));
+    expect(smokeScenarios, isNot(contains('live_ping_cli_completion')));
+  });
+
+  test('live host health smoke stops after the first harness task', () {
+    final scenario = buildLivePlanModeScenarios().firstWhere(
+      (item) => item.name == 'live_host_health_scaffold',
+    );
+
+    expect(scenario.harnessTaskExecutionLimit, 1);
+    expect(
+      scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      contains('requirements.txt'),
+    );
+  });
+
+  test('PM10 canary candidates keep promotion evidence explicit', () {
+    final scenarios = buildLivePlanModeScenarios();
+    final readmeCanary = scenarios.firstWhere(
+      (item) => item.name == 'live_readme_first_canary',
+    );
+    final pingCanary = scenarios.firstWhere(
+      (item) => item.name == 'live_ping_cli_completion',
+    );
+
+    expect(
+      readmeCanary.resolvedArtifactExpectations.map((item) => item.path),
+      contains('README.md'),
+    );
+    expect(readmeCanary.savedWorkflowExpectation, isNotNull);
+    expect(
+      readmeCanary.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      contains('README.md'),
+    );
+    expect(readmeCanary.allowedWarningPatterns, isNotEmpty);
+    expect(
+      readmeCanary.logExpectations.map((item) => item.pattern),
+      contains(planModeSavedValidationConvergenceGuardPattern),
+    );
+
+    expect(pingCanary.waitForExecutionCompletion, isTrue);
+    expect(
+      pingCanary.resolvedArtifactExpectations
+          .where((item) => item.shouldExist)
+          .map((item) => item.path),
+      contains('ping_cli.py'),
+    );
+    expect(
+      pingCanary.resolvedArtifactExpectations
+          .where((item) => !item.shouldExist)
+          .map((item) => item.path),
+      allOf(contains('README.md'), contains('requirements.txt')),
+    );
+    expect(pingCanary.savedWorkflowExpectation, isNotNull);
+    expect(
+      pingCanary.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      contains('ping_cli.py'),
+    );
+  });
+
+  test('PM5 live ping canary requires the explicit completion artifact', () {
+    final scenario = buildLivePlanModeScenarios().firstWhere(
+      (item) => item.name == 'live_ping_cli_completion',
+    );
+
+    expect(scenario.userPrompt, contains('root-level ping_cli.py'));
+    expect(scenario.userPrompt, contains('exactly one implementation task'));
+    expect(scenario.userPrompt, contains('Do not create README.md'));
+    expect(
+      scenario.resolvedArtifactExpectations
+          .where((item) => item.shouldExist)
+          .map((item) => item.path),
+      contains('ping_cli.py'),
+    );
+    expect(
+      scenario.resolvedArtifactExpectations
+          .where((item) => !item.shouldExist)
+          .map((item) => item.path),
+      allOf(contains('README.md'), contains('requirements.txt')),
+    );
+    expect(scenario.savedWorkflowExpectation, isNotNull);
+    expect(scenario.savedWorkflowExpectation!.minTaskCount, 1);
+    expect(
+      scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      contains('ping_cli.py'),
+    );
+  });
+
+  test('PM5 clarify recovery live scenario requires a planning decision', () {
+    final scenario = buildLivePlanModeScenarios().firstWhere(
+      (item) => item.name == 'live_clarify_recovery',
+    );
+
+    expect(scenario.decisionSelections.single.optionLabel, 'JSON Report');
+    expect(
+      scenario.uiExpectations.where(
+        (expectation) => expectation.phase == PlanModeUiPhase.decision,
+      ),
+      isNotEmpty,
+    );
+  });
+
   test('counts saved validation convergence guard activations', () {
     final report = buildPlanModeToolLoopConvergenceReport(const <String>[
       '[Tool] Sending in tool-aware mode (MCP)',

@@ -286,6 +286,7 @@ class PlanModeScenarioSpec {
     this.toolCallBatchSizes = const <int>[],
     this.planningProposalTimeout = const Duration(seconds: 5),
     this.waitForExecutionCompletion = false,
+    this.harnessTaskExecutionLimit,
     this.executionCompletionTimeout = const Duration(seconds: 20),
     this.executionStallTimeout = const Duration(seconds: 45),
   });
@@ -309,6 +310,7 @@ class PlanModeScenarioSpec {
   final List<int> toolCallBatchSizes;
   final Duration planningProposalTimeout;
   final bool waitForExecutionCompletion;
+  final int? harnessTaskExecutionLimit;
   final Duration executionCompletionTimeout;
   final Duration executionStallTimeout;
 
@@ -797,6 +799,13 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           notes:
               'Record the remaining open question before implementation proceeds.',
         ),
+        PlanModeScenarioTaskSpec(
+          title: 'Implement the initial monitoring script',
+          targetFiles: <String>['monitor.py'],
+          validationCommand: 'python3 monitor.py --help',
+          notes:
+              'Create the first runnable monitoring slice after the blocker is captured.',
+        ),
       ],
       toolWrites: const <PlanModeScenarioToolWriteSpec>[
         PlanModeScenarioToolWriteSpec(
@@ -826,7 +835,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         stage: ConversationWorkflowStage.implement,
         goal: 'Plan a small monitoring script scaffold.',
-        taskCount: 1,
+        taskCount: 2,
         firstTaskTitle: 'Capture the unresolved reporting blocker',
         openQuestionsContain: <String>[
           'Which report format should the first slice generate?',
@@ -898,6 +907,13 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           notes:
               'Capture the recovered workflow summary in a single planning note.',
         ),
+        PlanModeScenarioTaskSpec(
+          title: 'Implement the minimal health checker entry point',
+          targetFiles: <String>['main.py'],
+          validationCommand: 'python3 main.py --help',
+          notes:
+              'Create the first runnable Python entry point after the plan is documented.',
+        ),
       ],
       toolWrites: const <PlanModeScenarioToolWriteSpec>[
         PlanModeScenarioToolWriteSpec(
@@ -912,7 +928,7 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         stage: ConversationWorkflowStage.implement,
         goal: 'Create a Python host health checker scaffold.',
-        taskCount: 1,
+        taskCount: 2,
         firstTaskTitle: 'Document the recovered scaffold plan',
         openQuestionsContain: <String>[
           'Which host configuration source should the script read first?',
@@ -1036,8 +1052,8 @@ List<PlanModeScenarioSpec> buildPlanModeScenarios() {
           exactCount: 1,
         ),
         PlanModeLogExpectation(
-          pattern: '[ScenarioLLM] continuation stream',
-          exactCount: 0,
+          pattern: '[ScenarioLLM] continuation stream exhausted',
+          exactCount: 1,
         ),
       ],
     ),
@@ -1480,6 +1496,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         PlanModeArtifactExpectation(path: 'requirements.txt'),
       ],
       planningProposalTimeout: const Duration(minutes: 3),
+      harnessTaskExecutionLimit: 1,
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
         firstTaskTargetFilesContain: <String>['requirements.txt'],
@@ -1615,8 +1632,14 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         'CAVERNO_PLAN_MODE_USER_PROMPT',
         fallback:
             'Create a Python CLI script that pings a specific host. '
-            'Generate a reviewable plan first, then keep implementing until '
-            'the approved plan finishes unless you are genuinely blocked.',
+            'Generate a reviewable plan first. The approved implementation '
+            'must contain exactly one implementation task. That task must '
+            'create only the root-level ping_cli.py file. Do not create '
+            'README.md, requirements.txt, test files, or any other project '
+            'files. Implement until that single approved task finishes, '
+            'validate with python3 ping_cli.py --help, then provide a final '
+            'answer that summarizes ping_cli.py and validation evidence '
+            'unless you are genuinely blocked.',
       ),
       projectName: 'tmp-live-ping-cli',
       tags: const <String>['live', 'automation', 'completion'],
@@ -1636,8 +1659,18 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       waitForExecutionCompletion: true,
       executionCompletionTimeout: const Duration(minutes: 3),
       executionStallTimeout: const Duration(seconds: 45),
+      artifactExpectations: const <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(path: 'ping_cli.py'),
+        PlanModeArtifactExpectation(path: 'README.md', shouldExist: false),
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          shouldExist: false,
+        ),
+        PlanModeArtifactExpectation(path: 'test_ping.py', shouldExist: false),
+      ],
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
-        minTaskCount: 2,
+        minTaskCount: 1,
+        firstTaskTargetFilesContain: <String>['ping_cli.py'],
       ),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
@@ -1657,13 +1690,13 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
     PlanModeScenarioSpec(
       name: 'live_clarify_recovery',
       userPrompt:
-          'Create a reviewable plan for a Python host health checker. You may '
-          'ask exactly one planning decision if the scope is still ambiguous, '
-          'and if anything remains unresolved after that, keep it in open '
-          'questions instead of blocking the workflow. Use the exact option '
-          'labels "JSON Report" and "Markdown Report" if you ask about the '
-          'first reporting format. Keep the first implementation slice limited '
-          'to requirements.txt and README.md.',
+          'Create a reviewable plan for a Python host health checker. Before '
+          'you lock the workflow, ask exactly one planning decision about the '
+          'first reporting format using the exact option labels "JSON Report" '
+          'and "Markdown Report". After that decision, keep any remaining '
+          'ambiguity in open questions instead of blocking the workflow. Keep '
+          'the first implementation slice limited to requirements.txt and '
+          'README.md.',
       projectName: 'tmp-live-clarify',
       tags: const <String>['live', 'smoke', 'recovery'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
@@ -1679,6 +1712,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
       ],
       uiExpectations: const <PlanModeUiExpectation>[
+        PlanModeUiExpectation.present(
+          phase: PlanModeUiPhase.decision,
+          text: 'Choose Before Planning',
+        ),
         PlanModeUiExpectation.present(
           phase: PlanModeUiPhase.proposal,
           text: 'Suggested plan',

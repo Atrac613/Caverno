@@ -16,6 +16,8 @@ TAGS="${CAVERNO_PLAN_MODE_TAGS:-}"
 DEVICE="${CAVERNO_PLAN_MODE_DEVICE:-macos}"
 REPORTER="${CAVERNO_PLAN_MODE_REPORTER:-compact}"
 FAIL_ON_WARNINGS="${CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS:-0}"
+PREFLIGHT="${CAVERNO_PLAN_MODE_PREFLIGHT:-1}"
+PREFLIGHT_TIMEOUT_SECONDS="${CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS:-5}"
 
 echo "Running Plan mode live scenarios"
 echo "  Base URL: ${BASE_URL}"
@@ -27,6 +29,20 @@ if [[ -n "${SCENARIOS}" ]]; then
 fi
 if [[ -n "${TAGS}" ]]; then
   echo "  Tags: ${TAGS}"
+fi
+echo "  Endpoint preflight: ${PREFLIGHT}"
+
+if [[ "${PREFLIGHT}" != "0" && "${PREFLIGHT}" != "false" && "${PREFLIGHT}" != "False" ]]; then
+  MODELS_URL="${BASE_URL%/}/models"
+  echo "Checking live endpoint: ${MODELS_URL}"
+  if ! curl -fsS --max-time "${PREFLIGHT_TIMEOUT_SECONDS}" \
+    -H "Authorization: Bearer ${API_KEY}" \
+    "${MODELS_URL}" >/dev/null; then
+    echo "Live endpoint preflight failed: could not reach ${MODELS_URL}." >&2
+    echo "Start the OpenAI-compatible server or set CAVERNO_PLAN_MODE_PREFLIGHT=0 to skip this check." >&2
+    exit 78
+  fi
+  echo "Live endpoint preflight passed"
 fi
 
 cd "${ROOT_DIR}"

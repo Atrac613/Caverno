@@ -10,6 +10,20 @@ class PlanModeApprovalFallbackDecision {
   final bool shouldBypassUi;
   final String approvalPath;
   final String fallbackPath;
+
+  bool get shouldFailMissingUi =>
+      !shouldBypassUi && approvalPath == planModeApprovalPathUnknown;
+
+  String? get bypassLogMessage => shouldBypassUi
+      ? '[Workflow] Proposal approval UI bypassed by live harness'
+      : null;
+
+  String? get bypassHeartbeatSubphase =>
+      shouldBypassUi ? 'proposalUiBypassedForLiveHarness' : null;
+
+  String? get missingUiFailureMessage => shouldFailMissingUi
+      ? 'Plan approval UI was not ready and live harness fallback is unavailable.'
+      : null;
 }
 
 enum PlanModeApprovalUiWaitTimeoutAction {

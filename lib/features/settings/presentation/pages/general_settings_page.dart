@@ -1,10 +1,14 @@
+import 'dart:convert';
+
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter/services.dart';
 
 import '../../../../core/constants/api_constants.dart';
 import '../../../../core/services/google_chat_delivery_service.dart';
 import '../../../../core/utils/debouncer.dart';
+import '../../domain/entities/app_settings.dart';
 import '../providers/model_list_provider.dart';
 import '../providers/settings_notifier.dart';
 
@@ -65,18 +69,395 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
     );
   }
 
-  Widget _buildModelSelector() {
-    final settings = ref.watch(settingsNotifierProvider);
-    final selectedModel = settings.model;
-    final baseUrl = _baseUrlController.text.trim();
-    final apiKey = _apiKeyController.text.trim();
-    final asyncModels = ref.watch(
-      modelListProvider((
-        baseUrl: baseUrl.isEmpty ? ApiConstants.defaultBaseUrl : baseUrl,
-        apiKey: apiKey.isEmpty ? ApiConstants.defaultApiKey : apiKey,
-      )),
-    );
+  String _modelsEndpoint(String baseUrl) {
+    final trimmed = baseUrl.trim().isEmpty
+        ? ApiConstants.defaultBaseUrl
+        : baseUrl.trim();
+    final normalized = trimmed.endsWith('/')
+        ? trimmed.substring(0, trimmed.length - 1)
+        : trimmed;
+    if (normalized.endsWith('/models')) {
+      return normalized;
+    }
+    return '$normalized/models';
+  }
 
+  String _apiKeyStatus(String apiKey) {
+    final normalized = apiKey.trim();
+    if (normalized.isEmpty || normalized == ApiConstants.defaultApiKey) {
+      return 'settings.compatibility_api_key_placeholder'.tr();
+    }
+    return 'settings.compatibility_api_key_configured'.tr();
+  }
+
+  Widget _buildCompatibilityDetail({
+    required IconData icon,
+    required String text,
+  }) {
+    final theme = Theme.of(context);
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Icon(icon, size: 16, color: theme.colorScheme.onSurfaceVariant),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Text(
+            text,
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCompatibilityStatus({
+    required AsyncValue<List<String>> asyncModels,
+    required String baseUrl,
+    required String apiKey,
+    required String selectedModel,
+  }) {
+    final theme = Theme.of(context);
+    final endpoint = _modelsEndpoint(baseUrl);
+
+    return asyncModels.when(
+      data: (models) {
+        final modelAvailable = models.contains(selectedModel);
+        final isWarning = !modelAvailable;
+        final containerColor = isWarning
+            ? theme.colorScheme.tertiaryContainer.withValues(alpha: 0.45)
+            : theme.colorScheme.primaryContainer.withValues(alpha: 0.35);
+        final iconColor = isWarning
+            ? theme.colorScheme.onTertiaryContainer
+            : theme.colorScheme.primary;
+        return Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: containerColor,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(
+              color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Icon(
+                    isWarning
+                        ? Icons.warning_amber_outlined
+                        : Icons.check_circle_outline,
+                    size: 18,
+                    color: iconColor,
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Text(
+                      isWarning
+                          ? 'settings.compatibility_model_missing_title'.tr()
+                          : 'settings.compatibility_connected'.tr(),
+                      style: theme.textTheme.labelLarge?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              _buildCompatibilityDetail(
+                icon: Icons.http_outlined,
+                text: 'settings.compatibility_endpoint'.tr(
+                  namedArgs: {'endpoint': endpoint},
+                ),
+              ),
+              const SizedBox(height: 6),
+              _buildCompatibilityDetail(
+                icon: Icons.memory_outlined,
+                text: 'settings.compatibility_model'.tr(
+                  namedArgs: {'model': selectedModel},
+                ),
+              ),
+              const SizedBox(height: 6),
+              _buildCompatibilityDetail(
+                icon: Icons.key_outlined,
+                text: 'settings.compatibility_api_key'.tr(
+                  namedArgs: {'status': _apiKeyStatus(apiKey)},
+                ),
+              ),
+              if (isWarning) ...[
+                const SizedBox(height: 8),
+                Text(
+                  'settings.compatibility_model_missing_next'.tr(),
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.colorScheme.onTertiaryContainer,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+      },
+      loading: () => const SizedBox.shrink(),
+      error: (_, _) => Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: theme.colorScheme.errorContainer.withValues(alpha: 0.45),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: theme.colorScheme.error.withValues(alpha: 0.25),
+          ),
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.error_outline,
+                  size: 18,
+                  color: theme.colorScheme.error,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'settings.compatibility_preflight_failed_title'.tr(),
+                    style: theme.textTheme.labelLarge?.copyWith(
+                      color: theme.colorScheme.onErrorContainer,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            _buildCompatibilityDetail(
+              icon: Icons.http_outlined,
+              text: 'settings.compatibility_endpoint'.tr(
+                namedArgs: {'endpoint': endpoint},
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildCompatibilityDetail(
+              icon: Icons.memory_outlined,
+              text: 'settings.compatibility_model'.tr(
+                namedArgs: {'model': selectedModel},
+              ),
+            ),
+            const SizedBox(height: 6),
+            _buildCompatibilityDetail(
+              icon: Icons.key_outlined,
+              text: 'settings.compatibility_api_key'.tr(
+                namedArgs: {'status': _apiKeyStatus(apiKey)},
+              ),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'settings.compatibility_preflight_failed_next'.tr(),
+              style: theme.textTheme.bodySmall?.copyWith(
+                color: theme.colorScheme.onErrorContainer,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _supportFailureClassification({
+    required AsyncValue<List<String>> asyncModels,
+    required String selectedModel,
+  }) {
+    return asyncModels.when(
+      data: (models) =>
+          models.contains(selectedModel) ? 'ready' : 'modelNotAvailable',
+      loading: () => 'preflightPending',
+      error: (_, _) => 'endpointPreflightFailed',
+    );
+  }
+
+  List<String>? _loadedModels(AsyncValue<List<String>> asyncModels) {
+    return asyncModels.when(
+      data: (models) => models,
+      loading: () => null,
+      error: (_, _) => null,
+    );
+  }
+
+  Map<String, dynamic> _supportSnapshotMap({
+    required AppSettings settings,
+    required AsyncValue<List<String>> asyncModels,
+    required String baseUrl,
+    required String apiKey,
+  }) {
+    final selectedModel = settings.model.trim().isEmpty
+        ? ApiConstants.defaultModel
+        : settings.model.trim();
+    final loadedModels = _loadedModels(asyncModels);
+    return {
+      'schemaName': 'plan_mode_support_snapshot',
+      'schemaVersion': 1,
+      'generatedAt': DateTime.now().toUtc().toIso8601String(),
+      'settings': {
+        'baseUrl': baseUrl,
+        'modelsEndpoint': _modelsEndpoint(baseUrl),
+        'model': selectedModel,
+        'apiKeyStatus': _apiKeyStatus(apiKey),
+        'demoMode': settings.demoMode,
+        'assistantMode': settings.assistantMode.name,
+        'mcpEnabled': settings.mcpEnabled,
+      },
+      'preflight': {
+        'failureClassification': _supportFailureClassification(
+          asyncModels: asyncModels,
+          selectedModel: selectedModel,
+        ),
+        'availableModelCount': loadedModels?.length,
+        'selectedModelAvailable': loadedModels?.contains(selectedModel),
+      },
+      'artifactPaths': {
+        'deterministicSuiteReport':
+            'build/integration_test_reports/plan_mode_suite_macos_report.json',
+        'liveSuiteReport':
+            'build/integration_test_reports/plan_mode_live_suite_macos_report.json',
+        'pingCanarySummary':
+            'build/integration_test_reports/plan_mode_ping_cli_canary_<timestamp>/canary_summary.json',
+      },
+      'troubleshooting': {
+        'compatibilityDoc': 'docs/plan_mode_model_endpoint_compatibility.md',
+        'releaseChecklist': 'docs/plan_mode_release_readiness_checklist.md',
+        'releaseCandidateGate': 'docs/plan_mode_release_candidate_gate.md',
+        'nextAction':
+            'Attach this snapshot with the latest Plan Mode report artifact before classifying a failure as an app regression.',
+      },
+    };
+  }
+
+  String _supportSnapshotJson({
+    required AppSettings settings,
+    required AsyncValue<List<String>> asyncModels,
+    required String baseUrl,
+    required String apiKey,
+  }) {
+    return const JsonEncoder.withIndent('  ').convert(
+      _supportSnapshotMap(
+        settings: settings,
+        asyncModels: asyncModels,
+        baseUrl: baseUrl,
+        apiKey: apiKey,
+      ),
+    );
+  }
+
+  Future<void> _copySupportSnapshot({
+    required AppSettings settings,
+    required AsyncValue<List<String>> asyncModels,
+    required String baseUrl,
+    required String apiKey,
+  }) async {
+    final snapshot = _supportSnapshotJson(
+      settings: settings,
+      asyncModels: asyncModels,
+      baseUrl: baseUrl,
+      apiKey: apiKey,
+    );
+    await Clipboard.setData(ClipboardData(text: snapshot));
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('settings.plan_mode_support_copied'.tr())),
+    );
+  }
+
+  Widget _buildSupportSnapshotCard({
+    required AppSettings settings,
+    required AsyncValue<List<String>> asyncModels,
+    required String baseUrl,
+    required String apiKey,
+  }) {
+    final theme = Theme.of(context);
+    final classification = _supportFailureClassification(
+      asyncModels: asyncModels,
+      selectedModel: settings.model,
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: theme.colorScheme.surfaceContainerHighest.withValues(
+          alpha: 0.45,
+        ),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: theme.colorScheme.outlineVariant.withValues(alpha: 0.7),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(
+                Icons.support_agent_outlined,
+                size: 18,
+                color: theme.colorScheme.primary,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  'settings.plan_mode_support_title'.tr(),
+                  style: theme.textTheme.labelLarge?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'settings.plan_mode_support_subtitle'.tr(),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'settings.plan_mode_support_classification'.tr(
+              namedArgs: {'classification': classification},
+            ),
+            style: theme.textTheme.bodySmall?.copyWith(
+              color: theme.colorScheme.onSurfaceVariant,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+          const SizedBox(height: 10),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: OutlinedButton.icon(
+              key: const ValueKey('plan-mode-copy-support-snapshot'),
+              onPressed: () => _copySupportSnapshot(
+                settings: settings,
+                asyncModels: asyncModels,
+                baseUrl: baseUrl,
+                apiKey: apiKey,
+              ),
+              icon: const Icon(Icons.copy_outlined, size: 18),
+              label: Text('settings.plan_mode_support_copy'.tr()),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModelSelector({
+    required AsyncValue<List<String>> asyncModels,
+    required String selectedModel,
+  }) {
     return asyncModels.when(
       data: (models) {
         final options = [...models];
@@ -165,6 +546,14 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsNotifierProvider);
     final notifier = ref.read(settingsNotifierProvider.notifier);
+    final baseUrl = _baseUrlController.text.trim().isEmpty
+        ? ApiConstants.defaultBaseUrl
+        : _baseUrlController.text.trim();
+    final apiKey = _apiKeyController.text.trim().isEmpty
+        ? ApiConstants.defaultApiKey
+        : _apiKeyController.text.trim();
+    final modelListConfig = (baseUrl: baseUrl, apiKey: apiKey);
+    final asyncModels = ref.watch(modelListProvider(modelListConfig));
 
     return Scaffold(
       appBar: AppBar(title: Text('settings.menu_general'.tr())),
@@ -232,7 +621,7 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                       const SizedBox(width: 8),
                       IconButton(
                         onPressed: () {
-                          setState(() {});
+                          ref.invalidate(modelListProvider(modelListConfig));
                         },
                         icon: const Icon(Icons.refresh, size: 18),
                         tooltip: 'settings.model_refresh'.tr(),
@@ -241,7 +630,24 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
                     ],
                   ),
                   const SizedBox(height: 8),
-                  _buildModelSelector(),
+                  _buildModelSelector(
+                    asyncModels: asyncModels,
+                    selectedModel: settings.model,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildCompatibilityStatus(
+                    asyncModels: asyncModels,
+                    baseUrl: baseUrl,
+                    apiKey: apiKey,
+                    selectedModel: settings.model,
+                  ),
+                  const SizedBox(height: 12),
+                  _buildSupportSnapshotCard(
+                    settings: settings,
+                    asyncModels: asyncModels,
+                    baseUrl: baseUrl,
+                    apiKey: apiKey,
+                  ),
                   const SizedBox(height: 24),
 
                   // Generation parameters section

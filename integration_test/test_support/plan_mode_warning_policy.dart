@@ -45,6 +45,29 @@ class PlanModeWarningDetail {
   }
 }
 
+List<String> collectPlanModeScenarioWarnings(List<String> logs) {
+  const warningPatterns = <String>[
+    '[Workflow] Workflow proposal parse failed',
+    '[Workflow] Workflow proposal recovered on retry',
+    '[Workflow] Using fallback proposal',
+    '[LLM] Recovered raw text response after create parse failure',
+    'Connection closed before full header was received',
+    '[LLM] streamChatCompletion error:',
+    '[LLM] createChatCompletion error:',
+    '[ChatNotifier] _handleError called',
+  ];
+
+  final warnings = <String>[];
+  for (final line in logs) {
+    final isWarning = warningPatterns.any(line.contains);
+    if (!isWarning || warnings.contains(line)) {
+      continue;
+    }
+    warnings.add(line);
+  }
+  return warnings;
+}
+
 PlanModeWarningSummary summarizeScenarioWarnings({
   required List<String> warnings,
   required List<String> allowedPatterns,

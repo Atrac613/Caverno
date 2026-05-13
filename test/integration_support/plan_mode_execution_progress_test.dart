@@ -5,6 +5,7 @@ import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 
 import '../../integration_test/test_support/plan_mode_execution_progress.dart';
+import '../../integration_test/test_support/plan_mode_heartbeat.dart';
 
 void main() {
   Conversation buildConversation({
@@ -169,6 +170,155 @@ void main() {
           ),
         ]),
         isFalse,
+      );
+    });
+  });
+
+  group('activePlanModeWorkflowTaskTitle', () {
+    test('prefers in-progress, blocked, pending, then the last task', () {
+      expect(
+        activePlanModeWorkflowTaskTitle([
+          const ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Completed task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'In-progress task',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-3',
+            title: 'Blocked task',
+            status: ConversationWorkflowTaskStatus.blocked,
+          ),
+        ]),
+        'In-progress task',
+      );
+      expect(
+        activePlanModeWorkflowTaskTitle([
+          const ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Completed task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Blocked task',
+            status: ConversationWorkflowTaskStatus.blocked,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-3',
+            title: 'Pending task',
+            status: ConversationWorkflowTaskStatus.pending,
+          ),
+        ]),
+        'Blocked task',
+      );
+      expect(
+        activePlanModeWorkflowTaskTitle([
+          const ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Completed task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Pending task',
+            status: ConversationWorkflowTaskStatus.pending,
+          ),
+        ]),
+        'Pending task',
+      );
+      expect(
+        activePlanModeWorkflowTaskTitle([
+          const ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Completed task',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+        ]),
+        'Completed task',
+      );
+      expect(activePlanModeWorkflowTaskTitle(const []), isNull);
+    });
+  });
+
+  group('plan mode execution log counts', () {
+    test('counts content tool, file write, and validation-like events', () {
+      const logs = <String>[
+        '[ContentTool] Appended result to message',
+        '[McpToolService] Executing tool: write_file',
+        '[McpToolService] Executing tool: edit_file',
+        '[McpToolService] Executing tool: rollback_last_file_change',
+        '[McpToolService] Executing tool: local_execute_command',
+        '[McpToolService] Executing tool: run_tests',
+        '[McpToolService] Executing tool: read_file',
+      ];
+
+      expect(countPlanModeContentToolResults(logs), 1);
+      expect(countPlanModeFileWriteExecutions(logs), 3);
+      expect(countPlanModeValidationLikeExecutions(logs), 2);
+    });
+  });
+
+  group('resolvePlanModeExecutionSubphase', () {
+    test('resolves validation, next task, saved task, and fallback phases', () {
+      final now = DateTime(2026, 4, 23, 12);
+
+      expect(
+        resolvePlanModeExecutionSubphase(
+          PlanModePhaseTrace()..validationStartedAt = now,
+          'Validate CLI',
+        ),
+        'validation',
+      );
+      expect(
+        resolvePlanModeExecutionSubphase(
+          PlanModePhaseTrace()..nextTaskStartedAt = now,
+          'Validate CLI',
+        ),
+        'nextTask',
+      );
+      expect(
+        resolvePlanModeExecutionSubphase(
+          PlanModePhaseTrace()..firstTaskStartedAt = now,
+          'Create CLI',
+        ),
+        'savedTask',
+      );
+      expect(
+        resolvePlanModeExecutionSubphase(
+          PlanModePhaseTrace()..firstTaskStartedAt = now,
+          null,
+        ),
+        'execution',
+      );
+      expect(
+        resolvePlanModeExecutionSubphase(PlanModePhaseTrace(), null),
+        'execution',
+      );
+    });
+  });
+
+  group('summarizePlanModeWorkflowTasks', () {
+    test('summarizes task titles and statuses', () {
+      expect(summarizePlanModeWorkflowTasks(const []), 'none');
+      expect(
+        summarizePlanModeWorkflowTasks([
+          const ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Create CLI',
+            status: ConversationWorkflowTaskStatus.completed,
+          ),
+          const ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Validate CLI',
+            status: ConversationWorkflowTaskStatus.inProgress,
+          ),
+        ]),
+        'Create CLI:completed, Validate CLI:inProgress',
       );
     });
   });

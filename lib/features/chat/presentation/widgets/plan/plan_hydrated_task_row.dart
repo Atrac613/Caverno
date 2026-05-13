@@ -28,6 +28,11 @@ class PlanHydratedTaskRow extends StatelessWidget {
     final summary = executionSummary.lastOutcome;
     final validationCommand = executionSummary.lastValidationCommand;
     final blockedSince = executionSummary.blockedSince;
+    final nextStep = _workflowTaskNextStepLabel(
+      status: task.status,
+      validationStatus: validationStatus,
+      hasBlockedReason: blockedReason != null,
+    );
 
     return Container(
       width: double.infinity,
@@ -144,9 +149,39 @@ class PlanHydratedTaskRow extends StatelessWidget {
               value: DateFormat('MM/dd HH:mm').format(blockedSince.toLocal()),
             ),
           ],
+          const SizedBox(height: 6),
+          _PlanTaskDetail(
+            label: 'chat.workflow_task_next_step'.tr(),
+            value: nextStep.tr(),
+          ),
         ],
       ),
     );
+  }
+
+  String _workflowTaskNextStepLabel({
+    required ConversationWorkflowTaskStatus status,
+    required ConversationExecutionValidationStatus validationStatus,
+    required bool hasBlockedReason,
+  }) {
+    if (status == ConversationWorkflowTaskStatus.blocked) {
+      return hasBlockedReason
+          ? 'chat.workflow_task_next_step_blocked'
+          : 'chat.workflow_task_next_step_blocked_missing_reason';
+    }
+    if (validationStatus == ConversationExecutionValidationStatus.failed) {
+      return 'chat.workflow_task_next_step_validation_failed';
+    }
+    return switch (status) {
+      ConversationWorkflowTaskStatus.pending =>
+        'chat.workflow_task_next_step_pending',
+      ConversationWorkflowTaskStatus.inProgress =>
+        'chat.workflow_task_next_step_in_progress',
+      ConversationWorkflowTaskStatus.completed =>
+        'chat.workflow_task_next_step_completed',
+      ConversationWorkflowTaskStatus.blocked =>
+        'chat.workflow_task_next_step_blocked',
+    };
   }
 
   String _workflowTaskStatusLabel(ConversationWorkflowTaskStatus status) {

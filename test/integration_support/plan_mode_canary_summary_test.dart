@@ -82,6 +82,44 @@ void main() {
     expect(summary.runs.single.logPath, '/tmp/canary/run_01_run.log');
   });
 
+  test('treats report quality blockers as failed canary runs', () {
+    final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
+      <String, dynamic>{
+        'reportQualitySummary': <String, dynamic>{
+          'ready': false,
+          'blockerCount': 1,
+          'blockers': <Map<String, dynamic>>[
+            <String, dynamic>{
+              'scenario': 'live_ping_cli_completion',
+              'kind': 'taskDrift',
+              'reason': 'missingExpectedSavedTaskTargetFiles',
+            },
+          ],
+        },
+        'scenarios': <Map<String, dynamic>>[
+          <String, dynamic>{
+            'scenario': 'live_ping_cli_completion',
+            'status': 'passed',
+            'failureClass': 'passed',
+            'budgetPhase': 'completed',
+            'durationMs': 1200,
+          },
+        ],
+      },
+    ]);
+
+    expect(summary.passedCount, 0);
+    expect(summary.failedCount, 1);
+    expect(summary.failureClassCounts['reportQualityBlocked'], 1);
+    expect(summary.runs.single.status, 'failed');
+    expect(summary.runs.single.reportQualityReady, isFalse);
+    expect(summary.runs.single.reportQualityBlockerCount, 1);
+    expect(
+      summary.runs.single.error,
+      contains('missingExpectedSavedTaskTargetFiles'),
+    );
+  });
+
   test('reads last heartbeat details from timeout reports', () {
     final summary = buildPlanModeCanarySummary(<Map<String, dynamic>>[
       <String, dynamic>{

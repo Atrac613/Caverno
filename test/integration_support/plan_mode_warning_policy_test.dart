@@ -3,6 +3,34 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../integration_test/test_support/plan_mode_warning_policy.dart';
 
 void main() {
+  group('collectPlanModeScenarioWarnings', () {
+    test('collects unique scenario warning lines in encounter order', () {
+      const parseWarning = '[Workflow] Workflow proposal parse failed';
+      const transportWarning =
+          '[LLM] streamChatCompletion error: Connection closed before full header was received';
+
+      final warnings = collectPlanModeScenarioWarnings(const <String>[
+        '[Workflow] Workflow proposal ready',
+        parseWarning,
+        '[Tool] local_execute_command completed',
+        transportWarning,
+        parseWarning,
+      ]);
+
+      expect(warnings, const <String>[parseWarning, transportWarning]);
+    });
+
+    test('ignores non-warning harness and workflow progress lines', () {
+      final warnings = collectPlanModeScenarioWarnings(const <String>[
+        '[Workflow] Workflow proposal ready',
+        '[Workflow] Task proposal ready',
+        '[ScenarioLLM] implementation tool call stream',
+      ]);
+
+      expect(warnings, isEmpty);
+    });
+  });
+
   group('summarizeScenarioWarnings', () {
     test(
       'allows recovered create parse warnings after later recovery markers',

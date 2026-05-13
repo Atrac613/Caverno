@@ -1,6 +1,8 @@
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 
+import 'plan_mode_heartbeat.dart';
+
 bool executionLogsContainWorkflowCompleted(List<String> logs) {
   const completionMarkers = <String>[
     'all planned tasks are complete',
@@ -48,6 +50,84 @@ bool executionTasksContainOnlyCompleted(List<ConversationWorkflowTask> tasks) {
       tasks.every(
         (task) => task.status == ConversationWorkflowTaskStatus.completed,
       );
+}
+
+String? activePlanModeWorkflowTaskTitle(List<ConversationWorkflowTask> tasks) {
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.inProgress) {
+      return task.title;
+    }
+  }
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.blocked) {
+      return task.title;
+    }
+  }
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.pending) {
+      return task.title;
+    }
+  }
+  return tasks.isEmpty ? null : tasks.last.title;
+}
+
+int countPlanModeContentToolResults(List<String> logs) {
+  return logs
+      .where(
+        (line) => line.contains('[ContentTool] Appended result to message'),
+      )
+      .length;
+}
+
+int countPlanModeFileWriteExecutions(List<String> logs) {
+  const writeToolPatterns = <String>[
+    '[McpToolService] Executing tool: write_file',
+    '[McpToolService] Executing tool: edit_file',
+    '[McpToolService] Executing tool: create_file',
+    '[McpToolService] Executing tool: update_file',
+    '[McpToolService] Executing tool: delete_file',
+    '[McpToolService] Executing tool: rollback_last_file_change',
+  ];
+  return logs
+      .where(
+        (line) => writeToolPatterns.any((pattern) => line.contains(pattern)),
+      )
+      .length;
+}
+
+int countPlanModeValidationLikeExecutions(List<String> logs) {
+  const validationPatterns = <String>[
+    '[McpToolService] Executing tool: run_tests',
+    '[McpToolService] Executing tool: local_execute_command',
+  ];
+  return logs
+      .where(
+        (line) => validationPatterns.any((pattern) => line.contains(pattern)),
+      )
+      .length;
+}
+
+String resolvePlanModeExecutionSubphase(
+  PlanModePhaseTrace phaseTrace,
+  String? activeTaskTitle,
+) {
+  if (phaseTrace.validationStartedAt != null) {
+    return 'validation';
+  }
+  if (phaseTrace.nextTaskStartedAt != null) {
+    return 'nextTask';
+  }
+  if (phaseTrace.firstTaskStartedAt != null) {
+    return activeTaskTitle == null ? 'execution' : 'savedTask';
+  }
+  return 'execution';
+}
+
+String summarizePlanModeWorkflowTasks(List<ConversationWorkflowTask> tasks) {
+  if (tasks.isEmpty) {
+    return 'none';
+  }
+  return tasks.map((task) => '${task.title}:${task.status.name}').join(', ');
 }
 
 bool shouldRecoverExecutionFromExecutionDocument({

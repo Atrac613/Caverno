@@ -86,6 +86,94 @@ Map<String, Object> buildPlanModeSuiteWarningSummary(
   };
 }
 
+List<Map<String, Object?>> collectPlanModeScenarioWarningDetails(
+  Map<String, Object?> result,
+) {
+  final explicitDetails = _asList(result['warningDetails']);
+  final warningSummary = _asObjectMap(result['warningSummary']);
+  final summaryDetails = _asList(warningSummary['details']);
+  final rawDetails = explicitDetails.isNotEmpty
+      ? explicitDetails
+      : summaryDetails;
+  if (rawDetails.isNotEmpty) {
+    final details = <Map<String, Object?>>[];
+    for (final rawDetail in rawDetails) {
+      final detail = _normalizeScenarioWarningDetail(
+        result: result,
+        detail: _asObjectMap(rawDetail),
+      );
+      if (detail != null) {
+        details.add(detail);
+      }
+    }
+    return details;
+  }
+
+  final details = <Map<String, Object?>>[];
+  for (final warning in _asList(result['allowedWarnings'])) {
+    final detail = _normalizeScenarioWarningDetail(
+      result: result,
+      detail: <String, Object?>{
+        'warning': warning,
+        'disposition': 'allowed',
+        'reason': 'legacyAllowedWarning',
+      },
+    );
+    if (detail != null) {
+      details.add(detail);
+    }
+  }
+  for (final warning in _asList(result['unexpectedWarnings'])) {
+    final detail = _normalizeScenarioWarningDetail(
+      result: result,
+      detail: <String, Object?>{
+        'warning': warning,
+        'disposition': 'unexpected',
+        'reason': 'requiresInvestigation',
+      },
+    );
+    if (detail != null) {
+      details.add(detail);
+    }
+  }
+  return details;
+}
+
+Map<String, Object> buildPlanModeSuiteWarningDetailSummary(
+  List<Map<String, Object?>> suiteResults,
+) {
+  final details = <Map<String, Object?>>[];
+  final byReason = <String, int>{};
+  final unexpectedByReason = <String, int>{};
+
+  for (final result in suiteResults) {
+    for (final detail in collectPlanModeScenarioWarningDetails(result)) {
+      details.add(detail);
+      final reason = detail['reason']?.toString() ?? 'unknown';
+      byReason.update(reason, (count) => count + 1, ifAbsent: () => 1);
+      if (detail['disposition'] != 'allowed') {
+        unexpectedByReason.update(
+          reason,
+          (count) => count + 1,
+          ifAbsent: () => 1,
+        );
+      }
+    }
+  }
+
+  final unexpectedDetails = details
+      .where((detail) => detail['disposition'] != 'allowed')
+      .length;
+  return <String, Object>{
+    'details': details,
+    'totalDetails': details.length,
+    'allowedDetails': details.length - unexpectedDetails,
+    'unexpectedDetails': unexpectedDetails,
+    'byReason': byReason,
+    'unexpectedByReason': unexpectedByReason,
+  };
+}
+
 Map<String, Object> buildPlanModeSuiteTaskDriftSummary(
   List<Map<String, Object?>> suiteResults,
 ) {
@@ -192,6 +280,164 @@ Map<String, Object> buildPlanModeSuiteExecutionPathSummary(
     'liveHarnessApprovalFallback': liveHarnessFallbackCount,
     'unknown': unknownApprovalCount,
     'fallbackScenarios': fallbackScenarios,
+  };
+}
+
+List<Map<String, Object?>> collectPlanModeScenarioQualityBlockers(
+  Map<String, Object?> result,
+) {
+  final blockers = <Map<String, Object?>>[];
+
+  void addBlocker({
+    required String kind,
+    required String reason,
+    String? detail,
+    String? warning,
+  }) {
+    blockers.add(<String, Object?>{
+      'scenario': result['scenario']?.toString() ?? 'unknown',
+      'kind': kind,
+      'reason': reason,
+      if (detail != null && detail.isNotEmpty) 'detail': detail,
+      if (warning != null && warning.isNotEmpty) 'warning': warning,
+      if (result['scenarioReport'] != null)
+        'report': result['scenarioReport'].toString(),
+      if (result['scenarioLog'] != null)
+        'log': result['scenarioLog'].toString(),
+    });
+  }
+
+  if (result['status'] != 'passed') {
+    final failureClass = result['failureClass']?.toString();
+    addBlocker(
+      kind: 'scenarioFailed',
+      reason:
+          failureClass == null ||
+              failureClass.isEmpty ||
+              failureClass == 'passed'
+          ? 'scenarioFailed'
+          : failureClass,
+      detail: result['error']?.toString(),
+    );
+  }
+
+  for (final detail in collectPlanModeScenarioWarningDetails(result)) {
+    if (detail['disposition'] == 'allowed') {
+      continue;
+    }
+    addBlocker(
+      kind: 'unexpectedWarning',
+      reason: detail['reason']?.toString() ?? 'requiresInvestigation',
+      warning: detail['warning']?.toString(),
+    );
+  }
+
+  final taskDrift = _asObjectMap(result['taskDrift']);
+  final driftDetected =
+      taskDrift['driftDetected'] == true || result['taskDriftDetected'] == true;
+  if (driftDetected) {
+    addBlocker(
+      kind: 'taskDrift',
+      reason: taskDrift['driftReason']?.toString() ?? 'taskDriftDetected',
+    );
+  }
+
+  final approvalPath =
+      result['approvalPath']?.toString() ?? planModeApprovalPathUnknown;
+  if (approvalPath == planModeApprovalPathUnknown &&
+      _shouldRequireKnownApprovalPath(result)) {
+    addBlocker(kind: 'unknownApprovalPath', reason: 'approvalPathUnknown');
+  }
+
+  if (result['postScenarioSettled'] == false) {
+    addBlocker(
+      kind: 'postScenarioUnsettled',
+      reason: 'postScenarioDidNotSettle',
+    );
+  }
+
+  return blockers;
+}
+
+bool _shouldRequireKnownApprovalPath(Map<String, Object?> result) {
+  if (result['status'] == 'passed') {
+    return true;
+  }
+
+  final lastKnownPhase = result['lastKnownPhase']?.toString().trim();
+  if (lastKnownPhase != null && lastKnownPhase.isNotEmpty) {
+    return true;
+  }
+
+  final phaseTimings = _asObjectMap(result['phaseTimings']);
+  const approvalOrExecutionMarkers = <String>[
+    'approvalTappedAt',
+    'firstTaskStartedAt',
+    'firstTaskCompletedAt',
+    'nextTaskStartedAt',
+    'validationStartedAt',
+    'lastTaskProgressAt',
+  ];
+  return approvalOrExecutionMarkers.any((key) {
+    final value = phaseTimings[key]?.toString().trim();
+    return value != null && value.isNotEmpty;
+  });
+}
+
+Map<String, Object> buildPlanModeSuiteReportQualitySummary(
+  List<Map<String, Object?>> suiteResults,
+) {
+  final blockers = <Map<String, Object?>>[];
+  final byReason = <String, int>{};
+  final blockedScenarios = <String>{};
+
+  for (final result in suiteResults) {
+    final scenarioBlockers = collectPlanModeScenarioQualityBlockers(result);
+    for (final blocker in scenarioBlockers) {
+      blockers.add(blocker);
+      final reason = blocker['reason']?.toString() ?? 'unknown';
+      byReason.update(reason, (count) => count + 1, ifAbsent: () => 1);
+      blockedScenarios.add(blocker['scenario']?.toString() ?? 'unknown');
+    }
+  }
+
+  return <String, Object>{
+    'ready': blockers.isEmpty,
+    'blockerCount': blockers.length,
+    'blockedScenarioCount': blockedScenarios.length,
+    'byReason': byReason,
+    'blockers': blockers,
+  };
+}
+
+Map<String, Object?>? _normalizeScenarioWarningDetail({
+  required Map<String, Object?> result,
+  required Map<String, Object?> detail,
+}) {
+  final warning = detail['warning']?.toString().trim();
+  if (warning == null || warning.isEmpty) {
+    return null;
+  }
+  final disposition = detail['disposition']?.toString().trim();
+  final normalizedDisposition = disposition == null || disposition.isEmpty
+      ? (_asList(result['allowedWarnings']).contains(warning)
+            ? 'allowed'
+            : 'unexpected')
+      : disposition;
+  final reason = detail['reason']?.toString().trim();
+
+  return <String, Object?>{
+    'scenario': result['scenario']?.toString() ?? 'unknown',
+    'warning': warning,
+    'disposition': normalizedDisposition,
+    'reason': reason == null || reason.isEmpty
+        ? (normalizedDisposition == 'allowed'
+              ? 'allowedWarning'
+              : 'requiresInvestigation')
+        : reason,
+    if (result['scenarioReport'] != null)
+      'report': result['scenarioReport'].toString(),
+    if (result['scenarioLog'] != null) 'log': result['scenarioLog'].toString(),
   };
 }
 

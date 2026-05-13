@@ -12,8 +12,12 @@ void main() {
       );
 
       expect(decision.shouldBypassUi, isFalse);
+      expect(decision.shouldFailMissingUi, isFalse);
       expect(decision.approvalPath, planModeApprovalPathUi);
       expect(decision.fallbackPath, planModeFallbackPathNone);
+      expect(decision.bypassLogMessage, isNull);
+      expect(decision.bypassHeartbeatSubphase, isNull);
+      expect(decision.missingUiFailureMessage, isNull);
     });
 
     test('uses harness fallback only for live LLM scenarios', () {
@@ -23,8 +27,18 @@ void main() {
       );
 
       expect(decision.shouldBypassUi, isTrue);
+      expect(decision.shouldFailMissingUi, isFalse);
       expect(decision.approvalPath, planModeApprovalPathLiveHarnessFallback);
       expect(decision.fallbackPath, planModeFallbackPathLiveHarnessApproval);
+      expect(
+        decision.bypassLogMessage,
+        '[Workflow] Proposal approval UI bypassed by live harness',
+      );
+      expect(
+        decision.bypassHeartbeatSubphase,
+        'proposalUiBypassedForLiveHarness',
+      );
+      expect(decision.missingUiFailureMessage, isNull);
     });
 
     test('does not hide deterministic approval UI failures', () {
@@ -34,8 +48,15 @@ void main() {
       );
 
       expect(decision.shouldBypassUi, isFalse);
+      expect(decision.shouldFailMissingUi, isTrue);
       expect(decision.approvalPath, planModeApprovalPathUnknown);
       expect(decision.fallbackPath, planModeFallbackPathNone);
+      expect(decision.bypassLogMessage, isNull);
+      expect(decision.bypassHeartbeatSubphase, isNull);
+      expect(
+        decision.missingUiFailureMessage,
+        'Plan approval UI was not ready and live harness fallback is unavailable.',
+      );
     });
   });
 

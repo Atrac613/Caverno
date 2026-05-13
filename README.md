@@ -30,6 +30,12 @@
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
 
+## Roadmap
+
+The active milestone roadmap is maintained in
+[`docs/roadmap.md`](docs/roadmap.md). Plan Mode milestones use `PM<number>`,
+while macOS Computer Use keeps the existing `M<number>` milestone series.
+
 ## Requirements
 
 - Flutter 3.41.6 (managed via [FVM](https://fvm.app/))
@@ -179,10 +185,53 @@ Screenshots are saved to device-specific directories and automatically resized t
 
 ## Plan Mode Integration Tests
 
-The repository includes deterministic Plan mode scenarios and an optional live LLM smoke suite.
+The repository includes deterministic Plan mode scenarios, a PM5 live gate, an
+MVP handoff, a release readiness checklist, and a release candidate gate.
 
+For release candidate sign-off, start with
+[`docs/plan_mode_release_candidate_gate.md`](docs/plan_mode_release_candidate_gate.md).
+For release readiness classification, use
+[`docs/plan_mode_release_readiness_checklist.md`](docs/plan_mode_release_readiness_checklist.md).
+For MVP context, use
+[`docs/plan_mode_mvp_handoff.md`](docs/plan_mode_mvp_handoff.md). Additional
+scenario coverage and promotion rules live in
+[`docs/plan_mode_scenario_coverage.md`](docs/plan_mode_scenario_coverage.md).
+Model and endpoint compatibility notes live in
+[`docs/plan_mode_model_endpoint_compatibility.md`](docs/plan_mode_model_endpoint_compatibility.md).
+The user-facing Plan Mode release package lives in
+[`docs/plan_mode_release_package_2026-05-13.md`](docs/plan_mode_release_package_2026-05-13.md).
+The current final release candidate decision lives in
+[`docs/plan_mode_release_candidate_final_signoff_2026-05-13.md`](docs/plan_mode_release_candidate_final_signoff_2026-05-13.md).
+For issue reports, copy the redacted Plan Mode support snapshot from Settings >
+General and attach the latest relevant report path.
+Post-release guardrails, canary cadence, and hotfix rules live in
+[`docs/plan_mode_post_release_guardrails_2026-05-13.md`](docs/plan_mode_post_release_guardrails_2026-05-13.md).
 Additional implementation notes for the ping CLI stabilization work live in
 [`docs/plan_mode_ping_cli_stabilization_playbook.md`](docs/plan_mode_ping_cli_stabilization_playbook.md).
+
+### MVP verification path
+
+Use this shortest path when checking Plan Mode readiness. The release checklist
+defines how these results map to pass, warning, blocker, and environment-blocked
+decisions.
+
+```bash
+CAVERNO_PLAN_MODE_TAGS=smoke \
+flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
+
+flutter analyze
+
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1 \
+tool/run_plan_mode_pm5_live_gate.sh
+```
+
+The PM5 live gate runs the live smoke suite and the ping CLI live canary. Use
+`CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1` only after a fresh live smoke pass when
+you need a faster ping-only rediscovery loop. On failure, the gate prints the
+latest live suite and ping canary artifact paths plus the investigation order.
 
 ### Deterministic suite
 
@@ -190,11 +239,18 @@ Additional implementation notes for the ping CLI stabilization work live in
 flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
 ```
 
-Results are written to `build/integration_test_reports/plan_mode_suite_report.json`, `build/integration_test_reports/plan_mode_suite_report.md`, and `build/integration_test_reports/plan_mode_suite_report.xml`.
+Results are written to `build/integration_test_reports/plan_mode_suite_macos_report.json`, `build/integration_test_reports/plan_mode_suite_macos_report.md`, and `build/integration_test_reports/plan_mode_suite_macos_report.xml`.
 
 ### Live LLM suite
 
-Use the helper script to run the same Plan mode flow against a real OpenAI-compatible endpoint.
+Use the PM5 gate for MVP and release confidence:
+
+```bash
+tool/run_plan_mode_pm5_live_gate.sh
+```
+
+Use the lower-level helper script when you need to run a specific live scenario
+against a real OpenAI-compatible endpoint.
 
 ```bash
 tool/run_plan_mode_live_test.sh
@@ -211,6 +267,18 @@ Set these required environment variables in your shell before running it:
 | `CAVERNO_PLAN_MODE_REPORTER` | No | Defaults to `compact` |
 | `CAVERNO_PLAN_MODE_TAGS` | No | Optional tag filter |
 | `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS` | No | Defaults to `0` |
+| `CAVERNO_PLAN_MODE_PREFLIGHT` | No | Defaults to `1`; set `0` to skip the endpoint `/models` check |
+| `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS` | No | Defaults to `5` |
+
+The PM5 gate also supports these optional variables:
+
+| Variable | Required | Notes |
+|----------|----------|-------|
+| `CAVERNO_PLAN_MODE_PM5_SMOKE_SCENARIOS` | No | Optional scenario filter for the live smoke phase |
+| `CAVERNO_PLAN_MODE_PM5_SMOKE_TAGS` | No | Defaults to `smoke` |
+| `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT` | No | Defaults to `1` |
+| `CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE` | No | Set to `1` to skip the smoke phase |
+| `CAVERNO_PLAN_MODE_PM5_SKIP_PING_CANARY` | No | Set to `1` to skip the ping CLI canary phase |
 
 Example:
 
@@ -229,17 +297,36 @@ Optional filters:
 
 When `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1` is enabled, the suite fails only on unexpected warnings. Scenario-specific expected warnings are still captured in the reports as allowed warnings.
 
+Before launching Flutter, the live helper checks `${CAVERNO_LLM_BASE_URL}/models`
+so an offline endpoint fails quickly instead of waiting for each scenario's
+planning timeout. Set `CAVERNO_PLAN_MODE_PREFLIGHT=0` only when your
+OpenAI-compatible endpoint intentionally does not expose `/models`.
+
 Current live scenario names:
 
 - `live_host_health_scaffold`
 - `live_cli_entrypoint_decision`
+- `live_readme_first_canary`
+- `live_ping_cli_completion`
 - `live_clarify_recovery`
 
 Current live tags:
 
-- `smoke`
+- `artifact`
+- `automation`
+- `canary`
+- `completion`
+- `convergence`
 - `decision`
+- `live`
 - `recovery`
+- `smoke`
+
+The `live_readme_first_canary` scenario is intentionally tagged as a canary
+rather than smoke, so `CAVERNO_PLAN_MODE_TAGS=smoke` keeps the default live
+smoke surface focused on the core approval and recovery flows.
+Use `docs/plan_mode_scenario_coverage.md` before promoting any canary into
+the default smoke surface.
 
 Examples:
 

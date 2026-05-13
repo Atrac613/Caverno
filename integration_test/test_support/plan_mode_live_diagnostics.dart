@@ -191,6 +191,9 @@ PlanModeFailureClass _classifyFailure({
       )) {
     return PlanModeFailureClass.appLaunchTimeout;
   }
+  if (normalizedError.contains('scenario run timed out after')) {
+    return PlanModeFailureClass.overallTimeout;
+  }
 
   if (normalizedError.contains('planning phase timed out') &&
       normalizedError.contains('pendingdecision=true')) {

@@ -35,6 +35,13 @@ void main() {
         'warnings': const <String>['allowed warning'],
         'allowedWarnings': const <String>['allowed warning'],
         'unexpectedWarnings': const <String>[],
+        'warningDetails': const <Map<String, String>>[
+          <String, String>{
+            'warning': 'allowed warning',
+            'disposition': 'allowed',
+            'reason': 'allowedPattern',
+          },
+        ],
         'taskDrift': const <String, Object?>{
           'driftDetected': true,
           'driftReason': 'unexpectedChangedFiles',
@@ -68,6 +75,13 @@ void main() {
         'warnings': const <String>['unexpected warning'],
         'allowedWarnings': const <String>[],
         'unexpectedWarnings': const <String>['unexpected warning'],
+        'warningDetails': const <Map<String, String>>[
+          <String, String>{
+            'warning': 'unexpected warning',
+            'disposition': 'unexpected',
+            'reason': 'requiresInvestigation',
+          },
+        ],
         'screenshots': const <String>['failure.png'],
         'scenarioReport': '/tmp/failure/report.json',
         'scenarioLog': '/tmp/failure/log.txt',
@@ -86,6 +100,11 @@ void main() {
       expect(report['passedCount'], 1);
       expect(report['failedCount'], 1);
       expect(report['warningSummary'], containsPair('unexpectedWarnings', 1));
+      expect(
+        report['warningDetailSummary'],
+        containsPair('unexpectedDetails', 1),
+      );
+      expect(report['reportQualitySummary'], containsPair('blockerCount', 3));
       expect(
         report['toolLoopConvergenceSummary'],
         containsPair('guardActivations', 1),
@@ -113,6 +132,7 @@ void main() {
         markdown,
         contains('- Warnings: 2 total, 1 allowed, 1 unexpected'),
       );
+      expect(markdown, contains('- Report quality: blocked (3 blocker(s))'));
       expect(
         markdown,
         contains('[report](</tmp/caverno reports/live/report.json>)'),
@@ -130,9 +150,12 @@ void main() {
         ),
       );
       expect(markdown, contains('## Task Drift'));
+      expect(markdown, contains('## Report Quality Gate'));
       expect(markdown, contains('## Tool-Loop Convergence'));
       expect(markdown, contains('requirements.txt'));
       expect(markdown, contains('## Unexpected Warnings'));
+      expect(markdown, contains('requiresInvestigation'));
+      expect(markdown, contains('workflowBlocked'));
       expect(markdown, contains('## Live Harness Fallback Paths'));
     });
 
@@ -146,6 +169,23 @@ void main() {
       expect(junit, contains('message="Bad &lt;failure&gt; &amp; details"'));
       expect(junit, contains('unexpectedWarnings=1'));
       expect(junit, contains('unexpectedWarning=unexpected warning'));
+      expect(
+        junit,
+        contains(
+          'warningDetail=unexpected|requiresInvestigation|unexpected warning',
+        ),
+      );
+      expect(
+        junit,
+        contains(
+          'qualityBlocker=unexpectedWarning|requiresInvestigation|unexpected warning',
+        ),
+      );
+      expect(junit, contains('qualityBlocker=scenarioFailed|workflowBlocked'));
+      expect(
+        junit,
+        contains('qualityBlocker=taskDrift|unexpectedChangedFiles'),
+      );
       expect(junit, contains('approvalPath=liveHarnessApprovalFallback'));
       expect(junit, contains('taskDriftDetected=true'));
       expect(junit, contains('taskDriftReason=unexpectedChangedFiles'));

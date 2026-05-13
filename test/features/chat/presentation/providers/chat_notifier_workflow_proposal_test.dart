@@ -682,6 +682,62 @@ Plan: 1. Initialize the Python project structure and requirements.txt.
   });
 
   test(
+    'rejects verification-first plans when the first slice names target files',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Scaffold a Python CLI tool for single-host ping health checks.',
+        constraints: [
+          'First implementation slice: create only requirements.txt and README.md',
+        ],
+        acceptanceCriteria: [
+          'requirements.txt created',
+          'README.md created with usage instructions',
+        ],
+      );
+      final proposal = WorkflowTaskProposalDraft(
+        tasks: const [
+          ConversationWorkflowTask(
+            id: 'task-verify',
+            title: 'Verify project scaffolding',
+            targetFiles: [],
+            validationCommand: 'ls -la',
+            notes: 'Check the starting state.',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-deps',
+            title: 'Create requirements.txt',
+            targetFiles: ['requirements.txt'],
+            validationCommand: 'cat requirements.txt',
+            notes: 'Define initial dependencies.',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-readme',
+            title: 'Create README.md',
+            targetFiles: ['README.md'],
+            validationCommand: 'cat README.md',
+            notes: 'Document setup and usage.',
+          ),
+        ],
+      );
+
+      final finalized = notifier.finalizeTaskProposalForTest(
+        proposal,
+        projectLooksEmpty: true,
+      );
+
+      expect(
+        notifier.taskProposalNeedsRetryForWorkflowForTest(
+          proposal,
+          finalized,
+          true,
+          workflowSpec,
+        ),
+        isTrue,
+      );
+    },
+  );
+
+  test(
     'buildTaskProposalQualityGateFallbackForTest recovers from exhausted task proposal retries',
     () {
       final conversation = Conversation(
@@ -1382,6 +1438,21 @@ Notes: Keep the first version minimal
       'python3 scripts/health_check.py --help',
     );
     expect(proposal.tasks.first.notes, 'Keep the first version minimal');
+  });
+
+  test('rejects prompt-meta task titles from reasoning-only responses', () {
+    final proposal = notifier.parseTaskProposalForTest('''
+<think>
+The user wants me to implement the first task.
+1. Wait, the prompt says if the workspace is empty, include a follow-up task after scaffolding
+Target files:
+- tests/test_ping.py
+Validation command: python3 -m unittest
+Notes: Task ID: a235a3ff
+</think>
+''');
+
+    expect(proposal, isNull);
   });
 
   test('builds clarify fallback proposal from unresolved decisions', () {

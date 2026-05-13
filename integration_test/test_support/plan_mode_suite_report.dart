@@ -113,6 +113,13 @@ Map<String, Object?> buildPlanModeSuiteJsonReport({
   required List<Map<String, Object?>> suiteResults,
 }) {
   final outcomeSummary = buildPlanModeSuiteOutcomeSummary(suiteResults);
+  final warningSummary = buildPlanModeSuiteWarningSummary(suiteResults);
+  final warningDetailSummary = buildPlanModeSuiteWarningDetailSummary(
+    suiteResults,
+  );
+  final reportQualitySummary = buildPlanModeSuiteReportQualitySummary(
+    suiteResults,
+  );
   return <String, Object?>{
     'generatedAt': config.generatedAt.toIso8601String(),
     'suite': config.suiteName,
@@ -127,7 +134,9 @@ Map<String, Object?> buildPlanModeSuiteJsonReport({
     'passedCount': outcomeSummary['passed'],
     'failedCount': outcomeSummary['failed'],
     'outcomeSummary': outcomeSummary,
-    'warningSummary': buildPlanModeSuiteWarningSummary(suiteResults),
+    'warningSummary': warningSummary,
+    'warningDetailSummary': warningDetailSummary,
+    'reportQualitySummary': reportQualitySummary,
     'taskDriftSummary': buildPlanModeSuiteTaskDriftSummary(suiteResults),
     'toolLoopConvergenceSummary': buildPlanModeSuiteToolLoopConvergenceSummary(
       suiteResults,
@@ -172,6 +181,8 @@ String buildPlanModeSuiteJUnitReport({
     final warnings = _asList(result['warnings']);
     final allowedWarnings = _asList(result['allowedWarnings']);
     final unexpectedWarnings = _asList(result['unexpectedWarnings']);
+    final warningDetails = collectPlanModeScenarioWarningDetails(result);
+    final qualityBlockers = collectPlanModeScenarioQualityBlockers(result);
     final reportPath = result['scenarioReport'] as String?;
     final logPath = result['scenarioLog'] as String?;
     final failureClass = (result['failureClass'] as String?) ?? 'passed';
@@ -236,11 +247,17 @@ String buildPlanModeSuiteJUnitReport({
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       'unexpectedWarnings=${unexpectedWarnings.length}',
+      'warningDetails=${warningDetails.length}',
+      'qualityBlockers=${qualityBlockers.length}',
       if (warnings.isNotEmpty) ...warnings.map((warning) => 'warning=$warning'),
       if (allowedWarnings.isNotEmpty)
         ...allowedWarnings.map((warning) => 'allowedWarning=$warning'),
       if (unexpectedWarnings.isNotEmpty)
         ...unexpectedWarnings.map((warning) => 'unexpectedWarning=$warning'),
+      if (warningDetails.isNotEmpty)
+        ...warningDetails.map(_formatWarningDetailSystemOut),
+      if (qualityBlockers.isNotEmpty)
+        ...qualityBlockers.map(_formatQualityBlockerSystemOut),
     ].join('\n');
     if (systemOut.isNotEmpty) {
       buffer.writeln('      <system-out>${_xmlEscape(systemOut)}</system-out>');
@@ -260,6 +277,9 @@ String buildPlanModeSuiteMarkdownReport({
 }) {
   final outcomeSummary = buildPlanModeSuiteOutcomeSummary(suiteResults);
   final warningSummary = buildPlanModeSuiteWarningSummary(suiteResults);
+  final reportQualitySummary = buildPlanModeSuiteReportQualitySummary(
+    suiteResults,
+  );
   final taskDriftSummary = buildPlanModeSuiteTaskDriftSummary(suiteResults);
   final toolLoopConvergenceSummary =
       buildPlanModeSuiteToolLoopConvergenceSummary(suiteResults);
@@ -302,6 +322,10 @@ String buildPlanModeSuiteMarkdownReport({
       '- Warnings: ${warningSummary['warnings']} total, '
       '${warningSummary['allowedWarnings']} allowed, '
       '${warningSummary['unexpectedWarnings']} unexpected',
+    )
+    ..writeln(
+      '- Report quality: ${reportQualitySummary['ready'] == true ? 'ready' : 'blocked'} '
+      '(${reportQualitySummary['blockerCount']} blocker(s))',
     )
     ..writeln('- Task drift: ${taskDriftSummary['detected']} detected')
     ..writeln(
@@ -368,6 +392,20 @@ String buildPlanModeSuiteMarkdownReport({
       ..writeln();
     for (final entry in failureClassCounts.entries) {
       buffer.writeln('- ${entry.key}: ${entry.value}');
+    }
+  }
+
+  final qualityBlockers = _asList(reportQualitySummary['blockers']);
+  if (qualityBlockers.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Report Quality Gate')
+      ..writeln();
+    for (final item in qualityBlockers) {
+      if (item is! Map<String, Object?>) {
+        continue;
+      }
+      buffer.writeln(_formatQualityBlockerMarkdown(item));
     }
   }
 
@@ -472,12 +510,101 @@ void _writeWarningSection(
     ..writeln();
   for (final result in scenarios) {
     final warnings = _asList(result[key]);
-    buffer.writeln('### ${result['scenario']}');
+    final details = collectPlanModeScenarioWarningDetails(result);
+    buffer.writeln(
+      '### ${result['scenario']} '
+              '${_markdownArtifactLink(result['scenarioReport'], 'report')} '
+              '${_markdownArtifactLink(result['scenarioLog'], 'log')}'
+          .trimRight(),
+    );
     for (final warning in warnings) {
-      buffer.writeln('- $warning');
+      final detail = _findWarningDetail(
+        details: details,
+        warning: warning,
+        key: key,
+      );
+      if (detail == null) {
+        buffer.writeln('- $warning');
+      } else {
+        buffer.writeln(
+          '- $warning '
+          '(${detail['disposition']}: ${detail['reason']})',
+        );
+      }
     }
     buffer.writeln();
   }
+}
+
+String _formatQualityBlockerMarkdown(Map<String, Object?> blocker) {
+  final parts = <String>[
+    '- ${_markdownTableCell(blocker['scenario'])}:',
+    _markdownTableCell(blocker['kind']),
+    'reason `${_markdownTableCell(blocker['reason'])}`',
+  ];
+  final warning = blocker['warning'];
+  if (warning != null) {
+    parts.add('warning `${_markdownTableCell(warning)}`');
+  }
+  final detail = blocker['detail'];
+  if (detail != null) {
+    parts.add('detail `${_markdownTableCell(detail)}`');
+  }
+  final reportLink = _markdownArtifactLink(blocker['report'], 'report');
+  if (reportLink != '-') {
+    parts.add(reportLink);
+  }
+  final logLink = _markdownArtifactLink(blocker['log'], 'log');
+  if (logLink != '-') {
+    parts.add(logLink);
+  }
+  return parts.join(' ');
+}
+
+Map<String, Object?>? _findWarningDetail({
+  required List<Map<String, Object?>> details,
+  required Object? warning,
+  required String key,
+}) {
+  final warningText = warning?.toString();
+  for (final detail in details) {
+    if (detail['warning']?.toString() == warningText &&
+        _warningDetailMatchesKey(detail, key)) {
+      return detail;
+    }
+  }
+  return null;
+}
+
+bool _warningDetailMatchesKey(Map<String, Object?> detail, String key) {
+  final disposition = detail['disposition']?.toString();
+  if (key == 'allowedWarnings') {
+    return disposition == 'allowed';
+  }
+  if (key == 'unexpectedWarnings') {
+    return disposition != 'allowed';
+  }
+  return true;
+}
+
+String _formatWarningDetailSystemOut(Map<String, Object?> detail) {
+  return 'warningDetail='
+      '${_systemOutValue(detail['disposition'])}|'
+      '${_systemOutValue(detail['reason'])}|'
+      '${_systemOutValue(detail['warning'])}';
+}
+
+String _formatQualityBlockerSystemOut(Map<String, Object?> blocker) {
+  final warning = blocker['warning'];
+  final warningSuffix = warning == null ? '' : '|${_systemOutValue(warning)}';
+  return 'qualityBlocker='
+      '${_systemOutValue(blocker['kind'])}|'
+      '${_systemOutValue(blocker['reason'])}'
+      '$warningSuffix';
+}
+
+String _systemOutValue(Object? value) {
+  return value?.toString().replaceAll('\n', ' ').replaceAll('|', '/') ?? '';
 }
 
 String _formatFilter(List<String> values) {

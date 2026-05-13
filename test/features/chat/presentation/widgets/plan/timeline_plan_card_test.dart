@@ -141,4 +141,36 @@ void main() {
       expect(find.byType(FilledButton), findsNothing);
     },
   );
+
+  testWidgets('explains why an invalid draft plan cannot be approved', (
+    tester,
+  ) async {
+    final conversation = Conversation(
+      id: 'conversation-3',
+      title: 'Invalid draft plan thread',
+      messages: const [],
+      createdAt: DateTime(2026, 4, 18, 12),
+      updatedAt: DateTime(2026, 4, 18, 12),
+      workspaceMode: WorkspaceMode.coding,
+      planArtifact: const ConversationPlanArtifact(
+        draftMarkdown:
+            '# Plan\n\n## Stage\n\nplan\n\n## Goal\n\nCreate the CLI utility',
+      ),
+    );
+
+    await _pumpTimelinePlanCard(
+      tester,
+      conversation: conversation,
+      isApprovedExpanded: false,
+      isPlanMode: true,
+    );
+
+    expect(
+      find.text(
+        'Cannot approve this plan yet: plan document must include a Tasks section',
+      ),
+      findsOneWidget,
+    );
+    expect(find.text('Approve and start'), findsNothing);
+  });
 }

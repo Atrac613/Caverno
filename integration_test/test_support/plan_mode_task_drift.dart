@@ -1,3 +1,5 @@
+import 'dart:io';
+
 const planModeTaskDriftSourceNone = 'none';
 const planModeTaskDriftSourceSavedTaskTargetFiles = 'savedTaskTargetFiles';
 const planModeTaskDriftSourceActualChangedFiles = 'actualChangedFiles';
@@ -113,6 +115,56 @@ PlanModeTaskDriftReport buildPlanModeTaskDriftReport({
         : driftReasons.first,
     driftReasons: driftReasons,
   );
+}
+
+PlanModeTaskDriftReport buildPlanModeScenarioTaskDriftReport({
+  required Iterable<String> expectedTargetFiles,
+  required Directory scenarioDir,
+  Iterable<String> savedTaskTargetFiles = const <String>[],
+}) {
+  return buildPlanModeTaskDriftReport(
+    expectedTargetFiles: expectedTargetFiles,
+    savedTaskTargetFiles: savedTaskTargetFiles,
+    actualChangedFiles: collectPlanModeScenarioChangedFiles(scenarioDir),
+  );
+}
+
+List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
+  if (!scenarioDir.existsSync()) {
+    return const <String>[];
+  }
+
+  final rootPath = scenarioDir.path.endsWith(Platform.pathSeparator)
+      ? scenarioDir.path
+      : '${scenarioDir.path}${Platform.pathSeparator}';
+  final files = <String>[];
+  for (final entity in scenarioDir.listSync(
+    recursive: true,
+    followLinks: false,
+  )) {
+    if (entity is! File || !entity.path.startsWith(rootPath)) {
+      continue;
+    }
+    final relativePath = entity.path
+        .substring(rootPath.length)
+        .replaceAll(Platform.pathSeparator, '/');
+    final normalizedPath = normalizePlanModeTaskDriftPath(relativePath);
+    if (normalizedPath.isEmpty ||
+        isPlanModeScenarioHarnessArtifact(normalizedPath)) {
+      continue;
+    }
+    files.add(normalizedPath);
+  }
+  files.sort();
+  return files;
+}
+
+bool isPlanModeScenarioHarnessArtifact(String normalizedPath) {
+  return normalizedPath == 'scenario_report.json' ||
+      normalizedPath == 'scenario_log.txt' ||
+      normalizedPath == '.ds_store' ||
+      normalizedPath.endsWith('/.ds_store') ||
+      normalizedPath.endsWith('.png');
 }
 
 List<String> _normalizeUniquePaths(Iterable<String> paths) {

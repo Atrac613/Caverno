@@ -5,14 +5,21 @@ repair workflow that led to a stable `live_ping_cli_completion` canary run.
 
 ## Current Status
 
-- Latest stabilization commit: `b811f0c`
-- Latest validated result: `3/3` short live canary pass
+- Latest stabilization commit: `c9e9dba`
+- Latest validated result: PM5 gate passed with `3/3` live smoke scenarios and
+  `1/1` ping CLI canary run
+- Latest ping canary report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1778555057/canary_summary.json`
 - Primary runner:
-  `tool/run_plan_mode_ping_cli_live_canary.sh "I want to build a Python CLI script that can ping a specific host"`
+  `tool/run_plan_mode_pm5_live_gate.sh`
 
 The goal of this playbook is not to preserve every intermediate experiment.
 It preserves the parts that were repeatedly useful when moving failures from
 `planningTimeout` and `workflowBlocked` to a stable green canary.
+
+For the compact MVP handoff, use
+[`docs/plan_mode_mvp_handoff.md`](plan_mode_mvp_handoff.md). This playbook is
+the deeper stabilization reference when the handoff gate fails.
 
 ## The Core Rule
 
@@ -144,14 +151,75 @@ observed live model tends to rewrite after validation. Deterministic unit tests
 cover the natural-stop path so the product remains correct if a model becomes
 more disciplined.
 
+### PM5 Live Gate
+
+The PM5 gate is the canonical live verification path for MVP handoff. It runs
+the live smoke suite first and then the ping CLI live canary:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1 \
+tool/run_plan_mode_pm5_live_gate.sh
+```
+
+Use these optional switches to narrow rediscovery after a fresh full gate:
+
+- `CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1` to run only the ping CLI canary.
+- `CAVERNO_PLAN_MODE_PM5_SKIP_PING_CANARY=1` to run only the live smoke phase.
+- `CAVERNO_PLAN_MODE_PM5_SMOKE_SCENARIOS=<name>` to focus one smoke scenario.
+- `CAVERNO_PLAN_MODE_PM5_SMOKE_TAGS=smoke` to keep the default smoke surface.
+- `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=3` for a short pass-rate check.
+
+Treat a PM5 gate as healthy when:
+
+- every smoke scenario passes
+- the canary summary has `failedCount: 0`
+- `warningSummary.unexpectedWarnings` is `0`
+- `reportQualitySummary.blockerCount` is `0`
+- the ping canary reports no task drift
+
+The current smoke scenario set is:
+
+- `live_host_health_scaffold`
+- `live_cli_entrypoint_decision`
+- `live_clarify_recovery`
+
+The PM5 gate then runs the ping CLI live canary separately.
+`live_readme_first_canary` remains a targeted canary and is intentionally not
+part of the default smoke tag.
+
+### PM5 Gate Failure Triage
+
+`tool/run_plan_mode_pm5_live_gate.sh` prints a triage artifact index whenever a
+live smoke or ping canary step fails. Start there instead of searching the build
+directory manually.
+
+Use this order:
+
+1. Check endpoint/model prerequisites when the artifact index says reports were
+   not found.
+2. Open the latest `canary_summary.md` for failed run rows and failure classes.
+3. Open the matching `canary_summary.json` for warning, quality, and task drift
+   fields.
+4. Open the `run_*_suite_report.json` linked by the failed row.
+5. Open `run_*_run.log` only after the structured report identifies the branch.
+6. Match the failure class to the failure families in this playbook.
+
+Endpoint and model availability failures belong to release checklist decision
+`blocked: environment`. Workflow failures, unexpected warnings, report quality
+blockers, task drift, and unknown approval paths are app-side release blockers
+unless the release checklist explicitly allows them as warnings.
+
 ### 1x, 3x, and Full Pass
 
 - `1x` is the discovery loop. Use it after a small patch to see whether the
   target failure branch moved.
-- `3x` is the short stability gate. Use it after the `1x` branch is green.
+- `3x` is the short pass-rate check. Use it after the `1x` branch is green.
 - A full pass should include focused unit tests, static analysis, and a clean
-  `3x` live canary. Increase the repeat count only when the remaining risk is
-  model variability rather than a deterministic bug.
+  PM5 live gate. Increase the repeat count only when the remaining risk is model
+  variability rather than a deterministic bug.
 - Use `tool/run_plan_mode_convergence_full_pass.sh` for the saved-validation
   convergence gate. It runs focused regressions, static analysis, and the
   README convergence canary three times by default.
@@ -274,20 +342,22 @@ the goal is to run the deterministic portion of the gate.
 
 ### Live canary
 
-Use a single run to confirm the latest patch, then a three-run pass-rate check.
+Use the PM5 live gate for release confidence. Run the ping-only path after a
+fresh smoke pass when debugging the ping CLI canary in isolation.
 
 ```bash
 CAVERNO_LLM_BASE_URL=... \
 CAVERNO_LLM_API_KEY=... \
 CAVERNO_LLM_MODEL=... \
-CAVERNO_PLAN_MODE_REPEAT_COUNT=1 \
-tool/run_plan_mode_ping_cli_live_canary.sh "I want to build a Python CLI script that can ping a specific host"
+CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1 \
+tool/run_plan_mode_pm5_live_gate.sh
 
 CAVERNO_LLM_BASE_URL=... \
 CAVERNO_LLM_API_KEY=... \
 CAVERNO_LLM_MODEL=... \
-CAVERNO_PLAN_MODE_REPEAT_COUNT=3 \
-tool/run_plan_mode_ping_cli_live_canary.sh "I want to build a Python CLI script that can ping a specific host"
+CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1 \
+CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=3 \
+tool/run_plan_mode_pm5_live_gate.sh
 ```
 
 ### Artifact locations
@@ -314,7 +384,7 @@ Read these first:
 
 ## Recommended Debug Loop
 
-1. Run a fresh `1x` canary.
+1. Run a fresh PM5 gate or a ping-only `1x` after a recent smoke pass.
 2. Open `canary_summary.md` and start from the failed row's failure class.
 3. Follow the summary's artifact paths: report first, log second.
 4. Build or update a replay fixture for that exact branch.
@@ -322,8 +392,8 @@ Read these first:
 6. Patch the smallest layer that can prevent the failure:
    proposal gate, guardrail, coordinator, handoff logic, or harness.
 7. Re-run focused tests.
-8. Re-run `1x`.
-9. Only then re-run `3x`.
+8. Re-run the ping-only `1x`.
+9. Only then re-run the full PM5 gate or a `3x` pass-rate check.
 
 This loop was more effective than trying to patch multiple speculative causes
 at once.
@@ -495,10 +565,11 @@ plan artifact first.
 Before merging this branch back:
 
 1. `flutter analyze`
-2. Focused tests for the touched proposal/guardrail/progress files
-3. `1x` live canary pass
-4. `3x` live canary pass-rate check
-5. Review the latest `canary_summary.md` for any non-app-logic noise
+2. Focused tests for touched production, harness, or documentation policy files
+3. Deterministic smoke pass when Plan Mode behavior changed
+4. PM5 live gate pass for release or MVP handoff changes
+5. Review the latest `canary_summary.md` and MVP handoff for warnings,
+   blockers, task drift, and endpoint prerequisites
 
 ## What To Watch Next
 

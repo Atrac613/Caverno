@@ -7,6 +7,17 @@ import '../../integration_test/test_support/plan_mode_live_diagnostics.dart';
 
 void main() {
   group('buildPlanModeFailureDiagnostics', () {
+    test('classifies scenario run timeout as overall timeout', () {
+      final diagnostics = buildPlanModeFailureDiagnostics(
+        logs: const <String>[],
+        errorText:
+            'TimeoutException after 0:08:20.000000: Scenario run timed out after 500s.',
+      );
+
+      expect(diagnostics.failureClass, PlanModeFailureClass.overallTimeout);
+      expect(diagnostics.budgetPhase, 'overall');
+    });
+
     test('classifies execution stalls and extracts recent context', () {
       final diagnostics = buildPlanModeFailureDiagnostics(
         logs: const <String>[
@@ -60,10 +71,7 @@ void main() {
         errorText: fixture['errorText'] as String,
       );
 
-      expect(
-        diagnostics.failureClass.name,
-        fixture['expectedFailureClass'],
-      );
+      expect(diagnostics.failureClass.name, fixture['expectedFailureClass']);
       expect(
         diagnostics.activeTaskTitle,
         'Verify ping functionality with a real host',
@@ -252,10 +260,7 @@ void main() {
             'Execution phase timed out after 120s. isLoading=false, pendingApprovals=false, activeTask=none, toolResults=0, fileWrites=0, tasks=none',
       );
 
-      expect(
-        diagnostics.failureClass,
-        PlanModeFailureClass.executionStateLost,
-      );
+      expect(diagnostics.failureClass, PlanModeFailureClass.executionStateLost);
       expect(diagnostics.budgetPhase, 'execution');
     });
 
