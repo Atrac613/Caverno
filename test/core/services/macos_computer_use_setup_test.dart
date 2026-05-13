@@ -139,6 +139,10 @@ void main() {
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M40 production launch evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('M15 review/gate consistency'),
     );
     expect(
@@ -172,6 +176,10 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m39BetaSignoffCommand,
       contains('run_macos_computer_use_m39_beta_signoff.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m40ProductionLaunchGateCommand,
+      contains('run_macos_computer_use_m40_production_launch_gate.sh'),
     );
   });
 

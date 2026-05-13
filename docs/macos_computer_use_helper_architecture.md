@@ -487,7 +487,14 @@ surface until the user intentionally enables it.
 - M40: Cut the production launch gate. Release is allowed only when the signed
   artifact, notarization, helper identity, manual TCC runbook, Live LLM evidence,
   audit export, emergency stop, privacy copy, and support diagnostics all have
-  passing evidence attached to the release checklist.
+  passing evidence attached to the release checklist. Implemented as
+  `bash tool/run_macos_computer_use_m40_production_launch_gate.sh`. The report
+  schema is `macos_computer_use_m40_production_launch_gate`; it records
+  `launchReviewSummary`, signed artifact evidence, notarization evidence,
+  helper identity evidence, manual TCC runbook evidence, M36 Live LLM evidence,
+  M37 audit/privacy evidence, emergency stop evidence, privacy copy evidence,
+  support diagnostics evidence, M39 beta sign-off evidence, and
+  `automationBoundary: read_reports_only`.
 
 ## Computer Use Live Canary
 

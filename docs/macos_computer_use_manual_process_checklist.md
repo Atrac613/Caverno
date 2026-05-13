@@ -609,6 +609,38 @@ Do not use M39 to grant TCC, open System Settings, capture screens, click,
 type, navigate, submit, post, purchase, or operate desktop apps. M39 only reads
 existing reports and user-provided beta checklist evidence.
 
+## M40 Production Launch Gate
+
+Use this pass only when the release checklist is ready to decide whether
+Computer Use can ship to production:
+
+1. Write or refresh the launch checklist template:
+   `bash tool/run_macos_computer_use_m40_production_launch_gate.sh --write-template`.
+2. Attach signed artifact evidence from the M7 release artifact sign-off.
+3. Attach M33 release packaging evidence.
+4. Attach notarization ticket and stapler validation evidence in the M40 launch
+   checklist.
+5. Attach helper identity diagnostics that include M38 install migration
+   guardrails.
+6. Attach manual TCC runbook evidence.
+7. Attach ready M36 Live LLM evaluation evidence.
+8. Attach ready M37 audit/privacy diagnostics and confirm the launch checklist
+   records audit export sign-off.
+9. Attach emergency stop, privacy copy, and support diagnostics sign-off in the
+   M40 launch checklist.
+10. Attach ready M39 internal beta sign-off evidence.
+11. Run
+    `bash tool/run_macos_computer_use_m40_production_launch_gate.sh --launch-checklist <m40-launch-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --manual-tcc-report <manual-tcc-summary.json> --m36-live-llm-eval <canary_summary.json> --m39-beta-signoff <macos_computer_use_m39_beta_signoff.json> --diagnostics <computer-use-diagnostics.json>`.
+12. Confirm `schemaName` is
+    `macos_computer_use_m40_production_launch_gate`.
+13. Confirm `launchReviewSummary.status` is
+    `ready_for_production_launch`.
+14. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M40 to notarize, grant TCC, open System Settings, capture screens,
+click, type, navigate, submit, post, purchase, or operate desktop apps. M40 only
+reads release checklist evidence and existing reports.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.
