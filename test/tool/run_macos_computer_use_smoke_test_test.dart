@@ -378,6 +378,14 @@ void main() {
       architectureDoc,
       contains('macos_computer_use_m36_live_llm_eval_summary'),
     );
+    expect(
+      architectureDoc,
+      contains('M37: Add product-grade audit and privacy controls'),
+    );
+    expect(
+      architectureDoc,
+      contains('macos_computer_use_audit_privacy_controls'),
+    );
     expect(architectureDoc, contains('M40: Cut the production launch gate'));
     expect(architectureDoc, contains('M15 review/gate consistency scope'));
     expect(architectureDoc, contains('blockedReviewEvidence'));
@@ -6658,6 +6666,7 @@ void main() {
     expect(manualProcessChecklist, contains('M29 Observe Canary Run Packet'));
     expect(manualProcessChecklist, contains('M30 Observe Result Intake'));
     expect(manualProcessChecklist, contains('M36 Live LLM Evaluation'));
+    expect(manualProcessChecklist, contains('M37 Audit Privacy Controls'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -6675,6 +6684,7 @@ void main() {
     expect(manualProcessChecklist, contains('m29ObserveCanaryRunPacketGate'));
     expect(manualProcessChecklist, contains('m30ObserveResultIntakeGate'));
     expect(manualProcessChecklist, contains('m36LiveLlmEvaluationGate'));
+    expect(manualProcessChecklist, contains('m37AuditPrivacyGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -6727,6 +6737,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m36_live_llm_eval.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('macos_computer_use_audit_privacy_controls'),
     );
     expect(
       manualProcessChecklist,

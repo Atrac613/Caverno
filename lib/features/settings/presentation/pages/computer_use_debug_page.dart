@@ -1504,6 +1504,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastAction: _lastAction,
       lastResult: _lastResultForDiagnostics,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
+      auditPrivacyControls: MacosComputerUseAuditLog.instance.privacyControls,
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
@@ -1727,6 +1728,22 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     ].join(' | ');
   }
 
+  String _auditPrivacyControlsSummary() {
+    final controls = MacosComputerUseAuditLog.instance.privacyControls;
+    final requiredEvents = controls['requiredEventTypes'];
+    final redactedFields = controls['redactedFieldIds'];
+    return [
+      'M37 audit/privacy controls: ${controls['status']}',
+      'Status: ${controls['status']}',
+      'Local-only: ${controls['localOnly']}',
+      'User-exportable: ${controls['userExportable']}',
+      'Default export redacted: ${controls['defaultExportRedacted']}',
+      'Explicit payload export required: ${controls['explicitPayloadExportRequired']}',
+      if (requiredEvents is List) 'Events: ${requiredEvents.join(', ')}',
+      if (redactedFields is List) 'Redacts: ${redactedFields.join(', ')}',
+    ].join(' | ');
+  }
+
   String _mvpEvidencePreflightSummary() {
     return [
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
@@ -1738,6 +1755,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
       'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
       _productionActionPolicySummary(),
+      _auditPrivacyControlsSummary(),
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',

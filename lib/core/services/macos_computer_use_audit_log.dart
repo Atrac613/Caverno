@@ -104,6 +104,31 @@ class MacosComputerUseAuditLog {
   MacosComputerUseAuditLog({this.maxEntries = 100});
 
   static final instance = MacosComputerUseAuditLog();
+  static const requiredEventTypes = <String>[
+    'observe',
+    'approval',
+    'execution_handoff',
+    'emergency_stop',
+    'result_review',
+  ];
+  static const redactedFieldIds = <String>[
+    'secrets',
+    'api_keys',
+    'tokens',
+    'authorization_headers',
+    'passwords',
+    'screenshots',
+    'image_base64',
+    'audio_payloads',
+    'typed_text',
+    'raw_tool_payloads',
+  ];
+  static const explicitExportRequiredFieldIds = <String>[
+    'screenshots',
+    'audio_payloads',
+    'typed_text',
+    'raw_tool_payloads',
+  ];
 
   final int maxEntries;
   final List<MacosComputerUseAuditEntry> _entries = [];
@@ -112,7 +137,41 @@ class MacosComputerUseAuditLog {
       List<MacosComputerUseAuditEntry>.unmodifiable(_entries);
 
   List<Map<String, dynamic>> get redactedEntries {
-    return _entries.map((entry) => entry.toJson()).toList(growable: false);
+    return _entries
+        .map((entry) => _redactAuditMap(entry.toJson()))
+        .toList(growable: false);
+  }
+
+  Map<String, dynamic> get privacyControls {
+    final coverage = _eventCoverage(redactedEntries);
+    return {
+      'schemaName': 'macos_computer_use_audit_privacy_controls',
+      'schemaVersion': 1,
+      'milestone': 'M37',
+      'status': 'defined',
+      'localOnly': true,
+      'userExportable': true,
+      'defaultExportRedacted': true,
+      'explicitPayloadExportRequired': true,
+      'retentionPolicy': {
+        'type': 'bounded_ring_buffer',
+        'maxEntries': maxEntries,
+      },
+      'requiredEventTypes': requiredEventTypes,
+      'redactedFieldIds': redactedFieldIds,
+      'explicitExportRequiredFieldIds': explicitExportRequiredFieldIds,
+      'm37AuditPrivacyGate': {
+        'status': 'ready',
+        'policyDefined': true,
+        'localUserExportableAudit': true,
+        'redactionDefault': true,
+        'explicitPayloadExportRequired': true,
+        'requiredEventTypes': requiredEventTypes,
+      },
+      'latestAuditCoverage': coverage,
+      'nextAction':
+          'Export diagnostics for redacted audit evidence; export raw screenshots, audio, or typed text only through an explicit user artifact flow.',
+    };
   }
 
   void clear() {
@@ -175,7 +234,9 @@ class MacosComputerUseAuditLog {
       postActionObservationSchemaName: _stringValue(
         observationDecoded?['schemaName'],
       ),
-      postActionObservationTarget: _mapValue(observationDecoded?['target']),
+      postActionObservationTarget: _redactedMapValue(
+        observationDecoded?['target'],
+      ),
       postActionObservationCoordinateSpace: _stringValue(
         observationDecoded?['coordinateSpace'],
       ),
@@ -214,6 +275,101 @@ class MacosComputerUseAuditLog {
       return Map<String, dynamic>.from(value);
     }
     return null;
+  }
+
+  Map<String, dynamic>? _redactedMapValue(Object? value) {
+    final redacted = _redactAuditValue(value);
+    if (redacted is Map) {
+      return Map<String, dynamic>.from(redacted);
+    }
+    return null;
+  }
+
+  Map<String, dynamic> _redactAuditMap(Map<String, dynamic> value) {
+    return Map<String, dynamic>.from(_redactAuditValue(value) as Map);
+  }
+
+  Object? _redactAuditValue(Object? value, [String parentKey = '']) {
+    if (_isSensitiveKey(parentKey)) {
+      if (value is Map && value['redacted'] == true) {
+        return value;
+      }
+      if (value is String) {
+        return {'redacted': true, 'length': value.length};
+      }
+      return '<redacted>';
+    }
+    if (value is Map) {
+      return value.map<String, Object?>((key, child) {
+        final keyText = '$key';
+        return MapEntry(keyText, _redactAuditValue(child, keyText));
+      });
+    }
+    if (value is List) {
+      return value.map((child) => _redactAuditValue(child, parentKey)).toList();
+    }
+    return value;
+  }
+
+  bool _isSensitiveKey(String key) {
+    final normalized = key.toLowerCase();
+    return normalized.contains('base64') ||
+        normalized.contains('screenshot') ||
+        normalized.contains('audio') && normalized.contains('payload') ||
+        normalized.contains('token') ||
+        normalized.contains('secret') ||
+        normalized.contains('apikey') ||
+        normalized.contains('api_key') ||
+        normalized.contains('authorization') ||
+        normalized.contains('password') ||
+        normalized == 'text' ||
+        normalized == 'typedtext' ||
+        normalized == 'typed_text' ||
+        normalized == 'exacttext' ||
+        normalized == 'exact_text' ||
+        normalized.contains('rawpayload') ||
+        normalized.contains('raw_payload');
+  }
+
+  Map<String, dynamic> _eventCoverage(List<Map<String, dynamic>> entries) {
+    bool hasWhere(bool Function(Map<String, dynamic> entry) test) =>
+        entries.any(test);
+    final coverage = <String, bool>{
+      'observe': hasWhere((entry) => entry['toolCategory'] == 'observation'),
+      'approval': hasWhere(
+        (entry) =>
+            entry['requiresUserApproval'] == true &&
+            entry['approvalResult'] != 'not_required',
+      ),
+      'execution_handoff': hasWhere(
+        (entry) =>
+            entry['toolCategory'] == 'windowFocus' ||
+            entry['toolCategory'] == 'pointerInput' ||
+            entry['toolCategory'] == 'keyboardInput' ||
+            entry['toolCategory'] == 'audio',
+      ),
+      'emergency_stop': hasWhere((entry) => entry['emergencyStop'] == true),
+      'result_review': hasWhere(
+        (entry) => entry['postActionObservationToolName'] is String,
+      ),
+    };
+    return {
+      'status': coverage.values.every((value) => value)
+          ? 'complete'
+          : 'partial',
+      'entryCount': entries.length,
+      'coveredEventTypes': coverage.entries
+          .where((entry) => entry.value)
+          .map((entry) => entry.key)
+          .toList(growable: false),
+      'missingEventTypes': coverage.entries
+          .where((entry) => !entry.value)
+          .map((entry) => entry.key)
+          .toList(growable: false),
+      'checks': coverage.entries
+          .map((entry) => {'id': entry.key, 'ok': entry.value})
+          .toList(growable: false),
+    };
   }
 
   String? _fallbackReason({

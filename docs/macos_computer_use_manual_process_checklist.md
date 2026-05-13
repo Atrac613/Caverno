@@ -530,6 +530,30 @@ Do not use M36 to capture screenshots, grant TCC, click, type, navigate, submit,
 post, purchase, or operate System Settings. It is only a Live LLM evaluation
 artifact for Computer Use decision quality.
 
+## M37 Audit Privacy Controls
+
+Use this pass when Computer Use diagnostics are exported for product sign-off or
+support review:
+
+1. Copy or export Computer Use diagnostics from the Computer Use settings or
+   debug surface.
+2. Confirm `auditPrivacyControls.schemaName` is
+   `macos_computer_use_audit_privacy_controls`.
+3. Confirm `m37AuditPrivacyGate.status` is `ready`.
+4. Confirm `requiredEventTypes` includes observe, approval, execution handoff,
+   emergency stop, and result review.
+5. Confirm `defaultExportRedacted` is `true`.
+6. Confirm `explicitPayloadExportRequired` is `true`.
+7. Confirm `redactedFieldIds` includes secrets, screenshots, tokens,
+   audio payloads, raw tool payloads, and typed text.
+8. Confirm `latestAuditCoverage` is present. It may be partial before a full
+   user-operated cycle, but missing coverage should be resolved before
+   production launch sign-off.
+
+Do not include raw screenshots, audio payloads, tokens, secrets, typed text, or
+raw tool payloads in ordinary diagnostics. Export those artifacts only through a
+separate explicit user-approved artifact flow.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

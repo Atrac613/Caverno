@@ -462,6 +462,11 @@ surface until the user intentionally enables it.
   should record local, user-exportable audit events for observe, approval,
   execution handoff, emergency stop, and result review while redacting secrets,
   screenshots, tokens, and typed text unless the user explicitly exports them.
+  Implemented as `auditPrivacyControls` in exported Computer Use diagnostics
+  with schema `macos_computer_use_audit_privacy_controls`. The gate records the
+  required event types, bounded local retention, default redaction, explicit
+  payload-export requirements, and latest audit coverage without storing raw
+  screenshots, audio payloads, tokens, secrets, raw tool payloads, or typed text.
 - M38: Build install, update, and migration guardrails. Upgrades must preserve
   the helper identity when possible, detect when TCC must be regranted, explain
   why regranting is needed, and prevent old helper processes from handling new

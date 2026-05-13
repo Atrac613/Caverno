@@ -205,6 +205,10 @@ void main() {
         'status': 'defined',
         'phaseOrder': ['observe', 'approval_packet'],
       },
+      auditPrivacyControls: const {
+        'schemaName': 'macos_computer_use_audit_privacy_controls',
+        'm37AuditPrivacyGate': {'status': 'ready'},
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -261,6 +265,10 @@ void main() {
       MacosComputerUseOperationBoundary.values,
     );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
+    expect(
+      diagnostics['auditPrivacyControls'],
+      containsPair('schemaName', 'macos_computer_use_audit_privacy_controls'),
+    );
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
     expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));

@@ -293,7 +293,7 @@ class _ComputerUseOnboardingCardState
               leading: const Icon(Icons.query_stats_outlined),
               title: const Text('Diagnostics'),
               subtitle: const Text(
-                'Runtime status, saved smoke reports, and redacted audit log.',
+                'Runtime status, saved smoke reports, redacted audit log, and privacy controls.',
               ),
               children: [
                 Align(
@@ -857,6 +857,7 @@ class _ComputerUseOnboardingCardState
       helperIpcProtocol: MacosComputerUseIpc.current.toJson(),
       helperIpcRuntime: helperIpcRuntime,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
+      auditPrivacyControls: MacosComputerUseAuditLog.instance.privacyControls,
       lastAction: _lastActionLabel(),
       lastResult: {
         'helperStatus': _helperStatus,

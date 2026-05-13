@@ -60,6 +60,15 @@ void main() {
     expect(find.text('MVP Artifact Paths'), findsOneWidget);
     expect(find.text('MVP PR Review Summary'), findsOneWidget);
     expect(
+      find.textContaining('M37 audit/privacy controls: defined'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Explicit payload export required: true'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Redacts: secrets, api_keys'), findsOneWidget);
+    expect(
       find.textContaining(
         'release_artifact, canary_history, manual_tcc, desktop_action_canary, llm_canary',
       ),
@@ -764,6 +773,13 @@ void main() {
       contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
     );
     expect(text, contains('"auditLog"'));
+    expect(text, contains('"auditPrivacyControls"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_audit_privacy_controls"'),
+    );
+    expect(text, contains('"m37AuditPrivacyGate"'));
+    expect(text, contains('"explicitPayloadExportRequired": true'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));

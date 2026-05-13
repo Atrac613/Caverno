@@ -161,6 +161,13 @@ void main() {
       contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
     );
     expect(text, contains('"auditLog"'));
+    expect(text, contains('"auditPrivacyControls"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_audit_privacy_controls"'),
+    );
+    expect(text, contains('"m37AuditPrivacyGate"'));
+    expect(text, contains('"explicitPayloadExportRequired": true'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
     expect(text, contains('"xpcNextParityCommands"'));
@@ -170,7 +177,9 @@ void main() {
 
     expect(find.text('Diagnostics'), findsOneWidget);
     expect(
-      find.text('Runtime status, saved smoke reports, and redacted audit log.'),
+      find.text(
+        'Runtime status, saved smoke reports, redacted audit log, and privacy controls.',
+      ),
       findsOneWidget,
     );
 

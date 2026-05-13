@@ -471,6 +471,7 @@ class MacosComputerUseOnboardingDiagnostics {
     this.lastAction,
     this.lastResult,
     this.auditLog = const [],
+    this.auditPrivacyControls,
     this.lastLiveSmokeReport,
     this.lastExistingHelperProbeReport,
     this.lastDiagnosticExportPath,
@@ -509,6 +510,7 @@ class MacosComputerUseOnboardingDiagnostics {
   final String? lastAction;
   final Object? lastResult;
   final List<Map<String, dynamic>> auditLog;
+  final Map<String, dynamic>? auditPrivacyControls;
   final Map<String, dynamic>? lastLiveSmokeReport;
   final Map<String, dynamic>? lastExistingHelperProbeReport;
   final String? lastDiagnosticExportPath;
@@ -547,6 +549,7 @@ class MacosComputerUseOnboardingDiagnostics {
       'lastAction': lastAction,
       'lastResult': lastResult,
       'auditLog': auditLog,
+      'auditPrivacyControls': auditPrivacyControls,
       'lastLiveSmokeReport': lastLiveSmokeReport,
       'lastExistingHelperProbeReport': lastExistingHelperProbeReport,
       if (lastDiagnosticExportPath != null)
