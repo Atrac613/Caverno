@@ -301,6 +301,7 @@ summary = {
     "milestone": "M15",
     "previousMilestone": "M14",
     "ready": ready,
+    "executionBoundary": "approval_bound_action_proposal_report_only",
     "tccBoundary": "no_tcc_operation",
     "desktopActionBoundary": "no_desktop_action",
     "llmBoundary": "no_llm_call",

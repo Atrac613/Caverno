@@ -4890,6 +4890,175 @@ void main() {
     }
   });
 
+  test('Computer Use M30 return command generates ready M15 handoff', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_m30_to_m15_handoff_test_',
+    );
+    try {
+      final screenshot = File('${root.path}/target.png')
+        ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+      final m29Packet = File('${root.path}/observe_canary_run_packet.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m29_observe_canary_run_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m29_observe_canary_run_packet",
+  "milestone": "M29",
+  "previousMilestone": "M28",
+  "ready": true,
+  "executionBoundary": "m14_observe_canary_run_packet_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "Safari",
+  "targetIntent": "Prepare to type \\"good morning\\" into the compose field after approval.",
+  "screenshotEvidence": {
+    "path": "${screenshot.path}",
+    "exists": true,
+    "sizeBytes": 8,
+    "extension": ".png"
+  },
+  "m14ObserveRunPacket": {
+    "required": true,
+    "readyForUserOperation": true,
+    "userOperated": true,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "targetApp": "Safari",
+    "targetIntent": "Prepare to type \\"good morning\\" into the compose field after approval.",
+    "screenshotPath": "${screenshot.path}"
+  },
+  "commands": {
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --root ${root.path} --screenshot ${screenshot.path}"
+  },
+  "m29ObserveCanaryRunPacketGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+      final m14Summary = File('${root.path}/canary_summary.json')
+        ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_real_app_observe_canary_summary",
+  "schemaVersion": 1,
+  "purpose": "computer_use_real_app_observe_canary",
+  "milestone": "M14",
+  "ready": true,
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "targetApp": "Safari",
+  "targetIntent": "Prepare to type \\"good morning\\" into the compose field after approval.",
+  "screenshotPath": "${screenshot.path}",
+  "visionDecision": "Safari compose screen is visible.",
+  "observedApp": "Safari",
+  "visibleAppWindow": true,
+  "observationOnly": true,
+  "requiresUserApprovalBeforeAction": true,
+  "candidateTargets": [
+    {
+      "label": "Compose text field",
+      "role": "text_field",
+      "risk": "input"
+    },
+    {
+      "label": "Post",
+      "role": "public_submit",
+      "risk": "public_action"
+    }
+  ],
+  "confirmationRequirements": [
+    "Ask the user to approve the exact text before typing.",
+    "Ask the user to approve the public post action."
+  ],
+  "actionPlan": [
+    {"tool": "computer_vision_observe"}
+  ],
+  "m14EvidenceGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+      final m30Result = await Process.run('bash', [
+        'tool/run_macos_computer_use_m30_observe_result_intake.sh',
+        '--root',
+        root.path,
+        '--m29-packet',
+        m29Packet.path,
+        '--m14-summary',
+        m14Summary.path,
+      ]);
+
+      expect(
+        m30Result.exitCode,
+        0,
+        reason: '${m30Result.stdout}\n${m30Result.stderr}',
+      );
+      final m30SummaryFile = Directory(root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .singleWhere(
+            (file) => file.path.endsWith('observe_result_intake.json'),
+          );
+      final m30Summary =
+          jsonDecode(m30SummaryFile.readAsStringSync()) as Map<String, dynamic>;
+      final commands = m30Summary['commands'] as Map<String, dynamic>;
+      expect(
+        commands['m15ActionProposalHandoff'],
+        'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary ${m14Summary.path}',
+      );
+
+      final m15Result = await Process.run('bash', [
+        'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+        '--root',
+        root.path,
+        '--m14-summary',
+        m14Summary.path,
+      ]);
+
+      expect(
+        m15Result.exitCode,
+        0,
+        reason: '${m15Result.stdout}\n${m15Result.stderr}',
+      );
+      expect('${m15Result.stdout}', contains('Ready: true'));
+      final m15SummaryFile = Directory(root.path)
+          .listSync(recursive: true)
+          .whereType<File>()
+          .singleWhere(
+            (file) => file.path.endsWith('action_proposal_handoff.json'),
+          );
+      final m15Summary =
+          jsonDecode(m15SummaryFile.readAsStringSync()) as Map<String, dynamic>;
+      final m15Gate =
+          m15Summary['m15ActionProposalGate'] as Map<String, dynamic>;
+
+      expect(m15Summary['milestone'], 'M15');
+      expect(m15Summary['previousMilestone'], 'M14');
+      expect(m15Summary['sourceM14Summary'], m14Summary.path);
+      expect(
+        m15Summary['executionBoundary'],
+        'approval_bound_action_proposal_report_only',
+      );
+      expect(m15Summary['desktopActionBoundary'], 'no_desktop_action');
+      expect(m15Summary['tccBoundary'], 'no_tcc_operation');
+      expect(m15Summary['llmBoundary'], 'no_llm_call');
+      expect(m15Gate['status'], 'ready');
+      expect(m15Gate['ready'], isTrue);
+      expect(m15Summary['approvalBoundActionProposal'], isNotEmpty);
+      expect(m15Summary['textEntryTargets'], isNotEmpty);
+      expect(m15Summary['publicActionTargets'], isNotEmpty);
+      expect(m15Summary['confirmationRequirements'], isNotEmpty);
+      expect(m15Summary['exactTextCandidates'], isNotEmpty);
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
   test(
     'Computer Use M30 observe result intake blocks mismatched M14',
     () async {
