@@ -374,6 +374,10 @@ Follow-on milestones:
   binds the screenshot path to the next M14 observe-only command without
   opening apps, capturing screens, calling an LLM, granting TCC, or performing
   desktop actions.
+- M29: Convert ready M28 screenshot evidence into a report-only M14 observe
+  canary run packet. The packet freezes the exact command the user can run
+  next, rechecks the screenshot file, and still avoids LLM calls, TCC,
+  System Settings, app launches, screen capture, and desktop actions.
 
 ## Computer Use Live Canary
 

@@ -388,6 +388,32 @@ navigate, submit, post, purchase, grant TCC, operate System Settings, or call
 an LLM. It only binds a user-provided screenshot path to the next
 observe-only cycle.
 
+## M29 Observe Canary Run Packet
+
+Use this pass after M28 is ready and before asking the user to run the next M14
+observe-only canary:
+
+1. Select the ready M28 `screenshot_evidence_intake.json`.
+2. Confirm `m28ScreenshotEvidenceIntakeGate.status` is `ready`.
+3. Confirm `nextObserveInput.returnMilestone` is `M14`.
+4. Confirm `nextObserveInput.boundary` is `observe_only_no_desktop_action`.
+5. Confirm the screenshot path recorded in M28 still exists and is non-empty.
+6. Run
+   `bash tool/run_macos_computer_use_m29_observe_canary_run_packet.sh --m28-intake <screenshot_evidence_intake.json>`.
+7. Confirm `m29ObserveCanaryRunPacketGate.status` is `ready`.
+8. Confirm `executionBoundary` is
+   `m14_observe_canary_run_packet_report_only`.
+9. Confirm `desktopActionBoundary` is `no_desktop_action`.
+10. Confirm `tccBoundary` is `no_tcc_operation`.
+11. Confirm `llmBoundary` is `no_llm_call`.
+12. Ask the user to run the generated M14 observe-only command when they are
+    ready to collect the next evidence artifact.
+
+Do not use this packet to run M14, open apps, capture screens, click, type,
+navigate, submit, post, purchase, grant TCC, operate System Settings, or call
+an LLM. It only freezes the user-operated M14 command and keeps the next step
+explicit.
+
 ## Hidden Helper
 
 1. Launch `Caverno.app`.

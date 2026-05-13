@@ -717,6 +717,7 @@ void main() {
       expect(entryIds, contains('m26_observe_restart_packet'));
       expect(entryIds, contains('m27_screenshot_request_handoff'));
       expect(entryIds, contains('m28_screenshot_evidence_intake'));
+      expect(entryIds, contains('m29_observe_canary_run_packet'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -1080,6 +1081,14 @@ void main() {
       expect(m28Entry.exists, isFalse);
       expect(
         index.mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand,
+        isNull,
+      );
+      final m29Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm29_observe_canary_run_packet',
+      );
+      expect(m29Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m29ObserveCanaryRunPacketCommand,
         isNull,
       );
       expect(index.toMarkdown(), contains('Latest M23 cycle outcome handoff'));
@@ -2724,6 +2733,128 @@ void main() {
       expect(index.toMarkdown(), contains('Blockers: target_app_present'));
     });
 
+    test('artifact index surfaces M29 observe canary run packet command', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m29_command_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final screenshot = File('${root.path}/target.png')
+        ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+      final m28ScreenshotEvidenceIntakePath =
+          '${root.path}/macos_computer_use_m28_screenshot_evidence_intake_998/screenshot_evidence_intake.json';
+      _writeJson(
+        File(m28ScreenshotEvidenceIntakePath),
+        _m28ScreenshotEvidenceIntake(
+          ready: true,
+          screenshotPath: screenshot.path,
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final m28Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm28_screenshot_evidence_intake',
+      );
+      final m29Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm29_observe_canary_run_packet',
+      );
+
+      expect(m28Entry.status, 'ready');
+      expect(m28Entry.details['returnMilestone'], 'M14');
+      expect(m29Entry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.m29ObserveCanaryRunPacketCommand,
+        contains(
+          'bash tool/run_macos_computer_use_m29_observe_canary_run_packet.sh --root ${root.path} --m28-intake $m28ScreenshotEvidenceIntakePath',
+        ),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('M29 observe canary run packet command:'),
+      );
+    });
+
+    test('artifact index blocks final aggregation on blocked M29 run packet', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m29_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/manual/report.json'),
+        _runtimeReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json',
+        ),
+        _realAppObserveLlmSummary(failed: 0),
+      );
+      final m29ObserveCanaryRunPacketPath =
+          '${root.path}/macos_computer_use_m29_observe_canary_run_packet_999/observe_canary_run_packet.json';
+      _writeJson(
+        File(m29ObserveCanaryRunPacketPath),
+        _m29ObserveCanaryRunPacket(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm29_observe_canary_run_packet',
+      );
+
+      expect(entry.exists, isTrue);
+      expect(entry.path, m29ObserveCanaryRunPacketPath);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        'Resolve M29 observe canary run packet blockers before asking the user to run M14.',
+      );
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('target_app_present'));
+      expect(entry.details['returnMilestone'], 'M14');
+      expect(entry.details['targetIntent'], 'Observe the next target.');
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
+      expect(index.mvpFinalSignoffRehearsal.finalAggregationCommand, isNull);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.status,
+        'blocked_pending_review_evidence',
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        <String>['m29_observe_canary_run_packet'],
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Blocked review evidence: m29_observe_canary_run_packet'),
+      );
+      expect(index.toMarkdown(), contains('## M29 Observe Canary Run Packet'));
+      expect(index.toMarkdown(), contains('Gate status: blocked'));
+      expect(index.toMarkdown(), contains('Blockers: target_app_present'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -4085,7 +4216,10 @@ Map<String, dynamic> _m27ScreenshotRequestHandoff({required bool ready}) {
   };
 }
 
-Map<String, dynamic> _m28ScreenshotEvidenceIntake({required bool ready}) {
+Map<String, dynamic> _m28ScreenshotEvidenceIntake({
+  required bool ready,
+  String screenshotPath = '/tmp/user-provided-real-app-screenshot.png',
+}) {
   return <String, dynamic>{
     'schemaName': 'macos_computer_use_m28_screenshot_evidence_intake',
     'schemaVersion': 1,
@@ -4101,7 +4235,7 @@ Map<String, dynamic> _m28ScreenshotEvidenceIntake({required bool ready}) {
     'targetApp': ready ? 'Safari' : '',
     'targetIntent': 'Observe the next target.',
     'screenshotEvidence': <String, Object?>{
-      'path': '/tmp/user-provided-real-app-screenshot.png',
+      'path': screenshotPath,
       'exists': true,
       'sizeBytes': ready ? 8 : 0,
       'extension': '.png',
@@ -4114,13 +4248,13 @@ Map<String, dynamic> _m28ScreenshotEvidenceIntake({required bool ready}) {
       'boundary': 'observe_only_no_desktop_action',
       'targetApp': ready ? 'Safari' : '',
       'targetIntent': 'Observe the next target.',
-      'screenshotPath': '/tmp/user-provided-real-app-screenshot.png',
+      'screenshotPath': screenshotPath,
     },
     'commands': <String, Object?>{
       'm14RealAppHandoff':
           'bash tool/run_macos_computer_use_m14_real_app_handoff.sh',
       'm14ObserveCanary':
-          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png',
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot $screenshotPath',
     },
     'm28ScreenshotEvidenceIntakeGate': <String, Object?>{
       'status': ready ? 'ready' : 'blocked',
@@ -4129,6 +4263,55 @@ Map<String, dynamic> _m28ScreenshotEvidenceIntake({required bool ready}) {
       'nextAction': ready
           ? 'Run the M14 observe-only canary with the user-provided screenshot, then continue the approval-bound observe/action cycle.'
           : 'Resolve M28 screenshot evidence intake blockers before running the M14 observe-only canary.',
+    },
+  };
+}
+
+Map<String, dynamic> _m29ObserveCanaryRunPacket({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m29_observe_canary_run_packet',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_m29_observe_canary_run_packet',
+    'milestone': 'M29',
+    'previousMilestone': 'M28',
+    'ready': ready,
+    'sourceM28ScreenshotEvidenceIntake': '/tmp/screenshot_evidence_intake.json',
+    'executionBoundary': 'm14_observe_canary_run_packet_report_only',
+    'desktopActionBoundary': 'no_desktop_action',
+    'tccBoundary': 'no_tcc_operation',
+    'llmBoundary': 'no_llm_call',
+    'targetApp': ready ? 'Safari' : '',
+    'targetIntent': 'Observe the next target.',
+    'screenshotEvidence': <String, Object?>{
+      'path': '/tmp/user-provided-real-app-screenshot.png',
+      'exists': true,
+      'sizeBytes': ready ? 8 : 0,
+      'extension': '.png',
+      'source': 'm28_screenshot_evidence_intake',
+    },
+    'm14ObserveRunPacket': <String, Object?>{
+      'required': true,
+      'readyForUserOperation': ready,
+      'userOperated': true,
+      'returnMilestone': 'M14',
+      'boundary': 'observe_only_no_desktop_action',
+      'targetApp': ready ? 'Safari' : '',
+      'targetIntent': 'Observe the next target.',
+      'screenshotPath': '/tmp/user-provided-real-app-screenshot.png',
+      'command':
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png',
+    },
+    'commands': <String, Object?>{
+      'm14ObserveCanary':
+          'bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png',
+    },
+    'm29ObserveCanaryRunPacketGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['target_app_present'],
+      'nextAction': ready
+          ? 'Ask the user to run the M14 observe-only canary command with the recorded screenshot, then review the new M14 evidence.'
+          : 'Resolve M29 observe canary run packet blockers before asking the user to run M14.',
     },
   };
 }

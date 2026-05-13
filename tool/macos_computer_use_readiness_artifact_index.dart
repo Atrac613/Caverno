@@ -141,6 +141,10 @@ Future<void> main(List<String> args) async {
     stdout.writeln('M28 screenshot evidence intake command:');
     stdout.writeln(rehearsal.m28ScreenshotEvidenceIntakeCommand);
   }
+  if (rehearsal.m29ObserveCanaryRunPacketCommand != null) {
+    stdout.writeln('M29 observe canary run packet command:');
+    stdout.writeln(rehearsal.m29ObserveCanaryRunPacketCommand);
+  }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');
     for (final action in rehearsal.missingArtifactActions) {

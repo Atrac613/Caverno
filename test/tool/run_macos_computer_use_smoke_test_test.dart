@@ -41,6 +41,7 @@ void main() {
   late String m26ObserveRestartPacketScript;
   late String m27ScreenshotRequestHandoffScript;
   late String m28ScreenshotEvidenceIntakeScript;
+  late String m29ObserveCanaryRunPacketScript;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -144,6 +145,9 @@ void main() {
     ).readAsStringSync();
     m28ScreenshotEvidenceIntakeScript = File(
       'tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh',
+    ).readAsStringSync();
+    m29ObserveCanaryRunPacketScript = File(
+      'tool/run_macos_computer_use_m29_observe_canary_run_packet.sh',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -4543,6 +4547,199 @@ void main() {
     },
   );
 
+  test(
+    'Computer Use M29 observe canary run packet prepares M14 command',
+    () async {
+      expect(
+        m29ObserveCanaryRunPacketScript,
+        contains('macos_computer_use_m29_observe_canary_run_packet'),
+      );
+      expect(m29ObserveCanaryRunPacketScript, contains('report-only'));
+      expect(m29ObserveCanaryRunPacketScript, contains('ready M28'));
+      expect(m29ObserveCanaryRunPacketScript, contains('no desktop actions'));
+
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m29_observe_canary_run_packet_test_',
+      );
+      try {
+        final screenshot = File('${root.path}/target.png')
+          ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+        final intake = File('${root.path}/screenshot_evidence_intake.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m28_screenshot_evidence_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m28_screenshot_evidence_intake",
+  "milestone": "M28",
+  "previousMilestone": "M27",
+  "ready": true,
+  "executionBoundary": "manual_screenshot_evidence_intake_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "Safari",
+  "targetIntent": "Observe the fresh compose target before proposing text.",
+  "screenshotEvidence": {
+    "path": "${screenshot.path}",
+    "exists": true,
+    "sizeBytes": 8,
+    "extension": ".png",
+    "source": "user_provided"
+  },
+  "nextObserveInput": {
+    "required": true,
+    "provided": true,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "targetApp": "Safari",
+    "targetIntent": "Observe the fresh compose target before proposing text.",
+    "screenshotPath": "${screenshot.path}"
+  },
+  "commands": {
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --root ${root.path} --screenshot ${screenshot.path}"
+  },
+  "m28ScreenshotEvidenceIntakeGate": {
+    "status": "ready",
+    "ready": true,
+    "blockers": []
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m29_observe_canary_run_packet.sh',
+          '--root',
+          root.path,
+          '--m28-intake',
+          intake.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        expect('${result.stdout}', contains('Gate status: ready'));
+        expect(
+          '${result.stdout}',
+          contains(
+            'Execution boundary: m14_observe_canary_run_packet_report_only',
+          ),
+        );
+        expect('${result.stdout}', contains('Screenshot bytes: 8'));
+
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (file) => file.path.endsWith('observe_canary_run_packet.json'),
+            )
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(
+          summary,
+          contains('macos_computer_use_m29_observe_canary_run_packet'),
+        );
+        expect(summary, contains('"milestone": "M29"'));
+        expect(summary, contains('"previousMilestone": "M28"'));
+        expect(summary, contains('"ready": true'));
+        expect(summary, contains('"m29ObserveCanaryRunPacketGate"'));
+        expect(summary, contains('"returnMilestone": "M14"'));
+        expect(summary, contains('"userOperated": true'));
+        expect(summary, contains('"targetApp": "Safari"'));
+        expect(summary, contains('"sizeBytes": 8'));
+        expect(summary, contains(screenshot.path));
+
+        final markdown = File(
+          summaryFiles.single.path.replaceAll('.json', '.md'),
+        ).readAsStringSync();
+        expect(markdown, contains('M29 Observe Canary Run Packet'));
+        expect(markdown, contains('Command For User'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'Computer Use M29 observe canary run packet blocks unready M28 intake',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_m29_observe_canary_run_packet_blocked_test_',
+      );
+      try {
+        final screenshot = File('${root.path}/target.png')
+          ..writeAsBytesSync(<int>[137, 80, 78, 71, 13, 10, 26, 10]);
+        final intake = File('${root.path}/screenshot_evidence_intake.json')
+          ..writeAsStringSync('''
+{
+  "schemaName": "macos_computer_use_m28_screenshot_evidence_intake",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m28_screenshot_evidence_intake",
+  "milestone": "M28",
+  "previousMilestone": "M27",
+  "ready": false,
+  "executionBoundary": "manual_screenshot_evidence_intake_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "",
+  "targetIntent": "Observe the next target.",
+  "screenshotEvidence": {
+    "path": "${screenshot.path}",
+    "exists": true,
+    "sizeBytes": 8,
+    "extension": ".png",
+    "source": "user_provided"
+  },
+  "nextObserveInput": {
+    "required": true,
+    "provided": false,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "targetApp": "",
+    "targetIntent": "Observe the next target.",
+    "screenshotPath": "${screenshot.path}"
+  },
+  "commands": {},
+  "m28ScreenshotEvidenceIntakeGate": {
+    "status": "blocked",
+    "ready": false,
+    "blockers": ["target_app_present"]
+  }
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_m29_observe_canary_run_packet.sh',
+          '--root',
+          root.path,
+          '--m28-intake',
+          intake.path,
+        ]);
+
+        expect(result.exitCode, 1);
+        expect('${result.stdout}', contains('Gate status: blocked'));
+        expect('${result.stdout}', contains('m28_intake_ready'));
+        expect('${result.stdout}', contains('target_app_present'));
+        final summaryFiles = Directory(root.path)
+            .listSync(recursive: true)
+            .whereType<File>()
+            .where(
+              (file) => file.path.endsWith('observe_canary_run_packet.json'),
+            )
+            .toList(growable: false);
+        expect(summaryFiles, hasLength(1));
+        final summary = summaryFiles.single.readAsStringSync();
+        expect(summary, contains('"status": "blocked"'));
+        expect(summary, contains('"target_app_present"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
   test('MVP fixture runbook keeps manual boundaries explicit', () {
     expect(mvpFixtureRunbook, contains('MVP Fixture Runbook'));
     expect(
@@ -4776,11 +4973,13 @@ void main() {
     expect(mvpChecklist, contains('M26 observe restart packet'));
     expect(mvpChecklist, contains('m27_screenshot_request_handoff'));
     expect(mvpChecklist, contains('m28_screenshot_evidence_intake'));
+    expect(mvpChecklist, contains('m29_observe_canary_run_packet'));
     expect(mvpChecklist, contains('m23CycleOutcomeHandoffGate'));
     expect(mvpChecklist, contains('m25NextCycleSeedHandoffGate'));
     expect(mvpChecklist, contains('m26ObserveRestartPacketGate'));
     expect(mvpChecklist, contains('m27ScreenshotRequestHandoffGate'));
     expect(mvpChecklist, contains('m28ScreenshotEvidenceIntakeGate'));
+    expect(mvpChecklist, contains('m29ObserveCanaryRunPacketGate'));
     expect(mvpChecklist, contains('blocked_review_evidence'));
     expect(
       mvpChecklist,
@@ -4863,6 +5062,10 @@ void main() {
       mvpSignoffScript,
       contains('DISCOVERED_M28_SCREENSHOT_EVIDENCE_INTAKE'),
     );
+    expect(
+      mvpSignoffScript,
+      contains('DISCOVERED_M29_OBSERVE_CANARY_RUN_PACKET'),
+    );
     expect(mvpSignoffScript, contains('M15 Action Proposal Evidence'));
     expect(mvpSignoffScript, contains('M15 LLM Review Evidence'));
     expect(mvpSignoffScript, contains('M16 Approval Packet Evidence'));
@@ -4878,6 +5081,7 @@ void main() {
       contains('M27 Screenshot Request Handoff Evidence'),
     );
     expect(mvpSignoffScript, contains('M28 Screenshot Evidence Intake'));
+    expect(mvpSignoffScript, contains('M29 Observe Canary Run Packet'));
     expect(mvpSignoffScript, contains('Optional Review Evidence'));
     expect(mvpSignoffScript, contains('discovered'));
     expect(mvpSignoffScript, contains('Dry run: would execute'));
@@ -5265,6 +5469,14 @@ void main() {
       mvpReadinessPreflightScript,
       contains('m28_screenshot_evidence_intake'),
     );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('M29 observe canary run packet'),
+    );
+    expect(
+      mvpReadinessPreflightScript,
+      contains('m29_observe_canary_run_packet'),
+    );
     expect(mvpReadinessPreflightScript, contains('m26_observe_restart_packet'));
 
     final root = Directory.systemTemp.createTempSync(
@@ -5579,6 +5791,7 @@ void main() {
     expect(manualProcessChecklist, contains('M26 Observe Restart Packet'));
     expect(manualProcessChecklist, contains('M27 Screenshot Request Handoff'));
     expect(manualProcessChecklist, contains('M28 Screenshot Evidence Intake'));
+    expect(manualProcessChecklist, contains('M29 Observe Canary Run Packet'));
     expect(manualProcessChecklist, contains('M15 review/gate consistency'));
     expect(manualProcessChecklist, contains('m14EvidenceGate'));
     expect(manualProcessChecklist, contains('m15ActionProposalGate'));
@@ -5593,6 +5806,7 @@ void main() {
     expect(manualProcessChecklist, contains('m26ObserveRestartPacketGate'));
     expect(manualProcessChecklist, contains('m27ScreenshotRequestHandoffGate'));
     expect(manualProcessChecklist, contains('m28ScreenshotEvidenceIntakeGate'));
+    expect(manualProcessChecklist, contains('m29ObserveCanaryRunPacketGate'));
     expect(manualProcessChecklist, contains('m15_llm_review_canary'));
     expect(manualProcessChecklist, contains('m17_execution_rehearsal'));
     expect(manualProcessChecklist, contains('actionTimeConfirmations'));
@@ -5637,6 +5851,10 @@ void main() {
     expect(
       manualProcessChecklist,
       contains('tool/run_macos_computer_use_m28_screenshot_evidence_intake.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('tool/run_macos_computer_use_m29_observe_canary_run_packet.sh'),
     );
     expect(
       manualProcessChecklist,
@@ -7594,6 +7812,119 @@ void main() {
         expect(
           handoff,
           contains('Blocked review evidence: m28_screenshot_evidence_intake'),
+        );
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test(
+    'MVP sign-off dry run surfaces blocked M29 observe canary run packet',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_mvp_signoff_dry_run_m29_blocked_',
+      );
+      try {
+        final m29Dir = Directory(
+          '${root.path}/macos_computer_use_m29_observe_canary_run_packet_1',
+        )..createSync();
+        File('${m29Dir.path}/observe_canary_run_packet.json').writeAsStringSync(
+          '''
+{
+  "schemaName": "macos_computer_use_m29_observe_canary_run_packet",
+  "schemaVersion": 1,
+  "purpose": "computer_use_m29_observe_canary_run_packet",
+  "milestone": "M29",
+  "previousMilestone": "M28",
+  "ready": false,
+  "sourceM28ScreenshotEvidenceIntake": "/tmp/screenshot_evidence_intake.json",
+  "executionBoundary": "m14_observe_canary_run_packet_report_only",
+  "desktopActionBoundary": "no_desktop_action",
+  "tccBoundary": "no_tcc_operation",
+  "llmBoundary": "no_llm_call",
+  "targetApp": "",
+  "targetIntent": "Observe the next target.",
+  "screenshotEvidence": {
+    "path": "/tmp/user-provided-real-app-screenshot.png",
+    "exists": true,
+    "sizeBytes": 0,
+    "extension": ".png",
+    "source": "m28_screenshot_evidence_intake"
+  },
+  "m14ObserveRunPacket": {
+    "required": true,
+    "readyForUserOperation": false,
+    "userOperated": true,
+    "returnMilestone": "M14",
+    "boundary": "observe_only_no_desktop_action",
+    "targetApp": "",
+    "targetIntent": "Observe the next target.",
+    "screenshotPath": "/tmp/user-provided-real-app-screenshot.png",
+    "command": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png"
+  },
+  "commands": {
+    "m14ObserveCanary": "bash tool/run_macos_computer_use_real_app_observe_canary.sh --screenshot /tmp/user-provided-real-app-screenshot.png"
+  },
+  "m29ObserveCanaryRunPacketGate": {
+    "status": "blocked",
+    "ready": false,
+    "checks": [
+      {
+        "id": "target_app_present",
+        "ok": false,
+        "nextAction": "Keep the target app from the M28 screenshot intake."
+      }
+    ],
+    "blockers": ["target_app_present"],
+    "nextAction": "Resolve M29 observe canary run packet blockers before asking the user to run M14."
+  }
+}
+''',
+        );
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_mvp_signoff.sh',
+          '--dry-run',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        final stdout = '${result.stdout}';
+        expect(
+          stdout,
+          contains('M29 observe canary run packet status: blocked'),
+        );
+        expect(
+          stdout,
+          contains(
+            'M29 observe canary run packet next action: Resolve M29 observe canary run packet blockers before asking the user to run M14.',
+          ),
+        );
+        expect(
+          stdout,
+          contains('Blocked review evidence: m29_observe_canary_run_packet'),
+        );
+
+        final handoff = File(
+          '${root.path}/macos_computer_use_mvp_handoff.md',
+        ).readAsStringSync();
+        expect(handoff, contains('M29 Observe Canary Run Packet'));
+        expect(
+          handoff,
+          contains('M29 observe canary run packet status: blocked'),
+        );
+        expect(
+          handoff,
+          contains(
+            'M29 observe canary run packet blockers: target_app_present',
+          ),
+        );
+        expect(handoff, contains('| target_app_present | blocked |'));
+        expect(
+          handoff,
+          contains('Blocked review evidence: m29_observe_canary_run_packet'),
         );
       } finally {
         root.deleteSync(recursive: true);

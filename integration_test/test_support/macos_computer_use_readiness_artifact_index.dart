@@ -115,6 +115,7 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m26ObserveRestartPacketEntry;
     ReadinessArtifactEntry? m27ScreenshotRequestHandoffEntry;
     ReadinessArtifactEntry? m28ScreenshotEvidenceIntakeEntry;
+    ReadinessArtifactEntry? m29ObserveCanaryRunPacketEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -151,6 +152,9 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm28_screenshot_evidence_intake') {
         m28ScreenshotEvidenceIntakeEntry = entry;
+      }
+      if (entry.id == 'm29_observe_canary_run_packet') {
+        m29ObserveCanaryRunPacketEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -436,6 +440,34 @@ class ReadinessArtifactIndex {
           '- Blockers: ${_joinedOrNone(_detailsStringList(m28ScreenshotEvidenceIntakeEntry.details['gateBlockers']))}',
         );
     }
+    if (m29ObserveCanaryRunPacketEntry != null &&
+        m29ObserveCanaryRunPacketEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M29 Observe Canary Run Packet')
+        ..writeln()
+        ..writeln(
+          '- Gate status: ${m29ObserveCanaryRunPacketEntry.details['gateStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target app: ${m29ObserveCanaryRunPacketEntry.details['targetApp'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Target intent: ${m29ObserveCanaryRunPacketEntry.details['targetIntent'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Screenshot path: ${m29ObserveCanaryRunPacketEntry.details['screenshotPath'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- M14 observe command: ${m29ObserveCanaryRunPacketEntry.details['m14ObserveCanaryCommand'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Execution boundary: ${m29ObserveCanaryRunPacketEntry.details['executionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(m29ObserveCanaryRunPacketEntry.details['gateBlockers']))}',
+        );
+    }
     buffer
       ..writeln()
       ..writeln('Operation boundary:')
@@ -569,6 +601,15 @@ class ReadinessArtifactIndex {
         ..writeln(mvpFinalSignoffRehearsal.m28ScreenshotEvidenceIntakeCommand)
         ..writeln('```');
     }
+    if (mvpFinalSignoffRehearsal.m29ObserveCanaryRunPacketCommand != null) {
+      buffer
+        ..writeln()
+        ..writeln('M29 observe canary run packet command:')
+        ..writeln()
+        ..writeln('```bash')
+        ..writeln(mvpFinalSignoffRehearsal.m29ObserveCanaryRunPacketCommand)
+        ..writeln('```');
+    }
     buffer
       ..writeln()
       ..writeln('| Required Artifact | Present | Path |')
@@ -630,6 +671,7 @@ class ReadinessFinalSignoffRehearsal {
     this.m26ObserveRestartPacketCommand,
     this.m27ScreenshotRequestHandoffCommand,
     this.m28ScreenshotEvidenceIntakeCommand,
+    this.m29ObserveCanaryRunPacketCommand,
     this.operationBoundary = MacosComputerUseOperationBoundary.values,
   });
 
@@ -653,6 +695,7 @@ class ReadinessFinalSignoffRehearsal {
   final String? m26ObserveRestartPacketCommand;
   final String? m27ScreenshotRequestHandoffCommand;
   final String? m28ScreenshotEvidenceIntakeCommand;
+  final String? m29ObserveCanaryRunPacketCommand;
   final Map<String, Object?> operationBoundary;
 
   Map<String, Object?> toJson() {
@@ -681,6 +724,7 @@ class ReadinessFinalSignoffRehearsal {
       'm26ObserveRestartPacketCommand': m26ObserveRestartPacketCommand,
       'm27ScreenshotRequestHandoffCommand': m27ScreenshotRequestHandoffCommand,
       'm28ScreenshotEvidenceIntakeCommand': m28ScreenshotEvidenceIntakeCommand,
+      'm29ObserveCanaryRunPacketCommand': m29ObserveCanaryRunPacketCommand,
       'operationBoundary': operationBoundary,
     };
   }
@@ -961,6 +1005,19 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m28ScreenshotEvidenceIntakeNextAction,
       details: _m28ScreenshotEvidenceIntakeDetails,
     ),
+    _latestEntry(
+      'm29_observe_canary_run_packet',
+      'Latest M29 observe canary run packet',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m29_observe_canary_run_packet',
+      parentPrefix: 'macos_computer_use_m29_observe_canary_run_packet_',
+      fileName: 'observe_canary_run_packet.json',
+      status: _m29ObserveCanaryRunPacketStatus,
+      nextAction: _m29ObserveCanaryRunPacketNextAction,
+      details: _m29ObserveCanaryRunPacketDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -1054,6 +1111,10 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       _m27ScreenshotRequestHandoffCommand(reportRoot, byId);
   final m28ScreenshotEvidenceIntakeCommand =
       _m28ScreenshotEvidenceIntakeCommand(reportRoot, byId);
+  final m29ObserveCanaryRunPacketCommand = _m29ObserveCanaryRunPacketCommand(
+    reportRoot,
+    byId,
+  );
   final prReviewSummary = _mvpPrReviewSummary(
     readyArtifactIds: readyArtifactIds,
     missingArtifactIds: missingArtifactIds,
@@ -1087,6 +1148,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
     m26ObserveRestartPacketCommand: m26ObserveRestartPacketCommand,
     m27ScreenshotRequestHandoffCommand: m27ScreenshotRequestHandoffCommand,
     m28ScreenshotEvidenceIntakeCommand: m28ScreenshotEvidenceIntakeCommand,
+    m29ObserveCanaryRunPacketCommand: m29ObserveCanaryRunPacketCommand,
   );
 }
 
@@ -1107,7 +1169,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm25_next_cycle_seed_handoff' ||
                 entry.id == 'm26_observe_restart_packet' ||
                 entry.id == 'm27_screenshot_request_handoff' ||
-                entry.id == 'm28_screenshot_evidence_intake') &&
+                entry.id == 'm28_screenshot_evidence_intake' ||
+                entry.id == 'm29_observe_canary_run_packet') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1469,6 +1532,28 @@ String? _m28ScreenshotEvidenceIntakeCommand(
     m27Path,
     '--screenshot',
     '<user-provided-real-app-screenshot.png>',
+  ].map(_shellQuote).join(' ');
+}
+
+String? _m29ObserveCanaryRunPacketCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final m28Entry = entriesById['m28_screenshot_evidence_intake'];
+  final m28Path = m28Entry?.path ?? '';
+  if (m28Path.isEmpty || m28Entry?.status != 'ready') {
+    return null;
+  }
+  if (m28Entry?.details['returnMilestone'] != 'M14') {
+    return null;
+  }
+  return <String>[
+    'bash',
+    'tool/run_macos_computer_use_m29_observe_canary_run_packet.sh',
+    '--root',
+    reportRoot.path,
+    '--m28-intake',
+    m28Path,
   ].map(_shellQuote).join(' ');
 }
 
@@ -2503,6 +2588,85 @@ Map<String, Object?> _m28ScreenshotEvidenceIntakeDetails(
     },
     if (commandsMap != null) ...<String, Object?>{
       'm14RealAppHandoffCommand': commandsMap['m14RealAppHandoff']?.toString(),
+      'm14ObserveCanaryCommand': commandsMap['m14ObserveCanary']?.toString(),
+      'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
+      'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
+    },
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m29ObserveCanaryRunPacketStatus(Map<String, dynamic> json) {
+  final gate = json['m29ObserveCanaryRunPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _m29ObserveCanaryRunPacketNextAction(Map<String, dynamic> json) {
+  final gate = json['m29ObserveCanaryRunPacketGate'];
+  if (gate is Map<String, dynamic>) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _m29ObserveCanaryRunPacketStatus(json);
+  if (status == 'ready') {
+    return 'Ask the user to run the M14 observe-only canary command with the recorded screenshot, then review the new M14 evidence.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M29 observe canary run packet blockers before asking the user to run M14.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m29ObserveCanaryRunPacketDetails(
+  Map<String, dynamic> json,
+) {
+  final gate = json['m29ObserveCanaryRunPacketGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final evidence = json['screenshotEvidence'];
+  final evidenceMap = evidence is Map<String, dynamic> ? evidence : null;
+  final runPacket = json['m14ObserveRunPacket'];
+  final runPacketMap = runPacket is Map<String, dynamic> ? runPacket : null;
+  final commands = json['commands'];
+  final commandsMap = commands is Map<String, dynamic> ? commands : null;
+  return <String, Object?>{
+    'executionBoundary': json['executionBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'llmBoundary': json['llmBoundary']?.toString(),
+    'sourceM28ScreenshotEvidenceIntake':
+        json['sourceM28ScreenshotEvidenceIntake']?.toString(),
+    'targetApp': json['targetApp']?.toString(),
+    'targetIntent': json['targetIntent']?.toString(),
+    if (evidenceMap != null) ...<String, Object?>{
+      'screenshotPath': evidenceMap['path']?.toString(),
+      'screenshotExists': evidenceMap['exists'],
+      'screenshotSizeBytes': evidenceMap['sizeBytes'],
+      'screenshotExtension': evidenceMap['extension']?.toString(),
+    },
+    if (runPacketMap != null) ...<String, Object?>{
+      'returnMilestone': runPacketMap['returnMilestone']?.toString(),
+      'observeBoundary': runPacketMap['boundary']?.toString(),
+      'readyForUserOperation': runPacketMap['readyForUserOperation'],
+      'userOperated': runPacketMap['userOperated'],
+      'runPacketCommand': runPacketMap['command']?.toString(),
+    },
+    if (commandsMap != null) ...<String, Object?>{
       'm14ObserveCanaryCommand': commandsMap['m14ObserveCanary']?.toString(),
       'artifactIndexCommand': commandsMap['artifactIndex']?.toString(),
       'mvpSignoffDryRunCommand': commandsMap['mvpSignoffDryRun']?.toString(),
