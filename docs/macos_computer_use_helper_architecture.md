@@ -417,6 +417,15 @@ surface until the user intentionally enables it.
   embed the helper, LaunchAgent plist, MachService declaration, entitlements,
   signing identity, hardened runtime settings, and notarization evidence that
   match the helper bundle path used for TCC grants.
+  The initial M33 implementation adds the static report command
+  `bash tool/run_macos_computer_use_release_packaging.sh`, which writes
+  `macos_computer_use_release_packaging.json` and
+  `macos_computer_use_release_packaging.md`. The report verifies the helper
+  embed phase, LaunchAgent BundleProgram, MachServices declaration, helper
+  bundle identity, release entitlements, hardened runtime settings, and
+  identity-free repository signing defaults. Release signing identity,
+  notarization, stapling, TCC grants, and real desktop actions remain
+  user-operated evidence collected by the release pipeline.
 - M34: Harden permission recovery and revocation UX. The app should clearly
   distinguish missing permissions, revoked permissions, stale helper paths,
   mismatched debug and release helpers, and the user action needed to recover

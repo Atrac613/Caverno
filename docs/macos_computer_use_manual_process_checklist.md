@@ -39,6 +39,26 @@ desktop action canaries as user-operated follow-ups. Ask the user to run the
 manual commands and provide the generated report when runtime evidence is
 needed.
 
+## M33 Release Packaging Report
+
+Run this static packaging report before asking for a signed release pass:
+
+```bash
+bash tool/run_macos_computer_use_release_packaging.sh
+```
+
+Expected outputs:
+
+- `build/integration_test_reports/macos_computer_use_release_packaging.json`
+- `build/integration_test_reports/macos_computer_use_release_packaging.md`
+
+The report checks the helper embed phase, LaunchAgent BundleProgram,
+MachServices declaration, release entitlements, hardened runtime settings, and
+identity-free signing defaults. It does not sign, notarize, staple, grant TCC,
+launch System Settings, or perform desktop actions. Signing identity,
+notarization ticket, stapler validation, TCC grants, and real desktop evidence
+remain user-operated release evidence.
+
 ## M13 Review Hardening
 
 Use this review pass before merging Computer Use polish changes:

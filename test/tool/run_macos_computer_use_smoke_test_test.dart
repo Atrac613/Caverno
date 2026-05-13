@@ -43,6 +43,8 @@ void main() {
   late String m28ScreenshotEvidenceIntakeScript;
   late String m29ObserveCanaryRunPacketScript;
   late String m30ObserveResultIntakeScript;
+  late String releasePackagingWrapper;
+  late String releasePackagingCli;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -52,6 +54,8 @@ void main() {
   late String realAppObserveRunbook;
   late String polishReviewSummary;
   late String existingHelperProbe;
+  late String xcodeProject;
+  late String signingConfig;
   late String architectureDoc;
   late String manualProcessChecklist;
 
@@ -153,6 +157,12 @@ void main() {
     m30ObserveResultIntakeScript = File(
       'tool/run_macos_computer_use_m30_observe_result_intake.sh',
     ).readAsStringSync();
+    releasePackagingWrapper = File(
+      'tool/run_macos_computer_use_release_packaging.sh',
+    ).readAsStringSync();
+    releasePackagingCli = File(
+      'tool/macos_computer_use_release_packaging.dart',
+    ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
     ).readAsStringSync();
@@ -170,6 +180,12 @@ void main() {
     ).readAsStringSync();
     existingHelperProbe = File(
       'tool/macos_computer_use_existing_helper_probe.swift',
+    ).readAsStringSync();
+    xcodeProject = File(
+      'macos/Runner.xcodeproj/project.pbxproj',
+    ).readAsStringSync();
+    signingConfig = File(
+      'macos/Runner/Configs/Signing.xcconfig',
     ).readAsStringSync();
     architectureDoc = File(
       'docs/macos_computer_use_helper_architecture.md',
@@ -341,6 +357,7 @@ void main() {
       architectureDoc,
       contains('M33: Establish the signed release packaging lane'),
     );
+    expect(architectureDoc, contains('macos_computer_use_release_packaging'));
     expect(
       architectureDoc,
       contains('M35: Define the production action policy'),
@@ -374,6 +391,43 @@ void main() {
       contains('bash tool/run_macos_computer_use_mvp_readiness_preflight.sh'),
     );
     expect(architectureDoc, contains('without launching apps'));
+  });
+
+  test('M33 release packaging lane is static and identity-free', () {
+    expect(
+      releasePackagingWrapper,
+      contains('Boundary: static project checks only'),
+    );
+    expect(releasePackagingWrapper, contains('Signing.local.xcconfig'));
+    expect(
+      releasePackagingWrapper,
+      contains('Notarization: user-operated release pipeline evidence'),
+    );
+    expect(
+      releasePackagingCli,
+      contains('macos_computer_use_release_packaging.json'),
+    );
+    expect(
+      releasePackagingCli,
+      contains('macos_computer_use_release_packaging.md'),
+    );
+    expect(xcodeProject, contains('ENABLE_HARDENED_RUNTIME = YES;'));
+    expect(xcodeProject, contains('Embed Computer Use Helper'));
+    expect(
+      xcodeProject,
+      contains('com.noguwo.apps.caverno.computer-use.plist'),
+    );
+    expect(signingConfig, contains('Signing.local.xcconfig'));
+    expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
+    expect(manualProcessChecklist, contains('M33 Release Packaging Report'));
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_computer_use_release_packaging.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('It does not sign, notarize, staple, grant TCC'),
+    );
   });
 
   test('release report includes M7 gate and runtime readiness fields', () {
@@ -574,7 +628,11 @@ void main() {
     expect(manualProcessChecklist, contains('M13 Review Hardening'));
     expect(
       manualProcessChecklist,
-      contains('root list shows `Advanced`, not a top-level'),
+      contains('root list shows `Advanced` with a compact'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('not a top-level Computer Use status panel'),
     );
     expect(
       manualProcessChecklist,

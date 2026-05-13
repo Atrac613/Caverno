@@ -966,6 +966,11 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       '${reportRoot.path}/macos_computer_use_release_artifact_signoff.json',
     ),
     _entry(
+      'release_packaging',
+      'M33 release packaging report',
+      '${reportRoot.path}/${MacosComputerUseMvpGuidance.releasePackagingJsonFile}',
+    ),
+    _entry(
       'canary_history',
       'Computer Use canary history',
       '${reportRoot.path}/macos_computer_use_canary_history.json',

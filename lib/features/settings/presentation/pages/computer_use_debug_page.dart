@@ -1733,6 +1733,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
+      'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
       'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
       'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
       'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
@@ -1793,6 +1794,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
       'nextStepNavigatorMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile}',
+      'releasePackagingJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releasePackagingJsonFile}',
+      'releasePackagingMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releasePackagingMarkdownFile}',
       'releaseReadinessCiMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.releaseReadinessCiMarkdownFile}',
       'releaseReadinessSignoffMarkdown':
@@ -1823,6 +1828,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Next-step navigator JSON: ${paths['nextStepNavigatorJson']}',
       'Next-step navigator Markdown: ${paths['nextStepNavigatorMarkdown']}',
+      'Release packaging JSON: ${paths['releasePackagingJson']}',
+      'Release packaging Markdown: ${paths['releasePackagingMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
       'Release readiness sign-off Markdown: ${paths['releaseReadinessSignoffMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)

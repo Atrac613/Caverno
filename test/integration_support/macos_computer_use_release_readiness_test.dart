@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import '../../integration_test/test_support/macos_computer_use_canary_history.dart';
 import '../../integration_test/test_support/macos_computer_use_manual_tcc_report.dart';
 import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
+import '../../integration_test/test_support/macos_computer_use_release_packaging.dart';
 import '../../integration_test/test_support/macos_computer_use_release_readiness.dart';
 
 const _manualTccNextAction = MacosComputerUseMvpGuidance.manualTccNextAction;
@@ -700,6 +701,7 @@ void main() {
       final entryIds = index.entries.map((entry) => entry.id).toSet();
 
       expect(entryIds, contains('release_artifact'));
+      expect(entryIds, contains('release_packaging'));
       expect(entryIds, contains('manual_tcc'));
       expect(entryIds, contains('desktop_action_canary'));
       expect(entryIds, contains('llm_canary'));
@@ -726,6 +728,7 @@ void main() {
         isTrue,
       );
       expect(index.toMarkdown(), contains('M7 release artifact report'));
+      expect(index.toMarkdown(), contains('M33 release packaging report'));
       expect(index.mvpFinalSignoffRehearsal.ready, isTrue);
       expect(index.mvpFinalSignoffRehearsal.missingArtifactIds, isEmpty);
       expect(
@@ -3079,6 +3082,78 @@ void main() {
       expect(index.toMarkdown(), contains('## M31 Next Step Navigator'));
       expect(index.toMarkdown(), contains('Recommended next command:'));
     });
+
+    test('M33 release packaging report validates static packaging lane', () {
+      final report = buildMacosComputerUseReleasePackaging(
+        projectRoot: Directory.current,
+      );
+      final checkIds = report.checks.map((check) => check.id).toSet();
+      final json = report.toJson();
+
+      expect(report.ready, isTrue);
+      expect(report.status, 'ready');
+      expect(report.failedChecks, isEmpty);
+      expect(checkIds, contains('main_release_entitlements'));
+      expect(checkIds, contains('helper_release_entitlements'));
+      expect(checkIds, contains('hardened_runtime'));
+      expect(checkIds, contains('helper_bundle_identity'));
+      expect(checkIds, contains('launch_agent_mach_service'));
+      expect(checkIds, contains('embed_helper_phase'));
+      expect(checkIds, contains('identity_free_signing_defaults'));
+      expect(json['schemaName'], 'macos_computer_use_m33_release_packaging');
+      expect(json['milestone'], 'M33');
+      expect(
+        json['automationBoundary'],
+        contains('Static packaging checks only'),
+      );
+      expect(
+        report.externalEvidence['signingIdentity'],
+        'user_operated_release_pipeline',
+      );
+      expect(report.toMarkdown(), contains('External Release Evidence'));
+      expect(report.toMarkdown(), contains('Notarization ticket'));
+    });
+
+    test(
+      'M33 release packaging CLI writes JSON and Markdown outputs',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_m33_release_packaging_cli_test_',
+        );
+        addTearDown(() {
+          root.deleteSync(recursive: true);
+        });
+
+        final result = await Process.run('dart', [
+          'run',
+          'tool/macos_computer_use_release_packaging.dart',
+          '--root',
+          root.path,
+        ]);
+
+        expect(result.exitCode, 0, reason: '${result.stderr}');
+        expect('${result.stdout}', contains('M33 release packaging report'));
+        expect('${result.stdout}', contains('- Ready: true'));
+        final summary =
+            jsonDecode(
+                  File(
+                    '${root.path}/macos_computer_use_release_packaging.json',
+                  ).readAsStringSync(),
+                )
+                as Map<String, dynamic>;
+        expect(
+          summary['schemaName'],
+          'macos_computer_use_m33_release_packaging',
+        );
+        expect(summary['status'], 'ready');
+        expect(summary['failedCheckIds'], isEmpty);
+        final markdown = File(
+          '${root.path}/macos_computer_use_release_packaging.md',
+        ).readAsStringSync();
+        expect(markdown, contains('macOS Computer Use M33 Release Packaging'));
+        expect(markdown, contains('External Release Evidence'));
+      },
+    );
 
     test('M31 navigator prioritizes blocked review evidence', () {
       final root = Directory.systemTemp.createTempSync(
