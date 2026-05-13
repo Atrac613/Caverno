@@ -2983,6 +2983,64 @@ void main() {
       expect(index.toMarkdown(), contains('Blockers: target_app_matches'));
     });
 
+    test('artifact index returns to M15 from ready M30 intake', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m30_to_m15_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m14SummaryPath =
+          '${root.path}/macos_computer_use_real_app_observe_canary_250/canary_summary.json';
+      final m30ObserveResultIntakePath =
+          '${root.path}/macos_computer_use_m30_observe_result_intake_999/observe_result_intake.json';
+      final m30Intake = _m30ObserveResultIntake(ready: true)
+        ..['sourceM14ObserveCanarySummary'] = m14SummaryPath
+        ..['commands'] = <String, Object?>{
+          'm15ActionProposalHandoff':
+              'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+        };
+      _writeJson(File(m30ObserveResultIntakePath), m30Intake);
+
+      final index = buildReadinessArtifactIndex(root);
+      final m30Entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm30_observe_result_intake',
+      );
+      final command = index.mvpFinalSignoffRehearsal.m15ActionProposalCommand;
+
+      expect(m30Entry.status, 'ready');
+      expect(command, isNotNull);
+      expect(
+        command,
+        'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+      );
+      expect(index.toMarkdown(), contains('## M30 Observe Result Intake'));
+      expect(index.toMarkdown(), contains('M15 action proposal command:'));
+      expect(
+        index.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+        ),
+      );
+
+      final result = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_readiness_artifact_index.dart',
+        '--root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0);
+      expect('${result.stdout}', contains('M15 action proposal command:'));
+      expect(
+        '${result.stdout}',
+        contains(
+          'bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh --root ${root.path} --m14-summary $m14SummaryPath',
+        ),
+      );
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',

@@ -1310,6 +1310,26 @@ String? _m15ActionProposalCommand(
   Directory reportRoot,
   Map<String, ReadinessArtifactEntry> entriesById,
 ) {
+  final m30Entry = entriesById['m30_observe_result_intake'];
+  if (m30Entry?.status == 'ready') {
+    final m30Command = m30Entry?.details['m15ActionProposalHandoffCommand']
+        ?.toString();
+    if (m30Command != null && m30Command.trim().isNotEmpty) {
+      return m30Command;
+    }
+    final m30M14Summary =
+        m30Entry?.details['sourceM14ObserveCanarySummary']?.toString() ?? '';
+    if (m30M14Summary.isNotEmpty) {
+      return <String>[
+        'bash',
+        'tool/run_macos_computer_use_m15_action_proposal_handoff.sh',
+        '--root',
+        reportRoot.path,
+        '--m14-summary',
+        m30M14Summary,
+      ].map(_shellQuote).join(' ');
+    }
+  }
   final llmEntry = entriesById['llm_canary'];
   final m14SummaryPath = llmEntry?.path ?? '';
   if (m14SummaryPath.isEmpty ||
