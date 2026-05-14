@@ -36,7 +36,8 @@ handoffs can refer to the same unit of work over time.
 | Plan Mode | PM18 | done | Prepare Plan Mode release packaging. | Use the release package while defining PM19 post-release guardrails. |
 | Plan Mode | PM19 | done | Define post-release guardrails. | Use the guardrails for scheduled monitoring and open new PM milestones only when post-release evidence requires it. |
 | Plan Mode | PM20 | done | Refresh the release candidate decision with final PM5 gate evidence. | Use the final sign-off as the current Plan Mode productization baseline. |
-| Computer Use | M10-M12 | later | Preserve MVP evidence quality while adding diagnostics and observe-only real-app canaries. | Use the existing MVP checklist before broadening the real-app observe path. |
+| Computer Use | M31R | next | Refresh the current Computer Use evidence baseline before element-grounded work. | Run `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`. |
+| Computer Use | M41-M52 | later | Productize element-grounded Computer Use through accessibility snapshots, element-targeted actions, evaluation, beta, and production launch gates. | Use `docs/macos_computer_use_element_grounding_release_roadmap.md` as the milestone source. |
 
 ## Plan Mode Track
 

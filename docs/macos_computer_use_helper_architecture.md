@@ -1718,6 +1718,8 @@ canaries.
 
 ## Verification Gates
 
+- Element-grounded productization: follow
+  `docs/macos_computer_use_element_grounding_release_roadmap.md` for M41-M52.
 - Static verification: `flutter analyze`, focused unit/widget tests, and
   focused script contract tests pass. After merge, use
   `bash tool/run_macos_computer_use_post_merge_sanity.sh` to run this static
