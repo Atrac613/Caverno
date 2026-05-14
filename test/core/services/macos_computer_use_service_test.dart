@@ -262,6 +262,48 @@ void main() {
     expect(result['approvalRequiredTools'], contains('computer_click'));
     expect(result['armingRequiredTools'], contains('computer_type_text'));
     expect(result['coordinateGuidance'], containsPair('sourceWidth', 640));
+    expect(result['nextAction'], contains('actionProposalPolicy'));
+    final actionProposalPolicy =
+        result['actionProposalPolicy'] as Map<String, dynamic>;
+    expect(
+      actionProposalPolicy,
+      containsPair('schemaName', 'macos_computer_use_action_proposal_policy'),
+    );
+    expect(
+      jsonEncode(actionProposalPolicy),
+      contains('target.risk=public_action'),
+    );
+    final productionActionPolicy =
+        result['productionActionPolicy'] as Map<String, dynamic>;
+    expect(
+      productionActionPolicy,
+      containsPair('schemaName', 'macos_computer_use_production_action_policy'),
+    );
+    expect(
+      productionActionPolicy['phaseOrder'],
+      containsAll([
+        'observe',
+        'approval_packet',
+        'action_time_confirmation',
+        'emergency_stop_available',
+        'execution_result_intake',
+        'post_action_review',
+      ]),
+    );
+    expect(
+      actionProposalPolicy['productionActionPolicy'],
+      containsPair('publicActionSeparateApprovalRequired', true),
+    );
+    final toolPolicies = actionProposalPolicy['toolPolicies'] as List<dynamic>;
+    final clickPolicy = toolPolicies.cast<Map<String, dynamic>>().singleWhere(
+      (policy) => policy['toolName'] == 'computer_click',
+    );
+    expect(clickPolicy['boundaries'], contains('target'));
+    final typeTextPolicy = toolPolicies
+        .cast<Map<String, dynamic>>()
+        .singleWhere((policy) => policy['toolName'] == 'computer_type_text');
+    expect(typeTextPolicy['boundaries'], containsAll(['target', 'exactText']));
+    expect(typeTextPolicy['blockerCodes'], contains('exact_text_missing'));
   });
 
   test(

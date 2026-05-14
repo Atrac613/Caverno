@@ -128,6 +128,93 @@ void main() {
     expect(entry.containsKey('imageBase64'), isFalse);
   });
 
+  test('redacts nested target payloads from audit entries', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_click',
+      policy: MacosComputerUseToolPolicy.decision('computer_click'),
+      approvalResult: 'approved',
+      success: true,
+      result: '{"ok":true,"selectedIpcTransport":"xpc_service"}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_vision_observe',
+        success: true,
+        result:
+            '{"ok":true,"target":{"label":"Compose","text":"secret typed body","token":"secret-token","nested":{"exactText":"Good morning"}}}',
+      ),
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    final target = entry['postActionObservationTarget'] as Map<String, dynamic>;
+    expect(target['label'], 'Compose');
+    expect(target['text'], {'redacted': true, 'length': 17});
+    expect(target['token'], {'redacted': true, 'length': 12});
+    expect(target['nested'], isA<Map<String, dynamic>>());
+    expect(entry.toString(), isNot(contains('secret typed body')));
+    expect(entry.toString(), isNot(contains('secret-token')));
+    expect(entry.toString(), isNot(contains('Good morning')));
+  });
+
+  test('exports M37 audit privacy controls and event coverage', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 10);
+
+    auditLog
+      ..record(
+        toolName: 'computer_vision_observe',
+        policy: MacosComputerUseToolPolicy.decision('computer_vision_observe'),
+        approvalResult: 'not_required',
+        success: true,
+        result: '{"ok":true,"selectedIpcTransport":"xpc_service"}',
+      )
+      ..record(
+        toolName: 'computer_click',
+        policy: MacosComputerUseToolPolicy.decision('computer_click'),
+        approvalResult: 'approved',
+        success: true,
+        result: '{"ok":true,"selectedIpcTransport":"xpc_service"}',
+        postActionObservation: const MacosComputerUsePostActionObservation(
+          toolName: 'computer_vision_observe',
+          success: true,
+          result: '{"ok":true}',
+        ),
+      )
+      ..record(
+        toolName: 'computer_stop_system_audio_recording',
+        policy: MacosComputerUseToolPolicy.decision(
+          'computer_stop_system_audio_recording',
+        ),
+        approvalResult: 'not_required',
+        success: true,
+        result: '{"ok":true}',
+      );
+
+    final controls = auditLog.privacyControls;
+    expect(controls['schemaName'], 'macos_computer_use_audit_privacy_controls');
+    expect(controls['milestone'], 'M37');
+    expect(controls['status'], 'defined');
+    expect(controls['localOnly'], isTrue);
+    expect(controls['userExportable'], isTrue);
+    expect(controls['defaultExportRedacted'], isTrue);
+    expect(controls['explicitPayloadExportRequired'], isTrue);
+    expect(controls['requiredEventTypes'], contains('observe'));
+    expect(controls['requiredEventTypes'], contains('approval'));
+    expect(controls['requiredEventTypes'], contains('execution_handoff'));
+    expect(controls['requiredEventTypes'], contains('emergency_stop'));
+    expect(controls['requiredEventTypes'], contains('result_review'));
+    expect(controls['redactedFieldIds'], contains('typed_text'));
+    expect(controls['redactedFieldIds'], contains('screenshots'));
+    expect(controls['redactedFieldIds'], contains('tokens'));
+    expect(
+      controls['explicitExportRequiredFieldIds'],
+      contains('raw_tool_payloads'),
+    );
+    expect(controls['m37AuditPrivacyGate'], containsPair('status', 'ready'));
+    final coverage = controls['latestAuditCoverage'] as Map<String, dynamic>;
+    expect(coverage['status'], 'complete');
+    expect(coverage['missingEventTypes'], isEmpty);
+  });
+
   test('does not store typed text bodies from input results', () {
     final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
 

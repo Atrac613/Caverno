@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_tool_policy.dart';
+import 'package:caverno/features/settings/presentation/pages/advanced_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/computer_use_debug_page.dart';
+import 'package:caverno/features/settings/presentation/pages/computer_use_settings_page.dart';
 import 'package:caverno/features/settings/presentation/pages/settings_page.dart';
 import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
@@ -35,23 +37,83 @@ void main() {
     MacosComputerUseAuditLog.instance.clear();
   });
 
-  testWidgets('keeps Computer Use behind a settings menu item', (tester) async {
+  testWidgets('keeps Computer Use behind the advanced settings menu', (
+    tester,
+  ) async {
     final service = _FakeMacosComputerUseService();
     await _pumpRootPage(tester, service);
 
     expect(find.text('Computer Use Ready'), findsNothing);
-    expect(find.text('Computer Use'), findsOneWidget);
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(find.text('Computer Use available in Advanced'), findsOneWidget);
+    expect(find.text('Computer Use'), findsNothing);
+    expect(
+      find.text('Helper permissions, smoke checks, and manual sign-off'),
+      findsNothing,
+    );
     expect(service.helperStatusCallCount, 0);
     expect(service.pingHelperCallCount, 0);
     expect(service.getPermissionsCallCount, 0);
 
+    await _tapByKey(tester, 'settings-menu-advanced');
+
+    expect(find.byType(AdvancedSettingsPage), findsOneWidget);
+    expect(find.text('Computer Use'), findsOneWidget);
+    expect(
+      find.text('Helper permissions, smoke checks, and manual sign-off'),
+      findsOneWidget,
+    );
+
     await _tapByKey(tester, 'settings-menu-computer-use');
 
     expect(find.byType(ComputerUseSettingsPage), findsOneWidget);
+    expect(find.text('Helper-owned desktop control'), findsOneWidget);
+    expect(
+      find.text(
+        'Caverno Computer Use owns macOS permissions and desktop actions. TCC grants and real desktop operations remain user-operated.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Computer Use Ready'), findsOneWidget);
     expect(service.helperStatusCallCount, 1);
     expect(service.pingHelperCallCount, 1);
     expect(service.getPermissionsCallCount, 1);
+  });
+
+  testWidgets('shows unavailable Computer Use summary without helper probes', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(isAvailable: false);
+    await _pumpRootPage(tester, service);
+
+    expect(find.text('Advanced'), findsOneWidget);
+    expect(
+      find.text('Computer Use unavailable on this device'),
+      findsOneWidget,
+    );
+    expect(service.helperStatusCallCount, 0);
+    expect(service.pingHelperCallCount, 0);
+    expect(service.getPermissionsCallCount, 0);
+  });
+
+  testWidgets('keeps Computer Use diagnostics collapsed by default', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService();
+    await _pumpPage(tester, service);
+
+    expect(find.text('Computer Use Ready'), findsOneWidget);
+    expect(find.text('Open Computer Use'), findsOneWidget);
+    expect(find.text('Diagnostics'), findsOneWidget);
+    expect(find.text('Helper App: Installed'), findsNothing);
+    expect(find.textContaining('Helper status saved:'), findsNothing);
+    expect(find.text('Recent audit entries'), findsNothing);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
+    expect(find.text('Helper App: Installed'), findsOneWidget);
+    expect(find.textContaining('Helper status saved:'), findsOneWidget);
+    expect(find.text('Recent audit entries'), findsOneWidget);
   });
 
   testWidgets('copies and exports diagnostics from the Settings card', (
@@ -99,12 +161,30 @@ void main() {
       contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
     );
     expect(text, contains('"auditLog"'));
+    expect(text, contains('"auditPrivacyControls"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_audit_privacy_controls"'),
+    );
+    expect(text, contains('"m37AuditPrivacyGate"'));
+    expect(text, contains('"explicitPayloadExportRequired": true'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
     expect(text, contains('"xpcNextParityCommands"'));
     expect(text, contains('"id": "display_screenshot"'));
     expect(text, contains('"lastStopResult"'));
     expect(text, contains('"lastPermissionOverlayResult"'));
+
+    expect(find.text('Diagnostics'), findsOneWidget);
+    expect(
+      find.text(
+        'Runtime status, saved smoke reports, redacted audit log, and privacy controls.',
+      ),
+      findsOneWidget,
+    );
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(
       find.textContaining('Helper status saved:', skipOffstage: false),
       findsOneWidget,
@@ -201,6 +281,8 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(find.text('Verify: Needs attention'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Open Smoke Sequence'), findsOneWidget);
@@ -225,9 +307,6 @@ void main() {
     final service = _FakeMacosComputerUseService(helperReachable: false);
     await _pumpPage(tester, service);
 
-    expect(find.text('Helper App: Installed'), findsOneWidget);
-    expect(find.text('Helper Process: Running'), findsOneWidget);
-    expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(find.text('Restart Helper'), findsOneWidget);
     expect(find.text('Open Computer Use'), findsOneWidget);
     expect(find.text('Computer Use action plan'), findsOneWidget);
@@ -237,8 +316,14 @@ void main() {
     expect(find.text('Capture smoke: blocked'), findsOneWidget);
     expect(find.text('Input smoke: not_armed'), findsOneWidget);
     expect(find.text('System audio smoke: not_armed'), findsOneWidget);
-    expect(find.text('Overlay smoke: ready'), findsAtLeastNWidgets(1));
+    expect(find.text('Overlay smoke: ready'), findsOneWidget);
     expect(find.text('Unsafe arms: not_armed'), findsOneWidget);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
+    expect(find.text('Helper App: Installed'), findsOneWidget);
+    expect(find.text('Helper Process: Running'), findsOneWidget);
+    expect(find.text('IPC Ready: Timeout'), findsOneWidget);
     expect(
       find.textContaining('IPC runtime:', skipOffstage: false),
       findsOneWidget,
@@ -404,6 +489,7 @@ void main() {
       find.text('Display and window capture passed in helper verification.'),
       findsOneWidget,
     );
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('Capture gate: ready'), findsOneWidget);
     expect(
       find.text('Capture blockers: screen_capture_permission_missing'),
@@ -457,6 +543,8 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(find.text('Recent audit entries'), findsOneWidget);
     expect(find.text('computer_click'), findsOneWidget);
     expect(find.text('approved • input'), findsOneWidget);
@@ -493,6 +581,7 @@ void main() {
     await _tapByKey(tester, 'computer-use-settings-primary-action');
 
     expect(service.restartHelperCallCount, 1);
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('IPC Ready: Reachable'), findsOneWidget);
   });
 
@@ -516,6 +605,20 @@ void main() {
     final service = _FakeMacosComputerUseService(helperPathMismatch: true);
     await _pumpPage(tester, service);
 
+    expect(find.text('Recovery guidance'), findsOneWidget);
+    expect(
+      find.text('debug/release or standalone helper mismatch'),
+      findsOneWidget,
+    );
+    expect(
+      find.text(
+        'Restart Caverno Computer Use from Caverno, then recheck helper reachability before sign-off.',
+      ),
+      findsOneWidget,
+    );
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
+
     expect(find.text('Helper path: mismatch'), findsOneWidget);
     expect(
       find.text('Helper identity: preserved running helper'),
@@ -533,6 +636,10 @@ void main() {
     );
     expect(find.text('Helper path sign-off: blocked'), findsOneWidget);
     expect(find.text('Helper runtime use: current_session'), findsOneWidget);
+    expect(find.text('M38 migration gate: blocked'), findsOneWidget);
+    expect(find.text('TCC regrant: may be required'), findsOneWidget);
+    expect(find.text('Old helper actions: blocked'), findsOneWidget);
+    expect(find.text('M38 blockers: helper_path_mismatch'), findsOneWidget);
     expect(
       find.text(
         'Helper path blockers: helper_path_mismatch, preserved_mismatched_helper',
@@ -561,6 +668,8 @@ void main() {
       xpcLaunchAgentEnabled: true,
     );
     await _pumpPage(tester, service);
+
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
 
     expect(find.text('XPC gate: ready'), findsOneWidget);
     expect(
@@ -618,6 +727,7 @@ void main() {
     final service = _FakeMacosComputerUseService(helperWorkActive: true);
     await _pumpPage(tester, service);
 
+    await _tapByKey(tester, 'computer-use-settings-diagnostics');
     expect(find.text('Helper Work: Active'), findsOneWidget);
 
     await _tapByKey(tester, 'computer-use-settings-stop-helper-work');
@@ -678,6 +788,30 @@ void main() {
       find.textContaining('Last permission overlay:', skipOffstage: false),
       findsOneWidget,
     );
+  });
+
+  testWidgets('distinguishes revoked permissions from missing permissions', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(
+      accessibilityGranted: false,
+      screenCaptureGranted: false,
+      previousAccessibilityGranted: true,
+      previousScreenCaptureGranted: true,
+    );
+    await _pumpPage(tester, service);
+
+    expect(find.text('Recovery guidance'), findsOneWidget);
+    expect(find.text('Revoked permissions'), findsOneWidget);
+    expect(
+      find.text('Accessibility, Screen & System Audio Recording'),
+      findsOneWidget,
+    );
+    expect(
+      find.text('blocked; use helper-owned permission overlay'),
+      findsOneWidget,
+    );
+    expect(find.text('Next recovery action'), findsOneWidget);
   });
 }
 
@@ -793,6 +927,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     bool liveSmokeReportAvailable = true,
     bool preferredXpcTimeoutWithFallback = false,
     bool xpcLaunchAgentEnabled = false,
+    bool isAvailable = true,
+    bool previousAccessibilityGranted = false,
+    bool previousScreenCaptureGranted = false,
   }) : _helperWorkActive = helperWorkActive,
        _accessibilityGranted = accessibilityGranted,
        _screenCaptureGranted = screenCaptureGranted,
@@ -801,7 +938,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
        _helperPathMismatch = helperPathMismatch,
        _liveSmokeReportAvailable = liveSmokeReportAvailable,
        _preferredXpcTimeoutWithFallback = preferredXpcTimeoutWithFallback,
-       _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled;
+       _xpcLaunchAgentEnabled = xpcLaunchAgentEnabled,
+       _previousAccessibilityGranted = previousAccessibilityGranted,
+       _previousScreenCaptureGranted = previousScreenCaptureGranted,
+       _isAvailable = isAvailable;
 
   int helperStatusCallCount = 0;
   int launchHelperCallCount = 0;
@@ -814,12 +954,15 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   final List<String> openedSettingsSections = [];
   final List<String> permissionOverlays = [];
   bool _helperWorkActive;
+  final bool _isAvailable;
   final bool _accessibilityGranted;
   final bool _screenCaptureGranted;
   final bool _verificationOk;
   final bool _helperPathMismatch;
   final bool _liveSmokeReportAvailable;
   final bool _preferredXpcTimeoutWithFallback;
+  final bool _previousAccessibilityGranted;
+  final bool _previousScreenCaptureGranted;
   bool _helperReachable;
   bool _xpcLaunchAgentEnabled;
 
@@ -831,7 +974,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       : _embeddedHelperPath;
 
   @override
-  bool get isAvailable => true;
+  bool get isAvailable => _isAvailable;
 
   @override
   Future<String> getHelperStatus() async {
@@ -1235,6 +1378,11 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
     'summary': _verificationOk
         ? 'Verification complete'
         : 'Verification incomplete',
+    'permissions': {
+      'accessibilityGranted': _previousAccessibilityGranted,
+      'screenCaptureGranted': _previousScreenCaptureGranted,
+      'systemAudioRecordingSupported': true,
+    },
     'steps': [
       {
         'id': 'permissions',

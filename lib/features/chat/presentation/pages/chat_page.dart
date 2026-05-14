@@ -8539,6 +8539,88 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ),
                       ),
                     ],
+                    if (pending.approvalBoundaries.isNotEmpty ||
+                        pending.approvalBlockerCodes.isNotEmpty ||
+                        pending.actionProposalNextAction != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.surfaceContainerHighest
+                                .withValues(alpha: 0.45),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.outline.withValues(
+                                alpha: 0.18,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.rule_folder_outlined,
+                                    size: 18,
+                                    color: theme.colorScheme.primary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Approval boundaries',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (pending.approvalBoundaries.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Wrap(
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    for (final boundary
+                                        in pending.approvalBoundaries)
+                                      Chip(
+                                        label: Text(
+                                          _computerUseBoundaryLabel(boundary),
+                                        ),
+                                        visualDensity: VisualDensity.compact,
+                                      ),
+                                  ],
+                                ),
+                              ],
+                              if (pending.approvalBlockerCodes.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  'Blocked until: ${pending.approvalBlockerCodes.map(_computerUseBlockerLabel).join(', ')}',
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.error,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                              if (pending.actionProposalNextAction != null &&
+                                  pending
+                                      .actionProposalNextAction!
+                                      .isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                Text(
+                                  pending.actionProposalNextAction!,
+                                  style: theme.textTheme.bodySmall?.copyWith(
+                                    color: theme.colorScheme.onSurfaceVariant,
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     if (pending.visionObservationSummary != null) ...[
                       const SizedBox(height: 16),
                       Padding(
@@ -8885,6 +8967,26 @@ class _ChatPageState extends ConsumerState<ChatPage>
         buttonColor: scheme.error,
         buttonForegroundColor: scheme.onError,
       ),
+    };
+  }
+
+  String _computerUseBoundaryLabel(String boundary) {
+    return switch (boundary) {
+      'target' => 'Target',
+      'exactText' => 'Exact text',
+      'publicAction' => 'Public action',
+      'systemAudio' => 'System audio',
+      _ => boundary,
+    };
+  }
+
+  String _computerUseBlockerLabel(String blockerCode) {
+    return switch (blockerCode) {
+      'target_missing' => 'target selection',
+      'exact_text_missing' => 'exact text',
+      'separate_public_action_approval_required' =>
+        'separate public action approval',
+      _ => blockerCode,
     };
   }
 

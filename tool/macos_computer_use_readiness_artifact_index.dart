@@ -60,6 +60,12 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     'Missing MVP artifacts: ${rehearsal.missingArtifactIds.isEmpty ? 'none' : rehearsal.missingArtifactIds.join(', ')}',
   );
+  stdout.writeln('Required artifact paths:');
+  for (final artifact in rehearsal.requiredArtifacts) {
+    stdout.writeln(
+      '- ${artifact.id}: ${artifact.exists ? artifact.path : 'missing'}',
+    );
+  }
   final prSummary = rehearsal.prReviewSummary;
   stdout.writeln('PR review summary:');
   stdout.writeln('- Status: ${prSummary.status}');
@@ -79,6 +85,18 @@ Future<void> main(List<String> args) async {
   stdout.writeln(
     '- Report-only preflight command: ${rehearsal.reportOnlyPreflightCommand}',
   );
+  final navigator = index.nextStepNavigator;
+  final recommendation = navigator.recommendation;
+  stdout.writeln('M31 next-step navigator:');
+  stdout.writeln('- Status: ${navigator.status}');
+  stdout.writeln('- Priority: ${recommendation.priority}');
+  stdout.writeln('- Artifact: ${recommendation.artifactId}');
+  stdout.writeln('- Evidence path: ${recommendation.evidencePath}');
+  stdout.writeln('- Next action: ${recommendation.nextAction}');
+  if (recommendation.recommendedCommand != null) {
+    stdout.writeln('Recommended next command:');
+    stdout.writeln(recommendation.recommendedCommand);
+  }
   stdout.writeln('Operation boundary:');
   for (final entry in rehearsal.operationBoundary.entries) {
     stdout.writeln('- ${entry.key}: ${entry.value}');
@@ -86,6 +104,62 @@ Future<void> main(List<String> args) async {
   if (rehearsal.finalAggregationCommand != null) {
     stdout.writeln('Final MVP aggregation command:');
     stdout.writeln(rehearsal.finalAggregationCommand);
+  }
+  if (rehearsal.m15ActionProposalCommand != null) {
+    stdout.writeln('M15 action proposal command:');
+    stdout.writeln(rehearsal.m15ActionProposalCommand);
+  }
+  if (rehearsal.m15LlmReviewCommand != null) {
+    stdout.writeln('M15 LLM review command:');
+    stdout.writeln(rehearsal.m15LlmReviewCommand);
+  }
+  if (rehearsal.m16ApprovalPacketCommand != null) {
+    stdout.writeln('M16 approval packet command:');
+    stdout.writeln(rehearsal.m16ApprovalPacketCommand);
+  }
+  if (rehearsal.m17ExecutionRehearsalCommand != null) {
+    stdout.writeln('M17 execution rehearsal command:');
+    stdout.writeln(rehearsal.m17ExecutionRehearsalCommand);
+  }
+  if (rehearsal.m18ExecutionHandoffCommand != null) {
+    stdout.writeln('M18 execution handoff command:');
+    stdout.writeln(rehearsal.m18ExecutionHandoffCommand);
+  }
+  if (rehearsal.m20ExecutionResultIntakeCommand != null) {
+    stdout.writeln('M20 execution result intake command:');
+    stdout.writeln(rehearsal.m20ExecutionResultIntakeCommand);
+  }
+  if (rehearsal.m22PostActionReviewCommand != null) {
+    stdout.writeln('M22 post-action review command:');
+    stdout.writeln(rehearsal.m22PostActionReviewCommand);
+  }
+  if (rehearsal.m23CycleOutcomeHandoffCommand != null) {
+    stdout.writeln('M23 cycle outcome handoff command:');
+    stdout.writeln(rehearsal.m23CycleOutcomeHandoffCommand);
+  }
+  if (rehearsal.m25NextCycleSeedHandoffCommand != null) {
+    stdout.writeln('M25 next-cycle seed handoff command:');
+    stdout.writeln(rehearsal.m25NextCycleSeedHandoffCommand);
+  }
+  if (rehearsal.m26ObserveRestartPacketCommand != null) {
+    stdout.writeln('M26 observe restart packet command:');
+    stdout.writeln(rehearsal.m26ObserveRestartPacketCommand);
+  }
+  if (rehearsal.m27ScreenshotRequestHandoffCommand != null) {
+    stdout.writeln('M27 screenshot request handoff command:');
+    stdout.writeln(rehearsal.m27ScreenshotRequestHandoffCommand);
+  }
+  if (rehearsal.m28ScreenshotEvidenceIntakeCommand != null) {
+    stdout.writeln('M28 screenshot evidence intake command:');
+    stdout.writeln(rehearsal.m28ScreenshotEvidenceIntakeCommand);
+  }
+  if (rehearsal.m29ObserveCanaryRunPacketCommand != null) {
+    stdout.writeln('M29 observe canary run packet command:');
+    stdout.writeln(rehearsal.m29ObserveCanaryRunPacketCommand);
+  }
+  if (rehearsal.m30ObserveResultIntakeCommand != null) {
+    stdout.writeln('M30 observe result intake command:');
+    stdout.writeln(rehearsal.m30ObserveResultIntakeCommand);
   }
   if (rehearsal.missingArtifactActions.isNotEmpty) {
     stdout.writeln('Missing MVP artifact checklist:');

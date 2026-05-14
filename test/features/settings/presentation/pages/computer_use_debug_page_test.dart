@@ -20,6 +20,13 @@ void main() {
     final service = _FakeMacosComputerUseService();
     await _pumpPage(tester, service);
 
+    expect(find.text('User-Operated Runtime Boundary'), findsOneWidget);
+    expect(
+      find.text(
+        'Use this page to inspect helper readiness and run smoke checks. TCC grants, System Settings changes, and real desktop actions must be performed by the user.',
+      ),
+      findsOneWidget,
+    );
     expect(find.text('Computer Use App Boundary'), findsOneWidget);
     expect(find.text('Current executor'), findsOneWidget);
     expect(find.text('Permission owner now'), findsOneWidget);
@@ -43,6 +50,7 @@ void main() {
     await _pumpPage(tester, service);
 
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
+    await _scrollUntilVisible(tester, find.text('Computer Use Onboarding'));
     expect(find.text('Computer Use Onboarding'), findsOneWidget);
     expect(find.text('2 of 10 complete'), findsOneWidget);
     expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
@@ -52,6 +60,23 @@ void main() {
     expect(find.text('User-Operated MVP Commands'), findsOneWidget);
     expect(find.text('MVP Artifact Paths'), findsOneWidget);
     expect(find.text('MVP PR Review Summary'), findsOneWidget);
+    expect(
+      find.textContaining('M37 audit/privacy controls: defined'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Explicit payload export required: true'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('Redacts: secrets, api_keys'), findsOneWidget);
+    expect(
+      find.textContaining('M38 install/migration guardrails: ready'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('Old helper action requests blocked: true'),
+      findsOneWidget,
+    );
     expect(
       find.textContaining(
         'release_artifact, canary_history, manual_tcc, desktop_action_canary, llm_canary',
@@ -64,7 +89,72 @@ void main() {
     );
     expect(
       find.textContaining(
+        'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('m36_live_llm_eval'), findsNWidgets(2));
+    expect(
+      find.textContaining(
         'Report-only preflight: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M31 next-step navigator: dart run tool/macos_computer_use_next_step_navigator.dart',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M33 release packaging: bash tool/run_macos_computer_use_release_packaging.sh',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M35 production action policy: defined'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'observe > approval_packet > action_time_confirmation > emergency_stop_available > execution_result_intake > post_action_review',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M15 LLM review command: bash tool/run_macos_computer_use_m15_llm_review_canary.sh --handoff <action_proposal_handoff.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M16 approval packet command: bash tool/run_macos_computer_use_m16_approval_packet.sh --m15-handoff <action_proposal_handoff.json> --m15-llm-review <canary_summary.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M17 execution rehearsal command: bash tool/run_macos_computer_use_m17_execution_rehearsal.sh --m16-packet <approval_packet.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M18 execution handoff command: bash tool/run_macos_computer_use_m18_execution_handoff.sh --m17-rehearsal <execution_rehearsal.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M20 execution result intake command: bash tool/run_macos_computer_use_m20_execution_result_intake.sh --m18-handoff <execution_handoff.json>',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M22 post-action review command: bash tool/run_macos_computer_use_m22_post_action_review.sh --m20-intake <execution_result_intake.json>',
       ),
       findsOneWidget,
     );
@@ -88,7 +178,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'llm_canary: Run `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh` or provide an MVP fixture LLM canary `canary_summary.json`',
+        'llm_canary: Run `bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh`, run `bash tool/run_macos_computer_use_real_app_observe_canary.sh`',
       ),
       findsOneWidget,
     );
@@ -154,6 +244,22 @@ void main() {
       findsNWidgets(2),
     );
     expect(
+      find.textContaining('macos_computer_use_next_step_navigator.json'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_next_step_navigator.md'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_release_packaging.json'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_release_packaging.md'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_release_readiness_ci.md'),
       findsNWidgets(2),
     );
@@ -166,6 +272,81 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('MVP fixture LLM summary:'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_m15_action_proposal_handoff_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M15 action proposal handoff:'), findsOneWidget);
+    expect(
+      find.textContaining('action_proposal_handoff.json'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('macos_computer_use_m15_llm_review_canary_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M15 LLM review summary:'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_m16_approval_packet_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M16 approval packet:'), findsOneWidget);
+    expect(find.textContaining('approval_packet.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m17_execution_rehearsal_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M17 execution rehearsal:'), findsOneWidget);
+    expect(find.textContaining('execution_rehearsal.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m18_execution_handoff_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M18 execution handoff:'), findsOneWidget);
+    expect(find.textContaining('execution_handoff.json'), findsNWidgets(2));
+    expect(
+      find.textContaining('macos_computer_use_m20_execution_result_intake_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M20 execution result intake:'), findsOneWidget);
+    expect(
+      find.textContaining('execution_result_intake.json'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('macos_computer_use_m22_post_action_review_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M22 post-action review:'), findsOneWidget);
+    expect(find.textContaining('post_action_review.json'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_m30_observe_result_intake_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M30 observe result intake:'), findsOneWidget);
+    expect(
+      find.textContaining('M30 observe result intake command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'M30 returns ready observe evidence to the M15 action proposal handoff',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M36 Live LLM eval command:'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_m36_live_llm_eval_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M36 Live LLM eval summary:'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'M23-M29 restart artifact paths are listed by the artifact index',
+      ),
+      findsOneWidget,
+    );
+    expect(find.textContaining('observe_result_intake.json'), findsOneWidget);
     expect(
       find.textContaining(
         'Review `PR Review Summary` in `macos_computer_use_mvp_handoff.md`',
@@ -197,10 +378,67 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining('blocked M15 action-proposal review evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M15 LLM review evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M16 approval packet evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M17 execution rehearsal evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M18 execution handoff evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M20 execution result intake evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M22 post-action review evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M23 cycle outcome evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M25 next-cycle seed evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M26 observe restart evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M27 screenshot request evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M28 screenshot evidence intake'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M29 observe run packet evidence'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('blocked M30 observe result intake evidence'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M15 review/gate consistency'), findsOneWidget);
+    expect(
       find.textContaining('manual_tcc_report_summary.json'),
       findsNWidgets(3),
     );
-    expect(find.textContaining('canary_summary.json'), findsNWidgets(3));
+    expect(find.textContaining('canary_summary.json'), findsNWidgets(4));
     expect(
       find.textContaining('/tmp/caverno-macos-computer-use-smoke.json'),
       findsOneWidget,
@@ -544,6 +782,13 @@ void main() {
       contains('"schemaName": "macos_computer_use_xpc_timing_report_summary"'),
     );
     expect(text, contains('"auditLog"'));
+    expect(text, contains('"auditPrivacyControls"'));
+    expect(
+      text,
+      contains('"schemaName": "macos_computer_use_audit_privacy_controls"'),
+    );
+    expect(text, contains('"m37AuditPrivacyGate"'));
+    expect(text, contains('"explicitPayloadExportRequired": true'));
     expect(text, contains('"lastLiveSmokeReport"'));
     expect(text, contains('"targetHelperName": "Caverno Computer Use"'));
     expect(text, contains('"displayScreenshot"'));
@@ -973,4 +1218,4 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
 String _json(Map<String, dynamic> value) => jsonEncode(value);
 
 const _png1x1Base64 =
-    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAIAAACQd1PeAAAADElEQVR42mP8z8BQDwAFgwJ/lzWj8QAAAABJRU5ErkJggg==';
+    'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAAC0lEQVR4nGNgAAIAAAUAAXpeqz8AAAAASUVORK5CYII=';

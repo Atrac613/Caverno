@@ -953,7 +953,9 @@ class ChatRemoteDataSource implements ChatDataSource {
         ..remove('imageBase64');
       final text =
           'Visual observation from ${toolResult.name}. '
-          'Use this screenshot to decide the next computer-use action. '
+          'Use this screenshot and any actionProposalPolicy metadata to decide '
+          'the next computer-use action. Preserve required target metadata, '
+          'exact text, and public action boundaries when proposing actions. '
           'Metadata: ${dart_convert.jsonEncode(metadata)}';
       messages.add(
         ChatMessage.user([

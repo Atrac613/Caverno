@@ -8,6 +8,7 @@ import '../../../../core/services/local_diagnostics_exporter.dart';
 import '../../../../core/services/macos_computer_use_audit_log.dart';
 import '../../../../core/services/macos_computer_use_service.dart';
 import '../../../../core/services/macos_computer_use_setup.dart';
+import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../../core/services/macos_computer_use_xpc_timing_report.dart';
 import '../widgets/computer_use_audit_log_summary.dart';
 
@@ -89,6 +90,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
             _buildUnsupportedPlatformCard(context),
             const SizedBox(height: 12),
           ],
+          _buildRuntimeBoundaryCard(),
+          const SizedBox(height: 12),
           _buildPermissionsCard(service.permissionBackendInfo),
           const SizedBox(height: 12),
           _buildOnboardingChecklistCard(),
@@ -127,6 +130,20 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               ),
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildRuntimeBoundaryCard() {
+    return const Card(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: _OnboardingNote(
+          icon: Icons.front_hand_outlined,
+          title: 'User-Operated Runtime Boundary',
+          body:
+              'Use this page to inspect helper readiness and run smoke checks. TCC grants, System Settings changes, and real desktop actions must be performed by the user.',
         ),
       ),
     );
@@ -1463,6 +1480,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       ),
       onboardingSmokeChecklist: _onboardingSmokeChecklist(),
       onboardingVerification: _onboardingVerification(),
+      productionActionPolicy:
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       helperStatus: _helperStatus,
       helperStatusPersistence: _helperStatusPersistence(),
       permissions: _permissions,
@@ -1485,6 +1504,12 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       lastAction: _lastAction,
       lastResult: _lastResultForDiagnostics,
       auditLog: MacosComputerUseAuditLog.instance.redactedEntries,
+      auditPrivacyControls: MacosComputerUseAuditLog.instance.privacyControls,
+      installMigrationGuardrails:
+          MacosComputerUseInstallMigrationGuardrails.fromState(
+            helperStatus: _helperStatus,
+            helperIpcRuntime: _helperIpcProtocol(),
+          ),
       lastLiveSmokeReport: _lastLiveSmokeReport,
       lastExistingHelperProbeReport: _lastExistingHelperProbeReport,
       lastDiagnosticExportPath: _lastDiagnosticExportPath,
@@ -1708,14 +1733,73 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     ].join(' | ');
   }
 
+  String _auditPrivacyControlsSummary() {
+    final controls = MacosComputerUseAuditLog.instance.privacyControls;
+    final requiredEvents = controls['requiredEventTypes'];
+    final redactedFields = controls['redactedFieldIds'];
+    return [
+      'M37 audit/privacy controls: ${controls['status']}',
+      'Status: ${controls['status']}',
+      'Local-only: ${controls['localOnly']}',
+      'User-exportable: ${controls['userExportable']}',
+      'Default export redacted: ${controls['defaultExportRedacted']}',
+      'Explicit payload export required: ${controls['explicitPayloadExportRequired']}',
+      if (requiredEvents is List) 'Events: ${requiredEvents.join(', ')}',
+      if (redactedFields is List) 'Redacts: ${redactedFields.join(', ')}',
+    ].join(' | ');
+  }
+
+  String _installMigrationGuardrailsSummary() {
+    final guardrails = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: _helperStatus,
+      helperIpcRuntime: _helperIpcProtocol(),
+    );
+    final gate = guardrails['m38InstallMigrationGate'];
+    final blockers = gate is Map ? gate['blockers'] : null;
+    return [
+      'M38 install/migration guardrails: ${guardrails['status']}',
+      'TCC regrant required: ${guardrails['tccRegrantRequired']}',
+      'Old helper action requests blocked: ${guardrails['oldHelperActionRequestsBlocked']}',
+      if (blockers is List && blockers.isNotEmpty)
+        'Blockers: ${blockers.join(', ')}',
+      '${guardrails['nextAction']}',
+    ].join(' | ');
+  }
+
   String _mvpEvidencePreflightSummary() {
     return [
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
+      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake, m36_live_llm_eval',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
+      'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
+      'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
+      _productionActionPolicySummary(),
+      _auditPrivacyControlsSummary(),
+      _installMigrationGuardrailsSummary(),
+      'M15 LLM review command: ${MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand}',
+      'M16 approval packet command: ${MacosComputerUseMvpGuidance.m16ApprovalPacketCommand}',
+      'M17 execution rehearsal command: ${MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand}',
+      'M18 execution handoff command: ${MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand}',
+      'M20 execution result intake command: ${MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand}',
+      'M22 post-action review command: ${MacosComputerUseMvpGuidance.m22PostActionReviewCommand}',
+      'M30 observe result intake command: ${MacosComputerUseMvpGuidance.m30ObserveResultIntakeCommand}',
+      'M36 Live LLM eval command: ${MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand}',
+      'M30 returns ready observe evidence to the M15 action proposal handoff; use the artifact index for exact M23-M29 restart commands.',
       'Final aggregation waits for all required evidence',
+    ].join(' | ');
+  }
+
+  String _productionActionPolicySummary() {
+    final policy = MacosComputerUseToolPolicy.productionActionPolicy();
+    return [
+      'M35 production action policy: ${policy.status}',
+      'phases ${policy.phaseOrder.join(' > ')}',
+      'public actions require separate approval: ${policy.publicActionSeparateApprovalRequired}',
+      'emergency stop required: ${policy.emergencyStopRequired}',
+      'post-action review required: ${policy.postActionReviewRequired}',
     ].join(' | ');
   }
 
@@ -1743,10 +1827,36 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
       'llmCanarySummary':
           'build/integration_test_reports/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+      'm15ActionProposalHandoff':
+          'build/integration_test_reports/macos_computer_use_m15_action_proposal_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m15ActionProposalHandoffFile}',
+      'm15LlmReviewCanarySummary':
+          'build/integration_test_reports/macos_computer_use_m15_llm_review_canary_<timestamp>/${MacosComputerUseMvpGuidance.m15LlmReviewCanarySummaryFile}',
+      'm16ApprovalPacket':
+          'build/integration_test_reports/macos_computer_use_m16_approval_packet_<timestamp>/${MacosComputerUseMvpGuidance.m16ApprovalPacketFile}',
+      'm17ExecutionRehearsal':
+          'build/integration_test_reports/macos_computer_use_m17_execution_rehearsal_<timestamp>/${MacosComputerUseMvpGuidance.m17ExecutionRehearsalFile}',
+      'm18ExecutionHandoff':
+          'build/integration_test_reports/macos_computer_use_m18_execution_handoff_<timestamp>/${MacosComputerUseMvpGuidance.m18ExecutionHandoffFile}',
+      'm20ExecutionResultIntake':
+          'build/integration_test_reports/macos_computer_use_m20_execution_result_intake_<timestamp>/${MacosComputerUseMvpGuidance.m20ExecutionResultIntakeFile}',
+      'm22PostActionReview':
+          'build/integration_test_reports/macos_computer_use_m22_post_action_review_<timestamp>/${MacosComputerUseMvpGuidance.m22PostActionReviewFile}',
+      'm30ObserveResultIntake':
+          'build/integration_test_reports/macos_computer_use_m30_observe_result_intake_<timestamp>/${MacosComputerUseMvpGuidance.m30ObserveResultIntakeFile}',
+      'm36LiveLlmEvalSummary':
+          'build/integration_test_reports/macos_computer_use_m36_live_llm_eval_<timestamp>/${MacosComputerUseMvpGuidance.m36LiveLlmEvalSummaryFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexMarkdownFile}',
+      'nextStepNavigatorJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
+      'nextStepNavigatorMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile}',
+      'releasePackagingJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releasePackagingJsonFile}',
+      'releasePackagingMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.releasePackagingMarkdownFile}',
       'releaseReadinessCiMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.releaseReadinessCiMarkdownFile}',
       'releaseReadinessSignoffMarkdown':
@@ -1764,8 +1874,22 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
       'MVP fixture LLM summary: ${paths['llmCanarySummary']}',
+      'M15 action proposal handoff: ${paths['m15ActionProposalHandoff']}',
+      'M15 LLM review summary: ${paths['m15LlmReviewCanarySummary']}',
+      'M16 approval packet: ${paths['m16ApprovalPacket']}',
+      'M17 execution rehearsal: ${paths['m17ExecutionRehearsal']}',
+      'M18 execution handoff: ${paths['m18ExecutionHandoff']}',
+      'M20 execution result intake: ${paths['m20ExecutionResultIntake']}',
+      'M22 post-action review: ${paths['m22PostActionReview']}',
+      'M30 observe result intake: ${paths['m30ObserveResultIntake']}',
+      'M36 Live LLM eval summary: ${paths['m36LiveLlmEvalSummary']}',
+      'M23-M29 restart artifact paths are listed by the artifact index when those optional reports exist',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
+      'Next-step navigator JSON: ${paths['nextStepNavigatorJson']}',
+      'Next-step navigator Markdown: ${paths['nextStepNavigatorMarkdown']}',
+      'Release packaging JSON: ${paths['releasePackagingJson']}',
+      'Release packaging Markdown: ${paths['releasePackagingMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',
       'Release readiness sign-off Markdown: ${paths['releaseReadinessSignoffMarkdown']}',
       if (paths['latestLiveSmokeReport'] != null)

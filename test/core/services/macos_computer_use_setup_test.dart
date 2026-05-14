@@ -100,6 +100,89 @@ void main() {
     );
   });
 
+  test('documents MVP PR review consistency guidance', () {
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M15 action-proposal review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M15 LLM review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M16 approval packet evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M17 execution rehearsal evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M18 execution handoff evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M20 execution result intake evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M22 post-action review evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M36 Live LLM evaluation evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M39 beta sign-off evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M40 production launch evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('M15 review/gate consistency'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m15LlmReviewCanaryCommand,
+      contains('run_macos_computer_use_m15_llm_review_canary.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m16ApprovalPacketCommand,
+      contains('run_macos_computer_use_m16_approval_packet.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m17ExecutionRehearsalCommand,
+      contains('run_macos_computer_use_m17_execution_rehearsal.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m18ExecutionHandoffCommand,
+      contains('run_macos_computer_use_m18_execution_handoff.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m20ExecutionResultIntakeCommand,
+      contains('run_macos_computer_use_m20_execution_result_intake.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m22PostActionReviewCommand,
+      contains('run_macos_computer_use_m22_post_action_review.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand,
+      contains('run_macos_computer_use_m36_live_llm_eval.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m39BetaSignoffCommand,
+      contains('run_macos_computer_use_m39_beta_signoff.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m40ProductionLaunchGateCommand,
+      contains('run_macos_computer_use_m40_production_launch_gate.sh'),
+    );
+  });
+
   test('builds the onboarding diagnostics schema', () {
     const checklist = MacosComputerUseSetupChecklist(
       backend: MacosComputerUseBackends.helperIpc,
@@ -130,6 +213,22 @@ void main() {
         'updatedAt': '2026-04-25T12:00:30Z',
         'activeWork': {'systemAudioRecording': false},
       },
+      permissionRecoverySummary: const {
+        'status': 'needs_recovery',
+        'issueIds': ['missing_permissions'],
+      },
+      productionActionPolicy: const {
+        'status': 'defined',
+        'phaseOrder': ['observe', 'approval_packet'],
+      },
+      auditPrivacyControls: const {
+        'schemaName': 'macos_computer_use_audit_privacy_controls',
+        'm37AuditPrivacyGate': {'status': 'ready'},
+      },
+      installMigrationGuardrails: const {
+        'schemaName': 'macos_computer_use_install_migration_guardrails',
+        'm38InstallMigrationGate': {'status': 'ready'},
+      },
       permissions: const {'accessibilityGranted': true},
       manualSmokeSteps: const [
         {'id': 'capture_display', 'ok': true},
@@ -156,6 +255,14 @@ void main() {
     expect(diagnostics['generatedAt'], '2026-04-25T12:00:00.000Z');
     expect(diagnostics['setupChecklist'], isA<Map<String, dynamic>>());
     expect(diagnostics['onboardingVerification'], containsPair('ok', false));
+    expect(
+      diagnostics['permissionRecoverySummary'],
+      containsPair('status', 'needs_recovery'),
+    );
+    expect(
+      diagnostics['productionActionPolicy'],
+      containsPair('status', 'defined'),
+    );
     expect(diagnostics['helperStatusPersistence'], contains('activeWork'));
     expect(diagnostics['helperIpcProtocol'], containsPair('xpcReady', true));
     expect(
@@ -178,9 +285,125 @@ void main() {
       MacosComputerUseOperationBoundary.values,
     );
     expect(diagnostics['auditLog'], isA<List<Map<String, dynamic>>>());
+    expect(
+      diagnostics['auditPrivacyControls'],
+      containsPair('schemaName', 'macos_computer_use_audit_privacy_controls'),
+    );
+    expect(
+      diagnostics['installMigrationGuardrails'],
+      containsPair(
+        'schemaName',
+        'macos_computer_use_install_migration_guardrails',
+      ),
+    );
     expect(diagnostics['manualSmokeSteps'], isA<List<Map<String, dynamic>>>());
     expect(diagnostics['migratedCommands'], isA<List<Map<String, String>>>());
     expect(diagnostics['lastLiveSmokeReport'], containsPair('ok', true));
+  });
+
+  test('classifies revoked helper permissions as recovery issues', () {
+    final summary = MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: const MacosComputerUsePermissionSnapshot(
+        helperReachable: true,
+        accessibilityGranted: false,
+        screenCaptureGranted: false,
+        systemAudioRecordingSupported: true,
+      ),
+      onboardingVerification: const {
+        'permissions': {
+          'accessibilityGranted': true,
+          'screenCaptureGranted': true,
+        },
+      },
+    );
+
+    expect(summary.isReady, isFalse);
+    expect(summary.issueIds, contains('revoked_permissions'));
+    expect(summary.missingPermissionLabels, isEmpty);
+    expect(summary.revokedPermissionLabels, [
+      'Accessibility',
+      'Screen & System Audio Recording',
+    ]);
+    expect(summary.mainAppPermissionPromptsBlocked, isTrue);
+    expect(
+      summary.nextAction,
+      'Ask the user to re-enable Caverno Computer Use in System Settings, then recheck permissions.',
+    );
+  });
+
+  test('classifies stale helper path mismatches before permission prompts', () {
+    final summary = MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: const MacosComputerUsePermissionSnapshot(
+        helperReachable: true,
+        accessibilityGranted: true,
+        screenCaptureGranted: true,
+        systemAudioRecordingSupported: true,
+      ),
+      helperStatus: const {
+        'helperSharedDiagnosticsStale': true,
+        'helperSharedDiagnosticsStaleReasons': ['helper_bundle_path_mismatch'],
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/macos/Build/Products/Debug/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': false,
+      },
+    );
+
+    expect(summary.issueIds, contains('stale_helper_diagnostics'));
+    expect(summary.issueIds, contains('debug_release_helper_mismatch'));
+    expect(summary.helperPathMismatch, isTrue);
+    expect(summary.debugReleaseHelperMismatch, isTrue);
+    expect(
+      summary.nextAction,
+      'Restart Caverno Computer Use from Caverno, then recheck helper reachability before sign-off.',
+    );
+  });
+
+  test('builds M38 install and migration guardrails', () {
+    final ready = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: const {
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': true,
+        'oldHelperActionRequestsBlocked': true,
+      },
+    );
+
+    expect(
+      ready['schemaName'],
+      'macos_computer_use_install_migration_guardrails',
+    );
+    expect(ready['milestone'], 'M38');
+    expect(ready['status'], 'ready');
+    expect(ready['tccRegrantRequired'], isFalse);
+    expect(ready['oldHelperActionRequestsBlocked'], isTrue);
+
+    final blocked = MacosComputerUseInstallMigrationGuardrails.fromState(
+      helperStatus: const {
+        'embeddedHelperPath':
+            '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'runningHelperPath':
+            '/Users/noguwo/Documents/Workspace/Flutter/caverno/build/macos/Build/Products/Debug/Caverno Computer Use.app',
+        'helperPathMatchesRunningHelper': false,
+        'helperPathMismatch': true,
+        'helperSharedDiagnosticsStaleReasons': ['helper_bundle_path_mismatch'],
+      },
+    );
+
+    expect(blocked['status'], 'blocked');
+    expect(blocked['tccRegrantRequired'], isTrue);
+    expect(
+      blocked['tccRegrantReason'],
+      contains('TCC grants are tied to the helper app identity'),
+    );
+    final gate = blocked['m38InstallMigrationGate'] as Map<String, dynamic>;
+    expect(gate['blockers'], contains('helper_path_mismatch'));
+    expect(gate['blockers'], contains('stale_helper_diagnostics'));
   });
 
   test('reports missing permissions before a snapshot is loaded', () {

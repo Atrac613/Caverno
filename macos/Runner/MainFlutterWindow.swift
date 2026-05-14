@@ -189,6 +189,18 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   var supportsPreferredXpcTransport: Bool {
     true
   }
+
+  var blocksOnHelperPathMismatch: Bool {
+    switch self {
+    case .ping, .showMainWindow, .permissionStatus, .openSettings,
+         .showPermissionOverlay, .startOnboardingPermissionFlow, .stopAll:
+      return false
+    case .screenshot, .listWindows, .focusWindow, .screenshotWindow,
+         .moveMouse, .click, .drag, .scroll, .typeText, .pressKey,
+         .startSystemAudioRecording, .stopSystemAudioRecording:
+      return true
+    }
+  }
 }
 
 fileprivate enum MacosComputerUseIpcSchema {
@@ -368,8 +380,12 @@ final class MacosComputerUseHelperClient: NSObject {
     let lockOwner = activeExpectedLockOwner(expectedHelperPath: helperPath)
     let runningHelperPath = runningApplication?.bundleURL?.standardizedFileURL.path
     let helperRunningViaLockOwner = runningApplication == nil && lockOwner != nil
+    let mismatchedApplications = runningApplications.filter {
+      $0.bundleURL?.standardizedFileURL.path != helperPath
+    }
     let helperPathMatchesRunningHelper =
-      helperRunningViaLockOwner || runningHelperPath == nil || runningHelperPath == helperPath
+      mismatchedApplications.isEmpty &&
+      (helperRunningViaLockOwner || runningHelperPath == nil || runningHelperPath == helperPath)
     var response: [String: Any] = [
       "ok": true,
       "helperDisplayName": helperDisplayName,
@@ -433,14 +449,29 @@ final class MacosComputerUseHelperClient: NSObject {
         .map { Int($0.processIdentifier) }
       response["helperDuplicateProcessCount"] = runningApplications.count
     }
+    if !mismatchedApplications.isEmpty {
+      response["mismatchedHelperProcessIdentifiers"] =
+        mismatchedApplications.map { Int($0.processIdentifier) }
+      response["mismatchedHelperPaths"] = mismatchedApplications.map {
+        $0.bundleURL?.standardizedFileURL.path ?? ""
+      }
+    }
     if !helperPathMatchesRunningHelper {
       response["helperPathMismatch"] = true
       response["helperPathMismatchDetails"] = [
         "expectedHelperPath": helperPath,
-        "runningHelperPath": runningHelperPath ?? "",
+        "runningHelperPath": runningHelperPath ?? mismatchedApplications.first?.bundleURL?.standardizedFileURL.path ?? "",
         "nextAction": "Restart Caverno Computer Use from Caverno before validating granted permissions.",
       ]
     }
+    response["oldHelperActionRequestsBlocked"] = true
+    response["installMigrationGuardrails"] = installMigrationGuardrails(
+      helperPath: helperPath,
+      runningHelperPath: runningHelperPath,
+      helperPathMatchesRunningHelper: helperPathMatchesRunningHelper,
+      mismatchedApplications: mismatchedApplications,
+      staleReasons: []
+    )
     response.merge(xpcLaunchAgentStatus()) { _, new in new }
     if let lastHelperIpcAttempt {
       response["lastHelperIpcAttempt"] = lastHelperIpcAttempt
@@ -531,6 +562,76 @@ final class MacosComputerUseHelperClient: NSObject {
 
     response["helperSharedDiagnosticsStale"] = !staleReasons.isEmpty
     response["helperSharedDiagnosticsStaleReasons"] = staleReasons
+    response["installMigrationGuardrails"] = installMigrationGuardrails(
+      helperPath: helperURL.standardizedFileURL.path,
+      runningHelperPath: runningApplication?.bundleURL?.standardizedFileURL.path,
+      helperPathMatchesRunningHelper: response["helperPathMatchesRunningHelper"] as? Bool ?? false,
+      mismatchedApplications: [],
+      staleReasons: staleReasons
+    )
+  }
+
+  private func installMigrationGuardrails(
+    helperPath: String,
+    runningHelperPath: String?,
+    helperPathMatchesRunningHelper: Bool,
+    mismatchedApplications: [NSRunningApplication],
+    staleReasons: [String]
+  ) -> [String: Any] {
+    let helperPathMismatch = !helperPathMatchesRunningHelper || !mismatchedApplications.isEmpty
+    let diagnosticsStale = !staleReasons.isEmpty
+    var blockers: [String] = []
+    if helperPathMismatch {
+      blockers.append("helper_path_mismatch")
+    }
+    if diagnosticsStale {
+      blockers.append("stale_helper_diagnostics")
+    }
+    let tccRegrantRequired =
+      helperPathMismatch ||
+      staleReasons.contains("helper_bundle_path_mismatch") ||
+      staleReasons.contains("helper_executable_path_mismatch")
+    return [
+      "schemaName": "macos_computer_use_install_migration_guardrails",
+      "schemaVersion": 1,
+      "milestone": "M38",
+      "status": blockers.isEmpty ? "ready" : "blocked",
+      "ready": blockers.isEmpty,
+      "m38InstallMigrationGate": [
+        "status": blockers.isEmpty ? "ready" : "blocked",
+        "ready": blockers.isEmpty,
+        "blockers": blockers,
+      ],
+      "helperIdentityPreservedWhenPossible": true,
+      "expectedHelperPath": helperPath,
+      "runningHelperPath": runningHelperPath ?? "",
+      "helperPathMatchesRunningHelper": helperPathMatchesRunningHelper,
+      "helperPathMismatch": helperPathMismatch,
+      "helperDiagnosticsStale": diagnosticsStale,
+      "helperDiagnosticsStaleReasons": staleReasons,
+      "tccRegrantRequired": tccRegrantRequired,
+      "tccRegrantReason": tccRegrantRequired
+        ? "macOS TCC grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes."
+        : "The current helper identity matches the expected embedded helper path.",
+      "oldHelperActionRequestsBlocked": true,
+      "allowedDuringMigration": [
+        "status",
+        "open_helper_ui",
+        "permission_recovery",
+        "emergency_stop",
+      ],
+      "blockedDuringMigration": [
+        "screenshot",
+        "window_capture",
+        "focus",
+        "pointer_input",
+        "keyboard_input",
+        "system_audio_recording",
+      ],
+      "nextAction": blockers.isEmpty
+        ? "Install and migration guardrails are ready."
+        : "Restart Caverno Computer Use from the installed Caverno bundle, recheck helper identity, and ask the user to regrant TCC only if macOS reports the new helper as missing permissions.",
+    ]
   }
 
   private func parseSharedDiagnosticsDate(_ value: String) -> Date? {
@@ -1209,6 +1310,17 @@ final class MacosComputerUseHelperClient: NSObject {
     timeout: TimeInterval = 1.5,
     result: @escaping FlutterResult
   ) {
+    if let blocker = helperPathMismatchActionBlocker(for: command) {
+      result(
+        FlutterError(
+          code: "old_helper_process_blocked",
+          message: "Caverno Computer Use action blocked because a different helper app is running.",
+          details: blocker
+        )
+      )
+      return
+    }
+
     if shouldWarmupXpc(for: command) {
       sendXpcWarmup(for: command) { [weak self] warmupDiagnostic in
         guard let self else {
@@ -1239,6 +1351,32 @@ final class MacosComputerUseHelperClient: NSObject {
     }
 
     sendFallback(command: command, arguments: arguments, timeout: timeout, result: result)
+  }
+
+  private func helperPathMismatchActionBlocker(
+    for command: MacosComputerUseHelperCommand
+  ) -> [String: Any]? {
+    guard command.blocksOnHelperPathMismatch else {
+      return nil
+    }
+    let currentStatus = status()
+    guard currentStatus["helperPathMismatch"] as? Bool == true else {
+      return nil
+    }
+    return [
+      "schemaName": "macos_computer_use_install_migration_guardrails",
+      "schemaVersion": 1,
+      "milestone": "M38",
+      "command": command.rawValue,
+      "status": "blocked",
+      "oldHelperActionRequestsBlocked": true,
+      "expectedHelperPath": currentStatus["embeddedHelperPath"] ?? currentStatus["helperPath"] ?? "",
+      "runningHelperPath": currentStatus["runningHelperPath"] ?? "",
+      "mismatchedHelperPath": currentStatus["mismatchedHelperPath"] ?? "",
+      "mismatchedHelperPaths": currentStatus["mismatchedHelperPaths"] ?? [],
+      "blockers": ["helper_path_mismatch"],
+      "nextAction": "Restart Caverno Computer Use from the installed Caverno bundle, then recheck helper identity before running desktop actions.",
+    ]
   }
 
   private func sendFallback(

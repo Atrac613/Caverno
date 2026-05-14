@@ -1,9 +1,10 @@
 # macOS Computer Use Real App Observe Runbook
 
-M12 moves from deterministic fixture evidence to real app screenshots while
-remaining observe-only. The canary uses a user-provided screenshot and asks the
-LLM to identify visible app context, candidate UI targets, and public-action
-boundaries without opening apps, clicking, typing, submitting, or posting.
+M12 moved from deterministic fixture evidence to real app screenshots while
+remaining observe-only. M14 expands that path for Safari-style logged-in
+workflows by asking the LLM to identify visible app context, candidate UI
+targets, text fields, public-action boundaries, and confirmation requirements
+without opening apps, clicking, typing, submitting, or posting.
 
 ## Scope
 
@@ -12,6 +13,8 @@ This runbook is for tasks such as:
 - Inspect Safari with X visible.
 - Identify address bars, compose fields, and submit or post controls.
 - Classify public submit controls as `public_action`.
+- Document confirmation requirements before any future text entry or public
+  submit action.
 - Verify that every future input or public action requires explicit user
   approval.
 
@@ -21,6 +24,16 @@ It is not for executing actions. TCC setup and real desktop operation remain use
 
 First, manually prepare the screen and capture a screenshot. For example, open
 Safari yourself, navigate to the target site yourself, and save a screenshot.
+
+To generate the M14 handoff without calling the LLM or operating the desktop,
+run:
+
+```bash
+bash tool/run_macos_computer_use_m14_real_app_handoff.sh \
+  --screenshot <real-app-screenshot.png> \
+  --target-app Safari \
+  --target-intent "Observe Safari for a future X post task."
+```
 
 Then run:
 
@@ -61,7 +74,8 @@ The canary writes:
 - `run_01_response.txt`
 - `run_01_decision.json`
 
-The `m12EvidenceGate` is ready only when:
+The `m12EvidenceGate` remains for backward compatibility and is ready only
+when:
 
 - A real app window is visible.
 - Candidate UI targets are identified.
@@ -70,6 +84,60 @@ The `m12EvidenceGate` is ready only when:
 - Posting or submit-like controls are classified as `public_action`.
 - Blocked actions are documented.
 - The LLM does not claim execution.
+
+The `m14EvidenceGate` is ready only when:
+
+- A Safari-style target context is visible.
+- Text-entry targets are identified.
+- Public submit or posting boundaries are classified.
+- Confirmation requirements are documented.
+- The canary remains observe-only with no mutation.
+
+## M15 Action Proposal Handoff
+
+After a ready M14 summary exists, generate the M15 handoff:
+
+```bash
+bash tool/run_macos_computer_use_m15_action_proposal_handoff.sh \
+  --m14-summary <macos_computer_use_real_app_observe_canary_summary.json> \
+  --target-intent "Prepare an approval-bound plan for a future X post task."
+```
+
+The M15 handoff remains report-only. It reads M14 evidence and writes an
+approval-bound checklist for observe refresh, exact text confirmation, target
+confirmation, and separate public-action confirmation. It does not call the
+LLM, grant TCC, open apps, operate System Settings, click, type, navigate,
+submit, post, or purchase.
+
+The handoff is ready only when `m15ActionProposalGate.status` is `ready`.
+Blocked M14 evidence, missing text-entry targets, missing public-action targets,
+missing confirmation requirements, or inherited mutating tools must block M15.
+Review the generated `PR Review Summary` first; it separates ready review
+evidence from `blockedReviewEvidence` before final MVP aggregation can continue.
+Then review the generated `Review Targets` section before any future action
+step: it should list exact text candidates, text-entry targets, and
+public-action targets separately so the next approval can remain scoped and
+explicit. The JSON also includes `reviewTargetCounts` so reviewers and
+readiness checks can compare the target counts without parsing Markdown tables.
+
+After the handoff is ready, validate the same boundary with the live LLM:
+
+```bash
+bash tool/run_macos_computer_use_m15_llm_review_canary.sh \
+  --handoff <macos_computer_use_m15_action_proposal_handoff.json>
+```
+
+This canary is still report-only. It asks the configured live LLM to review the
+handoff and return a JSON decision that keeps `no_desktop_action`,
+`no_tcc_operation`, and approval-required phases intact. A passing canary means
+`m15LlmReviewGate.status` is `ready` and the model can explain the next
+approval steps; it does not authorize execution.
+
+MVP sign-off and the readiness artifact index discover the latest
+`macos_computer_use_m15_llm_review_canary_<timestamp>/canary_summary.json`.
+Ready review evidence is appended to the handoff for PR review. Blocked review
+evidence is surfaced as `m15_llm_review_canary` in `blocked_review_evidence`
+and must be fixed before final aggregation or any future action execution.
 
 ## Manual Boundary
 

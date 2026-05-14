@@ -276,6 +276,225 @@ Follow-on milestones:
   canaries classify visible UI targets and public-action boundaries from
   user-provided screenshots without opening apps, clicking, typing, submitting,
   or posting.
+- M13: Complete review and merge hardening after the Computer Use MVP merge.
+  Keep Computer Use behind the Advanced settings flow, reduce the default
+  settings surface area, verify the post-merge sanity runner, and keep the
+  PR-review evidence handoff easy to inspect before merging polish changes.
+- M14: Expand real-app observe-only canaries after M13. Use Safari-style
+  logged-in workflows only for visual classification of targets, text fields,
+  submission boundaries, and confirmation requirements. These canaries must not
+  click, type, submit, post, purchase, or otherwise mutate external state.
+- M15: Convert ready M14 observe-only evidence into an approval-bound action
+  proposal handoff. The handoff may describe the next observe, exact text
+  confirmation, target confirmation, and public-action confirmation phases, but
+  it must not call an LLM, click, type, navigate, submit, post, purchase, grant
+  TCC, or operate System Settings. The generated handoff includes a
+  `PR Review Summary` that surfaces `blockedReviewEvidence` before final MVP
+  aggregation. After the handoff is ready, the report-only M15 LLM review
+  canary can ask the configured live LLM to preserve those approval boundaries
+  without executing any desktop action. MVP sign-off and the readiness artifact
+  index now surface that review canary as optional review evidence and block
+  final aggregation when a discovered review canary is not ready.
+- M16: Convert ready M15 action-proposal and review evidence into a
+  report-only user approval packet. The packet records the exact text, target,
+  public-action, and post-action observation approvals needed by a future
+  execution milestone, but it still must not call an LLM, click, type,
+  navigate, submit, post, purchase, grant TCC, or operate System Settings.
+  Missing approvals are surfaced as `approvalBlockers`, while the packet gate
+  remains focused on whether the M15 evidence is ready and boundary-preserving.
+  MVP sign-off and the readiness artifact index surface the latest packet as
+  optional review evidence and block final aggregation when a discovered packet
+  is not ready.
+- M17: Convert an approved M16 approval packet into a report-only execution
+  rehearsal. The M17 execution rehearsal turns the approved exact text, target,
+  public-action label, and post-action observation boundary into a future
+  execution checklist while preserving `no_desktop_action`,
+  `no_tcc_operation`, and `no_llm_call`. It blocks unless the source M16 packet
+  is ready and `approvalStatus` is `approved`, and it still must not click,
+  type, navigate, submit, post, purchase, grant TCC, operate System Settings,
+  or call an LLM. MVP sign-off and the readiness artifact index surface the
+  latest rehearsal as optional review evidence and block final aggregation when
+  a discovered rehearsal is not ready.
+- M18: Convert a ready M17 execution rehearsal into a user-operated execution
+  handoff. The handoff records the fresh observation, target confirmation,
+  exact-text confirmation, optional public-action confirmation, runtime action,
+  and post-action observation checklist for a future manual execution step. It
+  still must not call an LLM, click, type, navigate, submit, post, purchase,
+  grant TCC, or operate System Settings; it only prepares the action-time
+  confirmations that the user must perform before any runtime action.
+- M19: Surface the latest M18 execution handoff in the readiness artifact index
+  and MVP sign-off handoff. This keeps the runtime handoff visible to PR review
+  and final aggregation without crossing the TCC, LLM, System Settings, or
+  desktop-action boundary. A discovered blocked M18 handoff stops final
+  aggregation until its gate next action is resolved.
+- M20: Record user-operated runtime result evidence after an M18 handoff. The
+  result intake is report-only and accepts user-reported fresh observation,
+  action-time confirmations, runtime action status, and post-action
+  observation. It blocks unless the M18 handoff is ready, the required
+  confirmations are present, the runtime action is recorded as succeeded, and
+  the post-action observation is recorded. It still must not call an LLM, grant
+  TCC, operate System Settings, or perform desktop actions.
+- M21: Surface M20 execution result intake in the readiness artifact index and
+  MVP sign-off handoff. A discovered blocked M20 intake is treated as blocked
+  review evidence and stops final aggregation until the result-intake gate next
+  action is resolved. Missing M20 intake remains optional because the runtime
+  step is user-operated and may not have happened yet.
+- M22: Convert ready M20 result intake into a report-only post-action review.
+  The review records that the user reviewed the runtime result, classifies the
+  post-action state, and decides whether a new observe/action approval cycle is
+  required. It must not call an LLM, grant TCC, operate System Settings, or
+  perform desktop actions. MVP sign-off and the readiness artifact index
+  surface discovered M22 reviews as optional review evidence and block final
+  aggregation when a discovered review is not ready.
+- M23: Convert ready M22 post-action review evidence into a report-only cycle
+  outcome handoff. The handoff records whether the completed action cycle is
+  closed or whether a new observe-only pass is required, keeps any follow-up
+  note as the seed for the next M14 observe pass, and preserves the
+  `no_desktop_action`, `no_tcc_operation`, and `no_llm_call` boundaries.
+- M24: Surface M23 cycle outcome handoffs in MVP sign-off and preflight
+  handoffs. Ready handoffs are visible review evidence, and discovered blocked
+  handoffs stop final aggregation until the recorded M23 next action is
+  resolved.
+- M25: Convert a ready M23 `restart_observe_action_cycle` outcome into a
+  report-only next-cycle seed handoff. The seed freezes the note, M14 return
+  milestone, and `observe_only_no_desktop_action` boundary for the next
+  observe pass. It does not start M14, call an LLM, grant TCC, operate System
+  Settings, or perform desktop actions.
+- M26: Convert a ready M25 next-cycle seed into a report-only M14 observe
+  restart packet. The packet prepares the target app, target intent,
+  user-operated screenshot preparation steps, and M14 observe-only commands
+  without starting M14, calling an LLM, granting TCC, opening apps, operating
+  System Settings, capturing screens, or performing desktop actions.
+- M27: Convert a ready M26 observe restart packet into a report-only manual
+  screenshot request handoff. The handoff freezes the target app, target
+  intent, requested screenshot state, and M14 observe-only command so the next
+  pass can stay user-operated until screenshot evidence exists.
+- M28: Convert a ready M27 screenshot request handoff plus a user-provided
+  screenshot file into a report-only screenshot evidence intake. The intake
+  binds the screenshot path to the next M14 observe-only command without
+  opening apps, capturing screens, calling an LLM, granting TCC, or performing
+  desktop actions.
+- M29: Convert ready M28 screenshot evidence into a report-only M14 observe
+  canary run packet. The packet freezes the exact command the user can run
+  next, rechecks the screenshot file, and still avoids LLM calls, TCC,
+  System Settings, app launches, screen capture, and desktop actions.
+- M30: Convert the ready M29 run packet plus the user-produced M14 observe
+  summary into a report-only result intake. The intake validates source
+  alignment, the ready M14 evidence gate, observe-only boundaries, and the
+  next M15 action proposal command without calling an LLM, granting TCC,
+  capturing screens, opening apps, or performing desktop actions.
+
+## Production Roadmap After M30
+
+M1-M30 prove the helper boundary, manual TCC workflow, observe-only evidence,
+approval packets, user-operated execution handoffs, post-action review, and
+cycle restart path. The product roadmap turns that evidence chain into a
+releasable Computer Use feature that remains hidden from the default chat
+surface until the user intentionally enables it.
+
+- M31: Add a next-step navigator for Computer Use artifacts. It should inspect
+  the latest readiness artifact index, identify the highest-priority blocked or
+  ready milestone, and show exactly one recommended next command plus the
+  evidence path it consumes. This keeps the M14-M30 cycle usable without asking
+  operators to manually remember the milestone graph.
+  The initial M31 implementation writes
+  `macos_computer_use_next_step_navigator.json` and
+  `macos_computer_use_next_step_navigator.md` through
+  `dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports`.
+  The readiness artifact index also embeds the same recommendation under
+  `nextStepNavigator` so PR review can see the current command, evidence path,
+  priority, and user-operation boundary in one place.
+- M32: Move Computer Use from the default settings surface into an Advanced
+  Computer Use page. The normal settings page should show only a compact
+  enabled/disabled summary, while the dedicated page owns permission status,
+  helper launch controls, artifact links, smoke checks, and diagnostic export.
+  The initial M32 implementation keeps the root Settings list limited to an
+  Advanced row with a compact Computer Use availability summary. The
+  full `ComputerUseSettingsPage` lives in its own page module and is reachable
+  only from Advanced, where it owns helper permission status, launch controls,
+  smoke sequence navigation, artifact links, and diagnostic export.
+- M33: Establish the signed release packaging lane. The release build must
+  embed the helper, LaunchAgent plist, MachService declaration, entitlements,
+  signing identity, hardened runtime settings, and notarization evidence that
+  match the helper bundle path used for TCC grants.
+  The initial M33 implementation adds the static report command
+  `bash tool/run_macos_computer_use_release_packaging.sh`, which writes
+  `macos_computer_use_release_packaging.json` and
+  `macos_computer_use_release_packaging.md`. The report verifies the helper
+  embed phase, LaunchAgent BundleProgram, MachServices declaration, helper
+  bundle identity, release entitlements, hardened runtime settings, and
+  identity-free repository signing defaults. Release signing identity,
+  notarization, stapling, TCC grants, and real desktop actions remain
+  user-operated evidence collected by the release pipeline.
+- M34: Harden permission recovery and revocation UX. The app should clearly
+  distinguish missing permissions, revoked permissions, stale helper paths,
+  mismatched debug and release helpers, and the user action needed to recover
+  without triggering extra macOS permission prompts from the main app.
+  The implementation is tracked through a shared permission recovery summary
+  that is rendered in Settings and exported in onboarding diagnostics. It
+  separates first-time missing grants from previously granted but now revoked
+  TCC permissions, reports stale helper diagnostics and helper path mismatches,
+  and keeps recovery instructions on the helper-owned permission overlay path
+  so `Caverno.app` does not request screen or accessibility grants itself.
+- M35: Define the production action policy. Every desktop action must pass
+  through observe, approval packet, action-time confirmation, emergency stop,
+  execution result intake, and post-action review boundaries. Public actions
+  such as post, send, publish, purchase, or delete require separate approval
+  even when text and target approvals are already present.
+  The policy is now exposed as `productionActionPolicy` alongside the
+  `computer_vision_observe` action proposal policy, in the system prompt, and
+  in the Computer Use debug evidence summary. It defines the required phase
+  order as observe, approval packet, action-time confirmation, emergency stop
+  availability, execution result intake, and post-action review, with separate
+  hard blockers for missing public-action approval and missing post-action
+  review evidence.
+- M36: Expand Live LLM evaluation for Computer Use. The suite should cover
+  fixture screenshots, saved real-app screenshots, refusal cases, target
+  ambiguity, exact-text preservation, public-action boundary preservation, and
+  recovery from stale or blocked evidence without executing desktop actions.
+  Implemented as
+  `bash tool/run_macos_computer_use_m36_live_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>`.
+  The report schema is `macos_computer_use_m36_live_llm_eval_summary`; it
+  records `m36LiveLlmEvaluationGate`, per-scenario failures, coverage status,
+  `tccBoundary: no_tcc_operation`, and `desktopActionBoundary:
+  no_desktop_action`.
+- M37: Add product-grade audit and privacy controls. The helper and main app
+  should record local, user-exportable audit events for observe, approval,
+  execution handoff, emergency stop, and result review while redacting secrets,
+  screenshots, tokens, and typed text unless the user explicitly exports them.
+  Implemented as `auditPrivacyControls` in exported Computer Use diagnostics
+  with schema `macos_computer_use_audit_privacy_controls`. The gate records the
+  required event types, bounded local retention, default redaction, explicit
+  payload-export requirements, and latest audit coverage without storing raw
+  screenshots, audio payloads, tokens, secrets, raw tool payloads, or typed text.
+- M38: Build install, update, and migration guardrails. Upgrades must preserve
+  the helper identity when possible, detect when TCC must be regranted, explain
+  why regranting is needed, and prevent old helper processes from handling new
+  action requests. Implemented as `installMigrationGuardrails` in exported
+  diagnostics with schema `macos_computer_use_install_migration_guardrails`.
+  The M38 gate records helper path match status, stale helper diagnostics,
+  whether TCC regrant may be required, and the policy that blocks old helper
+  processes from screenshot, window, input, and audio action requests while
+  keeping status, permission recovery, helper UI, and emergency stop available.
+- M39: Run an internal beta sign-off. The beta gate should include clean
+  install, upgrade, permission grant, permission revocation, helper restart,
+  XPC fallback observability, Live LLM observe-only canaries, and at least one
+  full user-operated observe-approve-execute-review cycle. Implemented as
+  `bash tool/run_macos_computer_use_m39_beta_signoff.sh`. The report schema is
+  `macos_computer_use_m39_beta_signoff`; it records `betaReviewSummary`,
+  user-operated beta gates, M36 observe-only LLM evidence, M23 cycle outcome
+  evidence, and `automationBoundary: read_reports_only`.
+- M40: Cut the production launch gate. Release is allowed only when the signed
+  artifact, notarization, helper identity, manual TCC runbook, Live LLM evidence,
+  audit export, emergency stop, privacy copy, and support diagnostics all have
+  passing evidence attached to the release checklist. Implemented as
+  `bash tool/run_macos_computer_use_m40_production_launch_gate.sh`. The report
+  schema is `macos_computer_use_m40_production_launch_gate`; it records
+  `launchReviewSummary`, signed artifact evidence, notarization evidence,
+  helper identity evidence, manual TCC runbook evidence, M36 Live LLM evidence,
+  M37 audit/privacy evidence, emergency stop evidence, privacy copy evidence,
+  support diagnostics evidence, M39 beta sign-off evidence, and
+  `automationBoundary: read_reports_only`.
 
 ## Computer Use Live Canary
 
@@ -456,6 +675,16 @@ action canary report through `--desktop-action-report <path>`, so the canary
 does not capture the screen, grant TCC, operate System Settings, move the
 pointer, click, or type.
 
+Use `tool/run_macos_computer_use_m36_live_llm_eval.sh` when the broader
+Computer Use LLM evaluation needs refresh before product sign-off. It combines
+fixture screenshot target inventory, saved real-app public-action boundary
+preservation, refusal without approval, target ambiguity, exact-text
+preservation, and stale or blocked evidence recovery into one report-only
+gate. The runner accepts `--fixture-suite <path>` for deterministic regression
+tests; production runs should provide saved fixture and real-app screenshots
+and the configured `CAVERNO_LLM_*` endpoint. It never captures the desktop,
+grants TCC, clicks, types, submits, posts, or operates System Settings.
+
 The fixture app is built with:
 
 ```bash
@@ -537,6 +766,17 @@ bash tool/run_macos_computer_use_mvp_readiness_preflight.sh
 This preflight reads existing artifacts, writes the MVP handoff, and prints the
 `PR Review Summary` / `PR Review Artifacts` paths without launching apps,
 operating System Settings, granting TCC, or running desktop actions.
+
+After Computer Use changes are merged into `main`, run the post-merge sanity
+wrapper to repeat static checks, focused Computer Use tests, and the debug
+macOS build without launching apps or touching TCC. The runner prints the M13
+review scope, the M14 observe-only evidence scope, and the
+M15 review/gate consistency scope. It links back to the manual review
+checklist:
+
+```bash
+bash tool/run_macos_computer_use_post_merge_sanity.sh
+```
 
 Use `--final-signoff` for the one-command MVP path: it refreshes only
 automation-safe evidence, refreshes the aggregate Computer Use fixture LLM
@@ -1470,14 +1710,18 @@ migration plan has been converted into these completion checks:
   report `mainAppUnsafeOsActionsAllowed=false`,
   `helperOwnsUnsafeOsActions=true`, and the helper-owned action categories.
 
-Remaining work is release readiness and user-operated sign-off rather than
-migration: release artifacts, manual TCC runtime reports, user-operated desktop
-action canaries, LLM canaries, and MVP PR review artifacts.
+Remaining work is review hardening and user-operated sign-off rather than
+migration: the Advanced settings flow, post-merge sanity checks, release
+artifacts, manual TCC runtime reports, user-operated desktop action canaries,
+LLM canaries, MVP PR review artifacts, and future observe-only real-app
+canaries.
 
 ## Verification Gates
 
 - Static verification: `flutter analyze`, focused unit/widget tests, and
-  focused script contract tests pass.
+  focused script contract tests pass. After merge, use
+  `bash tool/run_macos_computer_use_post_merge_sanity.sh` to run this static
+  verification set plus the debug macOS build without TCC or desktop actions.
 - Release artifact verification: M7 release sign-off passes for the embedded
   helper bundle, LaunchAgent plist, MachService declaration, bundle identity,
   and signing checks.

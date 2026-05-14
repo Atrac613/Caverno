@@ -517,6 +517,9 @@ class MacosComputerUseService {
       'allowedNextTools': _visionAllowedNextTools,
       'approvalRequiredTools': _visionApprovalRequiredTools,
       'armingRequiredTools': _visionArmingRequiredTools,
+      'actionProposalPolicy': _visionActionProposalPolicy(),
+      'productionActionPolicy':
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
       'nextAction': _visionNextAction(
         captureOk: captureOk,
         imageAttached: imageBase64 is String && imageBase64.isNotEmpty,
@@ -530,6 +533,58 @@ class MacosComputerUseService {
           capture['error'] ?? 'Computer vision observation failed.';
     }
     return jsonEncode(result);
+  }
+
+  Map<String, dynamic> _visionActionProposalPolicy() {
+    final toolPolicies = _visionAllowedNextTools
+        .map((toolName) {
+          final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+            toolName: toolName,
+          );
+          if (decision == null) {
+            return null;
+          }
+          return {
+            'toolName': toolName,
+            'requiresUserApproval': decision.requiresUserApproval,
+            'requiresTargetApproval': decision.requiresTargetApproval,
+            'requiresExactTextApproval': decision.requiresExactTextApproval,
+            'requiresSeparatePublicActionApproval':
+                decision.requiresSeparatePublicActionApproval,
+            'allowedAsObserveOnlyProposal':
+                decision.allowedAsObserveOnlyProposal,
+            'boundaries': decision.boundaries
+                .map((boundary) => boundary.name)
+                .toList(growable: false),
+            'blockerCodes': decision.blockerCodes,
+            'nextAction': decision.nextAction,
+          };
+        })
+        .nonNulls
+        .toList(growable: false);
+
+    return {
+      'schemaName': 'macos_computer_use_action_proposal_policy',
+      'schemaVersion': 1,
+      'productionActionPolicy':
+          MacosComputerUseToolPolicy.productionActionPolicy().toJson(),
+      'targetMetadataKey': 'target',
+      'rules': [
+        'Observation tools can remain in planning without approval.',
+        'Pointer, keyboard, and focus actions must include a concrete target before user approval.',
+        'computer_type_text must include the exact text that will be typed.',
+        'Posting, sending, submitting, publishing, purchasing, ordering, or checkout controls must set target.risk=public_action and require separate public action approval.',
+        'System audio recording requires separate recording approval.',
+      ],
+      'targetSchema': {
+        'label': 'Visible label or accessible name.',
+        'role': 'Visible or accessibility role.',
+        'action': 'Intended action, such as click, submit, or publish.',
+        'risk':
+            'Use public_action for externally visible or state-changing controls.',
+      },
+      'toolPolicies': toolPolicies,
+    };
   }
 
   Map<String, dynamic> _normalizeCoordinateArguments(
@@ -611,7 +666,7 @@ class MacosComputerUseService {
       }
       return 'Resolve the observation failure, then run computer_vision_observe again.';
     }
-    return 'Use the attached screenshot to decide whether to answer, observe again, or request an approved computer-use action.';
+    return 'Use the attached screenshot and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
   }
 
   static final List<String> _visionAllowedNextTools = List.unmodifiable([

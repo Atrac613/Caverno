@@ -10,6 +10,22 @@ or run the user-operated desktop action on the user's behalf.
 Report-only handoff, readiness, artifact-index, and aggregation guidance
 changes do not require fresh TCC or live desktop-action verification.
 
+## Runtime Verification Boundary
+
+Run TCC or real desktop action verification only when the change touches one of
+these runtime surfaces:
+
+- macOS permission prompts, TCC owner identity, or helper bundle paths
+- Accessibility input events, pointer movement, click, drag, scroll, or typing
+- Screen & System Audio Recording capture behavior
+- permission overlay foreground policy or System Settings handoff behavior
+- helper process policy, Dock visibility, or single-instance behavior
+
+For docs, report parsing, UI copy, non-runtime settings layout, or
+automation-safe readiness aggregation, run the static checks and report-only
+preflight first. Ask the user to perform TCC and desktop action steps only when
+fresh runtime evidence is required.
+
 ## Sign-Off Order
 
 1. Prepare non-TCC release evidence:
@@ -193,6 +209,21 @@ changes do not require fresh TCC or live desktop-action verification.
    `tool/run_macos_computer_use_mvp_llm_readiness.sh` is the automation-safe
    preflight for this step: it proves the LLM gate is ready and leaves
    `manual_tcc` plus `desktop_action_canary` as user-operated blockers.
+   When M15 action proposal evidence exists, the wrapper also discovers the
+   latest `macos_computer_use_m15_llm_review_canary_<timestamp>/canary_summary.json`
+   and appends its `M15 LLM Review Evidence` to the handoff. A ready review
+   canary is optional review evidence; a discovered blocked review canary is
+   treated as `blocked_review_evidence` and must be resolved before final
+   aggregation.
+   The same optional review-evidence rule applies to discovered M16 approval
+   packets, M17 execution rehearsals, M18 execution handoffs, M20 execution
+   result intake reports, M22 post-action reviews, and M23 cycle outcome
+   handoffs. When M23 restarts the observe/action cycle, the same rule applies
+   to the M25 next-cycle seed handoff, M26 observe restart packet, M27
+   screenshot request handoff, M28 screenshot evidence intake, and M29
+   observe canary run packet, and M30 observe result intake. Ready artifacts
+   are surfaced in the handoff; discovered blocked artifacts stop final
+   aggregation until their gate next action is resolved.
 
    Use `--dry-run` when checking the handoff text without running the final
    release readiness aggregation:
@@ -239,6 +270,40 @@ changes do not require fresh TCC or live desktop-action verification.
   LLM summary provides one. The gate must include safe click planning,
   type-and-confirm planning when applicable, user approval boundaries,
   observe-again behavior, and `destructive_target_refused` evidence.
+- `m15_llm_review_canary`: optional review evidence. If present, it must have a
+  ready `m15LlmReviewGate` and must keep `review_only_no_tool_execution`,
+  `no_tcc_operation`, and `no_desktop_action`.
+- `m23_cycle_outcome_handoff`: optional review evidence. If present, it must
+  have a ready `m23CycleOutcomeHandoffGate` and must keep
+  `cycle_outcome_report_only`, `no_tcc_operation`, `no_llm_call`, and
+  `no_desktop_action`.
+- `m25_next_cycle_seed_handoff`: optional review evidence. If present, it must
+  have a ready `m25NextCycleSeedHandoffGate`, point the next cycle at M14, and
+  keep `next_cycle_seed_report_only`, `no_tcc_operation`, `no_llm_call`, and
+  `no_desktop_action`.
+- `m26_observe_restart_packet`: optional review evidence. If present, it must
+  have a ready `m26ObserveRestartPacketGate`, prepare M14 observe-only
+  commands, and keep `m14_observe_restart_packet_report_only`,
+  `no_tcc_operation`, `no_llm_call`, and `no_desktop_action`.
+- `m27_screenshot_request_handoff`: optional review evidence. If present, it
+  must have a ready `m27ScreenshotRequestHandoffGate`, request a user-provided
+  screenshot for M14, and keep `manual_screenshot_request_report_only`,
+  `no_tcc_operation`, `no_llm_call`, and `no_desktop_action`.
+- `m28_screenshot_evidence_intake`: optional review evidence. If present, it
+  must have a ready `m28ScreenshotEvidenceIntakeGate`, bind a user-provided
+  screenshot to M14 observe-only input, and keep
+  `manual_screenshot_evidence_intake_report_only`, `no_tcc_operation`,
+  `no_llm_call`, and `no_desktop_action`.
+- `m29_observe_canary_run_packet`: optional review evidence. If present, it
+  must have a ready `m29ObserveCanaryRunPacketGate`, freeze a user-operated
+  M14 observe-only command from M28 screenshot evidence, and keep
+  `m14_observe_canary_run_packet_report_only`, `no_tcc_operation`,
+  `no_llm_call`, and `no_desktop_action`.
+- `m30_observe_result_intake`: optional review evidence. If present, it must
+  have a ready `m30ObserveResultIntakeGate`, validate the user-produced M14
+  observe result against the M29 run packet, prepare the M15 action proposal
+  handoff command, and keep `m14_observe_result_intake_report_only`,
+  `no_tcc_operation`, `no_llm_call`, and `no_desktop_action`.
 
 ## MVP Fixture App
 

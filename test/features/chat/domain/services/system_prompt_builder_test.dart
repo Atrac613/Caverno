@@ -207,6 +207,11 @@ void main() {
         'Include window_id for window screenshots, source_width, source_height, coordinate_space, and vision_observation_id',
       ),
     );
+    expect(prompt, contains('Read the actionProposalPolicy'));
+    expect(prompt, contains('Treat productionActionPolicy'));
+    expect(prompt, contains('execution result intake'));
+    expect(prompt, contains('include the exact text to type'));
+    expect(prompt, contains('target.risk=public_action'));
     expect(prompt, contains('observe-action-observe cycle'));
     expect(prompt, contains('follow the returned nextAction'));
     expect(

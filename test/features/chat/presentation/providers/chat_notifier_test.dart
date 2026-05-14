@@ -1795,6 +1795,12 @@ void main() {
       expect(pending, isNotNull);
       expect(pending!.requiresUserApproval, isTrue);
       expect(pending.requiresSmokeArming, isTrue);
+      expect(pending.approvalBoundaries, contains('target'));
+      expect(pending.approvalBlockerCodes, isEmpty);
+      expect(
+        pending.actionProposalNextAction,
+        contains('approve the exact target'),
+      );
       toolNotifier.resolveComputerUseAction(id: pending.id, approved: true);
 
       await sendFuture;
@@ -1810,6 +1816,86 @@ void main() {
       expect(entry['requiresSmokeArming'], isTrue);
       expect(entry['success'], isFalse);
       expect(entry['responseCode'], 'arming_missing');
+    } finally {
+      toolContainer.dispose();
+      MacosComputerUseAuditLog.instance.clear();
+    }
+  });
+
+  test('computer-use approvals surface public action boundaries', () async {
+    MacosComputerUseAuditLog.instance.clear();
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'tool-post-click',
+          name: 'computer_click',
+          arguments: const {
+            'x': 80,
+            'y': 120,
+            'target': {
+              'label': 'Post',
+              'role': 'button',
+              'action': 'publish',
+              'risk': 'public_action',
+            },
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: const {
+        'computer_click': '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = toolNotifier.sendMessage('Click the post button');
+
+      PendingComputerUseAction? pending;
+      for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+        await Future<void>.delayed(Duration.zero);
+        pending = toolNotifier.state.pendingComputerUseAction;
+      }
+      expect(pending, isNotNull);
+      expect(
+        pending!.approvalBoundaries,
+        containsAll(['target', 'publicAction']),
+      );
+      expect(
+        pending.approvalBlockerCodes,
+        contains('separate_public_action_approval_required'),
+      );
+      expect(
+        pending.actionProposalNextAction,
+        contains('separate explicit approval'),
+      );
+      toolNotifier.resolveComputerUseAction(id: pending.id, approved: false);
+
+      await sendFuture;
+
+      expect(toolService.executedToolNames, isEmpty);
+      final result = toolDataSource.toolResultBatches.single.single;
+      expect(result.result, contains('"code":"approval_denied"'));
     } finally {
       toolContainer.dispose();
       MacosComputerUseAuditLog.instance.clear();
@@ -1927,6 +2013,14 @@ void main() {
         expect(
           imageMessages.last.content,
           contains('Visual observation from computer_screenshot_window'),
+        );
+        expect(
+          imageMessages.last.content,
+          contains('actionProposalPolicy metadata'),
+        );
+        expect(
+          imageMessages.last.content,
+          contains('public action boundaries'),
         );
         expect(
           toolNotifier.state.messages.last.content,
