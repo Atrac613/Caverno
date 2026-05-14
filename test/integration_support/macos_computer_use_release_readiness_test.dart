@@ -696,6 +696,18 @@ void main() {
           sourceM22PostActionReview: m22PostActionReviewPath,
         ),
       );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m39_beta_signoff_996/macos_computer_use_m39_beta_signoff.json',
+        ),
+        _m39BetaSignoff(ready: true),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_m40_production_launch_gate_997/macos_computer_use_m40_production_launch_gate.json',
+        ),
+        _m40ProductionLaunchGate(ready: true),
+      );
 
       final index = buildReadinessArtifactIndex(root);
       final entryIds = index.entries.map((entry) => entry.id).toSet();
@@ -721,6 +733,8 @@ void main() {
       expect(entryIds, contains('m28_screenshot_evidence_intake'));
       expect(entryIds, contains('m29_observe_canary_run_packet'));
       expect(entryIds, contains('m30_observe_result_intake'));
+      expect(entryIds, contains('m39_beta_signoff'));
+      expect(entryIds, contains('m40_production_launch_gate'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -3247,6 +3261,132 @@ void main() {
       expect(markdown, contains('Recommended next command:'));
     });
 
+    test('M31 navigator recommends M39 after required evidence is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m39_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '',
+          exists: false,
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m39_beta_signoff');
+      expect(recommendation.artifactId, 'm39_beta_signoff');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m39_beta_signoff.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--manual-beta-checklist <m39-manual-beta-checklist.json>'),
+      );
+    });
+
+    test('M31 navigator recommends M40 after M39 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m40_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m40_production_launch_gate');
+      expect(recommendation.artifactId, 'm40_production_launch_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m40_production_launch_gate.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m39-beta-signoff <macos_computer_use_m39_beta_signoff.json>',
+        ),
+      );
+    });
+
+    test('artifact index blocks launch navigation on blocked M39 evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m39_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m39Path =
+          '${root.path}/macos_computer_use_m39_beta_signoff_999/macos_computer_use_m39_beta_signoff.json';
+      _writeJson(File(m39Path), _m39BetaSignoff(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm39_beta_signoff',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.details['reviewStatus'], 'blocked_gates_present');
+      expect(entry.details['blockedGateIds'], contains('clean_install'));
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm39_beta_signoff');
+      expect(
+        recommendation.nextAction,
+        'Resolve M39 beta sign-off blockers before preparing the production launch gate.',
+      );
+      expect(index.toMarkdown(), contains('## M39 Beta Sign-Off'));
+    });
+
     test('artifact index CLI prints MVP sign-off rehearsal status', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_cli_test_',
@@ -4806,6 +4946,97 @@ Map<String, dynamic> _m30ObserveResultIntake({required bool ready}) {
           : 'Resolve M30 observe result intake blockers before returning to M15.',
     },
   };
+}
+
+Map<String, dynamic> _m39BetaSignoff({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m39_beta_signoff',
+    'schemaVersion': 1,
+    'milestone': 'M39',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': ready ? <String>['clean_install'] : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['clean_install'],
+    'userOperatedGateIds': <String>['clean_install'],
+    'betaReviewSummary': <String, Object?>{
+      'status': ready ? 'ready_for_internal_beta' : 'blocked_gates_present',
+      'readyGateIds': ready ? <String>['clean_install'] : <String>[],
+      'blockedGateIds': ready ? <String>[] : <String>['clean_install'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['clean_install'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary':
+          'M39 reads existing reports and manual checklist evidence only.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'clean_install',
+        'label': 'Clean install',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Clean install evidence is ready.'
+            : 'Ask the user to complete a clean install pass.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m40ProductionLaunchGate({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m40_production_launch_gate',
+    'schemaVersion': 1,
+    'milestone': 'M40',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': ready ? <String>['m39_beta_signoff'] : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['m39_beta_signoff'],
+    'userOperatedGateIds': <String>['m39_beta_signoff'],
+    'launchReviewSummary': <String, Object?>{
+      'status': ready ? 'ready_for_production_launch' : 'blocked_gates_present',
+      'readyGateIds': ready ? <String>['m39_beta_signoff'] : <String>[],
+      'blockedGateIds': ready ? <String>[] : <String>['m39_beta_signoff'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['m39_beta_signoff'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary': 'M40 reads release evidence only.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'm39_beta_signoff',
+        'label': 'M39 beta sign-off',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'M39 beta sign-off is ready.'
+            : 'Run the M39 beta sign-off first.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+List<ReadinessArtifactEntry> _requiredReadyEntries(Directory root) {
+  return MacosComputerUseMvpGuidance.requiredEvidenceIds
+      .map(
+        (id) => ReadinessArtifactEntry(
+          id: id,
+          label: id,
+          path: '${root.path}/$id.json',
+          exists: true,
+          status: 'ready',
+        ),
+      )
+      .toList(growable: false);
 }
 
 Map<String, dynamic> _mvpLlmReadinessSummary() {

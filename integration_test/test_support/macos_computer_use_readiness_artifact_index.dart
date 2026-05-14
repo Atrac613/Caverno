@@ -147,6 +147,8 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m28ScreenshotEvidenceIntakeEntry;
     ReadinessArtifactEntry? m29ObserveCanaryRunPacketEntry;
     ReadinessArtifactEntry? m30ObserveResultIntakeEntry;
+    ReadinessArtifactEntry? m39BetaSignoffEntry;
+    ReadinessArtifactEntry? m40ProductionLaunchGateEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -189,6 +191,12 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm30_observe_result_intake') {
         m30ObserveResultIntakeEntry = entry;
+      }
+      if (entry.id == 'm39_beta_signoff') {
+        m39BetaSignoffEntry = entry;
+      }
+      if (entry.id == 'm40_production_launch_gate') {
+        m40ProductionLaunchGateEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -531,6 +539,49 @@ class ReadinessArtifactIndex {
         )
         ..writeln(
           '- Blockers: ${_joinedOrNone(_detailsStringList(m30ObserveResultIntakeEntry.details['gateBlockers']))}',
+        );
+    }
+    if (m39BetaSignoffEntry != null && m39BetaSignoffEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M39 Beta Sign-Off')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m39BetaSignoffEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m39BetaSignoffEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m39BetaSignoffEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m39BetaSignoffEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m39BetaSignoffEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m40ProductionLaunchGateEntry != null &&
+        m40ProductionLaunchGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M40 Production Launch Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m40ProductionLaunchGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m40ProductionLaunchGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m40ProductionLaunchGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m40ProductionLaunchGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m40ProductionLaunchGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
         );
     }
     buffer
@@ -1211,6 +1262,29 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m30ObserveResultIntakeNextAction,
       details: _m30ObserveResultIntakeDetails,
     ),
+    _latestEntry(
+      'm39_beta_signoff',
+      'Latest M39 internal beta sign-off',
+      reportRoot,
+      (json) => json['schemaName'] == 'macos_computer_use_m39_beta_signoff',
+      parentPrefix: 'macos_computer_use_m39_beta_signoff_',
+      fileName: MacosComputerUseMvpGuidance.m39BetaSignoffJsonFile,
+      status: _m39BetaSignoffStatus,
+      nextAction: _m39BetaSignoffNextAction,
+      details: _m39BetaSignoffDetails,
+    ),
+    _latestEntry(
+      'm40_production_launch_gate',
+      'Latest M40 production launch gate',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m40_production_launch_gate',
+      parentPrefix: 'macos_computer_use_m40_production_launch_gate_',
+      fileName: MacosComputerUseMvpGuidance.m40ProductionLaunchGateJsonFile,
+      status: _m40ProductionLaunchGateStatus,
+      nextAction: _m40ProductionLaunchGateNextAction,
+      details: _m40ProductionLaunchGateDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -1391,7 +1465,9 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm27_screenshot_request_handoff' ||
                 entry.id == 'm28_screenshot_evidence_intake' ||
                 entry.id == 'm29_observe_canary_run_packet' ||
-                entry.id == 'm30_observe_result_intake') &&
+                entry.id == 'm30_observe_result_intake' ||
+                entry.id == 'm39_beta_signoff' ||
+                entry.id == 'm40_production_launch_gate') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1421,6 +1497,8 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       'm28_screenshot_evidence_intake',
       'm29_observe_canary_run_packet',
       'm30_observe_result_intake',
+      'm39_beta_signoff',
+      'm40_production_launch_gate',
     ],
     (entry) => entry.exists && entry.status != null && entry.status != 'ready',
   );
@@ -1479,6 +1557,30 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       recommendedCommand: _requiredEvidenceCommand(missing.id, reportRoot),
       requiresUserOperation: MacosComputerUseMvpGuidance.userOperatedEvidenceIds
           .contains(missing.id),
+    );
+  }
+
+  final m39Entry = entriesById['m39_beta_signoff'];
+  if (m39Entry != null && !m39Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m39_beta_signoff',
+      entry: m39Entry,
+      nextAction:
+          'Run the M39 internal beta sign-off after MVP evidence and the user-operated action cycle are ready.',
+      recommendedCommand: _m39BetaSignoffCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m40Entry = entriesById['m40_production_launch_gate'];
+  if (m40Entry != null && !m40Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m40_production_launch_gate',
+      entry: m40Entry,
+      nextAction:
+          'Run the M40 production launch gate after M39 beta sign-off is ready.',
+      recommendedCommand: _m40ProductionLaunchGateCommand(reportRoot),
+      requiresUserOperation: true,
     );
   }
 
@@ -1682,6 +1784,16 @@ String? _requiredEvidenceCommand(String artifactId, Directory reportRoot) {
     default:
       return _mvpReadinessPreflightCommand(reportRoot);
   }
+}
+
+String _m39BetaSignoffCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m39BetaSignoffCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m40ProductionLaunchGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m40ProductionLaunchGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
 }
 
 class _NextStepCommandCandidate {
@@ -3353,6 +3465,132 @@ Map<String, Object?> _m30ObserveResultIntakeDetails(Map<String, dynamic> json) {
       'gateStatus': gateMap['status']?.toString(),
       'gateReady': gateMap['ready'],
       'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+  };
+}
+
+String? _m39BetaSignoffStatus(Map<String, dynamic> json) {
+  final review = json['betaReviewSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_internal_beta') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m39BetaSignoffNextAction(Map<String, dynamic> json) {
+  final status = _m39BetaSignoffStatus(json);
+  if (status == 'ready') {
+    return 'Use M39 beta evidence as an input to the M40 production launch gate.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M39 beta sign-off blockers before preparing the production launch gate.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m39BetaSignoffDetails(Map<String, dynamic> json) {
+  final review = json['betaReviewSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m40ProductionLaunchGateStatus(Map<String, dynamic> json) {
+  final review = json['launchReviewSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_production_launch') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m40ProductionLaunchGateNextAction(Map<String, dynamic> json) {
+  final status = _m40ProductionLaunchGateStatus(json);
+  if (status == 'ready') {
+    return 'Archive M40 launch evidence as the production Computer Use release gate.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M40 production launch blockers before release sign-off.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m40ProductionLaunchGateDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['launchReviewSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
     },
   };
 }

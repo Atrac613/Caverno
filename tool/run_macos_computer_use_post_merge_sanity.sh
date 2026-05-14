@@ -88,6 +88,8 @@ if [[ "${RUN_TESTS}" == "true" ]]; then
     test/features/settings/presentation/pages/settings_page_test.dart \
     test/features/settings/presentation/pages/computer_use_debug_page_test.dart \
     test/integration_support/macos_computer_use_release_readiness_test.dart \
+    test/integration_support/macos_computer_use_beta_signoff_test.dart \
+    test/integration_support/macos_computer_use_production_launch_gate_test.dart \
     test/tool/run_macos_computer_use_smoke_test_test.dart \
     test/core/services/macos_computer_use_service_test.dart \
     test/core/services/macos_computer_use_setup_test.dart \

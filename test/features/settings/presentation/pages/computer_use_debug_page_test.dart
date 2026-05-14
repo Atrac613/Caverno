@@ -50,6 +50,7 @@ void main() {
     await _pumpPage(tester, service);
 
     expect(find.text('Computer Use Smoke Sequence'), findsOneWidget);
+    await _scrollUntilVisible(tester, find.text('Computer Use Onboarding'));
     expect(find.text('Computer Use Onboarding'), findsOneWidget);
     expect(find.text('2 of 10 complete'), findsOneWidget);
     expect(find.text('Launch Caverno Computer Use'), findsOneWidget);
