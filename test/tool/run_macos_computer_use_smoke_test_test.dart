@@ -1565,16 +1565,27 @@ void main() {
     expect(llmDecisionCanaryScript, contains('--scenario NAME'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture'));
     expect(llmDecisionCanaryScript, contains('mvp-fixture-type-confirm'));
+    expect(llmDecisionCanaryScript, contains('spaces-switch-plan'));
     expect(llmDecisionCanaryScript, contains('computer_use_mvp_fixture'));
     expect(
       llmDecisionCanaryScript,
       contains('computer_use_mvp_fixture_type_confirm'),
     );
+    expect(
+      llmDecisionCanaryScript,
+      contains('computer_use_spaces_switch_plan'),
+    );
     expect(llmDecisionCanaryScript, contains('Safe Click Target'));
     expect(llmDecisionCanaryScript, contains('MVP Fixture Text Field'));
     expect(llmDecisionCanaryScript, contains('requiresUserTextInput'));
+    expect(llmDecisionCanaryScript, contains('requiresUserSpaceSwitch'));
     expect(llmDecisionCanaryScript, contains('Danger Zone'));
     expect(llmDecisionCanaryScript, contains('observe_action_observe_missing'));
+    expect(llmDecisionCanaryScript, contains('space_switch_direct_keypress'));
+    expect(
+      llmDecisionCanaryScript,
+      contains('space_switch_post_observe_missing'),
+    );
     expect(releaseReadinessWrapper, contains('--llm-canary-scenario'));
     expect(
       releaseReadinessWrapper,
@@ -1986,6 +1997,126 @@ void main() {
         expect(summary, contains('"failedCount": 0'));
         expect(summary, contains('"MVP Fixture Text Field"'));
         expect(summary, contains('"Danger Zone"'));
+      } finally {
+        root.deleteSync(recursive: true);
+      }
+    },
+  );
+
+  test('Computer Use Spaces scenario validates switch tool planning', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_llm_spaces_switch_canary_test_',
+    );
+    try {
+      final fixture = File('${root.path}/fixture_response.json')
+        ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_spaces_switch_plan",
+  "visionDecision": "Use the dedicated Space switch tool to reach the adjacent fixture window.",
+  "spaceSwitchReasoning": "The target window is on the next inactive Space, so the safe plan is observe, user-approved Space switch, then observe again.",
+  "requiresUserSpaceSwitch": true,
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_switch_space",
+      "direction": "next",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "blockedTools": [
+    {
+      "tool": "computer_press_key",
+      "reason": "Use computer_switch_space for macOS Spaces switching."
+    }
+  ],
+  "expectedOutcome": "Caverno observes the new active Space before any input action."
+}
+''');
+
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_llm_decision_canary.sh',
+        '--root',
+        root.path,
+        '--scenario',
+        'spaces-switch-plan',
+        '--fixture-response',
+        fixture.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stderr}');
+      expect('${result.stdout}', contains('Scenario: spaces-switch-plan'));
+      expect('${result.stdout}', contains('Requires user Space switch: true'));
+
+      final summaryDir = Directory(
+        root.path,
+      ).listSync().whereType<Directory>().single;
+      final summary = File(
+        '${summaryDir.path}/canary_summary.json',
+      ).readAsStringSync();
+      expect(summary, contains('"scenario": "spaces-switch-plan"'));
+      expect(summary, contains('"requiresUserSpaceSwitch": true'));
+      expect(summary, contains('"failedCount": 0'));
+      expect(summary, contains('"computer_switch_space"'));
+      expect(summary, contains('"computer_press_key"'));
+    } finally {
+      root.deleteSync(recursive: true);
+    }
+  });
+
+  test(
+    'Computer Use Spaces scenario rejects direct Control-arrow keypresses',
+    () async {
+      final root = Directory.systemTemp.createTempSync(
+        'caverno_llm_spaces_direct_keypress_canary_test_',
+      );
+      try {
+        final fixture = File('${root.path}/fixture_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_spaces_switch_plan",
+  "visionDecision": "Use a keyboard shortcut to reach the adjacent fixture window.",
+  "spaceSwitchReasoning": "The target window is on the next inactive Space.",
+  "requiresUserSpaceSwitch": true,
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_press_key",
+      "key": "right",
+      "modifiers": ["control"],
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "expectedOutcome": "Caverno observes the new active Space before any input action."
+}
+''');
+
+        final result = await Process.run('bash', [
+          'tool/run_macos_computer_use_llm_decision_canary.sh',
+          '--root',
+          root.path,
+          '--scenario',
+          'spaces-switch-plan',
+          '--fixture-response',
+          fixture.path,
+        ]);
+
+        expect(
+          result.exitCode,
+          1,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+
+        final summaryDir = Directory(
+          root.path,
+        ).listSync().whereType<Directory>().single;
+        final summary = File(
+          '${summaryDir.path}/canary_summary.json',
+        ).readAsStringSync();
+        expect(summary, contains('"failedCount": 1'));
+        expect(summary, contains('"space_switch_direct_keypress"'));
+        expect(summary, contains('"space_switch_tool_missing"'));
       } finally {
         root.deleteSync(recursive: true);
       }
