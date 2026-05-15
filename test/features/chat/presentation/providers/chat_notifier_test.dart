@@ -1753,6 +1753,97 @@ void main() {
     }
   });
 
+  test('Space switch actions return a post-action vision observation', () async {
+    MacosComputerUseAuditLog.instance.clear();
+    final postActionObservation =
+        '{"ok":true,"schemaName":"macos_computer_use_vision_observation","observationId":"vision-space-2","target":{"resolved":"front_window"},"coordinateSpace":"display_pixels","imageBase64":"space-image","imageMimeType":"image/png"}';
+    final toolDataSource = _ToolBatchChatDataSource(
+      initialToolCalls: [
+        ToolCallInfo(
+          id: 'space-1',
+          name: 'computer_switch_space',
+          arguments: const {
+            'direction': 'next',
+            'reason': 'Find the target window on the next Space.',
+          },
+        ),
+      ],
+    );
+    final toolService = _FakeMcpToolService(
+      results: {
+        'computer_switch_space':
+            '{"ok":true,"schemaName":"macos_computer_use_space_switch","direction":"next","key":"right","modifiers":["control"],"selectedIpcTransport":"xpc_service","requiresPostActionObservation":true}',
+        'computer_vision_observe': postActionObservation,
+      },
+    );
+    final appLifecycleService = _MockAppLifecycleService();
+    when(() => appLifecycleService.isInBackground).thenReturn(false);
+    final toolContainer = ProviderContainer(
+      overrides: [
+        settingsNotifierProvider.overrideWith(_ToolEnabledSettingsNotifier.new),
+        conversationsNotifierProvider.overrideWith(
+          _TestConversationsNotifier.new,
+        ),
+        chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+        sessionMemoryServiceProvider.overrideWithValue(
+          _TestSessionMemoryService(),
+        ),
+        mcpToolServiceProvider.overrideWithValue(toolService),
+        appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+        backgroundTaskServiceProvider.overrideWithValue(
+          _TestBackgroundTaskService(),
+        ),
+      ],
+    );
+
+    try {
+      final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+      final sendFuture = toolNotifier.sendMessage('Switch Spaces');
+
+      PendingComputerUseAction? pending;
+      for (var attempt = 0; attempt < 20 && pending == null; attempt += 1) {
+        await Future<void>.delayed(Duration.zero);
+        pending = toolNotifier.state.pendingComputerUseAction;
+      }
+      expect(pending, isNotNull);
+      expect(pending!.summary, contains('next macOS Space'));
+      expect(pending.details, contains('Direction: next'));
+      expect(pending.details, contains('Shortcut: control+right'));
+      expect(pending.warningMessage, contains('observe again'));
+      toolNotifier.resolveComputerUseAction(
+        id: pending.id,
+        approved: true,
+        armed: true,
+      );
+
+      await sendFuture;
+
+      expect(toolService.executedToolNames, [
+        'computer_switch_space',
+        'computer_vision_observe',
+      ]);
+      expect(toolDataSource.toolResultBatches, hasLength(1));
+      final actionResult =
+          jsonDecode(toolDataSource.toolResultBatches.single.single.result)
+              as Map<String, dynamic>;
+      expect(actionResult['schemaName'], 'macos_computer_use_action_result');
+      expect(actionResult['toolName'], 'computer_switch_space');
+      expect(actionResult['postActionObservationRequired'], isTrue);
+      expect(actionResult['imageBase64'], 'space-image');
+      expect(actionResult['nextAction'], contains('post-action observation'));
+      final postObservation =
+          actionResult['postActionObservation'] as Map<String, dynamic>;
+      expect(postObservation['toolName'], 'computer_vision_observe');
+      expect(postObservation['success'], isTrue);
+      expect(postObservation['observationId'], 'vision-space-2');
+      expect(postObservation['coordinateSpace'], 'display_pixels');
+      expect(postObservation['imageAttached'], isTrue);
+    } finally {
+      toolContainer.dispose();
+      MacosComputerUseAuditLog.instance.clear();
+    }
+  });
+
   test(
     'computer-use approvals surface target context and exact text',
     () async {
