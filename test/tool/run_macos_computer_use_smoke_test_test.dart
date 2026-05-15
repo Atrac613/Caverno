@@ -908,6 +908,10 @@ void main() {
       m46ElementGroundedLlmEvalScript,
       contains('coordinate_fallback_refusal'),
     );
+    expect(m15ActionProposalHandoffScript, contains('computer_switch_space'));
+    expect(m36LiveLlmEvalScript, contains('computer_switch_space'));
+    expect(m46ElementGroundedLlmEvalScript, contains('computer_switch_space'));
+    expect(realAppObserveCanaryScript, contains('computer_switch_space'));
     expect(m46ElementGroundedLlmEvalScript, contains('element_grounding'));
     expect(m46ElementGroundedLlmEvalScript, contains('target_safety_policy'));
     expect(
@@ -3108,6 +3112,7 @@ void main() {
         expect(summary, contains('"tccBoundary": "no_tcc_operation"'));
         expect(summary, isNot(contains('computer_click')));
         expect(summary, isNot(contains('computer_type_text')));
+        expect(summary, isNot(contains('computer_switch_space')));
         expect(summary, isNot(contains('no-key')));
       } finally {
         root.deleteSync(recursive: true);
@@ -3335,6 +3340,7 @@ void main() {
         expect(summary, contains('coordinate_fallback_refusal'));
         expect(summary, isNot(contains('computer_click')));
         expect(summary, isNot(contains('computer_type_text')));
+        expect(summary, isNot(contains('computer_switch_space')));
         expect(summary, isNot(contains('no-key')));
       } finally {
         root.deleteSync(recursive: true);

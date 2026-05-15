@@ -24,7 +24,7 @@ Options:
 This handoff is report-only. It reads M14 observe-only evidence and prepares
 an approval-bound action proposal checklist. It does not call an LLM, grant
 TCC, open apps, operate System Settings, move the pointer, click, type,
-submit, post, or purchase.
+switch Spaces, submit, post, or purchase.
 USAGE
 }
 
@@ -123,6 +123,7 @@ m14_gate = m14_gate if isinstance(m14_gate, dict) else {}
 mutation_tools = {
     "computer_click",
     "computer_type_text",
+    "computer_switch_space",
     "computer_press_key",
     "computer_scroll",
     "computer_drag",
@@ -326,7 +327,7 @@ summary = {
         "nextAction": gate_next_action,
     },
     "manualBoundary": [
-        "Do not click, type, submit, post, purchase, or navigate from this handoff.",
+        "Do not click, type, switch Spaces, submit, post, purchase, or navigate from this handoff.",
         "Ask the user to approve exact text before future typing.",
         "Ask the user to approve the target control before future clicking.",
         "Ask for separate confirmation before any public action.",
