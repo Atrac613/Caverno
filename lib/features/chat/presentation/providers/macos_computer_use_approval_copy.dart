@@ -51,21 +51,25 @@ class MacosComputerUseApprovalCopy {
         MacosComputerUseRiskCategory.setup => 'Setup',
         null => 'Computer Use',
       },
-      warningMessage: switch (riskCategory) {
-        MacosComputerUseRiskCategory.observe =>
-          'This action can capture visible screen or window contents, but it does not send input.',
-        MacosComputerUseRiskCategory.input =>
-          'This action can focus windows, move the pointer, click, scroll, or send keyboard input on your Mac.',
-        MacosComputerUseRiskCategory.publicAction =>
-          'This action can submit, post, send, publish, or otherwise change external state. Approve it separately from text entry.',
-        MacosComputerUseRiskCategory.sensitive =>
-          'This action can capture system audio. Make sure the current audio is safe to record before approving it.',
-        MacosComputerUseRiskCategory.recovery =>
-          'This recovery action stops active computer-use work so you can regain a safe state quickly.',
-        MacosComputerUseRiskCategory.setup =>
-          'This action changes helper-owned setup state, such as permissions or System Settings navigation.',
-        null =>
-          'This action can control or inspect your macOS desktop. Approve only if the target and content look correct.',
+      warningMessage: switch (toolName) {
+        'computer_switch_space' =>
+          'This action sends Control-Left or Control-Right to change the active macOS Space. Caverno must observe again before any pointer or keyboard input.',
+        _ => switch (riskCategory) {
+          MacosComputerUseRiskCategory.observe =>
+            'This action can capture visible screen or window contents, but it does not send input.',
+          MacosComputerUseRiskCategory.input =>
+            'This action can focus windows, move the pointer, click, scroll, or send keyboard input on your Mac.',
+          MacosComputerUseRiskCategory.publicAction =>
+            'This action can submit, post, send, publish, or otherwise change external state. Approve it separately from text entry.',
+          MacosComputerUseRiskCategory.sensitive =>
+            'This action can capture system audio. Make sure the current audio is safe to record before approving it.',
+          MacosComputerUseRiskCategory.recovery =>
+            'This recovery action stops active computer-use work so you can regain a safe state quickly.',
+          MacosComputerUseRiskCategory.setup =>
+            'This action changes helper-owned setup state, such as permissions or System Settings navigation.',
+          null =>
+            'This action can control or inspect your macOS desktop. Approve only if the target and content look correct.',
+        },
       },
       approveLabel: switch (riskCategory) {
         MacosComputerUseRiskCategory.observe => 'Allow Observation',

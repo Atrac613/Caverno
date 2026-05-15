@@ -41,6 +41,8 @@ void main() {
     expect(copy.title, 'Approve Space Switch');
     expect(copy.riskLabel, 'Input Control');
     expect(copy.approveLabel, 'Allow Input Action');
+    expect(copy.warningMessage, contains('change the active macOS Space'));
+    expect(copy.warningMessage, contains('observe again'));
   });
 
   test('builds recovery approval copy for stop actions', () {
