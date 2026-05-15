@@ -84,6 +84,27 @@ For a user-operated focus check:
 7. Run a fresh `computer_vision_observe` before any later pointer or keyboard
    input proposal.
 
+For a user-operated Space switch check:
+
+1. Prepare an adjacent macOS Space with a different harmless window.
+2. Confirm the Mission Control Control-Left/Right keyboard shortcuts are
+   enabled.
+3. Run one direction:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next
+   bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-previous
+   ```
+
+4. Confirm `spacesSwitchCanaryGate.status` is `ready`.
+5. Confirm `desktopActionBoundary` is
+   `user_operated_space_switch_keypress_no_pointer_or_text`.
+6. Confirm the report shows `activeWindowInventoryChanged` as true.
+7. Confirm no pointer movement, click, text input, submit, public action, TCC
+   grant, or System Settings operation occurred.
+8. Run a fresh `computer_vision_observe` before any later pointer or keyboard
+   input proposal.
+
 ## M33 Release Packaging Report
 
 Run this static packaging report before asking for a signed release pass:

@@ -1470,6 +1470,10 @@ void main() {
     expect(spacesCanaryScript, contains('space_scope=all_spaces'));
     expect(spacesCanaryScript, contains('--require-inactive-space-window'));
     expect(spacesCanaryScript, contains('--focus-inactive-space-window'));
+    expect(spacesCanaryScript, contains('--switch-space-next'));
+    expect(spacesCanaryScript, contains('--switch-space-previous'));
+    expect(spacesCanaryScript, contains('SWITCH_SPACE_DIRECTION'));
+    expect(spacesCanaryScript, contains('switchCanaryReady'));
     expect(
       spacesCanaryScript,
       contains('macos_computer_use_spaces_canary_summary'),
@@ -1481,6 +1485,10 @@ void main() {
       contains(r'if [[ "${summary_exit_status}" != "0" ]]'),
     );
     expect(spacesCanaryScript, contains('no_desktop_action_observe_only'));
+    expect(
+      spacesCanaryScript,
+      contains('user_operated_space_switch_keypress_no_pointer_or_text'),
+    );
     expect(existingHelperProbe, contains('spacesCanaryGate'));
     expect(existingHelperProbe, contains('list_windows_all_spaces'));
     expect(existingHelperProbe, contains('"space_scope": "all_spaces"'));
@@ -1495,6 +1503,13 @@ void main() {
     expect(existingHelperProbe, contains('spacesFocusCanaryGate'));
     expect(existingHelperProbe, contains('spaces_focus_inactive_window'));
     expect(existingHelperProbe, contains('spaces_post_focus_active_windows'));
+    expect(existingHelperProbe, contains('spacesSwitchCanaryGate'));
+    expect(existingHelperProbe, contains('spaces_switch_keypress'));
+    expect(existingHelperProbe, contains('spaces_post_switch_active_windows'));
+    expect(
+      existingHelperProbe,
+      contains('active_space_inventory_unchanged_after_switch'),
+    );
     expect(
       existingHelperProbe,
       contains('user_operated_focus_only_no_pointer_or_text'),
@@ -1505,9 +1520,11 @@ void main() {
       contains('macos_computer_use_spaces_canary_summary'),
     );
     expect(architectureDoc, contains('spacesFocusCanaryGate'));
+    expect(architectureDoc, contains('spacesSwitchCanaryGate'));
     expect(manualProcessChecklist, contains('## macOS Spaces Canary'));
     expect(manualProcessChecklist, contains('spacesCanaryGate.status'));
     expect(manualProcessChecklist, contains('spacesFocusCanaryGate.status'));
+    expect(manualProcessChecklist, contains('spacesSwitchCanaryGate.status'));
   });
 
   test('Computer Use LLM decision canary avoids desktop actions', () async {

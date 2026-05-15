@@ -638,6 +638,13 @@ User-operated focus run:
 bash tool/run_macos_computer_use_spaces_canary.sh --focus-inactive-space-window
 ```
 
+User-operated Space switch run:
+
+```bash
+bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next
+bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-previous
+```
+
 Before the two-Space run, the user prepares at least two macOS Spaces and keeps
 a harmless target window on a non-active Space. The observe-only runs do not
 switch Spaces, focus windows, click, type, grant TCC, or operate System
@@ -651,6 +658,13 @@ boundary. It sends one `focusWindow` request to the first inactive-Space
 candidate, then records `spacesFocusCanaryGate` and a fresh active-Space window
 inventory. It must not click, type, submit, capture private content, or treat a
 focused window as safe for input until a later `computer_vision_observe` runs.
+
+The Space switch run is a separate user-operated exception. It sends one
+Control-Right or Control-Left `pressKey` request, then records
+`spacesSwitchCanaryGate` and a fresh active-Space window inventory. It requires
+an adjacent macOS Space with a different harmless window plus enabled Mission
+Control shortcuts. It does not move the pointer or type text, and any later
+pointer or keyboard input still requires a fresh `computer_vision_observe`.
 
 Passing this canary means the helper can expose the best-effort all-Spaces
 window inventory and its safety metadata. It does not prove that macOS will

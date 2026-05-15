@@ -38,6 +38,8 @@ private struct Config {
   var desktopActionCanary = false
   var spacesCanary = false
   var spacesFocusCanary = false
+  var spacesSwitchCanary = false
+  var spacesSwitchDirection = "next"
   var requireInactiveSpaceWindow = false
   var fixtureTarget = false
 }
@@ -200,6 +202,22 @@ private func parseConfig(arguments: [String]) -> Config {
       config.spacesCanary = true
       config.spacesFocusCanary = true
       config.requireInactiveSpaceWindow = true
+    case "--switch-space-next", "--switch-next-space":
+      config.spacesCanary = true
+      config.spacesSwitchCanary = true
+      config.spacesSwitchDirection = "next"
+    case "--switch-space-previous", "--switch-previous-space":
+      config.spacesCanary = true
+      config.spacesSwitchCanary = true
+      config.spacesSwitchDirection = "previous"
+    case "--switch-space":
+      index += 1
+      guard index < arguments.count else {
+        fatalError("--switch-space requires a value.")
+      }
+      config.spacesCanary = true
+      config.spacesSwitchCanary = true
+      config.spacesSwitchDirection = arguments[index].lowercased()
     case "--require-inactive-space-window":
       config.spacesCanary = true
       config.requireInactiveSpaceWindow = true
@@ -385,6 +403,16 @@ private func windowInventoryContains(windowID: Int, response: [String: Any]) -> 
   windowsArray(response).contains { window in
     intWindowId(normalizedWindow(window) ?? window) == windowID
   }
+}
+
+private func windowIdSet(_ response: [String: Any]) -> Set<Int> {
+  Set(windowsArray(response).compactMap { window in
+    intWindowId(normalizedWindow(window) ?? window)
+  })
+}
+
+private func sortedWindowIds(_ response: [String: Any]) -> [Int] {
+  windowIdSet(response).sorted()
 }
 
 private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
@@ -596,6 +624,81 @@ private func buildSpacesFocusCanaryGate(
   ]
 }
 
+private func switchKeyName(direction: String) -> String? {
+  switch direction.lowercased() {
+  case "next", "right":
+    return "right"
+  case "previous", "prev", "left":
+    return "left"
+  default:
+    return nil
+  }
+}
+
+private func normalizedSwitchDirection(_ direction: String) -> String {
+  switch direction.lowercased() {
+  case "next", "right":
+    return "next"
+  case "previous", "prev", "left":
+    return "previous"
+  default:
+    return direction.lowercased()
+  }
+}
+
+private func buildSpacesSwitchCanaryGate(
+  direction: String,
+  beforeActiveWindows: [String: Any],
+  switchResult: [String: Any],
+  postSwitchActiveWindows: [String: Any]
+) -> [String: Any] {
+  let normalizedDirection = normalizedSwitchDirection(direction)
+  let keyName = switchKeyName(direction: direction)
+  let beforeWindowIds = sortedWindowIds(beforeActiveWindows)
+  let postSwitchWindowIds = sortedWindowIds(postSwitchActiveWindows)
+  let switchKeyOk = switchResult["ok"] as? Bool ?? false
+  let postSwitchOk = postSwitchActiveWindows["ok"] as? Bool ?? false
+  let activeWindowInventoryChanged = beforeWindowIds != postSwitchWindowIds
+
+  var blockers: [String] = []
+  if keyName == nil {
+    blockers.append("invalid_space_switch_direction")
+  }
+  if !switchKeyOk {
+    blockers.append("space_switch_keypress_failed")
+  }
+  if !postSwitchOk {
+    blockers.append("post_switch_active_space_inventory_failed")
+  }
+  if postSwitchOk && !activeWindowInventoryChanged {
+    blockers.append("active_space_inventory_unchanged_after_switch")
+  }
+
+  let ready = blockers.isEmpty
+  return [
+    "status": ready ? "ready" : "blocked",
+    "ok": ready,
+    "purpose": "computer_use_spaces_switch_canary",
+    "desktopModel": "macos_spaces",
+    "desktopActionBoundary": "user_operated_space_switch_keypress_no_pointer_or_text",
+    "direction": normalizedDirection,
+    "key": jsonValue(keyName),
+    "modifiers": ["control"],
+    "switchKeySent": keyName != nil,
+    "switchKeyOk": switchKeyOk,
+    "postSwitchActiveSpaceObserved": postSwitchOk,
+    "activeWindowInventoryChanged": activeWindowInventoryChanged,
+    "beforeActiveWindowIds": beforeWindowIds,
+    "postSwitchActiveWindowIds": postSwitchWindowIds,
+    "beforeActiveWindowCount": beforeWindowIds.count,
+    "postSwitchActiveWindowCount": postSwitchWindowIds.count,
+    "blockers": blockers,
+    "nextAction": ready
+      ? "Space switch canary verified Control-Left/Right changed the active Space inventory. Run computer_vision_observe before any pointer or keyboard input."
+      : "Prepare an adjacent macOS Space with a different harmless window, confirm Mission Control Control-Left/Right shortcuts are enabled, then rerun the Space switch canary.",
+  ]
+}
+
 private func writeReport(_ report: [String: Any], path: String) {
   guard JSONSerialization.isValidJSONObject(report) else {
     fatalError("Probe report is not valid JSON.")
@@ -756,6 +859,16 @@ var spacesPostFocusActiveWindows: [String: Any] = [
   "skipped": true,
   "reason": "Post-focus active Space inventory was skipped.",
 ]
+var spacesSwitchKeyPress: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "macOS Spaces switch canary was not requested.",
+]
+var spacesPostSwitchActiveWindows: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Post-switch active Space inventory was skipped.",
+]
 
 if let appProcessIdentifier {
   permissionStatus = runRetriedStep(
@@ -868,6 +981,58 @@ if let appProcessIdentifier {
         "ok": false,
         "skipped": true,
         "reason": "Focus was skipped because no inactive Space window was returned.",
+      ])
+    }
+  }
+  if config.spacesSwitchCanary {
+    if let keyName = switchKeyName(direction: config.spacesSwitchDirection) {
+      spacesSwitchKeyPress = runStep(
+        &steps,
+        id: "spaces_switch_keypress",
+        label: "Switch macOS Space with Control-Left or Control-Right"
+      ) {
+        client.send(
+          command: "pressKey",
+          arguments: [
+            "key": keyName,
+            "modifiers": ["control"],
+            "reason": "Spaces switch canary was explicitly user-operated and limited to a Space-switch keypress plus re-observation.",
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 4
+        )
+      }
+      Thread.sleep(forTimeInterval: 0.8)
+      spacesPostSwitchActiveWindows = runStep(
+        &steps,
+        id: "spaces_post_switch_active_windows",
+        label: "List active Space windows after switching Spaces"
+      ) {
+        client.send(
+          command: "listWindows",
+          arguments: [
+            "max_windows": 80,
+            "include_current_app": false,
+            "main_app_pid": appProcessIdentifier,
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 4
+        )
+      }
+    } else {
+      steps.append([
+        "id": "spaces_switch_keypress",
+        "label": "Switch macOS Space with Control-Left or Control-Right",
+        "ok": false,
+        "skipped": true,
+        "reason": "Invalid Space switch direction.",
+      ])
+      steps.append([
+        "id": "spaces_post_switch_active_windows",
+        "label": "List active Space windows after switching Spaces",
+        "ok": false,
+        "skipped": true,
+        "reason": "Space switch was skipped because the requested direction was invalid.",
       ])
     }
   }
@@ -1088,11 +1253,27 @@ let spacesFocusCanaryGate: [String: Any] = config.spacesFocusCanary
   ]
 let spacesFocusCanaryOk = !config.spacesFocusCanary ||
   (spacesFocusCanaryGate["ok"] as? Bool ?? false)
+let spacesSwitchCanaryGate: [String: Any] = config.spacesSwitchCanary
+  ? buildSpacesSwitchCanaryGate(
+    direction: config.spacesSwitchDirection,
+    beforeActiveWindows: windows,
+    switchResult: spacesSwitchKeyPress,
+    postSwitchActiveWindows: spacesPostSwitchActiveWindows
+  )
+  : [
+    "status": "not_run",
+    "ok": true,
+    "blockers": [],
+    "nextAction": "Rerun with --switch-space-next or --switch-space-previous to validate user-operated Space switching and re-observation.",
+  ]
+let spacesSwitchCanaryOk = !config.spacesSwitchCanary ||
+  (spacesSwitchCanaryGate["ok"] as? Bool ?? false)
 let ok = coreOk &&
   failedRequiredChecks.isEmpty &&
   desktopActionOk &&
   spacesCanaryOk &&
-  spacesFocusCanaryOk
+  spacesFocusCanaryOk &&
+  spacesSwitchCanaryOk
 
 let report: [String: Any] = [
   "schemaName": "macos_computer_use_existing_helper_probe",
@@ -1102,6 +1283,8 @@ let report: [String: Any] = [
   "desktopActionCanary": config.desktopActionCanary,
   "spacesCanary": config.spacesCanary,
   "spacesFocusCanary": config.spacesFocusCanary,
+  "spacesSwitchCanary": config.spacesSwitchCanary,
+  "spacesSwitchDirection": normalizedSwitchDirection(config.spacesSwitchDirection),
   "requireInactiveSpaceWindow": config.requireInactiveSpaceWindow,
   "fixtureTarget": config.fixtureTarget,
   "replaceMismatchedApp": config.replaceMismatchedApp,
@@ -1147,6 +1330,7 @@ let report: [String: Any] = [
   "desktopActionCanaryGate": desktopActionCanaryGate,
   "spacesCanaryGate": spacesCanaryGate,
   "spacesFocusCanaryGate": spacesFocusCanaryGate,
+  "spacesSwitchCanaryGate": spacesSwitchCanaryGate,
   "steps": steps,
 ]
 
