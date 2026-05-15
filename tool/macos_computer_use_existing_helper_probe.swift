@@ -36,6 +36,8 @@ private struct Config {
   var replaceMismatchedApp = false
   var replaceMismatchedHelper = false
   var desktopActionCanary = false
+  var spacesCanary = false
+  var requireInactiveSpaceWindow = false
   var fixtureTarget = false
 }
 
@@ -191,6 +193,11 @@ private func parseConfig(arguments: [String]) -> Config {
       config.replaceMismatchedHelper = true
     case "--desktop-action-canary":
       config.desktopActionCanary = true
+    case "--spaces-canary":
+      config.spacesCanary = true
+    case "--require-inactive-space-window":
+      config.spacesCanary = true
+      config.requireInactiveSpaceWindow = true
     case "--fixture-target", "--mvp-fixture":
       config.desktopActionCanary = true
       config.fixtureTarget = true
@@ -326,10 +333,7 @@ private func firstWindowId(_ response: [String: Any]) -> Int? {
 }
 
 private func firstWindow(_ response: [String: Any]) -> [String: Any]? {
-  guard let windows = response["windows"] as? [[String: Any]] else {
-    return nil
-  }
-  for window in windows {
+  for window in windowsArray(response) {
     if window["windowId"] is Int {
       return window
     }
@@ -342,11 +346,15 @@ private func firstWindow(_ response: [String: Any]) -> [String: Any]? {
   return nil
 }
 
-private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
+private func windowsArray(_ response: [String: Any]) -> [[String: Any]] {
   guard let windows = response["windows"] as? [[String: Any]] else {
-    return nil
+    return []
   }
-  return windows.first { window in
+  return windows
+}
+
+private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
+  windowsArray(response).first { window in
     let appName = (window["appName"] as? String ?? "").lowercased()
     let title = (window["title"] as? String ?? "").lowercased()
     return appName.contains("caverno computer use mvp fixtur")
@@ -433,6 +441,78 @@ private func desktopActionGate(
     "nextAction": ready
       ? "Desktop action canary observed, clicked, and observed again without rebuilding."
       : "Grant required TCC permissions to the existing helper path, keep the safe target visible, then rerun the no-build desktop action canary.",
+  ]
+}
+
+private func buildSpacesCanaryGate(
+  activeWindows: [String: Any],
+  allSpacesWindows: [String: Any],
+  requireInactiveSpaceWindow: Bool
+) -> [String: Any] {
+  let activeOk = activeWindows["ok"] as? Bool ?? false
+  let allSpacesOk = allSpacesWindows["ok"] as? Bool ?? false
+  let allSpacesScope = allSpacesWindows["spaceScope"] as? String ?? ""
+  let support = allSpacesWindows["spaceSupport"] as? [String: Any] ?? [:]
+  let desktopModel = support["desktopModel"] as? String ?? ""
+  let allSpacesBestEffort = support["allSpacesBestEffort"] as? Bool ?? false
+  let switchingRequiresApprovedInput =
+    support["switchingRequiresApprovedInput"] as? Bool ?? false
+  let activeWindowCount = windowsArray(activeWindows).count
+  let allSpacesWindowList = windowsArray(allSpacesWindows)
+  let allSpacesWindowCount = allSpacesWindowList.count
+  let windowsCarrySpaceStatus = allSpacesWindowList.allSatisfy { window in
+    window["spaceStatus"] is String
+  }
+  let inactiveSpaceWindows = allSpacesWindowList.filter { window in
+    let status = (window["spaceStatus"] as? String ?? "").lowercased()
+    return !status.isEmpty && status != "active_space_visible"
+  }
+
+  var blockers: [String] = []
+  if !activeOk {
+    blockers.append("active_space_window_inventory_failed")
+  }
+  if !allSpacesOk {
+    blockers.append("all_spaces_window_inventory_failed")
+  }
+  if allSpacesScope != "all_spaces" {
+    blockers.append("all_spaces_scope_missing")
+  }
+  if desktopModel != "macos_spaces" {
+    blockers.append("macos_spaces_support_metadata_missing")
+  }
+  if !allSpacesBestEffort {
+    blockers.append("all_spaces_best_effort_metadata_missing")
+  }
+  if !switchingRequiresApprovedInput {
+    blockers.append("approved_space_switch_boundary_missing")
+  }
+  if !windowsCarrySpaceStatus {
+    blockers.append("window_space_status_missing")
+  }
+  if requireInactiveSpaceWindow && inactiveSpaceWindows.isEmpty {
+    blockers.append("inactive_space_window_missing")
+  }
+
+  let ready = blockers.isEmpty
+  return [
+    "status": ready ? "ready" : "blocked",
+    "ok": ready,
+    "purpose": "computer_use_spaces_canary",
+    "desktopModel": "macos_spaces",
+    "desktopActionBoundary": "no_desktop_action_observe_only",
+    "spaceScope": allSpacesScope,
+    "activeSpaceWindowCount": activeWindowCount,
+    "allSpacesWindowCount": allSpacesWindowCount,
+    "inactiveSpaceWindowCount": inactiveSpaceWindows.count,
+    "requireInactiveSpaceWindow": requireInactiveSpaceWindow,
+    "windowsCarrySpaceStatus": windowsCarrySpaceStatus,
+    "requiresApprovedInputBeforeSwitching": switchingRequiresApprovedInput,
+    "spaceIdentifiersAvailable": support["spaceIdentifiersAvailable"] as? Bool ?? false,
+    "blockers": blockers,
+    "nextAction": ready
+      ? "Spaces canary verified all-Spaces window discovery metadata. Focus or switch Spaces only with explicit user approval, then observe again before input."
+      : "Prepare at least two macOS Spaces with a harmless target window when inactive Space evidence is required, keep Caverno.app and the helper running, then rerun the Spaces canary.",
   ]
 }
 
@@ -580,6 +660,11 @@ var desktopActionPostCapture: [String: Any] = [
   "reason": "Post-click capture was skipped because no click was sent.",
 ]
 var desktopActionTargetWindow: [String: Any]?
+var allSpacesWindows: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "macOS Spaces canary was not requested.",
+]
 
 if let appProcessIdentifier {
   permissionStatus = runRetriedStep(
@@ -623,6 +708,26 @@ if let appProcessIdentifier {
       senderProcessIdentifier: appProcessIdentifier,
       timeout: 4
     )
+  }
+  if config.spacesCanary {
+    allSpacesWindows = runStep(
+      &steps,
+      id: "list_windows_all_spaces",
+      label: "List macOS windows across Spaces without rebuilding"
+    ) {
+      client.send(
+        command: "listWindows",
+        arguments: [
+          "max_windows": 80,
+          "include_current_app": false,
+          "include_hidden": true,
+          "main_app_pid": appProcessIdentifier,
+          "space_scope": "all_spaces",
+        ],
+        senderProcessIdentifier: appProcessIdentifier,
+        timeout: 4
+      )
+    }
   }
   desktopActionTargetWindow = config.fixtureTarget ? fixtureWindow(windows) : firstWindow(windows)
   let captureWindowId = config.desktopActionCanary
@@ -813,7 +918,21 @@ let desktopActionCanaryGate: [String: Any] = config.desktopActionCanary
   ]
 let desktopActionOk = !config.desktopActionCanary ||
   (desktopActionCanaryGate["ok"] as? Bool ?? false)
-let ok = coreOk && failedRequiredChecks.isEmpty && desktopActionOk
+let spacesCanaryGate: [String: Any] = config.spacesCanary
+  ? buildSpacesCanaryGate(
+    activeWindows: windows,
+    allSpacesWindows: allSpacesWindows,
+    requireInactiveSpaceWindow: config.requireInactiveSpaceWindow
+  )
+  : [
+    "status": "not_run",
+    "ok": true,
+    "blockers": [],
+    "nextAction": "Rerun with --spaces-canary to validate macOS Spaces window discovery metadata.",
+  ]
+let spacesCanaryOk = !config.spacesCanary ||
+  (spacesCanaryGate["ok"] as? Bool ?? false)
+let ok = coreOk && failedRequiredChecks.isEmpty && desktopActionOk && spacesCanaryOk
 
 let report: [String: Any] = [
   "schemaName": "macos_computer_use_existing_helper_probe",
@@ -821,6 +940,8 @@ let report: [String: Any] = [
   "generatedAt": ISO8601DateFormatter().string(from: Date()),
   "noRebuild": true,
   "desktopActionCanary": config.desktopActionCanary,
+  "spacesCanary": config.spacesCanary,
+  "requireInactiveSpaceWindow": config.requireInactiveSpaceWindow,
   "fixtureTarget": config.fixtureTarget,
   "replaceMismatchedApp": config.replaceMismatchedApp,
   "replaceMismatchedHelper": config.replaceMismatchedHelper,
@@ -863,6 +984,7 @@ let report: [String: Any] = [
     "systemAudioRecordingSupported": audioSupported,
   ],
   "desktopActionCanaryGate": desktopActionCanaryGate,
+  "spacesCanaryGate": spacesCanaryGate,
   "steps": steps,
 ]
 

@@ -24,6 +24,7 @@ void main() {
   late String mvpReadinessPreflightScript;
   late String postMergeSanityScript;
   late String desktopActionCanaryScript;
+  late String spacesCanaryScript;
   late String llmDecisionCanaryScript;
   late String mvpFixtureLlmCanaryScript;
   late String mvpFixtureVisionLlmCanaryScript;
@@ -111,6 +112,9 @@ void main() {
     ).readAsStringSync();
     desktopActionCanaryScript = File(
       'tool/run_macos_computer_use_desktop_action_canary.sh',
+    ).readAsStringSync();
+    spacesCanaryScript = File(
+      'tool/run_macos_computer_use_spaces_canary.sh',
     ).readAsStringSync();
     llmDecisionCanaryScript = File(
       'tool/run_macos_computer_use_llm_decision_canary.sh',
@@ -1458,6 +1462,36 @@ void main() {
     expect(architectureDoc, contains('manual_required'));
     expect(architectureDoc, contains('desktop_action_canary'));
     expect(architectureDoc, contains('Passing any one canary'));
+  });
+
+  test('macOS Spaces canary validates all-Spaces discovery boundaries', () {
+    expect(spacesCanaryScript, contains('macOS Computer Use Spaces canary'));
+    expect(spacesCanaryScript, contains('--spaces-canary'));
+    expect(spacesCanaryScript, contains('space_scope=all_spaces'));
+    expect(spacesCanaryScript, contains('--require-inactive-space-window'));
+    expect(
+      spacesCanaryScript,
+      contains('macos_computer_use_spaces_canary_summary'),
+    );
+    expect(spacesCanaryScript, contains('no_desktop_action_observe_only'));
+    expect(existingHelperProbe, contains('spacesCanaryGate'));
+    expect(existingHelperProbe, contains('list_windows_all_spaces'));
+    expect(existingHelperProbe, contains('"space_scope": "all_spaces"'));
+    expect(
+      existingHelperProbe,
+      contains('"approved_space_switch_boundary_missing"'),
+    );
+    expect(
+      existingHelperProbe,
+      contains('"requiresApprovedInputBeforeSwitching"'),
+    );
+    expect(architectureDoc, contains('## macOS Spaces Canary'));
+    expect(
+      architectureDoc,
+      contains('macos_computer_use_spaces_canary_summary'),
+    );
+    expect(manualProcessChecklist, contains('## macOS Spaces Canary'));
+    expect(manualProcessChecklist, contains('spacesCanaryGate.status'));
   });
 
   test('Computer Use LLM decision canary avoids desktop actions', () async {

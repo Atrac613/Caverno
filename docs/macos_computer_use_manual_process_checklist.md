@@ -39,6 +39,33 @@ desktop action canaries as user-operated follow-ups. Ask the user to run the
 manual commands and provide the generated report when runtime evidence is
 needed.
 
+## macOS Spaces Canary
+
+Use this pass when validating multi-desktop Computer Use behavior for macOS
+Spaces:
+
+1. Launch Caverno.app and keep `Caverno Computer Use.app` running.
+2. For the baseline observe-only pass, run:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh
+   ```
+
+3. For two-Space evidence, manually create or select at least two macOS Spaces.
+4. Put a harmless target window on a non-active Space.
+5. Run:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window
+   ```
+
+6. Confirm `spacesCanaryGate.status` is `ready`.
+7. Confirm `desktopActionBoundary` is `no_desktop_action_observe_only`.
+8. Confirm `requiresApprovedInputBeforeSwitching` is true.
+9. Do not click, type, focus windows, switch Spaces, grant TCC, or operate
+   System Settings from this canary. Any future Space switch must be explicitly
+   approved and followed by a fresh `computer_vision_observe`.
+
 ## M33 Release Packaging Report
 
 Run this static packaging report before asking for a signed release pass:

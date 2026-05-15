@@ -612,6 +612,39 @@ system controls, and private data. The current MVP success contract is
 change is tracked only when the runtime report includes explicit change
 evidence.
 
+## macOS Spaces Canary
+
+The macOS Spaces canary validates the multi-desktop discovery path without
+performing desktop actions. It runs the existing helper probe with
+`computer_list_windows` using `space_scope=all_spaces`, records the
+`spaceSupport` metadata, and verifies that switching Spaces remains behind
+explicit user approval plus a fresh observation before any input action.
+
+Observe-only run:
+
+```bash
+bash tool/run_macos_computer_use_spaces_canary.sh
+```
+
+Manual two-Space run:
+
+```bash
+bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window
+```
+
+Before the two-Space run, the user prepares at least two macOS Spaces and keeps
+a harmless target window on a non-active Space. The script does not switch
+Spaces, focus windows, click, type, grant TCC, or operate System Settings. Its
+summary schema is `macos_computer_use_spaces_canary_summary`, and each probe
+report contains `spacesCanaryGate` with `activeSpaceWindowCount`,
+`allSpacesWindowCount`, `inactiveSpaceWindowCount`,
+`requiresApprovedInputBeforeSwitching`, and `spaceIdentifiersAvailable`.
+
+Passing this canary means the helper can expose the best-effort all-Spaces
+window inventory and its safety metadata. It does not prove that macOS will
+switch to a specific Space by ID because public macOS APIs do not expose stable
+Space identifiers or names for this workflow.
+
 The LLM live canaries and the Computer Use live canary cover different risks.
 `tool/run_macos_computer_use_llm_decision_canary.sh` validates the live LLM
 decision layer for Computer Use by asking the configured `CAVERNO_LLM_*`
