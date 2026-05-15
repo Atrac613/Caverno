@@ -174,6 +174,7 @@ fileprivate enum MacosComputerUseHelperCommand: String {
   case startOnboardingPermissionFlow
   case stopAll
   case screenshot
+  case listDisplays
   case listWindows
   case accessibilitySnapshot
   case focusWindow
@@ -196,9 +197,10 @@ fileprivate enum MacosComputerUseHelperCommand: String {
     case .ping, .showMainWindow, .permissionStatus, .openSettings,
          .showPermissionOverlay, .startOnboardingPermissionFlow, .stopAll:
       return false
-    case .screenshot, .listWindows, .accessibilitySnapshot, .focusWindow,
-         .screenshotWindow, .moveMouse, .click, .drag, .scroll, .typeText,
-         .pressKey, .startSystemAudioRecording, .stopSystemAudioRecording:
+    case .screenshot, .listDisplays, .listWindows, .accessibilitySnapshot,
+         .focusWindow, .screenshotWindow, .moveMouse, .click, .drag, .scroll,
+         .typeText, .pressKey, .startSystemAudioRecording,
+         .stopSystemAudioRecording:
       return true
     }
   }
@@ -219,6 +221,7 @@ fileprivate enum MacosComputerUseIpcSchema {
     "startOnboardingPermissionFlow",
     "stopAll",
     "screenshot",
+    "listDisplays",
     "listWindows",
     "accessibilitySnapshot",
     "focusWindow",
@@ -253,7 +256,7 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_displays_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -2016,6 +2019,13 @@ final class MacosComputerUseChannel {
         command: .screenshot,
         arguments: helperArguments(call),
         timeout: 8,
+        result: result
+      )
+    case "listDisplays":
+      helperClient.sendPreferred(
+        command: .listDisplays,
+        arguments: helperArguments(call),
+        timeout: 3,
         result: result
       )
     case "screenshotWindow":

@@ -363,6 +363,13 @@ class MacosComputerUseService {
     return _invokeJson('screenshot', _normalizeCoordinateArguments(arguments));
   }
 
+  Future<String> listDisplays(Map<String, dynamic> arguments) async {
+    return _invokeJson(
+      'listDisplays',
+      _normalizeCoordinateArguments(arguments),
+    );
+  }
+
   Future<String> listWindows(Map<String, dynamic> arguments) async {
     return _invokeJson('listWindows', arguments);
   }
@@ -444,8 +451,15 @@ class MacosComputerUseService {
     final requestedDisplayId = _intValue(
       arguments['display_id'] ?? arguments['displayId'],
     );
+    final includeDisplays =
+        arguments['include_displays'] != false &&
+        arguments['includeDisplays'] != false;
 
     final permissions = _decodeMap(await getPermissions());
+    Map<String, dynamic>? displaysResult;
+    if (includeDisplays || target == 'display') {
+      displaysResult = _decodeMap(await listDisplays(const {}));
+    }
     Map<String, dynamic>? windowsResult;
     if (includeWindows || target == 'front_window') {
       windowsResult = _decodeMap(
@@ -508,6 +522,8 @@ class MacosComputerUseService {
     }
     if (requestedDisplayId != null) {
       targetSummary['displayId'] = requestedDisplayId;
+    } else if (capture['displayId'] != null) {
+      targetSummary['displayId'] = capture['displayId'];
     }
 
     final result = <String, dynamic>{
@@ -526,6 +542,8 @@ class MacosComputerUseService {
         'displayId': capture['displayId'] ?? requestedDisplayId,
       },
       'permissions': permissions ?? const <String, dynamic>{},
+      if (displaysResult != null)
+        'displays': _redactedDisplaysResult(displaysResult),
       if (windowsResult != null)
         'windows': _redactedWindowsResult(windowsResult),
       'elementGrounding': elementGrounding,
@@ -543,6 +561,8 @@ class MacosComputerUseService {
         captureOk: captureOk,
         imageAttached: imageBase64 is String && imageBase64.isNotEmpty,
         capture: capture,
+        displayCount: _intValue(displaysResult?['count']),
+        target: target,
       ),
     };
 
@@ -768,6 +788,8 @@ class MacosComputerUseService {
       'windowId',
       'display_id',
       'displayId',
+      'display_index',
+      'displayIndex',
     ]) {
       final value = normalized[key];
       if (value is num) {
@@ -822,6 +844,18 @@ class MacosComputerUseService {
       redacted['windows'] = windows
           .whereType<Map>()
           .map((window) => Map<String, dynamic>.from(window))
+          .toList(growable: false);
+    }
+    return redacted;
+  }
+
+  Map<String, dynamic> _redactedDisplaysResult(Map<String, dynamic> result) {
+    final redacted = Map<String, dynamic>.from(result);
+    final displays = redacted['displays'];
+    if (displays is List) {
+      redacted['displays'] = displays
+          .whereType<Map>()
+          .map((display) => Map<String, dynamic>.from(display))
           .toList(growable: false);
     }
     return redacted;
@@ -922,6 +956,8 @@ class MacosComputerUseService {
     required bool captureOk,
     required bool imageAttached,
     required Map<String, dynamic> capture,
+    int? displayCount,
+    required String target,
   }) {
     final captureNextAction = capture['nextAction'];
     if (!captureOk || !imageAttached) {
@@ -930,7 +966,12 @@ class MacosComputerUseService {
       }
       return 'Resolve the observation failure, then run computer_vision_observe again.';
     }
-    return 'Use the attached screenshot, elementGrounding candidates, and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
+    final base =
+        'Use the attached screenshot, elementGrounding candidates, and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
+    if (target == 'display' && (displayCount ?? 0) > 1) {
+      return '$base If the target is on another display, use the displayId from the displays result and observe again with display_id.';
+    }
+    return base;
   }
 
   static const List<String> _groundingPreferredRoleTokens = [
@@ -956,6 +997,7 @@ class MacosComputerUseService {
   static final List<String> _visionAllowedNextTools = List.unmodifiable([
     'computer_vision_observe',
     'computer_accessibility_snapshot',
+    'computer_list_displays',
     'computer_list_windows',
     'computer_screenshot',
     'computer_screenshot_window',

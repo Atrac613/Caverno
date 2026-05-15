@@ -392,6 +392,7 @@ class MacosComputerUseIpc {
     'startOnboardingPermissionFlow',
     'stopAll',
     'screenshot',
+    'listDisplays',
     'listWindows',
     'accessibilitySnapshot',
     'focusWindow',
@@ -427,7 +428,7 @@ class MacosComputerUseIpc {
   static const xpcNextParityCommands = <String>[];
   static const xpcProductionReadinessCriteria = [
     'named_service_connects_from_signed_main_app',
-    'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+    'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_displays_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
     'capture_input_audio_commands_have_parity_smoke_coverage',
     'fallback_path_is_observable_and_non_destructive',
   ];

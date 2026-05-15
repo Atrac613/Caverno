@@ -182,6 +182,7 @@ void main() {
       toolNames: const [
         'computer_vision_observe',
         'computer_accessibility_snapshot',
+        'computer_list_displays',
         'computer_list_windows',
         'computer_screenshot',
         'computer_screenshot_window',
@@ -200,7 +201,9 @@ void main() {
     );
     expect(
       prompt,
-      contains('Use raw computer_list_windows, computer_screenshot'),
+      contains(
+        'Use raw computer_list_displays, computer_list_windows, computer_screenshot',
+      ),
     );
     expect(prompt, contains('Use computer_accessibility_snapshot'));
     expect(prompt, contains('current snapshot'));

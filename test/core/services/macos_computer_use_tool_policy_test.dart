@@ -54,6 +54,20 @@ void main() {
     expect(decision.requiresPostActionObservation, isFalse);
   });
 
+  test('allows display inventory during planning without approval', () {
+    final decision = MacosComputerUseToolPolicy.decision(
+      'computer_list_displays',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.category, MacosComputerUseToolCategory.observation);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.observe);
+    expect(decision.requiresUserApproval, isFalse);
+    expect(decision.requiresSmokeArming, isFalse);
+    expect(decision.allowedInPlanning, isTrue);
+    expect(decision.requiresPostActionObservation, isFalse);
+  });
+
   test('blocks permission prompts during planning', () {
     final decision = MacosComputerUseToolPolicy.decision(
       'computer_request_permissions',

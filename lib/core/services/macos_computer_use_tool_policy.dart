@@ -226,6 +226,7 @@ class MacosComputerUseToolPolicy {
     'computer_open_system_settings',
     'computer_vision_observe',
     'computer_accessibility_snapshot',
+    'computer_list_displays',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -244,6 +245,7 @@ class MacosComputerUseToolPolicy {
     'computer_get_permissions',
     'computer_vision_observe',
     'computer_accessibility_snapshot',
+    'computer_list_displays',
     'computer_list_windows',
     'computer_screenshot',
     'computer_screenshot_window',
@@ -642,6 +644,7 @@ class MacosComputerUseToolPolicy {
       'computer_open_system_settings' => MacosComputerUseToolCategory.setup,
       'computer_vision_observe' ||
       'computer_accessibility_snapshot' ||
+      'computer_list_displays' ||
       'computer_list_windows' ||
       'computer_screenshot' ||
       'computer_screenshot_window' => MacosComputerUseToolCategory.observation,
@@ -663,6 +666,7 @@ class MacosComputerUseToolPolicy {
       'computer_open_system_settings' => MacosComputerUseRiskCategory.setup,
       'computer_vision_observe' ||
       'computer_accessibility_snapshot' ||
+      'computer_list_displays' ||
       'computer_list_windows' ||
       'computer_screenshot' ||
       'computer_screenshot_window' => MacosComputerUseRiskCategory.observe,

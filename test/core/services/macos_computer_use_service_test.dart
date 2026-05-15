@@ -251,6 +251,7 @@ void main() {
 
     expect(service.calledMethods, [
       'getPermissions',
+      'listDisplays',
       'listWindows',
       'screenshot',
     ]);
@@ -269,6 +270,9 @@ void main() {
     expect(result['approvalRequiredTools'], contains('computer_click'));
     expect(result['armingRequiredTools'], contains('computer_type_text'));
     expect(result['coordinateGuidance'], containsPair('sourceWidth', 640));
+    expect(result['displays'], containsPair('count', 2));
+    expect(result['target'], containsPair('displayId', 1));
+    expect(result['nextAction'], contains('observe again with display_id'));
     expect(result['elementGrounding'], containsPair('status', 'skipped'));
     expect(
       result['elementGrounding'],
@@ -342,6 +346,7 @@ void main() {
 
       expect(service.calledMethods, [
         'getPermissions',
+        'listDisplays',
         'listWindows',
         'screenshotWindow',
         'accessibilitySnapshot',
@@ -370,6 +375,29 @@ void main() {
       );
     },
   );
+
+  test('passes selected display IDs through vision observations', () async {
+    final service = _FakeVisionMacosComputerUseService();
+
+    final result =
+        jsonDecode(
+              await service.visionObserve(const {
+                'target': 'display',
+                'display_id': 2,
+                'include_windows': false,
+              }),
+            )
+            as Map<String, dynamic>;
+
+    expect(service.calledMethods, [
+      'getPermissions',
+      'listDisplays',
+      'screenshot',
+    ]);
+    expect(result['target'], containsPair('displayId', 2));
+    expect(result['coordinateGuidance'], containsPair('displayId', 2));
+    expect(result['observation'], containsPair('displayId', 2));
+  });
 
   test(
     'promotes target elementId to helper element_id for actions',
@@ -450,6 +478,37 @@ class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
   }
 
   @override
+  Future<String> listDisplays(Map<String, dynamic> arguments) async {
+    calledMethods.add('listDisplays');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'macos_computer_use_display_inventory',
+      'count': 2,
+      'coordinateSpace': 'screen_points',
+      'displays': [
+        {
+          'displayId': 1,
+          'displayIndex': 0,
+          'name': 'Main Display',
+          'isMain': true,
+          'bounds': {'x': 0, 'y': 0, 'width': 1440, 'height': 900},
+          'pixelWidth': 1440,
+          'pixelHeight': 900,
+        },
+        {
+          'displayId': 2,
+          'displayIndex': 1,
+          'name': 'Secondary Display',
+          'isMain': false,
+          'bounds': {'x': 1440, 'y': 0, 'width': 1280, 'height': 720},
+          'pixelWidth': 1280,
+          'pixelHeight': 720,
+        },
+      ],
+    });
+  }
+
+  @override
   Future<String> screenshot(Map<String, dynamic> arguments) async {
     calledMethods.add('screenshot');
     return jsonEncode({
@@ -458,7 +517,7 @@ class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
       'coordinateSpace': 'screenshot_pixels',
       'width': arguments['max_width'] ?? 900,
       'height': 360,
-      'displayId': 1,
+      'displayId': arguments['display_id'] ?? 1,
       'imageBase64': 'display-image',
       'imageMimeType': 'image/png',
     });

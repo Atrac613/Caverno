@@ -205,6 +205,11 @@ class BuiltInToolRegistry {
       category: categoryComputerUse,
     ),
     BuiltInToolInfo(
+      name: 'computer_list_displays',
+      descriptionKey: 'settings.tool_computer_list_displays',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
       name: 'computer_list_windows',
       descriptionKey: 'settings.tool_computer_list_windows',
       category: categoryComputerUse,

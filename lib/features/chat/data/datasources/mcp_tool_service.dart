@@ -92,6 +92,7 @@ class McpToolService {
     'computer_open_system_settings',
     'computer_vision_observe',
     'computer_accessibility_snapshot',
+    'computer_list_displays',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -1676,6 +1677,7 @@ class McpToolService {
       'computer_accessibility_snapshot' => service.accessibilitySnapshot(
         arguments,
       ),
+      'computer_list_displays' => service.listDisplays(arguments),
       'computer_list_windows' => service.listWindows(arguments),
       'computer_focus_window' => service.focusWindow(arguments),
       'computer_screenshot' => service.screenshot(arguments),
@@ -1802,7 +1804,7 @@ class McpToolService {
       'function': {
         'name': 'computer_vision_observe',
         'description':
-            'Observe the macOS desktop for a vision LLM loop. Returns permission status, optional visible-window metadata, one display or window screenshot as image content, coordinate guidance, and the approved next computer-use tool surface. This tool is read-only.',
+            'Observe the macOS desktop for a vision LLM loop. Returns permission status, display inventory, optional visible-window metadata, one display or window screenshot as image content, coordinate guidance, and the approved next computer-use tool surface. This tool is read-only.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1820,7 +1822,7 @@ class McpToolService {
             'display_id': {
               'type': 'integer',
               'description':
-                  'Optional CGDirectDisplayID. Used when target is display.',
+                  'Optional CGDirectDisplayID from computer_list_displays. Used when target is display.',
             },
             'max_width': {
               'type': 'integer',
@@ -1831,6 +1833,11 @@ class McpToolService {
               'type': 'boolean',
               'description':
                   'Include visible-window metadata. Defaults to true.',
+            },
+            'include_displays': {
+              'type': 'boolean',
+              'description':
+                  'Include display inventory metadata. Defaults to true.',
             },
             'include_accessibility': {
               'type': 'boolean',
@@ -1898,6 +1905,29 @@ class McpToolService {
     {
       'type': 'function',
       'function': {
+        'name': 'computer_list_displays',
+        'description':
+            'List macOS displays with display IDs, indexes, names, point bounds, pixel sizes, and main-display status. Use this before selecting a non-main display for screenshots or desktop actions.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'display_id': {
+              'type': 'integer',
+              'description':
+                  'Optional CGDirectDisplayID to validate a selected display.',
+            },
+            'display_index': {
+              'type': 'integer',
+              'description':
+                  'Optional zero-based display index to validate a selected display.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
         'name': 'computer_screenshot',
         'description':
             'Capture a macOS display screenshot for visual inspection. Use returned screenshot pixel coordinates for computer input tools.',
@@ -1907,7 +1937,7 @@ class McpToolService {
             'display_id': {
               'type': 'integer',
               'description':
-                  'Optional CGDirectDisplayID. Defaults to the main display.',
+                  'Optional CGDirectDisplayID from computer_list_displays. Defaults to the main display.',
             },
             'max_width': {
               'type': 'integer',
@@ -2170,7 +2200,8 @@ class McpToolService {
     },
     'display_id': {
       'type': 'integer',
-      'description': 'Optional display ID from computer_screenshot.',
+      'description':
+          'Optional display ID from computer_list_displays, computer_vision_observe, or computer_screenshot.',
     },
     'source_width': {
       'type': 'number',

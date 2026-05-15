@@ -1586,6 +1586,7 @@ private enum ComputerUseHelperCommand: String {
   case startOnboardingPermissionFlow
   case stopAll
   case screenshot
+  case listDisplays
   case listWindows
   case accessibilitySnapshot
   case focusWindow
@@ -1617,6 +1618,7 @@ private enum ComputerUseHelperIpcSchema {
     "startOnboardingPermissionFlow",
     "stopAll",
     "screenshot",
+    "listDisplays",
     "listWindows",
     "accessibilitySnapshot",
     "focusWindow",
@@ -1649,7 +1651,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_displays_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -2109,6 +2111,8 @@ private final class ComputerUseHelperIpc: NSObject {
       stopAll(completion: completion)
     case .screenshot:
       completion(screenshot(arguments: request.arguments))
+    case .listDisplays:
+      completion(listDisplays(arguments: request.arguments))
     case .listWindows:
       completion(listWindows(arguments: request.arguments))
     case .accessibilitySnapshot:
@@ -2271,6 +2275,10 @@ private final class ComputerUseHelperIpc: NSObject {
           "width": encodedImage.width,
           "height": encodedImage.height,
           "displayId": screen.displayID,
+          "displayIndex": screen.index,
+          "displayName": screen.name,
+          "displayIsMain": screen.isMain,
+          "displayCount": displayDescriptors().count,
           "displayBounds": rectMap(screen.bounds),
           "coordinateSpace": "screenshot_pixels",
           "inputOrigin": "top_left",
@@ -2285,6 +2293,23 @@ private final class ComputerUseHelperIpc: NSObject {
         details: error.localizedDescription
       )
     }
+  }
+
+  private func listDisplays(arguments: [String: Any]) -> [String: Any] {
+    let displays = displayDescriptors().map { $0.toMap() }
+    return baseResponse(
+      extra: [
+        "schemaName": "macos_computer_use_display_inventory",
+        "schemaVersion": 1,
+        "displays": displays,
+        "count": displays.count,
+        "coordinateSpace": "screen_points",
+        "inputOrigin": "top_left",
+        "nextAction": displays.count > 1
+          ? "Use displayId from this result when observing, screenshotting, or acting on a non-main display."
+          : "Use the main display unless the user attaches another target context.",
+      ]
+    )
   }
 
   private func listWindows(arguments: [String: Any]) -> [String: Any] {
@@ -3255,16 +3280,31 @@ private final class ComputerUseHelperIpc: NSObject {
 
 private func resolveScreen(arguments: [String: Any]) -> ScreenDescriptor? {
   let requestedDisplayId = directDisplayIdValue(arguments["display_id"] ?? arguments["displayId"])
-  let screens = NSScreen.screens
+  let requestedDisplayIndex = intValue(arguments["display_index"] ?? arguments["displayIndex"])
+  let screens = displayDescriptors()
   if let requestedDisplayId {
     for screen in screens {
       if screen.displayID == requestedDisplayId {
-        return ScreenDescriptor(screen: screen)
+        return screen
       }
     }
     return nil
   }
-  return NSScreen.main.map(ScreenDescriptor.init(screen:))
+  if let requestedDisplayIndex {
+    for screen in screens {
+      if screen.index == requestedDisplayIndex {
+        return screen
+      }
+    }
+    return nil
+  }
+  return screens.first(where: { $0.isMain }) ?? screens.first
+}
+
+private func displayDescriptors() -> [ScreenDescriptor] {
+  NSScreen.screens.enumerated().map { index, screen in
+    ScreenDescriptor(screen: screen, index: index)
+  }
 }
 
 private func visibleWindows() -> [WindowDescriptor] {
@@ -4325,13 +4365,36 @@ private enum ComputerUseError: Error {
 
 private struct ScreenDescriptor {
   let screen: NSScreen
+  let index: Int
   let displayID: CGDirectDisplayID
   let bounds: CGRect
+  let isMain: Bool
+  let name: String
 
-  init(screen: NSScreen) {
+  init(screen: NSScreen, index: Int) {
     self.screen = screen
+    self.index = index
     self.displayID = screen.displayID
     self.bounds = CGDisplayBounds(screen.displayID)
+    self.isMain = screen.displayID == NSScreen.main?.displayID
+    self.name = screen.localizedName
+  }
+
+  func toMap() -> [String: Any] {
+    [
+      "displayId": displayID,
+      "displayIndex": index,
+      "name": name,
+      "isMain": isMain,
+      "isActive": CGDisplayIsActive(displayID) != 0,
+      "isBuiltin": CGDisplayIsBuiltin(displayID) != 0,
+      "bounds": rectMap(bounds),
+      "frame": rectMap(screen.frame),
+      "visibleFrame": rectMap(screen.visibleFrame),
+      "pixelWidth": CGDisplayPixelsWide(displayID),
+      "pixelHeight": CGDisplayPixelsHigh(displayID),
+      "backingScaleFactor": Double(screen.backingScaleFactor),
+    ]
   }
 }
 

@@ -328,7 +328,8 @@ class SystemPromptBuilder {
           'For macOS computer-use tasks, start with computer_vision_observe. '
           'Use target=window with a known window_id, target=front_window for '
           'the first visible non-Caverno window, or target=display for the '
-          'full display.',
+          'full display. Use display_id from computer_list_displays when '
+          'the target is on a non-main display.',
         );
         buffer.writeln(
           'After every click, drag, scroll, text input, key press, or system '
@@ -336,9 +337,9 @@ class SystemPromptBuilder {
           'computer_vision_observe before deciding the next desktop action.',
         );
         buffer.writeln(
-          'Use raw computer_list_windows, computer_screenshot, and '
-          'computer_screenshot_window only for focused follow-up checks when '
-          'computer_vision_observe is too broad.',
+          'Use raw computer_list_displays, computer_list_windows, '
+          'computer_screenshot, and computer_screenshot_window only for '
+          'focused follow-up checks when computer_vision_observe is too broad.',
         );
         buffer.writeln(
           'Use computer_accessibility_snapshot when labels, roles, frames, '

@@ -80,6 +80,7 @@ void main() {
       expect(functionNames, contains('computer_open_system_settings'));
       expect(functionNames, contains('computer_vision_observe'));
       expect(functionNames, contains('computer_accessibility_snapshot'));
+      expect(functionNames, contains('computer_list_displays'));
       expect(functionNames, contains('computer_list_windows'));
       expect(functionNames, contains('computer_focus_window'));
       expect(functionNames, contains('computer_screenshot'));
@@ -121,6 +122,7 @@ void main() {
       expect(typeTextProperties['element_id'], isA<Map<String, dynamic>>());
       expect(typeTextProperties['window_id'], isA<Map<String, dynamic>>());
       expect(visionProperties['include_accessibility'], isA<Map>());
+      expect(visionProperties['include_displays'], isA<Map>());
       expect(visionProperties['max_candidate_elements'], isA<Map>());
       final target = clickProperties['target'] as Map<String, dynamic>;
       expect(jsonEncode(target), contains('public_action'));
@@ -193,6 +195,28 @@ void main() {
         );
         expect(decoded, containsPair('readOnly', true));
         expect(decoded['redaction'], containsPair('valuesOmitted', true));
+      },
+    );
+
+    test(
+      'executes macOS display inventory through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_list_displays',
+          arguments: const {},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['listDisplays']);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(
+          decoded,
+          containsPair('schemaName', 'macos_computer_use_display_inventory'),
+        );
+        expect(decoded, containsPair('count', 2));
       },
     );
 
@@ -448,6 +472,20 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'enabled': true,
           'focused': true,
         },
+      ],
+    });
+  }
+
+  @override
+  Future<String> listDisplays(Map<String, dynamic> arguments) async {
+    calledMethods.add('listDisplays');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'macos_computer_use_display_inventory',
+      'count': 2,
+      'displays': [
+        {'displayId': 1, 'displayIndex': 0, 'isMain': true},
+        {'displayId': 2, 'displayIndex': 1, 'isMain': false},
       ],
     });
   }
