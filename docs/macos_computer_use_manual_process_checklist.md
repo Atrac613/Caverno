@@ -66,6 +66,24 @@ Spaces:
    System Settings from this canary. Any future Space switch must be explicitly
    approved and followed by a fresh `computer_vision_observe`.
 
+For a user-operated focus check:
+
+1. Complete the two-Space setup above.
+2. Confirm Accessibility is granted to the expected helper path.
+3. Run:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh --focus-inactive-space-window
+   ```
+
+4. Confirm `spacesFocusCanaryGate.status` is `ready`.
+5. Confirm `desktopActionBoundary` is
+   `user_operated_focus_only_no_pointer_or_text`.
+6. Confirm no pointer movement, click, text input, submit, public action, TCC
+   grant, or System Settings operation occurred.
+7. Run a fresh `computer_vision_observe` before any later pointer or keyboard
+   input proposal.
+
 ## M33 Release Packaging Report
 
 Run this static packaging report before asking for a signed release pass:

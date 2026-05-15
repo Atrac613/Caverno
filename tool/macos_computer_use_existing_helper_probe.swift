@@ -37,6 +37,7 @@ private struct Config {
   var replaceMismatchedHelper = false
   var desktopActionCanary = false
   var spacesCanary = false
+  var spacesFocusCanary = false
   var requireInactiveSpaceWindow = false
   var fixtureTarget = false
 }
@@ -195,6 +196,10 @@ private func parseConfig(arguments: [String]) -> Config {
       config.desktopActionCanary = true
     case "--spaces-canary":
       config.spacesCanary = true
+    case "--focus-inactive-space-window", "--spaces-focus-canary":
+      config.spacesCanary = true
+      config.spacesFocusCanary = true
+      config.requireInactiveSpaceWindow = true
     case "--require-inactive-space-window":
       config.spacesCanary = true
       config.requireInactiveSpaceWindow = true
@@ -334,14 +339,21 @@ private func firstWindowId(_ response: [String: Any]) -> Int? {
 
 private func firstWindow(_ response: [String: Any]) -> [String: Any]? {
   for window in windowsArray(response) {
-    if window["windowId"] is Int {
-      return window
-    }
-    if let id = window["window_id"] as? Int {
-      var normalized = window
-      normalized["windowId"] = id
+    if let normalized = normalizedWindow(window) {
       return normalized
     }
+  }
+  return nil
+}
+
+private func normalizedWindow(_ window: [String: Any]) -> [String: Any]? {
+  if window["windowId"] is Int {
+    return window
+  }
+  if let id = window["window_id"] as? Int {
+    var normalized = window
+    normalized["windowId"] = id
+    return normalized
   }
   return nil
 }
@@ -351,6 +363,28 @@ private func windowsArray(_ response: [String: Any]) -> [[String: Any]] {
     return []
   }
   return windows
+}
+
+private func isInactiveSpaceWindow(_ window: [String: Any]) -> Bool {
+  let status = (window["spaceStatus"] as? String ?? "").lowercased()
+  return !status.isEmpty && status != "active_space_visible"
+}
+
+private func firstInactiveSpaceWindow(_ response: [String: Any]) -> [String: Any]? {
+  for window in windowsArray(response) {
+    guard let normalized = normalizedWindow(window),
+      isInactiveSpaceWindow(normalized) else {
+      continue
+    }
+    return normalized
+  }
+  return nil
+}
+
+private func windowInventoryContains(windowID: Int, response: [String: Any]) -> Bool {
+  windowsArray(response).contains { window in
+    intWindowId(normalizedWindow(window) ?? window) == windowID
+  }
 }
 
 private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
@@ -516,6 +550,52 @@ private func buildSpacesCanaryGate(
   ]
 }
 
+private func buildSpacesFocusCanaryGate(
+  targetWindow: [String: Any]?,
+  focusResult: [String: Any],
+  postFocusActiveWindows: [String: Any]
+) -> [String: Any] {
+  let targetWindowId = intWindowId(targetWindow)
+  let focusOk = focusResult["ok"] as? Bool ?? false
+  let postFocusOk = postFocusActiveWindows["ok"] as? Bool ?? false
+  let targetVisibleAfterFocus = targetWindowId.map {
+    windowInventoryContains(windowID: $0, response: postFocusActiveWindows)
+  } ?? false
+
+  var blockers: [String] = []
+  if targetWindowId == nil {
+    blockers.append("inactive_space_focus_target_missing")
+  }
+  if !focusOk {
+    blockers.append("focus_window_failed")
+  }
+  if !postFocusOk {
+    blockers.append("post_focus_active_space_inventory_failed")
+  }
+  if targetWindowId != nil && postFocusOk && !targetVisibleAfterFocus {
+    blockers.append("focused_window_not_active_after_observe")
+  }
+
+  let ready = blockers.isEmpty
+  return [
+    "status": ready ? "ready" : "blocked",
+    "ok": ready,
+    "purpose": "computer_use_spaces_focus_canary",
+    "desktopModel": "macos_spaces",
+    "desktopActionBoundary": "user_operated_focus_only_no_pointer_or_text",
+    "targetWindow": jsonValue(targetWindow),
+    "targetWindowId": jsonValue(targetWindowId),
+    "focusWindowSent": targetWindowId != nil,
+    "focusWindowOk": focusOk,
+    "postFocusActiveSpaceObserved": postFocusOk,
+    "postFocusTargetVisible": targetVisibleAfterFocus,
+    "blockers": blockers,
+    "nextAction": ready
+      ? "Focus canary verified that the inactive-Space target became visible in the active Space inventory. Run computer_vision_observe before any pointer or keyboard input."
+      : "Prepare a harmless window on another Space, grant Accessibility to the helper, then rerun the focus canary.",
+  ]
+}
+
 private func writeReport(_ report: [String: Any], path: String) {
   guard JSONSerialization.isValidJSONObject(report) else {
     fatalError("Probe report is not valid JSON.")
@@ -665,6 +745,17 @@ var allSpacesWindows: [String: Any] = [
   "skipped": true,
   "reason": "macOS Spaces canary was not requested.",
 ]
+var spacesFocusTargetWindow: [String: Any]?
+var spacesFocusWindow: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "macOS Spaces focus canary was not requested.",
+]
+var spacesPostFocusActiveWindows: [String: Any] = [
+  "ok": false,
+  "skipped": true,
+  "reason": "Post-focus active Space inventory was skipped.",
+]
 
 if let appProcessIdentifier {
   permissionStatus = runRetriedStep(
@@ -727,6 +818,57 @@ if let appProcessIdentifier {
         senderProcessIdentifier: appProcessIdentifier,
         timeout: 4
       )
+    }
+  }
+  if config.spacesFocusCanary {
+    spacesFocusTargetWindow = firstInactiveSpaceWindow(allSpacesWindows)
+    if let windowId = intWindowId(spacesFocusTargetWindow) {
+      spacesFocusWindow = runStep(
+        &steps,
+        id: "spaces_focus_inactive_window",
+        label: "Focus a harmless inactive-Space window without pointer or text input"
+      ) {
+        client.send(
+          command: "focusWindow",
+          arguments: [
+            "window_id": windowId,
+            "reason": "Spaces focus canary was explicitly user-operated and limited to window focus plus re-observation.",
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 6
+        )
+      }
+      spacesPostFocusActiveWindows = runStep(
+        &steps,
+        id: "spaces_post_focus_active_windows",
+        label: "List active Space windows after focusing the inactive-Space target"
+      ) {
+        client.send(
+          command: "listWindows",
+          arguments: [
+            "max_windows": 80,
+            "include_current_app": false,
+            "main_app_pid": appProcessIdentifier,
+          ],
+          senderProcessIdentifier: appProcessIdentifier,
+          timeout: 4
+        )
+      }
+    } else {
+      steps.append([
+        "id": "spaces_focus_inactive_window",
+        "label": "Focus a harmless inactive-Space window without pointer or text input",
+        "ok": false,
+        "skipped": true,
+        "reason": "No inactive Space window was returned.",
+      ])
+      steps.append([
+        "id": "spaces_post_focus_active_windows",
+        "label": "List active Space windows after focusing the inactive-Space target",
+        "ok": false,
+        "skipped": true,
+        "reason": "Focus was skipped because no inactive Space window was returned.",
+      ])
     }
   }
   desktopActionTargetWindow = config.fixtureTarget ? fixtureWindow(windows) : firstWindow(windows)
@@ -932,7 +1074,25 @@ let spacesCanaryGate: [String: Any] = config.spacesCanary
   ]
 let spacesCanaryOk = !config.spacesCanary ||
   (spacesCanaryGate["ok"] as? Bool ?? false)
-let ok = coreOk && failedRequiredChecks.isEmpty && desktopActionOk && spacesCanaryOk
+let spacesFocusCanaryGate: [String: Any] = config.spacesFocusCanary
+  ? buildSpacesFocusCanaryGate(
+    targetWindow: spacesFocusTargetWindow,
+    focusResult: spacesFocusWindow,
+    postFocusActiveWindows: spacesPostFocusActiveWindows
+  )
+  : [
+    "status": "not_run",
+    "ok": true,
+    "blockers": [],
+    "nextAction": "Rerun with --focus-inactive-space-window to validate user-operated Space focus and re-observation.",
+  ]
+let spacesFocusCanaryOk = !config.spacesFocusCanary ||
+  (spacesFocusCanaryGate["ok"] as? Bool ?? false)
+let ok = coreOk &&
+  failedRequiredChecks.isEmpty &&
+  desktopActionOk &&
+  spacesCanaryOk &&
+  spacesFocusCanaryOk
 
 let report: [String: Any] = [
   "schemaName": "macos_computer_use_existing_helper_probe",
@@ -941,6 +1101,7 @@ let report: [String: Any] = [
   "noRebuild": true,
   "desktopActionCanary": config.desktopActionCanary,
   "spacesCanary": config.spacesCanary,
+  "spacesFocusCanary": config.spacesFocusCanary,
   "requireInactiveSpaceWindow": config.requireInactiveSpaceWindow,
   "fixtureTarget": config.fixtureTarget,
   "replaceMismatchedApp": config.replaceMismatchedApp,
@@ -985,6 +1146,7 @@ let report: [String: Any] = [
   ],
   "desktopActionCanaryGate": desktopActionCanaryGate,
   "spacesCanaryGate": spacesCanaryGate,
+  "spacesFocusCanaryGate": spacesFocusCanaryGate,
   "steps": steps,
 ]
 

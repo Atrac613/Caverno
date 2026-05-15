@@ -12,6 +12,7 @@ SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 SUMMARY_EXIT_STATUS="${RUN_DIR}/summary_exit_status"
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_SPACES_LAUNCH_CAVERNO:-0}"
 REQUIRE_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_INACTIVE_WINDOW:-0}"
+FOCUS_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_FOCUS_INACTIVE_WINDOW:-0}"
 REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_HELPER_PATH_MATCH:-0}"
 REPLACE_HELPER="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REPLACE_HELPER:-0}"
 
@@ -42,6 +43,11 @@ while [[ $# -gt 0 ]]; do
       REQUIRE_INACTIVE_SPACE_WINDOW=1
       shift
       ;;
+    --focus-inactive-space-window|--spaces-focus-canary)
+      REQUIRE_INACTIVE_SPACE_WINDOW=1
+      FOCUS_INACTIVE_SPACE_WINDOW=1
+      shift
+      ;;
     --require-helper-path-match)
       REQUIRE_HELPER_PATH_MATCH=1
       shift
@@ -68,15 +74,21 @@ Options:
   --require-inactive-space-window
                        Require at least one window marked outside the active
                        Space. Prepare two macOS Spaces manually before running.
+  --focus-inactive-space-window
+                       User-operated focus canary: focus the first inactive
+                       Space window, then list active Space windows again.
+                       This requires Accessibility and may switch Spaces.
   --require-helper-path-match
                        Fail when the running helper is not the embedded helper.
   --replace-helper     Stop a mismatched running helper before probing.
   --release-helper-signoff
                        Equivalent to --require-helper-path-match --replace-helper.
 
-This canary is observe-only. It validates computer_list_windows with
+This canary is observe-only by default. It validates computer_list_windows with
 space_scope=all_spaces and verifies that macOS Spaces metadata keeps Space
-switching and input behind explicit approval plus a fresh observation.
+switching and input behind explicit approval plus a fresh observation. With
+--focus-inactive-space-window it performs one explicit user-operated
+focusWindow action, then observes the active Space inventory again.
 USAGE
       exit 0
       ;;
@@ -90,6 +102,7 @@ done
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_spaces_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
+SUMMARY_EXIT_STATUS="${RUN_DIR}/summary_exit_status"
 
 if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   echo "CAVERNO_MACOS_COMPUTER_USE_SPACES_CANARY_REPEAT_COUNT must be a positive integer."
@@ -98,13 +111,19 @@ fi
 
 mkdir -p "${RUN_DIR}"
 
+desktop_action_boundary="no desktop action observe-only"
+if [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" ]]; then
+  desktop_action_boundary="user-operated focus only, no pointer or text input"
+fi
+
 echo "Running macOS Computer Use Spaces canary"
 echo "  Purpose: validate macOS Spaces window discovery metadata"
 echo "  TCC boundary: user-operated manual verification only"
-echo "  Desktop action boundary: no desktop action observe-only"
+echo "  Desktop action boundary: ${desktop_action_boundary}"
 echo "  Scope: computer_list_windows space_scope=all_spaces"
 echo "  Manual setup: prepare a harmless target window on another Space when requiring inactive Space evidence"
 echo "  Success phases: active_space_window_inventory, all_spaces_window_inventory, space_metadata_present"
+echo "  Focus inactive Space window: ${FOCUS_INACTIVE_SPACE_WINDOW}"
 echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
 echo "  Require inactive Space window: ${REQUIRE_INACTIVE_SPACE_WINDOW}"
 echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
@@ -128,6 +147,9 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   if [[ "${REQUIRE_INACTIVE_SPACE_WINDOW}" == "1" ]]; then
     probe_args+=(--require-inactive-space-window)
   fi
+  if [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" ]]; then
+    probe_args+=(--focus-inactive-space-window)
+  fi
   if [[ "${REQUIRE_HELPER_PATH_MATCH}" == "1" ]]; then
     probe_args+=(--require-helper-path-match)
   fi
@@ -143,7 +165,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" SUMMARY_EXIT_STATUS="${SUMMARY_EXIT_STATUS}" REQUIRE_INACTIVE_SPACE_WINDOW="${REQUIRE_INACTIVE_SPACE_WINDOW}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" SUMMARY_EXIT_STATUS="${SUMMARY_EXIT_STATUS}" REQUIRE_INACTIVE_SPACE_WINDOW="${REQUIRE_INACTIVE_SPACE_WINDOW}" FOCUS_INACTIVE_SPACE_WINDOW="${FOCUS_INACTIVE_SPACE_WINDOW}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -154,6 +176,7 @@ summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 summary_exit_status = Path(os.environ["SUMMARY_EXIT_STATUS"])
 require_inactive = os.environ["REQUIRE_INACTIVE_SPACE_WINDOW"] == "1"
+focus_inactive = os.environ["FOCUS_INACTIVE_SPACE_WINDOW"] == "1"
 runs = []
 
 for report_file in sorted(run_dir.glob("run_*.json")):
@@ -169,15 +192,22 @@ for report_file in sorted(run_dir.glob("run_*.json")):
         })
         continue
     gate = report.get("spacesCanaryGate", {})
+    focus_gate = report.get("spacesFocusCanaryGate", {})
     runs.append({
         "name": report_file.stem,
-        "ok": bool(report.get("ok")) and bool(gate.get("ok")),
+        "ok": bool(report.get("ok")) and bool(gate.get("ok")) and (
+            bool(focus_gate.get("ok")) if focus_inactive else True
+        ),
         "path": str(report_file),
         "gateStatus": gate.get("status", "unknown"),
+        "focusGateStatus": focus_gate.get("status", "not_run"),
         "blockers": gate.get("blockers", []),
+        "focusBlockers": focus_gate.get("blockers", []),
         "activeSpaceWindowCount": gate.get("activeSpaceWindowCount", 0),
         "allSpacesWindowCount": gate.get("allSpacesWindowCount", 0),
         "inactiveSpaceWindowCount": gate.get("inactiveSpaceWindowCount", 0),
+        "focusWindowSent": focus_gate.get("focusWindowSent", False),
+        "postFocusTargetVisible": focus_gate.get("postFocusTargetVisible", False),
         "requiresApprovedInputBeforeSwitching": gate.get(
             "requiresApprovedInputBeforeSwitching",
             False,
@@ -186,7 +216,11 @@ for report_file in sorted(run_dir.glob("run_*.json")):
 
 failed = [run for run in runs if not run.get("ok")]
 inactive_seen = any((run.get("inactiveSpaceWindowCount") or 0) > 0 for run in runs)
-ready = bool(runs) and not failed and (inactive_seen or not require_inactive)
+focus_ready = (not focus_inactive) or all(
+    run.get("focusWindowSent") and run.get("postFocusTargetVisible")
+    for run in runs
+)
+ready = bool(runs) and not failed and (inactive_seen or not require_inactive) and focus_ready
 summary = {
     "schemaName": "macos_computer_use_spaces_canary_summary",
     "schemaVersion": 1,
@@ -195,22 +229,31 @@ summary = {
     "ok": ready,
     "desktopModel": "macos_spaces",
     "spaceScope": "all_spaces",
-    "desktopActionBoundary": "no_desktop_action_observe_only",
+    "desktopActionBoundary": (
+        "user_operated_focus_only_no_pointer_or_text"
+        if focus_inactive
+        else "no_desktop_action_observe_only"
+    ),
     "tccBoundary": "manual_user_operated",
     "requireInactiveSpaceWindow": require_inactive,
+    "focusInactiveSpaceWindow": focus_inactive,
     "runCount": len(runs),
     "passedRunCount": len(runs) - len(failed),
     "failedRunCount": len(failed),
     "inactiveSpaceWindowObserved": inactive_seen,
+    "focusCanaryReady": focus_ready,
     "phaseStatus": {
         "active_space_window_inventory": bool(runs),
         "all_spaces_window_inventory": bool(runs) and not failed,
         "space_metadata_present": bool(runs) and not failed,
         "inactive_space_window_candidate": inactive_seen,
+        "focus_inactive_space_window": focus_ready if focus_inactive else None,
     },
     "runs": runs,
     "nextAction": (
-        "Spaces canary passed. Use focus or approved Control-Left/Right Space switching only after a fresh observe."
+        "Spaces focus canary passed. Run computer_vision_observe before any pointer or keyboard input."
+        if ready and focus_inactive
+        else "Spaces canary passed. Use focus or approved Control-Left/Right Space switching only after a fresh observe."
         if ready
         else "Prepare a harmless window on another macOS Space when required, keep Caverno.app and the helper running, then rerun the Spaces canary."
     ),
@@ -224,7 +267,9 @@ summary_md.write_text(
         f"- Status: {summary['status']}",
         f"- Runs: {summary['passedRunCount']}/{summary['runCount']} passed",
         f"- Require inactive Space window: {summary['requireInactiveSpaceWindow']}",
+        f"- Focus inactive Space window: {summary['focusInactiveSpaceWindow']}",
         f"- Inactive Space window observed: {summary['inactiveSpaceWindowObserved']}",
+        f"- Focus canary ready: {summary['focusCanaryReady']}",
         f"- Desktop action boundary: {summary['desktopActionBoundary']}",
         f"- Next action: {summary['nextAction']}",
         "",

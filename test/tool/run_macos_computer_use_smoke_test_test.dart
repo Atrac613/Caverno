@@ -1469,6 +1469,7 @@ void main() {
     expect(spacesCanaryScript, contains('--spaces-canary'));
     expect(spacesCanaryScript, contains('space_scope=all_spaces'));
     expect(spacesCanaryScript, contains('--require-inactive-space-window'));
+    expect(spacesCanaryScript, contains('--focus-inactive-space-window'));
     expect(
       spacesCanaryScript,
       contains('macos_computer_use_spaces_canary_summary'),
@@ -1491,13 +1492,22 @@ void main() {
       existingHelperProbe,
       contains('"requiresApprovedInputBeforeSwitching"'),
     );
+    expect(existingHelperProbe, contains('spacesFocusCanaryGate'));
+    expect(existingHelperProbe, contains('spaces_focus_inactive_window'));
+    expect(existingHelperProbe, contains('spaces_post_focus_active_windows'));
+    expect(
+      existingHelperProbe,
+      contains('user_operated_focus_only_no_pointer_or_text'),
+    );
     expect(architectureDoc, contains('## macOS Spaces Canary'));
     expect(
       architectureDoc,
       contains('macos_computer_use_spaces_canary_summary'),
     );
+    expect(architectureDoc, contains('spacesFocusCanaryGate'));
     expect(manualProcessChecklist, contains('## macOS Spaces Canary'));
     expect(manualProcessChecklist, contains('spacesCanaryGate.status'));
+    expect(manualProcessChecklist, contains('spacesFocusCanaryGate.status'));
   });
 
   test('Computer Use LLM decision canary avoids desktop actions', () async {
