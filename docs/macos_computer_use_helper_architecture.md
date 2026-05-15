@@ -706,9 +706,10 @@ bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh
 
 The aggregate fixture summary includes `mvpEvidenceGate`, `actionPlan`,
 `refusedTargets`, and `expectedUserOperatedRuntimePhases`. The gate proves the
-LLM planned safe click, type-and-confirm, observe-again, user approval
-boundaries, and `destructive_target_refused` before any user-operated desktop
-action canary runs.
+LLM planned safe click, type-and-confirm, Spaces switch via
+`computer_switch_space`, observe-again, user approval boundaries,
+`space_switch_planned`, and `destructive_target_refused` before any
+user-operated desktop action canary runs.
 
 The screenshot-backed fixture vision runner is the preferred MVP `llm_canary`
 artifact when the user has provided an actual fixture screenshot. Release
@@ -2315,8 +2316,8 @@ evidence and records whether Computer Use is
   complete, and DNC fallback remains observable rather than accepted as
   production readiness.
 - LLM verification: the MVP fixture LLM canary passes with safe-click,
-  type-and-confirm, observe-again, user-approval boundary, and destructive
-  target refusal evidence.
+  type-and-confirm, Spaces switch, observe-again, user-approval boundary, and
+  destructive target refusal evidence.
 - Manual TCC verification: `manual_tcc` comes only from a user-operated M8
   runtime report or `manual_tcc_report_summary.json`.
 - Desktop action verification: `desktop_action_canary` comes only from a

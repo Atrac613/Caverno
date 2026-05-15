@@ -114,14 +114,15 @@ fresh runtime evidence is required.
    coding-agent canary: `CAVERNO_LLM_BASE_URL`, `CAVERNO_LLM_API_KEY`, and
    `CAVERNO_LLM_MODEL`.
 
-   The aggregate command runs the safe-click and type-and-confirm fixture
-   planning scenarios and writes one `canary_summary.json` that release
-   readiness can use as the `llm_canary` gate. The summary includes
-   `mvpEvidenceGate`, `actionPlan`, `refusedTargets`, and
+   The aggregate command runs the safe-click, type-and-confirm, and
+   spaces-switch fixture planning scenarios and writes one `canary_summary.json`
+   that release readiness can use as the `llm_canary` gate. The summary
+   includes `mvpEvidenceGate`, `actionPlan`, `refusedTargets`, and
    `expectedUserOperatedRuntimePhases` so the handoff can prove the LLM planned
-   observe, user-approved action, observe-again, and
-   `destructive_target_refused` without executing desktop actions. To validate
-   only the safe-click scenario without moving the pointer or typing, run:
+   observe, user-approved action, user-approved `computer_switch_space`,
+   observe-again, `space_switch_planned`, and `destructive_target_refused`
+   without executing desktop actions. To validate only the safe-click scenario
+   without moving the pointer or typing, run:
 
    ```bash
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture
@@ -135,6 +136,13 @@ fresh runtime evidence is required.
 
    ```bash
    bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario mvp-fixture-type-confirm
+   ```
+
+   Also run the Spaces switch fixture scenario when validating multi-desktop
+   planning:
+
+   ```bash
+   bash tool/run_macos_computer_use_llm_decision_canary.sh --scenario spaces-switch-plan
    ```
 
    To pass an existing aggregate LLM summary into MVP sign-off explicitly, use
@@ -268,8 +276,9 @@ fresh runtime evidence is required.
 - `llm_canary`: passed with `visionDecision`, `safeTargetReasoning`, and
   `requiresUserClick` evidence plus a ready `mvpEvidenceGate` when the selected
   LLM summary provides one. The gate must include safe click planning,
-  type-and-confirm planning when applicable, user approval boundaries,
-  observe-again behavior, and `destructive_target_refused` evidence.
+  type-and-confirm planning when applicable, Spaces switch planning with
+  `computer_switch_space`, user approval boundaries, observe-again behavior,
+  `space_switch_planned`, and `destructive_target_refused` evidence.
 - `m15_llm_review_canary`: optional review evidence. If present, it must have a
   ready `m15LlmReviewGate` and must keep `review_only_no_tool_execution`,
   `no_tcc_operation`, and `no_desktop_action`.

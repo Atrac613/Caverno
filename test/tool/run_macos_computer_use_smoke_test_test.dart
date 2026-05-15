@@ -455,6 +455,8 @@ void main() {
     expect(architectureDoc, contains('Release artifact verification'));
     expect(architectureDoc, contains('Production IPC verification'));
     expect(architectureDoc, contains('LLM verification'));
+    expect(architectureDoc, contains('Spaces switch'));
+    expect(architectureDoc, contains('space_switch_planned'));
     expect(architectureDoc, contains('Manual TCC verification'));
     expect(architectureDoc, contains('Desktop action verification'));
     expect(architectureDoc, contains('MVP aggregation verification'));
@@ -7197,6 +7199,11 @@ void main() {
     );
     expect(
       mvpFixtureRunbook,
+      contains('Use `computer_switch_space` for the Spaces switch scenario'),
+    );
+    expect(mvpFixtureRunbook, contains('requiresUserSpaceSwitch'));
+    expect(
+      mvpFixtureRunbook,
       contains('bash tool/run_macos_computer_use_mvp_fixture.sh --launch'),
     );
     expect(
@@ -7329,6 +7336,9 @@ void main() {
 
     expect(mvpChecklist, contains('macOS Computer Use MVP Checklist'));
     expect(mvpChecklist, contains('mvpEvidenceGate'));
+    expect(mvpChecklist, contains('spaces-switch fixture planning scenarios'));
+    expect(mvpChecklist, contains('spaces-switch-plan'));
+    expect(mvpChecklist, contains('space_switch_planned'));
     expect(mvpChecklist, contains('destructive_target_refused'));
     expect(
       mvpChecklist,
