@@ -128,6 +128,48 @@ void main() {
     expect(entry.containsKey('imageBase64'), isFalse);
   });
 
+  test('records Space switches as keyboard input requiring observation', () {
+    final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
+
+    auditLog.record(
+      toolName: 'computer_switch_space',
+      policy: MacosComputerUseToolPolicy.decision('computer_switch_space'),
+      approvalResult: 'approved',
+      success: true,
+      result:
+          '{"ok":true,"schemaName":"macos_computer_use_space_switch","direction":"next","key":"right","modifiers":["control"],"selectedIpcTransport":"xpc_service","requiresPostActionObservation":true}',
+      postActionObservation: const MacosComputerUsePostActionObservation(
+        toolName: 'computer_vision_observe',
+        success: true,
+        result:
+            '{"ok":true,"schemaName":"macos_computer_use_vision_observation","target":{"resolved":"front_window"},"coordinateSpace":"display_pixels"}',
+      ),
+    );
+
+    final entry = auditLog.redactedEntries.single;
+    expect(entry['toolName'], 'computer_switch_space');
+    expect(entry['toolCategory'], 'keyboardInput');
+    expect(entry['riskCategory'], 'input');
+    expect(entry['policyLabel'], 'keyboard_input');
+    expect(entry['requiresUserApproval'], isTrue);
+    expect(entry['requiresSmokeArming'], isTrue);
+    expect(entry['postActionObservationRequired'], isTrue);
+    expect(entry['postActionObservationToolName'], 'computer_vision_observe');
+    expect(entry['postActionObservationSuccess'], isTrue);
+    expect(
+      entry['postActionObservationSchemaName'],
+      'macos_computer_use_vision_observation',
+    );
+    expect(entry['postActionObservationCoordinateSpace'], 'display_pixels');
+
+    final controls = auditLog.privacyControls;
+    final coverage = controls['latestAuditCoverage'] as Map<String, dynamic>;
+    expect(
+      coverage['coveredEventTypes'],
+      containsAll(['approval', 'execution_handoff', 'result_review']),
+    );
+  });
+
   test('redacts nested target payloads from audit entries', () {
     final auditLog = MacosComputerUseAuditLog(maxEntries: 2);
 
