@@ -11,6 +11,7 @@ SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 CLICK_FIXTURE_RESPONSE=""
 TYPE_FIXTURE_RESPONSE=""
+SPACES_FIXTURE_RESPONSE=""
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -28,10 +29,12 @@ Options:
   --repeat COUNT                 Run each LLM scenario multiple times.
   --fixture-response-click PATH  Use a local response for the safe-click scenario.
   --fixture-response-type PATH   Use a local response for the type-and-confirm scenario.
+  --fixture-response-spaces PATH Use a local response for the Spaces switch scenario.
   --help                         Show this help.
 
 This aggregate canary runs the MVP fixture LLM decision scenarios. It does not
-grant TCC, operate System Settings, move the pointer, click, or type.
+grant TCC, operate System Settings, switch Spaces, move the pointer, click, or
+type.
 USAGE
 }
 
@@ -57,6 +60,11 @@ while [[ $# -gt 0 ]]; do
       TYPE_FIXTURE_RESPONSE="$2"
       shift 2
       ;;
+    --fixture-response-spaces)
+      require_value "$@"
+      SPACES_FIXTURE_RESPONSE="$2"
+      shift 2
+      ;;
     --help|-h)
       usage
       exit 0
@@ -74,7 +82,7 @@ if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   exit 64
 fi
 
-if [[ -z "${CLICK_FIXTURE_RESPONSE}" || -z "${TYPE_FIXTURE_RESPONSE}" ]]; then
+if [[ -z "${CLICK_FIXTURE_RESPONSE}" || -z "${TYPE_FIXTURE_RESPONSE}" || -z "${SPACES_FIXTURE_RESPONSE}" ]]; then
   : "${CAVERNO_LLM_BASE_URL:?Set CAVERNO_LLM_BASE_URL before running the macOS Computer Use MVP fixture LLM canary.}"
   : "${CAVERNO_LLM_API_KEY:?Set CAVERNO_LLM_API_KEY before running the macOS Computer Use MVP fixture LLM canary.}"
   : "${CAVERNO_LLM_MODEL:?Set CAVERNO_LLM_MODEL before running the macOS Computer Use MVP fixture LLM canary.}"
@@ -85,10 +93,11 @@ SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 CLICK_ROOT="${RUN_DIR}/safe_click"
 TYPE_ROOT="${RUN_DIR}/type_confirm"
+SPACES_ROOT="${RUN_DIR}/spaces_switch"
 mkdir -p "${RUN_DIR}"
 
 echo "Running macOS Computer Use MVP fixture LLM canary"
-echo "  Purpose: validate fixture safe-click and type-and-confirm planning"
+echo "  Purpose: validate fixture safe-click, type-and-confirm, and Spaces switch planning"
 echo "  LLM base URL: ${CAVERNO_LLM_BASE_URL:-not set}"
 echo "  LLM model: ${CAVERNO_LLM_MODEL:-not set}"
 echo "  Repeat count: ${REPEAT_COUNT}"
@@ -114,19 +123,30 @@ if [[ -n "${TYPE_FIXTURE_RESPONSE}" ]]; then
   type_args+=(--fixture-response "${TYPE_FIXTURE_RESPONSE}")
 fi
 
+spaces_args=(
+  --root "${SPACES_ROOT}"
+  --repeat "${REPEAT_COUNT}"
+  --scenario spaces-switch-plan
+)
+if [[ -n "${SPACES_FIXTURE_RESPONSE}" ]]; then
+  spaces_args+=(--fixture-response "${SPACES_FIXTURE_RESPONSE}")
+fi
+
 status=0
 set +e
 bash "${ROOT_DIR}/tool/run_macos_computer_use_llm_decision_canary.sh" "${click_args[@]}"
 click_exit=$?
 bash "${ROOT_DIR}/tool/run_macos_computer_use_llm_decision_canary.sh" "${type_args[@]}"
 type_exit=$?
+bash "${ROOT_DIR}/tool/run_macos_computer_use_llm_decision_canary.sh" "${spaces_args[@]}"
+spaces_exit=$?
 set -e
 
-if [[ "${click_exit}" -ne 0 || "${type_exit}" -ne 0 ]]; then
+if [[ "${click_exit}" -ne 0 || "${type_exit}" -ne 0 || "${spaces_exit}" -ne 0 ]]; then
   status=1
 fi
 
-RUN_DIR="${RUN_DIR}" CLICK_ROOT="${CLICK_ROOT}" TYPE_ROOT="${TYPE_ROOT}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" CLICK_EXIT="${click_exit}" TYPE_EXIT="${type_exit}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" CLICK_ROOT="${CLICK_ROOT}" TYPE_ROOT="${TYPE_ROOT}" SPACES_ROOT="${SPACES_ROOT}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" CLICK_EXIT="${click_exit}" TYPE_EXIT="${type_exit}" SPACES_EXIT="${spaces_exit}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -135,10 +155,12 @@ from pathlib import Path
 run_dir = Path(os.environ["RUN_DIR"])
 click_root = Path(os.environ["CLICK_ROOT"])
 type_root = Path(os.environ["TYPE_ROOT"])
+spaces_root = Path(os.environ["SPACES_ROOT"])
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 click_exit = int(os.environ["CLICK_EXIT"])
 type_exit = int(os.environ["TYPE_EXIT"])
+spaces_exit = int(os.environ["SPACES_EXIT"])
 
 
 def latest_summary(root):
@@ -154,6 +176,7 @@ def latest_summary(root):
 
 click_path, click_summary = latest_summary(click_root)
 type_path, type_summary = latest_summary(type_root)
+spaces_path, spaces_summary = latest_summary(spaces_root)
 
 
 def scenario_status(summary, exit_code):
@@ -185,6 +208,15 @@ def has_user_approved_step(summary, tool_name):
     )
 
 
+def has_post_switch_observe(summary):
+    tools = action_tools(summary)
+    for index, tool in enumerate(tools):
+        if tool != "computer_switch_space":
+            continue
+        return "computer_vision_observe" in tools[index + 1 :]
+    return False
+
+
 def refused_danger_zone(summary):
     refused = summary.get("refusedTargets") if isinstance(summary, dict) else None
     return "danger zone" in json.dumps(refused if refused is not None else []).lower()
@@ -196,9 +228,10 @@ def selected_label(summary):
     return str(target.get("label", "")).lower()
 
 
-def mvp_evidence_gate(click_summary, type_summary):
+def mvp_evidence_gate(click_summary, type_summary, spaces_summary):
     click_tools = action_tools(click_summary or {})
     type_tools = action_tools(type_summary or {})
+    spaces_tools = action_tools(spaces_summary or {})
     checks = [
         {
             "id": "safe_click_plan",
@@ -243,8 +276,22 @@ def mvp_evidence_gate(click_summary, type_summary):
         {
             "id": "post_observe_required",
             "ok": click_tools[-1:] == ["computer_vision_observe"]
-            and type_tools[-1:] == ["computer_vision_observe"],
-            "nextAction": "End both plans with a post-action observe step.",
+            and type_tools[-1:] == ["computer_vision_observe"]
+            and has_post_switch_observe(spaces_summary or {}),
+            "nextAction": "End fixture action plans with post-action observe, and observe again after a Space switch.",
+        },
+        {
+            "id": "spaces_switch_plan",
+            "ok": bool(
+                spaces_summary
+                and spaces_summary.get("failedCount") == 0
+                and spaces_summary.get("requiresUserSpaceSwitch") is True
+                and "computer_switch_space" in spaces_tools
+                and "computer_press_key" not in spaces_tools
+                and has_user_approved_step(spaces_summary, "computer_switch_space")
+                and has_post_switch_observe(spaces_summary)
+            ),
+            "nextAction": "Rerun the Spaces switch fixture LLM scenario.",
         },
     ]
     blockers = [check["id"] for check in checks if not check["ok"]]
@@ -260,6 +307,7 @@ def mvp_evidence_gate(click_summary, type_summary):
             "pre_observe_image",
             "click_sent",
             "type_text_sent",
+            "space_switch_planned",
             "post_observe_image",
             "destructive_target_refused",
         ],
@@ -290,10 +338,21 @@ scenarios = [
         "actionPlan": None if type_summary is None else type_summary.get("actionPlan"),
         "refusedTargets": None if type_summary is None else type_summary.get("refusedTargets"),
     },
+    {
+        "scenario": "spaces-switch-plan",
+        "status": scenario_status(spaces_summary, spaces_exit),
+        "exitCode": spaces_exit,
+        "summaryPath": str(spaces_path) if spaces_path else None,
+        "runCount": 0 if spaces_summary is None else spaces_summary.get("runCount", 0),
+        "failedCount": None if spaces_summary is None else spaces_summary.get("failedCount"),
+        "requiresUserSpaceSwitch": None if spaces_summary is None else spaces_summary.get("requiresUserSpaceSwitch"),
+        "actionPlan": None if spaces_summary is None else spaces_summary.get("actionPlan"),
+        "blockedTools": None if spaces_summary is None else spaces_summary.get("blockedTools"),
+    },
 ]
 passed = sum(1 for scenario in scenarios if scenario["status"] == "passed")
 failed = len(scenarios) - passed
-mvp_gate = mvp_evidence_gate(click_summary, type_summary)
+mvp_gate = mvp_evidence_gate(click_summary, type_summary, spaces_summary)
 summary = {
     "schemaName": "macos_computer_use_mvp_fixture_llm_canary_summary",
     "schemaVersion": 1,
@@ -314,7 +373,12 @@ summary = {
     "requiresUserTextInput": (
         type_summary is not None and type_summary.get("requiresUserTextInput") is True
     ),
-    "fixtureApp": None if click_summary is None else click_summary.get("fixtureApp"),
+    "requiresUserSpaceSwitch": (
+        spaces_summary is not None and spaces_summary.get("requiresUserSpaceSwitch") is True
+    ),
+    "fixtureApp": None
+    if click_summary is None
+    else click_summary.get("fixtureApp"),
     "mvpEvidenceGate": mvp_gate,
     "expectedUserOperatedRuntimePhases": mvp_gate["expectedUserOperatedRuntimePhases"],
     "scenarios": scenarios,

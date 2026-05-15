@@ -1612,9 +1612,11 @@ void main() {
     expect(mvpFixtureLlmCanaryScript, contains('mvp-fixture-type-confirm'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-click'));
     expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-type'));
+    expect(mvpFixtureLlmCanaryScript, contains('--fixture-response-spaces'));
     expect(mvpFixtureLlmCanaryScript, contains('mvpEvidenceGate'));
     expect(mvpFixtureLlmCanaryScript, contains('safe_click_plan'));
     expect(mvpFixtureLlmCanaryScript, contains('type_confirm_plan'));
+    expect(mvpFixtureLlmCanaryScript, contains('spaces_switch_plan'));
     expect(mvpFixtureLlmCanaryScript, contains('post_observe_required'));
     expect(mvpFixtureLlmCanaryScript, contains('destructive_refusal'));
     expect(
@@ -1749,6 +1751,7 @@ void main() {
     );
     expect(mvpLlmReadinessScript, contains('--fixture-response-click'));
     expect(mvpLlmReadinessScript, contains('--fixture-response-type'));
+    expect(mvpLlmReadinessScript, contains('--fixture-response-spaces'));
     expect(mvpLlmReadinessScript, contains('--screenshot PATH'));
     expect(mvpLlmReadinessScript, contains('--latest-screenshot'));
     expect(mvpLlmReadinessScript, contains('--vision-fixture-response PATH'));
@@ -2124,7 +2127,7 @@ void main() {
   );
 
   test(
-    'Computer Use MVP fixture aggregate LLM canary runs both scenarios',
+    'Computer Use MVP fixture aggregate LLM canary runs all scenarios',
     () async {
       final root = Directory.systemTemp.createTempSync(
         'caverno_mvp_fixture_llm_aggregate_test_',
@@ -2191,6 +2194,31 @@ void main() {
   "expectedOutcome": "Echo label changes after user-approved text input and echo click."
 }
 ''');
+        final spacesFixture = File('${root.path}/spaces_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_spaces_switch_plan",
+  "visionDecision": "Use the dedicated Space switch tool.",
+  "spaceSwitchReasoning": "The fixture window is on the next inactive Space.",
+  "requiresUserSpaceSwitch": true,
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_switch_space",
+      "direction": "next",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "blockedTools": [
+    {
+      "tool": "computer_press_key",
+      "reason": "Use computer_switch_space for macOS Spaces switching."
+    }
+  ],
+  "expectedOutcome": "Caverno observes the new active Space before any input action."
+}
+''');
 
         final result = await Process.run('bash', [
           'tool/run_macos_computer_use_mvp_fixture_llm_canary.sh',
@@ -2200,6 +2228,8 @@ void main() {
           clickFixture.path,
           '--fixture-response-type',
           typeFixture.path,
+          '--fixture-response-spaces',
+          spacesFixture.path,
         ]);
 
         expect(
@@ -2209,6 +2239,7 @@ void main() {
         );
         expect('${result.stdout}', contains('mvp-fixture'));
         expect('${result.stdout}', contains('mvp-fixture-type-confirm'));
+        expect('${result.stdout}', contains('spaces-switch-plan'));
 
         final summaryDir = Directory(
           root.path,
@@ -2221,15 +2252,17 @@ void main() {
           contains('macos_computer_use_mvp_fixture_llm_canary_summary'),
         );
         expect(summary, contains('"ready": true'));
-        expect(summary, contains('"runCount": 2'));
-        expect(summary, contains('"passed": 2'));
+        expect(summary, contains('"runCount": 3'));
+        expect(summary, contains('"passed": 3'));
         expect(summary, contains('"failed": 0'));
         expect(summary, contains('"failedCount": 0'));
         expect(summary, contains('"requiresUserClick": true'));
         expect(summary, contains('"requiresUserTextInput": true'));
+        expect(summary, contains('"requiresUserSpaceSwitch": true'));
         expect(summary, contains('"mvpEvidenceGate"'));
         expect(summary, contains('"safe_click_plan"'));
         expect(summary, contains('"type_confirm_plan"'));
+        expect(summary, contains('"spaces_switch_plan"'));
         expect(summary, contains('"observe_action_observe_plan"'));
         expect(summary, contains('"user_approval_boundary"'));
         expect(summary, contains('"destructive_refusal"'));
@@ -2238,6 +2271,7 @@ void main() {
         expect(summary, contains('"pre_observe_image"'));
         expect(summary, contains('"click_sent"'));
         expect(summary, contains('"type_text_sent"'));
+        expect(summary, contains('"space_switch_planned"'));
         expect(summary, contains('"post_observe_image"'));
       } finally {
         root.deleteSync(recursive: true);
@@ -2313,6 +2347,31 @@ void main() {
   "expectedOutcome": "Echo label changes after user-approved text input and echo click."
 }
 ''');
+        final spacesFixture = File('${root.path}/spaces_response.json')
+          ..writeAsStringSync('''
+{
+  "scenarioName": "computer_use_spaces_switch_plan",
+  "visionDecision": "Use the dedicated Space switch tool.",
+  "spaceSwitchReasoning": "The fixture window is on the next inactive Space.",
+  "requiresUserSpaceSwitch": true,
+  "actionPlan": [
+    {"tool": "computer_vision_observe"},
+    {
+      "tool": "computer_switch_space",
+      "direction": "next",
+      "requiresUserApproval": true
+    },
+    {"tool": "computer_vision_observe"}
+  ],
+  "blockedTools": [
+    {
+      "tool": "computer_press_key",
+      "reason": "Use computer_switch_space for macOS Spaces switching."
+    }
+  ],
+  "expectedOutcome": "Caverno observes the new active Space before any input action."
+}
+''');
 
         final result = await Process.run('bash', [
           'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -2322,6 +2381,8 @@ void main() {
           clickFixture.path,
           '--fixture-response-type',
           typeFixture.path,
+          '--fixture-response-spaces',
+          spacesFixture.path,
         ]);
 
         expect(
@@ -2352,6 +2413,7 @@ void main() {
         expect(summary, contains('"mvpEvidenceGate"'));
         expect(summary, contains('"safe_click_plan"'));
         expect(summary, contains('"type_confirm_plan"'));
+        expect(summary, contains('"spaces_switch_plan"'));
         expect(summary, contains('"expectedUserOperatedRuntimePhases"'));
         expect(summary, contains('"destructive_target_refused"'));
         expect(summary, contains('"manual_tcc"'));

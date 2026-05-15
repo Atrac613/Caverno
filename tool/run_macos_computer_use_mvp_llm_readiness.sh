@@ -13,6 +13,7 @@ READINESS_MD="${RUN_DIR}/macos_computer_use_mvp_llm_readiness.md"
 HANDOFF_MD="${RUN_DIR}/macos_computer_use_mvp_llm_handoff.md"
 CLICK_FIXTURE_RESPONSE=""
 TYPE_FIXTURE_RESPONSE=""
+SPACES_FIXTURE_RESPONSE=""
 SCREENSHOT_PATH=""
 USE_LATEST_SCREENSHOT=0
 VISION_FIXTURE_RESPONSE=""
@@ -35,6 +36,7 @@ Options:
   --repeat COUNT                 Run each LLM scenario multiple times.
   --fixture-response-click PATH  Use a local response for the safe-click scenario.
   --fixture-response-type PATH   Use a local response for the type-and-confirm scenario.
+  --fixture-response-spaces PATH Use a local response for the Spaces switch scenario.
   --screenshot PATH              Run the fixture vision LLM canary with this screenshot.
   --latest-screenshot            Run the fixture vision LLM canary with the latest
                                  saved fixture screenshot under the report root.
@@ -68,6 +70,11 @@ while [[ $# -gt 0 ]]; do
     --fixture-response-type)
       require_value "$@"
       TYPE_FIXTURE_RESPONSE="$2"
+      shift 2
+      ;;
+    --fixture-response-spaces)
+      require_value "$@"
+      SPACES_FIXTURE_RESPONSE="$2"
       shift 2
       ;;
     --screenshot)
@@ -165,6 +172,9 @@ else
   fi
   if [[ -n "${TYPE_FIXTURE_RESPONSE}" ]]; then
     canary_args+=(--fixture-response-type "${TYPE_FIXTURE_RESPONSE}")
+  fi
+  if [[ -n "${SPACES_FIXTURE_RESPONSE}" ]]; then
+    canary_args+=(--fixture-response-spaces "${SPACES_FIXTURE_RESPONSE}")
   fi
 
   set +e
