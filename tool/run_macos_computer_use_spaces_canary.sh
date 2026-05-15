@@ -9,6 +9,7 @@ RUN_ID="$(date +%s)"
 RUN_DIR="${REPORT_ROOT}/macos_computer_use_spaces_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
+SUMMARY_EXIT_STATUS="${RUN_DIR}/summary_exit_status"
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_SPACES_LAUNCH_CAVERNO:-0}"
 REQUIRE_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_INACTIVE_WINDOW:-0}"
 REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_HELPER_PATH_MATCH:-0}"
@@ -142,7 +143,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" REQUIRE_INACTIVE_SPACE_WINDOW="${REQUIRE_INACTIVE_SPACE_WINDOW}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" SUMMARY_EXIT_STATUS="${SUMMARY_EXIT_STATUS}" REQUIRE_INACTIVE_SPACE_WINDOW="${REQUIRE_INACTIVE_SPACE_WINDOW}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -151,6 +152,7 @@ from pathlib import Path
 run_dir = Path(os.environ["RUN_DIR"])
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
+summary_exit_status = Path(os.environ["SUMMARY_EXIT_STATUS"])
 require_inactive = os.environ["REQUIRE_INACTIVE_SPACE_WINDOW"] == "1"
 runs = []
 
@@ -214,6 +216,7 @@ summary = {
     ),
 }
 summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
+summary_exit_status.write_text("0\n" if summary["ok"] else "1\n")
 summary_md.write_text(
     "\n".join([
         "# macOS Computer Use Spaces Canary",
@@ -229,6 +232,11 @@ summary_md.write_text(
 )
 print(json.dumps(summary, indent=2, sort_keys=True))
 PY
+
+summary_exit_status="$(<"${SUMMARY_EXIT_STATUS}")"
+if [[ "${summary_exit_status}" != "0" ]]; then
+  status=1
+fi
 
 echo "Spaces canary summary: ${SUMMARY_JSON}"
 exit "${status}"

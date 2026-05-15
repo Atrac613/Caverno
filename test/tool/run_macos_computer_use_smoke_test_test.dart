@@ -1473,6 +1473,12 @@ void main() {
       spacesCanaryScript,
       contains('macos_computer_use_spaces_canary_summary'),
     );
+    expect(spacesCanaryScript, contains('SUMMARY_EXIT_STATUS'));
+    expect(spacesCanaryScript, contains('summary_exit_status.write_text'));
+    expect(
+      spacesCanaryScript,
+      contains(r'if [[ "${summary_exit_status}" != "0" ]]'),
+    );
     expect(spacesCanaryScript, contains('no_desktop_action_observe_only'));
     expect(existingHelperProbe, contains('spacesCanaryGate'));
     expect(existingHelperProbe, contains('list_windows_all_spaces'));
