@@ -332,6 +332,14 @@ class SystemPromptBuilder {
           'the target is on a non-main display.',
         );
         buffer.writeln(
+          'For macOS Spaces, use computer_list_windows or '
+          'computer_vision_observe with space_scope=all_spaces when the '
+          'target may be on another desktop. Treat windows marked outside '
+          'the active Space as read-only candidates until the window is '
+          'focused or the Space is switched with an approved Control-Left or '
+          'Control-Right key press, then observe again.',
+        );
+        buffer.writeln(
           'After every click, drag, scroll, text input, key press, or system '
           'audio recording state change, observe again with '
           'computer_vision_observe before deciding the next desktop action.',

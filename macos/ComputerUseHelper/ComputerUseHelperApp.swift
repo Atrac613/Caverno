@@ -2316,22 +2316,33 @@ private final class ComputerUseHelperIpc: NSObject {
     let includeCurrentApp =
       boolValue(arguments["include_current_app"] ?? arguments["includeCurrentApp"]) ?? false
     let maxWindows = max(1, min(intValue(arguments["max_windows"] ?? arguments["maxWindows"]) ?? 80, 200))
+    let spaceScope = WindowSpaceScope(arguments: arguments)
+    let includeHidden =
+      boolValue(arguments["include_hidden"] ?? arguments["includeHidden"])
+        ?? (spaceScope == .allSpaces)
     let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
     let mainAppPid = intValue(arguments["main_app_pid"] ?? arguments["mainAppPid"])
-    let windows = visibleWindows()
+    let windows = windowDescriptors(spaceScope: spaceScope, includeHidden: includeHidden)
       .filter { window in
         includeCurrentApp ||
           (window.ownerPID != helperPid && window.ownerPID != mainAppPid)
       }
       .prefix(maxWindows)
       .map { $0.toMap() }
+    let windowList = Array(windows)
 
     return baseResponse(
       extra: [
-        "windows": Array(windows),
-        "count": windows.count,
+        "schemaName": "macos_computer_use_window_inventory",
+        "schemaVersion": 1,
+        "windows": windowList,
+        "count": windowList.count,
+        "spaceScope": spaceScope.rawValue,
+        "includeHidden": includeHidden,
+        "spaceSupport": windowSpaceSupportMetadata(spaceScope: spaceScope),
         "coordinateSpace": "window_pixels",
         "inputOrigin": "top_left",
+        "nextAction": windowSpaceNextAction(spaceScope: spaceScope),
       ]
     )
   }
@@ -2383,7 +2394,13 @@ private final class ComputerUseHelperIpc: NSObject {
       guard let requestedWindowID else {
         return errorResponse(code: "invalid_args", error: "window_id is required")
       }
-      guard let selectedWindow = findWindow(windowID: requestedWindowID) else {
+      guard
+        let selectedWindow = findWindow(
+          windowID: requestedWindowID,
+          spaceScope: .allSpaces,
+          includeHidden: true
+        )
+      else {
         return errorResponse(
           code: "window_not_found",
           error: "No matching window is available.",
@@ -2487,7 +2504,13 @@ private final class ComputerUseHelperIpc: NSObject {
     guard let windowID = windowID(arguments: arguments) else {
       return errorResponse(code: "invalid_args", error: "window_id is required")
     }
-    guard let window = findWindow(windowID: windowID) else {
+    guard
+      let window = findWindow(
+        windowID: windowID,
+        spaceScope: .allSpaces,
+        includeHidden: true
+      )
+    else {
       return errorResponse(
         code: "window_not_found",
         error: "No matching window is available.",
@@ -2547,6 +2570,11 @@ private final class ComputerUseHelperIpc: NSObject {
       "appName": window.ownerName,
       "title": window.title,
       "focusedWindow": focused,
+      "spaceStatus": window.spaceStatus,
+      "spaceSupport": windowSpaceSupportMetadata(spaceScope: .allSpaces),
+      "nextAction": window.isOnScreen
+        ? "Run computer_vision_observe again before the next desktop action."
+        : "macOS may switch to the window Space during activation. Run computer_vision_observe again before any input action.",
     ]
     if let elementTargeting {
       extra["elementTargeting"] = elementTargeting
@@ -2565,7 +2593,13 @@ private final class ComputerUseHelperIpc: NSObject {
     guard let windowID = windowID(arguments: arguments) else {
       return errorResponse(code: "invalid_args", error: "window_id is required")
     }
-    guard let window = findWindow(windowID: windowID) else {
+    guard
+      let window = findWindow(
+        windowID: windowID,
+        spaceScope: .allSpaces,
+        includeHidden: true
+      )
+    else {
       return errorResponse(
         code: "window_not_found",
         error: "No matching window is available.",
@@ -2602,6 +2636,8 @@ private final class ComputerUseHelperIpc: NSObject {
           "appName": window.ownerName,
           "title": window.title,
           "windowBounds": rectMap(window.bounds),
+          "spaceStatus": window.spaceStatus,
+          "spaceSupport": windowSpaceSupportMetadata(spaceScope: .allSpaces),
           "coordinateSpace": "window_pixels",
           "inputOrigin": "top_left",
           "xScaleToWindow": window.bounds.width / CGFloat(encodedImage.width),
@@ -3308,9 +3344,19 @@ private func displayDescriptors() -> [ScreenDescriptor] {
 }
 
 private func visibleWindows() -> [WindowDescriptor] {
+  windowDescriptors(spaceScope: .activeSpace, includeHidden: false)
+}
+
+private func windowDescriptors(
+  spaceScope: WindowSpaceScope,
+  includeHidden: Bool
+) -> [WindowDescriptor] {
+  let options: CGWindowListOption = spaceScope == .allSpaces
+    ? [.optionAll, .excludeDesktopElements]
+    : [.optionOnScreenOnly, .excludeDesktopElements]
   guard
     let windowInfoList = CGWindowListCopyWindowInfo(
-      [.optionOnScreenOnly, .excludeDesktopElements],
+      options,
       kCGNullWindowID
     ) as? [[String: Any]]
   else {
@@ -3333,7 +3379,12 @@ private func visibleWindows() -> [WindowDescriptor] {
     }
 
     let alpha = number(info[kCGWindowAlpha as String]) ?? 1
-    if alpha <= 0 {
+    if !includeHidden && alpha <= 0 {
+      return nil
+    }
+    let isOnScreen =
+      boolValue(info[kCGWindowIsOnscreen as String]) ?? (spaceScope == .activeSpace)
+    if spaceScope == .activeSpace && !includeHidden && !isOnScreen {
       return nil
     }
 
@@ -3345,8 +3396,33 @@ private func visibleWindows() -> [WindowDescriptor] {
       bounds: bounds,
       layer: layer,
       alpha: Double(alpha),
-      isOnScreen: (info[kCGWindowIsOnscreen as String] as? Bool) ?? true
+      isOnScreen: isOnScreen
     )
+  }
+}
+
+private func windowSpaceSupportMetadata(spaceScope: WindowSpaceScope) -> [String: Any] {
+  [
+    "desktopModel": "macos_spaces",
+    "requestedScope": spaceScope.rawValue,
+    "activeSpaceOnly": spaceScope == .activeSpace,
+    "allSpacesBestEffort": spaceScope == .allSpaces,
+    "spaceIdentifiersAvailable": false,
+    "spaceNamesAvailable": false,
+    "switchingRequiresApprovedInput": true,
+    "switchSpaceKeys": [
+      "previous": ["key": "left", "modifiers": ["control"]],
+      "next": ["key": "right", "modifiers": ["control"]],
+    ],
+  ]
+}
+
+private func windowSpaceNextAction(spaceScope: WindowSpaceScope) -> String {
+  switch spaceScope {
+  case .activeSpace:
+    return "Use space_scope=all_spaces when the target app may be on another macOS Space."
+  case .allSpaces:
+    return "Windows marked not_on_active_space_or_hidden may require focusing the window or an approved Control-Left/Right Space switch, followed by computer_vision_observe, before any input action."
   }
 }
 
@@ -3461,8 +3537,13 @@ private func verifyOnboardingWindowCapture(
   )
 }
 
-private func findWindow(windowID: Int) -> WindowDescriptor? {
-  visibleWindows().first { $0.windowID == windowID }
+private func findWindow(
+  windowID: Int,
+  spaceScope: WindowSpaceScope = .activeSpace,
+  includeHidden: Bool = false
+) -> WindowDescriptor? {
+  windowDescriptors(spaceScope: spaceScope, includeHidden: includeHidden)
+    .first { $0.windowID == windowID }
 }
 
 private func findAccessibilityWindow(
@@ -4119,8 +4200,10 @@ private func resolvePoint(arguments: [String: Any]) -> CGPoint? {
     return nil
   }
 
-  if let windowID = windowID(arguments: arguments),
-     let window = findWindow(windowID: windowID) {
+  if let requestedWindowID = windowID(arguments: arguments) {
+    guard let window = findWindow(windowID: requestedWindowID) else {
+      return nil
+    }
     let sourceWidth = number(arguments["source_width"] ?? arguments["sourceWidth"])
     let sourceHeight = number(arguments["source_height"] ?? arguments["sourceHeight"])
     let xScale = sourceWidth == nil || sourceWidth == 0
@@ -4363,6 +4446,23 @@ private enum ComputerUseError: Error {
   case imageEncodeFailed
 }
 
+private enum WindowSpaceScope: String {
+  case activeSpace = "active_space"
+  case allSpaces = "all_spaces"
+
+  init(arguments: [String: Any]) {
+    let rawValue = ((arguments["space_scope"] as? String) ?? (arguments["spaceScope"] as? String) ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+      .lowercased()
+    switch rawValue {
+    case "all", "all_spaces", "all_desktops", "all_desktop_spaces":
+      self = .allSpaces
+    default:
+      self = .activeSpace
+    }
+  }
+}
+
 private struct ScreenDescriptor {
   let screen: NSScreen
   let index: Int
@@ -4408,6 +4508,16 @@ private struct WindowDescriptor {
   let alpha: Double
   let isOnScreen: Bool
 
+  var spaceStatus: String {
+    if isOnScreen {
+      return "active_space_visible"
+    }
+    if alpha <= 0 {
+      return "hidden_or_minimized"
+    }
+    return "not_on_active_space_or_hidden"
+  }
+
   func toMap() -> [String: Any] {
     [
       "windowId": windowID,
@@ -4423,6 +4533,7 @@ private struct WindowDescriptor {
       "layer": layer,
       "alpha": alpha,
       "isOnScreen": isOnScreen,
+      "spaceStatus": spaceStatus,
     ]
   }
 }

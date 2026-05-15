@@ -193,6 +193,9 @@ void main() {
     );
 
     expect(prompt, contains('start with computer_vision_observe'));
+    expect(prompt, contains('For macOS Spaces'));
+    expect(prompt, contains('space_scope=all_spaces'));
+    expect(prompt, contains('Control-Left'));
     expect(
       prompt,
       contains(

@@ -114,6 +114,9 @@ void main() {
       final visionProperties =
           parametersFor('computer_vision_observe')['properties']!
               as Map<String, dynamic>;
+      final listWindowsProperties =
+          parametersFor('computer_list_windows')['properties']!
+              as Map<String, dynamic>;
 
       expect(clickProperties['target'], isA<Map<String, dynamic>>());
       expect(clickProperties['element_id'], isA<Map<String, dynamic>>());
@@ -124,6 +127,9 @@ void main() {
       expect(visionProperties['include_accessibility'], isA<Map>());
       expect(visionProperties['include_displays'], isA<Map>());
       expect(visionProperties['max_candidate_elements'], isA<Map>());
+      expect(visionProperties['space_scope'], isA<Map>());
+      expect(listWindowsProperties['space_scope'], isA<Map>());
+      expect(listWindowsProperties['include_hidden'], isA<Map>());
       final target = clickProperties['target'] as Map<String, dynamic>;
       expect(jsonEncode(target), contains('public_action'));
       expect(jsonEncode(target), contains('elementId'));

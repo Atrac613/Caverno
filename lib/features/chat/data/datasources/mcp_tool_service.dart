@@ -1834,6 +1834,12 @@ class McpToolService {
               'description':
                   'Include visible-window metadata. Defaults to true.',
             },
+            'space_scope': {
+              'type': 'string',
+              'enum': ['active_space', 'all_spaces'],
+              'description':
+                  'macOS Spaces scope for window metadata. Use all_spaces when the target app may be on another desktop; input still requires observing the active Space first.',
+            },
             'include_displays': {
               'type': 'boolean',
               'description':
@@ -1952,7 +1958,7 @@ class McpToolService {
       'function': {
         'name': 'computer_list_windows',
         'description':
-            'List visible macOS application windows with window IDs, app names, titles, and bounds. Prefer this before focusing or capturing a specific app window.',
+            'List macOS application windows with window IDs, app names, titles, bounds, and macOS Spaces visibility status. Prefer this before focusing or capturing a specific app window.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1964,6 +1970,17 @@ class McpToolService {
             'max_windows': {
               'type': 'integer',
               'description': 'Maximum number of windows to return.',
+            },
+            'space_scope': {
+              'type': 'string',
+              'enum': ['active_space', 'all_spaces'],
+              'description':
+                  'Use active_space for the current macOS Space, or all_spaces for best-effort discovery across Spaces.',
+            },
+            'include_hidden': {
+              'type': 'boolean',
+              'description':
+                  'Include hidden, minimized, or non-active-Space windows when supported by macOS. Defaults to true for all_spaces.',
             },
           },
         },

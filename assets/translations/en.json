@@ -510,7 +510,7 @@
     "tool_computer_screenshot": "Capture a macOS display screenshot",
     "tool_computer_accessibility_snapshot": "Read a bounded macOS accessibility snapshot",
     "tool_computer_list_displays": "List macOS displays",
-    "tool_computer_list_windows": "List visible macOS windows",
+    "tool_computer_list_windows": "List macOS windows across Spaces",
     "tool_computer_focus_window": "Focus a specific macOS window",
     "tool_computer_screenshot_window": "Capture a specific macOS window screenshot",
     "tool_computer_move_mouse": "Move the macOS pointer",

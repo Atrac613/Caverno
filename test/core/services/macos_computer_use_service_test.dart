@@ -376,6 +376,28 @@ void main() {
     },
   );
 
+  test('passes macOS Spaces scope through vision observations', () async {
+    final service = _FakeVisionMacosComputerUseService();
+
+    final result =
+        jsonDecode(
+              await service.visionObserve(const {
+                'target': 'front_window',
+                'space_scope': 'all_spaces',
+              }),
+            )
+            as Map<String, dynamic>;
+
+    expect(
+      service.lastListWindowsArguments,
+      containsPair('space_scope', 'all_spaces'),
+    );
+    expect(result['target'], containsPair('spaceScope', 'all_spaces'));
+    expect(result['windows'], containsPair('spaceScope', 'all_spaces'));
+    expect(result['nextAction'], contains('macOS Spaces'));
+    expect(result['nextAction'], contains('Control-Left/Right'));
+  });
+
   test('passes selected display IDs through vision observations', () async {
     final service = _FakeVisionMacosComputerUseService();
 
@@ -449,6 +471,7 @@ void main() {
 
 class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
   final List<String> calledMethods = [];
+  Map<String, dynamic>? lastListWindowsArguments;
 
   @override
   Future<String> getPermissions() async {
@@ -464,14 +487,25 @@ class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> listWindows(Map<String, dynamic> arguments) async {
     calledMethods.add('listWindows');
+    lastListWindowsArguments = Map<String, dynamic>.from(arguments);
+    final spaceScope = arguments['space_scope'] ?? 'active_space';
     return jsonEncode({
       'ok': true,
+      'schemaName': 'macos_computer_use_window_inventory',
+      'spaceScope': spaceScope,
+      'spaceSupport': {
+        'desktopModel': 'macos_spaces',
+        'allSpacesBestEffort': spaceScope == 'all_spaces',
+      },
       'windows': [
         {
           'windowId': 42,
           'appName': 'Example',
           'title': 'Example Window',
           'bounds': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+          'spaceStatus': spaceScope == 'all_spaces'
+              ? 'not_on_active_space_or_hidden'
+              : 'active_space_visible',
         },
       ],
     });

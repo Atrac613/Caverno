@@ -454,6 +454,7 @@ class MacosComputerUseService {
     final includeDisplays =
         arguments['include_displays'] != false &&
         arguments['includeDisplays'] != false;
+    final spaceScope = _windowSpaceScope(arguments);
 
     final permissions = _decodeMap(await getPermissions());
     Map<String, dynamic>? displaysResult;
@@ -466,6 +467,7 @@ class MacosComputerUseService {
         await listWindows({
           'include_current_app': false,
           'max_windows': _intValue(arguments['max_windows']) ?? 20,
+          'space_scope': spaceScope,
         }),
       );
     }
@@ -516,6 +518,7 @@ class MacosComputerUseService {
     final targetSummary = <String, dynamic>{
       'requested': target,
       'resolved': captureTarget,
+      'spaceScope': spaceScope,
     };
     if (resolvedWindowId != null) {
       targetSummary['windowId'] = resolvedWindowId;
@@ -563,6 +566,8 @@ class MacosComputerUseService {
         capture: capture,
         displayCount: _intValue(displaysResult?['count']),
         target: target,
+        spaceScope: spaceScope,
+        windowsResult: windowsResult,
       ),
     };
 
@@ -837,6 +842,28 @@ class MacosComputerUseService {
     return null;
   }
 
+  String _windowSpaceScope(Map<String, dynamic> arguments) {
+    final raw = _stringValue(
+      arguments['space_scope'] ?? arguments['spaceScope'],
+    ).toLowerCase();
+    return switch (raw) {
+      'all' ||
+      'all_spaces' ||
+      'all_desktops' ||
+      'all_desktop_spaces' => 'all_spaces',
+      _ => 'active_space',
+    };
+  }
+
+  bool _windowResultHasInactiveSpaceWindows(Map<String, dynamic>? result) {
+    final windows = result?['windows'];
+    if (windows is! List) return false;
+    return windows.whereType<Map>().any((window) {
+      final status = _stringValue(window['spaceStatus']).toLowerCase();
+      return status.isNotEmpty && status != 'active_space_visible';
+    });
+  }
+
   Map<String, dynamic> _redactedWindowsResult(Map<String, dynamic> result) {
     final redacted = Map<String, dynamic>.from(result);
     final windows = redacted['windows'];
@@ -958,6 +985,8 @@ class MacosComputerUseService {
     required Map<String, dynamic> capture,
     int? displayCount,
     required String target,
+    required String spaceScope,
+    required Map<String, dynamic>? windowsResult,
   }) {
     final captureNextAction = capture['nextAction'];
     if (!captureOk || !imageAttached) {
@@ -970,6 +999,10 @@ class MacosComputerUseService {
         'Use the attached screenshot, elementGrounding candidates, and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
     if (target == 'display' && (displayCount ?? 0) > 1) {
       return '$base If the target is on another display, use the displayId from the displays result and observe again with display_id.';
+    }
+    if (spaceScope == 'all_spaces' ||
+        _windowResultHasInactiveSpaceWindows(windowsResult)) {
+      return '$base For macOS Spaces, windows outside the active Space may need computer_focus_window or an approved computer_press_key Control-Left/Right Space switch, then observe again before any input action.';
     }
     return base;
   }
