@@ -8219,6 +8219,8 @@ class ChatNotifier extends Notifier<ChatState> {
       toolName: toolCall.name,
       policy: policy,
     );
+    final targetContext = _computerUseApprovalTargetContext(toolCall);
+    final exactTextContext = _computerUseApprovalExactTextContext(toolCall);
     final visionObservationContext = _computerUseVisionObservationContext(
       toolCall,
     );
@@ -8259,6 +8261,10 @@ class ChatNotifier extends Notifier<ChatState> {
       actionProposalNextAction: actionProposalPolicy?.nextAction,
       summary: _describeComputerUseAction(toolCall),
       details: details,
+      targetSummary: targetContext.summary,
+      targetDetails: targetContext.details,
+      exactTextPreview: exactTextContext.preview,
+      exactTextLength: exactTextContext.length,
       visionObservationSummary: visionObservationContext.summary,
       visionObservationDetails: visionObservationContext.details,
       reason: toolCall.arguments['reason'] as String?,
@@ -8278,6 +8284,34 @@ class ChatNotifier extends Notifier<ChatState> {
         toolCall: toolCall,
         policy: policy,
         code: blockerCode,
+      );
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        toolCall.arguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: blockedResult,
+          isSuccess: false,
+          errorMessage: _computerUseBlockedErrorMessage(blockerCode),
+        ),
+      );
+    }
+
+    if (actionProposalPolicy?.blockerCodes.isNotEmpty == true) {
+      const blockerCode = 'action_policy_blocked';
+      MacosComputerUseAuditLog.instance.record(
+        toolName: toolCall.name,
+        policy: policy,
+        approvalResult: 'blocked',
+        success: false,
+        errorCode: blockerCode,
+      );
+      final blockedResult = _computerUseBlockedResult(
+        toolCall: toolCall,
+        policy: policy,
+        code: blockerCode,
+        approvalBlockerCodes: actionProposalPolicy!.blockerCodes,
+        actionProposalNextAction: actionProposalPolicy.nextAction,
       );
       return _rememberToolApprovalResult(
         toolCall.name,
@@ -8472,6 +8506,8 @@ class ChatNotifier extends Notifier<ChatState> {
     required ToolCallInfo toolCall,
     required MacosComputerUseToolPolicyDecision? policy,
     required String code,
+    List<String> approvalBlockerCodes = const [],
+    String? actionProposalNextAction,
   }) {
     return jsonEncode({
       'ok': false,
@@ -8482,7 +8518,12 @@ class ChatNotifier extends Notifier<ChatState> {
       'requiresUserApproval': policy?.requiresUserApproval ?? false,
       'requiresSmokeArming': policy?.requiresSmokeArming ?? false,
       'emergencyStop': policy?.emergencyStop ?? false,
+      if (approvalBlockerCodes.isNotEmpty)
+        'approvalBlockers': approvalBlockerCodes,
       'nextAction': switch (code) {
+        'action_policy_blocked' =>
+          actionProposalNextAction ??
+              'Resolve the Computer Use action policy blockers before retrying.',
         'arming_missing' =>
           'Ask the user to explicitly arm the pending Computer Use action before retrying.',
         'approval_denied' =>
@@ -8496,6 +8537,8 @@ class ChatNotifier extends Notifier<ChatState> {
     return switch (code) {
       'arming_missing' =>
         'Computer Use action blocked because the unsafe arming confirmation was not enabled.',
+      'action_policy_blocked' =>
+        'Computer Use action blocked by the target safety policy.',
       'approval_denied' => 'User denied macOS computer use action.',
       _ => 'macOS computer use action was blocked.',
     };
@@ -8516,6 +8559,10 @@ class ChatNotifier extends Notifier<ChatState> {
     String? actionProposalNextAction,
     required String summary,
     required List<String> details,
+    String? targetSummary,
+    List<String> targetDetails = const [],
+    String? exactTextPreview,
+    int? exactTextLength,
     String? visionObservationSummary,
     List<String> visionObservationDetails = const [],
     String? reason,
@@ -8535,6 +8582,10 @@ class ChatNotifier extends Notifier<ChatState> {
         emergencyStop: emergencyStop,
         summary: summary,
         details: details,
+        targetSummary: targetSummary,
+        targetDetails: targetDetails,
+        exactTextPreview: exactTextPreview,
+        exactTextLength: exactTextLength,
         approvalBoundaries: approvalBoundaries,
         approvalBlockerCodes: approvalBlockerCodes,
         actionProposalNextAction: actionProposalNextAction,
@@ -8568,6 +8619,118 @@ class ChatNotifier extends Notifier<ChatState> {
       );
     }
     state = state.copyWith(pendingComputerUseAction: null);
+  }
+
+  ({String? summary, List<String> details}) _computerUseApprovalTargetContext(
+    ToolCallInfo toolCall,
+  ) {
+    final args = toolCall.arguments;
+    final target = _computerUseActionTarget(toolCall);
+    final appName = _computerUseMetadataString(target, args, const [
+      'appName',
+      'applicationName',
+      'app_name',
+      'application',
+    ]);
+    final bundleId = _computerUseMetadataString(target, args, const [
+      'bundleIdentifier',
+      'appBundleId',
+      'app_bundle_id',
+      'bundle_id',
+    ]);
+    final windowTitle = _computerUseMetadataString(target, args, const [
+      'windowTitle',
+      'window_title',
+      'title',
+    ]);
+    final windowId = _computerUseMetadataString(target, args, const [
+      'windowId',
+      'window_id',
+    ]);
+    final elementId = _computerUseMetadataString(target, args, const [
+      'elementId',
+      'element_id',
+    ]);
+    final role = _computerUseMetadataString(target, args, const [
+      'role',
+      'target_role',
+    ]);
+    final label = _computerUseMetadataString(target, args, const [
+      'label',
+      'target_label',
+    ]);
+    final action = _computerUseMetadataString(target, args, const [
+      'action',
+      'target_action',
+    ]);
+    final risk = _computerUseMetadataString(target, args, const [
+      'risk',
+      'target_risk',
+    ]);
+
+    final details = <String>[
+      if (appName != null) 'App: $appName',
+      if (bundleId != null) 'Bundle ID: $bundleId',
+      if (windowTitle != null && windowId != null)
+        'Window: $windowTitle (id $windowId)'
+      else if (windowTitle != null)
+        'Window: $windowTitle'
+      else if (windowId != null)
+        'Window ID: $windowId',
+      if (elementId != null) 'Element ID: $elementId',
+      if (role != null) 'Role: $role',
+      if (label != null) 'Label: $label',
+      if (action != null) 'Intended action: $action',
+      if (risk != null) 'Target risk: $risk',
+      if (args['x'] != null && args['y'] != null)
+        'Coordinate fallback: x=${args['x']}, y=${args['y']}',
+    ];
+
+    if (details.isEmpty) {
+      return (summary: null, details: const []);
+    }
+
+    final summary = label != null && role != null
+        ? 'Review the $role target "$label" before approving.'
+        : label != null
+        ? 'Review target "$label" before approving.'
+        : elementId != null
+        ? 'Review target element $elementId before approving.'
+        : 'Review the desktop target before approving.';
+    return (summary: summary, details: details);
+  }
+
+  ({String? preview, int? length}) _computerUseApprovalExactTextContext(
+    ToolCallInfo toolCall,
+  ) {
+    if (toolCall.name != 'computer_type_text') {
+      return (preview: null, length: null);
+    }
+    final text = toolCall.arguments['text'];
+    if (text is! String) {
+      return (preview: null, length: null);
+    }
+    return (preview: text, length: text.length);
+  }
+
+  String? _computerUseMetadataString(
+    Map<String, dynamic>? target,
+    Map<String, dynamic> args,
+    List<String> keys,
+  ) {
+    for (final source in [target, args]) {
+      if (source == null) continue;
+      for (final key in keys) {
+        final value = source[key];
+        if (value is String && value.trim().isNotEmpty) {
+          return value.trim();
+        }
+        if (value is num || value is bool) {
+          return '$value';
+        }
+      }
+    }
+    return null;
   }
 
   ({String? summary, List<String> details})

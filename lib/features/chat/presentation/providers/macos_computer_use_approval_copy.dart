@@ -56,7 +56,7 @@ class MacosComputerUseApprovalCopy {
         MacosComputerUseRiskCategory.input =>
           'This action can focus windows, move the pointer, click, scroll, or send keyboard input on your Mac.',
         MacosComputerUseRiskCategory.publicAction =>
-          'This action can submit, post, send, publish, purchase, or otherwise change external state. Approve it separately from text entry.',
+          'This action can submit, post, send, publish, or otherwise change external state. Approve it separately from text entry.',
         MacosComputerUseRiskCategory.sensitive =>
           'This action can capture system audio. Make sure the current audio is safe to record before approving it.',
         MacosComputerUseRiskCategory.recovery =>

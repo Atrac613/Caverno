@@ -349,7 +349,7 @@ void main() {
     expect(find.text('Main app OS actions: blocked'), findsOneWidget);
     expect(
       find.text(
-        'XPC commands: ping, showMainWindow, permissionStatus, openSettings, showPermissionOverlay, startOnboardingPermissionFlow, stopAll, screenshot, listWindows, focusWindow, screenshotWindow, moveMouse, click, drag, scroll, typeText, pressKey, startSystemAudioRecording, stopSystemAudioRecording',
+        'XPC commands: ping, showMainWindow, permissionStatus, openSettings, showPermissionOverlay, startOnboardingPermissionFlow, stopAll, screenshot, listWindows, accessibilitySnapshot, focusWindow, screenshotWindow, moveMouse, click, drag, scroll, typeText, pressKey, startSystemAudioRecording, stopSystemAudioRecording',
       ),
       findsOneWidget,
     );
@@ -1141,6 +1141,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'stopAll',
         'screenshot',
         'listWindows',
+        'accessibilitySnapshot',
         'focusWindow',
         'screenshotWindow',
         'moveMouse',
@@ -1155,7 +1156,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'xpcNextParityCommands': <String>[],
       'xpcProductionReadinessCriteria': [
         'named_service_connects_from_signed_main_app',
-        'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+        'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
         'capture_input_audio_commands_have_parity_smoke_coverage',
         'fallback_path_is_observable_and_non_destructive',
       ],

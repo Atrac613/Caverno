@@ -21,6 +21,10 @@ enum MacosComputerUseApprovalBoundary {
   exactText,
   publicAction,
   systemAudio,
+  secureField,
+  credential,
+  payment,
+  destructive,
 }
 
 class MacosComputerUseProductionActionPhase {
@@ -144,6 +148,31 @@ class MacosComputerUseToolPolicyDecision {
   }
 }
 
+class MacosComputerUseTargetSafetyDecision {
+  const MacosComputerUseTargetSafetyDecision({
+    required this.riskTags,
+    required this.blockerCodes,
+    required this.requiresSeparateApproval,
+    required this.hardBlocked,
+  });
+
+  final List<String> riskTags;
+  final List<String> blockerCodes;
+  final bool requiresSeparateApproval;
+  final bool hardBlocked;
+
+  bool get hasRisk => riskTags.isNotEmpty;
+
+  Map<String, dynamic> toJson() {
+    return {
+      'riskTags': riskTags,
+      'blockerCodes': blockerCodes,
+      'requiresSeparateApproval': requiresSeparateApproval,
+      'hardBlocked': hardBlocked,
+    };
+  }
+}
+
 class MacosComputerUseActionProposalPolicyDecision {
   const MacosComputerUseActionProposalPolicyDecision({
     required this.toolName,
@@ -154,6 +183,7 @@ class MacosComputerUseActionProposalPolicyDecision {
     required this.allowedAsObserveOnlyProposal,
     required this.boundaries,
     required this.blockerCodes,
+    required this.targetSafety,
     required this.nextAction,
   });
 
@@ -165,6 +195,7 @@ class MacosComputerUseActionProposalPolicyDecision {
   final bool allowedAsObserveOnlyProposal;
   final List<MacosComputerUseApprovalBoundary> boundaries;
   final List<String> blockerCodes;
+  final MacosComputerUseTargetSafetyDecision targetSafety;
   final String nextAction;
 
   Map<String, dynamic> toJson() {
@@ -180,6 +211,7 @@ class MacosComputerUseActionProposalPolicyDecision {
           .map((boundary) => boundary.name)
           .toList(growable: false),
       'blockerCodes': blockerCodes,
+      'targetSafety': targetSafety.toJson(),
       'nextAction': nextAction,
     };
   }
@@ -193,6 +225,7 @@ class MacosComputerUseToolPolicy {
     'computer_request_permissions',
     'computer_open_system_settings',
     'computer_vision_observe',
+    'computer_accessibility_snapshot',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -210,6 +243,7 @@ class MacosComputerUseToolPolicy {
   static const planningAllowedToolNames = {
     'computer_get_permissions',
     'computer_vision_observe',
+    'computer_accessibility_snapshot',
     'computer_list_windows',
     'computer_screenshot',
     'computer_screenshot_window',
@@ -252,6 +286,60 @@ class MacosComputerUseToolPolicy {
     'order',
   };
 
+  static const secureFieldTargetTokens = {
+    'secure',
+    'secure_field',
+    'secure_text',
+    'secure_text_field',
+    'password_field',
+    'passcode_field',
+  };
+
+  static const credentialTargetTokens = {
+    'credential',
+    'credentials',
+    'password',
+    'passcode',
+    'login',
+    'sign_in',
+    'signin',
+    'api_key',
+    'token',
+    'secret',
+    'ssh_key',
+    'recovery_key',
+  };
+
+  static const paymentTargetTokens = {
+    'payment',
+    'pay',
+    'purchase',
+    'buy',
+    'checkout',
+    'order',
+    'billing',
+    'invoice',
+    'credit_card',
+    'card_number',
+    'cart',
+  };
+
+  static const destructiveTargetTokens = {
+    'delete',
+    'remove',
+    'destroy',
+    'erase',
+    'reset',
+    'revoke',
+    'disable',
+    'format',
+    'wipe',
+    'cancel_subscription',
+    'danger',
+    'danger_zone',
+    'uninstall',
+  };
+
   static const productionActionPhaseOrder = [
     'observe',
     'approval_packet',
@@ -265,6 +353,10 @@ class MacosComputerUseToolPolicy {
     'target_label',
     'exact_text_for_typing',
     'public_action_label_for_public_actions',
+    'secure_field_target_refusal',
+    'credential_target_refusal',
+    'payment_target_refusal',
+    'destructive_target_refusal',
     'system_audio_recording_for_audio',
     'post_action_observation',
   ];
@@ -277,6 +369,10 @@ class MacosComputerUseToolPolicy {
     'execution_result_intake_missing',
     'post_action_review_missing',
     'public_action_missing_separate_approval',
+    'secure_field_target_blocked',
+    'credential_target_blocked',
+    'payment_target_blocked',
+    'destructive_target_blocked',
   ];
 
   static bool isComputerUseTool(String toolName) {
@@ -307,11 +403,65 @@ class MacosComputerUseToolPolicy {
     if (risk == 'public_action') {
       return true;
     }
+    if (risk == 'input' || risk == 'low') {
+      return false;
+    }
     final role = _normalized(target['role']);
     final label = _normalized(target['label']);
     final action = _normalized(target['action']);
     final targetText = '$role $label $action';
     return publicActionTargetTokens.any(targetText.contains);
+  }
+
+  static MacosComputerUseTargetSafetyDecision targetSafetyDecision(
+    Map<String, dynamic>? target,
+  ) {
+    if (target == null) {
+      return const MacosComputerUseTargetSafetyDecision(
+        riskTags: [],
+        blockerCodes: [],
+        requiresSeparateApproval: false,
+        hardBlocked: false,
+      );
+    }
+
+    final risk = _normalized(target['risk']);
+    final targetText = _targetText(target);
+    final riskTags = <String>[
+      if (risk == 'public_action' || isPublicActionTarget(target))
+        'public_action',
+      if (risk == 'secure_field' ||
+          _containsAny(targetText, secureFieldTargetTokens))
+        'secure_field',
+      if (risk == 'credential' ||
+          _containsAny(targetText, credentialTargetTokens))
+        'credential',
+      if (risk == 'payment' || _containsAny(targetText, paymentTargetTokens))
+        'payment',
+      if (risk == 'destructive' ||
+          _containsAny(targetText, destructiveTargetTokens))
+        'destructive',
+    ];
+
+    final hardBlockedTags = riskTags.where(
+      (tag) =>
+          tag == 'secure_field' ||
+          tag == 'credential' ||
+          tag == 'payment' ||
+          tag == 'destructive',
+    );
+    final blockerCodes = <String>[
+      if (riskTags.contains('public_action'))
+        'separate_public_action_approval_required',
+      for (final tag in hardBlockedTags) '${tag}_target_blocked',
+    ];
+
+    return MacosComputerUseTargetSafetyDecision(
+      riskTags: List<String>.unmodifiable(riskTags),
+      blockerCodes: List<String>.unmodifiable(blockerCodes),
+      requiresSeparateApproval: riskTags.contains('public_action'),
+      hardBlocked: hardBlockedTags.isNotEmpty,
+    );
   }
 
   static MacosComputerUseProductionActionPolicySummary
@@ -429,6 +579,7 @@ class MacosComputerUseToolPolicy {
           'computer_click' || 'computer_press_key' => true,
           _ => false,
         };
+    final targetSafety = targetSafetyDecision(target);
     final requiresSystemAudioApproval =
         toolName == 'computer_start_system_audio_recording';
 
@@ -437,6 +588,14 @@ class MacosComputerUseToolPolicy {
       if (requiresExactTextApproval) MacosComputerUseApprovalBoundary.exactText,
       if (requiresSeparatePublicActionApproval)
         MacosComputerUseApprovalBoundary.publicAction,
+      if (targetSafety.riskTags.contains('secure_field'))
+        MacosComputerUseApprovalBoundary.secureField,
+      if (targetSafety.riskTags.contains('credential'))
+        MacosComputerUseApprovalBoundary.credential,
+      if (targetSafety.riskTags.contains('payment'))
+        MacosComputerUseApprovalBoundary.payment,
+      if (targetSafety.riskTags.contains('destructive'))
+        MacosComputerUseApprovalBoundary.destructive,
       if (requiresSystemAudioApproval)
         MacosComputerUseApprovalBoundary.systemAudio,
     ];
@@ -444,8 +603,7 @@ class MacosComputerUseToolPolicy {
       if (requiresExactTextApproval && _normalized(exactText).isEmpty)
         'exact_text_missing',
       if (requiresTargetApproval && target == null) 'target_missing',
-      if (requiresSeparatePublicActionApproval)
-        'separate_public_action_approval_required',
+      ...targetSafety.blockerCodes,
     ];
 
     return MacosComputerUseActionProposalPolicyDecision(
@@ -461,11 +619,13 @@ class MacosComputerUseToolPolicy {
         boundaries,
       ),
       blockerCodes: List<String>.unmodifiable(blockerCodes),
+      targetSafety: targetSafety,
       nextAction: _actionProposalNextAction(
         isObservation: isObservation,
         requiresExactTextApproval: requiresExactTextApproval,
         requiresSeparatePublicActionApproval:
             requiresSeparatePublicActionApproval,
+        targetSafety: targetSafety,
         requiresTargetApproval: requiresTargetApproval,
       ),
     );
@@ -481,6 +641,7 @@ class MacosComputerUseToolPolicy {
       'computer_request_permissions' ||
       'computer_open_system_settings' => MacosComputerUseToolCategory.setup,
       'computer_vision_observe' ||
+      'computer_accessibility_snapshot' ||
       'computer_list_windows' ||
       'computer_screenshot' ||
       'computer_screenshot_window' => MacosComputerUseToolCategory.observation,
@@ -501,6 +662,7 @@ class MacosComputerUseToolPolicy {
       'computer_request_permissions' ||
       'computer_open_system_settings' => MacosComputerUseRiskCategory.setup,
       'computer_vision_observe' ||
+      'computer_accessibility_snapshot' ||
       'computer_list_windows' ||
       'computer_screenshot' ||
       'computer_screenshot_window' => MacosComputerUseRiskCategory.observe,
@@ -560,9 +722,13 @@ class MacosComputerUseToolPolicy {
     required bool requiresTargetApproval,
     required bool requiresExactTextApproval,
     required bool requiresSeparatePublicActionApproval,
+    required MacosComputerUseTargetSafetyDecision targetSafety,
   }) {
     if (isObservation) {
       return 'Observation can remain in the planning phase.';
+    }
+    if (targetSafety.hardBlocked) {
+      return 'Do not execute this action. Choose a non-sensitive, non-payment, non-destructive target or ask the user to handle it manually.';
     }
     if (requiresSeparatePublicActionApproval) {
       return 'Ask the user for separate explicit approval before any public action.';
@@ -577,6 +743,26 @@ class MacosComputerUseToolPolicy {
   }
 
   static String _normalized(Object? value) {
-    return value?.toString().trim().toLowerCase().replaceAll('-', '_') ?? '';
+    return value?.toString().trim().toLowerCase().replaceAll(
+          RegExp(r'[\s\-]+'),
+          '_',
+        ) ??
+        '';
+  }
+
+  static String _targetText(Map<String, dynamic> target) {
+    return [
+      target['risk'],
+      target['role'],
+      target['label'],
+      target['action'],
+      target['subrole'],
+      target['description'],
+      target['help'],
+    ].map(_normalized).where((value) => value.isNotEmpty).join(' ');
+  }
+
+  static bool _containsAny(String haystack, Iterable<String> needles) {
+    return needles.any((needle) => haystack.contains(needle));
   }
 }

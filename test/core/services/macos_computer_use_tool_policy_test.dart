@@ -40,6 +40,20 @@ void main() {
     expect(decision.requiresPostActionObservation, isFalse);
   });
 
+  test('allows accessibility snapshots during planning without approval', () {
+    final decision = MacosComputerUseToolPolicy.decision(
+      'computer_accessibility_snapshot',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.category, MacosComputerUseToolCategory.observation);
+    expect(decision.riskCategory, MacosComputerUseRiskCategory.observe);
+    expect(decision.requiresUserApproval, isFalse);
+    expect(decision.requiresSmokeArming, isFalse);
+    expect(decision.allowedInPlanning, isTrue);
+    expect(decision.requiresPostActionObservation, isFalse);
+  });
+
   test('blocks permission prompts during planning', () {
     final decision = MacosComputerUseToolPolicy.decision(
       'computer_request_permissions',
@@ -119,6 +133,17 @@ void main() {
     expect(decision.nextAction, contains('planning phase'));
   });
 
+  test('keeps accessibility snapshot proposals inside planning', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_accessibility_snapshot',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.allowedAsObserveOnlyProposal, isTrue);
+    expect(decision.requiresUserApproval, isFalse);
+    expect(decision.blockerCodes, isEmpty);
+  });
+
   test('requires exact text and target approval for text input proposals', () {
     final decision = MacosComputerUseToolPolicy.actionProposalDecision(
       toolName: 'computer_type_text',
@@ -187,6 +212,50 @@ void main() {
     expect(decision.nextAction, contains('separate explicit approval'));
   });
 
+  test('blocks secure, credential, payment, and destructive targets', () {
+    for (final caseData in const [
+      (
+        risk: 'secure_field',
+        label: 'Password',
+        blocker: 'secure_field_target_blocked',
+        boundary: MacosComputerUseApprovalBoundary.secureField,
+      ),
+      (
+        risk: 'credential',
+        label: 'API key',
+        blocker: 'credential_target_blocked',
+        boundary: MacosComputerUseApprovalBoundary.credential,
+      ),
+      (
+        risk: 'payment',
+        label: 'Checkout',
+        blocker: 'payment_target_blocked',
+        boundary: MacosComputerUseApprovalBoundary.payment,
+      ),
+      (
+        risk: 'destructive',
+        label: 'Delete workspace',
+        blocker: 'destructive_target_blocked',
+        boundary: MacosComputerUseApprovalBoundary.destructive,
+      ),
+    ]) {
+      final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+        toolName: 'computer_click',
+        target: {
+          'label': caseData.label,
+          'role': 'button',
+          'risk': caseData.risk,
+        },
+      );
+
+      expect(decision, isNotNull, reason: caseData.risk);
+      expect(decision!.boundaries, contains(caseData.boundary));
+      expect(decision.blockerCodes, contains(caseData.blocker));
+      expect(decision.targetSafety.hardBlocked, isTrue);
+      expect(decision.nextAction, contains('Do not execute'));
+    }
+  });
+
   test('defines the production action policy gates', () {
     final policy = MacosComputerUseToolPolicy.productionActionPolicy();
 
@@ -208,6 +277,10 @@ void main() {
         'target_label',
         'exact_text_for_typing',
         'public_action_label_for_public_actions',
+        'secure_field_target_refusal',
+        'credential_target_refusal',
+        'payment_target_refusal',
+        'destructive_target_refusal',
         'post_action_observation',
       ]),
     );
@@ -221,6 +294,10 @@ void main() {
         'execution_result_intake_missing',
         'post_action_review_missing',
         'public_action_missing_separate_approval',
+        'secure_field_target_blocked',
+        'credential_target_blocked',
+        'payment_target_blocked',
+        'destructive_target_blocked',
       ]),
     );
     final json = policy.toJson();
@@ -238,6 +315,14 @@ void main() {
         'role': 'button',
       }),
       isTrue,
+    );
+    expect(
+      MacosComputerUseToolPolicy.isPublicActionTarget(const {
+        'label': 'Post composer',
+        'role': 'text_field',
+        'risk': 'input',
+      }),
+      isFalse,
     );
     expect(
       MacosComputerUseToolPolicy.isPublicActionTarget(const {

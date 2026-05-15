@@ -218,6 +218,7 @@ fi
 echo "  TCC boundary: user-operated manual verification only"
 
 cd "${ROOT_DIR}"
+mkdir -p "${REPORT_ROOT}"
 
 if [[ "${REFRESH_LLM_CANARY}" == "1" ]]; then
   if [[ -n "${CAVERNO_LLM_BASE_URL:-}" && -n "${CAVERNO_LLM_API_KEY:-}" && -n "${CAVERNO_LLM_MODEL:-}" ]]; then

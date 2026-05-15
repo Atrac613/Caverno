@@ -1697,7 +1697,8 @@ migration plan has been converted into these completion checks:
   system-audio operations.
 - Helper IPC supports `ping`, `permissionStatus`, `openSettings`,
   `showPermissionOverlay`, `startOnboardingPermissionFlow`, `stopAll`,
-  observation, window, input, keyboard, scroll, and system-audio commands.
+  observation, accessibility snapshot, window, input, keyboard, scroll, and
+  system-audio commands.
 - LaunchAgent-backed named XPC is the preferred production transport, with
   distributed notifications retained only as observable fallback.
 - Screenshot, window listing, window focus, window screenshots, input events,
@@ -1716,10 +1717,534 @@ artifacts, manual TCC runtime reports, user-operated desktop action canaries,
 LLM canaries, MVP PR review artifacts, and future observe-only real-app
 canaries.
 
+## M41 Accessibility Snapshot
+
+M41 adds a read-only accessibility observation surface for element-grounded
+Computer Use. `computer_accessibility_snapshot` asks the helper for a bounded
+AX tree from the first visible non-Caverno window or a requested `window_id`.
+The command is helper-owned, available over the same XPC command parity list,
+and blocked by helper path mismatch so the existing helper TCC identity is
+preserved.
+
+The snapshot returns `schemaName`, `observationId`, window metadata,
+permissions, coordinate space, traversal bounds, element count, truncation
+state, redaction metadata, and a bounded `elements` list. Each element includes
+an observation-scoped `elementId`, parent id when available, role, subrole,
+safe label metadata, frame, enabled state, focused state, child count, and
+per-element redaction metadata.
+
+Privacy rules:
+
+- The helper does not export `AXValue`, selected text, attributed text ranges,
+  raw attribute values, screenshots, audio payloads, or typed text.
+- Labels come only from safe metadata attributes: title, description, help, or
+  identifier.
+- Labels are capped by `label_max_characters` and truncation is reported both
+  per element and in the top-level redaction summary.
+- Secure or protected controls keep values omitted; the snapshot only exposes
+  metadata needed for target review.
+
+Safety rules:
+
+- `computer_accessibility_snapshot` is planning-allowed because it is
+  observation-only.
+- It does not call AX mutation APIs such as setting focused windows, raising
+  windows, performing AX actions, or posting input events.
+- Element IDs are stable only inside the current snapshot. Later milestones
+  may use them for approved element-targeted actions, but M41 does not expand
+  the action surface.
+
+## M42 Element Grounding
+
+M42 connects visual observations with the accessibility snapshot surface. For
+`front_window` and `window` observations that resolve to a `window_id`,
+`computer_vision_observe` now asks the helper for a bounded
+`computer_accessibility_snapshot` and returns a compact `elementGrounding`
+block alongside the screenshot.
+
+`elementGrounding` is deliberately metadata-only. It includes:
+
+- `schemaName=macos_computer_use_element_grounding`, `schemaVersion`, source
+  tool, status, snapshot id, window id, coordinate space, input origin, bounds,
+  redaction metadata, and truncation metadata.
+- A bounded `candidateElements` list selected from focused or likely
+  interactive accessibility roles.
+- Per-candidate `elementId`, parent id when available, role, subrole, label,
+  label source, frame, enabled/focused state, child count, and redaction flags.
+
+Failure handling is non-destructive. If accessibility is denied, the window AX
+object is unavailable, the capture failed, or the user disables accessibility
+grounding with `include_accessibility=false`, the screenshot observation still
+returns and `elementGrounding.status` reports `blocked`, `failed`, or
+`skipped` with a concrete code.
+
+M42 does not add element-targeted execution. Desktop actions still use the
+existing approval, arming, emergency-stop, coordinate, and post-action review
+flow. The model may cite `target.elementId` from the latest
+`elementGrounding.candidateElements` as approval metadata, while M43 adds the
+execution path that consumes `element_id`.
+
+## M43 Element-Targeted Actions
+
+M43 allows approved helper-owned actions to resolve an `element_id` from the
+latest element grounding before using screenshot coordinates. Element IDs are
+still observation-scoped, so each action resolves the target by replaying the
+same bounded AX traversal against the requested `window_id`.
+
+Supported execution behavior:
+
+- `computer_click` accepts `element_id` with `window_id`, performs AXPress when
+  the resolved element supports it, and only falls back to the element frame
+  center or caller-provided coordinates when AXPress is unavailable.
+- `computer_type_text` accepts `element_id` with `window_id`, focuses the
+  resolved element before typing, and reports if it had to click the element
+  frame center to focus.
+- `computer_focus_window` keeps `window_id` as the primary target and can also
+  focus a resolved element when `element_id` is present.
+
+Every element-targeted action reports `elementTargeting` metadata with the
+requested id, resolved role and label, window id, frame metadata when
+available, the action used, and `elementTargeting.fallbackUsed`. Existing
+approval, arming, public-action, exact-text, emergency-stop, post-action
+observation, and post-action review boundaries remain unchanged.
+
+## M44 Element-Aware Approval UX
+
+M44 keeps the M43 execution boundary unchanged and upgrades only the approval
+surface. The pending approval payload now carries target review metadata from
+the tool call so the user can confirm the target before any helper-owned input
+is sent.
+
+The approval sheet shows:
+
+- app name and bundle id when provided by the observation or window list;
+- window title and window id when available;
+- `element_id` or `target.elementId` for element-targeted actions;
+- role, label, intended action, and target risk from `target` metadata;
+- coordinate fallback metadata when an action still includes screenshot
+  coordinates;
+- exact text and character count for `computer_type_text`;
+- the latest observation context, including observation id, coordinate space,
+  source screenshot size, window id, and display id.
+
+M44 does not weaken any policy gate. Approval, unsafe arming, separate
+public-action approval, exact-text review, emergency stop availability,
+post-action observation, and audit redaction remain the execution boundary.
+
+## M45 Safety Policy Hardening
+
+M45 keeps helper execution unchanged and strengthens the Dart-side policy gate
+before any approved action reaches the helper. Target safety classification now
+uses explicit `target.risk` metadata plus conservative role, label, and action
+tokens.
+
+Target classes:
+
+- `public_action`: posting, sending, submitting, or publishing controls require
+  separate public-action approval before execution.
+- `secure_field`: secure text fields are blocked and should be handled
+  manually by the user.
+- `credential`: password, passcode, API key, token, and recovery-key targets
+  are blocked and should be handled manually by the user.
+- `payment`: payment, checkout, order, billing, cart, and card targets are
+  blocked and should be handled manually by the user.
+- `destructive`: delete, reset, revoke, wipe, format, uninstall, and danger-zone
+  targets are blocked and should be handled manually by the user.
+
+When an approved action still has unresolved safety blockers, Caverno returns
+`code=action_policy_blocked` with `approvalBlockers` instead of calling the
+helper. This preserves approval UX visibility while keeping the execution
+boundary deterministic.
+
+## M46 Element-Grounded LLM Evaluation
+
+M46 adds a report-only evaluation runner for the element-grounded Computer Use
+contract:
+
+```bash
+bash tool/run_macos_computer_use_m46_element_grounded_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>
+```
+
+The report schema is
+`macos_computer_use_m46_element_grounded_llm_eval_summary`, with
+`m46ElementGroundedLlmEvaluationGate` covering these scenarios:
+
+- `element_target_disambiguation`: candidates include element identity and
+  ambiguous targets ask for clarification.
+- `exact_text_target_pairing`: exact text is preserved and paired with one
+  text-entry element target.
+- `public_action_boundary_from_real_app`: public-action targets include
+  `separate_public_action_approval_required`.
+- `high_risk_target_refusal`: secure-field, payment, and destructive targets
+  include M45 hard blockers and refuse execution.
+- `stale_observation_recovery`: stale or blocked observation references require
+  fresh evidence.
+- `coordinate_fallback_refusal`: coordinate-only proposals are refused until a
+  fresh element-grounded observation exists.
+
+The runner preserves the same no-TCC and no-desktop-action boundary as M36. CI
+can pass `--fixture-suite` for deterministic responses; live runs require both
+fixture and real-app screenshots.
+
+## M47 Real-App Observe Pilot
+
+M47 adds a report-only pilot runner that starts from ready M14 real-app observe
+evidence and generates the M15-M18 handoff chain:
+
+```bash
+bash tool/run_macos_computer_use_m47_real_app_observe_pilot.sh --m14-summary <canary_summary.json>
+```
+
+The report schema is `macos_computer_use_m47_real_app_observe_pilot`, with
+`m47RealAppObservePilotGate` checking that:
+
+- M14, M15, M16, M17, and M18 are all ready.
+- The approved text-entry target label remains stable from M14 candidates
+  through M18 approved values.
+- The approved exact text remains stable from M16 through M18.
+- Public-action labels retain separate approval metadata through M18.
+- M18 records fresh observation, target, exact-text, and public-action
+  action-time confirmations.
+- Generation remains report-only with no LLM call, no TCC operation, and no
+  desktop action.
+
+The runner may derive approval values from the selected M14 summary, or callers
+can pass explicit `--approved-exact-text`, `--approved-target-label`, and
+`--approved-public-action-label` values. It does not open apps, capture
+screenshots, click, type, submit, or post.
+
+## M48 User-Operated Action Pilot
+
+M48 adds a report-only pilot gate for one safe user-operated real-app action
+cycle:
+
+```bash
+bash tool/run_macos_computer_use_m48_user_operated_action_pilot.sh --m47-pilot <real_app_observe_pilot.json> --fresh-observation done --target-confirmed yes --exact-text-confirmed yes --public-action-confirmed <yes-or-not-applicable> --runtime-action succeeded --post-action-observation done --result-reviewed yes --post-action-state stable --follow-up-required no --outcome-accepted yes --next-observe-needed no --safe-target-confirmed yes
+```
+
+The report schema is `macos_computer_use_m48_user_operated_action_pilot`, with
+`m48UserOperatedActionPilotGate` checking that:
+
+- M47, M18, M20, M22, and M23 evidence are all ready.
+- The M18 handoff comes from the selected M47 pilot.
+- The user explicitly confirmed a safe target with no secure-field,
+  credential, payment, or destructive risk.
+- Approved target, exact text, and public-action labels remain stable through
+  M20, M22, and M23.
+- Public-action targets preserve separate action-time approval evidence.
+- M20 records fresh observation, a succeeded user-operated runtime action, and
+  post-action observation.
+- M22 records reviewed, stable post-action state with no follow-up required.
+- M23 accepts and closes the action cycle.
+- The runner remains report-only with no LLM call, no TCC operation, and no
+  desktop action.
+
+M48 may invoke the existing M20, M22, and M23 report-only scripts, but the
+runtime action itself must already have been performed by the user outside the
+script. Any follow-up desktop action must start a new observe and approval
+cycle.
+
+## M49 Privacy And Audit Release Pack
+
+M49 adds a report-only release-pack gate for redacted Computer Use diagnostics
+and ready M48 action-cycle evidence:
+
+```bash
+bash tool/run_macos_computer_use_m49_privacy_audit_release_pack.sh --m48-pilot <user_operated_action_pilot.json> --diagnostics <redacted-computer-use-diagnostics.json> --redacted-export-reviewed yes --privacy-copy-reviewed yes --support-diagnostics-reviewed yes --explicit-payload-export-policy-reviewed yes --payload-export-requested no --explicit-payload-export-approved not-requested
+```
+
+The report schema is `macos_computer_use_m49_privacy_audit_release_pack`, with
+`m49PrivacyAuditReleasePackGate` checking that:
+
+- M48 user-operated action pilot evidence is ready.
+- Diagnostics include `macos_computer_use_audit_privacy_controls`, either as a
+  top-level report or as `auditPrivacyControls` inside exported diagnostics.
+- M37 audit/privacy controls are ready and declare observe, approval,
+  execution handoff, emergency stop, and result review event types.
+- Default diagnostics export is redacted.
+- Redacted field ids include secrets, screenshots, tokens, audio payloads, raw
+  tool payloads, and typed text.
+- Screenshot, audio, typed text, and raw tool payload exports require explicit
+  payload export approval.
+- Ordinary diagnostics do not contain raw screenshots, audio payloads, typed
+  text, secrets, tokens, authorization values, or raw tool payloads.
+- Redacted export, privacy copy, support diagnostics, and explicit payload
+  export policy review have all been recorded.
+- Any requested raw payload export has separate explicit approval; otherwise
+  the payload export state remains `not-requested`.
+
+M49 does not export raw payloads. It only validates existing redacted
+diagnostics and records release-pack sign-off metadata before signed beta.
+
+## M50 Signed Beta Gate
+
+M50 adds a report-only signed beta gate for the element-grounded Computer Use
+release path:
+
+```bash
+bash tool/run_macos_computer_use_m50_signed_beta_gate.sh \
+  --signed-beta-checklist <m50-signed-beta-checklist.json> \
+  --release-artifact-report <release-artifact-signoff.json> \
+  --release-packaging-report <macos_computer_use_release_packaging.json> \
+  --m46-element-grounded-llm-eval <canary_summary.json> \
+  --m48-user-operated-action-pilot <user_operated_action_pilot.json> \
+  --m49-privacy-audit-release-pack <privacy_audit_release_pack.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m50_signed_beta_gate.json`
+- `macos_computer_use_m50_signed_beta_gate.md`
+
+The JSON summary uses
+`schemaName: macos_computer_use_m50_signed_beta_gate`, `milestone: M50`, and
+`m50SignedBetaGate`.
+
+The gate checks:
+
+- M7 signed beta artifact evidence.
+- M33 release packaging lane readiness.
+- User-recorded notarized beta build evidence.
+- User-recorded clean install evidence.
+- User-recorded upgrade and migration evidence.
+- User-recorded permission grant evidence.
+- User-recorded permission revocation recovery evidence.
+- User-recorded helper restart evidence.
+- User-recorded XPC fallback observability evidence.
+- M46 element-grounded LLM evaluation readiness.
+- M48 user-operated action-cycle readiness.
+- M49 privacy and audit release-pack readiness.
+
+M50 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads existing evidence and records whether the signed
+beta is ready for the M51 production launch gate refresh.
+
+## M51 Production Launch Gate
+
+M51 adds the production launch gate for the element-grounded Computer Use
+release lane:
+
+```bash
+bash tool/run_macos_computer_use_m51_production_launch_gate.sh \
+  --launch-checklist <m51-launch-checklist.json> \
+  --release-artifact-report <release-artifact-signoff.json> \
+  --release-packaging-report <macos_computer_use_release_packaging.json> \
+  --manual-tcc-report <manual-tcc-summary.json> \
+  --m46-element-grounded-llm-eval <canary_summary.json> \
+  --m49-privacy-audit-release-pack <privacy_audit_release_pack.json> \
+  --m50-signed-beta-gate <macos_computer_use_m50_signed_beta_gate.json> \
+  --diagnostics <computer-use-diagnostics.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m51_production_launch_gate.json`
+- `macos_computer_use_m51_production_launch_gate.md`
+
+The JSON uses `schemaName: macos_computer_use_m51_production_launch_gate`,
+`milestone: M51`, and `launchReviewSummary`.
+
+M51 validates:
+
+- M7 signed artifact readiness.
+- M33 packaging readiness for helper identity and Mach service evidence.
+- M38 install and migration guardrails from diagnostics.
+- User-operated notarization, manual TCC, emergency stop, privacy copy,
+  support diagnostics, default-off rollout, rollback, and support escalation
+  checklist evidence.
+- M46 element-grounded LLM evaluation readiness with no TCC or desktop action.
+- M49 privacy/audit release-pack readiness with no raw payload export.
+- M50 signed beta readiness.
+
+M51 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads existing evidence and records whether the product
+release is ready to move to M52 rollout.
+
+## M52 Product Release Rollout
+
+M52 adds the product release rollout gate for element-grounded Computer Use:
+
+```bash
+bash tool/run_macos_computer_use_m52_product_release_rollout.sh \
+  --product-release-checklist <m52-product-release-checklist.json> \
+  --m51-production-launch-gate <macos_computer_use_m51_production_launch_gate.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m52_product_release_rollout.json`
+- `macos_computer_use_m52_product_release_rollout.md`
+
+The JSON uses
+`schemaName: macos_computer_use_m52_product_release_rollout`, `milestone: M52`,
+`releaseRolloutSummary`, and `m52ProductReleaseGate`.
+
+M52 validates:
+
+- M51 production launch evidence is ready for production launch.
+- Computer Use remains default off for product release.
+- The enablement path stays behind Settings > Advanced.
+- The disable path, emergency stop, rollback runbook, support runbook, privacy
+  release notes, support diagnostics handoff, rollout monitoring, owner, and
+  escalation coverage are signed off by the user-operated release checklist.
+
+M52 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads M51 evidence and product release checklist evidence
+and records whether element-grounded Computer Use is `ready_for_product_release`.
+
+## M53 Post-Release Guardrails
+
+M53 adds a report-only post-release operations gate for element-grounded
+Computer Use:
+
+```bash
+bash tool/run_macos_computer_use_m53_post_release_guardrails.sh \
+  --post-release-checklist <m53-post-release-checklist.json> \
+  --m52-product-release-rollout <macos_computer_use_m52_product_release_rollout.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m53_post_release_guardrails.json`
+- `macos_computer_use_m53_post_release_guardrails.md`
+
+The JSON uses
+`schemaName: macos_computer_use_m53_post_release_guardrails`, `milestone: M53`,
+`postReleaseGuardrailsSummary`, and `m53PostReleaseGuardrailsGate`.
+
+M53 validates:
+
+- M52 product release rollout evidence is ready.
+- Computer Use remains default off after release.
+- The enablement path stays behind Settings > Advanced.
+- Redacted support diagnostics, known issues, incidents, complaints,
+  regressions, rollback readiness, hotfix triggers, rollout pause triggers, and
+  escalation coverage are signed off by the user-operated post-release
+  checklist.
+
+M53 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads M52 evidence and post-release checklist evidence
+and records whether Computer Use is `ready_for_post_release_operations`.
+
+## M54 Rollout Expansion Gate
+
+M54 adds a report-only rollout expansion gate for element-grounded Computer
+Use:
+
+```bash
+bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh \
+  --rollout-expansion-checklist <m54-rollout-expansion-checklist.json> \
+  --m53-post-release-guardrails <macos_computer_use_m53_post_release_guardrails.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m54_rollout_expansion_gate.json`
+- `macos_computer_use_m54_rollout_expansion_gate.md`
+
+The JSON uses
+`schemaName: macos_computer_use_m54_rollout_expansion_gate`, `milestone: M54`,
+`rolloutExpansionSummary`, and `m54RolloutExpansionGate`.
+
+M54 validates:
+
+- M53 post-release guardrail evidence is ready.
+- The proposed cohort, channel, or percentage expansion scope is approved.
+- Cohort risk, excluded segments, support capacity, safety metrics, incidents,
+  complaints, regressions, rollback readiness, rollout pause readiness,
+  communications, owners, escalation handoff, and the next review schedule are
+  signed off by the user-operated rollout expansion checklist.
+
+M54 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads M53 evidence and rollout expansion checklist
+evidence and records whether Computer Use is `ready_for_rollout_expansion`.
+
+## M55 Post-Expansion Monitoring Gate
+
+M55 adds a report-only post-expansion monitoring gate for element-grounded
+Computer Use:
+
+```bash
+bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh \
+  --post-expansion-monitoring-checklist <m55-post-expansion-monitoring-checklist.json> \
+  --m54-rollout-expansion-gate <macos_computer_use_m54_rollout_expansion_gate.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m55_post_expansion_monitoring_gate.json`
+- `macos_computer_use_m55_post_expansion_monitoring_gate.md`
+
+The JSON uses
+`schemaName: macos_computer_use_m55_post_expansion_monitoring_gate`,
+`milestone: M55`, `postExpansionMonitoringSummary`, and
+`m55PostExpansionMonitoringGate`.
+
+M55 validates:
+
+- M54 rollout expansion evidence is ready.
+- The expanded cohort, channel, percentage, and monitoring window are recorded.
+- Safety metrics, support load, incidents, complaints, regressions, rollback
+  and rollout pause readiness, owner follow-up, escalation handoff, and the
+  next review schedule are signed off by the user-operated post-expansion
+  monitoring checklist.
+- The approved continuation decision is one of `continue_expansion`,
+  `hold_current_cohort`, `pause_rollout`, or `rollback_recommended`.
+
+M55 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads M54 evidence and post-expansion monitoring
+checklist evidence and records whether Computer Use is
+`ready_for_post_expansion_decision`.
+
+## M56 Rollout Decision Handoff Gate
+
+M56 adds a report-only rollout decision handoff gate for element-grounded
+Computer Use:
+
+```bash
+bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh \
+  --rollout-decision-handoff-checklist <m56-rollout-decision-handoff-checklist.json> \
+  --m55-post-expansion-monitoring-gate <macos_computer_use_m55_post_expansion_monitoring_gate.json>
+```
+
+The runner writes:
+
+- `macos_computer_use_m56_rollout_decision_handoff_gate.json`
+- `macos_computer_use_m56_rollout_decision_handoff_gate.md`
+
+The JSON uses
+`schemaName: macos_computer_use_m56_rollout_decision_handoff_gate`,
+`milestone: M56`, `rolloutDecisionHandoffSummary`, and
+`m56RolloutDecisionHandoffGate`.
+
+M56 validates:
+
+- M55 post-expansion monitoring evidence is ready for a continuation decision.
+- The user-operated checklist confirms the decision scope, branch handoff,
+  owner, evidence archive, communication review, risk controls, and next
+  review.
+- The checklist decision and handoff type match the M55 continuation decision:
+  `continue_expansion` maps to `next_expansion_cycle_seed`,
+  `hold_current_cohort` maps to `monitoring_cadence_hold`, `pause_rollout`
+  maps to `rollout_pause_handoff`, and `rollback_recommended` maps to
+  `rollback_handoff`.
+
+M56 does not sign, notarize, staple, grant TCC, open System Settings, capture
+screens, click, type, submit, post, purchase, export raw payloads, or operate
+desktop apps. It only reads M55 evidence and rollout decision handoff checklist
+evidence and records whether Computer Use is
+`ready_for_rollout_decision_handoff`.
+
 ## Verification Gates
 
 - Element-grounded productization: follow
-  `docs/macos_computer_use_element_grounding_release_roadmap.md` for M41-M52.
+  `docs/macos_computer_use_element_grounding_release_roadmap.md` for M41-M56.
 - Static verification: `flutter analyze`, focused unit/widget tests, and
   focused script contract tests pass. After merge, use
   `bash tool/run_macos_computer_use_post_merge_sanity.sh` to run this static

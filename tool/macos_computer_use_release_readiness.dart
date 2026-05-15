@@ -99,18 +99,18 @@ Future<void> main(List<String> args) async {
 
   final reportRoot = Directory(reportRootPath);
   if (!reportRoot.existsSync()) {
-    stderr.writeln('Report root not found: ${reportRoot.path}');
-    exitCode = 66;
-    return;
-  }
-
-  if (refreshSafeInputs) {
-    final refreshExitCode = await _refreshSafeInputs(reportRoot);
-    if (refreshExitCode != 0) {
-      exitCode = refreshExitCode;
+    if (refreshSafeInputs) {
+      reportRoot.createSync(recursive: true);
+    } else {
+      stderr.writeln('Report root not found: ${reportRoot.path}');
+      exitCode = 66;
       return;
     }
   }
+
+  final refreshExitCode = refreshSafeInputs
+      ? await _refreshSafeInputs(reportRoot)
+      : 0;
 
   final inputs = readReleaseReadinessInputs(
     reportRoot: reportRoot,
@@ -141,6 +141,8 @@ Future<void> main(List<String> args) async {
 
   if (_shouldExitFailure(summary, exitPolicy)) {
     exitCode = 1;
+  } else if (refreshExitCode != 0) {
+    exitCode = refreshExitCode;
   }
 }
 
@@ -163,6 +165,7 @@ void _usageError(String message) {
 
 Future<int> _refreshSafeInputs(Directory reportRoot) async {
   reportRoot.createSync(recursive: true);
+  var refreshExitCode = 0;
   final releaseReportPath =
       '${reportRoot.path}/macos_computer_use_release_artifact_signoff.json';
   stdout.writeln('Refreshing safe release readiness inputs');
@@ -178,7 +181,7 @@ Future<int> _refreshSafeInputs(Directory reportRoot) async {
   stderr.write(m7Result.stderr);
   if (m7Result.exitCode != 0) {
     stderr.writeln('Safe refresh failed while generating the M7 report.');
-    return m7Result.exitCode;
+    refreshExitCode = m7Result.exitCode;
   }
 
   final historyResult = await Process.run('dart', <String>[
@@ -193,13 +196,22 @@ Future<int> _refreshSafeInputs(Directory reportRoot) async {
     stderr.writeln(
       'Safe refresh failed while generating Computer Use history.',
     );
-    return historyResult.exitCode;
+    if (refreshExitCode == 0) {
+      refreshExitCode = historyResult.exitCode;
+    }
   }
 
-  stdout.writeln(
-    'Safe refresh complete. Manual TCC evidence remains user-operated.',
-  );
-  return 0;
+  if (refreshExitCode == 0) {
+    stdout.writeln(
+      'Safe refresh complete. Manual TCC evidence remains user-operated.',
+    );
+  } else {
+    stderr.writeln(
+      'Safe refresh generated available inputs; readiness aggregation will '
+      'still report blockers.',
+    );
+  }
+  return refreshExitCode;
 }
 
 bool _shouldExitFailure(ReleaseReadinessSummary summary, String exitPolicy) {

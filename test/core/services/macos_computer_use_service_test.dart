@@ -3,9 +3,12 @@ import 'dart:convert';
 import 'package:caverno/core/services/macos_computer_use_service.dart';
 import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:caverno/core/services/macos_computer_use_transport.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('uses the helper transport for permission status', () async {
     final transport = _FakePermissionTransport(
       permissions: {
@@ -258,11 +261,21 @@ void main() {
     );
     expect(result['observationId'], isA<String>());
     expect(result, containsPair('imageBase64', 'display-image'));
+    expect(
+      result['allowedNextTools'],
+      contains('computer_accessibility_snapshot'),
+    );
     expect(result['allowedNextTools'], contains('computer_click'));
     expect(result['approvalRequiredTools'], contains('computer_click'));
     expect(result['armingRequiredTools'], contains('computer_type_text'));
     expect(result['coordinateGuidance'], containsPair('sourceWidth', 640));
+    expect(result['elementGrounding'], containsPair('status', 'skipped'));
+    expect(
+      result['elementGrounding'],
+      containsPair('code', 'window_target_required'),
+    );
     expect(result['nextAction'], contains('actionProposalPolicy'));
+    expect(result['nextAction'], contains('elementGrounding'));
     final actionProposalPolicy =
         result['actionProposalPolicy'] as Map<String, dynamic>;
     expect(
@@ -295,6 +308,13 @@ void main() {
       containsPair('publicActionSeparateApprovalRequired', true),
     );
     final toolPolicies = actionProposalPolicy['toolPolicies'] as List<dynamic>;
+    final snapshotPolicy = toolPolicies
+        .cast<Map<String, dynamic>>()
+        .singleWhere(
+          (policy) => policy['toolName'] == 'computer_accessibility_snapshot',
+        );
+    expect(snapshotPolicy['allowedAsObserveOnlyProposal'], isTrue);
+    expect(snapshotPolicy['requiresUserApproval'], isFalse);
     final clickPolicy = toolPolicies.cast<Map<String, dynamic>>().singleWhere(
       (policy) => policy['toolName'] == 'computer_click',
     );
@@ -324,13 +344,78 @@ void main() {
         'getPermissions',
         'listWindows',
         'screenshotWindow',
+        'accessibilitySnapshot',
       ]);
       expect(result, containsPair('ok', true));
       expect(result['imageBase64'], 'window-image');
       expect(result['target'], containsPair('resolved', 'window'));
       expect(result['target'], containsPair('windowId', 42));
       expect(result['coordinateGuidance'], containsPair('windowId', 42));
+      final elementGrounding =
+          result['elementGrounding'] as Map<String, dynamic>;
+      expect(elementGrounding, containsPair('status', 'ready'));
+      expect(elementGrounding, containsPair('windowId', 42));
+      expect(
+        elementGrounding,
+        containsPair('schemaName', 'macos_computer_use_element_grounding'),
+      );
+      expect(elementGrounding['candidateElementCount'], 2);
+      final candidates = elementGrounding['candidateElements'] as List<dynamic>;
+      expect(candidates.first, containsPair('elementId', 'ax-0002'));
+      expect(candidates.first, containsPair('role', 'AXButton'));
+      expect(candidates.first, containsPair('label', 'Submit'));
+      expect(
+        elementGrounding['redaction'],
+        containsPair('valuesOmitted', true),
+      );
     },
+  );
+
+  test(
+    'promotes target elementId to helper element_id for actions',
+    () async {
+      const channel = MethodChannel('com.caverno/macos_computer_use');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return <String, dynamic>{
+              'ok': true,
+              'method': call.method,
+              'arguments': call.arguments,
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = MacosComputerUseService();
+
+      await service.click(const {
+        'window_id': 42,
+        'target': {'elementId': 'ax-0002'},
+      });
+      await service.typeText(const {
+        'text': 'hello',
+        'window_id': 42,
+        'target': {'elementId': 'ax-0003'},
+      });
+      await service.focusWindow(const {
+        'window_id': 42,
+        'target': {'elementId': 'ax-0003'},
+      });
+
+      expect(calls.map((call) => call.method), [
+        'click',
+        'typeText',
+        'focusWindow',
+      ]);
+      expect(calls[0].arguments, containsPair('element_id', 'ax-0002'));
+      expect(calls[1].arguments, containsPair('element_id', 'ax-0003'));
+      expect(calls[2].arguments, containsPair('element_id', 'ax-0003'));
+    },
+    skip: !MacosComputerUseService().isAvailable,
   );
 }
 
@@ -391,6 +476,85 @@ class _FakeVisionMacosComputerUseService extends MacosComputerUseService {
       'windowId': arguments['window_id'],
       'imageBase64': 'window-image',
       'imageMimeType': 'image/png',
+    });
+  }
+
+  @override
+  Future<String> accessibilitySnapshot(Map<String, dynamic> arguments) async {
+    calledMethods.add('accessibilitySnapshot');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'macos_computer_use_accessibility_snapshot',
+      'schemaVersion': 1,
+      'observationId': 'ax-snapshot-1',
+      'snapshotId': 'ax-snapshot-1',
+      'readOnly': true,
+      'window': {'windowId': arguments['window_id']},
+      'coordinateSpace': 'screen_points',
+      'inputOrigin': 'top_left',
+      'bounds': {
+        'maxElements': arguments['max_elements'],
+        'maxDepth': arguments['max_depth'],
+        'labelMaxCharacters': arguments['label_max_characters'],
+      },
+      'elementCount': 3,
+      'truncated': false,
+      'truncation': {
+        'byElementLimit': false,
+        'byDepthLimit': false,
+        'labelTruncatedCount': 0,
+      },
+      'redaction': {
+        'policy': 'metadata_only',
+        'valuesOmitted': true,
+        'selectedTextOmitted': true,
+        'rawAttributeValuesOmitted': true,
+      },
+      'elements': [
+        {
+          'elementId': 'ax-0001',
+          'role': 'AXWindow',
+          'label': 'Example Window',
+          'frame': {'x': 10, 'y': 20, 'width': 800, 'height': 600},
+          'frameKnown': true,
+          'enabled': true,
+          'enabledKnown': true,
+          'focused': false,
+          'focusedKnown': true,
+          'childCount': 2,
+          'redaction': {'valueOmitted': true},
+        },
+        {
+          'elementId': 'ax-0002',
+          'parentId': 'ax-0001',
+          'role': 'AXButton',
+          'label': 'Submit',
+          'labelSource': 'title',
+          'frame': {'x': 30, 'y': 40, 'width': 120, 'height': 32},
+          'frameKnown': true,
+          'enabled': true,
+          'enabledKnown': true,
+          'focused': false,
+          'focusedKnown': true,
+          'childCount': 0,
+          'redaction': {'valueOmitted': true},
+        },
+        {
+          'elementId': 'ax-0003',
+          'parentId': 'ax-0001',
+          'role': 'AXTextField',
+          'label': 'Message',
+          'labelSource': 'description',
+          'frame': {'x': 30, 'y': 90, 'width': 240, 'height': 32},
+          'frameKnown': true,
+          'enabled': true,
+          'enabledKnown': true,
+          'focused': true,
+          'focusedKnown': true,
+          'childCount': 0,
+          'redaction': {'valueOmitted': true},
+        },
+      ],
     });
   }
 }

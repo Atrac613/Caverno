@@ -1747,6 +1747,111 @@ void main() {
     }
   });
 
+  test(
+    'computer-use approvals surface target context and exact text',
+    () async {
+      MacosComputerUseAuditLog.instance.clear();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-type-targeted',
+            name: 'computer_type_text',
+            arguments: const {
+              'text': 'Good morning from Caverno',
+              'window_id': 321,
+              'element_id': 'ax-0007',
+              'vision_observation_id': 'vision-99',
+              'coordinate_space': 'window_pixels',
+              'source_width': 800,
+              'source_height': 600,
+              'target': {
+                'label': 'Post composer',
+                'role': 'AXTextArea',
+                'elementId': 'ax-0007',
+                'appName': 'Safari',
+                'appBundleId': 'com.apple.Safari',
+                'windowTitle': 'X / Home',
+                'windowId': 321,
+                'action': 'type_text',
+                'risk': 'input',
+              },
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'computer_type_text':
+              '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final sendFuture = toolNotifier.sendMessage('Type into the composer');
+
+        PendingComputerUseAction? pending;
+        for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+          await Future<void>.delayed(Duration.zero);
+          pending = toolNotifier.state.pendingComputerUseAction;
+        }
+
+        expect(pending, isNotNull);
+        expect(
+          pending!.targetSummary,
+          'Review the AXTextArea target "Post composer" before approving.',
+        );
+        expect(pending.targetDetails, contains('App: Safari'));
+        expect(pending.targetDetails, contains('Bundle ID: com.apple.Safari'));
+        expect(pending.targetDetails, contains('Window: X / Home (id 321)'));
+        expect(pending.targetDetails, contains('Element ID: ax-0007'));
+        expect(pending.targetDetails, contains('Role: AXTextArea'));
+        expect(pending.targetDetails, contains('Label: Post composer'));
+        expect(pending.targetDetails, contains('Intended action: type_text'));
+        expect(pending.targetDetails, contains('Target risk: input'));
+        expect(pending.exactTextPreview, 'Good morning from Caverno');
+        expect(pending.exactTextLength, 25);
+        expect(
+          pending.visionObservationDetails,
+          contains('Observation ID: vision-99'),
+        );
+        expect(
+          pending.visionObservationDetails,
+          contains('Source screenshot: 800 x 600 px'),
+        );
+
+        toolNotifier.resolveComputerUseAction(id: pending.id, approved: false);
+        await sendFuture;
+
+        expect(toolService.executedToolNames, isEmpty);
+      } finally {
+        toolContainer.dispose();
+        MacosComputerUseAuditLog.instance.clear();
+      }
+    },
+  );
+
   test('unsafe computer-use actions require explicit arming', () async {
     MacosComputerUseAuditLog.instance.clear();
     final toolDataSource = _ToolBatchChatDataSource(
@@ -1901,6 +2006,100 @@ void main() {
       MacosComputerUseAuditLog.instance.clear();
     }
   });
+
+  test(
+    'computer-use approvals block destructive targets after approval',
+    () async {
+      MacosComputerUseAuditLog.instance.clear();
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-delete-click',
+            name: 'computer_click',
+            arguments: const {
+              'x': 80,
+              'y': 120,
+              'target': {
+                'label': 'Delete workspace',
+                'role': 'button',
+                'action': 'delete',
+                'risk': 'destructive',
+              },
+            },
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {
+          'computer_click':
+              '{"selectedIpcTransport":"xpc_service","code":"ok"}',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final sendFuture = toolNotifier.sendMessage('Click the delete button');
+
+        PendingComputerUseAction? pending;
+        for (var attempt = 0; attempt < 10 && pending == null; attempt += 1) {
+          await Future<void>.delayed(Duration.zero);
+          pending = toolNotifier.state.pendingComputerUseAction;
+        }
+        expect(pending, isNotNull);
+        expect(
+          pending!.approvalBoundaries,
+          containsAll(['target', 'destructive']),
+        );
+        expect(
+          pending.approvalBlockerCodes,
+          contains('destructive_target_blocked'),
+        );
+        expect(pending.actionProposalNextAction, contains('Do not execute'));
+        toolNotifier.resolveComputerUseAction(
+          id: pending.id,
+          approved: true,
+          armed: true,
+        );
+
+        await sendFuture;
+
+        expect(toolService.executedToolNames, isEmpty);
+        final result = toolDataSource.toolResultBatches.single.single;
+        expect(result.result, contains('"code":"action_policy_blocked"'));
+        expect(result.result, contains('"destructive_target_blocked"'));
+
+        final entry = MacosComputerUseAuditLog.instance.redactedEntries.single;
+        expect(entry['toolName'], 'computer_click');
+        expect(entry['approvalResult'], 'blocked');
+        expect(entry['responseCode'], 'action_policy_blocked');
+        expect(entry['success'], isFalse);
+      } finally {
+        toolContainer.dispose();
+        MacosComputerUseAuditLog.instance.clear();
+      }
+    },
+  );
 
   test(
     'sendMessage carries computer-use screenshots into final vision prompt',

@@ -5,9 +5,11 @@ import 'package:easy_localization/easy_localization.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
 import 'package:caverno/features/chat/presentation/widgets/message_input.dart';
+import 'package:caverno/features/settings/presentation/providers/settings_notifier.dart';
 
 class _TestTranslationLoader extends AssetLoader {
   const _TestTranslationLoader();
@@ -29,6 +31,9 @@ Future<void> _pumpMessageInput(
   required ValueNotifier<bool> isLoading,
   required VoidCallback onCancel,
 }) async {
+  SharedPreferences.setMockInitialValues(<String, Object>{});
+  final preferences = await SharedPreferences.getInstance();
+
   await tester.runAsync(() async {
     await tester.pumpWidget(
       EasyLocalization(
@@ -42,6 +47,9 @@ Future<void> _pumpMessageInput(
         child: Builder(
           builder: (context) {
             return ProviderScope(
+              overrides: [
+                sharedPreferencesProvider.overrideWithValue(preferences),
+              ],
               child: MaterialApp(
                 localizationsDelegates: context.localizationDelegates,
                 supportedLocales: context.supportedLocales,

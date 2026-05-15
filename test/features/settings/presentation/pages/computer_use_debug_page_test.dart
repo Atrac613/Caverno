@@ -95,6 +95,19 @@ void main() {
     );
     expect(find.textContaining('m36_live_llm_eval'), findsNWidgets(2));
     expect(
+      find.textContaining('m46_element_grounded_llm_eval'),
+      findsNWidgets(2),
+    );
+    expect(find.textContaining('m47_real_app_observe_pilot'), findsNWidgets(2));
+    expect(
+      find.textContaining('m48_user_operated_action_pilot'),
+      findsNWidgets(2),
+    );
+    expect(
+      find.textContaining('m49_privacy_audit_release_pack'),
+      findsNWidgets(2),
+    );
+    expect(
       find.textContaining(
         'Report-only preflight: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh',
       ),
@@ -193,7 +206,7 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('--final-signoff'), findsOneWidget);
-    expect(find.textContaining('--manual-tcc-report'), findsOneWidget);
+    expect(find.textContaining('--manual-tcc-report'), findsNWidgets(2));
     expect(
       find.textContaining('--desktop-action-canary-summary'),
       findsOneWidget,
@@ -253,7 +266,7 @@ void main() {
     );
     expect(
       find.textContaining('macos_computer_use_release_packaging.json'),
-      findsOneWidget,
+      findsNWidgets(2),
     );
     expect(
       find.textContaining('macos_computer_use_release_packaging.md'),
@@ -336,10 +349,128 @@ void main() {
     );
     expect(find.textContaining('M36 Live LLM eval command:'), findsOneWidget);
     expect(
+      find.textContaining('M46 element-grounded LLM eval command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M47 real-app observe pilot command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M48 user-operated action pilot command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M49 privacy and audit release pack command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M50 signed beta gate command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M51 production launch gate command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M52 product release rollout command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M53 post-release guardrails command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M54 rollout expansion gate command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M55 post-expansion monitoring gate command:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M56 rollout decision handoff gate command:'),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_m36_live_llm_eval_'),
       findsOneWidget,
     );
+    expect(
+      find.textContaining('macos_computer_use_m46_element_grounded_llm_eval_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m47_real_app_observe_pilot_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m48_user_operated_action_pilot_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m49_privacy_audit_release_pack_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m50_signed_beta_gate_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m51_production_launch_gate_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m52_product_release_rollout_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m53_post_release_guardrails_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('macos_computer_use_m54_rollout_expansion_gate_'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'macos_computer_use_m55_post_expansion_monitoring_gate_',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'macos_computer_use_m56_rollout_decision_handoff_gate_',
+      ),
+      findsOneWidget,
+    );
     expect(find.textContaining('M36 Live LLM eval summary:'), findsOneWidget);
+    expect(
+      find.textContaining('M46 element-grounded LLM eval summary:'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M47 real-app observe pilot:'), findsOneWidget);
+    expect(
+      find.textContaining('M48 user-operated action pilot:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M49 privacy and audit release pack:'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('M50 signed beta gate:'), findsOneWidget);
+    expect(find.textContaining('M51 production launch gate:'), findsOneWidget);
+    expect(find.textContaining('M52 product release rollout:'), findsOneWidget);
+    expect(find.textContaining('M53 post-release guardrails:'), findsOneWidget);
+    expect(find.textContaining('M54 rollout expansion gate:'), findsOneWidget);
+    expect(
+      find.textContaining('M55 post-expansion monitoring gate:'),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining('M56 rollout decision handoff gate:'),
+      findsOneWidget,
+    );
     expect(
       find.textContaining(
         'M23-M29 restart artifact paths are listed by the artifact index',

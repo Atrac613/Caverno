@@ -1587,6 +1587,7 @@ private enum ComputerUseHelperCommand: String {
   case stopAll
   case screenshot
   case listWindows
+  case accessibilitySnapshot
   case focusWindow
   case screenshotWindow
   case moveMouse
@@ -1617,6 +1618,7 @@ private enum ComputerUseHelperIpcSchema {
     "stopAll",
     "screenshot",
     "listWindows",
+    "accessibilitySnapshot",
     "focusWindow",
     "screenshotWindow",
     "moveMouse",
@@ -1647,7 +1649,7 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcNextParityCommands: [String] = []
   static let xpcProductionReadinessCriteria = [
     "named_service_connects_from_signed_main_app",
-    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
+    "ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc",
     "capture_input_audio_commands_have_parity_smoke_coverage",
     "fallback_path_is_observable_and_non_destructive",
   ]
@@ -2109,6 +2111,8 @@ private final class ComputerUseHelperIpc: NSObject {
       completion(screenshot(arguments: request.arguments))
     case .listWindows:
       completion(listWindows(arguments: request.arguments))
+    case .accessibilitySnapshot:
+      completion(accessibilitySnapshot(arguments: request.arguments))
     case .focusWindow:
       completion(focusWindow(arguments: request.arguments))
     case .screenshotWindow:
@@ -2307,6 +2311,153 @@ private final class ComputerUseHelperIpc: NSObject {
     )
   }
 
+  private func accessibilitySnapshot(arguments: [String: Any]) -> [String: Any] {
+    guard AXIsProcessTrusted() else {
+      return accessibilityDeniedResponse()
+    }
+
+    let rawTarget = (arguments["target"] as? String ?? "")
+      .trimmingCharacters(in: .whitespacesAndNewlines)
+    guard rawTarget.isEmpty || rawTarget == "front_window" || rawTarget == "window" else {
+      return errorResponse(
+        code: "invalid_args",
+        error: "target must be front_window or window"
+      )
+    }
+
+    let requestedWindowID = windowID(arguments: arguments)
+    let target = rawTarget.isEmpty
+      ? (requestedWindowID == nil ? "front_window" : "window")
+      : rawTarget
+    let maxElements = clampedInt(
+      arguments["max_elements"] ?? arguments["maxElements"],
+      defaultValue: 80,
+      minimum: 1,
+      maximum: 200
+    )
+    let maxDepth = clampedInt(
+      arguments["max_depth"] ?? arguments["maxDepth"],
+      defaultValue: 4,
+      minimum: 0,
+      maximum: 8
+    )
+    let labelMaxCharacters = clampedInt(
+      arguments["label_max_characters"] ?? arguments["labelMaxCharacters"],
+      defaultValue: 120,
+      minimum: 20,
+      maximum: 240
+    )
+
+    let includeCurrentApp =
+      boolValue(arguments["include_current_app"] ?? arguments["includeCurrentApp"]) ?? false
+    let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
+    let mainAppPid = intValue(arguments["main_app_pid"] ?? arguments["mainAppPid"])
+
+    let window: WindowDescriptor
+    if target == "window" {
+      guard let requestedWindowID else {
+        return errorResponse(code: "invalid_args", error: "window_id is required")
+      }
+      guard let selectedWindow = findWindow(windowID: requestedWindowID) else {
+        return errorResponse(
+          code: "window_not_found",
+          error: "No matching window is available.",
+          details: requestedWindowID
+        )
+      }
+      window = selectedWindow
+    } else {
+      guard
+        let selectedWindow = visibleWindows().first(where: { candidate in
+          includeCurrentApp ||
+            (candidate.ownerPID != helperPid && candidate.ownerPID != mainAppPid)
+        })
+      else {
+        return errorResponse(
+          code: "window_not_found",
+          error: "No visible front window is available."
+        )
+      }
+      window = selectedWindow
+    }
+
+    let appElement = AXUIElementCreateApplication(pid_t(window.ownerPID))
+    let matchedWindow = findAccessibilityWindow(
+      appElement: appElement,
+      windowID: window.windowID
+    )
+    let axWindow = matchedWindow
+      ?? (target == "front_window"
+        ? focusedAccessibilityWindow(appElement: appElement) ?? firstAccessibilityWindow(appElement: appElement)
+        : nil)
+    guard let axWindow else {
+      return errorResponse(
+        code: "accessibility_window_not_found",
+        error: "No matching accessibility window is available.",
+        details: window.windowID
+      )
+    }
+
+    let traversal = accessibilitySnapshotElements(
+      root: axWindow,
+      maxDepth: maxDepth,
+      maxElements: maxElements,
+      labelMaxCharacters: labelMaxCharacters
+    )
+    let observationId = "ax-\(Int(Date().timeIntervalSince1970 * 1_000_000))"
+    return baseResponse(
+      extra: [
+        "schemaName": "macos_computer_use_accessibility_snapshot",
+        "schemaVersion": 1,
+        "observationId": observationId,
+        "snapshotId": observationId,
+        "readOnly": true,
+        "target": [
+          "requested": target,
+          "resolved": "window",
+          "windowId": window.windowID,
+          "accessibilityWindowMatchedBy": matchedWindow == nil
+            ? "front_window_fallback"
+            : "window_id",
+        ],
+        "window": window.toMap(),
+        "permissions": computerUsePermissionSnapshot().toMap(),
+        "coordinateSpace": "screen_points",
+        "inputOrigin": "top_left",
+        "bounds": [
+          "maxElements": maxElements,
+          "maxDepth": maxDepth,
+          "labelMaxCharacters": labelMaxCharacters,
+        ],
+        "elementCount": traversal.elements.count,
+        "truncated": traversal.truncatedByElementLimit || traversal.truncatedByDepthLimit,
+        "truncation": [
+          "byElementLimit": traversal.truncatedByElementLimit,
+          "byDepthLimit": traversal.truncatedByDepthLimit,
+          "labelTruncatedCount": traversal.labelTruncatedCount,
+        ],
+        "redaction": [
+          "policy": "metadata_only",
+          "labels": "AXTitle, AXDescription, AXHelp, and AXIdentifier only",
+          "labelMaxCharacters": labelMaxCharacters,
+          "labelTruncatedCount": traversal.labelTruncatedCount,
+          "valuesOmitted": true,
+          "selectedTextOmitted": true,
+          "rawAttributeValuesOmitted": true,
+          "secureValueOmitted": true,
+          "omittedAttributes": [
+            "AXValue",
+            "AXSelectedText",
+            "AXSelectedTextRange",
+            "AXAttributedStringForRange",
+          ],
+        ],
+        "elements": traversal.elements,
+        "nextAction": "Use this read-only snapshot to choose target metadata or run computer_vision_observe before requesting an approved desktop action.",
+      ]
+    )
+  }
+
   private func focusWindow(arguments: [String: Any]) -> [String: Any] {
     guard let windowID = windowID(arguments: arguments) else {
       return errorResponse(code: "invalid_args", error: "window_id is required")
@@ -2337,15 +2488,47 @@ private final class ComputerUseHelperIpc: NSObject {
       focused = setResult == .success
     }
 
+    var elementTargeting: [String: Any]?
+    if accessibilityElementTargetID(arguments: arguments) != nil {
+      switch resolveAccessibilityElementTarget(arguments: arguments) {
+      case .resolved(let target):
+        let focusResult = focusAccessibilityElement(target.element, appElement: target.appElement)
+        let elementFocused = focusResult == .success
+        elementTargeting = target.metadata(
+          status: elementFocused ? "resolved" : "failed",
+          action: "AXFocus",
+          fallbackUsed: false,
+          code: elementFocused ? nil : "element_focus_failed",
+          error: elementFocused
+            ? nil
+            : "The target element was found, but it did not accept accessibility focus."
+        )
+      case .failed(let code, let error, let details):
+        elementTargeting = unresolvedElementTargetingMetadata(
+          arguments: arguments,
+          status: "failed",
+          code: code,
+          error: error,
+          details: details,
+          fallbackUsed: false
+        )
+      }
+    }
+
+    var extra: [String: Any] = [
+      "ok": focused || app != nil,
+      "windowId": window.windowID,
+      "ownerPid": window.ownerPID,
+      "appName": window.ownerName,
+      "title": window.title,
+      "focusedWindow": focused,
+    ]
+    if let elementTargeting {
+      extra["elementTargeting"] = elementTargeting
+    }
+
     return baseResponse(
-      extra: [
-        "ok": focused || app != nil,
-        "windowId": window.windowID,
-        "ownerPid": window.ownerPID,
-        "appName": window.ownerName,
-        "title": window.title,
-        "focusedWindow": focused,
-      ]
+      extra: extra
     )
   }
 
@@ -2413,15 +2596,106 @@ private final class ComputerUseHelperIpc: NSObject {
     guard AXIsProcessTrusted() else {
       return accessibilityDeniedResponse()
     }
-    guard let point = resolvePoint(arguments: arguments) else {
-      return errorResponse(code: "invalid_args", error: "x and y are required")
-    }
 
     let buttonName = (arguments["button"] as? String ?? "left").lowercased()
     let clickCount = max(1, min(intValue(arguments["click_count"] ?? arguments["clickCount"]) ?? 1, 3))
     let button = mouseButton(buttonName)
     let downType = mouseDownType(buttonName)
     let upType = mouseUpType(buttonName)
+
+    if accessibilityElementTargetID(arguments: arguments) != nil {
+      switch resolveAccessibilityElementTarget(arguments: arguments) {
+      case .resolved(let target):
+        let pressResult = AXUIElementPerformAction(target.element, kAXPressAction as CFString)
+        if pressResult == .success {
+          return baseResponse(
+            extra: [
+              "button": buttonName,
+              "clickCount": clickCount,
+              "elementTargeting": target.metadata(
+                status: "resolved",
+                action: "AXPress",
+                fallbackUsed: false
+              ),
+            ]
+          )
+        }
+
+        if let point = target.centerPoint {
+          for _ in 0..<clickCount {
+            postMouseEvent(type: downType, point: point, button: button)
+            postMouseEvent(type: upType, point: point, button: button)
+            usleep(60_000)
+          }
+          return baseResponse(
+            extra: [
+              "x": Double(point.x),
+              "y": Double(point.y),
+              "button": buttonName,
+              "clickCount": clickCount,
+              "elementTargeting": target.metadata(
+                status: "fallback",
+                action: "element_frame_center_click",
+                fallbackUsed: true,
+                code: "element_press_failed",
+                error: "The target element did not accept AXPress, so the helper clicked the element frame center."
+              ),
+            ]
+          )
+        }
+
+        var response = errorResponse(
+          code: "element_press_failed",
+          error: "The target element did not accept AXPress and has no frame for a safe fallback click."
+        )
+        response["elementTargeting"] = target.metadata(
+          status: "failed",
+          action: "AXPress",
+          fallbackUsed: false,
+          code: "element_frame_unavailable",
+          error: "The target element did not expose a usable frame."
+        )
+        return response
+      case .failed(let code, let error, let details):
+        if let point = resolvePoint(arguments: arguments) {
+          for _ in 0..<clickCount {
+            postMouseEvent(type: downType, point: point, button: button)
+            postMouseEvent(type: upType, point: point, button: button)
+            usleep(60_000)
+          }
+          return baseResponse(
+            extra: [
+              "x": Double(point.x),
+              "y": Double(point.y),
+              "button": buttonName,
+              "clickCount": clickCount,
+              "elementTargeting": unresolvedElementTargetingMetadata(
+                arguments: arguments,
+                status: "fallback",
+                code: code,
+                error: error,
+                details: details,
+                fallbackUsed: true
+              ),
+            ]
+          )
+        }
+        var response = errorResponse(code: code, error: error, details: details)
+        response["elementTargeting"] = unresolvedElementTargetingMetadata(
+          arguments: arguments,
+          status: "failed",
+          code: code,
+          error: error,
+          details: details,
+          fallbackUsed: false
+        )
+        return response
+      }
+    }
+
+    guard let point = resolvePoint(arguments: arguments) else {
+      return errorResponse(code: "invalid_args", error: "x and y are required")
+    }
 
     for _ in 0..<clickCount {
       postMouseEvent(type: downType, point: point, button: button)
@@ -2542,6 +2816,56 @@ private final class ComputerUseHelperIpc: NSObject {
       return errorResponse(code: "invalid_args", error: "text is required")
     }
 
+    var elementTargeting: [String: Any]?
+    if accessibilityElementTargetID(arguments: arguments) != nil {
+      switch resolveAccessibilityElementTarget(arguments: arguments) {
+      case .resolved(let target):
+        let focusResult = focusAccessibilityElement(target.element, appElement: target.appElement)
+        if focusResult == .success {
+          elementTargeting = target.metadata(
+            status: "resolved",
+            action: "AXFocus",
+            fallbackUsed: false
+          )
+        } else if let point = target.centerPoint {
+          postMouseEvent(type: .leftMouseDown, point: point, button: .left)
+          postMouseEvent(type: .leftMouseUp, point: point, button: .left)
+          usleep(80_000)
+          elementTargeting = target.metadata(
+            status: "fallback",
+            action: "element_frame_center_click",
+            fallbackUsed: true,
+            code: "element_focus_failed",
+            error: "The target element did not accept accessibility focus, so the helper clicked the element frame center before typing."
+          )
+        } else {
+          var response = errorResponse(
+            code: "element_focus_failed",
+            error: "The target element did not accept accessibility focus and has no frame for a safe focus fallback."
+          )
+          response["elementTargeting"] = target.metadata(
+            status: "failed",
+            action: "AXFocus",
+            fallbackUsed: false,
+            code: "element_frame_unavailable",
+            error: "The target element did not expose a usable frame."
+          )
+          return response
+        }
+      case .failed(let code, let error, let details):
+        var response = errorResponse(code: code, error: error, details: details)
+        response["elementTargeting"] = unresolvedElementTargetingMetadata(
+          arguments: arguments,
+          status: "failed",
+          code: code,
+          error: error,
+          details: details,
+          fallbackUsed: false
+        )
+        return response
+      }
+    }
+
     for character in text {
       var units = Array(String(character).utf16)
       guard !units.isEmpty else {
@@ -2568,7 +2892,11 @@ private final class ComputerUseHelperIpc: NSObject {
       usleep(10_000)
     }
 
-    return baseResponse(extra: ["characters": text.count])
+    var extra: [String: Any] = ["characters": text.count]
+    if let elementTargeting {
+      extra["elementTargeting"] = elementTargeting
+    }
+    return baseResponse(extra: extra)
   }
 
   private func pressKey(arguments: [String: Any]) -> [String: Any] {
@@ -3127,6 +3455,618 @@ private func findAccessibilityWindow(
   return nil
 }
 
+private func focusedAccessibilityWindow(appElement: AXUIElement) -> AXUIElement? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    appElement,
+    kAXFocusedWindowAttribute as CFString,
+    &value
+  )
+  guard copyResult == .success else {
+    return nil
+  }
+  guard let value else {
+    return nil
+  }
+  return (value as! AXUIElement)
+}
+
+private func firstAccessibilityWindow(appElement: AXUIElement) -> AXUIElement? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    appElement,
+    kAXWindowsAttribute as CFString,
+    &value
+  )
+  guard copyResult == .success, let windows = value as? [AXUIElement] else {
+    return nil
+  }
+  return windows.first
+}
+
+private func accessibilitySnapshotElements(
+  root: AXUIElement,
+  maxDepth: Int,
+  maxElements: Int,
+  labelMaxCharacters: Int
+) -> AccessibilityTraversalResult {
+  var elements: [[String: Any]] = []
+  var truncatedByElementLimit = false
+  var truncatedByDepthLimit = false
+  var labelTruncatedCount = 0
+
+  func visit(_ element: AXUIElement, depth: Int, parentId: String?) {
+    guard elements.count < maxElements else {
+      truncatedByElementLimit = true
+      return
+    }
+
+    let children = accessibilityChildren(element)
+    let elementId = String(format: "ax-%04d", elements.count + 1)
+    let snapshot = accessibilityElementMap(
+      element: element,
+      elementId: elementId,
+      parentId: parentId,
+      depth: depth,
+      children: children,
+      labelMaxCharacters: labelMaxCharacters
+    )
+    if snapshot.labelTruncated {
+      labelTruncatedCount += 1
+    }
+    elements.append(snapshot.map)
+
+    guard depth < maxDepth else {
+      if !children.isEmpty {
+        truncatedByDepthLimit = true
+      }
+      return
+    }
+
+    for child in children {
+      guard elements.count < maxElements else {
+        truncatedByElementLimit = true
+        break
+      }
+      visit(child, depth: depth + 1, parentId: elementId)
+    }
+  }
+
+  visit(root, depth: 0, parentId: nil)
+  return AccessibilityTraversalResult(
+    elements: elements,
+    truncatedByElementLimit: truncatedByElementLimit,
+    truncatedByDepthLimit: truncatedByDepthLimit,
+    labelTruncatedCount: labelTruncatedCount
+  )
+}
+
+private func accessibilityElementMap(
+  element: AXUIElement,
+  elementId: String,
+  parentId: String?,
+  depth: Int,
+  children: [AXUIElement],
+  labelMaxCharacters: Int
+) -> (map: [String: Any], labelTruncated: Bool) {
+  let role = accessibilityStringAttribute(element, kAXRoleAttribute as String) ?? "unknown"
+  let subrole = accessibilityStringAttribute(element, kAXSubroleAttribute as String)
+  let label = accessibilityLabel(
+    element: element,
+    maxCharacters: labelMaxCharacters
+  )
+  let enabled = accessibilityBoolAttribute(element, kAXEnabledAttribute as String)
+  let focused = accessibilityBoolAttribute(element, kAXFocusedAttribute as String)
+  let frame = accessibilityFrame(element)
+  let secure = isSecureAccessibilityElement(
+    element: element,
+    role: role,
+    subrole: subrole
+  )
+
+  var redaction: [String: Any] = [
+    "policy": "metadata_only",
+    "labelTruncated": label.truncated,
+    "labelMaxCharacters": labelMaxCharacters,
+    "valueOmitted": true,
+    "selectedTextOmitted": true,
+    "rawAttributeValuesOmitted": true,
+  ]
+  if secure {
+    redaction["secureValueOmitted"] = true
+  }
+
+  var map: [String: Any] = [
+    "elementId": elementId,
+    "depth": depth,
+    "role": role,
+    "label": label.value ?? "",
+    "labelAvailable": label.value != nil,
+    "frame": frame ?? NSNull(),
+    "frameKnown": frame != nil,
+    "enabled": enabled ?? false,
+    "enabledKnown": enabled != nil,
+    "focused": focused ?? false,
+    "focusedKnown": focused != nil,
+    "childCount": children.count,
+    "redaction": redaction,
+  ]
+  if let parentId {
+    map["parentId"] = parentId
+  }
+  if let subrole, !subrole.isEmpty {
+    map["subrole"] = subrole
+  }
+  if let labelSource = label.source {
+    map["labelSource"] = labelSource
+  }
+  return (map, label.truncated)
+}
+
+private func accessibilityChildren(_ element: AXUIElement) -> [AXUIElement] {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    element,
+    kAXChildrenAttribute as CFString,
+    &value
+  )
+  guard copyResult == .success else {
+    return []
+  }
+  return value as? [AXUIElement] ?? []
+}
+
+private func accessibilityLabel(
+  element: AXUIElement,
+  maxCharacters: Int
+) -> AccessibilityLabelSnapshot {
+  for candidate in [
+    (kAXTitleAttribute as String, "title"),
+    (kAXDescriptionAttribute as String, "description"),
+    (kAXHelpAttribute as String, "help"),
+    ("AXIdentifier", "identifier"),
+  ] {
+    guard let value = accessibilityStringAttribute(element, candidate.0) else {
+      continue
+    }
+    let bounded = boundedAccessibilityString(
+      value,
+      maxCharacters: maxCharacters
+    )
+    return AccessibilityLabelSnapshot(
+      value: bounded.value,
+      source: candidate.1,
+      truncated: bounded.truncated
+    )
+  }
+  return AccessibilityLabelSnapshot(value: nil, source: nil, truncated: false)
+}
+
+private func accessibilityStringAttribute(
+  _ element: AXUIElement,
+  _ attribute: String
+) -> String? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    element,
+    attribute as CFString,
+    &value
+  )
+  guard copyResult == .success else {
+    return nil
+  }
+  let rawValue: String?
+  if let stringValue = value as? String {
+    rawValue = stringValue
+  } else if let attributedValue = value as? NSAttributedString {
+    rawValue = attributedValue.string
+  } else {
+    rawValue = nil
+  }
+  guard
+    let rawValue,
+    !rawValue.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
+  else {
+    return nil
+  }
+  return rawValue
+    .replacingOccurrences(of: "\n", with: " ")
+    .trimmingCharacters(in: .whitespacesAndNewlines)
+}
+
+private func accessibilityBoolAttribute(
+  _ element: AXUIElement,
+  _ attribute: String
+) -> Bool? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    element,
+    attribute as CFString,
+    &value
+  )
+  guard copyResult == .success else {
+    return nil
+  }
+  if let boolValue = value as? Bool {
+    return boolValue
+  }
+  if let numberValue = value as? NSNumber {
+    return numberValue.boolValue
+  }
+  return nil
+}
+
+private func accessibilityFrameRect(_ element: AXUIElement) -> CGRect? {
+  guard
+    let position = accessibilityPointAttribute(element, kAXPositionAttribute as String),
+    let size = accessibilitySizeAttribute(element, kAXSizeAttribute as String)
+  else {
+    return nil
+  }
+  return CGRect(
+    x: position.x,
+    y: position.y,
+    width: size.width,
+    height: size.height
+  )
+}
+
+private func accessibilityFrame(_ element: AXUIElement) -> [String: Double]? {
+  guard let frame = accessibilityFrameRect(element) else {
+    return nil
+  }
+  return rectMap(frame)
+}
+
+private func accessibilityPointAttribute(
+  _ element: AXUIElement,
+  _ attribute: String
+) -> CGPoint? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    element,
+    attribute as CFString,
+    &value
+  )
+  guard
+    copyResult == .success,
+    let value,
+    CFGetTypeID(value) == AXValueGetTypeID()
+  else {
+    return nil
+  }
+  let axValue = value as! AXValue
+  guard AXValueGetType(axValue) == .cgPoint else {
+    return nil
+  }
+  var point = CGPoint.zero
+  guard AXValueGetValue(axValue, .cgPoint, &point) else {
+    return nil
+  }
+  return point
+}
+
+private func accessibilitySizeAttribute(
+  _ element: AXUIElement,
+  _ attribute: String
+) -> CGSize? {
+  var value: CFTypeRef?
+  let copyResult = AXUIElementCopyAttributeValue(
+    element,
+    attribute as CFString,
+    &value
+  )
+  guard
+    copyResult == .success,
+    let value,
+    CFGetTypeID(value) == AXValueGetTypeID()
+  else {
+    return nil
+  }
+  let axValue = value as! AXValue
+  guard AXValueGetType(axValue) == .cgSize else {
+    return nil
+  }
+  var size = CGSize.zero
+  guard AXValueGetValue(axValue, .cgSize, &size) else {
+    return nil
+  }
+  return size
+}
+
+private func boundedAccessibilityString(
+  _ value: String,
+  maxCharacters: Int
+) -> (value: String, truncated: Bool) {
+  if value.count <= maxCharacters {
+    return (value, false)
+  }
+  let prefixLength = max(0, maxCharacters - 3)
+  return ("\(value.prefix(prefixLength))...", true)
+}
+
+private func isSecureAccessibilityElement(
+  element: AXUIElement,
+  role: String,
+  subrole: String?
+) -> Bool {
+  let roleText = "\(role) \(subrole ?? "")".lowercased()
+  if roleText.contains("secure") {
+    return true
+  }
+  return accessibilityBoolAttribute(element, "AXProtectedContent") == true
+}
+
+private enum AccessibilityElementTargetLookup {
+  case resolved(AccessibilityElementTargetResolution)
+  case failed(code: String, error: String, details: Any?)
+}
+
+private struct AccessibilityElementTargetResolution {
+  let requestedElementId: String
+  let elementId: String
+  let element: AXUIElement
+  let appElement: AXUIElement
+  let window: WindowDescriptor
+  let role: String
+  let subrole: String?
+  let label: String?
+  let labelSource: String?
+  let frame: CGRect?
+  let enabled: Bool?
+  let focused: Bool?
+  let childCount: Int
+  let matchedBy: String
+
+  var centerPoint: CGPoint? {
+    guard let frame, frame.width > 0, frame.height > 0 else {
+      return nil
+    }
+    return CGPoint(x: frame.midX, y: frame.midY)
+  }
+
+  func metadata(
+    status: String,
+    action: String,
+    fallbackUsed: Bool,
+    code: String? = nil,
+    error: String? = nil
+  ) -> [String: Any] {
+    var map: [String: Any] = [
+      "requested": true,
+      "requestedElementId": requestedElementId,
+      "elementId": elementId,
+      "status": status,
+      "action": action,
+      "fallbackUsed": fallbackUsed,
+      "windowId": window.windowID,
+      "appName": window.ownerName,
+      "title": window.title,
+      "role": role,
+      "label": label ?? "",
+      "labelAvailable": label != nil,
+      "frameKnown": frame != nil,
+      "enabledKnown": enabled != nil,
+      "focusedKnown": focused != nil,
+      "childCount": childCount,
+      "matchedBy": matchedBy,
+      "coordinateSpace": "screen_points",
+    ]
+    if let subrole, !subrole.isEmpty {
+      map["subrole"] = subrole
+    }
+    if let labelSource {
+      map["labelSource"] = labelSource
+    }
+    if let frame {
+      map["frame"] = rectMap(frame)
+      if let centerPoint {
+        map["center"] = pointMap(centerPoint)
+      }
+    }
+    if let enabled {
+      map["enabled"] = enabled
+    }
+    if let focused {
+      map["focused"] = focused
+    }
+    if let code {
+      map["code"] = code
+    }
+    if let error {
+      map["error"] = error
+    }
+    return map
+  }
+}
+
+private func accessibilityElementTargetID(arguments: [String: Any]) -> String? {
+  if let value = stringValue(arguments["element_id"] ?? arguments["elementId"]) {
+    return value
+  }
+  guard let target = arguments["target"] else {
+    return nil
+  }
+  if let targetMap = target as? [String: Any] {
+    return stringValue(targetMap["element_id"] ?? targetMap["elementId"])
+  }
+  if let targetMap = target as? NSDictionary {
+    return stringValue(targetMap["element_id"] ?? targetMap["elementId"])
+  }
+  return nil
+}
+
+private func resolveAccessibilityElementTarget(
+  arguments: [String: Any]
+) -> AccessibilityElementTargetLookup {
+  guard let elementId = accessibilityElementTargetID(arguments: arguments) else {
+    return .failed(
+      code: "element_target_not_requested",
+      error: "element_id is required for element-targeted execution.",
+      details: nil
+    )
+  }
+  guard let windowID = windowID(arguments: arguments) else {
+    return .failed(
+      code: "element_target_window_required",
+      error: "window_id is required with element_id.",
+      details: elementId
+    )
+  }
+  guard let window = findWindow(windowID: windowID) else {
+    return .failed(
+      code: "window_not_found",
+      error: "No matching window is available.",
+      details: windowID
+    )
+  }
+
+  let appElement = AXUIElementCreateApplication(pid_t(window.ownerPID))
+  guard let axWindow = findAccessibilityWindow(appElement: appElement, windowID: windowID) else {
+    return .failed(
+      code: "accessibility_window_not_found",
+      error: "No matching accessibility window is available.",
+      details: windowID
+    )
+  }
+
+  guard
+    let element = findAccessibilityElementTarget(
+      root: axWindow,
+      appElement: appElement,
+      window: window,
+      targetElementId: elementId,
+      maxDepth: clampedInt(
+        arguments["max_accessibility_depth"] ?? arguments["maxAccessibilityDepth"],
+        defaultValue: 4,
+        minimum: 0,
+        maximum: 8
+      ),
+      maxElements: clampedInt(
+        arguments["max_accessibility_elements"] ?? arguments["maxAccessibilityElements"],
+        defaultValue: 80,
+        minimum: 1,
+        maximum: 200
+      ),
+      labelMaxCharacters: clampedInt(
+        arguments["label_max_characters"] ?? arguments["labelMaxCharacters"],
+        defaultValue: 120,
+        minimum: 20,
+        maximum: 240
+      )
+    )
+  else {
+    return .failed(
+      code: "element_target_not_found",
+      error: "The requested accessibility element was not found in the target window.",
+      details: [
+        "elementId": elementId,
+        "windowId": windowID,
+      ]
+    )
+  }
+  return .resolved(element)
+}
+
+private func findAccessibilityElementTarget(
+  root: AXUIElement,
+  appElement: AXUIElement,
+  window: WindowDescriptor,
+  targetElementId: String,
+  maxDepth: Int,
+  maxElements: Int,
+  labelMaxCharacters: Int
+) -> AccessibilityElementTargetResolution? {
+  var visitedCount = 0
+
+  func visit(_ element: AXUIElement, depth: Int) -> AccessibilityElementTargetResolution? {
+    guard visitedCount < maxElements else {
+      return nil
+    }
+
+    let children = accessibilityChildren(element)
+    visitedCount += 1
+    let elementId = String(format: "ax-%04d", visitedCount)
+    if elementId == targetElementId {
+      let role = accessibilityStringAttribute(element, kAXRoleAttribute as String) ?? "unknown"
+      let subrole = accessibilityStringAttribute(element, kAXSubroleAttribute as String)
+      let label = accessibilityLabel(element: element, maxCharacters: labelMaxCharacters)
+      return AccessibilityElementTargetResolution(
+        requestedElementId: targetElementId,
+        elementId: elementId,
+        element: element,
+        appElement: appElement,
+        window: window,
+        role: role,
+        subrole: subrole,
+        label: label.value,
+        labelSource: label.source,
+        frame: accessibilityFrameRect(element),
+        enabled: accessibilityBoolAttribute(element, kAXEnabledAttribute as String),
+        focused: accessibilityBoolAttribute(element, kAXFocusedAttribute as String),
+        childCount: children.count,
+        matchedBy: "accessibility_snapshot_order"
+      )
+    }
+
+    guard depth < maxDepth else {
+      return nil
+    }
+    for child in children {
+      if let found = visit(child, depth: depth + 1) {
+        return found
+      }
+    }
+    return nil
+  }
+
+  return visit(root, depth: 0)
+}
+
+private func focusAccessibilityElement(
+  _ element: AXUIElement,
+  appElement: AXUIElement
+) -> AXError {
+  let appResult = AXUIElementSetAttributeValue(
+    appElement,
+    kAXFocusedUIElementAttribute as CFString,
+    element
+  )
+  if appResult == .success {
+    return appResult
+  }
+  return AXUIElementSetAttributeValue(
+    element,
+    kAXFocusedAttribute as CFString,
+    kCFBooleanTrue
+  )
+}
+
+private func unresolvedElementTargetingMetadata(
+  arguments: [String: Any],
+  status: String,
+  code: String,
+  error: String,
+  details: Any?,
+  fallbackUsed: Bool
+) -> [String: Any] {
+  var map: [String: Any] = [
+    "requested": true,
+    "requestedElementId": accessibilityElementTargetID(arguments: arguments) ?? "",
+    "status": status,
+    "code": code,
+    "error": error,
+    "fallbackUsed": fallbackUsed,
+  ]
+  if let windowID = windowID(arguments: arguments) {
+    map["windowId"] = windowID
+  }
+  if let details {
+    map["details"] = details
+  }
+  return map
+}
+
 private func windowID(arguments: [String: Any]) -> Int? {
   intValue(arguments["window_id"] ?? arguments["windowId"])
 }
@@ -3229,6 +4169,26 @@ private func intValue(_ value: Any?) -> Int? {
     return value.intValue
   }
   return nil
+}
+
+private func stringValue(_ value: Any?) -> String? {
+  if let value = value as? String {
+    let trimmed = value.trimmingCharacters(in: .whitespacesAndNewlines)
+    return trimmed.isEmpty ? nil : trimmed
+  }
+  if let value = value as? NSNumber {
+    return value.stringValue
+  }
+  return nil
+}
+
+private func clampedInt(
+  _ value: Any?,
+  defaultValue: Int,
+  minimum: Int,
+  maximum: Int
+) -> Int {
+  max(minimum, min(intValue(value) ?? defaultValue, maximum))
 }
 
 private func directDisplayIdValue(_ value: Any?) -> CGDirectDisplayID? {
@@ -3343,6 +4303,19 @@ private struct EncodedImage {
   let base64: String
   let width: Int
   let height: Int
+}
+
+private struct AccessibilityTraversalResult {
+  let elements: [[String: Any]]
+  let truncatedByElementLimit: Bool
+  let truncatedByDepthLimit: Bool
+  let labelTruncatedCount: Int
+}
+
+private struct AccessibilityLabelSnapshot {
+  let value: String?
+  let source: String?
+  let truncated: Bool
 }
 
 private enum ComputerUseError: Error {

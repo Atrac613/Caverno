@@ -79,6 +79,7 @@ void main() {
       expect(functionNames, contains('computer_get_permissions'));
       expect(functionNames, contains('computer_open_system_settings'));
       expect(functionNames, contains('computer_vision_observe'));
+      expect(functionNames, contains('computer_accessibility_snapshot'));
       expect(functionNames, contains('computer_list_windows'));
       expect(functionNames, contains('computer_focus_window'));
       expect(functionNames, contains('computer_screenshot'));
@@ -109,11 +110,26 @@ void main() {
       final typeTextProperties =
           parametersFor('computer_type_text')['properties']!
               as Map<String, dynamic>;
+      final visionProperties =
+          parametersFor('computer_vision_observe')['properties']!
+              as Map<String, dynamic>;
 
       expect(clickProperties['target'], isA<Map<String, dynamic>>());
+      expect(clickProperties['element_id'], isA<Map<String, dynamic>>());
+      expect(clickProperties['required'], isNull);
       expect(typeTextProperties['target'], isA<Map<String, dynamic>>());
+      expect(typeTextProperties['element_id'], isA<Map<String, dynamic>>());
+      expect(typeTextProperties['window_id'], isA<Map<String, dynamic>>());
+      expect(visionProperties['include_accessibility'], isA<Map>());
+      expect(visionProperties['max_candidate_elements'], isA<Map>());
       final target = clickProperties['target'] as Map<String, dynamic>;
       expect(jsonEncode(target), contains('public_action'));
+      expect(jsonEncode(target), contains('elementId'));
+      expect(jsonEncode(target), contains('appName'));
+      expect(jsonEncode(target), contains('windowTitle'));
+      expect(jsonEncode(target), contains('secure_field'));
+      expect(jsonEncode(target), contains('payment'));
+      expect(jsonEncode(target), contains('destructive'));
       expect(jsonEncode(target), contains('publish'));
     });
 
@@ -125,12 +141,13 @@ void main() {
 
         final result = await service.executeTool(
           name: 'computer_click',
-          arguments: const {'x': 10, 'y': 20},
+          arguments: const {'window_id': 42, 'element_id': 'ax-0002'},
         );
 
         expect(result.isSuccess, isTrue);
         expect(computerUseService.calledMethods, ['click']);
         expect(jsonDecode(result.result), containsPair('ok', true));
+        expect(jsonDecode(result.result), containsPair('elementId', 'ax-0002'));
       },
     );
 
@@ -150,6 +167,32 @@ void main() {
         final decoded = jsonDecode(result.result) as Map<String, dynamic>;
         expect(decoded, containsPair('schemaName', 'test_vision_observation'));
         expect(decoded, containsPair('imageBase64', 'abc123'));
+      },
+    );
+
+    test(
+      'executes macOS accessibility snapshot through the native service',
+      () async {
+        final computerUseService = _FakeMacosComputerUseService();
+        final service = McpToolService(computerUseService: computerUseService);
+
+        final result = await service.executeTool(
+          name: 'computer_accessibility_snapshot',
+          arguments: const {'target': 'front_window', 'max_elements': 10},
+        );
+
+        expect(result.isSuccess, isTrue);
+        expect(computerUseService.calledMethods, ['accessibilitySnapshot']);
+        final decoded = jsonDecode(result.result) as Map<String, dynamic>;
+        expect(
+          decoded,
+          containsPair(
+            'schemaName',
+            'macos_computer_use_accessibility_snapshot',
+          ),
+        );
+        expect(decoded, containsPair('readOnly', true));
+        expect(decoded['redaction'], containsPair('valuesOmitted', true));
       },
     );
 
@@ -358,7 +401,13 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
   @override
   Future<String> click(Map<String, dynamic> arguments) async {
     calledMethods.add('click');
-    return jsonEncode({'ok': true, 'x': arguments['x'], 'y': arguments['y']});
+    return jsonEncode({
+      'ok': true,
+      'x': arguments['x'],
+      'y': arguments['y'],
+      'elementId': arguments['element_id'],
+      'windowId': arguments['window_id'],
+    });
   }
 
   @override
@@ -377,6 +426,29 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'maxWidth': arguments['max_width'],
       'imageBase64': 'abc123',
       'imageMimeType': 'image/png',
+    });
+  }
+
+  @override
+  Future<String> accessibilitySnapshot(Map<String, dynamic> arguments) async {
+    calledMethods.add('accessibilitySnapshot');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'macos_computer_use_accessibility_snapshot',
+      'readOnly': true,
+      'target': arguments['target'],
+      'elementCount': 1,
+      'redaction': {'valuesOmitted': true},
+      'elements': [
+        {
+          'elementId': 'ax-0001',
+          'role': 'AXWindow',
+          'label': 'Example',
+          'frame': {'x': 0, 'y': 0, 'width': 100, 'height': 100},
+          'enabled': true,
+          'focused': true,
+        },
+      ],
     });
   }
 }

@@ -200,6 +200,11 @@ class BuiltInToolRegistry {
       category: categoryComputerUse,
     ),
     BuiltInToolInfo(
+      name: 'computer_accessibility_snapshot',
+      descriptionKey: 'settings.tool_computer_accessibility_snapshot',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
       name: 'computer_list_windows',
       descriptionKey: 'settings.tool_computer_list_windows',
       category: categoryComputerUse,

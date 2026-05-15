@@ -71,7 +71,7 @@ run_step() {
 
 echo "Running macOS Computer Use post-merge sanity checks"
 echo "  Boundary: static checks only, no TCC, no System Settings, no desktop actions"
-echo "  Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence, M15 review/gate consistency"
+echo "  Review scope: Advanced navigation, collapsed Diagnostics, manual runtime handoff, M14 observe-only evidence, M15 review/gate consistency, M52 product release rollout, M53 post-release guardrails, M54 rollout expansion gate, M55 post-expansion monitoring gate, M56 rollout decision handoff gate"
 echo "  Checklist: docs/macos_computer_use_manual_process_checklist.md#M13-Review-Hardening"
 echo "  Observe checklist: docs/macos_computer_use_manual_process_checklist.md#M14-Observe-Only-Evidence"
 
@@ -90,6 +90,12 @@ if [[ "${RUN_TESTS}" == "true" ]]; then
     test/integration_support/macos_computer_use_release_readiness_test.dart \
     test/integration_support/macos_computer_use_beta_signoff_test.dart \
     test/integration_support/macos_computer_use_production_launch_gate_test.dart \
+    test/integration_support/macos_computer_use_m51_production_launch_gate_test.dart \
+    test/integration_support/macos_computer_use_m52_product_release_rollout_test.dart \
+    test/integration_support/macos_computer_use_m53_post_release_guardrails_test.dart \
+    test/integration_support/macos_computer_use_m54_rollout_expansion_gate_test.dart \
+    test/integration_support/macos_computer_use_m55_post_expansion_monitoring_gate_test.dart \
+    test/integration_support/macos_computer_use_m56_rollout_decision_handoff_gate_test.dart \
     test/tool/run_macos_computer_use_smoke_test_test.dart \
     test/core/services/macos_computer_use_service_test.dart \
     test/core/services/macos_computer_use_setup_test.dart \

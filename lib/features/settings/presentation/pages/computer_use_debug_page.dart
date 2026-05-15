@@ -1771,7 +1771,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Required evidence: ${MacosComputerUseMvpGuidance.requiredEvidenceIds.join(', ')}',
       'User-operated: ${MacosComputerUseMvpGuidance.userOperatedEvidenceIds.join(', ')}',
       'LLM evidence: llm_canary',
-      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake, m36_live_llm_eval',
+      'Optional review evidence: m15_llm_review_canary, m16_approval_packet, m17_execution_rehearsal, m18_execution_handoff, m20_execution_result_intake, m22_post_action_review, m23_cycle_outcome_handoff, m25_next_cycle_seed_handoff, m26_observe_restart_packet, m27_screenshot_request_handoff, m28_screenshot_evidence_intake, m29_observe_canary_run_packet, m30_observe_result_intake, m36_live_llm_eval, m46_element_grounded_llm_eval, m47_real_app_observe_pilot, m48_user_operated_action_pilot, m49_privacy_audit_release_pack, m50_signed_beta_gate, m51_production_launch_gate, m52_product_release_rollout, m53_post_release_guardrails, m54_rollout_expansion_gate, m55_post_expansion_monitoring_gate, m56_rollout_decision_handoff_gate',
       'Report-only preflight: ${MacosComputerUseMvpGuidance.mvpReadinessPreflightCommand}',
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
@@ -1787,6 +1787,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M22 post-action review command: ${MacosComputerUseMvpGuidance.m22PostActionReviewCommand}',
       'M30 observe result intake command: ${MacosComputerUseMvpGuidance.m30ObserveResultIntakeCommand}',
       'M36 Live LLM eval command: ${MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand}',
+      'M46 element-grounded LLM eval command: ${MacosComputerUseMvpGuidance.m46ElementGroundedLlmEvalCommand}',
+      'M47 real-app observe pilot command: ${MacosComputerUseMvpGuidance.m47RealAppObservePilotCommand}',
+      'M48 user-operated action pilot command: ${MacosComputerUseMvpGuidance.m48UserOperatedActionPilotCommand}',
+      'M49 privacy and audit release pack command: ${MacosComputerUseMvpGuidance.m49PrivacyAuditReleasePackCommand}',
+      'M50 signed beta gate command: ${MacosComputerUseMvpGuidance.m50SignedBetaGateCommand}',
+      'M51 production launch gate command: ${MacosComputerUseMvpGuidance.m51ProductionLaunchGateCommand}',
+      'M52 product release rollout command: ${MacosComputerUseMvpGuidance.m52ProductReleaseRolloutCommand}',
+      'M53 post-release guardrails command: ${MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsCommand}',
+      'M54 rollout expansion gate command: ${MacosComputerUseMvpGuidance.m54RolloutExpansionGateCommand}',
+      'M55 post-expansion monitoring gate command: ${MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateCommand}',
+      'M56 rollout decision handoff gate command: ${MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateCommand}',
       'M30 returns ready observe evidence to the M15 action proposal handoff; use the artifact index for exact M23-M29 restart commands.',
       'Final aggregation waits for all required evidence',
     ].join(' | ');
@@ -1845,6 +1856,28 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_m30_observe_result_intake_<timestamp>/${MacosComputerUseMvpGuidance.m30ObserveResultIntakeFile}',
       'm36LiveLlmEvalSummary':
           'build/integration_test_reports/macos_computer_use_m36_live_llm_eval_<timestamp>/${MacosComputerUseMvpGuidance.m36LiveLlmEvalSummaryFile}',
+      'm46ElementGroundedLlmEvalSummary':
+          'build/integration_test_reports/macos_computer_use_m46_element_grounded_llm_eval_<timestamp>/${MacosComputerUseMvpGuidance.m46ElementGroundedLlmEvalSummaryFile}',
+      'm47RealAppObservePilot':
+          'build/integration_test_reports/macos_computer_use_m47_real_app_observe_pilot_<timestamp>/${MacosComputerUseMvpGuidance.m47RealAppObservePilotFile}',
+      'm48UserOperatedActionPilot':
+          'build/integration_test_reports/macos_computer_use_m48_user_operated_action_pilot_<timestamp>/${MacosComputerUseMvpGuidance.m48UserOperatedActionPilotFile}',
+      'm49PrivacyAuditReleasePack':
+          'build/integration_test_reports/macos_computer_use_m49_privacy_audit_release_pack_<timestamp>/${MacosComputerUseMvpGuidance.m49PrivacyAuditReleasePackFile}',
+      'm50SignedBetaGate':
+          'build/integration_test_reports/macos_computer_use_m50_signed_beta_gate_<timestamp>/${MacosComputerUseMvpGuidance.m50SignedBetaGateFile}',
+      'm51ProductionLaunchGate':
+          'build/integration_test_reports/macos_computer_use_m51_production_launch_gate_<timestamp>/${MacosComputerUseMvpGuidance.m51ProductionLaunchGateJsonFile}',
+      'm52ProductReleaseRollout':
+          'build/integration_test_reports/macos_computer_use_m52_product_release_rollout_<timestamp>/${MacosComputerUseMvpGuidance.m52ProductReleaseRolloutJsonFile}',
+      'm53PostReleaseGuardrails':
+          'build/integration_test_reports/macos_computer_use_m53_post_release_guardrails_<timestamp>/${MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsJsonFile}',
+      'm54RolloutExpansionGate':
+          'build/integration_test_reports/macos_computer_use_m54_rollout_expansion_gate_<timestamp>/${MacosComputerUseMvpGuidance.m54RolloutExpansionGateJsonFile}',
+      'm55PostExpansionMonitoringGate':
+          'build/integration_test_reports/macos_computer_use_m55_post_expansion_monitoring_gate_<timestamp>/${MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateJsonFile}',
+      'm56RolloutDecisionHandoffGate':
+          'build/integration_test_reports/macos_computer_use_m56_rollout_decision_handoff_gate_<timestamp>/${MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateJsonFile}',
       'artifactIndexJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.artifactIndexJsonFile}',
       'artifactIndexMarkdown':
@@ -1883,6 +1916,17 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'M22 post-action review: ${paths['m22PostActionReview']}',
       'M30 observe result intake: ${paths['m30ObserveResultIntake']}',
       'M36 Live LLM eval summary: ${paths['m36LiveLlmEvalSummary']}',
+      'M46 element-grounded LLM eval summary: ${paths['m46ElementGroundedLlmEvalSummary']}',
+      'M47 real-app observe pilot: ${paths['m47RealAppObservePilot']}',
+      'M48 user-operated action pilot: ${paths['m48UserOperatedActionPilot']}',
+      'M49 privacy and audit release pack: ${paths['m49PrivacyAuditReleasePack']}',
+      'M50 signed beta gate: ${paths['m50SignedBetaGate']}',
+      'M51 production launch gate: ${paths['m51ProductionLaunchGate']}',
+      'M52 product release rollout: ${paths['m52ProductReleaseRollout']}',
+      'M53 post-release guardrails: ${paths['m53PostReleaseGuardrails']}',
+      'M54 rollout expansion gate: ${paths['m54RolloutExpansionGate']}',
+      'M55 post-expansion monitoring gate: ${paths['m55PostExpansionMonitoringGate']}',
+      'M56 rollout decision handoff gate: ${paths['m56RolloutDecisionHandoffGate']}',
       'M23-M29 restart artifact paths are listed by the artifact index when those optional reports exist',
       'Artifact index JSON: ${paths['artifactIndexJson']}',
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',

@@ -36,8 +36,12 @@ handoffs can refer to the same unit of work over time.
 | Plan Mode | PM18 | done | Prepare Plan Mode release packaging. | Use the release package while defining PM19 post-release guardrails. |
 | Plan Mode | PM19 | done | Define post-release guardrails. | Use the guardrails for scheduled monitoring and open new PM milestones only when post-release evidence requires it. |
 | Plan Mode | PM20 | done | Refresh the release candidate decision with final PM5 gate evidence. | Use the final sign-off as the current Plan Mode productization baseline. |
-| Computer Use | M31R | next | Refresh the current Computer Use evidence baseline before element-grounded work. | Run `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`. |
-| Computer Use | M41-M52 | later | Productize element-grounded Computer Use through accessibility snapshots, element-targeted actions, evaluation, beta, and production launch gates. | Use `docs/macos_computer_use_element_grounding_release_roadmap.md` as the milestone source. |
+| Computer Use | M31R | done | Refresh the current Computer Use evidence baseline before element-grounded work. | Run `bash tool/run_macos_computer_use_release_readiness.sh --ci --refresh-safe-inputs`. |
+| Computer Use | M52 | done | Ship element-grounded Computer Use through the product release rollout. | Use `bash tool/run_macos_computer_use_m52_product_release_rollout.sh` for final product release evidence. |
+| Computer Use | M53 | done | Keep post-release Computer Use operations guarded after product rollout. | Use `bash tool/run_macos_computer_use_m53_post_release_guardrails.sh` for scheduled post-release evidence. |
+| Computer Use | M54 | done | Decide whether post-release Computer Use rollout can expand safely. | Use `bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh` for rollout expansion evidence. |
+| Computer Use | M55 | done | Review post-expansion Computer Use evidence and decide whether to continue, hold, pause, or roll back. | Use `bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh` for post-expansion monitoring evidence. |
+| Computer Use | M56 | done | Hand off the approved post-expansion rollout decision to the next user-operated rollout branch. | Use `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh` for rollout decision handoff evidence. |
 
 ## Plan Mode Track
 

@@ -149,6 +149,13 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m30ObserveResultIntakeEntry;
     ReadinessArtifactEntry? m39BetaSignoffEntry;
     ReadinessArtifactEntry? m40ProductionLaunchGateEntry;
+    ReadinessArtifactEntry? m50SignedBetaGateEntry;
+    ReadinessArtifactEntry? m51ProductionLaunchGateEntry;
+    ReadinessArtifactEntry? m52ProductReleaseRolloutEntry;
+    ReadinessArtifactEntry? m53PostReleaseGuardrailsEntry;
+    ReadinessArtifactEntry? m54RolloutExpansionGateEntry;
+    ReadinessArtifactEntry? m55PostExpansionMonitoringGateEntry;
+    ReadinessArtifactEntry? m56RolloutDecisionHandoffGateEntry;
     for (final entry in entries) {
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -197,6 +204,27 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm40_production_launch_gate') {
         m40ProductionLaunchGateEntry = entry;
+      }
+      if (entry.id == 'm50_signed_beta_gate') {
+        m50SignedBetaGateEntry = entry;
+      }
+      if (entry.id == 'm51_production_launch_gate') {
+        m51ProductionLaunchGateEntry = entry;
+      }
+      if (entry.id == 'm52_product_release_rollout') {
+        m52ProductReleaseRolloutEntry = entry;
+      }
+      if (entry.id == 'm53_post_release_guardrails') {
+        m53PostReleaseGuardrailsEntry = entry;
+      }
+      if (entry.id == 'm54_rollout_expansion_gate') {
+        m54RolloutExpansionGateEntry = entry;
+      }
+      if (entry.id == 'm55_post_expansion_monitoring_gate') {
+        m55PostExpansionMonitoringGateEntry = entry;
+      }
+      if (entry.id == 'm56_rollout_decision_handoff_gate') {
+        m56RolloutDecisionHandoffGateEntry = entry;
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -582,6 +610,169 @@ class ReadinessArtifactIndex {
         )
         ..writeln(
           '- Boundary: ${m40ProductionLaunchGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m50SignedBetaGateEntry != null &&
+        m50SignedBetaGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M50 Signed Beta Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m50SignedBetaGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m50SignedBetaGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m50SignedBetaGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m50SignedBetaGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m50SignedBetaGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m51ProductionLaunchGateEntry != null &&
+        m51ProductionLaunchGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M51 Production Launch Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m51ProductionLaunchGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m51ProductionLaunchGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m51ProductionLaunchGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m51ProductionLaunchGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m51ProductionLaunchGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m52ProductReleaseRolloutEntry != null &&
+        m52ProductReleaseRolloutEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M52 Product Release Rollout')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m52ProductReleaseRolloutEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m52ProductReleaseRolloutEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m52ProductReleaseRolloutEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m52ProductReleaseRolloutEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m52ProductReleaseRolloutEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m53PostReleaseGuardrailsEntry != null &&
+        m53PostReleaseGuardrailsEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M53 Post-Release Guardrails')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m53PostReleaseGuardrailsEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m53PostReleaseGuardrailsEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m53PostReleaseGuardrailsEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m53PostReleaseGuardrailsEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m53PostReleaseGuardrailsEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m54RolloutExpansionGateEntry != null &&
+        m54RolloutExpansionGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M54 Rollout Expansion Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m54RolloutExpansionGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m54RolloutExpansionGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m54RolloutExpansionGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m54RolloutExpansionGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m54RolloutExpansionGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m55PostExpansionMonitoringGateEntry != null &&
+        m55PostExpansionMonitoringGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M55 Post-Expansion Monitoring Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m55PostExpansionMonitoringGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Rollout continuation decision: ${m55PostExpansionMonitoringGateEntry.details['rolloutContinuationDecision'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m55PostExpansionMonitoringGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m55PostExpansionMonitoringGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m55PostExpansionMonitoringGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m55PostExpansionMonitoringGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
+        );
+    }
+    if (m56RolloutDecisionHandoffGateEntry != null &&
+        m56RolloutDecisionHandoffGateEntry.details.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## M56 Rollout Decision Handoff Gate')
+        ..writeln()
+        ..writeln(
+          '- Review status: ${m56RolloutDecisionHandoffGateEntry.details['reviewStatus'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Rollout continuation decision: ${m56RolloutDecisionHandoffGateEntry.details['rolloutContinuationDecision'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Decision handoff type: ${m56RolloutDecisionHandoffGateEntry.details['decisionHandoffType'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Ready gates: ${_joinedOrNone(_detailsStringList(m56RolloutDecisionHandoffGateEntry.details['readyGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked gates: ${_joinedOrNone(_detailsStringList(m56RolloutDecisionHandoffGateEntry.details['blockedGateIds']))}',
+        )
+        ..writeln(
+          '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m56RolloutDecisionHandoffGateEntry.details['blockedUserOperatedGateIds']))}',
+        )
+        ..writeln(
+          '- Boundary: ${m56RolloutDecisionHandoffGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
         );
     }
     buffer
@@ -1285,6 +1476,95 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       nextAction: _m40ProductionLaunchGateNextAction,
       details: _m40ProductionLaunchGateDetails,
     ),
+    _latestEntry(
+      'm50_signed_beta_gate',
+      'Latest M50 signed beta gate',
+      reportRoot,
+      (json) => json['schemaName'] == 'macos_computer_use_m50_signed_beta_gate',
+      parentPrefix: 'macos_computer_use_m50_signed_beta_gate_',
+      fileName: MacosComputerUseMvpGuidance.m50SignedBetaGateFile,
+      status: _m50SignedBetaGateStatus,
+      nextAction: _m50SignedBetaGateNextAction,
+      details: _m50SignedBetaGateDetails,
+    ),
+    _latestEntry(
+      'm51_production_launch_gate',
+      'Latest M51 production launch gate',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m51_production_launch_gate',
+      parentPrefix: 'macos_computer_use_m51_production_launch_gate_',
+      fileName: MacosComputerUseMvpGuidance.m51ProductionLaunchGateJsonFile,
+      status: _m51ProductionLaunchGateStatus,
+      nextAction: _m51ProductionLaunchGateNextAction,
+      details: _m51ProductionLaunchGateDetails,
+    ),
+    _latestEntry(
+      'm52_product_release_rollout',
+      'Latest M52 product release rollout',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m52_product_release_rollout',
+      parentPrefix: 'macos_computer_use_m52_product_release_rollout_',
+      fileName: MacosComputerUseMvpGuidance.m52ProductReleaseRolloutJsonFile,
+      status: _m52ProductReleaseRolloutStatus,
+      nextAction: _m52ProductReleaseRolloutNextAction,
+      details: _m52ProductReleaseRolloutDetails,
+    ),
+    _latestEntry(
+      'm53_post_release_guardrails',
+      'Latest M53 post-release guardrails',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m53_post_release_guardrails',
+      parentPrefix: 'macos_computer_use_m53_post_release_guardrails_',
+      fileName: MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsJsonFile,
+      status: _m53PostReleaseGuardrailsStatus,
+      nextAction: _m53PostReleaseGuardrailsNextAction,
+      details: _m53PostReleaseGuardrailsDetails,
+    ),
+    _latestEntry(
+      'm54_rollout_expansion_gate',
+      'Latest M54 rollout expansion gate',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_m54_rollout_expansion_gate',
+      parentPrefix: 'macos_computer_use_m54_rollout_expansion_gate_',
+      fileName: MacosComputerUseMvpGuidance.m54RolloutExpansionGateJsonFile,
+      status: _m54RolloutExpansionGateStatus,
+      nextAction: _m54RolloutExpansionGateNextAction,
+      details: _m54RolloutExpansionGateDetails,
+    ),
+    _latestEntry(
+      'm55_post_expansion_monitoring_gate',
+      'Latest M55 post-expansion monitoring gate',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m55_post_expansion_monitoring_gate',
+      parentPrefix: 'macos_computer_use_m55_post_expansion_monitoring_gate_',
+      fileName:
+          MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateJsonFile,
+      status: _m55PostExpansionMonitoringGateStatus,
+      nextAction: _m55PostExpansionMonitoringGateNextAction,
+      details: _m55PostExpansionMonitoringGateDetails,
+    ),
+    _latestEntry(
+      'm56_rollout_decision_handoff_gate',
+      'Latest M56 rollout decision handoff gate',
+      reportRoot,
+      (json) =>
+          json['schemaName'] ==
+          'macos_computer_use_m56_rollout_decision_handoff_gate',
+      parentPrefix: 'macos_computer_use_m56_rollout_decision_handoff_gate_',
+      fileName:
+          MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateJsonFile,
+      status: _m56RolloutDecisionHandoffGateStatus,
+      nextAction: _m56RolloutDecisionHandoffGateNextAction,
+      details: _m56RolloutDecisionHandoffGateDetails,
+    ),
   ];
   return ReadinessArtifactIndex(
     reportRoot: reportRoot.path,
@@ -1467,7 +1747,14 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
                 entry.id == 'm29_observe_canary_run_packet' ||
                 entry.id == 'm30_observe_result_intake' ||
                 entry.id == 'm39_beta_signoff' ||
-                entry.id == 'm40_production_launch_gate') &&
+                entry.id == 'm40_production_launch_gate' ||
+                entry.id == 'm50_signed_beta_gate' ||
+                entry.id == 'm51_production_launch_gate' ||
+                entry.id == 'm52_product_release_rollout' ||
+                entry.id == 'm53_post_release_guardrails' ||
+                entry.id == 'm54_rollout_expansion_gate' ||
+                entry.id == 'm55_post_expansion_monitoring_gate' ||
+                entry.id == 'm56_rollout_decision_handoff_gate') &&
             entry.exists &&
             entry.status != null &&
             entry.status != 'ready',
@@ -1499,6 +1786,13 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       'm30_observe_result_intake',
       'm39_beta_signoff',
       'm40_production_launch_gate',
+      'm50_signed_beta_gate',
+      'm51_production_launch_gate',
+      'm52_product_release_rollout',
+      'm53_post_release_guardrails',
+      'm54_rollout_expansion_gate',
+      'm55_post_expansion_monitoring_gate',
+      'm56_rollout_decision_handoff_gate',
     ],
     (entry) => entry.exists && entry.status != null && entry.status != 'ready',
   );
@@ -1580,6 +1874,90 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       nextAction:
           'Run the M40 production launch gate after M39 beta sign-off is ready.',
       recommendedCommand: _m40ProductionLaunchGateCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m50Entry = entriesById['m50_signed_beta_gate'];
+  if (m50Entry != null && !m50Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m50_signed_beta_gate',
+      entry: m50Entry,
+      nextAction:
+          'Run the M50 signed beta gate after M46, M48, M49, and signed beta evidence are ready.',
+      recommendedCommand: _m50SignedBetaGateCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m51Entry = entriesById['m51_production_launch_gate'];
+  if (m51Entry != null && !m51Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m51_production_launch_gate',
+      entry: m51Entry,
+      nextAction:
+          'Run the M51 production launch gate after M50 signed beta evidence is ready.',
+      recommendedCommand: _m51ProductionLaunchGateCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m52Entry = entriesById['m52_product_release_rollout'];
+  if (m52Entry != null && !m52Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m52_product_release_rollout',
+      entry: m52Entry,
+      nextAction:
+          'Run the M52 product release rollout after M51 production launch evidence is ready.',
+      recommendedCommand: _m52ProductReleaseRolloutCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m53Entry = entriesById['m53_post_release_guardrails'];
+  if (m53Entry != null && !m53Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m53_post_release_guardrails',
+      entry: m53Entry,
+      nextAction:
+          'Run the M53 post-release guardrails after M52 product release evidence is ready.',
+      recommendedCommand: _m53PostReleaseGuardrailsCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m54Entry = entriesById['m54_rollout_expansion_gate'];
+  if (m54Entry != null && !m54Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m54_rollout_expansion_gate',
+      entry: m54Entry,
+      nextAction:
+          'Run the M54 rollout expansion gate after M53 post-release guardrail evidence is ready.',
+      recommendedCommand: _m54RolloutExpansionGateCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m55Entry = entriesById['m55_post_expansion_monitoring_gate'];
+  if (m55Entry != null && !m55Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m55_post_expansion_monitoring_gate',
+      entry: m55Entry,
+      nextAction:
+          'Run the M55 post-expansion monitoring gate after M54 rollout expansion evidence is ready.',
+      recommendedCommand: _m55PostExpansionMonitoringGateCommand(reportRoot),
+      requiresUserOperation: true,
+    );
+  }
+
+  final m56Entry = entriesById['m56_rollout_decision_handoff_gate'];
+  if (m56Entry != null && !m56Entry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_m56_rollout_decision_handoff_gate',
+      entry: m56Entry,
+      nextAction:
+          'Run the M56 rollout decision handoff gate after M55 post-expansion monitoring evidence is ready.',
+      recommendedCommand: _m56RolloutDecisionHandoffGateCommand(reportRoot),
       requiresUserOperation: true,
     );
   }
@@ -1793,6 +2171,41 @@ String _m39BetaSignoffCommand(Directory reportRoot) {
 
 String _m40ProductionLaunchGateCommand(Directory reportRoot) {
   return '${MacosComputerUseMvpGuidance.m40ProductionLaunchGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m50SignedBetaGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m50SignedBetaGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m51ProductionLaunchGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m51ProductionLaunchGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m52ProductReleaseRolloutCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m52ProductReleaseRolloutCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m53PostReleaseGuardrailsCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m54RolloutExpansionGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m54RolloutExpansionGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m55PostExpansionMonitoringGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m56RolloutDecisionHandoffGateCommand(Directory reportRoot) {
+  return '${MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateCommand} '
       '--root ${_shellQuote(reportRoot.path)}';
 }
 
@@ -3579,6 +3992,470 @@ Map<String, Object?> _m40ProductionLaunchGateDetails(
     'blockedGateIds': _jsonStringList(json['blockedGateIds']),
     'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
     'gateCount': gates.length,
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m50SignedBetaGateStatus(Map<String, dynamic> json) {
+  final review = json['signedBetaReviewSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_signed_beta') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m50SignedBetaGateNextAction(Map<String, dynamic> json) {
+  final status = _m50SignedBetaGateStatus(json);
+  if (status == 'ready') {
+    return 'Use M50 signed beta evidence as an input to the M51 production launch gate.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M50 signed beta blockers before preparing the M51 production launch gate.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m50SignedBetaGateDetails(Map<String, dynamic> json) {
+  final review = json['signedBetaReviewSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m51ProductionLaunchGateStatus(Map<String, dynamic> json) {
+  return _m40ProductionLaunchGateStatus(json);
+}
+
+String? _m51ProductionLaunchGateNextAction(Map<String, dynamic> json) {
+  final status = _m51ProductionLaunchGateStatus(json);
+  if (status == 'ready') {
+    return 'Archive M51 launch evidence as the production Computer Use release gate.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M51 production launch blockers before release sign-off.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m51ProductionLaunchGateDetails(
+  Map<String, dynamic> json,
+) {
+  return _m40ProductionLaunchGateDetails(json);
+}
+
+String? _m52ProductReleaseRolloutStatus(Map<String, dynamic> json) {
+  final review = json['releaseRolloutSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_product_release') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m52ProductReleaseRolloutNextAction(Map<String, dynamic> json) {
+  final status = _m52ProductReleaseRolloutStatus(json);
+  if (status == 'ready') {
+    return 'Ship element-grounded Computer Use through the product release rollout.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M52 product release rollout blockers before shipping Computer Use.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m52ProductReleaseRolloutDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['releaseRolloutSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gate = json['m52ProductReleaseGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m53PostReleaseGuardrailsStatus(Map<String, dynamic> json) {
+  final review = json['postReleaseGuardrailsSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_post_release_operations') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m53PostReleaseGuardrailsNextAction(Map<String, dynamic> json) {
+  final status = _m53PostReleaseGuardrailsStatus(json);
+  if (status == 'ready') {
+    return 'Keep Computer Use post-release guardrails on the scheduled review cadence.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M53 post-release guardrail blockers before continuing rollout expansion.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m53PostReleaseGuardrailsDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['postReleaseGuardrailsSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gate = json['m53PostReleaseGuardrailsGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m54RolloutExpansionGateStatus(Map<String, dynamic> json) {
+  final review = json['rolloutExpansionSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_rollout_expansion') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m54RolloutExpansionGateNextAction(Map<String, dynamic> json) {
+  final status = _m54RolloutExpansionGateStatus(json);
+  if (status == 'ready') {
+    return 'Expand Computer Use rollout only within the approved cohort and review cadence.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M54 rollout expansion blockers before expanding rollout.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m54RolloutExpansionGateDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['rolloutExpansionSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gate = json['m54RolloutExpansionGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+    },
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m55PostExpansionMonitoringGateStatus(Map<String, dynamic> json) {
+  final review = json['postExpansionMonitoringSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_post_expansion_decision') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m55PostExpansionMonitoringGateNextAction(Map<String, dynamic> json) {
+  final status = _m55PostExpansionMonitoringGateStatus(json);
+  if (status == 'ready') {
+    final gate = json['m55PostExpansionMonitoringGate'];
+    if (gate is Map<String, dynamic>) {
+      final nextAction = gate['nextAction']?.toString();
+      if (nextAction != null && nextAction.isNotEmpty) {
+        return nextAction;
+      }
+    }
+    return 'Review the approved post-expansion rollout decision before changing rollout state.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M55 post-expansion monitoring blockers before changing rollout state.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m55PostExpansionMonitoringGateDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['postExpansionMonitoringSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gate = json['m55PostExpansionMonitoringGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'rolloutContinuationDecision': json['rolloutContinuationDecision']
+        ?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+      'gateNextAction': gateMap['nextAction']?.toString(),
+      'gateRolloutContinuationDecision': gateMap['rolloutContinuationDecision']
+          ?.toString(),
+    },
+    if (reviewMap != null) ...<String, Object?>{
+      'reviewStatus': reviewMap['status']?.toString(),
+      'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),
+      'reviewBlockedGateIds': _jsonStringList(reviewMap['blockedGateIds']),
+      'blockedUserOperatedGateIds': _jsonStringList(
+        reviewMap['blockedUserOperatedGateIds'],
+      ),
+      'blockedAutomationSafeGateIds': _jsonStringList(
+        reviewMap['blockedAutomationSafeGateIds'],
+      ),
+      'operationBoundarySummary': reviewMap['operationBoundarySummary']
+          ?.toString(),
+    },
+  };
+}
+
+String? _m56RolloutDecisionHandoffGateStatus(Map<String, dynamic> json) {
+  final review = json['rolloutDecisionHandoffSummary'];
+  if (review is Map<String, dynamic>) {
+    final reviewStatus = review['status']?.toString();
+    if (reviewStatus == 'ready_for_rollout_decision_handoff') {
+      return 'ready';
+    }
+    if (reviewStatus != null && reviewStatus.isNotEmpty) {
+      return 'blocked';
+    }
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  return null;
+}
+
+String? _m56RolloutDecisionHandoffGateNextAction(Map<String, dynamic> json) {
+  final status = _m56RolloutDecisionHandoffGateStatus(json);
+  if (status == 'ready') {
+    final gate = json['m56RolloutDecisionHandoffGate'];
+    if (gate is Map<String, dynamic>) {
+      final nextAction = gate['nextAction']?.toString();
+      if (nextAction != null && nextAction.isNotEmpty) {
+        return nextAction;
+      }
+    }
+    return 'Use the M56 rollout decision handoff as the user-operated rollout branch record.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M56 rollout decision handoff blockers before changing rollout state.';
+  }
+  return null;
+}
+
+Map<String, Object?> _m56RolloutDecisionHandoffGateDetails(
+  Map<String, dynamic> json,
+) {
+  final review = json['rolloutDecisionHandoffSummary'];
+  final reviewMap = review is Map<String, dynamic> ? review : null;
+  final gate = json['m56RolloutDecisionHandoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final gates = _jsonList(json['gates']);
+  return <String, Object?>{
+    'milestone': json['milestone']?.toString(),
+    'automationBoundary': json['automationBoundary']?.toString(),
+    'tccBoundary': json['tccBoundary']?.toString(),
+    'desktopActionBoundary': json['desktopActionBoundary']?.toString(),
+    'rolloutContinuationDecision': json['rolloutContinuationDecision']
+        ?.toString(),
+    'decisionHandoffType': json['decisionHandoffType']?.toString(),
+    'readyGateIds': _jsonStringList(json['readyGateIds']),
+    'blockedGateIds': _jsonStringList(json['blockedGateIds']),
+    'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'gateCount': gates.length,
+    if (gateMap != null) ...<String, Object?>{
+      'gateStatus': gateMap['status']?.toString(),
+      'gateReady': gateMap['ready'],
+      'gateBlockers': _jsonStringList(gateMap['blockers']),
+      'gateNextAction': gateMap['nextAction']?.toString(),
+      'gateRolloutContinuationDecision': gateMap['rolloutContinuationDecision']
+          ?.toString(),
+      'gateDecisionHandoffType': gateMap['decisionHandoffType']?.toString(),
+    },
     if (reviewMap != null) ...<String, Object?>{
       'reviewStatus': reviewMap['status']?.toString(),
       'reviewReadyGateIds': _jsonStringList(reviewMap['readyGateIds']),

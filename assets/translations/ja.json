@@ -508,6 +508,7 @@
     "tool_computer_request_permissions": "macOS AccessibilityとScreen Recording permissionsを要求",
     "tool_computer_open_system_settings": "Open macOS Privacy & Security settings",
     "tool_computer_screenshot": "macOS display screenshotを取得",
+    "tool_computer_accessibility_snapshot": "Read a bounded macOS accessibility snapshot",
     "tool_computer_list_windows": "visible macOS windowsを一覧表示",
     "tool_computer_focus_window": "specific macOS windowを前面に表示",
     "tool_computer_screenshot_window": "specific macOS window screenshotを取得",

@@ -79,7 +79,7 @@ class MacosComputerUseMvpGuidance {
   static const m22PostActionReviewCommand =
       'bash tool/run_macos_computer_use_m22_post_action_review.sh --m20-intake <execution_result_intake.json> --result-reviewed yes --post-action-state <stable-or-needs-follow-up> --follow-up-required <yes-or-no>';
   static const m23CycleOutcomeHandoffCommand =
-      'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --m22-review <post_action_review.json> --user-accepted yes';
+      'bash tool/run_macos_computer_use_m23_cycle_outcome_handoff.sh --m22-review <post_action_review.json> --outcome-accepted yes --next-observe-needed <yes-or-no>';
   static const m25NextCycleSeedHandoffCommand =
       'bash tool/run_macos_computer_use_m25_next_cycle_seed_handoff.sh --m23-handoff <cycle_outcome_handoff.json> --seed-accepted yes';
   static const m26ObserveRestartPacketCommand =
@@ -94,6 +94,28 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_m30_observe_result_intake.sh --m29-packet <observe_canary_run_packet.json> --m14-summary <canary_summary.json>';
   static const m36LiveLlmEvalCommand =
       'bash tool/run_macos_computer_use_m36_live_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>';
+  static const m46ElementGroundedLlmEvalCommand =
+      'bash tool/run_macos_computer_use_m46_element_grounded_llm_eval.sh --fixture-screenshot <mvp-fixture-screenshot.png> --real-app-screenshot <user-provided-real-app-screenshot.png>';
+  static const m47RealAppObservePilotCommand =
+      'bash tool/run_macos_computer_use_m47_real_app_observe_pilot.sh --m14-summary <canary_summary.json>';
+  static const m48UserOperatedActionPilotCommand =
+      'bash tool/run_macos_computer_use_m48_user_operated_action_pilot.sh --m47-pilot <real_app_observe_pilot.json> --fresh-observation done --target-confirmed yes --exact-text-confirmed yes --public-action-confirmed <yes-or-not-applicable> --runtime-action succeeded --post-action-observation done --result-reviewed yes --post-action-state stable --follow-up-required no --outcome-accepted yes --next-observe-needed no --safe-target-confirmed yes';
+  static const m49PrivacyAuditReleasePackCommand =
+      'bash tool/run_macos_computer_use_m49_privacy_audit_release_pack.sh --m48-pilot <user_operated_action_pilot.json> --diagnostics <redacted-computer-use-diagnostics.json> --redacted-export-reviewed yes --privacy-copy-reviewed yes --support-diagnostics-reviewed yes --explicit-payload-export-policy-reviewed yes --payload-export-requested no --explicit-payload-export-approved not-requested';
+  static const m50SignedBetaGateCommand =
+      'bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --signed-beta-checklist <m50-signed-beta-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --m46-element-grounded-llm-eval <canary_summary.json> --m48-user-operated-action-pilot <user_operated_action_pilot.json> --m49-privacy-audit-release-pack <privacy_audit_release_pack.json>';
+  static const m51ProductionLaunchGateCommand =
+      'bash tool/run_macos_computer_use_m51_production_launch_gate.sh --launch-checklist <m51-launch-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --manual-tcc-report <manual-tcc-summary.json> --m46-element-grounded-llm-eval <canary_summary.json> --m49-privacy-audit-release-pack <privacy_audit_release_pack.json> --m50-signed-beta-gate <macos_computer_use_m50_signed_beta_gate.json> --diagnostics <computer-use-diagnostics.json>';
+  static const m52ProductReleaseRolloutCommand =
+      'bash tool/run_macos_computer_use_m52_product_release_rollout.sh --product-release-checklist <m52-product-release-checklist.json> --m51-production-launch-gate <macos_computer_use_m51_production_launch_gate.json>';
+  static const m53PostReleaseGuardrailsCommand =
+      'bash tool/run_macos_computer_use_m53_post_release_guardrails.sh --post-release-checklist <m53-post-release-checklist.json> --m52-product-release-rollout <macos_computer_use_m52_product_release_rollout.json>';
+  static const m54RolloutExpansionGateCommand =
+      'bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh --rollout-expansion-checklist <m54-rollout-expansion-checklist.json> --m53-post-release-guardrails <macos_computer_use_m53_post_release_guardrails.json>';
+  static const m55PostExpansionMonitoringGateCommand =
+      'bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh --post-expansion-monitoring-checklist <m55-post-expansion-monitoring-checklist.json> --m54-rollout-expansion-gate <macos_computer_use_m54_rollout_expansion_gate.json>';
+  static const m56RolloutDecisionHandoffGateCommand =
+      'bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh --rollout-decision-handoff-checklist <m56-rollout-decision-handoff-checklist.json> --m55-post-expansion-monitoring-gate <macos_computer_use_m55_post_expansion_monitoring_gate.json>';
   static const m39BetaSignoffCommand =
       'bash tool/run_macos_computer_use_m39_beta_signoff.sh --manual-beta-checklist <m39-manual-beta-checklist.json> --m36-live-llm-eval <canary_summary.json> --m23-cycle-outcome <cycle_outcome_handoff.json>';
   static const m40ProductionLaunchGateCommand =
@@ -127,6 +149,38 @@ class MacosComputerUseMvpGuidance {
   static const m29ObserveCanaryRunPacketFile = 'observe_canary_run_packet.json';
   static const m30ObserveResultIntakeFile = 'observe_result_intake.json';
   static const m36LiveLlmEvalSummaryFile = 'canary_summary.json';
+  static const m46ElementGroundedLlmEvalSummaryFile = 'canary_summary.json';
+  static const m47RealAppObservePilotFile = 'real_app_observe_pilot.json';
+  static const m48UserOperatedActionPilotFile =
+      'user_operated_action_pilot.json';
+  static const m49PrivacyAuditReleasePackFile =
+      'privacy_audit_release_pack.json';
+  static const m50SignedBetaGateFile =
+      'macos_computer_use_m50_signed_beta_gate.json';
+  static const m51ProductionLaunchGateJsonFile =
+      'macos_computer_use_m51_production_launch_gate.json';
+  static const m51ProductionLaunchGateMarkdownFile =
+      'macos_computer_use_m51_production_launch_gate.md';
+  static const m52ProductReleaseRolloutJsonFile =
+      'macos_computer_use_m52_product_release_rollout.json';
+  static const m52ProductReleaseRolloutMarkdownFile =
+      'macos_computer_use_m52_product_release_rollout.md';
+  static const m53PostReleaseGuardrailsJsonFile =
+      'macos_computer_use_m53_post_release_guardrails.json';
+  static const m53PostReleaseGuardrailsMarkdownFile =
+      'macos_computer_use_m53_post_release_guardrails.md';
+  static const m54RolloutExpansionGateJsonFile =
+      'macos_computer_use_m54_rollout_expansion_gate.json';
+  static const m54RolloutExpansionGateMarkdownFile =
+      'macos_computer_use_m54_rollout_expansion_gate.md';
+  static const m55PostExpansionMonitoringGateJsonFile =
+      'macos_computer_use_m55_post_expansion_monitoring_gate.json';
+  static const m55PostExpansionMonitoringGateMarkdownFile =
+      'macos_computer_use_m55_post_expansion_monitoring_gate.md';
+  static const m56RolloutDecisionHandoffGateJsonFile =
+      'macos_computer_use_m56_rollout_decision_handoff_gate.json';
+  static const m56RolloutDecisionHandoffGateMarkdownFile =
+      'macos_computer_use_m56_rollout_decision_handoff_gate.md';
   static const m39BetaSignoffJsonFile =
       'macos_computer_use_m39_beta_signoff.json';
   static const m39BetaSignoffMarkdownFile =
@@ -177,7 +231,7 @@ class MacosComputerUseMvpGuidance {
   static const prReviewSummaryGuidance =
       'Review `$prReviewSummarySection` in `$mvpHandoffMarkdownFile`, `$artifactIndexMarkdownFile`, `$releaseReadinessCiMarkdownFile`, and `$releaseReadinessSignoffMarkdownFile` before PR review. '
       'After final sign-off aggregation, inspect `$mvpReadinessJsonFile` and `$mvpReadinessMarkdownFile`. '
-      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, blocked M23 cycle outcome evidence, blocked M25 next-cycle seed evidence, blocked M26 observe restart evidence, blocked M27 screenshot request evidence, blocked M28 screenshot evidence intake, blocked M29 observe run packet evidence, blocked M30 observe result intake evidence, blocked M36 Live LLM evaluation evidence, blocked M39 beta sign-off evidence, blocked M40 production launch evidence, and M15 review/gate consistency.';
+      'It separates ready artifacts, missing evidence, user-operated blockers, automation-safe blockers, blocked M15 action-proposal review evidence, blocked M15 LLM review evidence, blocked M16 approval packet evidence, blocked M17 execution rehearsal evidence, blocked M18 execution handoff evidence, blocked M20 execution result intake evidence, blocked M22 post-action review evidence, blocked M23 cycle outcome evidence, blocked M25 next-cycle seed evidence, blocked M26 observe restart evidence, blocked M27 screenshot request evidence, blocked M28 screenshot evidence intake, blocked M29 observe run packet evidence, blocked M30 observe result intake evidence, blocked M36 Live LLM evaluation evidence, blocked M46 element-grounded LLM evaluation evidence, blocked M47 real-app observe pilot evidence, blocked M48 user-operated action pilot evidence, blocked M49 privacy and audit release-pack evidence, blocked M50 signed beta evidence, blocked M51 production launch evidence, blocked M52 product release rollout evidence, blocked M53 post-release guardrail evidence, blocked M54 rollout expansion evidence, blocked M55 post-expansion monitoring evidence, blocked M56 rollout decision handoff evidence, blocked M39 beta sign-off evidence, blocked M40 production launch evidence, and M15 review/gate consistency.';
 
   static String missingArtifactNextAction(String artifactId) {
     switch (artifactId) {
@@ -339,6 +393,7 @@ class MacosComputerUseIpc {
     'stopAll',
     'screenshot',
     'listWindows',
+    'accessibilitySnapshot',
     'focusWindow',
     'screenshotWindow',
     'moveMouse',
@@ -372,7 +427,7 @@ class MacosComputerUseIpc {
   static const xpcNextParityCommands = <String>[];
   static const xpcProductionReadinessCriteria = [
     'named_service_connects_from_signed_main_app',
-    'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+    'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
     'capture_input_audio_commands_have_parity_smoke_coverage',
     'fallback_path_is_observable_and_non_destructive',
   ];

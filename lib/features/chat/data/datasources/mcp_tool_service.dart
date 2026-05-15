@@ -91,6 +91,7 @@ class McpToolService {
     'computer_request_permissions',
     'computer_open_system_settings',
     'computer_vision_observe',
+    'computer_accessibility_snapshot',
     'computer_list_windows',
     'computer_focus_window',
     'computer_screenshot',
@@ -1672,6 +1673,9 @@ class McpToolService {
         section: arguments['section'] as String? ?? 'privacy',
       ),
       'computer_vision_observe' => service.visionObserve(arguments),
+      'computer_accessibility_snapshot' => service.accessibilitySnapshot(
+        arguments,
+      ),
       'computer_list_windows' => service.listWindows(arguments),
       'computer_focus_window' => service.focusWindow(arguments),
       'computer_screenshot' => service.screenshot(arguments),
@@ -1828,6 +1832,65 @@ class McpToolService {
               'description':
                   'Include visible-window metadata. Defaults to true.',
             },
+            'include_accessibility': {
+              'type': 'boolean',
+              'description':
+                  'Include accessibility-derived candidate element metadata for window observations. Defaults to true.',
+            },
+            'max_candidate_elements': {
+              'type': 'integer',
+              'description':
+                  'Maximum candidate elements to expose in elementGrounding. Defaults to 12.',
+            },
+            'max_accessibility_elements': {
+              'type': 'integer',
+              'description':
+                  'Maximum accessibility elements to read before selecting candidates. Defaults to 50.',
+            },
+            'max_accessibility_depth': {
+              'type': 'integer',
+              'description':
+                  'Maximum accessibility tree depth to read for candidate selection. Defaults to 4.',
+            },
+          },
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_accessibility_snapshot',
+        'description':
+            'Read a bounded macOS Accessibility snapshot for the front window or a selected window. Returns roles, safe labels, frames, enabled/focused state, child counts, and redaction metadata without taking any desktop action.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'target': {
+              'type': 'string',
+              'enum': ['front_window', 'window'],
+              'description':
+                  'Snapshot target. Use front_window for the first visible non-Caverno window or window with window_id for a known window.',
+            },
+            'window_id': {
+              'type': 'integer',
+              'description':
+                  'Window ID from computer_list_windows. Required when target is window.',
+            },
+            'max_depth': {
+              'type': 'integer',
+              'description':
+                  'Maximum accessibility tree depth to traverse. Defaults to 4 and is capped by the helper.',
+            },
+            'max_elements': {
+              'type': 'integer',
+              'description':
+                  'Maximum number of elements to return. Defaults to 80 and is capped by the helper.',
+            },
+            'label_max_characters': {
+              'type': 'integer',
+              'description':
+                  'Maximum safe label length per element before truncation. Defaults to 120.',
+            },
           },
         },
       },
@@ -1881,7 +1944,7 @@ class McpToolService {
       'function': {
         'name': 'computer_focus_window',
         'description':
-            'Bring a specific macOS window to the foreground by window_id. Requires Accessibility permission.',
+            'Bring a specific macOS window to the foreground by window_id. Optionally focus an element_id from the latest elementGrounding candidates. Requires Accessibility permission.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -1890,6 +1953,8 @@ class McpToolService {
               'description':
                   'Window ID from computer_list_windows or computer_screenshot_window.',
             },
+            ..._computerElementTargetProperties,
+            ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
           'required': ['window_id'],
@@ -1932,11 +1997,12 @@ class McpToolService {
       'function': {
         'name': 'computer_click',
         'description':
-            'Click at screenshot pixel coordinates. Requires explicit user approval in Caverno before execution.',
+            'Click an element_id from the latest elementGrounding candidates, or fall back to screenshot pixel coordinates. Requires explicit user approval in Caverno before execution.',
         'parameters': {
-          ..._computerPointParameters(required: ['x', 'y']),
+          ..._computerPointParameters(),
           'properties': {
             ..._computerPointProperties,
+            ..._computerElementTargetProperties,
             'button': {
               'type': 'string',
               'enum': ['left', 'right', 'middle'],
@@ -2006,11 +2072,12 @@ class McpToolService {
       'function': {
         'name': 'computer_type_text',
         'description':
-            'Type text into the currently focused macOS UI element. Requires explicit user approval in Caverno before execution.',
+            'Type text into an element_id from the latest elementGrounding candidates, or into the currently focused macOS UI element when no element target is provided. Requires explicit user approval in Caverno before execution.',
         'parameters': {
           'type': 'object',
           'properties': {
             'text': {'type': 'string'},
+            ..._computerWindowElementTargetProperties,
             ..._computerActionTargetMetadataProperties,
             'reason': {'type': 'string'},
           },
@@ -2125,11 +2192,38 @@ class McpToolService {
     },
   };
 
+  static Map<String, dynamic> get _computerElementTargetProperties => {
+    'element_id': {
+      'type': 'string',
+      'description':
+          'Optional execution target elementId from the latest computer_vision_observe elementGrounding candidateElements.',
+    },
+    'max_accessibility_elements': {
+      'type': 'integer',
+      'description':
+          'Maximum accessibility elements to scan while resolving element_id. Defaults to 80.',
+    },
+    'max_accessibility_depth': {
+      'type': 'integer',
+      'description':
+          'Maximum accessibility tree depth to scan while resolving element_id. Defaults to 4.',
+    },
+  };
+
+  static Map<String, dynamic> get _computerWindowElementTargetProperties => {
+    'window_id': {
+      'type': 'integer',
+      'description':
+          'Window ID from the latest computer_vision_observe or computer_list_windows result. Required when element_id is provided.',
+    },
+    ..._computerElementTargetProperties,
+  };
+
   static Map<String, dynamic> get _computerActionTargetMetadataProperties => {
     'target': {
       'type': 'object',
       'description':
-          'Optional visible UI target metadata used only for Caverno approval. Mark public posting, sending, submitting, purchasing, or publishing controls with risk=public_action.',
+          'Optional visible UI target metadata used only for Caverno approval. Mark public posting, sending, submitting, or publishing controls with risk=public_action. Mark secure fields, credential prompts, payment flows, and destructive controls with their matching risk.',
       'properties': {
         'label': {
           'type': 'string',
@@ -2139,15 +2233,49 @@ class McpToolService {
           'type': 'string',
           'description': 'Visible or accessibility role of the target.',
         },
+        'appName': {
+          'type': 'string',
+          'description':
+              'Visible application name from the latest observation or window list.',
+        },
+        'appBundleId': {
+          'type': 'string',
+          'description':
+              'Application bundle identifier when available from the latest observation or window list.',
+        },
+        'windowTitle': {
+          'type': 'string',
+          'description':
+              'Window title from the latest observation or window list.',
+        },
+        'windowId': {
+          'type': 'integer',
+          'description':
+              'Window ID from the latest observation or window list.',
+        },
+        'elementId': {
+          'type': 'string',
+          'description':
+              'Optional elementId from the latest computer_vision_observe elementGrounding candidates.',
+        },
         'action': {
           'type': 'string',
           'description': 'Intended action, such as click, submit, or publish.',
         },
         'risk': {
           'type': 'string',
-          'enum': ['input', 'public_action', 'sensitive', 'unknown'],
+          'enum': [
+            'input',
+            'public_action',
+            'secure_field',
+            'credential',
+            'payment',
+            'destructive',
+            'sensitive',
+            'unknown',
+          ],
           'description':
-              'Use public_action for controls that post, send, submit, publish, purchase, or otherwise change external state.',
+              'Use public_action for controls that post, send, submit, publish, or otherwise change external state. Use secure_field, credential, payment, or destructive for targets that should be blocked or manually handled.',
         },
       },
     },

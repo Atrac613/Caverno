@@ -8539,6 +8539,119 @@ class _ChatPageState extends ConsumerState<ChatPage>
                         ),
                       ),
                     ],
+                    if (pending.targetSummary != null ||
+                        pending.targetDetails.isNotEmpty ||
+                        pending.exactTextPreview != null) ...[
+                      const SizedBox(height: 16),
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 24),
+                        child: Container(
+                          width: double.infinity,
+                          padding: const EdgeInsets.all(14),
+                          decoration: BoxDecoration(
+                            color: theme.colorScheme.secondaryContainer
+                                .withValues(alpha: 0.38),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: theme.colorScheme.secondary.withValues(
+                                alpha: 0.22,
+                              ),
+                            ),
+                          ),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  Icon(
+                                    Icons.control_camera_outlined,
+                                    size: 18,
+                                    color: theme.colorScheme.secondary,
+                                  ),
+                                  const SizedBox(width: 8),
+                                  Text(
+                                    'Target review',
+                                    style: theme.textTheme.labelLarge?.copyWith(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              if (pending.targetSummary != null &&
+                                  pending.targetSummary!.isNotEmpty) ...[
+                                const SizedBox(height: 10),
+                                Text(
+                                  pending.targetSummary!,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSecondaryContainer,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
+                              ],
+                              if (pending.targetDetails.isNotEmpty) ...[
+                                const SizedBox(height: 8),
+                                for (final detail in pending.targetDetails)
+                                  Padding(
+                                    padding: const EdgeInsets.only(top: 3),
+                                    child: SelectableText(
+                                      detail,
+                                      style: theme.textTheme.bodySmall
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onSecondaryContainer
+                                                .withValues(alpha: 0.86),
+                                            fontFamily: 'monospace',
+                                          ),
+                                    ),
+                                  ),
+                              ],
+                              if (pending.exactTextPreview != null) ...[
+                                const SizedBox(height: 12),
+                                Text(
+                                  'Exact text (${pending.exactTextLength ?? pending.exactTextPreview!.length} characters)',
+                                  style: theme.textTheme.labelMedium?.copyWith(
+                                    color:
+                                        theme.colorScheme.onSecondaryContainer,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
+                                const SizedBox(height: 6),
+                                Container(
+                                  width: double.infinity,
+                                  constraints: const BoxConstraints(
+                                    maxHeight: 140,
+                                  ),
+                                  padding: const EdgeInsets.all(10),
+                                  decoration: BoxDecoration(
+                                    color: theme.colorScheme.surface.withValues(
+                                      alpha: 0.7,
+                                    ),
+                                    borderRadius: BorderRadius.circular(8),
+                                    border: Border.all(
+                                      color: theme.colorScheme.outline
+                                          .withValues(alpha: 0.14),
+                                    ),
+                                  ),
+                                  child: SingleChildScrollView(
+                                    child: SelectableText(
+                                      pending.exactTextPreview!,
+                                      style: TextStyle(
+                                        fontFamily: 'monospace',
+                                        fontSize: 12,
+                                        height: 1.35,
+                                        color: theme.colorScheme.onSurface,
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
                     if (pending.approvalBoundaries.isNotEmpty ||
                         pending.approvalBlockerCodes.isNotEmpty ||
                         pending.actionProposalNextAction != null) ...[
@@ -8651,6 +8764,17 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
+                                    Text(
+                                      'Latest observation context',
+                                      style: theme.textTheme.labelLarge
+                                          ?.copyWith(
+                                            color: theme
+                                                .colorScheme
+                                                .onPrimaryContainer,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                    ),
+                                    const SizedBox(height: 6),
                                     Text(
                                       pending.visionObservationSummary!,
                                       style: theme.textTheme.bodyMedium
@@ -8976,6 +9100,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
       'exactText' => 'Exact text',
       'publicAction' => 'Public action',
       'systemAudio' => 'System audio',
+      'secureField' => 'Secure field',
+      'credential' => 'Credential',
+      'payment' => 'Payment',
+      'destructive' => 'Destructive action',
       _ => boundary,
     };
   }
@@ -8986,6 +9114,11 @@ class _ChatPageState extends ConsumerState<ChatPage>
       'exact_text_missing' => 'exact text',
       'separate_public_action_approval_required' =>
         'separate public action approval',
+      'secure_field_target_blocked' => 'secure field target',
+      'credential_target_blocked' => 'credential target',
+      'payment_target_blocked' => 'payment target',
+      'destructive_target_blocked' => 'destructive target',
+      'action_policy_blocked' => 'target safety policy',
       _ => blockerCode,
     };
   }

@@ -367,8 +367,15 @@ class MacosComputerUseService {
     return _invokeJson('listWindows', arguments);
   }
 
+  Future<String> accessibilitySnapshot(Map<String, dynamic> arguments) async {
+    return _invokeJson('accessibilitySnapshot', arguments);
+  }
+
   Future<String> focusWindow(Map<String, dynamic> arguments) async {
-    return _invokeJson('focusWindow', arguments);
+    return _invokeJson(
+      'focusWindow',
+      _normalizeElementTargetArguments(arguments),
+    );
   }
 
   Future<String> screenshotWindow(Map<String, dynamic> arguments) async {
@@ -376,7 +383,12 @@ class MacosComputerUseService {
   }
 
   Future<String> click(Map<String, dynamic> arguments) async {
-    return _invokeJson('click', _normalizeCoordinateArguments(arguments));
+    return _invokeJson(
+      'click',
+      _normalizeCoordinateArguments(
+        _normalizeElementTargetArguments(arguments),
+      ),
+    );
   }
 
   Future<String> moveMouse(Map<String, dynamic> arguments) async {
@@ -392,7 +404,7 @@ class MacosComputerUseService {
   }
 
   Future<String> typeText(Map<String, dynamic> arguments) async {
-    return _invokeJson('typeText', arguments);
+    return _invokeJson('typeText', _normalizeElementTargetArguments(arguments));
   }
 
   Future<String> pressKey(Map<String, dynamic> arguments) async {
@@ -480,6 +492,12 @@ class MacosComputerUseService {
     final imageMimeType = capture['imageMimeType'] as String? ?? 'image/png';
     final captureMetadata = Map<String, dynamic>.from(capture)
       ..remove('imageBase64');
+    final elementGrounding = await _visionElementGrounding(
+      arguments: arguments,
+      captureTarget: captureTarget,
+      resolvedWindowId: resolvedWindowId,
+      captureOk: captureOk,
+    );
 
     final targetSummary = <String, dynamic>{
       'requested': target,
@@ -510,6 +528,7 @@ class MacosComputerUseService {
       'permissions': permissions ?? const <String, dynamic>{},
       if (windowsResult != null)
         'windows': _redactedWindowsResult(windowsResult),
+      'elementGrounding': elementGrounding,
       'observation': captureMetadata,
       if (imageBase64 is String && imageBase64.isNotEmpty)
         'imageBase64': imageBase64,
@@ -535,6 +554,140 @@ class MacosComputerUseService {
     return jsonEncode(result);
   }
 
+  Future<Map<String, dynamic>> _visionElementGrounding({
+    required Map<String, dynamic> arguments,
+    required String captureTarget,
+    required int? resolvedWindowId,
+    required bool captureOk,
+  }) async {
+    final includeAccessibility =
+        arguments['include_accessibility'] != false &&
+        arguments['includeAccessibility'] != false;
+    final maxCandidates = _intValue(
+      arguments['max_candidate_elements'] ?? arguments['maxCandidateElements'],
+    )?.clamp(1, 30);
+
+    Map<String, dynamic> base({
+      required String status,
+      String? code,
+      String? error,
+      Map<String, dynamic>? extra,
+    }) {
+      final response = <String, dynamic>{
+        'schemaName': 'macos_computer_use_element_grounding',
+        'schemaVersion': 1,
+        'sourceTool': 'computer_accessibility_snapshot',
+        'status': status,
+        'candidateElements': const <Map<String, dynamic>>[],
+        'candidateElementCount': 0,
+        'coordinateSpace': 'screen_points',
+        'windowId': resolvedWindowId,
+        'redaction': const {
+          'policy': 'metadata_only',
+          'valuesOmitted': true,
+          'selectedTextOmitted': true,
+          'rawAttributeValuesOmitted': true,
+        },
+        if (extra != null) ...extra,
+      };
+      if (code != null) {
+        response['code'] = code;
+      }
+      if (error != null) {
+        response['error'] = error;
+      }
+      return response;
+    }
+
+    if (!includeAccessibility) {
+      return base(status: 'skipped', code: 'accessibility_grounding_disabled');
+    }
+    if (!captureOk) {
+      return base(status: 'skipped', code: 'capture_not_ready');
+    }
+    if (captureTarget != 'window' || resolvedWindowId == null) {
+      return base(status: 'skipped', code: 'window_target_required');
+    }
+
+    final snapshotArguments = <String, dynamic>{
+      'target': 'window',
+      'window_id': resolvedWindowId,
+      'max_elements':
+          _intValue(
+            arguments['max_accessibility_elements'] ??
+                arguments['maxAccessibilityElements'],
+          ) ??
+          50,
+      'max_depth':
+          _intValue(
+            arguments['max_accessibility_depth'] ??
+                arguments['maxAccessibilityDepth'],
+          ) ??
+          4,
+      'label_max_characters':
+          _intValue(
+            arguments['label_max_characters'] ??
+                arguments['labelMaxCharacters'],
+          ) ??
+          120,
+    };
+    if (maxCandidates != null) {
+      snapshotArguments['max_candidate_elements'] = maxCandidates;
+    }
+
+    final rawSnapshot = await accessibilitySnapshot(snapshotArguments);
+    final snapshot = _decodeMap(rawSnapshot);
+    if (snapshot == null) {
+      return base(
+        status: 'failed',
+        code: 'invalid_accessibility_snapshot_response',
+        error:
+            'Computer vision observation did not receive JSON accessibility snapshot data.',
+        extra: {'raw': rawSnapshot},
+      );
+    }
+    if (snapshot['ok'] == false) {
+      return base(
+        status: _groundingBlockedStatus(snapshot['code']),
+        code: snapshot['code'] as String? ?? 'accessibility_snapshot_failed',
+        error:
+            snapshot['error'] as String? ??
+            'Accessibility snapshot was not available.',
+        extra: {'snapshot': _redactedAccessibilitySnapshotMetadata(snapshot)},
+      );
+    }
+
+    final candidates = _candidateElementsFromSnapshot(
+      snapshot,
+      maxCandidates: maxCandidates ?? 12,
+    );
+    return {
+      'schemaName': 'macos_computer_use_element_grounding',
+      'schemaVersion': 1,
+      'sourceTool': 'computer_accessibility_snapshot',
+      'status': 'ready',
+      'observationId': snapshot['observationId'] ?? snapshot['snapshotId'],
+      'snapshotId': snapshot['snapshotId'] ?? snapshot['observationId'],
+      'windowId': resolvedWindowId,
+      'coordinateSpace': snapshot['coordinateSpace'] ?? 'screen_points',
+      'inputOrigin': snapshot['inputOrigin'] ?? 'top_left',
+      'bounds': snapshot['bounds'] ?? const <String, dynamic>{},
+      'elementCount': snapshot['elementCount'] ?? candidates.length,
+      'candidateElements': candidates,
+      'candidateElementCount': candidates.length,
+      'redaction': snapshot['redaction'] ?? const <String, dynamic>{},
+      'snapshotTruncated': snapshot['truncated'] == true,
+      'truncation': snapshot['truncation'] ?? const <String, dynamic>{},
+      'candidateSelection': {
+        'maxCandidates': maxCandidates ?? 12,
+        'preferredRoles': _groundingPreferredRoleTokens,
+        'fallbackUsed': candidates.isNotEmpty && !_hasPreferredRole(candidates),
+      },
+      'nextAction':
+          'When proposing an approved desktop action, cite a candidate elementId in target.elementId when it matches the visible screenshot target.',
+    };
+  }
+
   Map<String, dynamic> _visionActionProposalPolicy() {
     final toolPolicies = _visionAllowedNextTools
         .map((toolName) {
@@ -557,6 +710,7 @@ class MacosComputerUseService {
                 .map((boundary) => boundary.name)
                 .toList(growable: false),
             'blockerCodes': decision.blockerCodes,
+            'targetSafety': decision.targetSafety.toJson(),
             'nextAction': decision.nextAction,
           };
         })
@@ -573,15 +727,18 @@ class MacosComputerUseService {
         'Observation tools can remain in planning without approval.',
         'Pointer, keyboard, and focus actions must include a concrete target before user approval.',
         'computer_type_text must include the exact text that will be typed.',
-        'Posting, sending, submitting, publishing, purchasing, ordering, or checkout controls must set target.risk=public_action and require separate public action approval.',
+        'Posting, sending, submitting, or publishing controls must set target.risk=public_action and require separate public action approval.',
+        'Secure fields, credential prompts, payment flows, and destructive controls must set target.risk to secure_field, credential, payment, or destructive and are blocked until manually handled.',
         'System audio recording requires separate recording approval.',
       ],
       'targetSchema': {
         'label': 'Visible label or accessible name.',
         'role': 'Visible or accessibility role.',
+        'elementId':
+            'Optional elementId from elementGrounding.candidateElements in the latest computer_vision_observe result.',
         'action': 'Intended action, such as click, submit, or publish.',
         'risk':
-            'Use public_action for externally visible or state-changing controls.',
+            'Use public_action, secure_field, credential, payment, destructive, input, sensitive, or unknown.',
       },
       'toolPolicies': toolPolicies,
     };
@@ -615,6 +772,22 @@ class MacosComputerUseService {
       final value = normalized[key];
       if (value is num) {
         normalized[key] = value.toInt();
+      }
+    }
+    return normalized;
+  }
+
+  Map<String, dynamic> _normalizeElementTargetArguments(
+    Map<String, dynamic> arguments,
+  ) {
+    final normalized = Map<String, dynamic>.from(arguments);
+    if (normalized['element_id'] == null && normalized['elementId'] == null) {
+      final target = normalized['target'];
+      if (target is Map) {
+        final targetElementId = target['element_id'] ?? target['elementId'];
+        if (targetElementId != null) {
+          normalized['element_id'] = '$targetElementId';
+        }
       }
     }
     return normalized;
@@ -654,6 +827,97 @@ class MacosComputerUseService {
     return redacted;
   }
 
+  String _groundingBlockedStatus(Object? code) {
+    return switch (code) {
+      'accessibility_denied' || 'accessibility_window_not_found' => 'blocked',
+      _ => 'failed',
+    };
+  }
+
+  Map<String, dynamic> _redactedAccessibilitySnapshotMetadata(
+    Map<String, dynamic> snapshot,
+  ) {
+    final metadata = Map<String, dynamic>.from(snapshot)
+      ..remove('elements')
+      ..remove('imageBase64');
+    return metadata;
+  }
+
+  List<Map<String, dynamic>> _candidateElementsFromSnapshot(
+    Map<String, dynamic> snapshot, {
+    required int maxCandidates,
+  }) {
+    final elements = snapshot['elements'];
+    if (elements is! List) {
+      return const <Map<String, dynamic>>[];
+    }
+    final normalized = elements
+        .whereType<Map>()
+        .map((element) => _normalizedGroundingCandidate(element))
+        .nonNulls
+        .toList(growable: false);
+    final preferred = normalized
+        .where(_isPreferredGroundingCandidate)
+        .take(maxCandidates)
+        .toList(growable: false);
+    if (preferred.isNotEmpty) {
+      return preferred;
+    }
+    return normalized.take(maxCandidates).toList(growable: false);
+  }
+
+  Map<String, dynamic>? _normalizedGroundingCandidate(
+    Map<dynamic, dynamic> raw,
+  ) {
+    final elementId = _stringValue(raw['elementId']);
+    final role = _stringValue(raw['role']);
+    if (elementId.isEmpty || role.isEmpty) {
+      return null;
+    }
+    final candidate = <String, dynamic>{
+      'elementId': elementId,
+      'role': role,
+      'label': _stringValue(raw['label']),
+      'frame': raw['frame'],
+      'frameKnown': raw['frameKnown'] == true,
+      'enabled': raw['enabled'] == true,
+      'enabledKnown': raw['enabledKnown'] == true,
+      'focused': raw['focused'] == true,
+      'focusedKnown': raw['focusedKnown'] == true,
+      'childCount': _intValue(raw['childCount']) ?? 0,
+      'redaction': raw['redaction'] ?? const <String, dynamic>{},
+    };
+    final subrole = _stringValue(raw['subrole']);
+    final labelSource = _stringValue(raw['labelSource']);
+    if (subrole.isNotEmpty) {
+      candidate['subrole'] = subrole;
+    }
+    if (labelSource.isNotEmpty) {
+      candidate['labelSource'] = labelSource;
+    }
+    final parentId = _stringValue(raw['parentId']);
+    if (parentId.isNotEmpty) {
+      candidate['parentId'] = parentId;
+    }
+    return candidate;
+  }
+
+  bool _isPreferredGroundingCandidate(Map<String, dynamic> candidate) {
+    if (candidate['focused'] == true) {
+      return true;
+    }
+    final role = _stringValue(candidate['role']).toLowerCase();
+    final subrole = _stringValue(candidate['subrole']).toLowerCase();
+    final roleText = '$role $subrole';
+    return _groundingPreferredRoleTokens.any(
+      (token) => roleText.contains(token),
+    );
+  }
+
+  bool _hasPreferredRole(List<Map<String, dynamic>> candidates) {
+    return candidates.any(_isPreferredGroundingCandidate);
+  }
+
   String _visionNextAction({
     required bool captureOk,
     required bool imageAttached,
@@ -666,11 +930,32 @@ class MacosComputerUseService {
       }
       return 'Resolve the observation failure, then run computer_vision_observe again.';
     }
-    return 'Use the attached screenshot and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
+    return 'Use the attached screenshot, elementGrounding candidates, and actionProposalPolicy to decide whether to answer, observe again, or request an approved computer-use action with target metadata and exact text when required.';
   }
+
+  static const List<String> _groundingPreferredRoleTokens = [
+    'button',
+    'checkbox',
+    'radio',
+    'textfield',
+    'text field',
+    'searchfield',
+    'search field',
+    'combobox',
+    'combo box',
+    'popup',
+    'pop up',
+    'menuitem',
+    'menu item',
+    'link',
+    'tab',
+    'cell',
+    'row',
+  ];
 
   static final List<String> _visionAllowedNextTools = List.unmodifiable([
     'computer_vision_observe',
+    'computer_accessibility_snapshot',
     'computer_list_windows',
     'computer_screenshot',
     'computer_screenshot_window',

@@ -554,6 +554,94 @@ Do not include raw screenshots, audio payloads, tokens, secrets, typed text, or
 raw tool payloads in ordinary diagnostics. Export those artifacts only through a
 separate explicit user-approved artifact flow.
 
+## M49 Privacy And Audit Release Pack
+
+Use this pass after M48 has produced a ready user-operated action pilot and
+redacted Computer Use diagnostics have been exported:
+
+1. Export redacted Computer Use diagnostics from the Computer Use settings or
+   debug surface.
+2. Confirm the diagnostics include `auditPrivacyControls.schemaName:
+   macos_computer_use_audit_privacy_controls`.
+3. Confirm M48 produced a ready
+   `macos_computer_use_m48_user_operated_action_pilot`.
+4. Run
+   `bash tool/run_macos_computer_use_m49_privacy_audit_release_pack.sh --m48-pilot <user_operated_action_pilot.json> --diagnostics <redacted-computer-use-diagnostics.json> --redacted-export-reviewed yes --privacy-copy-reviewed yes --support-diagnostics-reviewed yes --explicit-payload-export-policy-reviewed yes --payload-export-requested no --explicit-payload-export-approved not-requested`.
+5. Confirm `schemaName` is
+   `macos_computer_use_m49_privacy_audit_release_pack`.
+6. Confirm `m49PrivacyAuditReleasePackGate.status` is `ready`.
+7. Confirm ordinary diagnostics raw-payload leak checks passed.
+8. If raw payload export is requested, confirm it has separate explicit
+   approval and is not bundled into ordinary diagnostics.
+
+Do not use M49 to export raw screenshots, audio payloads, tokens, secrets,
+typed text, or raw tool payloads. Ordinary support diagnostics remain redacted;
+raw payload export requires a separate explicit user-approved artifact flow.
+
+## M50 Signed Beta Gate
+
+Use this pass after M49 is ready and the signed beta build evidence is
+available:
+
+1. Write or refresh the signed beta checklist template:
+   `bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --write-template`.
+2. Attach signed artifact evidence from the M7 release artifact sign-off.
+3. Attach M33 release packaging evidence.
+4. Attach notarization ticket and stapler validation evidence in the M50 signed
+   beta checklist.
+5. Ask the user to complete clean install, upgrade, permission grant,
+   permission revocation, helper restart, and XPC fallback observability checks
+   with the signed beta build.
+6. Confirm M46 produced a ready
+   `macos_computer_use_m46_element_grounded_llm_eval_summary`.
+7. Confirm M48 produced a ready
+   `macos_computer_use_m48_user_operated_action_pilot`.
+8. Confirm M49 produced a ready
+   `macos_computer_use_m49_privacy_audit_release_pack`.
+9. Run
+   `bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --signed-beta-checklist <m50-signed-beta-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --m46-element-grounded-llm-eval <canary_summary.json> --m48-user-operated-action-pilot <user_operated_action_pilot.json> --m49-privacy-audit-release-pack <privacy_audit_release_pack.json>`.
+10. Confirm `schemaName` is `macos_computer_use_m50_signed_beta_gate`.
+11. Confirm `signedBetaReviewSummary.status` is `ready_for_signed_beta`.
+12. Confirm `m50SignedBetaGate.status` is `ready`.
+
+Do not use M50 to sign, notarize, staple, grant TCC, open System Settings,
+capture screens, click, type, navigate, submit, post, purchase, export raw
+payloads, or operate desktop apps. M50 only reads signed beta checklist
+evidence and existing reports.
+
+## M51 Production Launch Gate
+
+Use this pass after M50 signed beta evidence is ready and the production launch
+checklist is ready:
+
+1. Write or refresh the launch checklist template:
+   `bash tool/run_macos_computer_use_m51_production_launch_gate.sh --write-template`.
+2. Attach signed artifact evidence from the M7 release artifact sign-off.
+3. Attach M33 release packaging evidence.
+4. Attach notarization ticket and stapler validation evidence in the M51 launch
+   checklist.
+5. Attach helper identity diagnostics that include M38 install migration
+   guardrails.
+6. Attach manual TCC runbook evidence.
+7. Attach ready M46 element-grounded LLM evaluation evidence.
+8. Attach ready M49 privacy/audit release-pack evidence.
+9. Attach ready M50 signed beta gate evidence.
+10. Attach emergency stop, privacy copy, support diagnostics, default-off
+    rollout, rollback, and support escalation sign-off in the M51 launch
+    checklist.
+11. Run
+    `bash tool/run_macos_computer_use_m51_production_launch_gate.sh --launch-checklist <m51-launch-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --manual-tcc-report <manual-tcc-summary.json> --m46-element-grounded-llm-eval <canary_summary.json> --m49-privacy-audit-release-pack <privacy_audit_release_pack.json> --m50-signed-beta-gate <macos_computer_use_m50_signed_beta_gate.json> --diagnostics <computer-use-diagnostics.json>`.
+12. Confirm `schemaName` is
+    `macos_computer_use_m51_production_launch_gate`.
+13. Confirm `launchReviewSummary.status` is
+    `ready_for_production_launch`.
+14. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M51 to sign, notarize, staple, grant TCC, open System Settings,
+capture screens, click, type, navigate, submit, post, purchase, export raw
+payloads, or operate desktop apps. M51 only reads launch checklist evidence
+and existing reports.
+
 ## M38 Install And Migration Guardrails
 
 Use this pass before validating an upgraded or newly installed Computer Use
@@ -640,6 +728,147 @@ Computer Use can ship to production:
 Do not use M40 to notarize, grant TCC, open System Settings, capture screens,
 click, type, navigate, submit, post, purchase, or operate desktop apps. M40 only
 reads release checklist evidence and existing reports.
+
+## M52 Product Release Rollout
+
+Use this pass only after M51 is ready to decide whether element-grounded
+Computer Use can ship through the product release rollout:
+
+1. Write or refresh the product release checklist template:
+   `bash tool/run_macos_computer_use_m52_product_release_rollout.sh --write-template`.
+2. Confirm Computer Use remains default off for product release.
+3. Confirm the only product enablement path remains Settings > Advanced.
+4. Confirm the disable path and emergency stop behavior are reversible and
+   ready for support use.
+5. Attach rollback runbook and support runbook sign-off notes.
+6. Attach privacy copy, release notes, support diagnostics handoff, rollout
+   owner, monitoring, and escalation sign-off notes.
+7. Attach ready M51 production launch gate evidence.
+8. Run
+   `bash tool/run_macos_computer_use_m52_product_release_rollout.sh --product-release-checklist <m52-product-release-checklist.json> --m51-production-launch-gate <macos_computer_use_m51_production_launch_gate.json>`.
+9. Confirm `schemaName` is
+   `macos_computer_use_m52_product_release_rollout`.
+10. Confirm `releaseRolloutSummary.status` is
+    `ready_for_product_release`.
+11. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M52 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, export raw payloads, or operate desktop
+apps. M52 only reads M51 launch evidence and user-operated product release
+checklist evidence.
+
+## M53 Post-Release Guardrails
+
+Use this pass after M52 is ready and on the scheduled post-release review
+cadence:
+
+1. Write or refresh the post-release checklist template:
+   `bash tool/run_macos_computer_use_m53_post_release_guardrails.sh --write-template`.
+2. Confirm M52 product release rollout evidence is ready.
+3. Confirm Computer Use remains default off after release.
+4. Confirm the only enablement path remains Settings > Advanced.
+5. Review redacted support diagnostics, known issues, incidents, complaints,
+   regressions, and user-impacting failures.
+6. Confirm rollback, disable path, emergency stop, hotfix triggers, rollout
+   pause triggers, and escalation coverage remain ready.
+7. Run
+   `bash tool/run_macos_computer_use_m53_post_release_guardrails.sh --post-release-checklist <m53-post-release-checklist.json> --m52-product-release-rollout <macos_computer_use_m52_product_release_rollout.json>`.
+8. Confirm `schemaName` is
+   `macos_computer_use_m53_post_release_guardrails`.
+9. Confirm `postReleaseGuardrailsSummary.status` is
+   `ready_for_post_release_operations`.
+10. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M53 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, export raw payloads, or operate desktop
+apps. M53 only reads M52 rollout evidence and user-operated post-release
+checklist evidence.
+
+## M54 Rollout Expansion Gate
+
+Use this pass after M53 is ready and before broadening the Computer Use rollout
+beyond the currently approved cohort:
+
+1. Write or refresh the rollout expansion checklist template:
+   `bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh --write-template`.
+2. Confirm M53 post-release guardrail evidence is ready.
+3. Confirm the proposed expansion scope, cohort, channel, or percentage.
+4. Review cohort risk, excluded segments, support capacity, escalation
+   coverage, safety metrics, incidents, complaints, and regressions.
+5. Confirm rollback, rollout pause, disable path, emergency stop, hotfix
+   triggers, release notes, support copy, user communication, rollout owner,
+   support owner, and escalation handoff remain ready.
+6. Schedule the next post-expansion review and evidence owner.
+7. Run
+   `bash tool/run_macos_computer_use_m54_rollout_expansion_gate.sh --rollout-expansion-checklist <m54-rollout-expansion-checklist.json> --m53-post-release-guardrails <macos_computer_use_m53_post_release_guardrails.json>`.
+8. Confirm `schemaName` is
+   `macos_computer_use_m54_rollout_expansion_gate`.
+9. Confirm `rolloutExpansionSummary.status` is
+   `ready_for_rollout_expansion`.
+10. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M54 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, export raw payloads, or operate desktop
+apps. M54 only reads M53 guardrail evidence and user-operated rollout expansion
+checklist evidence.
+
+## M55 Post-Expansion Monitoring Gate
+
+Use this pass after M54 is ready and after the approved rollout expansion has
+run for its monitoring window:
+
+1. Write or refresh the post-expansion monitoring checklist template:
+   `bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh --write-template`.
+2. Confirm M54 rollout expansion gate evidence is ready.
+3. Record the expanded cohort, channel, percentage, and elapsed monitoring
+   window.
+4. Review safety metrics, support volume, support response time, escalation
+   load, incidents, complaints, regressions, and user-impacting failures.
+5. Confirm rollback, rollout pause, disable path, hotfix, emergency stop,
+   owner follow-up, and escalation handoff remain ready.
+6. Approve one continuation decision: `continue_expansion`,
+   `hold_current_cohort`, `pause_rollout`, or `rollback_recommended`.
+7. Schedule the next monitoring review and evidence owner.
+8. Run
+   `bash tool/run_macos_computer_use_m55_post_expansion_monitoring_gate.sh --post-expansion-monitoring-checklist <m55-post-expansion-monitoring-checklist.json> --m54-rollout-expansion-gate <macos_computer_use_m54_rollout_expansion_gate.json>`.
+9. Confirm `schemaName` is
+   `macos_computer_use_m55_post_expansion_monitoring_gate`.
+10. Confirm `postExpansionMonitoringSummary.status` is
+    `ready_for_post_expansion_decision`.
+11. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M55 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, export raw payloads, or operate desktop
+apps. M55 only reads M54 rollout expansion evidence and user-operated
+post-expansion monitoring checklist evidence.
+
+## M56 Rollout Decision Handoff Gate
+
+Use this pass after M55 is ready and the rollout continuation decision needs a
+user-operated branch handoff:
+
+1. Write or refresh the rollout decision handoff checklist template:
+   `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh --write-template`.
+2. Confirm M55 post-expansion monitoring gate evidence is ready.
+3. Record the M55 decision scope, affected cohort, and evidence window.
+4. Confirm the decision branch handoff matches the M55 decision:
+   `continue_expansion` to `next_expansion_cycle_seed`,
+   `hold_current_cohort` to `monitoring_cadence_hold`, `pause_rollout` to
+   `rollout_pause_handoff`, or `rollback_recommended` to `rollback_handoff`.
+5. Confirm the handoff owner, evidence archive, user communication review,
+   branch risk controls, and next review are ready.
+6. Run
+   `bash tool/run_macos_computer_use_m56_rollout_decision_handoff_gate.sh --rollout-decision-handoff-checklist <m56-rollout-decision-handoff-checklist.json> --m55-post-expansion-monitoring-gate <macos_computer_use_m55_post_expansion_monitoring_gate.json>`.
+7. Confirm `schemaName` is
+   `macos_computer_use_m56_rollout_decision_handoff_gate`.
+8. Confirm `rolloutDecisionHandoffSummary.status` is
+   `ready_for_rollout_decision_handoff`.
+9. Confirm `automationBoundary` is `read_reports_only`.
+
+Do not use M56 to grant TCC, open System Settings, capture screens, click,
+type, navigate, submit, post, purchase, export raw payloads, or operate desktop
+apps. M56 only reads M55 post-expansion monitoring evidence and
+user-operated rollout decision handoff checklist evidence.
 
 ## Hidden Helper
 

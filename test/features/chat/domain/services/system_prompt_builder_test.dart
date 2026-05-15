@@ -181,6 +181,7 @@ void main() {
       languageCode: 'en',
       toolNames: const [
         'computer_vision_observe',
+        'computer_accessibility_snapshot',
         'computer_list_windows',
         'computer_screenshot',
         'computer_screenshot_window',
@@ -201,6 +202,12 @@ void main() {
       prompt,
       contains('Use raw computer_list_windows, computer_screenshot'),
     );
+    expect(prompt, contains('Use computer_accessibility_snapshot'));
+    expect(prompt, contains('current snapshot'));
+    expect(prompt, contains('elementGrounding candidates'));
+    expect(prompt, contains('element_id'));
+    expect(prompt, contains('target.elementId'));
+    expect(prompt, contains('target appName, windowTitle, role, label'));
     expect(
       prompt,
       contains(
@@ -212,6 +219,8 @@ void main() {
     expect(prompt, contains('execution result intake'));
     expect(prompt, contains('include the exact text to type'));
     expect(prompt, contains('target.risk=public_action'));
+    expect(prompt, contains('target.risk to secure_field'));
+    expect(prompt, contains('do not ask Caverno to execute'));
     expect(prompt, contains('observe-action-observe cycle'));
     expect(prompt, contains('follow the returned nextAction'));
     expect(

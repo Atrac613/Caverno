@@ -573,6 +573,10 @@ void main() {
           wrapper,
           contains('tool/run_macos_computer_use_mvp_fixture_llm_canary.sh'),
         );
+        expect(wrapper, contains(r'mkdir -p "${REPORT_ROOT}"'));
+        expect(cli, contains('reportRoot.createSync(recursive: true)'));
+        expect(cli, contains('readiness aggregation will '));
+        expect(cli, contains('still report blockers'));
         expect(wrapper, contains(r'--root "${REPORT_ROOT}"'));
         expect(
           wrapper,
@@ -735,6 +739,13 @@ void main() {
       expect(entryIds, contains('m30_observe_result_intake'));
       expect(entryIds, contains('m39_beta_signoff'));
       expect(entryIds, contains('m40_production_launch_gate'));
+      expect(entryIds, contains('m50_signed_beta_gate'));
+      expect(entryIds, contains('m51_production_launch_gate'));
+      expect(entryIds, contains('m52_product_release_rollout'));
+      expect(entryIds, contains('m53_post_release_guardrails'));
+      expect(entryIds, contains('m54_rollout_expansion_gate'));
+      expect(entryIds, contains('m55_post_expansion_monitoring_gate'));
+      expect(entryIds, contains('m56_rollout_decision_handoff_gate'));
       expect(
         index.entries
             .singleWhere((entry) => entry.id == 'release_artifact')
@@ -3356,6 +3367,800 @@ void main() {
       );
     });
 
+    test('M31 navigator recommends M50 after M40 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m50_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m50_signed_beta_gate');
+      expect(recommendation.artifactId, 'm50_signed_beta_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m50_signed_beta_gate.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m49-privacy-audit-release-pack <privacy_audit_release_pack.json>',
+        ),
+      );
+    });
+
+    test('M31 navigator recommends M51 after M50 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m51_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m51_production_launch_gate');
+      expect(recommendation.artifactId, 'm51_production_launch_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m51_production_launch_gate.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m50-signed-beta-gate <macos_computer_use_m50_signed_beta_gate.json>',
+        ),
+      );
+    });
+
+    test('M31 navigator recommends M52 after M51 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m52_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '/tmp/m51.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm52_product_release_rollout',
+          label: 'Latest M52 product release rollout',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m52_product_release_rollout');
+      expect(recommendation.artifactId, 'm52_product_release_rollout');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m52_product_release_rollout.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m51-production-launch-gate <macos_computer_use_m51_production_launch_gate.json>',
+        ),
+      );
+    });
+
+    test('artifact index blocks launch navigation on blocked M52 evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m52_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m52Path =
+          '${root.path}/macos_computer_use_m52_product_release_rollout_999/macos_computer_use_m52_product_release_rollout.json';
+      _writeJson(File(m52Path), _m52ProductReleaseRollout(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm52_product_release_rollout',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.details['reviewStatus'], 'blocked_gates_present');
+      expect(
+        entry.details['blockedGateIds'],
+        contains('default_off_confirmed'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm52_product_release_rollout');
+      expect(
+        recommendation.nextAction,
+        'Resolve M52 product release rollout blockers before shipping Computer Use.',
+      );
+      expect(index.toMarkdown(), contains('## M52 Product Release Rollout'));
+    });
+
+    test('M31 navigator recommends M53 after M52 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m53_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        const ReadinessArtifactEntry(
+          id: 'release_artifact',
+          label: 'Latest release artifact sign-off',
+          path: '/tmp/release.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'canary_history',
+          label: 'Latest canary history',
+          path: '/tmp/canary.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'manual_tcc',
+          label: 'Latest manual TCC evidence',
+          path: '/tmp/tcc.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'desktop_action_canary',
+          label: 'Latest desktop action canary',
+          path: '/tmp/desktop.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'llm_canary',
+          label: 'Latest LLM canary',
+          path: '/tmp/llm.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '/tmp/m51.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm52_product_release_rollout',
+          label: 'Latest M52 product release rollout',
+          path: '/tmp/m52.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm53_post_release_guardrails',
+          label: 'Latest M53 post-release guardrails',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m53_post_release_guardrails');
+      expect(recommendation.artifactId, 'm53_post_release_guardrails');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m53_post_release_guardrails.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m52-product-release-rollout <macos_computer_use_m52_product_release_rollout.json>',
+        ),
+      );
+    });
+
+    test('artifact index blocks rollout navigation on blocked M53 evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m53_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m53Path =
+          '${root.path}/macos_computer_use_m53_post_release_guardrails_999/macos_computer_use_m53_post_release_guardrails.json';
+      _writeJson(File(m53Path), _m53PostReleaseGuardrails(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm53_post_release_guardrails',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.details['reviewStatus'], 'blocked_gates_present');
+      expect(
+        entry.details['blockedGateIds'],
+        contains('support_diagnostics_reviewed'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm53_post_release_guardrails');
+      expect(
+        recommendation.nextAction,
+        'Resolve M53 post-release guardrail blockers before continuing rollout expansion.',
+      );
+      expect(index.toMarkdown(), contains('## M53 Post-Release Guardrails'));
+    });
+
+    test('M31 navigator recommends M54 after M53 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m54_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        const ReadinessArtifactEntry(
+          id: 'release_artifact',
+          label: 'Latest release artifact sign-off',
+          path: '/tmp/release.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'canary_history',
+          label: 'Latest canary history',
+          path: '/tmp/canary.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'manual_tcc',
+          label: 'Latest manual TCC evidence',
+          path: '/tmp/tcc.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'desktop_action_canary',
+          label: 'Latest desktop action canary',
+          path: '/tmp/desktop.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'llm_canary',
+          label: 'Latest LLM canary',
+          path: '/tmp/llm.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '/tmp/m51.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm52_product_release_rollout',
+          label: 'Latest M52 product release rollout',
+          path: '/tmp/m52.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm53_post_release_guardrails',
+          label: 'Latest M53 post-release guardrails',
+          path: '/tmp/m53.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm54_rollout_expansion_gate',
+          label: 'Latest M54 rollout expansion gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m54_rollout_expansion_gate');
+      expect(recommendation.artifactId, 'm54_rollout_expansion_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m54_rollout_expansion_gate.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m53-post-release-guardrails <macos_computer_use_m53_post_release_guardrails.json>',
+        ),
+      );
+    });
+
+    test(
+      'artifact index blocks expansion navigation on blocked M54 evidence',
+      () {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_artifact_index_m54_blocked_test_',
+        );
+        addTearDown(() {
+          root.deleteSync(recursive: true);
+        });
+
+        final m54Path =
+            '${root.path}/macos_computer_use_m54_rollout_expansion_gate_999/macos_computer_use_m54_rollout_expansion_gate.json';
+        _writeJson(File(m54Path), _m54RolloutExpansionGate(ready: false));
+
+        final index = buildReadinessArtifactIndex(root);
+        final entry = index.entries.singleWhere(
+          (entry) => entry.id == 'm54_rollout_expansion_gate',
+        );
+        final recommendation = index.nextStepNavigator.recommendation;
+
+        expect(entry.exists, isTrue);
+        expect(entry.status, 'blocked');
+        expect(entry.details['reviewStatus'], 'blocked_gates_present');
+        expect(
+          entry.details['blockedGateIds'],
+          contains('expansion_scope_approved'),
+        );
+        expect(recommendation.priority, 'resolve_blocked_evidence');
+        expect(recommendation.artifactId, 'm54_rollout_expansion_gate');
+        expect(
+          recommendation.nextAction,
+          'Resolve M54 rollout expansion blockers before expanding rollout.',
+        );
+        expect(index.toMarkdown(), contains('## M54 Rollout Expansion Gate'));
+      },
+    );
+
+    test('M31 navigator recommends M55 after M54 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m55_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '/tmp/m51.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm52_product_release_rollout',
+          label: 'Latest M52 product release rollout',
+          path: '/tmp/m52.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm53_post_release_guardrails',
+          label: 'Latest M53 post-release guardrails',
+          path: '/tmp/m53.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm54_rollout_expansion_gate',
+          label: 'Latest M54 rollout expansion gate',
+          path: '/tmp/m54.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm55_post_expansion_monitoring_gate',
+          label: 'Latest M55 post-expansion monitoring gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m55_post_expansion_monitoring_gate');
+      expect(recommendation.artifactId, 'm55_post_expansion_monitoring_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          'run_macos_computer_use_m55_post_expansion_monitoring_gate.sh',
+        ),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m54-rollout-expansion-gate <macos_computer_use_m54_rollout_expansion_gate.json>',
+        ),
+      );
+    });
+
+    test(
+      'artifact index blocks continuation navigation on blocked M55 evidence',
+      () {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_artifact_index_m55_blocked_test_',
+        );
+        addTearDown(() {
+          root.deleteSync(recursive: true);
+        });
+
+        final m55Path =
+            '${root.path}/macos_computer_use_m55_post_expansion_monitoring_gate_999/macos_computer_use_m55_post_expansion_monitoring_gate.json';
+        _writeJson(
+          File(m55Path),
+          _m55PostExpansionMonitoringGate(ready: false),
+        );
+
+        final index = buildReadinessArtifactIndex(root);
+        final entry = index.entries.singleWhere(
+          (entry) => entry.id == 'm55_post_expansion_monitoring_gate',
+        );
+        final recommendation = index.nextStepNavigator.recommendation;
+
+        expect(entry.exists, isTrue);
+        expect(entry.status, 'blocked');
+        expect(entry.details['reviewStatus'], 'blocked_gates_present');
+        expect(
+          entry.details['blockedGateIds'],
+          contains('safety_metrics_reviewed'),
+        );
+        expect(recommendation.priority, 'resolve_blocked_evidence');
+        expect(recommendation.artifactId, 'm55_post_expansion_monitoring_gate');
+        expect(
+          recommendation.nextAction,
+          'Resolve M55 post-expansion monitoring blockers before changing rollout state.',
+        );
+        expect(
+          index.toMarkdown(),
+          contains('## M55 Post-Expansion Monitoring Gate'),
+        );
+      },
+    );
+
+    test('M31 navigator recommends M56 after M55 is ready', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m56_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 beta sign-off',
+          path: '/tmp/m39.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm40_production_launch_gate',
+          label: 'Latest M40 production launch gate',
+          path: '/tmp/m40.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm50_signed_beta_gate',
+          label: 'Latest M50 signed beta gate',
+          path: '/tmp/m50.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm51_production_launch_gate',
+          label: 'Latest M51 production launch gate',
+          path: '/tmp/m51.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm52_product_release_rollout',
+          label: 'Latest M52 product release rollout',
+          path: '/tmp/m52.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm53_post_release_guardrails',
+          label: 'Latest M53 post-release guardrails',
+          path: '/tmp/m53.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm54_rollout_expansion_gate',
+          label: 'Latest M54 rollout expansion gate',
+          path: '/tmp/m54.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm55_post_expansion_monitoring_gate',
+          label: 'Latest M55 post-expansion monitoring gate',
+          path: '/tmp/m55.json',
+          exists: true,
+          status: 'ready',
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm56_rollout_decision_handoff_gate',
+          label: 'Latest M56 rollout decision handoff gate',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_m56_rollout_decision_handoff_gate');
+      expect(recommendation.artifactId, 'm56_rollout_decision_handoff_gate');
+      expect(recommendation.artifactStatus, 'missing');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        contains('run_macos_computer_use_m56_rollout_decision_handoff_gate.sh'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--root ${root.path}'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains(
+          '--m55-post-expansion-monitoring-gate <macos_computer_use_m55_post_expansion_monitoring_gate.json>',
+        ),
+      );
+    });
+
+    test('artifact index blocks handoff navigation on blocked M56 evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_m56_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m56Path =
+          '${root.path}/macos_computer_use_m56_rollout_decision_handoff_gate_999/macos_computer_use_m56_rollout_decision_handoff_gate.json';
+      _writeJson(File(m56Path), _m56RolloutDecisionHandoffGate(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm56_rollout_decision_handoff_gate',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.details['reviewStatus'], 'blocked_gates_present');
+      expect(
+        entry.details['blockedGateIds'],
+        contains('decision_branch_handoff'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm56_rollout_decision_handoff_gate');
+      expect(
+        recommendation.nextAction,
+        'Resolve M56 rollout decision handoff blockers before changing rollout state.',
+      );
+      expect(
+        index.toMarkdown(),
+        contains('## M56 Rollout Decision Handoff Gate'),
+      );
+    });
+
     test('artifact index blocks launch navigation on blocked M39 evidence', () {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_m39_blocked_test_',
@@ -5019,6 +5824,272 @@ Map<String, dynamic> _m40ProductionLaunchGate({required bool ready}) {
         'nextAction': ready
             ? 'M39 beta sign-off is ready.'
             : 'Run the M39 beta sign-off first.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m52ProductReleaseRollout({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m52_product_release_rollout',
+    'schemaVersion': 1,
+    'milestone': 'M52',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': ready ? <String>['default_off_confirmed'] : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['default_off_confirmed'],
+    'userOperatedGateIds': <String>['default_off_confirmed'],
+    'releaseRolloutSummary': <String, Object?>{
+      'status': ready ? 'ready_for_product_release' : 'blocked_gates_present',
+      'readyGateIds': ready ? <String>['default_off_confirmed'] : <String>[],
+      'blockedGateIds': ready ? <String>[] : <String>['default_off_confirmed'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['default_off_confirmed'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary': 'M52 reads release rollout evidence only.',
+    },
+    'm52ProductReleaseGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['default_off_confirmed'],
+      'nextAction': ready
+          ? 'Ship element-grounded Computer Use through the product release rollout.'
+          : 'Resolve blocked M52 product release rollout gates before shipping.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'default_off_confirmed',
+        'label': 'Default-off release',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Default-off release evidence is ready.'
+            : 'Ask the user to confirm default-off release behavior.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m53PostReleaseGuardrails({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m53_post_release_guardrails',
+    'schemaVersion': 1,
+    'milestone': 'M53',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': ready
+        ? <String>['support_diagnostics_reviewed']
+        : <String>[],
+    'blockedGateIds': ready
+        ? <String>[]
+        : <String>['support_diagnostics_reviewed'],
+    'userOperatedGateIds': <String>['support_diagnostics_reviewed'],
+    'postReleaseGuardrailsSummary': <String, Object?>{
+      'status': ready
+          ? 'ready_for_post_release_operations'
+          : 'blocked_gates_present',
+      'readyGateIds': ready
+          ? <String>['support_diagnostics_reviewed']
+          : <String>[],
+      'blockedGateIds': ready
+          ? <String>[]
+          : <String>['support_diagnostics_reviewed'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['support_diagnostics_reviewed'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary':
+          'M53 reads post-release guardrail evidence only.',
+    },
+    'm53PostReleaseGuardrailsGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['support_diagnostics_reviewed'],
+      'nextAction': ready
+          ? 'Keep Computer Use post-release guardrails on the scheduled review cadence.'
+          : 'Resolve blocked M53 post-release guardrail gates before continuing rollout expansion.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'support_diagnostics_reviewed',
+        'label': 'Support diagnostics review',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Support diagnostics review evidence is ready.'
+            : 'Ask the user to review redacted support diagnostics.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m54RolloutExpansionGate({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m54_rollout_expansion_gate',
+    'schemaVersion': 1,
+    'milestone': 'M54',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': ready ? <String>['expansion_scope_approved'] : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['expansion_scope_approved'],
+    'userOperatedGateIds': <String>['expansion_scope_approved'],
+    'rolloutExpansionSummary': <String, Object?>{
+      'status': ready ? 'ready_for_rollout_expansion' : 'blocked_gates_present',
+      'readyGateIds': ready ? <String>['expansion_scope_approved'] : <String>[],
+      'blockedGateIds': ready
+          ? <String>[]
+          : <String>['expansion_scope_approved'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['expansion_scope_approved'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary': 'M54 reads rollout expansion evidence only.',
+    },
+    'm54RolloutExpansionGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': ready ? <String>[] : <String>['expansion_scope_approved'],
+      'nextAction': ready
+          ? 'Expand Computer Use rollout only within the approved cohort and review cadence.'
+          : 'Resolve blocked M54 rollout expansion gates before expanding rollout.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'expansion_scope_approved',
+        'label': 'Expansion scope',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Expansion scope evidence is ready.'
+            : 'Ask the user to approve the rollout expansion scope.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m55PostExpansionMonitoringGate({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m55_post_expansion_monitoring_gate',
+    'schemaVersion': 1,
+    'milestone': 'M55',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+    'readyGateIds': ready ? <String>['safety_metrics_reviewed'] : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['safety_metrics_reviewed'],
+    'userOperatedGateIds': <String>['safety_metrics_reviewed'],
+    'postExpansionMonitoringSummary': <String, Object?>{
+      'status': ready
+          ? 'ready_for_post_expansion_decision'
+          : 'blocked_gates_present',
+      'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+      'readyGateIds': ready ? <String>['safety_metrics_reviewed'] : <String>[],
+      'blockedGateIds': ready
+          ? <String>[]
+          : <String>['safety_metrics_reviewed'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['safety_metrics_reviewed'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary':
+          'M55 reads post-expansion monitoring evidence only.',
+    },
+    'm55PostExpansionMonitoringGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+      'blockers': ready ? <String>[] : <String>['safety_metrics_reviewed'],
+      'nextAction': ready
+          ? 'Continue Computer Use rollout only within the approved monitoring cadence.'
+          : 'Resolve blocked M55 post-expansion monitoring gates before changing rollout state.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'safety_metrics_reviewed',
+        'label': 'Safety metrics review',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Safety metrics review evidence is ready.'
+            : 'Ask the user to review post-expansion safety metrics.',
+        'userOperated': true,
+      },
+    ],
+  };
+}
+
+Map<String, dynamic> _m56RolloutDecisionHandoffGate({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m56_rollout_decision_handoff_gate',
+    'schemaVersion': 1,
+    'milestone': 'M56',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+    'decisionHandoffType': ready ? 'next_expansion_cycle_seed' : 'unknown',
+    'readyGateIds': ready
+        ? <String>['m55_post_expansion_monitoring_gate']
+        : <String>[],
+    'blockedGateIds': ready ? <String>[] : <String>['decision_branch_handoff'],
+    'userOperatedGateIds': <String>['decision_branch_handoff'],
+    'rolloutDecisionHandoffSummary': <String, Object?>{
+      'status': ready
+          ? 'ready_for_rollout_decision_handoff'
+          : 'blocked_gates_present',
+      'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+      'decisionHandoffType': ready ? 'next_expansion_cycle_seed' : 'unknown',
+      'readyGateIds': ready
+          ? <String>['m55_post_expansion_monitoring_gate']
+          : <String>[],
+      'blockedGateIds': ready
+          ? <String>[]
+          : <String>['decision_branch_handoff'],
+      'blockedUserOperatedGateIds': ready
+          ? <String>[]
+          : <String>['decision_branch_handoff'],
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary':
+          'M56 reads M55 post-expansion monitoring evidence and rollout decision handoff checklist evidence only.',
+    },
+    'm56RolloutDecisionHandoffGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'rolloutContinuationDecision': ready ? 'continue_expansion' : 'unknown',
+      'decisionHandoffType': ready ? 'next_expansion_cycle_seed' : 'unknown',
+      'blockers': ready ? <String>[] : <String>['decision_branch_handoff'],
+      'nextAction': ready
+          ? 'Prepare the next user-operated M54 rollout expansion cycle seed.'
+          : 'Resolve blocked M56 rollout decision handoff gates before changing rollout state.',
+    },
+    'gates': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'decision_branch_handoff',
+        'label': 'Decision branch handoff',
+        'status': ready ? 'ready' : 'missing',
+        'ready': ready,
+        'nextAction': ready
+            ? 'Decision branch handoff evidence is ready.'
+            : 'Ask the user to provide a branch handoff that matches the M55 rollout decision.',
         'userOperated': true,
       },
     ],

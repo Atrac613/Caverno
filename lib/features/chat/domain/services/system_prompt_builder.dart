@@ -341,6 +341,18 @@ class SystemPromptBuilder {
           'computer_vision_observe is too broad.',
         );
         buffer.writeln(
+          'Use computer_accessibility_snapshot when labels, roles, frames, '
+          'enabled state, or focused state would reduce coordinate ambiguity. '
+          'Treat its element IDs as valid only for the current snapshot.',
+        );
+        buffer.writeln(
+          'When computer_vision_observe returns elementGrounding candidates, '
+          'use the matching candidate elementId as element_id and repeat it '
+          'in target.elementId before asking for an approved desktop action. '
+          'Also include target appName, windowTitle, role, label, action, and '
+          'risk when those values are available.',
+        );
+        buffer.writeln(
           'Use screenshot pixel coordinates from the latest observation. '
           'Include window_id for window screenshots, source_width, '
           'source_height, coordinate_space, and vision_observation_id when '
@@ -362,9 +374,15 @@ class SystemPromptBuilder {
           'ask the user to approve a vague or summarized text action.',
         );
         buffer.writeln(
-          'For controls that post, send, submit, publish, purchase, order, '
-          'or checkout, set target.risk=public_action and wait for separate '
+          'For controls that post, send, submit, or publish, set '
+          'target.risk=public_action and wait for separate '
           'public action approval before clicking or pressing the key.',
+        );
+        buffer.writeln(
+          'For secure fields, credential prompts, payment flows, or destructive '
+          'controls, set target.risk to secure_field, credential, payment, or '
+          'destructive and do not ask Caverno to execute the action; ask the '
+          'user to handle it manually or choose a safer target.',
         );
         buffer.writeln(
           'When a desktop action returns an attached post-action observation, '

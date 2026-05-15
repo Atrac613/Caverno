@@ -55,6 +55,7 @@ void main() {
       'stopAll',
       'screenshot',
       'listWindows',
+      'accessibilitySnapshot',
       'focusWindow',
       'screenshotWindow',
       'moveMouse',
@@ -95,7 +96,7 @@ void main() {
     expect(
       info['xpcProductionReadinessCriteria'],
       contains(
-        'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
+        'ping_show_main_window_permission_status_open_settings_show_permission_overlay_start_onboarding_permission_flow_stop_all_screenshot_list_windows_accessibility_snapshot_focus_window_screenshot_window_move_mouse_click_drag_scroll_type_text_press_key_system_audio_match_dnc',
       ),
     );
   });
@@ -132,6 +133,50 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
       contains('blocked M36 Live LLM evaluation evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M46 element-grounded LLM evaluation evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M47 real-app observe pilot evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M48 user-operated action pilot evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M49 privacy and audit release-pack evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M50 signed beta evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M51 production launch evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M52 product release rollout evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M53 post-release guardrail evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M54 rollout expansion evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M55 post-expansion monitoring evidence'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
+      contains('blocked M56 rollout decision handoff evidence'),
     );
     expect(
       MacosComputerUseMvpGuidance.prReviewSummaryGuidance,
@@ -172,6 +217,90 @@ void main() {
     expect(
       MacosComputerUseMvpGuidance.m36LiveLlmEvalCommand,
       contains('run_macos_computer_use_m36_live_llm_eval.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m46ElementGroundedLlmEvalCommand,
+      contains('run_macos_computer_use_m46_element_grounded_llm_eval.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m47RealAppObservePilotCommand,
+      contains('run_macos_computer_use_m47_real_app_observe_pilot.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m48UserOperatedActionPilotCommand,
+      contains('run_macos_computer_use_m48_user_operated_action_pilot.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m48UserOperatedActionPilotCommand,
+      contains('--safe-target-confirmed yes'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m49PrivacyAuditReleasePackCommand,
+      contains('run_macos_computer_use_m49_privacy_audit_release_pack.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m49PrivacyAuditReleasePackCommand,
+      contains('--explicit-payload-export-approved not-requested'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m50SignedBetaGateCommand,
+      contains('run_macos_computer_use_m50_signed_beta_gate.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m50SignedBetaGateCommand,
+      contains('--m49-privacy-audit-release-pack'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m51ProductionLaunchGateCommand,
+      contains('run_macos_computer_use_m51_production_launch_gate.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m51ProductionLaunchGateCommand,
+      contains('--m50-signed-beta-gate'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m52ProductReleaseRolloutCommand,
+      contains('run_macos_computer_use_m52_product_release_rollout.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m52ProductReleaseRolloutCommand,
+      contains('--m51-production-launch-gate'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsCommand,
+      contains('run_macos_computer_use_m53_post_release_guardrails.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m53PostReleaseGuardrailsCommand,
+      contains('--m52-product-release-rollout'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m54RolloutExpansionGateCommand,
+      contains('run_macos_computer_use_m54_rollout_expansion_gate.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m54RolloutExpansionGateCommand,
+      contains('--m53-post-release-guardrails'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateCommand,
+      contains('run_macos_computer_use_m55_post_expansion_monitoring_gate.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m55PostExpansionMonitoringGateCommand,
+      contains('--m54-rollout-expansion-gate'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateCommand,
+      contains('run_macos_computer_use_m56_rollout_decision_handoff_gate.sh'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateCommand,
+      contains('--rollout-decision-handoff-checklist'),
+    );
+    expect(
+      MacosComputerUseMvpGuidance.m56RolloutDecisionHandoffGateCommand,
+      contains('--m55-post-expansion-monitoring-gate'),
     );
     expect(
       MacosComputerUseMvpGuidance.m39BetaSignoffCommand,
