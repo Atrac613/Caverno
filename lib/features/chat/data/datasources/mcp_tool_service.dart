@@ -102,6 +102,7 @@ class McpToolService {
     'computer_drag',
     'computer_scroll',
     'computer_type_text',
+    'computer_switch_space',
     'computer_press_key',
     'computer_start_system_audio_recording',
     'computer_stop_system_audio_recording',
@@ -1687,6 +1688,7 @@ class McpToolService {
       'computer_drag' => service.drag(arguments),
       'computer_scroll' => service.scroll(arguments),
       'computer_type_text' => service.typeText(arguments),
+      'computer_switch_space' => service.switchSpace(arguments),
       'computer_press_key' => service.pressKey(arguments),
       'computer_start_system_audio_recording' =>
         service.startSystemAudioRecording(arguments),
@@ -2137,7 +2139,7 @@ class McpToolService {
       'function': {
         'name': 'computer_press_key',
         'description':
-            'Press a keyboard key, optionally with modifiers such as command, shift, option, or control.',
+            'Press a keyboard key, optionally with modifiers such as command, shift, option, or control. Use computer_switch_space for macOS Spaces switching.',
         'parameters': {
           'type': 'object',
           'properties': {
@@ -2150,6 +2152,30 @@ class McpToolService {
             'reason': {'type': 'string'},
           },
           'required': ['key'],
+        },
+      },
+    },
+    {
+      'type': 'function',
+      'function': {
+        'name': 'computer_switch_space',
+        'description':
+            'Switch to an adjacent macOS Space with Control-Left or Control-Right. Requires explicit user approval and must be followed by computer_vision_observe before pointer or keyboard input.',
+        'parameters': {
+          'type': 'object',
+          'properties': {
+            'direction': {
+              'type': 'string',
+              'enum': ['next', 'previous'],
+              'description':
+                  'Use next for Control-Right, or previous for Control-Left.',
+            },
+            'reason': {
+              'type': 'string',
+              'description': 'Why switching Spaces is needed.',
+            },
+          },
+          'required': ['direction'],
         },
       },
     },

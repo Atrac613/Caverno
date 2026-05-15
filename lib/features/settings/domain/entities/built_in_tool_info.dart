@@ -250,6 +250,11 @@ class BuiltInToolRegistry {
       category: categoryComputerUse,
     ),
     BuiltInToolInfo(
+      name: 'computer_switch_space',
+      descriptionKey: 'settings.tool_computer_switch_space',
+      category: categoryComputerUse,
+    ),
+    BuiltInToolInfo(
       name: 'computer_press_key',
       descriptionKey: 'settings.tool_computer_press_key',
       category: categoryComputerUse,

@@ -103,6 +103,7 @@ void main() {
       'computer_drag',
       'computer_scroll',
       'computer_type_text',
+      'computer_switch_space',
       'computer_press_key',
     ]) {
       final decision = MacosComputerUseToolPolicy.decision(toolName);
@@ -132,6 +133,20 @@ void main() {
     expect(decision.requiresSmokeArming, isTrue);
     expect(decision.requiresPostActionObservation, isTrue);
     expect(decision.emergencyStop, isFalse);
+  });
+
+  test('allows Space switch proposals without target metadata', () {
+    final decision = MacosComputerUseToolPolicy.actionProposalDecision(
+      toolName: 'computer_switch_space',
+    );
+
+    expect(decision, isNotNull);
+    expect(decision!.requiresUserApproval, isTrue);
+    expect(decision.requiresTargetApproval, isFalse);
+    expect(decision.requiresExactTextApproval, isFalse);
+    expect(decision.allowedAsObserveOnlyProposal, isFalse);
+    expect(decision.boundaries, isEmpty);
+    expect(decision.blockerCodes, isEmpty);
   });
 
   test('keeps observation proposals inside planning', () {

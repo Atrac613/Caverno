@@ -236,6 +236,7 @@ class MacosComputerUseToolPolicy {
     'computer_drag',
     'computer_scroll',
     'computer_type_text',
+    'computer_switch_space',
     'computer_press_key',
     'computer_start_system_audio_recording',
     'computer_stop_system_audio_recording',
@@ -258,6 +259,7 @@ class MacosComputerUseToolPolicy {
     'computer_drag',
     'computer_scroll',
     'computer_type_text',
+    'computer_switch_space',
     'computer_press_key',
     'computer_start_system_audio_recording',
   };
@@ -268,6 +270,7 @@ class MacosComputerUseToolPolicy {
     'computer_drag',
     'computer_scroll',
     'computer_type_text',
+    'computer_switch_space',
     'computer_press_key',
     'computer_start_system_audio_recording',
   };
@@ -654,6 +657,7 @@ class MacosComputerUseToolPolicy {
       'computer_drag' ||
       'computer_scroll' => MacosComputerUseToolCategory.pointerInput,
       'computer_type_text' ||
+      'computer_switch_space' ||
       'computer_press_key' => MacosComputerUseToolCategory.keyboardInput,
       'computer_start_system_audio_recording' ||
       'computer_stop_system_audio_recording' =>
@@ -676,6 +680,7 @@ class MacosComputerUseToolPolicy {
       'computer_drag' ||
       'computer_scroll' ||
       'computer_type_text' ||
+      'computer_switch_space' ||
       'computer_press_key' => MacosComputerUseRiskCategory.input,
       'computer_start_system_audio_recording' =>
         MacosComputerUseRiskCategory.sensitive,
@@ -698,6 +703,7 @@ class MacosComputerUseToolPolicy {
         'computer_drag' ||
         'computer_scroll' ||
         'computer_type_text' ||
+        'computer_switch_space' ||
         'computer_press_key' ||
         'computer_start_system_audio_recording' ||
         'computer_stop_system_audio_recording' => true,

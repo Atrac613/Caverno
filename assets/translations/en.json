@@ -518,6 +518,7 @@
     "tool_computer_drag": "Drag between macOS screen coordinates",
     "tool_computer_scroll": "Scroll the active macOS target",
     "tool_computer_type_text": "Type text into the focused macOS control",
+    "tool_computer_switch_space": "Switch to an adjacent macOS Space",
     "tool_computer_press_key": "Press a macOS keyboard key",
     "tool_computer_start_system_audio_recording": "Start macOS system audio recording",
     "tool_computer_stop_system_audio_recording": "Stop macOS system audio recording",

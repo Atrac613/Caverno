@@ -518,6 +518,7 @@
     "tool_computer_drag": "macOS screen coordinates間でドラッグ",
     "tool_computer_scroll": "active macOS targetをスクロール",
     "tool_computer_type_text": "focused macOS controlへテキスト入力",
+    "tool_computer_switch_space": "隣接するmacOS Spaceへ切り替え",
     "tool_computer_press_key": "macOS keyboard keyを押下",
     "tool_computer_start_system_audio_recording": "macOS system audio recordingを開始",
     "tool_computer_stop_system_audio_recording": "macOS system audio recordingを停止",

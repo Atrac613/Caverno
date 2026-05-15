@@ -87,6 +87,7 @@ void main() {
       expect(functionNames, contains('computer_screenshot_window'));
       expect(functionNames, contains('computer_click'));
       expect(functionNames, contains('computer_type_text'));
+      expect(functionNames, contains('computer_switch_space'));
       expect(functionNames, contains('computer_start_system_audio_recording'));
     });
 
@@ -117,6 +118,9 @@ void main() {
       final listWindowsProperties =
           parametersFor('computer_list_windows')['properties']!
               as Map<String, dynamic>;
+      final switchSpaceProperties =
+          parametersFor('computer_switch_space')['properties']!
+              as Map<String, dynamic>;
 
       expect(clickProperties['target'], isA<Map<String, dynamic>>());
       expect(clickProperties['element_id'], isA<Map<String, dynamic>>());
@@ -130,6 +134,11 @@ void main() {
       expect(visionProperties['space_scope'], isA<Map>());
       expect(listWindowsProperties['space_scope'], isA<Map>());
       expect(listWindowsProperties['include_hidden'], isA<Map>());
+      expect(switchSpaceProperties['direction'], isA<Map>());
+      expect(
+        switchSpaceProperties['direction'],
+        containsPair('enum', ['next', 'previous']),
+      );
       final target = clickProperties['target'] as Map<String, dynamic>;
       expect(jsonEncode(target), contains('public_action'));
       expect(jsonEncode(target), contains('elementId'));
@@ -158,6 +167,20 @@ void main() {
         expect(jsonDecode(result.result), containsPair('elementId', 'ax-0002'));
       },
     );
+
+    test('executes macOS Space switching through the native service', () async {
+      final computerUseService = _FakeMacosComputerUseService();
+      final service = McpToolService(computerUseService: computerUseService);
+
+      final result = await service.executeTool(
+        name: 'computer_switch_space',
+        arguments: const {'direction': 'previous'},
+      );
+
+      expect(result.isSuccess, isTrue);
+      expect(computerUseService.calledMethods, ['switchSpace']);
+      expect(jsonDecode(result.result), containsPair('direction', 'previous'));
+    });
 
     test(
       'executes macOS computer vision observation through the native service',
@@ -437,6 +460,18 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'y': arguments['y'],
       'elementId': arguments['element_id'],
       'windowId': arguments['window_id'],
+    });
+  }
+
+  @override
+  Future<String> switchSpace(Map<String, dynamic> arguments) async {
+    calledMethods.add('switchSpace');
+    return jsonEncode({
+      'ok': true,
+      'schemaName': 'macos_computer_use_space_switch',
+      'direction': arguments['direction'],
+      'key': arguments['direction'] == 'previous' ? 'left' : 'right',
+      'modifiers': ['control'],
     });
   }
 

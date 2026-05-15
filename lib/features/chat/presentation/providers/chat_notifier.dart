@@ -8829,6 +8829,12 @@ class ChatNotifier extends Notifier<ChatState> {
         'role': 'text_input',
         'action': 'type_text',
       },
+      'computer_switch_space' => {
+        'label':
+            'macOS Space ${_formatComputerUseSpaceDirection(args['direction'])}',
+        'role': 'macos_space',
+        'action': 'switch_space',
+      },
       'computer_press_key' => {
         'label': _formatComputerUseKey(args['key'], args['modifiers']),
         'role': 'keyboard_shortcut',
@@ -8857,6 +8863,8 @@ class ChatNotifier extends Notifier<ChatState> {
       'computer_scroll' =>
         'Scroll by (${args['delta_x'] ?? 0}, ${args['delta_y'] ?? -5})',
       'computer_type_text' => 'Type ${_summarizeComputerUseText(args['text'])}',
+      'computer_switch_space' =>
+        'Switch to ${_formatComputerUseSpaceDirection(args['direction'])} macOS Space',
       'computer_press_key' =>
         'Press ${_formatComputerUseKey(args['key'], args['modifiers'])}',
       'computer_start_system_audio_recording' =>
@@ -8913,6 +8921,12 @@ class ChatNotifier extends Notifier<ChatState> {
           'Text length: ${('${args['text'] ?? ''}').length} characters',
           'Text preview: ${_summarizeComputerUseText(args['text'], maxLength: 160)}',
         ]);
+      case 'computer_switch_space':
+        final direction = _formatComputerUseSpaceDirection(args['direction']);
+        final shortcut = direction == 'previous'
+            ? 'control+left'
+            : 'control+right';
+        details.addAll(['Direction: $direction', 'Shortcut: $shortcut']);
       case 'computer_press_key':
         details.add(
           'Key: ${_formatComputerUseKey(args['key'], args['modifiers'])}',
@@ -8948,6 +8962,14 @@ class ChatNotifier extends Notifier<ChatState> {
       '${key ?? ''}',
     ].where((value) => value.trim().isNotEmpty).toList();
     return parts.isEmpty ? '(unknown key)' : parts.join('+');
+  }
+
+  String _formatComputerUseSpaceDirection(Object? direction) {
+    final normalized = '${direction ?? ''}'.trim().toLowerCase();
+    return switch (normalized) {
+      'previous' || 'prev' || 'left' => 'previous',
+      _ => 'next',
+    };
   }
 
   Future<McpToolResult> _handleSshConnect(ToolCallInfo toolCall) async {

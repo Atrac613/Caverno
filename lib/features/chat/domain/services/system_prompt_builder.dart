@@ -324,6 +324,10 @@ class SystemPromptBuilder {
         );
       }
       if (hasComputerUseTools) {
+        final spaceSwitchAction =
+            uniqueToolNames.contains('computer_switch_space')
+            ? 'approved computer_switch_space'
+            : 'an approved Control-Left/Right key press';
         buffer.writeln(
           'For macOS computer-use tasks, start with computer_vision_observe. '
           'Use target=window with a known window_id, target=front_window for '
@@ -336,8 +340,8 @@ class SystemPromptBuilder {
           'computer_vision_observe with space_scope=all_spaces when the '
           'target may be on another desktop. Treat windows marked outside '
           'the active Space as read-only candidates until the window is '
-          'focused or the Space is switched with an approved Control-Left or '
-          'Control-Right key press, then observe again.',
+          'focused or the Space is switched with $spaceSwitchAction, then '
+          'observe again.',
         );
         buffer.writeln(
           'After every click, drag, scroll, text input, key press, or system '

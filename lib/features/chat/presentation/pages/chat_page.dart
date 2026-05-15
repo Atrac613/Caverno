@@ -9080,9 +9080,12 @@ class _ChatPageState extends ConsumerState<ChatPage>
         buttonForegroundColor: scheme.onSecondary,
       ),
       _ => _ComputerUseRiskStyle(
-        icon: toolName == 'computer_type_text'
-            ? Icons.keyboard_rounded
-            : Icons.ads_click_rounded,
+        icon: switch (toolName) {
+          'computer_type_text' ||
+          'computer_press_key' => Icons.keyboard_rounded,
+          'computer_switch_space' => Icons.swap_horiz_rounded,
+          _ => Icons.ads_click_rounded,
+        },
         warningIcon: Icons.warning_amber_rounded,
         approveIcon: Icons.check_rounded,
         containerColor: scheme.errorContainer,

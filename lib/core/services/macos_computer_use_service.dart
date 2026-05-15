@@ -423,6 +423,50 @@ class MacosComputerUseService {
     return _invokeJson('pressKey', normalized);
   }
 
+  Future<String> switchSpace(Map<String, dynamic> arguments) async {
+    final rawDirection =
+        arguments['direction'] ??
+        arguments['space_direction'] ??
+        arguments['spaceDirection'];
+    final direction = _normalizedSpaceSwitchDirection(rawDirection);
+    final key = _spaceSwitchKey(direction);
+    if (key == null) {
+      return jsonEncode({
+        'ok': false,
+        'code': 'invalid_space_switch_direction',
+        'error': 'Space switch direction must be next or previous.',
+        'direction': rawDirection,
+      });
+    }
+
+    final reason = arguments['reason'];
+    final response = await _invokeJson('pressKey', {
+      'key': key,
+      'modifiers': ['control'],
+      'reason': reason is String && reason.trim().isNotEmpty
+          ? reason.trim()
+          : 'Switch macOS Space after explicit approval.',
+    });
+    final decoded = _decodeMap(response);
+    if (decoded == null) {
+      return response;
+    }
+    final ok = decoded['ok'] == true;
+    return jsonEncode({
+      ...decoded,
+      'schemaName': 'macos_computer_use_space_switch',
+      'direction': direction,
+      'key': key,
+      'modifiers': ['control'],
+      'desktopModel': 'macos_spaces',
+      'requiresPostActionObservation': ok,
+      'nextAction': ok
+          ? 'Run computer_vision_observe before any pointer or keyboard input.'
+          : decoded['nextAction'] ??
+                'Resolve the Space switch failure before trying another desktop action.',
+    });
+  }
+
   Future<String> startSystemAudioRecording(
     Map<String, dynamic> arguments,
   ) async {
@@ -750,7 +794,8 @@ class MacosComputerUseService {
       'targetMetadataKey': 'target',
       'rules': [
         'Observation tools can remain in planning without approval.',
-        'Pointer, keyboard, and focus actions must include a concrete target before user approval.',
+        'Pointer, text, generic key, and focus actions must include a concrete target before user approval.',
+        'computer_switch_space must include direction=next or direction=previous and must be followed by observation.',
         'computer_type_text must include the exact text that will be typed.',
         'Posting, sending, submitting, or publishing controls must set target.risk=public_action and require separate public action approval.',
         'Secure fields, credential prompts, payment flows, and destructive controls must set target.risk to secure_field, credential, payment, or destructive and are blocked until manually handled.',
@@ -1002,7 +1047,7 @@ class MacosComputerUseService {
     }
     if (spaceScope == 'all_spaces' ||
         _windowResultHasInactiveSpaceWindows(windowsResult)) {
-      return '$base For macOS Spaces, windows outside the active Space may need computer_focus_window or an approved computer_press_key Control-Left/Right Space switch, then observe again before any input action.';
+      return '$base For macOS Spaces, windows outside the active Space may need computer_focus_window or an approved computer_switch_space action, then observe again before any input action.';
     }
     return base;
   }
@@ -1040,6 +1085,7 @@ class MacosComputerUseService {
     'computer_drag',
     'computer_scroll',
     'computer_type_text',
+    'computer_switch_space',
     'computer_press_key',
     'computer_start_system_audio_recording',
     'computer_stop_system_audio_recording',
@@ -1109,6 +1155,26 @@ class MacosComputerUseService {
       return raw;
     }
     return jsonEncode(_withNextAction(decoded));
+  }
+
+  static String? _normalizedSpaceSwitchDirection(Object? value) {
+    if (value == null) {
+      return null;
+    }
+    final normalized = '$value'.trim().toLowerCase();
+    return switch (normalized) {
+      'next' || 'right' => 'next',
+      'previous' || 'prev' || 'left' => 'previous',
+      _ => null,
+    };
+  }
+
+  static String? _spaceSwitchKey(String? direction) {
+    return switch (direction) {
+      'next' => 'right',
+      'previous' => 'left',
+      _ => null,
+    };
   }
 
   Map<String, dynamic>? _decodeMap(String raw) {

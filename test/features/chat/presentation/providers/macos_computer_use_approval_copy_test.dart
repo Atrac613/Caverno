@@ -31,6 +31,18 @@ void main() {
     expect(copy.warningMessage, contains('capture system audio'));
   });
 
+  test('builds dedicated approval copy for Space switching', () {
+    final policy = MacosComputerUseToolPolicy.decision('computer_switch_space');
+    final copy = MacosComputerUseApprovalCopy.from(
+      toolName: 'computer_switch_space',
+      policy: policy,
+    );
+
+    expect(copy.title, 'Approve Space Switch');
+    expect(copy.riskLabel, 'Input Control');
+    expect(copy.approveLabel, 'Allow Input Action');
+  });
+
   test('builds recovery approval copy for stop actions', () {
     final policy = MacosComputerUseToolPolicy.decision(
       'computer_stop_system_audio_recording',

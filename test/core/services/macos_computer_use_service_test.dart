@@ -267,8 +267,11 @@ void main() {
       contains('computer_accessibility_snapshot'),
     );
     expect(result['allowedNextTools'], contains('computer_click'));
+    expect(result['allowedNextTools'], contains('computer_switch_space'));
     expect(result['approvalRequiredTools'], contains('computer_click'));
+    expect(result['approvalRequiredTools'], contains('computer_switch_space'));
     expect(result['armingRequiredTools'], contains('computer_type_text'));
+    expect(result['armingRequiredTools'], contains('computer_switch_space'));
     expect(result['coordinateGuidance'], containsPair('sourceWidth', 640));
     expect(result['displays'], containsPair('count', 2));
     expect(result['target'], containsPair('displayId', 1));
@@ -328,6 +331,12 @@ void main() {
         .singleWhere((policy) => policy['toolName'] == 'computer_type_text');
     expect(typeTextPolicy['boundaries'], containsAll(['target', 'exactText']));
     expect(typeTextPolicy['blockerCodes'], contains('exact_text_missing'));
+    final switchSpacePolicy = toolPolicies
+        .cast<Map<String, dynamic>>()
+        .singleWhere((policy) => policy['toolName'] == 'computer_switch_space');
+    expect(switchSpacePolicy['requiresUserApproval'], isTrue);
+    expect(switchSpacePolicy['requiresTargetApproval'], isFalse);
+    expect(switchSpacePolicy['blockerCodes'], isEmpty);
   });
 
   test(
@@ -395,7 +404,7 @@ void main() {
     expect(result['target'], containsPair('spaceScope', 'all_spaces'));
     expect(result['windows'], containsPair('spaceScope', 'all_spaces'));
     expect(result['nextAction'], contains('macOS Spaces'));
-    expect(result['nextAction'], contains('Control-Left/Right'));
+    expect(result['nextAction'], contains('computer_switch_space'));
   });
 
   test('passes selected display IDs through vision observations', () async {
@@ -467,6 +476,55 @@ void main() {
     },
     skip: !MacosComputerUseService().isAvailable,
   );
+
+  test(
+    'switches macOS Spaces through Control arrow keypresses',
+    () async {
+      const channel = MethodChannel('com.caverno/macos_computer_use');
+      final calls = <MethodCall>[];
+      TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+          .setMockMethodCallHandler(channel, (call) async {
+            calls.add(call);
+            return <String, dynamic>{
+              'ok': true,
+              'method': call.method,
+              'arguments': call.arguments,
+            };
+          });
+      addTearDown(() {
+        TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+            .setMockMethodCallHandler(channel, null);
+      });
+
+      final service = MacosComputerUseService();
+
+      final result =
+          jsonDecode(await service.switchSpace(const {'direction': 'previous'}))
+              as Map<String, dynamic>;
+
+      expect(calls.map((call) => call.method), ['pressKey']);
+      expect(calls.single.arguments, containsPair('key', 'left'));
+      expect(calls.single.arguments, containsPair('modifiers', ['control']));
+      expect(
+        result,
+        containsPair('schemaName', 'macos_computer_use_space_switch'),
+      );
+      expect(result, containsPair('direction', 'previous'));
+      expect(result, containsPair('requiresPostActionObservation', true));
+    },
+    skip: !MacosComputerUseService().isAvailable,
+  );
+
+  test('rejects invalid macOS Space switch directions before input', () async {
+    final service = MacosComputerUseService();
+
+    final result =
+        jsonDecode(await service.switchSpace(const {'direction': 'up'}))
+            as Map<String, dynamic>;
+
+    expect(result, containsPair('ok', false));
+    expect(result, containsPair('code', 'invalid_space_switch_direction'));
+  });
 }
 
 class _FakeVisionMacosComputerUseService extends MacosComputerUseService {

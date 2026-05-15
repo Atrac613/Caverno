@@ -1542,6 +1542,12 @@ void main() {
         arguments: {'key': 'escape'},
         result: '{"selectedIpcTransport":"xpc_service","code":"ok"}',
       ),
+      (
+        toolName: 'computer_switch_space',
+        arguments: {'direction': 'next'},
+        result:
+            '{"selectedIpcTransport":"xpc_service","code":"ok","schemaName":"macos_computer_use_space_switch","direction":"next"}',
+      ),
     ]) {
       MacosComputerUseAuditLog.instance.clear();
       final toolDataSource = _ToolBatchChatDataSource(

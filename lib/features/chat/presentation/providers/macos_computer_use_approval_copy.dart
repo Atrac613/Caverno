@@ -26,6 +26,7 @@ class MacosComputerUseApprovalCopy {
         'computer_drag' => 'Approve Pointer Drag',
         'computer_scroll' => 'Approve Pointer Scroll',
         'computer_type_text' => 'Approve Text Input',
+        'computer_switch_space' => 'Approve Space Switch',
         'computer_press_key' => 'Approve Key Press',
         'computer_start_system_audio_recording' =>
           'Approve System Audio Recording',
