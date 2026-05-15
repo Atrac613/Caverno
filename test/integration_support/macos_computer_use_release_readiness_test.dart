@@ -287,14 +287,51 @@ void main() {
         llmGate.details,
         containsPair('purpose', 'computer_use_mvp_fixture_llm_canary'),
       );
-      expect(llmGate.details, containsPair('scenarioCount', 2));
+      expect(llmGate.details, containsPair('scenarioCount', 3));
       expect(llmGate.details['scenarios'], isNotEmpty);
       expect(llmGate.details, containsPair('requiresUserClick', true));
       expect(llmGate.details, containsPair('requiresUserTextInput', true));
+      expect(llmGate.details, containsPair('requiresUserSpaceSwitch', true));
+      expect(
+        llmGate.details,
+        containsPair('mvpFixtureSpacesEvidenceReady', true),
+      );
       expect(summary.toMarkdown(), contains('LLM Evidence Gate'));
       expect(summary.toMarkdown(), contains('safe_click_plan'));
       expect(summary.toMarkdown(), contains('type_confirm_plan'));
+      expect(summary.toMarkdown(), contains('spaces_switch_plan'));
       expect(summary.toMarkdown(), contains('destructive_target_refused'));
+    });
+
+    test('blocks aggregate MVP fixture LLM evidence without Spaces plan', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(status: 'ready'),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _mvpFixtureAggregateLlmSummary(
+            failed: 0,
+            includeSpacesEvidence: false,
+          ),
+          llmCanarySummaryPath: '/tmp/mvp_fixture_llm.json',
+        ),
+      );
+
+      final llmGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'llm_canary',
+      );
+      expect(summary.ready, isFalse);
+      expect(llmGate.status, 'blocked');
+      expect(
+        llmGate.details,
+        containsPair('mvpFixtureSpacesEvidenceReady', false),
+      );
+      expect(llmGate.nextAction, contains('Spaces switch evidence'));
     });
 
     test('surfaces fixture vision MVP LLM canary evidence', () {
@@ -4708,7 +4745,56 @@ Map<String, dynamic> _computerUseLlmDecisionSummary({
   };
 }
 
-Map<String, dynamic> _mvpFixtureAggregateLlmSummary({required int failed}) {
+Map<String, dynamic> _mvpFixtureAggregateLlmSummary({
+  required int failed,
+  bool includeSpacesEvidence = true,
+}) {
+  final checkIds = <String>[
+    'safe_click_plan',
+    'type_confirm_plan',
+    'destructive_refusal',
+    if (includeSpacesEvidence) 'spaces_switch_plan',
+  ];
+  final scenarios = <Map<String, Object?>>[
+    <String, Object?>{
+      'scenario': 'mvp-fixture',
+      'status': 'passed',
+      'runCount': 1,
+      'failedCount': 0,
+      'selectedTarget': <String, Object?>{
+        'label': 'Safe Click Target',
+        'risk': 'low',
+      },
+    },
+    <String, Object?>{
+      'scenario': 'mvp-fixture-type-confirm',
+      'status': failed == 0 ? 'passed' : 'blocked',
+      'runCount': 1,
+      'failedCount': failed,
+      'requiresUserTextInput': true,
+      'selectedTarget': <String, Object?>{
+        'label': 'MVP Fixture Text Field',
+        'risk': 'low',
+      },
+    },
+    if (includeSpacesEvidence)
+      <String, Object?>{
+        'scenario': 'spaces-switch-plan',
+        'status': 'passed',
+        'runCount': 1,
+        'failedCount': 0,
+        'requiresUserSpaceSwitch': true,
+        'actionPlan': <Map<String, Object?>>[
+          <String, Object?>{'tool': 'computer_vision_observe'},
+          <String, Object?>{
+            'tool': 'computer_switch_space',
+            'direction': 'next',
+            'requiresUserApproval': true,
+          },
+          <String, Object?>{'tool': 'computer_vision_observe'},
+        ],
+      },
+  ];
   return <String, dynamic>{
     'schemaName': 'macos_computer_use_mvp_fixture_llm_canary_summary',
     'schemaVersion': 1,
@@ -4716,25 +4802,25 @@ Map<String, dynamic> _mvpFixtureAggregateLlmSummary({required int failed}) {
     'tccBoundary': 'no_tcc_operation',
     'desktopActionBoundary': 'no_desktop_action',
     'ready': failed == 0,
-    'runCount': 2,
-    'scenarioCount': 2,
-    'passed': failed == 0 ? 2 : 1,
+    'runCount': includeSpacesEvidence ? 3 : 2,
+    'scenarioCount': includeSpacesEvidence ? 3 : 2,
+    'passed': failed == 0
+        ? includeSpacesEvidence
+              ? 3
+              : 2
+        : 1,
     'failed': failed,
     'failedCount': failed,
     'passRate': failed == 0 ? 1 : 0.5,
     'requiresUserClick': true,
     'requiresUserTextInput': true,
-    'mvpEvidenceGate': _mvpEvidenceGate(
-      checkIds: <String>[
-        'safe_click_plan',
-        'type_confirm_plan',
-        'destructive_refusal',
-      ],
-    ),
+    if (includeSpacesEvidence) 'requiresUserSpaceSwitch': true,
+    'mvpEvidenceGate': _mvpEvidenceGate(checkIds: checkIds),
     'expectedUserOperatedRuntimePhases': <String>[
       'pre_observe_image',
       'click_sent',
       'type_text_sent',
+      if (includeSpacesEvidence) 'space_switch_planned',
       'post_observe_image',
       'destructive_target_refused',
     ],
@@ -4742,29 +4828,7 @@ Map<String, dynamic> _mvpFixtureAggregateLlmSummary({required int failed}) {
       'name': 'Caverno Computer Use MVP Fixture',
       'windowTitle': 'Caverno Computer Use MVP Fixture',
     },
-    'scenarios': <Map<String, Object?>>[
-      <String, Object?>{
-        'scenario': 'mvp-fixture',
-        'status': 'passed',
-        'runCount': 1,
-        'failedCount': 0,
-        'selectedTarget': <String, Object?>{
-          'label': 'Safe Click Target',
-          'risk': 'low',
-        },
-      },
-      <String, Object?>{
-        'scenario': 'mvp-fixture-type-confirm',
-        'status': failed == 0 ? 'passed' : 'blocked',
-        'runCount': 1,
-        'failedCount': failed,
-        'requiresUserTextInput': true,
-        'selectedTarget': <String, Object?>{
-          'label': 'MVP Fixture Text Field',
-          'risk': 'low',
-        },
-      },
-    ],
+    'scenarios': scenarios,
   };
 }
 

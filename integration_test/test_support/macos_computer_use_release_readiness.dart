@@ -665,19 +665,30 @@ ReleaseReadinessGate _llmCanaryGate(
   final failed = _intValue(llmSummary['failedCount'] ?? llmSummary['failed']);
   final mvpEvidenceGate = _mapValue(llmSummary['mvpEvidenceGate']);
   final m14EvidenceGate = _mapValue(llmSummary['m14EvidenceGate']);
+  final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
+  final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
+  final isFixtureVision =
+      purpose == 'computer_use_mvp_fixture_vision_llm_canary';
+  final isRealAppObserve = purpose == 'computer_use_real_app_observe_canary';
   final hasMvpEvidenceGate = mvpEvidenceGate.isNotEmpty;
   final hasM14EvidenceGate = m14EvidenceGate.isNotEmpty;
   final mvpEvidenceReady =
       !hasMvpEvidenceGate || mvpEvidenceGate['ready'] == true;
   final m14EvidenceReady =
       !hasM14EvidenceGate || m14EvidenceGate['ready'] == true;
+  final mvpFixtureSpacesEvidenceReady =
+      !isMvpFixture ||
+      (llmSummary['requiresUserSpaceSwitch'] == true &&
+          _evidenceGateCheckPassed(mvpEvidenceGate, 'spaces_switch_plan') &&
+          _stringList(
+            llmSummary['expectedUserOperatedRuntimePhases'],
+          ).contains('space_switch_planned'));
   final ready =
-      runCount > 0 && failed == 0 && mvpEvidenceReady && m14EvidenceReady;
-  final isComputerUseDecision = purpose == 'computer_use_llm_vision_decision';
-  final isMvpFixture = purpose == 'computer_use_mvp_fixture_llm_canary';
-  final isFixtureVision =
-      purpose == 'computer_use_mvp_fixture_vision_llm_canary';
-  final isRealAppObserve = purpose == 'computer_use_real_app_observe_canary';
+      runCount > 0 &&
+      failed == 0 &&
+      mvpEvidenceReady &&
+      m14EvidenceReady &&
+      mvpFixtureSpacesEvidenceReady;
   return ReleaseReadinessGate(
     id: 'llm_canary',
     label:
@@ -691,6 +702,8 @@ ReleaseReadinessGate _llmCanaryGate(
     ready: ready,
     nextAction: ready
         ? 'Computer Use LLM decision canary is passing.'
+        : !mvpFixtureSpacesEvidenceReady
+        ? 'Refresh the MVP fixture LLM canary so Spaces switch evidence is included.'
         : 'Inspect the LLM canary failure classes and rerun after fixes.',
     artifactPath: summaryPath,
     details: <String, Object?>{
@@ -706,6 +719,7 @@ ReleaseReadinessGate _llmCanaryGate(
       'm14EvidenceGate': m14EvidenceGate,
       'expectedUserOperatedRuntimePhases':
           llmSummary['expectedUserOperatedRuntimePhases'],
+      'mvpFixtureSpacesEvidenceReady': mvpFixtureSpacesEvidenceReady,
       'targetApp': llmSummary['targetApp'],
       'targetIntent': llmSummary['targetIntent'],
       'observedApp': llmSummary['observedApp'],
@@ -717,6 +731,7 @@ ReleaseReadinessGate _llmCanaryGate(
       'visibleFixtureWindow': llmSummary['visibleFixtureWindow'],
       'requiresUserClick': llmSummary['requiresUserClick'],
       'requiresUserTextInput': llmSummary['requiresUserTextInput'],
+      'requiresUserSpaceSwitch': llmSummary['requiresUserSpaceSwitch'],
       'selectedTarget': llmSummary['selectedTarget'],
       'typeConfirmTarget': llmSummary['typeConfirmTarget'],
       'refusedTargets': llmSummary['refusedTargets'],
@@ -894,6 +909,16 @@ Map<String, dynamic>? _readJsonObject(File? file) {
 
 Map<String, dynamic> _mapValue(Object? value) {
   return value is Map<String, dynamic> ? value : const <String, dynamic>{};
+}
+
+bool _evidenceGateCheckPassed(Map<String, dynamic> gate, String checkId) {
+  final checks = gate['checks'];
+  if (checks is! List<dynamic>) {
+    return false;
+  }
+  return checks.any((check) {
+    return check is Map && check['id'] == checkId && check['ok'] == true;
+  });
 }
 
 List<String> _stringList(Object? value) {
