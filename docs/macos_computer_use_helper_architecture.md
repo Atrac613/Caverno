@@ -1570,6 +1570,10 @@ template and keep the concrete `Signing.local.xcconfig` ignored. The release
 signing preflight verifies the template, the ignore guard, the local override,
 and the available keychain signing identities without signing, notarizing,
 stapling, granting TCC, or operating desktop apps.
+The readiness artifact index tracks
+`macos_computer_use_release_signing_preflight.json`; when M7 is blocked by
+LaunchAgent signing constraints, the next-step navigator first routes through
+that report and returns to `--m7-signoff` after the preflight is ready.
 
 The smoke report includes `signingDiagnostics` for the app and helper bundles.
 Use `launchConstraintBlockers` such as `ad_hoc_signature` or

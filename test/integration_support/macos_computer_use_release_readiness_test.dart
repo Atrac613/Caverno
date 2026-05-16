@@ -812,6 +812,7 @@ void main() {
       final entryIds = index.entries.map((entry) => entry.id).toSet();
 
       expect(entryIds, contains('release_artifact'));
+      expect(entryIds, contains('release_signing_preflight'));
       expect(entryIds, contains('release_packaging'));
       expect(entryIds, contains('manual_tcc'));
       expect(entryIds, contains('desktop_action_canary'));
@@ -1513,21 +1514,91 @@ void main() {
         entry.details['launchConstraintBlockers'],
         contains('app:ad_hoc_signature'),
       );
-      expect(recommendation.artifactId, 'release_artifact');
-      expect(recommendation.priority, 'resolve_blocked_evidence');
-      expect(
-        recommendation.nextAction,
-        contains('macos/Runner/Configs/Signing.local.xcconfig'),
-      );
-      expect(
-        recommendation.nextAction,
-        contains('security find-identity -v -p codesigning'),
-      );
+      expect(recommendation.artifactId, 'release_signing_preflight');
+      expect(recommendation.priority, 'run_release_signing_preflight');
+      expect(recommendation.nextAction, contains('release signing preflight'));
       expect(
         recommendation.recommendedCommand,
         'bash tool/run_macos_computer_use_release_signing_preflight.sh',
       );
     });
+
+    test('artifact index surfaces blocked release signing preflight', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_release_preflight_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(
+          status: 'blocked',
+          blockers: <String>['release_launch_constraints_blocked'],
+          launchConstraintBlockers: <String>['app:ad_hoc_signature'],
+        ),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_signing_preflight.json'),
+        _releaseSigningPreflight(ready: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'release_signing_preflight',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.details['failedCheckIds'], contains('development_team'));
+      expect(entry.nextAction, contains('DEVELOPMENT_TEAM'));
+      expect(recommendation.priority, 'resolve_release_signing_preflight');
+      expect(recommendation.artifactId, 'release_signing_preflight');
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_release_signing_preflight.sh',
+      );
+    });
+
+    test(
+      'artifact index returns to M7 after release signing preflight is ready',
+      () {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_artifact_index_release_preflight_ready_test_',
+        );
+        addTearDown(() {
+          root.deleteSync(recursive: true);
+        });
+
+        _writeJson(
+          File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+          _releaseReport(
+            status: 'blocked',
+            blockers: <String>['release_launch_constraints_blocked'],
+            launchConstraintBlockers: <String>['app:ad_hoc_signature'],
+          ),
+        );
+        _writeJson(
+          File(
+            '${root.path}/macos_computer_use_release_signing_preflight.json',
+          ),
+          _releaseSigningPreflight(ready: true),
+        );
+
+        final index = buildReadinessArtifactIndex(root);
+        final recommendation = index.nextStepNavigator.recommendation;
+
+        expect(recommendation.priority, 'rerun_release_artifact_signoff');
+        expect(recommendation.artifactId, 'release_artifact');
+        expect(recommendation.nextAction, contains('preflight is ready'));
+        expect(
+          recommendation.recommendedCommand,
+          'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+        );
+      },
+    );
 
     test('artifact index surfaces blocked Spaces product canary evidence', () {
       final root = Directory.systemTemp.createTempSync(
@@ -5418,6 +5489,56 @@ Map<String, dynamic> _spacesSummary({
     'nextAction': ready
         ? 'Spaces canary passed.'
         : 'Prepare a harmless window on another Space, then rerun the Spaces canary.',
+  };
+}
+
+Map<String, dynamic> _releaseSigningPreflight({required bool ready}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_release_signing_preflight',
+    'schemaVersion': 1,
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'checks': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'signing_local_template',
+        'label': 'Local signing template',
+        'ok': true,
+        'nextAction': 'No action required.',
+      },
+      <String, Object?>{
+        'id': 'signing_local_gitignore',
+        'label': 'Local signing gitignore guard',
+        'ok': true,
+        'nextAction': 'No action required.',
+      },
+      <String, Object?>{
+        'id': 'development_team',
+        'label': 'Development team',
+        'ok': ready,
+        'nextAction': ready
+            ? 'No action required.'
+            : 'Add DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig.',
+      },
+      <String, Object?>{
+        'id': 'code_sign_identity',
+        'label': 'Code sign identity override',
+        'ok': ready,
+        'nextAction': ready
+            ? 'No action required.'
+            : 'Add a non-ad-hoc CODE_SIGN_IDENTITY to macos/Runner/Configs/Signing.local.xcconfig.',
+      },
+      <String, Object?>{
+        'id': 'keychain_code_signing_identity',
+        'label': 'Keychain code signing identity',
+        'ok': true,
+        'nextAction': 'No action required.',
+      },
+    ],
+    'failedCheckIds': ready
+        ? <String>[]
+        : <String>['development_team', 'code_sign_identity'],
+    'operationBoundary':
+        'report-only signing setup check; it does not sign, notarize, staple, grant TCC, or operate desktop apps.',
   };
 }
 

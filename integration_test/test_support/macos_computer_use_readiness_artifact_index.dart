@@ -1211,6 +1211,14 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       details: _releaseArtifactDetails,
     ),
     _entry(
+      'release_signing_preflight',
+      'M7 release signing preflight',
+      '${reportRoot.path}/macos_computer_use_release_signing_preflight.json',
+      status: _releaseSigningPreflightStatus,
+      nextAction: _releaseSigningPreflightNextAction,
+      details: _releaseSigningPreflightDetails,
+    ),
+    _entry(
       'release_packaging',
       'M33 release packaging report',
       '${reportRoot.path}/${MacosComputerUseMvpGuidance.releasePackagingJsonFile}',
@@ -1816,6 +1824,14 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     (entry) => entry.exists && entry.status != null && entry.status != 'ready',
   );
   if (blocked != null) {
+    final releaseSigningRecommendation = _releaseSigningRecommendation(
+      reportRoot,
+      entriesById,
+      blocked,
+    );
+    if (releaseSigningRecommendation != null) {
+      return releaseSigningRecommendation;
+    }
     return _recommendationForEntry(
       priority: 'resolve_blocked_evidence',
       entry: blocked,
@@ -2032,6 +2048,54 @@ ReadinessArtifactEntry? _firstEntryByPriority(
     }
   }
   return null;
+}
+
+ReadinessNextStepRecommendation? _releaseSigningRecommendation(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+  ReadinessArtifactEntry blocked,
+) {
+  if (!_releaseArtifactEntryHasSigningConstraintBlocker(blocked)) {
+    return null;
+  }
+  final preflight = entriesById['release_signing_preflight'];
+  if (preflight == null || !preflight.exists) {
+    return _recommendationForEntry(
+      priority: 'run_release_signing_preflight',
+      entry:
+          preflight ??
+          ReadinessArtifactEntry(
+            id: 'release_signing_preflight',
+            label: 'M7 release signing preflight',
+            path:
+                '${reportRoot.path}/macos_computer_use_release_signing_preflight.json',
+            exists: false,
+          ),
+      nextAction:
+          'Run the release signing preflight before rerunning M7 release artifact sign-off.',
+      recommendedCommand:
+          MacosComputerUseMvpGuidance.releaseSigningPreflightCommand,
+    );
+  }
+  if (preflight.status != 'ready') {
+    return _recommendationForEntry(
+      priority: 'resolve_release_signing_preflight',
+      entry: preflight,
+      nextAction:
+          preflight.nextAction ??
+          'Resolve release signing preflight blockers before rerunning M7 release artifact sign-off.',
+      recommendedCommand:
+          MacosComputerUseMvpGuidance.releaseSigningPreflightCommand,
+    );
+  }
+  return _recommendationForEntry(
+    priority: 'rerun_release_artifact_signoff',
+    entry: blocked,
+    nextAction:
+        'Release signing preflight is ready. Rerun M7 release artifact sign-off.',
+    recommendedCommand:
+        'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+  );
 }
 
 String _blockedEvidenceCommand(
@@ -2902,6 +2966,81 @@ bool _artifactReady(ReadinessArtifactEntry entry) {
     return false;
   }
   return entry.status == null || entry.status == 'ready';
+}
+
+String? _releaseSigningPreflightStatus(Map<String, dynamic> json) {
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _releaseSigningPreflightNextAction(Map<String, dynamic> json) {
+  final status = _releaseSigningPreflightStatus(json);
+  if (status == 'ready') {
+    return 'Release signing preflight is ready. Rerun M7 release artifact sign-off.';
+  }
+  final failedChecks = _releaseSigningPreflightFailedCheckIds(json);
+  final firstFailedAction = _releaseSigningPreflightFirstFailedAction(json);
+  if (firstFailedAction != null) {
+    return '$firstFailedAction Rerun the release signing preflight after updating local signing setup.';
+  }
+  if (failedChecks.isNotEmpty) {
+    return 'Resolve release signing preflight checks: ${failedChecks.join(', ')}.';
+  }
+  return 'Run the release signing preflight before rerunning M7 release artifact sign-off.';
+}
+
+Map<String, Object?> _releaseSigningPreflightDetails(
+  Map<String, dynamic> json,
+) {
+  return <String, Object?>{
+    'ready': json['ready'],
+    'failedCheckIds': _releaseSigningPreflightFailedCheckIds(json),
+    'operationBoundary': json['operationBoundary'],
+  };
+}
+
+List<String> _releaseSigningPreflightFailedCheckIds(Map<String, dynamic> json) {
+  final explicit = _stringList(json['failedCheckIds']);
+  if (explicit.isNotEmpty) {
+    return explicit;
+  }
+  final checks = json['checks'];
+  if (checks is! List) {
+    return const <String>[];
+  }
+  return checks
+      .whereType<Map>()
+      .where((check) => check['ok'] != true)
+      .map((check) => check['id']?.toString())
+      .whereType<String>()
+      .where((id) => id.isNotEmpty)
+      .toList(growable: false);
+}
+
+String? _releaseSigningPreflightFirstFailedAction(Map<String, dynamic> json) {
+  final checks = json['checks'];
+  if (checks is! List) {
+    return null;
+  }
+  for (final check in checks.whereType<Map>()) {
+    if (check['ok'] == true) {
+      continue;
+    }
+    final nextAction = check['nextAction']?.toString().trim();
+    if (nextAction != null &&
+        nextAction.isNotEmpty &&
+        nextAction != 'No action required.') {
+      return nextAction;
+    }
+  }
+  return null;
 }
 
 String? _spacesCanaryStatus(Map<String, dynamic> json) {

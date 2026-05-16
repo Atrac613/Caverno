@@ -143,6 +143,12 @@ Before rerunning the M7 release artifact sign-off after a signing blocker:
 5. Rebuild the release app, then rerun
    `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`.
 
+The artifact index reads
+`build/integration_test_reports/macos_computer_use_release_signing_preflight.json`.
+If M7 is blocked by LaunchAgent signing constraints, the next-step navigator
+uses the preflight report to distinguish missing local overrides from a release
+artifact smoke-test regression.
+
 Treat `ad_hoc_signature` and `team_identifier_missing` as release signing setup
 blockers, not as helper IPC or Spaces regressions.
 
