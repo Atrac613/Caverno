@@ -1822,7 +1822,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       nextAction:
           blocked.nextAction ??
           'Resolve blocked ${blocked.label} evidence before continuing.',
-      recommendedCommand: _blockedEvidenceCommand(blocked.id, reportRoot),
+      recommendedCommand: _blockedEvidenceCommand(blocked, reportRoot),
     );
   }
 
@@ -2034,17 +2034,44 @@ ReadinessArtifactEntry? _firstEntryByPriority(
   return null;
 }
 
-String _blockedEvidenceCommand(String artifactId, Directory reportRoot) {
-  if (artifactId == 'release_artifact') {
+String _blockedEvidenceCommand(
+  ReadinessArtifactEntry entry,
+  Directory reportRoot,
+) {
+  if (entry.id == 'release_artifact') {
+    if (_releaseArtifactEntryHasSigningConstraintBlocker(entry)) {
+      return MacosComputerUseMvpGuidance.releaseSigningPreflightCommand;
+    }
     return 'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff';
   }
-  if (artifactId == 'spaces_canary') {
+  if (entry.id == 'spaces_canary') {
     return MacosComputerUseMvpGuidance.spacesCanaryCommand;
   }
   return MacosComputerUseMvpGuidance.artifactIndexCommand.replaceFirst(
     'build/integration_test_reports',
     reportRoot.path,
   );
+}
+
+bool _releaseArtifactEntryHasSigningConstraintBlocker(
+  ReadinessArtifactEntry entry,
+) {
+  if (entry.id != 'release_artifact') {
+    return false;
+  }
+  final gateBlockers = _detailsStringList(entry.details['gateBlockers']);
+  final launchConstraintBlockers = _detailsStringList(
+    entry.details['launchConstraintBlockers'],
+  );
+  return gateBlockers.contains('release_launch_constraints_blocked') ||
+      launchConstraintBlockers.any(
+        (blocker) =>
+            blocker.endsWith(':ad_hoc_signature') ||
+            blocker.endsWith(':team_identifier_missing') ||
+            blocker == 'ad_hoc_signature' ||
+            blocker == 'team_identifier_missing',
+      ) ||
+      (entry.nextAction?.contains('Signing.local.xcconfig') ?? false);
 }
 
 ReadinessNextStepRecommendation _recommendationForEntry({

@@ -132,6 +132,8 @@ class MacosComputerUseMvpGuidance {
       'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports';
   static const releasePackagingCommand =
       'bash tool/run_macos_computer_use_release_packaging.sh';
+  static const releaseSigningPreflightCommand =
+      'bash tool/run_macos_computer_use_release_signing_preflight.sh';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
   static const llmCanarySummaryFile = 'canary_summary.json';

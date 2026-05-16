@@ -1525,7 +1525,7 @@ void main() {
       );
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+        'bash tool/run_macos_computer_use_release_signing_preflight.sh',
       );
     });
 
