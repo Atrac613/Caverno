@@ -143,8 +143,11 @@ buildMacosComputerUseReleaseSigningPreflight({
       label: 'Local signing override',
       ok: signingLocalContent != null,
       nextAction:
-          'Create macos/Runner/Configs/Signing.local.xcconfig with local release signing overrides.',
-      details: <String, Object?>{'path': signingLocal.path},
+          'Copy macos/Runner/Configs/Signing.local.xcconfig.example to the ignored macos/Runner/Configs/Signing.local.xcconfig, then set local release signing overrides.',
+      details: <String, Object?>{
+        'path': signingLocal.path,
+        'templatePath': signingLocalTemplate.path,
+      },
     ),
     _check(
       id: 'development_team',

@@ -3496,6 +3496,27 @@ void main() {
         report.toMarkdown(),
         contains('macos/Runner/Configs/Signing.local.xcconfig'),
       );
+      expect(
+        report.toMarkdown(),
+        contains('macos/Runner/Configs/Signing.local.xcconfig.example'),
+      );
+      expect(
+        report.toJson()['checks'],
+        contains(
+          isA<Map<String, Object?>>()
+              .having((check) => check['id'], 'id', 'signing_local_config')
+              .having(
+                (check) => check['details'],
+                'details',
+                containsPair(
+                  'templatePath',
+                  endsWith(
+                    'macos/Runner/Configs/Signing.local.xcconfig.example',
+                  ),
+                ),
+              ),
+        ),
+      );
       expect(report.toJson()['operationBoundary'], contains('report-only'));
     });
 
