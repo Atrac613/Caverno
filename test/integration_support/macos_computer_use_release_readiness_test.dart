@@ -3531,6 +3531,13 @@ CODE_SIGN_IDENTITY = Apple Development
       expect(report.ready, isTrue);
       expect(report.status, 'ready');
       expect(report.failedChecks, isEmpty);
+      final checksById = <String, MacosComputerUseReleaseSigningPreflightCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+      expect(
+        checksById['code_sign_identity_keychain_match']?.details['matchCount'],
+        1,
+      );
       expect(
         report.toJson()['schemaName'],
         'macos_computer_use_release_signing_preflight',
@@ -3592,6 +3599,54 @@ CODE_SIGN_IDENTITY = -
       expect(
         report.failedChecks.map((check) => check.id),
         contains('code_sign_identity'),
+      );
+    });
+
+    test('release signing preflight rejects unmatched signing identity', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_unmatched_identity_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+      final signingDir = Directory('${root.path}/macos/Runner/Configs')
+        ..createSync(recursive: true);
+      File(
+        '${root.path}/.gitignore',
+      ).writeAsStringSync('/macos/Runner/Configs/Signing.local.xcconfig\n');
+      File(
+        '${signingDir.path}/Signing.local.xcconfig.example',
+      ).writeAsStringSync('''
+// Copy this file to Signing.local.xcconfig for local release signing.
+''');
+      File('${signingDir.path}/Signing.local.xcconfig').writeAsStringSync('''
+DEVELOPMENT_TEAM = ABCDE12345
+CODE_SIGN_IDENTITY = Developer ID Application
+''');
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+        codeSigningIdentities: const <String>[
+          '1) 0000000000000000000000000000000000000000 "Apple Development: Example"',
+        ],
+      );
+      final checksById = <String, MacosComputerUseReleaseSigningPreflightCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+
+      expect(report.ready, isFalse);
+      expect(report.status, 'blocked');
+      expect(
+        checksById['code_sign_identity_keychain_match']?.details['matchCount'],
+        0,
+      );
+      expect(
+        report.failedChecks.map((check) => check.id),
+        contains('code_sign_identity_keychain_match'),
+      );
+      expect(
+        encodeReleaseSigningPreflightJson(report),
+        isNot(contains('Developer ID Application')),
       );
     });
 
@@ -5585,10 +5640,22 @@ Map<String, dynamic> _releaseSigningPreflight({required bool ready}) {
         'ok': true,
         'nextAction': 'No action required.',
       },
+      <String, Object?>{
+        'id': 'code_sign_identity_keychain_match',
+        'label': 'Code sign identity keychain match',
+        'ok': ready,
+        'nextAction': ready
+            ? 'No action required.'
+            : 'Set CODE_SIGN_IDENTITY to a non-ad-hoc identity that appears in `security find-identity -v -p codesigning`.',
+      },
     ],
     'failedCheckIds': ready
         ? <String>[]
-        : <String>['development_team', 'code_sign_identity'],
+        : <String>[
+            'development_team',
+            'code_sign_identity',
+            'code_sign_identity_keychain_match',
+          ],
     'operationBoundary':
         'report-only signing setup check; it does not sign, notarize, staple, grant TCC, or operate desktop apps.',
   };

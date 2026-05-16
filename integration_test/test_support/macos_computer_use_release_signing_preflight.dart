@@ -118,6 +118,9 @@ buildMacosComputerUseReleaseSigningPreflight({
   final validIdentities = codeSigningIdentities
       .where((line) => line.trim().isNotEmpty && !line.contains('0 valid'))
       .toList(growable: false);
+  final matchingIdentityCount = codeSignIdentityReady
+      ? _matchingIdentityCount(codeSignIdentity!, validIdentities)
+      : 0;
   final checks = <MacosComputerUseReleaseSigningPreflightCheck>[
     _check(
       id: 'signing_local_template',
@@ -172,6 +175,14 @@ buildMacosComputerUseReleaseSigningPreflight({
       nextAction:
           'Install or select a valid macOS code signing identity, then verify `security find-identity -v -p codesigning` lists it.',
       details: <String, Object?>{'identityCount': validIdentities.length},
+    ),
+    _check(
+      id: 'code_sign_identity_keychain_match',
+      label: 'Code sign identity keychain match',
+      ok: matchingIdentityCount > 0,
+      nextAction:
+          'Set CODE_SIGN_IDENTITY to a non-ad-hoc identity that appears in `security find-identity -v -p codesigning`.',
+      details: <String, Object?>{'matchCount': matchingIdentityCount},
     ),
   ];
   final ready = checks.every((check) => check.ok);
@@ -241,6 +252,13 @@ String _codeSignIdentityStatus(String? value) {
     return 'ad_hoc';
   }
   return 'valid';
+}
+
+int _matchingIdentityCount(String configuredIdentity, List<String> identities) {
+  final normalizedIdentity = configuredIdentity.toLowerCase();
+  return identities
+      .where((identity) => identity.toLowerCase().contains(normalizedIdentity))
+      .length;
 }
 
 String encodeReleaseSigningPreflightJson(
