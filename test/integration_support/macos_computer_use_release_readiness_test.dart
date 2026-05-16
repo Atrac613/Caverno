@@ -1663,33 +1663,7 @@ void main() {
           'runCount': 1,
         },
       );
-      _writeJson(File(manualTccPath), <String, Object?>{
-        'schemaName': 'macos_computer_use_manual_tcc_report_summary',
-        'schemaVersion': 1,
-        'automationBoundary': 'parse_user_produced_report_only',
-        'reportPath': '${root.path}/raw_m8_report.json',
-        'evidencePath': manualTccPath,
-        'status': 'ready',
-        'ready': true,
-        'blockers': <String>[],
-        'failureClasses': <String>[],
-        'appPath': '/tmp/Caverno.app',
-        'helperPath': '/tmp/Caverno Computer Use.app',
-        'nextAutomationSafeCommands': <String, Object?>{
-          'releaseReadinessSignoff':
-              'bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report $manualTccPath',
-          'nextStepNavigator':
-              'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
-        },
-        'checks': <Map<String, Object?>>[
-          <String, Object?>{
-            'id': 'permission_status',
-            'label': 'Permission status',
-            'status': 'ready',
-            'ok': true,
-          },
-        ],
-      });
+      _writeReadyManualTccSummary(File(manualTccPath));
 
       final index = buildReadinessArtifactIndex(root);
       final entry = index.entries.singleWhere(
@@ -1697,6 +1671,7 @@ void main() {
       );
       final commands =
           entry.details['nextAutomationSafeCommands'] as Map<String, Object?>;
+      final recommendation = index.nextStepNavigator.recommendation;
 
       expect(entry.exists, isTrue);
       expect(entry.status, 'ready');
@@ -1707,11 +1682,76 @@ void main() {
         commands['releaseReadinessSignoff'],
         contains('--manual-tcc-report $manualTccPath'),
       );
+      expect(recommendation.priority, 'collect_required_evidence');
+      expect(recommendation.artifactId, 'desktop_action_canary');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.evidencePath,
+        '${root.path}/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      );
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+      );
+      expect(
+        recommendation.nextAction,
+        contains('run_macos_computer_use_desktop_action_canary.sh'),
+      );
       expect(index.toMarkdown(), contains('## Manual TCC Evidence'));
       expect(index.toMarkdown(), contains('Post-intake commands'));
       expect(
         index.toMarkdown(),
         contains('bash tool/run_macos_computer_use_release_readiness.sh'),
+      );
+    });
+
+    test('artifact index advances to LLM canary after desktop action', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_llm_after_desktop_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final manualTccPath =
+          '${root.path}/macos_computer_use_manual_tcc_1/manual_tcc_report_summary.json';
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeReadyManualTccSummary(File(manualTccPath));
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_desktop_action_canary_1/canary_summary.json',
+        ),
+        _desktopActionSummary(failed: 0),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(recommendation.priority, 'collect_required_evidence');
+      expect(recommendation.artifactId, 'llm_canary');
+      expect(recommendation.requiresUserOperation, isFalse);
+      expect(
+        recommendation.evidencePath,
+        '${root.path}/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
+      );
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh',
+      );
+      expect(
+        recommendation.nextAction,
+        contains('run_macos_computer_use_mvp_fixture_llm_canary.sh'),
       );
     });
 
@@ -7082,4 +7122,35 @@ Map<String, dynamic> _mvpDemoReadinessSummary() {
 void _writeJson(File file, Map<String, dynamic> json) {
   file.parent.createSync(recursive: true);
   file.writeAsStringSync(jsonEncode(json));
+}
+
+void _writeReadyManualTccSummary(File file) {
+  final manualTccPath = file.path;
+  _writeJson(file, <String, Object?>{
+    'schemaName': 'macos_computer_use_manual_tcc_report_summary',
+    'schemaVersion': 1,
+    'automationBoundary': 'parse_user_produced_report_only',
+    'reportPath': '${file.parent.parent.path}/raw_m8_report.json',
+    'evidencePath': manualTccPath,
+    'status': 'ready',
+    'ready': true,
+    'blockers': <String>[],
+    'failureClasses': <String>[],
+    'appPath': '/tmp/Caverno.app',
+    'helperPath': '/tmp/Caverno Computer Use.app',
+    'nextAutomationSafeCommands': <String, Object?>{
+      'releaseReadinessSignoff':
+          'bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report $manualTccPath',
+      'nextStepNavigator':
+          'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
+    },
+    'checks': <Map<String, Object?>>[
+      <String, Object?>{
+        'id': 'permission_status',
+        'label': 'Permission status',
+        'status': 'ready',
+        'ok': true,
+      },
+    ],
+  });
 }

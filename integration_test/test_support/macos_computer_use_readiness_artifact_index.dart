@@ -2352,6 +2352,10 @@ String? _missingArtifactExpectedPath(String artifactId, Directory reportRoot) {
   switch (artifactId) {
     case 'manual_tcc':
       return '${reportRoot.path}/macos_computer_use_manual_tcc_<timestamp>/${MacosComputerUseMvpGuidance.manualTccSummaryFile}';
+    case 'desktop_action_canary':
+      return '${reportRoot.path}/macos_computer_use_desktop_action_canary_<timestamp>/${MacosComputerUseMvpGuidance.desktopActionSummaryFile}';
+    case 'llm_canary':
+      return '${reportRoot.path}/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/${MacosComputerUseMvpGuidance.llmCanarySummaryFile}';
     default:
       return null;
   }
