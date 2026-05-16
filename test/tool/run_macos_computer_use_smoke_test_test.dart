@@ -8947,6 +8947,12 @@ void main() {
       expect(
         stdout,
         contains(
+          'Re-run M16 with the approved values only after the user confirms',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
           'M15 action proposal next action: M15 action proposal handoff is ready for user review.',
         ),
       );
@@ -9016,6 +9022,30 @@ void main() {
           'M16 approval packet approval blockers: exact_text, target_label, public_action_label',
         ),
       );
+      expect(
+        handoff,
+        contains(
+          'M16 suggested exact text approval: Good morning from Caverno',
+        ),
+      );
+      expect(
+        handoff,
+        contains('M16 suggested target approval: What\'s happening?'),
+      );
+      expect(handoff, contains('M16 suggested public action approval: Post'));
+      expect(
+        handoff,
+        contains('M16 approval command after user confirmation:'),
+      );
+      expect(
+        handoff,
+        contains('--approved-exact-text \'Good morning from Caverno\''),
+      );
+      expect(
+        handoff,
+        contains("--approved-target-label 'What'\"'\"'s happening?'"),
+      );
+      expect(handoff, contains('--approved-public-action-label Post'));
       expect(
         handoff,
         contains('| exact_text | true | pending_user_approval | - |'),

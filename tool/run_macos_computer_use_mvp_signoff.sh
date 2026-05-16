@@ -750,6 +750,39 @@ def as_list(value):
     return value if isinstance(value, list) else []
 
 
+def first_map_string(values, key):
+    for value in values:
+        if not isinstance(value, dict):
+            continue
+        text = str(value.get(key) or "").strip()
+        if text:
+            return text
+    return None
+
+
+def preferred_target_label(targets):
+    fallback = None
+    intent_like_fallback = None
+    for target in targets:
+        if not isinstance(target, dict):
+            continue
+        label = str(target.get("label") or "").strip()
+        if not label:
+            continue
+        role = str(target.get("role") or "").lower()
+        lower_label = label.lower()
+        fallback = fallback or label
+        if (
+            "happening" in lower_label
+            or "compose" in lower_label
+            or "post" in lower_label
+        ):
+            intent_like_fallback = intent_like_fallback or label
+        if "compose" in role or "text_field" in role:
+            return label
+    return intent_like_fallback or fallback
+
+
 def cell(value):
     text = "-" if value is None else str(value)
     return text.replace("|", "\\|").replace("\n", "<br>")
@@ -783,6 +816,11 @@ approval_blockers = as_list(
     (summary.get("approvalBlockers") if isinstance(summary, dict) else None)
     or gate.get("approvalBlockers")
 )
+if approval_blockers and approval_status != "approved":
+    next_action = (
+        f"{next_action} Re-run M16 with the approved values only after the user "
+        f"confirms: {', '.join(str(item) for item in approval_blockers)}."
+    )
 if status != "ready" and not blockers and summary is None:
     blockers = ["m16_approval_packet_unreadable"]
 boundary = "report-only"
@@ -806,6 +844,43 @@ public_action_targets = as_list(
     summary.get("publicActionTargets") if isinstance(summary, dict) else []
 )
 checks = as_list(gate.get("checks"))
+suggested_exact_text = first_map_string(exact_text_candidates, "text")
+suggested_target_label = preferred_target_label(text_entry_targets)
+suggested_public_action_label = first_map_string(public_action_targets, "label")
+approval_command = None
+if (
+    isinstance(summary, dict)
+    and status == "ready"
+    and approval_status != "approved"
+    and summary.get("sourceM15Handoff")
+):
+    approval_command_parts = [
+        "bash",
+        "tool/run_macos_computer_use_m16_approval_packet.sh",
+        "--root",
+        str(summary_path.parent.parent),
+        "--m15-handoff",
+        str(summary.get("sourceM15Handoff")),
+    ]
+    source_review = str(summary.get("sourceM15LlmReview") or "").strip()
+    if source_review:
+        approval_command_parts.extend(["--m15-llm-review", source_review])
+    if suggested_exact_text:
+        approval_command_parts.extend([
+            "--approved-exact-text",
+            suggested_exact_text,
+        ])
+    if suggested_target_label:
+        approval_command_parts.extend([
+            "--approved-target-label",
+            suggested_target_label,
+        ])
+    if suggested_public_action_label:
+        approval_command_parts.extend([
+            "--approved-public-action-label",
+            suggested_public_action_label,
+        ])
+    approval_command = shlex.join(approval_command_parts)
 
 lines = [
     "",
@@ -821,7 +896,14 @@ lines = [
     f"- M16 exact text candidates: {len(exact_text_candidates)}",
     f"- M16 text-entry targets: {len(text_entry_targets)}",
     f"- M16 public-action targets: {len(public_action_targets)}",
+    f"- M16 suggested exact text approval: {suggested_exact_text or '-'}",
+    f"- M16 suggested target approval: {suggested_target_label or '-'}",
+    f"- M16 suggested public action approval: {suggested_public_action_label or '-'}",
 ]
+if approval_command:
+    lines.append(
+        f"- M16 approval command after user confirmation: `{approval_command}`"
+    )
 if checks:
     lines.extend([
         "",
