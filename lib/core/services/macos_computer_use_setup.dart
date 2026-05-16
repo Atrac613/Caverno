@@ -67,6 +67,8 @@ class MacosComputerUseMvpGuidance {
       '$desktopActionCanaryCommand --handoff-only';
   static const spacesCanaryCommand =
       'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next';
+  static const spacesCanaryHandoffCommand =
+      '$spacesCanaryCommand --handoff-only';
   static const llmCanaryCommand =
       'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh';
   static const realAppObserveCanaryCommand =
@@ -228,7 +230,7 @@ class MacosComputerUseMvpGuidance {
   static const desktopActionCanaryNextAction =
       'Run `$desktopActionCanaryHandoffCommand` first to print the safe target checklist without running the desktop action. Ask the user to run `$desktopActionCanaryCommand` after preparing the safe target and provide `$desktopActionSummaryFile`.';
   static const spacesCanaryNextAction =
-      'Ask the user to prepare two macOS Spaces with a harmless inactive-Space window, run `$spacesCanaryCommand`, and provide `canary_summary.json`.';
+      'Run `$spacesCanaryHandoffCommand` first to print the Spaces setup checklist without switching Spaces. Ask the user to prepare two macOS Spaces with a harmless inactive-Space window, run `$spacesCanaryCommand`, and provide `canary_summary.json`.';
   static const llmCanaryNextAction =
       'Run `$llmCanaryCommand`, run `$realAppObserveCanaryCommand` with a user-provided screenshot, or provide a Computer Use LLM canary `$llmCanarySummaryFile` before final sign-off aggregation.';
   static const releaseArtifactNextAction =

@@ -648,6 +648,7 @@ bash tool/run_macos_computer_use_spaces_canary.sh --focus-inactive-space-window
 User-operated Space switch run:
 
 ```bash
+bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next --handoff-only
 bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next
 bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-previous
 ```

@@ -16,12 +16,46 @@ FOCUS_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_FOCUS_INACTIVE_
 SWITCH_SPACE_DIRECTION="${CAVERNO_MACOS_COMPUTER_USE_SPACES_SWITCH_DIRECTION:-}"
 REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_HELPER_PATH_MATCH:-0}"
 REPLACE_HELPER="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REPLACE_HELPER:-0}"
+HANDOFF_ONLY=0
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
     echo "$1 requires a value."
     exit 2
   fi
+}
+
+desktop_action_boundary_text() {
+  if [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" && -n "${SWITCH_SPACE_DIRECTION}" ]]; then
+    echo "user-operated focus and Space switch, no pointer or text input"
+  elif [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" ]]; then
+    echo "user-operated focus only, no pointer or text input"
+  elif [[ -n "${SWITCH_SPACE_DIRECTION}" ]]; then
+    echo "user-operated Space switch keypress, no pointer or text input"
+  else
+    echo "no desktop action observe-only"
+  fi
+}
+
+print_spaces_canary_context() {
+  local desktop_action_boundary
+  desktop_action_boundary="$(desktop_action_boundary_text)"
+  echo "Running macOS Computer Use Spaces canary"
+  echo "  Purpose: validate macOS Spaces window discovery metadata"
+  echo "  TCC boundary: user-operated manual verification only"
+  echo "  Desktop action boundary: ${desktop_action_boundary}"
+  echo "  Scope: computer_list_windows space_scope=all_spaces"
+  echo "  Manual setup: prepare a harmless target window on another Space when requiring inactive Space evidence"
+  echo "  Success phases: active_space_window_inventory, all_spaces_window_inventory, space_metadata_present"
+  echo "  Focus inactive Space window: ${FOCUS_INACTIVE_SPACE_WINDOW}"
+  echo "  Switch Space direction: ${SWITCH_SPACE_DIRECTION:-not requested}"
+  echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
+  echo "  Require inactive Space window: ${REQUIRE_INACTIVE_SPACE_WINDOW}"
+  echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
+  echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
+  echo "  Report dir: ${RUN_DIR}"
+  echo "  Summary JSON: ${SUMMARY_JSON}"
+  echo "  Summary Markdown: ${SUMMARY_MD}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -75,6 +109,10 @@ while [[ $# -gt 0 ]]; do
       REPLACE_HELPER=1
       shift
       ;;
+    --handoff-only)
+      HANDOFF_ONLY=1
+      shift
+      ;;
     --help)
       cat <<'USAGE'
 Usage: bash tool/run_macos_computer_use_spaces_canary.sh [options]
@@ -106,6 +144,8 @@ Options:
   --replace-helper     Stop a mismatched running helper before probing.
   --release-helper-signoff
                        Equivalent to --require-helper-path-match --replace-helper.
+  --handoff-only       Print the Spaces setup checklist and expected report
+                       paths without running the canary.
 
 This canary is observe-only by default. It validates computer_list_windows with
 space_scope=all_spaces and verifies that macOS Spaces metadata keeps Space
@@ -150,31 +190,17 @@ case "${SWITCH_SPACE_DIRECTION}" in
     ;;
 esac
 
-mkdir -p "${RUN_DIR}"
-
-desktop_action_boundary="no desktop action observe-only"
-if [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" && -n "${SWITCH_SPACE_DIRECTION}" ]]; then
-  desktop_action_boundary="user-operated focus and Space switch, no pointer or text input"
-elif [[ "${FOCUS_INACTIVE_SPACE_WINDOW}" == "1" ]]; then
-  desktop_action_boundary="user-operated focus only, no pointer or text input"
-elif [[ -n "${SWITCH_SPACE_DIRECTION}" ]]; then
-  desktop_action_boundary="user-operated Space switch keypress, no pointer or text input"
+if [[ "${HANDOFF_ONLY}" == "1" ]]; then
+  print_spaces_canary_context
+  echo "  Handoff only: no Spaces canary was executed."
+  exit 0
 fi
 
-echo "Running macOS Computer Use Spaces canary"
-echo "  Purpose: validate macOS Spaces window discovery metadata"
-echo "  TCC boundary: user-operated manual verification only"
-echo "  Desktop action boundary: ${desktop_action_boundary}"
-echo "  Scope: computer_list_windows space_scope=all_spaces"
-echo "  Manual setup: prepare a harmless target window on another Space when requiring inactive Space evidence"
-echo "  Success phases: active_space_window_inventory, all_spaces_window_inventory, space_metadata_present"
-echo "  Focus inactive Space window: ${FOCUS_INACTIVE_SPACE_WINDOW}"
-echo "  Switch Space direction: ${SWITCH_SPACE_DIRECTION:-not requested}"
-echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
-echo "  Require inactive Space window: ${REQUIRE_INACTIVE_SPACE_WINDOW}"
-echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
-echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
-echo "  Report dir: ${RUN_DIR}"
+mkdir -p "${RUN_DIR}"
+
+desktop_action_boundary="$(desktop_action_boundary_text)"
+
+print_spaces_canary_context
 
 status=0
 for index in $(seq 1 "${REPEAT_COUNT}"); do

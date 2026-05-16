@@ -1889,6 +1889,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
           blocked.nextAction ??
           'Resolve blocked ${blocked.label} evidence before continuing.',
       recommendedCommand: _blockedEvidenceCommand(blocked, reportRoot),
+      requiresUserOperation: blocked.id == 'spaces_canary',
     );
   }
 
@@ -1943,7 +1944,8 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       priority: 'run_spaces_canary',
       entry: spacesEntry,
       nextAction: MacosComputerUseMvpGuidance.spacesCanaryNextAction,
-      recommendedCommand: MacosComputerUseMvpGuidance.spacesCanaryCommand,
+      recommendedCommand:
+          MacosComputerUseMvpGuidance.spacesCanaryHandoffCommand,
       requiresUserOperation: true,
     );
   }
@@ -2159,7 +2161,7 @@ String _blockedEvidenceCommand(
     return 'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff';
   }
   if (entry.id == 'spaces_canary') {
-    return MacosComputerUseMvpGuidance.spacesCanaryCommand;
+    return MacosComputerUseMvpGuidance.spacesCanaryHandoffCommand;
   }
   return MacosComputerUseMvpGuidance.artifactIndexCommand.replaceFirst(
     'build/integration_test_reports',

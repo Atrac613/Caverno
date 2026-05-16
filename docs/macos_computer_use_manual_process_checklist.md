@@ -116,7 +116,9 @@ For a user-operated Space switch check:
 
 For product release readiness, provide the latest
 `macos_computer_use_spaces_canary_summary` to the artifact index. It should
-come from a run such as
+come from a handoff preview followed by a run such as
+`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only`
+and then
 `bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next`
 or the equivalent previous-Space direction, with
 `requiresApprovedInputBeforeSwitching` true.

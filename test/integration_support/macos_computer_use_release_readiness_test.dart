@@ -1829,9 +1829,9 @@ void main() {
       expect(recommendation.artifactId, 'spaces_canary');
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
       );
-      expect(recommendation.requiresUserOperation, isFalse);
+      expect(recommendation.requiresUserOperation, isTrue);
     });
 
     test('artifact index surfaces blocked M15 action proposal handoff', () {
@@ -4124,7 +4124,7 @@ CODE_SIGN_IDENTITY = Developer ID Application
       expect(recommendation.requiresUserOperation, isTrue);
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
       );
     });
 

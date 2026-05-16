@@ -1578,6 +1578,11 @@ void main() {
     expect(spacesCanaryScript, contains('--focus-inactive-space-window'));
     expect(spacesCanaryScript, contains('--switch-space-next'));
     expect(spacesCanaryScript, contains('--switch-space-previous'));
+    expect(spacesCanaryScript, contains('--handoff-only'));
+    expect(
+      spacesCanaryScript,
+      contains('Handoff only: no Spaces canary was executed.'),
+    );
     expect(spacesCanaryScript, contains('SWITCH_SPACE_DIRECTION'));
     expect(spacesCanaryScript, contains('switchCanaryReady'));
     expect(
@@ -1631,6 +1636,32 @@ void main() {
     expect(manualProcessChecklist, contains('spacesCanaryGate.status'));
     expect(manualProcessChecklist, contains('spacesFocusCanaryGate.status'));
     expect(manualProcessChecklist, contains('spacesSwitchCanaryGate.status'));
+  });
+
+  test('macOS Spaces canary handoff does not run the canary', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_spaces_handoff_test_',
+    );
+    try {
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_spaces_canary.sh',
+        '--require-inactive-space-window',
+        '--switch-space-next',
+        '--handoff-only',
+        '--report-root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Desktop action boundary'));
+      expect(stdout, contains('user-operated Space switch keypress'));
+      expect(stdout, contains('Summary JSON:'));
+      expect(stdout, contains('Handoff only: no Spaces canary was executed.'));
+      expect(root.listSync(), isEmpty);
+    } finally {
+      root.deleteSync(recursive: true);
+    }
   });
 
   test('Computer Use LLM decision canary avoids desktop actions', () async {
