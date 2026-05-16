@@ -650,6 +650,8 @@ void main() {
     );
     expect(manualTccSignoffScript, contains('does not grant permissions'));
     expect(manualTccSignoffScript, contains('manual_tcc_report_summary.json'));
+    expect(manualTccSignoffScript, contains('--handoff-only'));
+    expect(manualTccSignoffScript, contains('Handoff only:'));
     expect(manualTccSignoffScript, contains('RELEASE_HELPER_PATH'));
     expect(
       manualTccSignoffScript,

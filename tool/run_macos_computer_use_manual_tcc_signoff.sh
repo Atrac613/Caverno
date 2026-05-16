@@ -12,6 +12,7 @@ SUMMARY_MD="${RUN_DIR}/manual_tcc_report_summary.md"
 RELEASE_APP_PATH="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
 RELEASE_HELPER_PATH="${RELEASE_APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
 REBUILD_RELEASE=0
+HANDOFF_ONLY=0
 
 release_helper_exists_text() {
   if [[ -d "${RELEASE_HELPER_PATH}" ]]; then
@@ -19,6 +20,23 @@ release_helper_exists_text() {
   else
     echo "no"
   fi
+}
+
+print_manual_tcc_context() {
+  echo "macOS Computer Use manual TCC sign-off"
+  echo "  Boundary: user-operated manual verification only"
+  echo "  This wrapper does not grant permissions, edit TCC, or operate System Settings."
+  echo "  Before running, grant the release Caverno Computer Use helper in:"
+  echo "    System Settings > Privacy & Security > Accessibility"
+  echo "    System Settings > Privacy & Security > Screen & System Audio Recording"
+  echo "  Release helper: ${RELEASE_HELPER_PATH}"
+  echo "  Release helper exists: $(release_helper_exists_text)"
+  if [[ ! -d "${RELEASE_HELPER_PATH}" ]]; then
+    echo "  Release helper next action: run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff first, or rerun this wrapper with --rebuild-release."
+  fi
+  echo "  Report: ${REPORT_PATH}"
+  echo "  Summary JSON: ${SUMMARY_JSON}"
+  echo "  Summary Markdown: ${SUMMARY_MD}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -35,11 +53,16 @@ while [[ $# -gt 0 ]]; do
       REBUILD_RELEASE=1
       shift
       ;;
+    --handoff-only)
+      HANDOFF_ONLY=1
+      shift
+      ;;
     --help|-h)
-      echo "Usage: bash tool/run_macos_computer_use_manual_tcc_signoff.sh [--report-root path] [--rebuild-release]"
+      echo "Usage: bash tool/run_macos_computer_use_manual_tcc_signoff.sh [--report-root path] [--rebuild-release] [--handoff-only]"
       echo
       echo "This user-operated wrapper measures macOS TCC state only."
       echo "It does not grant permissions, edit TCC, or operate System Settings."
+      echo "--handoff-only prints the helper path and expected report paths without running M8."
       exit 0
       ;;
     *)
@@ -54,22 +77,15 @@ REPORT_PATH="${RUN_DIR}/manual_tcc_runtime_signoff.json"
 SUMMARY_JSON="${RUN_DIR}/manual_tcc_report_summary.json"
 SUMMARY_MD="${RUN_DIR}/manual_tcc_report_summary.md"
 
+if [[ "${HANDOFF_ONLY}" == "1" ]]; then
+  print_manual_tcc_context
+  echo "  Handoff only: no runtime sign-off command was executed."
+  exit 0
+fi
+
 mkdir -p "${RUN_DIR}"
 
-echo "macOS Computer Use manual TCC sign-off"
-echo "  Boundary: user-operated manual verification only"
-echo "  This wrapper does not grant permissions, edit TCC, or operate System Settings."
-echo "  Before running, grant the release Caverno Computer Use helper in:"
-echo "    System Settings > Privacy & Security > Accessibility"
-echo "    System Settings > Privacy & Security > Screen & System Audio Recording"
-echo "  Release helper: ${RELEASE_HELPER_PATH}"
-echo "  Release helper exists: $(release_helper_exists_text)"
-if [[ ! -d "${RELEASE_HELPER_PATH}" ]]; then
-  echo "  Release helper next action: run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff first, or rerun this wrapper with --rebuild-release."
-fi
-echo "  Report: ${REPORT_PATH}"
-echo "  Summary JSON: ${SUMMARY_JSON}"
-echo "  Summary Markdown: ${SUMMARY_MD}"
+print_manual_tcc_context
 
 smoke_args=(
   --reporter compact
