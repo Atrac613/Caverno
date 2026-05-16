@@ -158,14 +158,54 @@ class ReleaseReadinessSummary {
       );
     }
 
+    ReleaseReadinessGate? manualTccGate;
     ReleaseReadinessGate? desktopActionGate;
     ReleaseReadinessGate? llmGate;
     for (final gate in gates) {
+      if (gate.id == 'manual_tcc') {
+        manualTccGate = gate;
+      }
       if (gate.id == 'desktop_action_canary') {
         desktopActionGate = gate;
       }
       if (gate.id == 'llm_canary') {
         llmGate = gate;
+      }
+    }
+
+    final manualTccCommands =
+        manualTccGate?.details['nextAutomationSafeCommands'];
+    final manualTccCommandsMap = manualTccCommands is Map
+        ? manualTccCommands
+        : const <Object?, Object?>{};
+    if (manualTccGate != null &&
+        (manualTccGate.artifactPath != null ||
+            manualTccCommandsMap.isNotEmpty)) {
+      buffer
+        ..writeln()
+        ..writeln('## Manual TCC Evidence')
+        ..writeln()
+        ..writeln('- Manual TCC status: ${manualTccGate.status}')
+        ..writeln('- Manual TCC ready: ${manualTccGate.ready}')
+        ..writeln(
+          '- Manual TCC artifact: ${_artifactCell(manualTccGate.artifactPath)}',
+        );
+      final releaseReadinessCommand =
+          manualTccCommandsMap['releaseReadinessSignoff']?.toString();
+      final navigatorCommand = manualTccCommandsMap['nextStepNavigator']
+          ?.toString();
+      if (releaseReadinessCommand != null || navigatorCommand != null) {
+        buffer.writeln('- Post-intake commands:');
+        if (releaseReadinessCommand != null) {
+          buffer.writeln(
+            '  - Release readiness: `${_escapeMarkdownCode(releaseReadinessCommand)}`',
+          );
+        }
+        if (navigatorCommand != null) {
+          buffer.writeln(
+            '  - Next-step navigator: `${_escapeMarkdownCode(navigatorCommand)}`',
+          );
+        }
       }
     }
 
@@ -644,6 +684,10 @@ ReleaseReadinessGate _manualTccGate(
     );
   }
 
+  final evidencePath = reportPath ?? manualTccReport.reportPath;
+  final nextCommands = manualTccReport.ready
+      ? manualTccPostIntakeCommands(evidencePath)
+      : const <String, String>{};
   return ReleaseReadinessGate(
     id: 'manual_tcc',
     label: 'Manual TCC sign-off',
@@ -653,8 +697,9 @@ ReleaseReadinessGate _manualTccGate(
         ? 'Manual TCC sign-off is ready.'
         : (manualTccReport.nextAction ??
               'Ask the user to complete the manual TCC sign-off steps.'),
-    artifactPath: reportPath ?? manualTccReport.reportPath,
+    artifactPath: evidencePath,
     details: <String, Object?>{
+      'evidencePath': evidencePath,
       'blockers': manualTccReport.blockers,
       'failureClasses': manualTccReport.failureClasses,
       'failedChecks': manualTccReport.failedChecks
@@ -662,6 +707,7 @@ ReleaseReadinessGate _manualTccGate(
           .toList(growable: false),
       'appPath': manualTccReport.appPath,
       'helperPath': manualTccReport.helperPath,
+      if (nextCommands.isNotEmpty) 'nextAutomationSafeCommands': nextCommands,
     },
   );
 }

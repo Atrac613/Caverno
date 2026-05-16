@@ -58,7 +58,29 @@ void main() {
         summary.toMarkdown(),
         contains('- Pending user-operated evidence: none'),
       );
+      expect(summary.toMarkdown(), contains('## Manual TCC Evidence'));
+      expect(
+        summary.toMarkdown(),
+        contains(
+          'bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report /tmp/m8.json',
+        ),
+      );
       expect(summary.toMarkdown(), contains('Release artifact gate is ready.'));
+      final manualTccGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'manual_tcc',
+      );
+      final manualTccCommands =
+          manualTccGate.details['nextAutomationSafeCommands']
+              as Map<String, String>;
+      expect(manualTccGate.details['evidencePath'], '/tmp/m8.json');
+      expect(
+        manualTccCommands['releaseReadinessSignoff'],
+        contains('--manual-tcc-report /tmp/m8.json'),
+      );
+      expect(
+        manualTccCommands['nextStepNavigator'],
+        'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
+      );
       final computerUseGate = summary.gates.singleWhere(
         (gate) => gate.id == 'computer_use_canary',
       );
@@ -5258,7 +5280,7 @@ Map<String, dynamic> _releaseReport({
           (ready
               ? 'M7 release artifact sign-off is complete.'
               : 'Fix release artifact blockers.'),
-      if (helperPath != null) 'helperPath': helperPath,
+      'helperPath': helperPath,
     },
     if (launchConstraintBlockers != null)
       'signingDiagnostics': <String, dynamic>{
