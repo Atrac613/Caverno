@@ -243,10 +243,12 @@ done
 RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" SUMMARY_EXIT_STATUS="${SUMMARY_EXIT_STATUS}" REQUIRE_INACTIVE_SPACE_WINDOW="${REQUIRE_INACTIVE_SPACE_WINDOW}" FOCUS_INACTIVE_SPACE_WINDOW="${FOCUS_INACTIVE_SPACE_WINDOW}" SWITCH_SPACE_DIRECTION="${SWITCH_SPACE_DIRECTION}" python3 - <<'PY'
 import json
 import os
+import shlex
 from pathlib import Path
 
 
 run_dir = Path(os.environ["RUN_DIR"])
+report_root = run_dir.parent
 summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 summary_exit_status = Path(os.environ["SUMMARY_EXIT_STATUS"])
@@ -395,6 +397,17 @@ summary = {
     },
     "runs": runs,
     "nextAction": next_action,
+    "evidencePath": str(summary_json),
+    "nextAutomationSafeCommands": {
+        "artifactIndex": (
+            "dart run tool/macos_computer_use_readiness_artifact_index.dart "
+            f"--root {shlex.quote(str(report_root))}"
+        ),
+        "nextStepNavigator": (
+            "dart run tool/macos_computer_use_next_step_navigator.dart "
+            f"--root {shlex.quote(str(report_root))}"
+        ),
+    } if ready else {},
 }
 summary_json.write_text(json.dumps(summary, indent=2, sort_keys=True) + "\n")
 summary_exit_status.write_text("0\n" if summary["ok"] else "1\n")

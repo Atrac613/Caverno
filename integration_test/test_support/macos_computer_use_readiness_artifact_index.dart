@@ -134,6 +134,7 @@ class ReadinessArtifactIndex {
         ..writeln('```');
     }
     ReadinessArtifactEntry? manualTccEntry;
+    ReadinessArtifactEntry? spacesEntry;
     ReadinessArtifactEntry? m15Entry;
     ReadinessArtifactEntry? m15LlmReviewEntry;
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
@@ -160,6 +161,9 @@ class ReadinessArtifactIndex {
     for (final entry in entries) {
       if (entry.id == 'manual_tcc') {
         manualTccEntry = entry;
+      }
+      if (entry.id == 'spaces_canary') {
+        spacesEntry = entry;
       }
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
@@ -265,6 +269,48 @@ class ReadinessArtifactIndex {
         if (releaseReadinessCommand != null) {
           buffer.writeln(
             '  - Release readiness: `${_escapeMarkdownCode(releaseReadinessCommand)}`',
+          );
+        }
+        if (navigatorCommand != null) {
+          buffer.writeln(
+            '  - Next-step navigator: `${_escapeMarkdownCode(navigatorCommand)}`',
+          );
+        }
+      }
+    }
+    if (spacesEntry != null && spacesEntry.details.isNotEmpty) {
+      final commands = spacesEntry.details['nextAutomationSafeCommands'];
+      final commandMap = commands is Map
+          ? commands
+          : const <Object?, Object?>{};
+      buffer
+        ..writeln()
+        ..writeln('## macOS Spaces Evidence')
+        ..writeln()
+        ..writeln('- Status: ${spacesEntry.status ?? 'unknown'}')
+        ..writeln('- Ready: ${spacesEntry.details['ready'] ?? 'unknown'}')
+        ..writeln(
+          '- Evidence path: `${_escapeMarkdownCode('${spacesEntry.details['evidencePath'] ?? spacesEntry.path}')}`',
+        )
+        ..writeln(
+          '- Desktop action boundary: ${spacesEntry.details['desktopActionBoundary'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Inactive Space window observed: ${spacesEntry.details['inactiveSpaceWindowObserved'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Switch canary ready: ${spacesEntry.details['switchCanaryReady'] ?? 'unknown'}',
+        )
+        ..writeln(
+          '- Requires approved input before switching: ${spacesEntry.details['requiresApprovedInputBeforeSwitching'] ?? 'unknown'}',
+        );
+      final artifactIndexCommand = commandMap['artifactIndex']?.toString();
+      final navigatorCommand = commandMap['nextStepNavigator']?.toString();
+      if (artifactIndexCommand != null || navigatorCommand != null) {
+        buffer.writeln('- Post-intake commands:');
+        if (artifactIndexCommand != null) {
+          buffer.writeln(
+            '  - Artifact index: `${_escapeMarkdownCode(artifactIndexCommand)}`',
           );
         }
         if (navigatorCommand != null) {
@@ -3252,7 +3298,10 @@ String? _spacesCanaryNextAction(Map<String, dynamic> json) {
 }
 
 Map<String, Object?> _spacesCanaryDetails(Map<String, dynamic> json) {
+  final nextCommands = json['nextAutomationSafeCommands'];
   return <String, Object?>{
+    'ready': _spacesCanaryStatus(json) == 'ready',
+    'evidencePath': json['evidencePath']?.toString(),
     'desktopModel': json['desktopModel'],
     'spaceScope': json['spaceScope'],
     'desktopActionBoundary': json['desktopActionBoundary'],
@@ -3263,6 +3312,12 @@ Map<String, Object?> _spacesCanaryDetails(Map<String, dynamic> json) {
         _spacesCanaryRequiresApprovedInputBeforeSwitching(json),
     'runCount': json['runCount'],
     'failedRunCount': json['failedRunCount'],
+    if (nextCommands is Map)
+      'nextAutomationSafeCommands': Map<String, Object?>.unmodifiable(
+        nextCommands.map(
+          (key, value) => MapEntry(key.toString(), value?.toString()),
+        ),
+      ),
   };
 }
 

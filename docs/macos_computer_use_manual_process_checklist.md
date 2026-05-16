@@ -121,7 +121,9 @@ come from a handoff preview followed by a run such as
 and then
 `bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next`
 or the equivalent previous-Space direction, with
-`requiresApprovedInputBeforeSwitching` true.
+`requiresApprovedInputBeforeSwitching` true. Ready summaries include
+`nextAutomationSafeCommands` for refreshing the artifact index and M31
+next-step navigator after the user-operated run.
 
 ## M33 Release Packaging Report
 

@@ -1591,6 +1591,15 @@ void main() {
     );
     expect(spacesCanaryScript, contains('SUMMARY_EXIT_STATUS'));
     expect(spacesCanaryScript, contains('summary_exit_status.write_text'));
+    expect(spacesCanaryScript, contains('"nextAutomationSafeCommands"'));
+    expect(
+      spacesCanaryScript,
+      contains('macos_computer_use_readiness_artifact_index.dart'),
+    );
+    expect(
+      spacesCanaryScript,
+      contains('macos_computer_use_next_step_navigator.dart'),
+    );
     expect(
       spacesCanaryScript,
       contains(r'if [[ "${summary_exit_status}" != "0" ]]'),

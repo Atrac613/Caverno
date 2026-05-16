@@ -1834,6 +1834,49 @@ void main() {
       expect(recommendation.requiresUserOperation, isTrue);
     });
 
+    test('artifact index surfaces Spaces post-intake commands', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_spaces_ready_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final spacesPath =
+          '${root.path}/macos_computer_use_spaces_canary_100/canary_summary.json';
+      final spacesSummary = _spacesSummary(ready: true)
+        ..['evidencePath'] = spacesPath
+        ..['nextAutomationSafeCommands'] = <String, Object?>{
+          'artifactIndex':
+              'dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
+          'nextStepNavigator':
+              'dart run tool/macos_computer_use_next_step_navigator.dart --root ${root.path}',
+        };
+      _writeJson(File(spacesPath), spacesSummary);
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'spaces_canary',
+      );
+      final commands =
+          entry.details['nextAutomationSafeCommands'] as Map<String, Object?>;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'ready');
+      expect(entry.details['ready'], isTrue);
+      expect(entry.details['evidencePath'], spacesPath);
+      expect(
+        commands['artifactIndex'],
+        'dart run tool/macos_computer_use_readiness_artifact_index.dart --root ${root.path}',
+      );
+      expect(index.toMarkdown(), contains('## macOS Spaces Evidence'));
+      expect(index.toMarkdown(), contains('Post-intake commands'));
+      expect(
+        index.toMarkdown(),
+        contains('macos_computer_use_next_step_navigator.dart'),
+      );
+    });
+
     test('artifact index surfaces blocked M15 action proposal handoff', () {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_artifact_index_m15_blocked_test_',
