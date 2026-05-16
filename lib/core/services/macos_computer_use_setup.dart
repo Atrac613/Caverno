@@ -141,6 +141,7 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_release_signing_preflight.sh';
   static const manualTccSummaryFile = 'manual_tcc_report_summary.json';
   static const desktopActionSummaryFile = 'canary_summary.json';
+  static const spacesCanarySummaryFile = 'canary_summary.json';
   static const llmCanarySummaryFile = 'canary_summary.json';
   static const m15LlmReviewCanarySummaryFile = 'canary_summary.json';
   static const m16ApprovalPacketFile = 'approval_packet.json';

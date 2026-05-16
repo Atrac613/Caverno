@@ -4166,6 +4166,10 @@ CODE_SIGN_IDENTITY = Developer ID Application
       expect(recommendation.artifactId, 'spaces_canary');
       expect(recommendation.requiresUserOperation, isTrue);
       expect(
+        recommendation.evidencePath,
+        '${root.path}/macos_computer_use_spaces_canary_<timestamp>/canary_summary.json',
+      );
+      expect(
         recommendation.recommendedCommand,
         'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
       );
