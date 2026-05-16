@@ -287,6 +287,18 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining(
+        'macos_computer_use_next_step_navigator_automation_safe.json',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'macos_computer_use_next_step_navigator_automation_safe.md',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_release_packaging.json'),
       findsNWidgets(2),
     );

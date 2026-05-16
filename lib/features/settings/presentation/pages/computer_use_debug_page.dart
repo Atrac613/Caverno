@@ -1897,6 +1897,10 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
       'nextStepNavigatorMarkdown':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile}',
+      'automationSafeNextStepNavigatorJson':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.automationSafeNextStepNavigatorJsonFile}',
+      'automationSafeNextStepNavigatorMarkdown':
+          'build/integration_test_reports/${MacosComputerUseMvpGuidance.automationSafeNextStepNavigatorMarkdownFile}',
       'releasePackagingJson':
           'build/integration_test_reports/${MacosComputerUseMvpGuidance.releasePackagingJsonFile}',
       'releasePackagingMarkdown':
@@ -1944,6 +1948,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index Markdown: ${paths['artifactIndexMarkdown']}',
       'Next-step navigator JSON: ${paths['nextStepNavigatorJson']}',
       'Next-step navigator Markdown: ${paths['nextStepNavigatorMarkdown']}',
+      'Automation-safe next-step navigator JSON: ${paths['automationSafeNextStepNavigatorJson']}',
+      'Automation-safe next-step navigator Markdown: ${paths['automationSafeNextStepNavigatorMarkdown']}',
       'Release packaging JSON: ${paths['releasePackagingJson']}',
       'Release packaging Markdown: ${paths['releasePackagingMarkdown']}',
       'Release readiness CI Markdown: ${paths['releaseReadinessCiMarkdown']}',

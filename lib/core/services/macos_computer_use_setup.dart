@@ -207,6 +207,10 @@ class MacosComputerUseMvpGuidance {
       'macos_computer_use_next_step_navigator.json';
   static const nextStepNavigatorMarkdownFile =
       'macos_computer_use_next_step_navigator.md';
+  static const automationSafeNextStepNavigatorJsonFile =
+      'macos_computer_use_next_step_navigator_automation_safe.json';
+  static const automationSafeNextStepNavigatorMarkdownFile =
+      'macos_computer_use_next_step_navigator_automation_safe.md';
   static const releasePackagingJsonFile =
       'macos_computer_use_release_packaging.json';
   static const releasePackagingMarkdownFile =

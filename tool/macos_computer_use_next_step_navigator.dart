@@ -50,12 +50,11 @@ Future<void> main(List<String> args) async {
     skipUserOperated,
   );
   final outputJson = File(
-    outputJsonPath ??
-        '${reportRoot.path}/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
+    outputJsonPath ?? _defaultJsonOutputPath(reportRoot, skipUserOperated),
   );
   final outputMarkdown = File(
     outputMarkdownPath ??
-        '${reportRoot.path}/${MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile}',
+        _defaultMarkdownOutputPath(reportRoot, skipUserOperated),
   );
   await outputJson.writeAsString(
     const JsonEncoder.withIndent('  ').convert(navigator.toJson()),
@@ -84,6 +83,20 @@ void _printUsage() {
     '[--root path] [--output-json path] [--output-md path] '
     '[--skip-user-operated|--automation-safe-only]',
   );
+}
+
+String _defaultJsonOutputPath(Directory reportRoot, bool skipUserOperated) {
+  final fileName = skipUserOperated
+      ? MacosComputerUseMvpGuidance.automationSafeNextStepNavigatorJsonFile
+      : MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile;
+  return '${reportRoot.path}/$fileName';
+}
+
+String _defaultMarkdownOutputPath(Directory reportRoot, bool skipUserOperated) {
+  final fileName = skipUserOperated
+      ? MacosComputerUseMvpGuidance.automationSafeNextStepNavigatorMarkdownFile
+      : MacosComputerUseMvpGuidance.nextStepNavigatorMarkdownFile;
+  return '${reportRoot.path}/$fileName';
 }
 
 void _usageError(String message) {

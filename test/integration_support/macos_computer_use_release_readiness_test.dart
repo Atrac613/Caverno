@@ -4272,6 +4272,23 @@ CODE_SIGN_IDENTITY = Developer ID Application
         },
       );
 
+      final defaultResult = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_next_step_navigator.dart',
+        '--root',
+        root.path,
+      ]);
+
+      expect(defaultResult.exitCode, 0);
+      final defaultSummaryBeforeAutomationSafe =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_next_step_navigator.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(defaultSummaryBeforeAutomationSafe['mode'], 'default');
+
       final result = await Process.run('dart', [
         'run',
         'tool/macos_computer_use_next_step_navigator.dart',
@@ -4290,7 +4307,7 @@ CODE_SIGN_IDENTITY = Developer ID Application
       final summary =
           jsonDecode(
                 File(
-                  '${root.path}/macos_computer_use_next_step_navigator.json',
+                  '${root.path}/macos_computer_use_next_step_navigator_automation_safe.json',
                 ).readAsStringSync(),
               )
               as Map<String, dynamic>;
@@ -4298,6 +4315,14 @@ CODE_SIGN_IDENTITY = Developer ID Application
       expect(summary['mode'], 'automation_safe_only');
       expect(recommendation['artifactId'], 'llm_canary');
       expect(recommendation['requiresUserOperation'], isFalse);
+      final defaultSummaryAfterAutomationSafe =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_next_step_navigator.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      expect(defaultSummaryAfterAutomationSafe['mode'], 'default');
     });
 
     test('M31 navigator recommends M39 after required evidence is ready', () {
