@@ -2288,7 +2288,7 @@ String? _requiredEvidenceCommand(String artifactId, Directory reportRoot) {
     case 'canary_history':
       return 'bash tool/run_macos_computer_use_live_canary.sh --ci';
     case 'manual_tcc':
-      return MacosComputerUseMvpGuidance.manualTccCommand;
+      return _manualTccHandoffCommand();
     case 'desktop_action_canary':
       return MacosComputerUseMvpGuidance.desktopActionCanaryCommand;
     case 'llm_canary':
@@ -2316,14 +2316,17 @@ String _missingArtifactNextStepAction(
   }
 
   final helperPath = entriesById['release_artifact']?.details['helperPath'];
-  const handoffCommand =
-      '${MacosComputerUseMvpGuidance.manualTccCommand} --handoff-only';
+  final handoffCommand = _manualTccHandoffCommand();
   final handoffAction =
       'Run `$handoffCommand` first to print the helper grant target without running M8.';
   if (helperPath is String && helperPath.trim().isNotEmpty) {
     return '$handoffAction ${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility and Screen & System Audio Recording to the release helper at `$helperPath` before running it.';
   }
   return '$handoffAction ${MacosComputerUseMvpGuidance.manualTccNextAction}';
+}
+
+String _manualTccHandoffCommand() {
+  return '${MacosComputerUseMvpGuidance.manualTccCommand} --handoff-only';
 }
 
 String _m39BetaSignoffCommand(Directory reportRoot) {

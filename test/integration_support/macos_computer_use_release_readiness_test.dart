@@ -1597,6 +1597,10 @@ void main() {
       expect(recommendation.artifactId, 'manual_tcc');
       expect(recommendation.requiresUserOperation, isTrue);
       expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
+      );
+      expect(
         recommendation.evidencePath,
         '${root.path}/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       );
