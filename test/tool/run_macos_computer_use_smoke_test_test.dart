@@ -650,6 +650,11 @@ void main() {
     );
     expect(manualTccSignoffScript, contains('does not grant permissions'));
     expect(manualTccSignoffScript, contains('manual_tcc_report_summary.json'));
+    expect(manualTccSignoffScript, contains('RELEASE_HELPER_PATH'));
+    expect(
+      manualTccSignoffScript,
+      contains('Contents/Helpers/Caverno Computer Use.app'),
+    );
     expect(
       manualProcessChecklist,
       contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),

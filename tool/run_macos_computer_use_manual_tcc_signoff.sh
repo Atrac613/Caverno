@@ -9,6 +9,8 @@ RUN_DIR="${REPORT_ROOT}/macos_computer_use_manual_tcc_${RUN_ID}"
 REPORT_PATH="${RUN_DIR}/manual_tcc_runtime_signoff.json"
 SUMMARY_JSON="${RUN_DIR}/manual_tcc_report_summary.json"
 SUMMARY_MD="${RUN_DIR}/manual_tcc_report_summary.md"
+RELEASE_APP_PATH="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
+RELEASE_HELPER_PATH="${RELEASE_APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
 REBUILD_RELEASE=0
 
 while [[ $# -gt 0 ]]; do
@@ -52,6 +54,7 @@ echo "  This wrapper does not grant permissions, edit TCC, or operate System Set
 echo "  Before running, grant the release Caverno Computer Use helper in:"
 echo "    System Settings > Privacy & Security > Accessibility"
 echo "    System Settings > Privacy & Security > Screen & System Audio Recording"
+echo "  Release helper: ${RELEASE_HELPER_PATH}"
 echo "  Report: ${REPORT_PATH}"
 echo "  Summary JSON: ${SUMMARY_JSON}"
 echo "  Summary Markdown: ${SUMMARY_MD}"
@@ -88,6 +91,7 @@ fi
 
 echo
 echo "Manual TCC handoff"
+echo "  Release helper: ${RELEASE_HELPER_PATH}"
 echo "  Report: ${REPORT_PATH}"
 echo "  Parser: dart run tool/macos_computer_use_manual_tcc_report.dart ${REPORT_PATH}"
 echo "  Summary JSON: ${SUMMARY_JSON}"
