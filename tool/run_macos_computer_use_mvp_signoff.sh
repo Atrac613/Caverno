@@ -2752,6 +2752,7 @@ cat >"${HANDOFF_MD}" <<EOF
 - Artifact index Markdown: ${ARTIFACT_INDEX_MD}
 - Artifact index command: \`${ARTIFACT_INDEX_COMMAND}\`
 - MVP readiness preflight command: \`${MVP_READINESS_PREFLIGHT_COMMAND}\`
+- Dry-run note: final readiness JSON and Markdown are not written until final sign-off runs.
 
 ## PR Review Summary
 
@@ -2995,6 +2996,9 @@ echo "  Release readiness PR Review Summary (final sign-off output): ${OUTPUT_MD
 echo "  Artifact index PR Review Summary: ${ARTIFACT_INDEX_MD}"
 echo "  Artifact index command: ${ARTIFACT_INDEX_COMMAND}"
 echo "  MVP readiness preflight command: ${MVP_READINESS_PREFLIGHT_COMMAND}"
+if [[ "${DRY_RUN}" == "1" ]]; then
+  echo "  Dry-run note: final readiness JSON and Markdown are not written until final sign-off runs."
+fi
 echo "  Status: ${review_status}"
 echo "  Ready input evidence: ${ready_input_evidence_summary}"
 echo "  Missing input evidence: ${missing_input_evidence_summary}"

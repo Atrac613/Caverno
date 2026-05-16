@@ -7870,6 +7870,12 @@ void main() {
           'MVP readiness preflight command: bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}',
         ),
       );
+      expect(
+        stdout,
+        contains(
+          'Dry-run note: final readiness JSON and Markdown are not written until final sign-off runs.',
+        ),
+      );
       expect(stdout, contains(_manualTccNextAction));
       expect(stdout, contains(_desktopActionNextAction));
       expect(stdout, contains('Dry run: would execute'));
@@ -7997,6 +8003,12 @@ void main() {
           'MVP readiness preflight command: `bash tool/run_macos_computer_use_mvp_readiness_preflight.sh --root ${root.path}`',
         ),
       );
+      expect(
+        handoff,
+        contains(
+          'Dry-run note: final readiness JSON and Markdown are not written until final sign-off runs.',
+        ),
+      );
       _expectOperationBoundaryMarkdown(handoff);
       expect(handoff, contains('Missing Input Next Actions'));
       expect(
@@ -8011,6 +8023,10 @@ void main() {
       );
       expect(
         File('${root.path}/macos_computer_use_mvp_readiness.json').existsSync(),
+        isFalse,
+      );
+      expect(
+        File('${root.path}/macos_computer_use_mvp_readiness.md').existsSync(),
         isFalse,
       );
     } finally {
@@ -8154,6 +8170,12 @@ void main() {
         stdout,
         contains(
           'PR Review Artifacts: ${root.path}/macos_computer_use_mvp_handoff.md',
+        ),
+      );
+      expect(
+        stdout,
+        contains(
+          'Dry-run note: final readiness JSON and Markdown are not written by this preflight.',
         ),
       );
       expect(
