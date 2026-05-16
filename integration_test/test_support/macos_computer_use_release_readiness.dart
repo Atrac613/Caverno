@@ -866,47 +866,12 @@ ManualTccReportSummary? _readManualTccSummaryOrReport(File file) {
     return null;
   }
   if (json['schemaName'] == 'macos_computer_use_manual_tcc_report_summary') {
-    return _manualTccSummaryFromJson(json, file.path);
+    return manualTccSummaryFromJson(json, path: file.path);
   }
   if (json.containsKey('releaseRuntimeSignoffGate')) {
     return buildManualTccReportSummary(json, reportPath: file.path);
   }
   return null;
-}
-
-ManualTccReportSummary _manualTccSummaryFromJson(
-  Map<String, dynamic> json,
-  String path,
-) {
-  final checks = (json['checks'] as List<dynamic>? ?? const <dynamic>[])
-      .whereType<Map<String, dynamic>>()
-      .map(
-        (check) => ManualTccCheckSummary(
-          id: check['id'] as String? ?? 'unknown',
-          label: check['label'] as String? ?? 'unknown',
-          status: check['status'] as String? ?? 'unknown',
-          ok: check['ok'] == true,
-          nextAction: check['nextAction'] as String?,
-        ),
-      )
-      .toList(growable: false);
-  return ManualTccReportSummary(
-    reportPath: json['reportPath'] as String? ?? path,
-    status: json['status'] as String? ?? 'missing',
-    ready: json['ready'] == true,
-    blockers: List<String>.unmodifiable(_stringList(json['blockers'])),
-    failureClasses: List<String>.unmodifiable(
-      _stringList(json['failureClasses']),
-    ),
-    appPath: json['appPath'] as String?,
-    helperPath: json['helperPath'] as String?,
-    nextAction: json['nextAction'] as String?,
-    checks: List<ManualTccCheckSummary>.unmodifiable(checks),
-    captureFailureClasses: List<String>.unmodifiable(
-      _stringList(json['captureFailureClasses']),
-    ),
-    captureNextAction: json['captureNextAction'] as String?,
-  );
 }
 
 File? _latestJsonMatching(

@@ -27,7 +27,7 @@ bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-s
 Report parser command for automation after the user provides the report:
 
 ```bash
-dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>
+dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>
 ```
 
 ## Post-Merge Main Sanity Check

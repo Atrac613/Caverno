@@ -125,6 +125,48 @@ void main() {
       expect(summary.toMarkdown(), contains('Automation boundary'));
     });
 
+    test('accepts an existing summary as parser input', () {
+      final root = Directory.systemTemp.createTempSync(
+        'manual_tcc_summary_parser_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final summaryFile = File('${root.path}/manual_tcc_report_summary.json')
+        ..writeAsStringSync(
+          jsonEncode(<String, Object?>{
+            'schemaName': 'macos_computer_use_manual_tcc_report_summary',
+            'schemaVersion': 1,
+            'automationBoundary': 'parse_user_produced_report_only',
+            'reportPath': '${root.path}/raw_m8_report.json',
+            'status': 'ready',
+            'ready': true,
+            'blockers': <String>[],
+            'failureClasses': <String>[],
+            'appPath': '/tmp/Caverno.app',
+            'helperPath': '/tmp/Caverno Computer Use.app',
+            'checks': <Map<String, Object?>>[
+              <String, Object?>{
+                'id': 'permission_status',
+                'label': 'Permission status',
+                'status': 'ready',
+                'ok': true,
+              },
+            ],
+          }),
+        );
+
+      final summary = readManualTccReport(summaryFile);
+
+      expect(summary.ready, isTrue);
+      expect(summary.status, 'ready');
+      expect(summary.reportPath, '${root.path}/raw_m8_report.json');
+      expect(summary.helperPath, '/tmp/Caverno Computer Use.app');
+      expect(summary.checks.single.id, 'permission_status');
+      expect(summary.toMarkdown(), contains('- Ready: true'));
+    });
+
     test('surfaces blocked checks and next actions', () {
       final summary = buildManualTccReportSummary(<String, dynamic>{
         'releaseRuntimeSignoffGate': <String, dynamic>{
@@ -202,7 +244,7 @@ void _writeCanarySummary(
         'manualCommand':
             'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
         'summaryCommand':
-            'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
+            'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>',
       },
       'preset': 'ci',
       'stabilityMode': stabilityMode,

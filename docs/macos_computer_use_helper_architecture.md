@@ -938,7 +938,7 @@ or pass it explicitly:
 
 ```bash
 dart run tool/macos_computer_use_release_readiness.dart \
-  --manual-tcc-report <user-produced-m8-report.json>
+  --manual-tcc-report <user-produced-m8-report-or-summary.json>
 ```
 
 Manual TCC intake uses this handoff:

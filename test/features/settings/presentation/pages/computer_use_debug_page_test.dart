@@ -1216,7 +1216,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'manualCommand':
               'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
           'summaryCommand':
-              'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>',
+              'dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>',
           'helperPath':
               '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
         },

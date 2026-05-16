@@ -7,7 +7,7 @@ Future<void> main(List<String> args) async {
   if (args.isEmpty || args.contains('--help')) {
     stdout.writeln(
       'Usage: dart run tool/macos_computer_use_manual_tcc_report.dart '
-      '<user-produced-m8-report.json> [--output-json path] [--output-md path]',
+      '<user-produced-m8-report-or-summary.json> [--output-json path] [--output-md path]',
     );
     return;
   }

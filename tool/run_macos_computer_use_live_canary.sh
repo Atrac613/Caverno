@@ -112,7 +112,7 @@ echo "  Overlay foreground canary: ${RUN_OVERLAY_CANARY}"
 echo "  Report dir: ${RUN_DIR}"
 if [[ "${PRESET}" == "local" ]]; then
   echo "  Manual TCC follow-up: ask the user to run bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff"
-  echo "  Manual TCC parser: dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>"
+  echo "  Manual TCC parser: dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>"
 fi
 if [[ "${RUN_OVERLAY_CANARY}" == "1" ]]; then
   echo "  Overlay scope: opens System Settings and validates overlay foreground diagnostics without granting TCC."
@@ -259,7 +259,7 @@ summary = {
         "automationBoundary": "user_operated_tcc_only",
         "handoffCommand": "bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only",
         "manualCommand": "bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff",
-        "summaryCommand": "dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>",
+        "summaryCommand": "dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>",
     }),
     "runs": runs,
 }
