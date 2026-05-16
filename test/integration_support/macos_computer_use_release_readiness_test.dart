@@ -1556,6 +1556,7 @@ void main() {
       expect(entry.nextAction, contains('DEVELOPMENT_TEAM'));
       expect(recommendation.priority, 'resolve_release_signing_preflight');
       expect(recommendation.artifactId, 'release_signing_preflight');
+      expect(recommendation.requiresUserOperation, isTrue);
       expect(
         recommendation.recommendedCommand,
         'bash tool/run_macos_computer_use_release_signing_preflight.sh',

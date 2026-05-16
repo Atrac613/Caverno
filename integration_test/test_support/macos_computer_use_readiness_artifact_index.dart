@@ -2086,6 +2086,7 @@ ReadinessNextStepRecommendation? _releaseSigningRecommendation(
           'Resolve release signing preflight blockers before rerunning M7 release artifact sign-off.',
       recommendedCommand:
           MacosComputerUseMvpGuidance.releaseSigningPreflightCommand,
+      requiresUserOperation: true,
     );
   }
   return _recommendationForEntry(
