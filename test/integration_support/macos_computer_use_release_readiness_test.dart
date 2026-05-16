@@ -276,6 +276,8 @@ void main() {
           },
           'manualTccHandoff': <String, Object?>{
             'status': 'manual_required',
+            'handoffCommand':
+                'bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
             'manualCommand':
                 'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
           },
@@ -5307,6 +5309,8 @@ ComputerUseCanaryHistory _computerUseHistory({required bool stable}) {
         },
         manualTccHandoff: const <String, Object?>{
           'status': 'manual_required',
+          'handoffCommand':
+              'bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
           'manualCommand':
               'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
         },

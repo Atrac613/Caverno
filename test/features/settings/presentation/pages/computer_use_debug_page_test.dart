@@ -182,7 +182,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('manual_tcc: Ask the user to run'),
+      find.textContaining(
+        'manual_tcc: Run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only` first',
+      ),
       findsOneWidget,
     );
     expect(
@@ -220,7 +222,7 @@ void main() {
     );
     expect(
       find.textContaining('run_macos_computer_use_manual_tcc_signoff.sh'),
-      findsNWidgets(2),
+      findsNWidgets(3),
     );
     expect(
       find.textContaining(
@@ -591,6 +593,13 @@ void main() {
     await _pumpPage(tester, service);
 
     expect(find.text('Manual TCC Handoff'), findsOneWidget);
+    expect(
+      find.textContaining(
+        'manual_required | bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
+        skipOffstage: false,
+      ),
+      findsOneWidget,
+    );
     expect(
       find.textContaining('--m8-runtime-signoff', skipOffstage: false),
       findsOneWidget,
@@ -1202,6 +1211,8 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
         'generatedAt': '2026-04-25T12:01:00Z',
         'manualTccHandoff': {
           'status': 'manual_required',
+          'handoffCommand':
+              'bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
           'manualCommand':
               'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
           'summaryCommand':

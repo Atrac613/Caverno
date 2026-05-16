@@ -60,6 +60,7 @@ class MacosComputerUseMvpGuidance {
 
   static const manualTccCommand =
       'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
+  static const manualTccHandoffCommand = '$manualTccCommand --handoff-only';
   static const desktopActionCanaryCommand =
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
   static const spacesCanaryCommand =
@@ -221,7 +222,7 @@ class MacosComputerUseMvpGuidance {
       '<desktop-action-canary-summary.json>';
 
   static const manualTccNextAction =
-      'Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
+      'Run `$manualTccHandoffCommand` first to print the helper grant target without running M8. Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
   static const desktopActionCanaryNextAction =
       'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
   static const spacesCanaryNextAction =

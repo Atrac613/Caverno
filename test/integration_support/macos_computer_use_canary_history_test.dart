@@ -51,12 +51,18 @@ void main() {
         history.latest?.manualTccHandoff['manualCommand'],
         contains('--m8-runtime-signoff'),
       );
+      expect(
+        history.latest?.manualTccHandoff['handoffCommand'],
+        contains('--handoff-only'),
+      );
       expect(history.latestPassRateDelta, 1);
       expect(history.toJson()['latestStatus'], 'stable');
       expect(history.toMarkdown(), contains('ipc_not_ready: 1'));
       expect(history.toMarkdown(), contains('Latest pass-rate delta: +100.0%'));
       expect(history.toMarkdown(), contains('Overlay smoke status: ready'));
       expect(history.toMarkdown(), contains('Helper path match: true'));
+      expect(history.toMarkdown(), contains('Manual TCC handoff command'));
+      expect(history.toMarkdown(), contains('--handoff-only'));
     });
 
     test('honors the requested history limit', () {
@@ -191,6 +197,8 @@ void _writeCanarySummary(
       },
       'manualTccHandoff': <String, Object?>{
         'status': 'manual_required',
+        'handoffCommand':
+            'bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only',
         'manualCommand':
             'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
         'summaryCommand':

@@ -1706,11 +1706,15 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
     }
     final handoffMap = Map<String, dynamic>.from(handoff);
     final status = handoffMap['status'] as String? ?? 'manual_required';
+    final handoffCommand =
+        handoffMap['handoffCommand'] as String? ??
+        MacosComputerUseMvpGuidance.manualTccHandoffCommand;
     final command = handoffMap['manualCommand'] as String?;
     final parser = handoffMap['summaryCommand'] as String?;
     final helperPath = handoffMap['helperPath'] as String?;
     return [
       status,
+      handoffCommand,
       ?command,
       ?parser,
       if (helperPath != null) _shortPath(helperPath),
@@ -1728,6 +1732,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
 
   String _mvpUserOperatedCommandSummary() {
     return [
+      'Manual TCC preview: ${MacosComputerUseMvpGuidance.manualTccHandoffCommand}',
       'Manual TCC: ${MacosComputerUseMvpGuidance.manualTccCommand}',
       'Desktop action: ${MacosComputerUseMvpGuidance.desktopActionCanaryCommand}',
     ].join(' | ');

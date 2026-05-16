@@ -2316,17 +2316,14 @@ String _missingArtifactNextStepAction(
   }
 
   final helperPath = entriesById['release_artifact']?.details['helperPath'];
-  final handoffCommand = _manualTccHandoffCommand();
-  final handoffAction =
-      'Run `$handoffCommand` first to print the helper grant target without running M8.';
   if (helperPath is String && helperPath.trim().isNotEmpty) {
-    return '$handoffAction ${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility and Screen & System Audio Recording to the release helper at `$helperPath` before running it.';
+    return '${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility and Screen & System Audio Recording to the release helper at `$helperPath` before running it.';
   }
-  return '$handoffAction ${MacosComputerUseMvpGuidance.manualTccNextAction}';
+  return MacosComputerUseMvpGuidance.manualTccNextAction;
 }
 
 String _manualTccHandoffCommand() {
-  return '${MacosComputerUseMvpGuidance.manualTccCommand} --handoff-only';
+  return MacosComputerUseMvpGuidance.manualTccHandoffCommand;
 }
 
 String _m39BetaSignoffCommand(Directory reportRoot) {

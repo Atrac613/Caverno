@@ -393,7 +393,7 @@ if not llm_summary_path:
     )
 if not manual_tcc_report:
     next_user_actions.append(
-        "Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`."
+        "Run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only` first to print the helper grant target without running M8. Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`."
     )
 if not desktop_action_summary:
     next_user_actions.append(
@@ -520,6 +520,7 @@ handoff_lines.extend(
         "",
         "```bash",
         "bash tool/run_macos_computer_use_mvp_fixture.sh --launch",
+        "bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only",
         "bash tool/run_macos_computer_use_manual_tcc_signoff.sh",
         "bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target",
         "bash tool/run_macos_computer_use_mvp_demo_readiness.sh \\",

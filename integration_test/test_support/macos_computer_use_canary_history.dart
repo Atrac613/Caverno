@@ -152,6 +152,9 @@ class ComputerUseCanaryHistory {
           '- Preserved mismatched helper: ${_markdownCell(helperPolicy['preservedMismatchedHelperPath'])}',
         )
         ..writeln(
+          '- Manual TCC handoff command: `${_escapeMarkdownCode('${manual['handoffCommand'] ?? '-'}')}`',
+        )
+        ..writeln(
           '- Manual TCC command: `${_escapeMarkdownCode('${manual['manualCommand'] ?? '-'}')}`',
         );
     }

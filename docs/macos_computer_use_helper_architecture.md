@@ -552,8 +552,9 @@ A passing canary means the helper core runtime is available for Computer Use
 flows; it does not prove Accessibility, Screen & System Audio Recording,
 screenshot capture, or live desktop actions. Those TCC checks remain
 user-operated manual sign-off steps after the user grants permissions. Each
-summary includes a `manualTccHandoff` object with the command the user should
-run and the parser command automation may run against the user-produced report.
+summary includes a `manualTccHandoff` object with the preview handoff command,
+the manual runtime command the user should run, and the parser command
+automation may run against the user-produced report.
 
 ## Desktop Action Canary
 

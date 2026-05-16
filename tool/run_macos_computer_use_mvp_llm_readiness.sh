@@ -337,7 +337,7 @@ summary = {
     "blockedGateIds": blocked_gate_ids,
     "unexpectedBlockedGateIds": unexpected_blocked,
     "nextUserActions": [
-        "Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.",
+        "Run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only` first to print the helper grant target without running M8. Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`.",
         "Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`.",
         "Run final MVP aggregation with manual TCC, desktop action, and LLM canary summaries.",
     ],

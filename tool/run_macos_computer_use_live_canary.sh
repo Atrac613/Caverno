@@ -201,7 +201,9 @@ for report_path in sorted(run_dir.glob("run_*.json")):
     raw_overlay_smoke = report.get("overlaySmoke")
     overlay_smoke = raw_overlay_smoke if isinstance(raw_overlay_smoke, dict) else {}
     raw_manual_handoff = report.get("manualTccHandoff")
-    manual_handoff = raw_manual_handoff if isinstance(raw_manual_handoff, dict) else {}
+    manual_handoff = dict(raw_manual_handoff) if isinstance(raw_manual_handoff, dict) else {}
+    if manual_handoff and not manual_handoff.get("handoffCommand"):
+        manual_handoff["handoffCommand"] = "bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only"
     blockers = gate.get("blockers")
     blockers = blockers if isinstance(blockers, list) else []
     passed = report.get("ok") is True and gate.get("status") == "ready"
@@ -255,6 +257,7 @@ summary = {
     "manualTccHandoff": next((run.get("manualTccHandoff") for run in runs if run.get("manualTccHandoff")), {
         "status": "manual_required",
         "automationBoundary": "user_operated_tcc_only",
+        "handoffCommand": "bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only",
         "manualCommand": "bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff",
         "summaryCommand": "dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report.json>",
     }),
@@ -279,6 +282,7 @@ lines = [
 manual = summary["manualTccHandoff"]
 if manual:
     lines.extend([
+        f"- Manual TCC handoff command: `{manual.get('handoffCommand', '-')}`",
         f"- Manual TCC command: `{manual.get('manualCommand', '-')}`",
         f"- Manual TCC parser: `{manual.get('summaryCommand', '-')}`",
     ])

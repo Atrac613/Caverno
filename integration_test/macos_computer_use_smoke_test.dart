@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:caverno/core/services/macos_computer_use_service.dart';
+import 'package:caverno/core/services/macos_computer_use_setup.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
 
@@ -2122,6 +2123,7 @@ Map<String, dynamic> _manualTccHandoff({
     'status': 'manual_required',
     'automationBoundary': 'user_operated_tcc_only',
     'runbook': 'docs/macos_computer_use_manual_process_checklist.md',
+    'handoffCommand': MacosComputerUseMvpGuidance.manualTccHandoffCommand,
     'manualCommand':
         'bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --m8-runtime-signoff',
     'summaryCommand':
@@ -2134,7 +2136,7 @@ Map<String, dynamic> _manualTccHandoff({
       'releaseRuntimeReadiness.status == ready',
     ],
     'nextAction':
-        'Ask the user to run the manual TCC command from Terminal after granting macOS permissions.',
+        'Run the handoff command first to print the helper grant target, then ask the user to run the manual TCC command from Terminal after granting macOS permissions.',
   };
 }
 
