@@ -92,6 +92,9 @@ buildMacosComputerUseReleaseSigningPreflight({
   final signingLocalTemplate = File(
     '${root.path}/macos/Runner/Configs/Signing.local.xcconfig.example',
   );
+  final xcodeProject = File(
+    '${root.path}/macos/Runner.xcodeproj/project.pbxproj',
+  );
   final gitignore = File('${root.path}/.gitignore');
   final gitignoreContent = gitignore.existsSync()
       ? gitignore.readAsStringSync()
@@ -115,6 +118,7 @@ buildMacosComputerUseReleaseSigningPreflight({
   );
   final developmentTeamReady = _validDevelopmentTeam(developmentTeam);
   final codeSignIdentityReady = _validCodeSignIdentity(codeSignIdentity);
+  final xcodeDevelopmentTeams = _xcodeProjectDevelopmentTeams(xcodeProject);
   final validIdentities = codeSigningIdentities
       .where((line) => line.trim().isNotEmpty && !line.contains('0 valid'))
       .toList(growable: false);
@@ -143,21 +147,29 @@ buildMacosComputerUseReleaseSigningPreflight({
       label: 'Local signing override',
       ok: signingLocalContent != null,
       nextAction:
-          'Copy macos/Runner/Configs/Signing.local.xcconfig.example to the ignored macos/Runner/Configs/Signing.local.xcconfig, then set local release signing overrides.',
+          'Copy macos/Runner/Configs/Signing.local.xcconfig.example to the ignored macos/Runner/Configs/Signing.local.xcconfig, then set local release signing overrides. Use the intended Xcode signing values as a reference when available.',
       details: <String, Object?>{
         'path': signingLocal.path,
         'templatePath': signingLocalTemplate.path,
+        'xcodeProjectPath': xcodeProject.path,
+        'xcodeProjectDevelopmentTeamConfigured':
+            xcodeDevelopmentTeams.isNotEmpty,
+        'xcodeProjectDevelopmentTeamCount': xcodeDevelopmentTeams.length,
       },
     ),
     _check(
       id: 'development_team',
       label: 'Development team',
       ok: developmentTeamReady,
-      nextAction:
-          'Add a concrete 10-character DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig.',
+      nextAction: xcodeDevelopmentTeams.isNotEmpty
+          ? 'Add a concrete 10-character DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig. Use the intended DEVELOPMENT_TEAM already configured in the Xcode project if it is the release team.'
+          : 'Add a concrete 10-character DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig.',
       details: <String, Object?>{
         'configured': developmentTeam != null,
         'valueStatus': _developmentTeamStatus(developmentTeam),
+        'xcodeProjectDevelopmentTeamConfigured':
+            xcodeDevelopmentTeams.isNotEmpty,
+        'xcodeProjectDevelopmentTeamCount': xcodeDevelopmentTeams.length,
       },
     ),
     _check(
@@ -214,6 +226,21 @@ String? _xcconfigValue(String? content, String key) {
     return value;
   }
   return value;
+}
+
+List<String> _xcodeProjectDevelopmentTeams(File projectFile) {
+  if (!projectFile.existsSync()) {
+    return const <String>[];
+  }
+  final content = projectFile.readAsStringSync();
+  final teams = RegExp(r'\bDEVELOPMENT_TEAM\s*=\s*([A-Z0-9]{10})\s*;')
+      .allMatches(content)
+      .map((match) => match.group(1))
+      .whereType<String>()
+      .toSet()
+      .toList(growable: false);
+  teams.sort();
+  return teams;
 }
 
 bool _validDevelopmentTeam(String? value) {

@@ -3521,6 +3521,53 @@ void main() {
       expect(report.toJson()['operationBoundary'], contains('report-only'));
     });
 
+    test('release signing preflight surfaces Xcode team hints', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_xcode_hint_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+      final projectFile = File(
+        '${root.path}/macos/Runner.xcodeproj/project.pbxproj',
+      )..createSync(recursive: true);
+      projectFile.writeAsStringSync('''
+buildSettings = {
+  DEVELOPMENT_TEAM = ABCDE12345;
+};
+buildSettings = {
+  DEVELOPMENT_TEAM = ABCDE12345;
+};
+''');
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+      );
+      final checksById = <String, MacosComputerUseReleaseSigningPreflightCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+
+      expect(report.ready, isFalse);
+      expect(
+        checksById['signing_local_config']
+            ?.details['xcodeProjectDevelopmentTeamConfigured'],
+        isTrue,
+      );
+      expect(
+        checksById['development_team']
+            ?.details['xcodeProjectDevelopmentTeamCount'],
+        1,
+      );
+      expect(
+        checksById['development_team']?.nextAction,
+        contains('Xcode project'),
+      );
+      expect(
+        encodeReleaseSigningPreflightJson(report),
+        isNot(contains('ABCDE12345')),
+      );
+    });
+
     test('release signing preflight accepts local signing setup', () {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_release_signing_preflight_ready_test_',
