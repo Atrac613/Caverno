@@ -126,6 +126,18 @@ void main() {
       findsOneWidget,
     );
     expect(
+      find.textContaining(
+        'macOS Spaces canary handoff: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+      ),
+      findsOneWidget,
+    );
+    expect(
+      find.textContaining(
+        'macOS Spaces canary command: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('M35 production action policy: defined'),
       findsOneWidget,
     );
@@ -233,6 +245,12 @@ void main() {
       findsNWidgets(2),
     );
     expect(
+      find.textContaining(
+        'macOS Spaces preview: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+      ),
+      findsOneWidget,
+    );
+    expect(
       find.textContaining('macos_computer_use_mvp_handoff.md'),
       findsNWidgets(2),
     );
@@ -289,6 +307,11 @@ void main() {
       findsOneWidget,
     );
     expect(find.textContaining('MVP fixture LLM summary:'), findsOneWidget);
+    expect(
+      find.textContaining('macos_computer_use_spaces_canary_'),
+      findsOneWidget,
+    );
+    expect(find.textContaining('macOS Spaces summary:'), findsOneWidget);
     expect(
       find.textContaining('macos_computer_use_m15_action_proposal_handoff_'),
       findsOneWidget,

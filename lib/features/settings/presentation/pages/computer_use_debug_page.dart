@@ -1735,6 +1735,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Manual TCC preview: ${MacosComputerUseMvpGuidance.manualTccHandoffCommand}',
       'Manual TCC: ${MacosComputerUseMvpGuidance.manualTccCommand}',
       'Desktop action: ${MacosComputerUseMvpGuidance.desktopActionCanaryCommand}',
+      'macOS Spaces preview: ${MacosComputerUseMvpGuidance.spacesCanaryHandoffCommand}',
+      'macOS Spaces: ${MacosComputerUseMvpGuidance.spacesCanaryCommand}',
     ].join(' | ');
   }
 
@@ -1781,6 +1783,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'Artifact index: ${MacosComputerUseMvpGuidance.artifactIndexCommand}',
       'M31 next-step navigator: ${MacosComputerUseMvpGuidance.nextStepNavigatorCommand}',
       'M33 release packaging: ${MacosComputerUseMvpGuidance.releasePackagingCommand}',
+      'macOS Spaces canary handoff: ${MacosComputerUseMvpGuidance.spacesCanaryHandoffCommand}',
+      'macOS Spaces canary command: ${MacosComputerUseMvpGuidance.spacesCanaryCommand}',
       _productionActionPolicySummary(),
       _auditPrivacyControlsSummary(),
       _installMigrationGuardrailsSummary(),
@@ -1841,6 +1845,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
           'build/integration_test_reports/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       'desktopActionSummary':
           'build/integration_test_reports/macos_computer_use_desktop_action_canary_<timestamp>/canary_summary.json',
+      'spacesCanarySummary':
+          'build/integration_test_reports/macos_computer_use_spaces_canary_<timestamp>/${MacosComputerUseMvpGuidance.spacesCanarySummaryFile}',
       'llmCanarySummary':
           'build/integration_test_reports/macos_computer_use_mvp_fixture_llm_canary_<timestamp>/canary_summary.json',
       'm15ActionProposalHandoff':
@@ -1911,6 +1917,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       'MVP readiness Markdown (final sign-off output): ${paths['mvpReadinessMarkdown']}',
       'Manual TCC summary: ${paths['manualTccSummary']}',
       'Desktop action summary: ${paths['desktopActionSummary']}',
+      'macOS Spaces summary: ${paths['spacesCanarySummary']}',
       'MVP fixture LLM summary: ${paths['llmCanarySummary']}',
       'M15 action proposal handoff: ${paths['m15ActionProposalHandoff']}',
       'M15 LLM review summary: ${paths['m15LlmReviewCanarySummary']}',
