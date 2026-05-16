@@ -655,6 +655,11 @@ void main() {
       manualTccSignoffScript,
       contains('Contents/Helpers/Caverno Computer Use.app'),
     );
+    expect(manualTccSignoffScript, contains('Release helper exists:'));
+    expect(
+      manualTccSignoffScript,
+      contains('run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff'),
+    );
     expect(
       manualProcessChecklist,
       contains('bash tool/run_macos_computer_use_manual_tcc_signoff.sh'),

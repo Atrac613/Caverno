@@ -13,6 +13,14 @@ RELEASE_APP_PATH="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
 RELEASE_HELPER_PATH="${RELEASE_APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
 REBUILD_RELEASE=0
 
+release_helper_exists_text() {
+  if [[ -d "${RELEASE_HELPER_PATH}" ]]; then
+    echo "yes"
+  else
+    echo "no"
+  fi
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --report-root)
@@ -55,6 +63,10 @@ echo "  Before running, grant the release Caverno Computer Use helper in:"
 echo "    System Settings > Privacy & Security > Accessibility"
 echo "    System Settings > Privacy & Security > Screen & System Audio Recording"
 echo "  Release helper: ${RELEASE_HELPER_PATH}"
+echo "  Release helper exists: $(release_helper_exists_text)"
+if [[ ! -d "${RELEASE_HELPER_PATH}" ]]; then
+  echo "  Release helper next action: run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff first, or rerun this wrapper with --rebuild-release."
+fi
 echo "  Report: ${REPORT_PATH}"
 echo "  Summary JSON: ${SUMMARY_JSON}"
 echo "  Summary Markdown: ${SUMMARY_MD}"
@@ -92,6 +104,7 @@ fi
 echo
 echo "Manual TCC handoff"
 echo "  Release helper: ${RELEASE_HELPER_PATH}"
+echo "  Release helper exists: $(release_helper_exists_text)"
 echo "  Report: ${REPORT_PATH}"
 echo "  Parser: dart run tool/macos_computer_use_manual_tcc_report.dart ${REPORT_PATH}"
 echo "  Summary JSON: ${SUMMARY_JSON}"
