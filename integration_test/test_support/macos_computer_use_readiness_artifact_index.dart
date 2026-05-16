@@ -2340,7 +2340,7 @@ String? _requiredEvidenceCommand(String artifactId, Directory reportRoot) {
     case 'manual_tcc':
       return _manualTccHandoffCommand();
     case 'desktop_action_canary':
-      return MacosComputerUseMvpGuidance.desktopActionCanaryCommand;
+      return MacosComputerUseMvpGuidance.desktopActionCanaryHandoffCommand;
     case 'llm_canary':
       return MacosComputerUseMvpGuidance.llmCanaryCommand;
     default:

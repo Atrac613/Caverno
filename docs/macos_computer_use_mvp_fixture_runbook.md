@@ -150,7 +150,14 @@ target is the harmless `Safe Click Target`. The user should not target
 ## 4. User-Operated Desktop Action Canary
 
 After the user has granted the required TCC permissions and prepared the
-fixture window, ask the user to launch Caverno.app manually and run:
+fixture window, print the handoff preview before any desktop action is
+attempted:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only
+```
+
+Then ask the user to launch Caverno.app manually and run:
 
 ```bash
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target

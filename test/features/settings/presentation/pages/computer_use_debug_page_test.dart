@@ -188,7 +188,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.textContaining('desktop_action_canary: Ask the user to run'),
+      find.textContaining(
+        'desktop_action_canary: Run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only` first',
+      ),
       findsOneWidget,
     );
     expect(

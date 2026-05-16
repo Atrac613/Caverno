@@ -63,6 +63,8 @@ class MacosComputerUseMvpGuidance {
   static const manualTccHandoffCommand = '$manualTccCommand --handoff-only';
   static const desktopActionCanaryCommand =
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
+  static const desktopActionCanaryHandoffCommand =
+      '$desktopActionCanaryCommand --handoff-only';
   static const spacesCanaryCommand =
       'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next';
   static const llmCanaryCommand =
@@ -224,7 +226,7 @@ class MacosComputerUseMvpGuidance {
   static const manualTccNextAction =
       'Run `$manualTccHandoffCommand` first to print the helper grant target without running M8. Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
   static const desktopActionCanaryNextAction =
-      'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
+      'Run `$desktopActionCanaryHandoffCommand` first to print the safe target checklist without running the desktop action. Ask the user to run `$desktopActionCanaryCommand` after preparing the safe target and provide `$desktopActionSummaryFile`.';
   static const spacesCanaryNextAction =
       'Ask the user to prepare two macOS Spaces with a harmless inactive-Space window, run `$spacesCanaryCommand`, and provide `canary_summary.json`.';
   static const llmCanaryNextAction =

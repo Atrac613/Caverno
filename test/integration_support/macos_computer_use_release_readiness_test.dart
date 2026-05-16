@@ -1691,8 +1691,9 @@ void main() {
       );
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target',
+        'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only',
       );
+      expect(recommendation.nextAction, contains('--handoff-only'));
       expect(
         recommendation.nextAction,
         contains('run_macos_computer_use_desktop_action_canary.sh'),

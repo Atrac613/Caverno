@@ -159,7 +159,13 @@ fresh runtime evidence is required.
    bash tool/run_macos_computer_use_manual_tcc_signoff.sh
    ```
 
-5. Ask the user to launch Caverno.app manually, prepare a safe click target,
+5. Print the desktop action handoff before any click is attempted:
+
+   ```bash
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only
+   ```
+
+6. Ask the user to launch Caverno.app manually, prepare a safe click target,
    and run the desktop action canary:
 
    ```bash
@@ -346,9 +352,11 @@ The complete fixture workflow is documented in
 - Missing `manual_tcc`: ask the user to run
   `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide the
   generated report or summary.
-- Missing `desktop_action_canary`: ask the user to run
+- Missing `desktop_action_canary`: run
+  `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only`
+  first, then ask the user to run
   `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target`
-  and provide `canary_summary.json`.
+  after preparing the safe target and provide `canary_summary.json`.
 - Blocked `computer_use_canary`: rerun
   `bash tool/run_macos_computer_use_live_canary.sh --overlay` and inspect
   overlay/helper path diagnostics.

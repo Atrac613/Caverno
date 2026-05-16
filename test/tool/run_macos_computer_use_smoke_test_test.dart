@@ -660,7 +660,9 @@ void main() {
     expect(manualTccSignoffScript, contains('Release helper exists:'));
     expect(
       manualTccSignoffScript,
-      contains('run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff'),
+      contains(
+        'run bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+      ),
     );
     expect(
       manualProcessChecklist,
@@ -1408,6 +1410,12 @@ void main() {
     expect(desktopActionCanaryScript, contains('--require-helper-path-match'));
     expect(desktopActionCanaryScript, contains('--replace-helper'));
     expect(desktopActionCanaryScript, contains('--release-helper-signoff'));
+    expect(desktopActionCanaryScript, contains('--handoff-only'));
+    expect(desktopActionCanaryScript, contains('Summary JSON:'));
+    expect(
+      desktopActionCanaryScript,
+      contains('Handoff only: no desktop action canary was executed.'),
+    );
     expect(desktopActionCanaryScript, contains('helperPathMatchRequired'));
     expect(desktopActionCanaryScript, contains('helperReplacementRequested'));
     expect(
@@ -1437,6 +1445,33 @@ void main() {
     expect(architectureDoc, contains('visible harmless target'));
     expect(architectureDoc, contains('target_not_visible'));
     expect(architectureDoc, contains('click_not_sent'));
+  });
+
+  test('desktop action canary handoff does not run the canary', () async {
+    final root = Directory.systemTemp.createTempSync(
+      'caverno_desktop_action_handoff_test_',
+    );
+    try {
+      final result = await Process.run('bash', [
+        'tool/run_macos_computer_use_desktop_action_canary.sh',
+        '--fixture-target',
+        '--handoff-only',
+        '--report-root',
+        root.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final stdout = '${result.stdout}';
+      expect(stdout, contains('Safe Click Target'));
+      expect(stdout, contains('Summary JSON:'));
+      expect(
+        stdout,
+        contains('Handoff only: no desktop action canary was executed.'),
+      );
+      expect(root.listSync(), isEmpty);
+    } finally {
+      root.deleteSync(recursive: true);
+    }
   });
 
   test('dedicated live canary runner reports Computer Use purpose', () {

@@ -577,6 +577,12 @@ Non-goals:
 - Proving arbitrary LLM-chosen click safety.
 - Replacing the LLM/tool-loop canary or the manual M8 TCC sign-off.
 
+Handoff preview before any desktop action is attempted:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only
+```
+
 Manual run after the user grants Accessibility and Screen & System Audio
 Recording, launches Caverno.app manually, and prepares a safe click target:
 

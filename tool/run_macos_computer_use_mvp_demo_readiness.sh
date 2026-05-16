@@ -397,7 +397,7 @@ if not manual_tcc_report:
     )
 if not desktop_action_summary:
     next_user_actions.append(
-        "Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` and provide `canary_summary.json`."
+        "Run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only` first to print the safe target checklist without running the desktop action. Ask the user to run `bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target` after preparing the safe target and provide `canary_summary.json`."
     )
 if manual_tcc_report and desktop_action_summary and llm_summary_path and not final_signoff:
     next_user_actions.append(
@@ -522,6 +522,7 @@ handoff_lines.extend(
         "bash tool/run_macos_computer_use_mvp_fixture.sh --launch",
         "bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only",
         "bash tool/run_macos_computer_use_manual_tcc_signoff.sh",
+        "bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only",
         "bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target",
         "bash tool/run_macos_computer_use_mvp_demo_readiness.sh \\",
         "  --manual-tcc-report <manual-tcc-report-or-summary.json> \\",

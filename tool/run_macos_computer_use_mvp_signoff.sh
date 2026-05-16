@@ -2784,13 +2784,19 @@ cat >"${HANDOFF_MD}" <<EOF
    bash tool/run_macos_computer_use_manual_tcc_signoff.sh
    \`\`\`
 
-3. Desktop action canary after preparing a safe click target:
+3. Desktop action handoff preview before preparing a safe click target:
+
+   \`\`\`bash
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only
+   \`\`\`
+
+4. Desktop action canary after preparing a safe click target:
 
    \`\`\`bash
    bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
    \`\`\`
 
-4. Final MVP aggregation:
+5. Final MVP aggregation:
 
    \`\`\`bash
    bash tool/run_macos_computer_use_mvp_signoff.sh \\
@@ -2840,7 +2846,7 @@ cat "${M30_OBSERVE_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
     echo "- Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the helper grant target without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
   fi
   if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
-    echo "- Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
+    echo "- Run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only\` first to print the safe target checklist without running the desktop action. Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` after preparing the safe target and provide \`canary_summary.json\`."
   fi
   if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
     echo "- Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."
@@ -3004,6 +3010,7 @@ echo
 echo "User-operated commands:"
 echo "  bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only"
 echo "  bash tool/run_macos_computer_use_manual_tcc_signoff.sh"
+echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only"
 echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target"
 echo
 echo "MVP handoff next actions:"
@@ -3011,7 +3018,7 @@ if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discove
   echo "  - Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the helper grant target without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
 fi
 if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
-  echo "  - Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` and provide \`canary_summary.json\`."
+  echo "  - Run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only\` first to print the safe target checklist without running the desktop action. Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` after preparing the safe target and provide \`canary_summary.json\`."
 fi
 if [[ "${llm_canary_status}" != "provided" && "${llm_canary_status}" != "discovered" ]]; then
   echo "  - Run \`bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh\`, run \`bash tool/run_macos_computer_use_real_app_observe_canary.sh\` with a user-provided screenshot, or provide a Computer Use LLM canary \`canary_summary.json\` before final sign-off aggregation."

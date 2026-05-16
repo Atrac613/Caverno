@@ -19,12 +19,43 @@ RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_LAUNCH_CAVERNO:-0}"
 REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_REQUIRE_HELPER_PATH_MATCH:-0}"
 REPLACE_HELPER="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_REPLACE_HELPER:-0}"
+HANDOFF_ONLY=0
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
     echo "$1 requires a value."
     exit 2
   fi
+}
+
+print_desktop_action_context() {
+  echo "Running macOS Computer Use desktop action canary"
+  echo "  Purpose: observe the screen, click once, and observe again"
+  echo "  TCC boundary: user-operated manual verification only"
+  echo "  Safety: prepare a safe click target before running"
+  echo "  Safe target: use a visible, harmless target such as an empty text field or test window"
+  echo "  Avoid: destructive buttons, purchase flows, send buttons, system controls, and private data"
+  echo "  Success phases: pre_observe_image, click_sent, post_observe_image"
+  echo "  MVP fixture target: ${FIXTURE_TARGET}"
+  if [[ "${FIXTURE_TARGET}" == "1" ]]; then
+    echo "  Fixture preparation: bash tool/run_macos_computer_use_mvp_fixture.sh --launch"
+    echo "  Fixture safe target: Safe Click Target"
+    echo "  Fixture expected outcome: status label changes to Clicked"
+    echo "  Fixture app path: ${FIXTURE_APP_PATH:-not recorded}"
+    echo "  Manual step: bring the fixture window forward and confirm Safe Click Target is the click target."
+  fi
+  echo "  Device: ${DEVICE}"
+  echo "  Reporter: ${REPORTER}"
+  echo "  Repeat count: ${REPEAT_COUNT}"
+  echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
+  echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
+  echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
+  echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
+  echo "  Preserve current helper/TCC: $([[ "${REPLACE_HELPER}" == "1" ]] && echo false || echo true)"
+  echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
+  echo "  Report dir: ${RUN_DIR}"
+  echo "  Summary JSON: ${SUMMARY_JSON}"
+  echo "  Summary Markdown: ${SUMMARY_MD}"
 }
 
 while [[ $# -gt 0 ]]; do
@@ -84,6 +115,10 @@ while [[ $# -gt 0 ]]; do
       REPLACE_HELPER=1
       shift
       ;;
+    --handoff-only)
+      HANDOFF_ONLY=1
+      shift
+      ;;
     --legacy-integration)
       LEGACY_INTEGRATION=1
       shift
@@ -115,6 +150,8 @@ Options:
                        helper and is intentionally off by default.
   --release-helper-signoff
                        Equivalent to --require-helper-path-match --replace-helper.
+  --handoff-only       Print the safe-target checklist and expected report paths
+                       without running the desktop action canary.
   --legacy-integration
                        Run the old Flutter integration-test canary path.
 
@@ -137,6 +174,12 @@ RUN_DIR="${REPORT_ROOT}/macos_computer_use_desktop_action_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 
+if [[ "${HANDOFF_ONLY}" == "1" ]]; then
+  print_desktop_action_context
+  echo "  Handoff only: no desktop action canary was executed."
+  exit 0
+fi
+
 if ! [[ "${REPEAT_COUNT}" =~ ^[0-9]+$ ]] || [[ "${REPEAT_COUNT}" -lt 1 ]]; then
   echo "CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_CANARY_REPEAT_COUNT must be a positive integer."
   exit 2
@@ -151,31 +194,7 @@ if [[ "${LAUNCH_FIXTURE}" == "1" ]]; then
   FIXTURE_APP_PATH="$(printf '%s\n' "${fixture_output}" | awk '/\.app$/ { path = $0 } END { print path }')"
 fi
 
-echo "Running macOS Computer Use desktop action canary"
-echo "  Purpose: observe the screen, click once, and observe again"
-echo "  TCC boundary: user-operated manual verification only"
-echo "  Safety: prepare a safe click target before running"
-echo "  Safe target: use a visible, harmless target such as an empty text field or test window"
-echo "  Avoid: destructive buttons, purchase flows, send buttons, system controls, and private data"
-echo "  Success phases: pre_observe_image, click_sent, post_observe_image"
-echo "  MVP fixture target: ${FIXTURE_TARGET}"
-if [[ "${FIXTURE_TARGET}" == "1" ]]; then
-  echo "  Fixture preparation: bash tool/run_macos_computer_use_mvp_fixture.sh --launch"
-  echo "  Fixture safe target: Safe Click Target"
-  echo "  Fixture expected outcome: status label changes to Clicked"
-  echo "  Fixture app path: ${FIXTURE_APP_PATH:-not recorded}"
-  echo "  Manual step: bring the fixture window forward and confirm Safe Click Target is the click target."
-fi
-echo "  Device: ${DEVICE}"
-echo "  Reporter: ${REPORTER}"
-echo "  Repeat count: ${REPEAT_COUNT}"
-echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
-echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
-echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
-echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
-echo "  Preserve current helper/TCC: $([[ "${REPLACE_HELPER}" == "1" ]] && echo false || echo true)"
-echo "  Restore normal Debug app after canary: ${RESTORE_DEBUG_APP}"
-echo "  Report dir: ${RUN_DIR}"
+print_desktop_action_context
 
 status=0
 for index in $(seq 1 "${REPEAT_COUNT}"); do
