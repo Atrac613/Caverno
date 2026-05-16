@@ -7504,6 +7504,18 @@ void main() {
     );
     expect(
       mvpChecklist,
+      contains(
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+      ),
+    );
+    expect(
+      mvpChecklist,
+      contains(
+        'macos_computer_use_spaces_canary_<timestamp>/canary_summary.json',
+      ),
+    );
+    expect(
+      mvpChecklist,
       contains('bash tool/run_macos_computer_use_mvp_signoff.sh'),
     );
     expect(

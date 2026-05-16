@@ -187,7 +187,7 @@ fresh runtime evidence is required.
    and private data. The MVP success phases are `pre_observe_image`,
    `click_sent`, and `post_observe_image`.
 
-6. Aggregate MVP readiness with the user-produced reports:
+7. Aggregate MVP readiness with the user-produced reports:
 
    ```bash
    bash tool/run_macos_computer_use_mvp_signoff.sh \
@@ -272,6 +272,23 @@ fresh runtime evidence is required.
 
    These report-only commands summarize existing evidence and do not grant TCC,
    operate System Settings, or run desktop actions.
+
+8. Prepare product-lane macOS Spaces evidence before M39/M40 gates:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only
+   ```
+
+9. Ask the user to prepare two macOS Spaces with a harmless inactive-Space
+   window, then run:
+
+   ```bash
+   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next
+   ```
+
+   The expected product-lane Spaces path is:
+
+   - macOS Spaces: `macos_computer_use_spaces_canary_<timestamp>/canary_summary.json`
 
 ## MVP Ready Criteria
 
