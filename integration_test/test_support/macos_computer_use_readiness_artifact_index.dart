@@ -133,6 +133,7 @@ class ReadinessArtifactIndex {
         ..writeln(nextStepNavigator.recommendation.recommendedCommand)
         ..writeln('```');
     }
+    ReadinessArtifactEntry? manualTccEntry;
     ReadinessArtifactEntry? m15Entry;
     ReadinessArtifactEntry? m15LlmReviewEntry;
     ReadinessArtifactEntry? m16ApprovalPacketEntry;
@@ -157,6 +158,9 @@ class ReadinessArtifactIndex {
     ReadinessArtifactEntry? m55PostExpansionMonitoringGateEntry;
     ReadinessArtifactEntry? m56RolloutDecisionHandoffGateEntry;
     for (final entry in entries) {
+      if (entry.id == 'manual_tcc') {
+        manualTccEntry = entry;
+      }
       if (entry.id == 'm15_action_proposal_handoff') {
         m15Entry = entry;
       }
@@ -225,6 +229,49 @@ class ReadinessArtifactIndex {
       }
       if (entry.id == 'm56_rollout_decision_handoff_gate') {
         m56RolloutDecisionHandoffGateEntry = entry;
+      }
+    }
+    if (manualTccEntry != null && manualTccEntry.details.isNotEmpty) {
+      final commands = manualTccEntry.details['nextAutomationSafeCommands'];
+      final commandMap = commands is Map
+          ? commands
+          : const <Object?, Object?>{};
+      buffer
+        ..writeln()
+        ..writeln('## Manual TCC Evidence')
+        ..writeln()
+        ..writeln('- Status: ${manualTccEntry.status ?? 'unknown'}')
+        ..writeln('- Ready: ${manualTccEntry.details['ready'] ?? 'unknown'}')
+        ..writeln(
+          '- Evidence path: `${_escapeMarkdownCode('${manualTccEntry.details['evidencePath'] ?? manualTccEntry.path}')}`',
+        )
+        ..writeln(
+          '- Blockers: ${_joinedOrNone(_detailsStringList(manualTccEntry.details['blockers']))}',
+        )
+        ..writeln(
+          '- Failure classes: ${_joinedOrNone(_detailsStringList(manualTccEntry.details['failureClasses']))}',
+        );
+      final helperPath = manualTccEntry.details['helperPath']?.toString();
+      if (helperPath != null && helperPath.isNotEmpty) {
+        buffer.writeln(
+          '- Release helper: `${_escapeMarkdownCode(helperPath)}`',
+        );
+      }
+      final releaseReadinessCommand = commandMap['releaseReadinessSignoff']
+          ?.toString();
+      final navigatorCommand = commandMap['nextStepNavigator']?.toString();
+      if (releaseReadinessCommand != null || navigatorCommand != null) {
+        buffer.writeln('- Post-intake commands:');
+        if (releaseReadinessCommand != null) {
+          buffer.writeln(
+            '  - Release readiness: `${_escapeMarkdownCode(releaseReadinessCommand)}`',
+          );
+        }
+        if (navigatorCommand != null) {
+          buffer.writeln(
+            '  - Next-step navigator: `${_escapeMarkdownCode(navigatorCommand)}`',
+          );
+        }
       }
     }
     if (m15Entry != null && m15Entry.details.isNotEmpty) {
@@ -1256,6 +1303,9 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
           json['schemaName'] ==
               'macos_computer_use_manual_tcc_report_summary' ||
           json.containsKey('releaseRuntimeSignoffGate'),
+      status: _manualTccStatus,
+      nextAction: _manualTccNextAction,
+      details: _manualTccDetails,
     ),
     _latestEntry(
       'desktop_action_canary',
@@ -3033,6 +3083,89 @@ Map<String, Object?> _releaseSigningPreflightDetails(
     'failedCheckIds': _releaseSigningPreflightFailedCheckIds(json),
     'operationBoundary': json['operationBoundary'],
   };
+}
+
+String? _manualTccStatus(Map<String, dynamic> json) {
+  final status = json['status']?.toString();
+  if (status != null && status.isNotEmpty) {
+    return status;
+  }
+  final ready = json['ready'];
+  if (ready is bool) {
+    return ready ? 'ready' : 'blocked';
+  }
+  final gate = json['releaseRuntimeSignoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final gateStatus = gate['status']?.toString();
+    if (gateStatus != null && gateStatus.isNotEmpty) {
+      return gateStatus;
+    }
+  }
+  return null;
+}
+
+String? _manualTccNextAction(Map<String, dynamic> json) {
+  final nextAction = json['nextAction']?.toString();
+  if (nextAction != null && nextAction.isNotEmpty) {
+    return nextAction;
+  }
+  final gate = json['releaseRuntimeSignoffGate'];
+  if (gate is Map<String, dynamic>) {
+    final gateNextAction = gate['nextAction']?.toString();
+    if (gateNextAction != null && gateNextAction.isNotEmpty) {
+      return gateNextAction;
+    }
+  }
+  final status = _manualTccStatus(json);
+  if (status == 'ready') {
+    return 'Manual TCC sign-off is ready.';
+  }
+  return MacosComputerUseMvpGuidance.manualTccNextAction;
+}
+
+Map<String, Object?> _manualTccDetails(Map<String, dynamic> json) {
+  final gate = json['releaseRuntimeSignoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final source = gateMap ?? json;
+  final nextCommands = json['nextAutomationSafeCommands'];
+  return <String, Object?>{
+    'ready': source['ready'] ?? (_manualTccStatus(json) == 'ready'),
+    'reportPath': json['reportPath']?.toString(),
+    'evidencePath':
+        json['evidencePath']?.toString() ?? json['reportPath']?.toString(),
+    'blockers': _jsonStringList(source['blockers']),
+    'failureClasses': _jsonStringList(json['failureClasses']),
+    'failedCheckIds': _manualTccFailedCheckIds(json),
+    'appPath': source['appPath']?.toString(),
+    'helperPath': source['helperPath']?.toString(),
+    if (nextCommands is Map)
+      'nextAutomationSafeCommands': Map<String, Object?>.unmodifiable(
+        nextCommands.map(
+          (key, value) => MapEntry(key.toString(), value?.toString()),
+        ),
+      ),
+  };
+}
+
+List<String> _manualTccFailedCheckIds(Map<String, dynamic> json) {
+  final failedChecks = _jsonList(json['failedChecks']);
+  if (failedChecks.isNotEmpty) {
+    return failedChecks
+        .whereType<Map>()
+        .map((check) => check['id']?.toString())
+        .whereType<String>()
+        .where((id) => id.isNotEmpty)
+        .toList(growable: false);
+  }
+  final gate = json['releaseRuntimeSignoffGate'];
+  final gateMap = gate is Map<String, dynamic> ? gate : null;
+  return _jsonList(gateMap?['checks'])
+      .whereType<Map>()
+      .where((check) => check['ok'] != true)
+      .map((check) => check['id']?.toString())
+      .whereType<String>()
+      .where((id) => id.isNotEmpty)
+      .toList(growable: false);
 }
 
 List<String> _releaseSigningPreflightFailedCheckIds(Map<String, dynamic> json) {

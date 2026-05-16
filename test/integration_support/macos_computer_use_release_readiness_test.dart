@@ -1641,6 +1641,80 @@ void main() {
       );
     });
 
+    test('artifact index surfaces manual TCC post-intake commands', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_manual_tcc_ready_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final manualTccPath =
+          '${root.path}/macos_computer_use_manual_tcc_1/manual_tcc_report_summary.json';
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(File(manualTccPath), <String, Object?>{
+        'schemaName': 'macos_computer_use_manual_tcc_report_summary',
+        'schemaVersion': 1,
+        'automationBoundary': 'parse_user_produced_report_only',
+        'reportPath': '${root.path}/raw_m8_report.json',
+        'evidencePath': manualTccPath,
+        'status': 'ready',
+        'ready': true,
+        'blockers': <String>[],
+        'failureClasses': <String>[],
+        'appPath': '/tmp/Caverno.app',
+        'helperPath': '/tmp/Caverno Computer Use.app',
+        'nextAutomationSafeCommands': <String, Object?>{
+          'releaseReadinessSignoff':
+              'bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report $manualTccPath',
+          'nextStepNavigator':
+              'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
+        },
+        'checks': <Map<String, Object?>>[
+          <String, Object?>{
+            'id': 'permission_status',
+            'label': 'Permission status',
+            'status': 'ready',
+            'ok': true,
+          },
+        ],
+      });
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'manual_tcc',
+      );
+      final commands =
+          entry.details['nextAutomationSafeCommands'] as Map<String, Object?>;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'ready');
+      expect(entry.nextAction, 'Manual TCC sign-off is ready.');
+      expect(entry.details['evidencePath'], manualTccPath);
+      expect(entry.details['helperPath'], '/tmp/Caverno Computer Use.app');
+      expect(
+        commands['releaseReadinessSignoff'],
+        contains('--manual-tcc-report $manualTccPath'),
+      );
+      expect(index.toMarkdown(), contains('## Manual TCC Evidence'));
+      expect(index.toMarkdown(), contains('Post-intake commands'));
+      expect(
+        index.toMarkdown(),
+        contains('bash tool/run_macos_computer_use_release_readiness.sh'),
+      );
+    });
+
     test(
       'artifact index returns to M7 after release signing preflight is ready',
       () {
