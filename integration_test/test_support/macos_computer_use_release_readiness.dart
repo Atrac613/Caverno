@@ -523,18 +523,7 @@ File? discoverLatestLlmCanarySummary(Directory reportRoot) {
     return computerUseCandidates.last;
   }
 
-  final legacyCandidates =
-      _jsonFiles(reportRoot)
-          .where(
-            (file) =>
-                _basename(file.path) == 'canary_summary.json' &&
-                _basename(
-                  file.parent.path,
-                ).startsWith('plan_mode_ping_cli_canary_'),
-          )
-          .toList(growable: false)
-        ..sort((left, right) => left.parent.path.compareTo(right.parent.path));
-  return legacyCandidates.isEmpty ? null : legacyCandidates.last;
+  return null;
 }
 
 ReleaseReadinessGate _releaseArtifactGate(

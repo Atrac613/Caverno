@@ -540,6 +540,55 @@ void main() {
       expect(discovered?.path, readyReport.path);
     });
 
+    test('ignores legacy plan-mode ping canaries for MVP LLM evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_readiness_legacy_llm_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json'),
+        _llmSummary(failedCount: 0),
+      );
+
+      final discovered = discoverLatestLlmCanarySummary(root);
+      final index = buildReadinessArtifactIndex(root);
+      final llmEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'llm_canary',
+      );
+      final automationSafeNavigator = buildReadinessNextStepNavigator(
+        root,
+        index.entries,
+        true,
+      );
+
+      expect(discovered, isNull);
+      expect(llmEntry.exists, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.missingArtifactIds,
+        contains('llm_canary'),
+      );
+      expect(automationSafeNavigator.recommendation.artifactId, 'llm_canary');
+      expect(
+        automationSafeNavigator.recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh',
+      );
+    });
+
     test('surfaces blocked LLM canary as a release blocker', () {
       final summary = buildReleaseReadinessSummary(
         ReleaseReadinessInputs(

@@ -3030,8 +3030,7 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
                   ) ||
                   parent.startsWith(
                     'macos_computer_use_real_app_observe_canary_',
-                  ) ||
-                  parent.startsWith('plan_mode_ping_cli_canary_');
+                  );
             })
             .where((file) {
               final json = _readJsonObject(file);
@@ -3111,9 +3110,7 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
       ? mvpFixtureFiles.last
       : computerUseFiles.isNotEmpty
       ? computerUseFiles.last
-      : files.isEmpty
-      ? null
-      : files.last;
+      : null;
   return ReadinessArtifactEntry(
     id: id,
     label: label,
