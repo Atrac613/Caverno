@@ -70,6 +70,7 @@ Future<void> main(List<String> args) async {
     stdout.writeln(
       '- Failed checks: ${report.failedChecks.map((check) => check.id).join(', ')}',
     );
+    stdout.writeln('- Next action: ${report.failedChecks.first.nextAction}');
   }
   if (!report.ready) {
     exitCode = 1;

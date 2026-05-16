@@ -518,6 +518,7 @@ void main() {
       contains('macos_computer_use_release_signing_preflight.json'),
     );
     expect(releaseSigningPreflightCli, contains('security'));
+    expect(releaseSigningPreflightCli, contains('- Next action:'));
     expect(xcodeProject, contains('ENABLE_HARDENED_RUNTIME = YES;'));
     expect(xcodeProject, contains('Embed Computer Use Helper'));
     expect(
