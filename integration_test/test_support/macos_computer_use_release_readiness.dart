@@ -514,6 +514,9 @@ ReleaseReadinessGate _releaseArtifactGate(
 
   final gate = _mapValue(releaseReport['releaseSignoffGate']);
   final blockers = _stringList(gate['blockers']);
+  final signingBlockers = _releaseArtifactLaunchConstraintBlockers(
+    releaseReport,
+  );
   final status = gate['status'] as String? ?? 'missing';
   final ready = status == 'ready' && blockers.isEmpty;
   return ReleaseReadinessGate(
@@ -521,13 +524,72 @@ ReleaseReadinessGate _releaseArtifactGate(
     label: 'Release artifact',
     status: status,
     ready: ready,
-    nextAction: ready
-        ? 'Release artifact gate is ready.'
-        : (gate['nextAction'] as String? ??
-              'Resolve release artifact blockers and rerun M7 sign-off.'),
+    nextAction: _releaseArtifactNextAction(
+      ready: ready,
+      gate: gate,
+      signingBlockers: signingBlockers,
+    ),
     artifactPath: reportPath,
-    details: <String, Object?>{'blockers': blockers},
+    details: <String, Object?>{
+      'blockers': blockers,
+      if (signingBlockers.isNotEmpty)
+        'launchConstraintBlockers': signingBlockers,
+    },
   );
+}
+
+String _releaseArtifactNextAction({
+  required bool ready,
+  required Map<String, dynamic> gate,
+  required List<String> signingBlockers,
+}) {
+  if (ready) {
+    return 'Release artifact gate is ready.';
+  }
+  if (_releaseArtifactHasSigningConstraintBlocker(gate, signingBlockers)) {
+    return 'Use a valid code signing identity and TeamIdentifier for release '
+        'LaunchAgent constraints. Add local overrides in '
+        'macos/Runner/Configs/Signing.local.xcconfig, verify '
+        '`security find-identity -v -p codesigning` lists a valid identity, '
+        'then rerun --m7-signoff.';
+  }
+  return gate['nextAction'] as String? ??
+      'Resolve release artifact blockers and rerun M7 sign-off.';
+}
+
+bool _releaseArtifactHasSigningConstraintBlocker(
+  Map<String, dynamic> gate,
+  List<String> signingBlockers,
+) {
+  final gateBlockers = _stringList(gate['blockers']);
+  return gateBlockers.contains('release_launch_constraints_blocked') ||
+      signingBlockers.any(
+        (blocker) =>
+            blocker.contains('ad_hoc_signature') ||
+            blocker.contains('team_identifier_missing'),
+      );
+}
+
+List<String> _releaseArtifactLaunchConstraintBlockers(
+  Map<String, dynamic> releaseReport,
+) {
+  final signingDiagnostics = _mapValue(releaseReport['signingDiagnostics']);
+  final summaryBlockers = _stringList(
+    signingDiagnostics['launchConstraintBlockers'],
+  );
+  if (summaryBlockers.isNotEmpty) {
+    return summaryBlockers;
+  }
+  final blockers = <String>[];
+  for (final role in const <String>['app', 'helper']) {
+    final roleDiagnostics = _mapValue(signingDiagnostics[role]);
+    for (final blocker in _stringList(
+      roleDiagnostics['launchConstraintBlockers'],
+    )) {
+      blockers.add('$role:$blocker');
+    }
+  }
+  return blockers;
 }
 
 ReleaseReadinessGate _computerUseCanaryGate(

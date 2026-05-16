@@ -58,6 +58,10 @@ void main() {
   late String m56RolloutDecisionHandoffGateScript;
   late String releasePackagingWrapper;
   late String releasePackagingCli;
+  late String releaseSigningPreflightWrapper;
+  late String releaseSigningPreflightCli;
+  late String releaseSigningPreflightSupport;
+  late String signingLocalTemplate;
   late String mvpLlmReadinessScript;
   late String mvpDemoReadinessScript;
   late String releaseReadinessWrapper;
@@ -214,6 +218,18 @@ void main() {
     ).readAsStringSync();
     releasePackagingCli = File(
       'tool/macos_computer_use_release_packaging.dart',
+    ).readAsStringSync();
+    releaseSigningPreflightWrapper = File(
+      'tool/run_macos_computer_use_release_signing_preflight.sh',
+    ).readAsStringSync();
+    releaseSigningPreflightCli = File(
+      'tool/macos_computer_use_release_signing_preflight.dart',
+    ).readAsStringSync();
+    releaseSigningPreflightSupport = File(
+      'integration_test/test_support/macos_computer_use_release_signing_preflight.dart',
+    ).readAsStringSync();
+    signingLocalTemplate = File(
+      'macos/Runner/Configs/Signing.local.xcconfig.example',
     ).readAsStringSync();
     mvpLlmReadinessScript = File(
       'tool/run_macos_computer_use_mvp_llm_readiness.sh',
@@ -489,6 +505,19 @@ void main() {
       releasePackagingCli,
       contains('macos_computer_use_release_packaging.md'),
     );
+    expect(
+      releaseSigningPreflightWrapper,
+      contains('Boundary: report-only signing setup check'),
+    );
+    expect(
+      releaseSigningPreflightWrapper,
+      contains('It does not sign, notarize, staple, grant TCC'),
+    );
+    expect(
+      releaseSigningPreflightCli,
+      contains('macos_computer_use_release_signing_preflight.json'),
+    );
+    expect(releaseSigningPreflightCli, contains('security'));
     expect(xcodeProject, contains('ENABLE_HARDENED_RUNTIME = YES;'));
     expect(xcodeProject, contains('Embed Computer Use Helper'));
     expect(
@@ -497,11 +526,32 @@ void main() {
     );
     expect(signingConfig, contains('Signing.local.xcconfig'));
     expect(signingConfig, isNot(contains('DEVELOPMENT_TEAM =')));
+    expect(signingLocalTemplate, contains('DEVELOPMENT_TEAM = YOURTEAMID'));
+    expect(releaseSigningPreflightSupport, contains('signing_local_gitignore'));
+    expect(
+      releaseSigningPreflightSupport,
+      contains('Signing.local.xcconfig.example'),
+    );
+    expect(architectureDoc, contains('release_launch_constraints_blocked'));
+    expect(
+      architectureDoc,
+      contains('security find-identity -v -p codesigning'),
+    );
     expect(manualProcessChecklist, contains('M33 Release Packaging Report'));
     expect(
       manualProcessChecklist,
       contains('bash tool/run_macos_computer_use_release_packaging.sh'),
     );
+    expect(
+      manualProcessChecklist,
+      contains('bash tool/run_macos_computer_use_release_signing_preflight.sh'),
+    );
+    expect(
+      manualProcessChecklist,
+      contains('macos/Runner/Configs/Signing.local.xcconfig'),
+    );
+    expect(manualProcessChecklist, contains('ad_hoc_signature'));
+    expect(manualProcessChecklist, contains('team_identifier_missing'));
     expect(
       manualProcessChecklist,
       contains('It does not sign, notarize, staple, grant TCC'),
@@ -514,6 +564,8 @@ void main() {
     expect(script, contains('"releaseRuntimeReadiness": runtime_readiness'));
     expect(script, contains('"releaseSignoff"'));
     expect(script, contains('"status": "not_measured"'));
+    expect(script, contains('macos/Runner/Configs/Signing.local.xcconfig'));
+    expect(script, contains('security find-identity -v -p codesigning'));
   });
 
   test(

@@ -1,0 +1,8 @@
+// Copy this file to Signing.local.xcconfig for local release signing.
+// Signing.local.xcconfig is ignored because it may contain team-specific
+// release signing settings.
+
+// Example:
+// DEVELOPMENT_TEAM = YOURTEAMID
+// CODE_SIGN_IDENTITY = Apple Development
+

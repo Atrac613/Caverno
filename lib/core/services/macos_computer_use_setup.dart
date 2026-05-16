@@ -62,6 +62,8 @@ class MacosComputerUseMvpGuidance {
       'bash tool/run_macos_computer_use_manual_tcc_signoff.sh';
   static const desktopActionCanaryCommand =
       'bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target';
+  static const spacesCanaryCommand =
+      'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next';
   static const llmCanaryCommand =
       'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh';
   static const realAppObserveCanaryCommand =
@@ -220,6 +222,8 @@ class MacosComputerUseMvpGuidance {
       'Ask the user to run `$manualTccCommand` and provide `$manualTccSummaryFile`.';
   static const desktopActionCanaryNextAction =
       'Ask the user to run `$desktopActionCanaryCommand` and provide `$desktopActionSummaryFile`.';
+  static const spacesCanaryNextAction =
+      'Ask the user to prepare two macOS Spaces with a harmless inactive-Space window, run `$spacesCanaryCommand`, and provide `canary_summary.json`.';
   static const llmCanaryNextAction =
       'Run `$llmCanaryCommand`, run `$realAppObserveCanaryCommand` with a user-provided screenshot, or provide a Computer Use LLM canary `$llmCanarySummaryFile` before final sign-off aggregation.';
   static const releaseArtifactNextAction =

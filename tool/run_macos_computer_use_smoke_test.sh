@@ -719,7 +719,13 @@ def first_failure_action(blockers):
     if "release_app_identity_mismatch" in blockers or "release_helper_identity_mismatch" in blockers:
         return "Fix release bundle identifiers before requesting macOS permissions."
     if "release_launch_constraints_blocked" in blockers:
-        return "Use non-ad-hoc signing with a TeamIdentifier for release LaunchAgent constraints."
+        return (
+            "Use a valid code signing identity and TeamIdentifier for release "
+            "LaunchAgent constraints. Add local overrides in "
+            "macos/Runner/Configs/Signing.local.xcconfig, verify "
+            "`security find-identity -v -p codesigning` lists a valid identity, "
+            "then rerun --m7-signoff."
+        )
     return "Resolve the failed M7 release sign-off checks, then rerun --m7-signoff."
 
 
@@ -832,7 +838,13 @@ checks = [
         "release_launch_constraints",
         "Release LaunchAgent signing constraints",
         len(signing_blockers) == 0,
-        next_action="Use non-ad-hoc signing with a TeamIdentifier for release LaunchAgent constraints.",
+        next_action=(
+            "Use a valid code signing identity and TeamIdentifier for release "
+            "LaunchAgent constraints. Add local overrides in "
+            "macos/Runner/Configs/Signing.local.xcconfig, verify "
+            "`security find-identity -v -p codesigning` lists a valid identity, "
+            "then rerun --m7-signoff."
+        ),
         details={"blockers": signing_blockers},
     ),
 ]

@@ -666,6 +666,12 @@ an adjacent macOS Space with a different harmless window plus enabled Mission
 Control shortcuts. It does not move the pointer or type text, and any later
 pointer or keyboard input still requires a fresh `computer_vision_observe`.
 
+The readiness artifact index treats `macos_computer_use_spaces_canary_summary`
+as the product-lane multi-desktop evidence. For release review, the latest
+summary must include inactive-Space window evidence, an approved Space switch
+canary, and `requiresApprovedInputBeforeSwitching` for every run. Missing or
+blocked Spaces evidence is surfaced before beta and production launch gates.
+
 Passing this canary means the helper can expose the best-effort all-Spaces
 window inventory and its safety metadata. It does not prove that macOS will
 switch to a specific Space by ID because public macOS APIs do not expose stable
@@ -1449,6 +1455,14 @@ signing constraints to pass. A blocked gate exits non-zero only after writing
 the report and printing the M7 summary. `releaseRuntimeReadiness.status` remains
 `not_measured` until an installed release app is launched and granted
 Accessibility plus Screen & System Audio Recording in macOS Privacy & Security.
+If `release_launch_constraints_blocked` reports `ad_hoc_signature` or
+`team_identifier_missing`, verify that
+`security find-identity -v -p codesigning` lists a valid identity, add local release signing overrides in
+`macos/Runner/Configs/Signing.local.xcconfig`, rebuild the release app, and
+rerun `--m7-signoff`.
+Use `bash tool/run_macos_computer_use_release_signing_preflight.sh` for a
+report-only check of local signing overrides and Keychain code signing
+identities before running the heavier M7 release build.
 
 To verify the installed release runtime after the permissions are granted, run:
 
@@ -1550,6 +1564,12 @@ LaunchAgent smoke against a developer-signed build, create the ignored
 DEVELOPMENT_TEAM = YOURTEAMID
 CODE_SIGN_IDENTITY = Apple Development
 ```
+
+Use `macos/Runner/Configs/Signing.local.xcconfig.example` as the checked-in
+template and keep the concrete `Signing.local.xcconfig` ignored. The release
+signing preflight verifies the template, the ignore guard, the local override,
+and the available keychain signing identities without signing, notarizing,
+stapling, granting TCC, or operating desktop apps.
 
 The smoke report includes `signingDiagnostics` for the app and helper bundles.
 Use `launchConstraintBlockers` such as `ad_hoc_signature` or

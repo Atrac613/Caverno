@@ -1206,6 +1206,9 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
       'release_artifact',
       'M7 release artifact report',
       '${reportRoot.path}/macos_computer_use_release_artifact_signoff.json',
+      status: _releaseArtifactStatus,
+      nextAction: _releaseArtifactNextAction,
+      details: _releaseArtifactDetails,
     ),
     _entry(
       'release_packaging',
@@ -1255,6 +1258,18 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
           'macos_computer_use_desktop_action_canary_summary',
       parentPrefix: 'macos_computer_use_desktop_action_canary_',
       fileName: 'canary_summary.json',
+    ),
+    _latestEntry(
+      'spaces_canary',
+      'Latest macOS Spaces canary summary',
+      reportRoot,
+      (json) =>
+          json['schemaName'] == 'macos_computer_use_spaces_canary_summary',
+      parentPrefix: 'macos_computer_use_spaces_canary_',
+      fileName: 'canary_summary.json',
+      status: _spacesCanaryStatus,
+      nextAction: _spacesCanaryNextAction,
+      details: _spacesCanaryDetails,
     ),
     _latestLlmCanaryEntry(
       'llm_canary',
@@ -1612,7 +1627,7 @@ ReadinessFinalSignoffRehearsal _mvpFinalSignoffRehearsal(
       .map((entry) => entry.id)
       .toList(growable: false);
   final readyArtifactIds = requiredArtifacts
-      .where((entry) => entry.exists)
+      .where(_artifactReady)
       .map((entry) => entry.id)
       .toList(growable: false);
   final missingArtifactActions = requiredArtifacts
@@ -1733,6 +1748,8 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
       .where(
         (entry) =>
             (entry.id == 'm15_action_proposal_handoff' ||
+                entry.id == 'release_artifact' ||
+                entry.id == 'spaces_canary' ||
                 entry.id == 'm15_llm_review_canary' ||
                 entry.id == 'm16_approval_packet' ||
                 entry.id == 'm17_execution_rehearsal' ||
@@ -1771,6 +1788,8 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     entriesById,
     const <String>[
       'm15_action_proposal_handoff',
+      'release_artifact',
+      'spaces_canary',
       'm15_llm_review_canary',
       'm16_approval_packet',
       'm17_execution_rehearsal',
@@ -1803,8 +1822,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       nextAction:
           blocked.nextAction ??
           'Resolve blocked ${blocked.label} evidence before continuing.',
-      recommendedCommand: MacosComputerUseMvpGuidance.artifactIndexCommand
-          .replaceFirst('build/integration_test_reports', reportRoot.path),
+      recommendedCommand: _blockedEvidenceCommand(blocked.id, reportRoot),
     );
   }
 
@@ -1851,6 +1869,17 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       recommendedCommand: _requiredEvidenceCommand(missing.id, reportRoot),
       requiresUserOperation: MacosComputerUseMvpGuidance.userOperatedEvidenceIds
           .contains(missing.id),
+    );
+  }
+
+  final spacesEntry = entriesById['spaces_canary'];
+  if (spacesEntry != null && !spacesEntry.exists) {
+    return _recommendationForEntry(
+      priority: 'run_spaces_canary',
+      entry: spacesEntry,
+      nextAction: MacosComputerUseMvpGuidance.spacesCanaryNextAction,
+      recommendedCommand: MacosComputerUseMvpGuidance.spacesCanaryCommand,
+      requiresUserOperation: true,
     );
   }
 
@@ -2003,6 +2032,19 @@ ReadinessArtifactEntry? _firstEntryByPriority(
     }
   }
   return null;
+}
+
+String _blockedEvidenceCommand(String artifactId, Directory reportRoot) {
+  if (artifactId == 'release_artifact') {
+    return 'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff';
+  }
+  if (artifactId == 'spaces_canary') {
+    return MacosComputerUseMvpGuidance.spacesCanaryCommand;
+  }
+  return MacosComputerUseMvpGuidance.artifactIndexCommand.replaceFirst(
+    'build/integration_test_reports',
+    reportRoot.path,
+  );
 }
 
 ReadinessNextStepRecommendation _recommendationForEntry({
@@ -2804,13 +2846,206 @@ ReadinessArtifactEntry _latestLlmCanaryEntry(
   );
 }
 
-ReadinessArtifactEntry _entry(String id, String label, String path) {
+ReadinessArtifactEntry _entry(
+  String id,
+  String label,
+  String path, {
+  String? Function(Map<String, dynamic> json)? status,
+  String? Function(Map<String, dynamic> json)? nextAction,
+  Map<String, Object?> Function(Map<String, dynamic> json)? details,
+}) {
+  final file = File(path);
+  final exists = file.existsSync();
+  final json = exists ? _readJsonObject(file) : null;
   return ReadinessArtifactEntry(
     id: id,
     label: label,
     path: path,
-    exists: File(path).existsSync(),
+    exists: exists,
+    status: json == null ? null : status?.call(json),
+    nextAction: json == null ? null : nextAction?.call(json),
+    details: json == null
+        ? const <String, Object?>{}
+        : details?.call(json) ?? const <String, Object?>{},
   );
+}
+
+bool _artifactReady(ReadinessArtifactEntry entry) {
+  if (!entry.exists) {
+    return false;
+  }
+  return entry.status == null || entry.status == 'ready';
+}
+
+String? _spacesCanaryStatus(Map<String, dynamic> json) {
+  final status = json['status']?.toString();
+  final ok = json['ok'];
+  final baseReady = status == 'ready' || ok == true;
+  if (!baseReady) {
+    return status == null || status.isEmpty ? 'blocked' : status;
+  }
+  if (json['inactiveSpaceWindowObserved'] != true) {
+    return 'blocked';
+  }
+  if (json['switchSpaceCanary'] != true || json['switchCanaryReady'] != true) {
+    return 'blocked';
+  }
+  if (!_spacesCanaryRequiresApprovedInputBeforeSwitching(json)) {
+    return 'blocked';
+  }
+  return 'ready';
+}
+
+String? _spacesCanaryNextAction(Map<String, dynamic> json) {
+  final status = _spacesCanaryStatus(json);
+  if (status == 'ready') {
+    return 'macOS Spaces product canary is ready for release review.';
+  }
+  if (json['inactiveSpaceWindowObserved'] != true) {
+    return 'Prepare a harmless window on another macOS Space, then rerun the Spaces canary with --require-inactive-space-window.';
+  }
+  if (json['switchSpaceCanary'] != true || json['switchCanaryReady'] != true) {
+    return 'Rerun the Spaces canary with an approved Control-Left/Right Space switch before product release review.';
+  }
+  if (!_spacesCanaryRequiresApprovedInputBeforeSwitching(json)) {
+    return 'Refresh the Spaces canary so reports confirm Space switching stays behind approved input and a fresh observe.';
+  }
+  final nextAction = json['nextAction'];
+  if (nextAction is String && nextAction.trim().isNotEmpty) {
+    return nextAction;
+  }
+  return MacosComputerUseMvpGuidance.spacesCanaryNextAction;
+}
+
+Map<String, Object?> _spacesCanaryDetails(Map<String, dynamic> json) {
+  return <String, Object?>{
+    'desktopModel': json['desktopModel'],
+    'spaceScope': json['spaceScope'],
+    'desktopActionBoundary': json['desktopActionBoundary'],
+    'inactiveSpaceWindowObserved': json['inactiveSpaceWindowObserved'],
+    'switchSpaceCanary': json['switchSpaceCanary'],
+    'switchCanaryReady': json['switchCanaryReady'],
+    'requiresApprovedInputBeforeSwitching':
+        _spacesCanaryRequiresApprovedInputBeforeSwitching(json),
+    'runCount': json['runCount'],
+    'failedRunCount': json['failedRunCount'],
+  };
+}
+
+bool _spacesCanaryRequiresApprovedInputBeforeSwitching(
+  Map<String, dynamic> json,
+) {
+  final runs = json['runs'];
+  if (runs is! List || runs.isEmpty) {
+    return false;
+  }
+  return runs.whereType<Map>().every(
+    (run) => run['requiresApprovedInputBeforeSwitching'] == true,
+  );
+}
+
+String? _releaseArtifactStatus(Map<String, dynamic> json) {
+  final gate = json['releaseSignoffGate'];
+  if (gate is Map) {
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      return status;
+    }
+  }
+  final ok = json['ok'];
+  if (ok is bool) {
+    return ok ? 'ready' : 'blocked';
+  }
+  return null;
+}
+
+String? _releaseArtifactNextAction(Map<String, dynamic> json) {
+  final gate = json['releaseSignoffGate'];
+  if (_releaseArtifactHasSigningConstraintBlocker(json)) {
+    return _releaseArtifactSigningNextAction();
+  }
+  if (gate is Map) {
+    final nextAction = gate['nextAction'];
+    if (nextAction is String && nextAction.trim().isNotEmpty) {
+      return nextAction;
+    }
+  }
+  final status = _releaseArtifactStatus(json);
+  if (status == 'ready') {
+    return 'M7 release artifact sign-off is complete.';
+  }
+  if (status == 'blocked') {
+    return 'Resolve M7 release artifact blockers before collecting manual runtime evidence.';
+  }
+  return null;
+}
+
+bool _releaseArtifactHasSigningConstraintBlocker(Map<String, dynamic> json) {
+  final gate = json['releaseSignoffGate'];
+  final gateBlockers = gate is Map
+      ? _stringList(gate['blockers'])
+      : const <String>[];
+  if (gateBlockers.contains('release_launch_constraints_blocked')) {
+    return true;
+  }
+
+  final signingDiagnostics = json['signingDiagnostics'];
+  if (signingDiagnostics is! Map) {
+    return false;
+  }
+  final summaryBlockers = _stringList(
+    signingDiagnostics['launchConstraintBlockers'],
+  );
+  if (summaryBlockers.isNotEmpty) {
+    return true;
+  }
+  for (final role in const <String>['app', 'helper']) {
+    final roleDiagnostics = signingDiagnostics[role];
+    if (roleDiagnostics is! Map) {
+      continue;
+    }
+    final roleBlockers = _stringList(
+      roleDiagnostics['launchConstraintBlockers'],
+    );
+    if (roleBlockers.contains('ad_hoc_signature') ||
+        roleBlockers.contains('team_identifier_missing')) {
+      return true;
+    }
+  }
+  return false;
+}
+
+String _releaseArtifactSigningNextAction() {
+  return 'Use a valid code signing identity and TeamIdentifier for release '
+      'LaunchAgent constraints. Add local overrides in '
+      'macos/Runner/Configs/Signing.local.xcconfig, verify '
+      '`security find-identity -v -p codesigning` lists a valid identity, '
+      'then rerun --m7-signoff.';
+}
+
+Map<String, Object?> _releaseArtifactDetails(Map<String, dynamic> json) {
+  final gate = json['releaseSignoffGate'];
+  if (gate is! Map) {
+    return const <String, Object?>{};
+  }
+  final blockers = gate['blockers'];
+  final signingDiagnostics = json['signingDiagnostics'];
+  final signingBlockers = signingDiagnostics is Map
+      ? _stringList(signingDiagnostics['launchConstraintBlockers'])
+      : const <String>[];
+  return <String, Object?>{
+    if (gate['status'] != null) 'gateStatus': gate['status'].toString(),
+    if (blockers is List)
+      'gateBlockers': blockers.map((item) => item.toString()).toList(),
+    if (signingBlockers.isNotEmpty) 'launchConstraintBlockers': signingBlockers,
+  };
+}
+
+List<String> _stringList(Object? value) {
+  if (value is! List) {
+    return const <String>[];
+  }
+  return value.map((item) => item.toString()).toList(growable: false);
 }
 
 ReadinessArtifactEntry _latestEntry(

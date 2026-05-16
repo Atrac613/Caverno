@@ -9,6 +9,7 @@ import '../../integration_test/test_support/macos_computer_use_manual_tcc_report
 import '../../integration_test/test_support/macos_computer_use_readiness_artifact_index.dart';
 import '../../integration_test/test_support/macos_computer_use_release_packaging.dart';
 import '../../integration_test/test_support/macos_computer_use_release_readiness.dart';
+import '../../integration_test/test_support/macos_computer_use_release_signing_preflight.dart';
 
 const _manualTccNextAction = MacosComputerUseMvpGuidance.manualTccNextAction;
 const _desktopActionNextAction =
@@ -108,6 +109,60 @@ void main() {
         contains('- Pending user-operated evidence: manual_tcc'),
       );
       expect(summary.toMarkdown(), contains('## Blocked Gates'));
+    });
+
+    test('normalizes release signing blocker guidance', () {
+      final summary = buildReleaseReadinessSummary(
+        ReleaseReadinessInputs(
+          releaseReport: _releaseReport(
+            status: 'blocked',
+            blockers: <String>['release_launch_constraints_blocked'],
+            nextAction:
+                'Use non-ad-hoc signing with a TeamIdentifier for release LaunchAgent constraints.',
+            launchConstraintBlockers: <String>[
+              'app:ad_hoc_signature',
+              'app:team_identifier_missing',
+              'helper:ad_hoc_signature',
+              'helper:team_identifier_missing',
+            ],
+          ),
+          releaseReportPath: '/tmp/m7.json',
+          computerUseHistory: _computerUseHistory(stable: true),
+          computerUseHistoryPath: '/tmp/history.json',
+          desktopActionCanarySummary: _desktopActionSummary(failed: 0),
+          desktopActionCanarySummaryPath: '/tmp/desktop_action.json',
+          manualTccReport: _manualTccReport(status: 'ready'),
+          manualTccReportPath: '/tmp/m8.json',
+          llmCanarySummary: _llmSummary(failedCount: 0),
+          llmCanarySummaryPath: '/tmp/llm.json',
+        ),
+      );
+
+      final releaseGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'release_artifact',
+      );
+      expect(summary.ready, isFalse);
+      expect(releaseGate.status, 'blocked');
+      expect(
+        releaseGate.nextAction,
+        contains('macos/Runner/Configs/Signing.local.xcconfig'),
+      );
+      expect(
+        releaseGate.nextAction,
+        contains('security find-identity -v -p codesigning'),
+      );
+      expect(
+        releaseGate.details['launchConstraintBlockers'],
+        contains('app:ad_hoc_signature'),
+      );
+      expect(
+        summary.toMarkdown(),
+        contains('macos/Runner/Configs/Signing.local.xcconfig'),
+      );
+      expect(
+        summary.toMarkdown(),
+        contains('security find-identity -v -p codesigning'),
+      );
     });
 
     test('surfaces manual TCC failure classes and failed checks', () {
@@ -677,6 +732,9 @@ void main() {
       final desktopSummaryPath =
           '${root.path}/macos_computer_use_desktop_action_canary_100/canary_summary.json';
       _writeJson(File(desktopSummaryPath), _desktopActionSummary(failed: 0));
+      final spacesSummaryPath =
+          '${root.path}/macos_computer_use_spaces_canary_175/canary_summary.json';
+      _writeJson(File(spacesSummaryPath), _spacesSummary(ready: true));
       _writeJson(
         File(
           '${root.path}/macos_computer_use_mvp_llm_readiness_300/mvp_llm_readiness_summary.json',
@@ -757,6 +815,7 @@ void main() {
       expect(entryIds, contains('release_packaging'));
       expect(entryIds, contains('manual_tcc'));
       expect(entryIds, contains('desktop_action_canary'));
+      expect(entryIds, contains('spaces_canary'));
       expect(entryIds, contains('llm_canary'));
       expect(entryIds, contains('mvp_llm_readiness'));
       expect(entryIds, contains('mvp_demo_readiness'));
@@ -847,6 +906,16 @@ void main() {
       );
       final llmEntry = index.entries.singleWhere(
         (entry) => entry.id == 'llm_canary',
+      );
+      final spacesEntry = index.entries.singleWhere(
+        (entry) => entry.id == 'spaces_canary',
+      );
+      expect(spacesEntry.exists, isTrue);
+      expect(spacesEntry.status, 'ready');
+      expect(spacesEntry.path, spacesSummaryPath);
+      expect(
+        spacesEntry.details['requiresApprovedInputBeforeSwitching'],
+        isTrue,
       );
       expect(
         llmEntry.path,
@@ -1343,6 +1412,161 @@ void main() {
       expect(index.toMarkdown(), contains(_manualTccNextAction));
       expect(index.toMarkdown(), contains(_desktopActionNextAction));
       expect(index.toMarkdown(), contains(_llmCanaryNextAction));
+    });
+
+    test('artifact index prioritizes blocked release artifact evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_release_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'blocked'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+      _writeJson(
+        File('${root.path}/plan_mode_ping_cli_canary_100/canary_summary.json'),
+        _llmSummary(failedCount: 0),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'release_artifact',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.nextAction, 'Fix release artifact blockers.');
+      expect(entry.details['gateStatus'], 'blocked');
+      expect(entry.details['gateBlockers'], contains('codesign'));
+      expect(index.mvpFinalSignoffRehearsal.ready, isFalse);
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.readyArtifactIds,
+        isNot(contains('release_artifact')),
+      );
+      expect(
+        index.mvpFinalSignoffRehearsal.prReviewSummary.blockedReviewEvidenceIds,
+        contains('release_artifact'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'release_artifact');
+      expect(recommendation.nextAction, 'Fix release artifact blockers.');
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+      );
+      expect(index.toMarkdown(), contains('| M7 release artifact report |'));
+      expect(index.toMarkdown(), contains('release_artifact'));
+    });
+
+    test('artifact index normalizes release signing blocker guidance', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_release_signing_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(
+          status: 'blocked',
+          blockers: <String>['release_launch_constraints_blocked'],
+          nextAction:
+              'Use non-ad-hoc signing with a TeamIdentifier for release LaunchAgent constraints.',
+          launchConstraintBlockers: <String>[
+            'app:ad_hoc_signature',
+            'app:team_identifier_missing',
+            'helper:ad_hoc_signature',
+            'helper:team_identifier_missing',
+          ],
+        ),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'release_artifact',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        contains('macos/Runner/Configs/Signing.local.xcconfig'),
+      );
+      expect(
+        entry.nextAction,
+        contains('security find-identity -v -p codesigning'),
+      );
+      expect(
+        entry.details['launchConstraintBlockers'],
+        contains('app:ad_hoc_signature'),
+      );
+      expect(recommendation.artifactId, 'release_artifact');
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(
+        recommendation.nextAction,
+        contains('macos/Runner/Configs/Signing.local.xcconfig'),
+      );
+      expect(
+        recommendation.nextAction,
+        contains('security find-identity -v -p codesigning'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff',
+      );
+    });
+
+    test('artifact index surfaces blocked Spaces product canary evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_spaces_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File(
+          '${root.path}/macos_computer_use_spaces_canary_100/canary_summary.json',
+        ),
+        _spacesSummary(ready: true, switchSpaceCanary: false),
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'spaces_canary',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(
+        entry.nextAction,
+        contains('approved Control-Left/Right Space switch'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'spaces_canary');
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
+      );
+      expect(recommendation.requiresUserOperation, isFalse);
     });
 
     test('artifact index surfaces blocked M15 action proposal handoff', () {
@@ -3176,6 +3400,78 @@ void main() {
       expect(report.toMarkdown(), contains('Notarization ticket'));
     });
 
+    test('release signing preflight blocks missing local signing setup', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_blocked_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+      );
+      final checkIds = report.failedChecks.map((check) => check.id).toSet();
+
+      expect(report.ready, isFalse);
+      expect(report.status, 'blocked');
+      expect(checkIds, contains('signing_local_template'));
+      expect(checkIds, contains('signing_local_gitignore'));
+      expect(checkIds, contains('signing_local_config'));
+      expect(checkIds, contains('development_team'));
+      expect(checkIds, contains('code_sign_identity'));
+      expect(checkIds, contains('keychain_code_signing_identity'));
+      expect(
+        report.toMarkdown(),
+        contains('macos/Runner/Configs/Signing.local.xcconfig'),
+      );
+      expect(report.toJson()['operationBoundary'], contains('report-only'));
+    });
+
+    test('release signing preflight accepts local signing setup', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_ready_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+      final signingDir = Directory('${root.path}/macos/Runner/Configs')
+        ..createSync(recursive: true);
+      File(
+        '${root.path}/.gitignore',
+      ).writeAsStringSync('/macos/Runner/Configs/Signing.local.xcconfig\n');
+      File(
+        '${signingDir.path}/Signing.local.xcconfig.example',
+      ).writeAsStringSync('''
+// Copy this file to Signing.local.xcconfig for local release signing.
+''');
+      File('${signingDir.path}/Signing.local.xcconfig').writeAsStringSync('''
+DEVELOPMENT_TEAM = ABCDE12345
+CODE_SIGN_IDENTITY = Apple Development
+''');
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+        codeSigningIdentities: const <String>[
+          '1) 0000000000000000000000000000000000000000 "Apple Development: Example"',
+        ],
+      );
+
+      expect(report.ready, isTrue);
+      expect(report.status, 'ready');
+      expect(report.failedChecks, isEmpty);
+      expect(
+        report.toJson()['schemaName'],
+        'macos_computer_use_release_signing_preflight',
+      );
+      expect(report.toMarkdown(), contains('Keychain code signing identity'));
+      expect(report.toMarkdown(), contains('No action required.'));
+      expect(
+        encodeReleaseSigningPreflightJson(report),
+        isNot(contains('0000000000000000000000000000000000000000')),
+      );
+    });
+
     test(
       'M33 release packaging CLI writes JSON and Markdown outputs',
       () async {
@@ -3352,6 +3648,43 @@ void main() {
       expect(
         recommendation.recommendedCommand,
         contains('--manual-beta-checklist <m39-manual-beta-checklist.json>'),
+      );
+    });
+
+    test('M31 navigator recommends Spaces canary before product gates', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_spaces_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ..._requiredReadyEntries(root),
+        const ReadinessArtifactEntry(
+          id: 'spaces_canary',
+          label: 'Latest macOS Spaces canary summary',
+          path: '',
+          exists: false,
+        ),
+        const ReadinessArtifactEntry(
+          id: 'm39_beta_signoff',
+          label: 'Latest M39 internal beta sign-off',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final navigator = buildReadinessNextStepNavigator(root, entries);
+      final recommendation = navigator.recommendation;
+
+      expect(navigator.status, 'ready');
+      expect(recommendation.priority, 'run_spaces_canary');
+      expect(recommendation.artifactId, 'spaces_canary');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
       );
     });
 
@@ -4605,16 +4938,27 @@ void main() {
   });
 }
 
-Map<String, dynamic> _releaseReport({required String status}) {
+Map<String, dynamic> _releaseReport({
+  required String status,
+  List<String>? blockers,
+  String? nextAction,
+  List<String>? launchConstraintBlockers,
+}) {
   final ready = status == 'ready';
   return <String, dynamic>{
     'releaseSignoffGate': <String, dynamic>{
       'status': status,
-      'blockers': ready ? <String>[] : <String>['codesign'],
-      'nextAction': ready
-          ? 'M7 release artifact sign-off is complete.'
-          : 'Fix release artifact blockers.',
+      'blockers': blockers ?? (ready ? <String>[] : <String>['codesign']),
+      'nextAction':
+          nextAction ??
+          (ready
+              ? 'M7 release artifact sign-off is complete.'
+              : 'Fix release artifact blockers.'),
     },
+    if (launchConstraintBlockers != null)
+      'signingDiagnostics': <String, dynamic>{
+        'launchConstraintBlockers': launchConstraintBlockers,
+      },
   };
 }
 
@@ -5019,6 +5363,61 @@ Map<String, dynamic> _desktopActionSummary({required int failed}) {
         },
       },
     ],
+  };
+}
+
+Map<String, dynamic> _spacesSummary({
+  required bool ready,
+  bool inactiveSpaceWindowObserved = true,
+  bool switchSpaceCanary = true,
+  bool switchCanaryReady = true,
+  bool requiresApprovedInputBeforeSwitching = true,
+}) {
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_spaces_canary_summary',
+    'schemaVersion': 1,
+    'purpose': 'computer_use_spaces_canary',
+    'status': ready ? 'ready' : 'blocked',
+    'ok': ready,
+    'desktopModel': 'macos_spaces',
+    'spaceScope': 'all_spaces',
+    'desktopActionBoundary': switchSpaceCanary
+        ? 'user_operated_space_switch_keypress_no_pointer_or_text'
+        : 'no_desktop_action_observe_only',
+    'tccBoundary': 'manual_user_operated',
+    'requireInactiveSpaceWindow': true,
+    'switchSpaceCanary': switchSpaceCanary,
+    'switchSpaceDirection': switchSpaceCanary ? 'next' : null,
+    'runCount': 1,
+    'passedRunCount': ready ? 1 : 0,
+    'failedRunCount': ready ? 0 : 1,
+    'inactiveSpaceWindowObserved': inactiveSpaceWindowObserved,
+    'switchCanaryReady': switchCanaryReady,
+    'phaseStatus': <String, Object?>{
+      'active_space_window_inventory': true,
+      'all_spaces_window_inventory': ready,
+      'space_metadata_present': ready,
+      'inactive_space_window_candidate': inactiveSpaceWindowObserved,
+      'switch_space_keypress': switchCanaryReady,
+    },
+    'runs': <Map<String, Object?>>[
+      <String, Object?>{
+        'name': 'run_01',
+        'ok': ready,
+        'gateStatus': ready ? 'ready' : 'blocked',
+        'switchGateStatus': switchCanaryReady ? 'ready' : 'blocked',
+        'inactiveSpaceWindowCount': inactiveSpaceWindowObserved ? 1 : 0,
+        'switchKeySent': switchSpaceCanary,
+        'switchKeyOk': switchCanaryReady,
+        'postSwitchActiveSpaceObserved': switchCanaryReady,
+        'activeWindowInventoryChanged': switchCanaryReady,
+        'requiresApprovedInputBeforeSwitching':
+            requiresApprovedInputBeforeSwitching,
+      },
+    ],
+    'nextAction': ready
+        ? 'Spaces canary passed.'
+        : 'Prepare a harmless window on another Space, then rerun the Spaces canary.',
   };
 }
 

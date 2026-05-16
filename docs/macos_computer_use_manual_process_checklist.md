@@ -105,6 +105,13 @@ For a user-operated Space switch check:
 8. Run a fresh `computer_vision_observe` before any later pointer or keyboard
    input proposal.
 
+For product release readiness, provide the latest
+`macos_computer_use_spaces_canary_summary` to the artifact index. It should
+come from a run such as
+`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next`
+or the equivalent previous-Space direction, with
+`requiresApprovedInputBeforeSwitching` true.
+
 ## M33 Release Packaging Report
 
 Run this static packaging report before asking for a signed release pass:
@@ -124,6 +131,20 @@ identity-free signing defaults. It does not sign, notarize, staple, grant TCC,
 launch System Settings, or perform desktop actions. Signing identity,
 notarization ticket, stapler validation, TCC grants, and real desktop evidence
 remain user-operated release evidence.
+
+Before rerunning the M7 release artifact sign-off after a signing blocker:
+
+1. Run `bash tool/run_macos_computer_use_release_signing_preflight.sh`.
+2. Confirm `security find-identity -v -p codesigning` lists a valid macOS code
+   signing identity.
+3. Copy `macos/Runner/Configs/Signing.local.xcconfig.example` to the ignored
+   `macos/Runner/Configs/Signing.local.xcconfig`.
+4. Include `DEVELOPMENT_TEAM` and a non-ad-hoc `CODE_SIGN_IDENTITY`.
+5. Rebuild the release app, then rerun
+   `bash tool/run_macos_computer_use_smoke_test.sh --m7-signoff`.
+
+Treat `ad_hoc_signature` and `team_identifier_missing` as release signing setup
+blockers, not as helper IPC or Spaces regressions.
 
 ## M34 Permission Recovery UX
 
