@@ -1563,6 +1563,54 @@ void main() {
       );
     });
 
+    test('artifact index guides missing manual TCC with helper path', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_artifact_index_manual_tcc_missing_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      const helperPath =
+          '/tmp/Caverno.app/Contents/Helpers/Caverno Computer Use.app';
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready', helperPath: helperPath),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+
+      final index = buildReadinessArtifactIndex(root);
+      final recommendation = index.nextStepNavigator.recommendation;
+      final releaseArtifact = index.entries.singleWhere(
+        (entry) => entry.id == 'release_artifact',
+      );
+
+      expect(releaseArtifact.details['helperPath'], helperPath);
+      expect(recommendation.priority, 'collect_required_evidence');
+      expect(recommendation.artifactId, 'manual_tcc');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.evidencePath,
+        '${root.path}/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
+      );
+      expect(recommendation.nextAction, contains(helperPath));
+      expect(
+        recommendation.nextAction,
+        contains('Screen & System Audio Recording'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('macos_computer_use_manual_tcc_<timestamp>'),
+      );
+    });
+
     test(
       'artifact index returns to M7 after release signing preflight is ready',
       () {
@@ -5190,6 +5238,7 @@ Map<String, dynamic> _releaseReport({
   List<String>? blockers,
   String? nextAction,
   List<String>? launchConstraintBlockers,
+  String? helperPath,
 }) {
   final ready = status == 'ready';
   return <String, dynamic>{
@@ -5201,6 +5250,7 @@ Map<String, dynamic> _releaseReport({
           (ready
               ? 'M7 release artifact sign-off is complete.'
               : 'Fix release artifact blockers.'),
+      if (helperPath != null) 'helperPath': helperPath,
     },
     if (launchConstraintBlockers != null)
       'signingDiagnostics': <String, dynamic>{

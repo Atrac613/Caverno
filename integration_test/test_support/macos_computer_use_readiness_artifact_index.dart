@@ -1879,10 +1879,9 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     return _recommendationForEntry(
       priority: 'collect_required_evidence',
       entry: missing,
-      nextAction: MacosComputerUseMvpGuidance.missingArtifactNextAction(
-        missing.id,
-      ),
+      nextAction: _missingArtifactNextStepAction(missing.id, entriesById),
       recommendedCommand: _requiredEvidenceCommand(missing.id, reportRoot),
+      evidencePath: _missingArtifactExpectedPath(missing.id, reportRoot),
       requiresUserOperation: MacosComputerUseMvpGuidance.userOperatedEvidenceIds
           .contains(missing.id),
     );
@@ -2144,6 +2143,7 @@ ReadinessNextStepRecommendation _recommendationForEntry({
   required ReadinessArtifactEntry entry,
   required String nextAction,
   String? recommendedCommand,
+  String? evidencePath,
   bool requiresUserOperation = false,
 }) {
   return ReadinessNextStepRecommendation(
@@ -2151,7 +2151,7 @@ ReadinessNextStepRecommendation _recommendationForEntry({
     artifactId: entry.id,
     artifactLabel: entry.label,
     artifactStatus: entry.status ?? (entry.exists ? 'present' : 'missing'),
-    evidencePath: entry.path,
+    evidencePath: evidencePath ?? entry.path,
     nextAction: nextAction,
     recommendedCommand: recommendedCommand,
     boundary:
@@ -2296,6 +2296,30 @@ String? _requiredEvidenceCommand(String artifactId, Directory reportRoot) {
     default:
       return _mvpReadinessPreflightCommand(reportRoot);
   }
+}
+
+String? _missingArtifactExpectedPath(String artifactId, Directory reportRoot) {
+  switch (artifactId) {
+    case 'manual_tcc':
+      return '${reportRoot.path}/macos_computer_use_manual_tcc_<timestamp>/${MacosComputerUseMvpGuidance.manualTccSummaryFile}';
+    default:
+      return null;
+  }
+}
+
+String _missingArtifactNextStepAction(
+  String artifactId,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  if (artifactId != 'manual_tcc') {
+    return MacosComputerUseMvpGuidance.missingArtifactNextAction(artifactId);
+  }
+
+  final helperPath = entriesById['release_artifact']?.details['helperPath'];
+  if (helperPath is String && helperPath.trim().isNotEmpty) {
+    return '${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility and Screen & System Audio Recording to the release helper at `$helperPath` before running it.';
+  }
+  return MacosComputerUseMvpGuidance.manualTccNextAction;
 }
 
 String _m39BetaSignoffCommand(Directory reportRoot) {
@@ -3202,6 +3226,9 @@ Map<String, Object?> _releaseArtifactDetails(Map<String, dynamic> json) {
       : const <String>[];
   return <String, Object?>{
     if (gate['status'] != null) 'gateStatus': gate['status'].toString(),
+    if (gate['appPath'] is String) 'appPath': gate['appPath'] as String,
+    if (gate['helperPath'] is String)
+      'helperPath': gate['helperPath'] as String,
     if (blockers is List)
       'gateBlockers': blockers.map((item) => item.toString()).toList(),
     if (signingBlockers.isNotEmpty) 'launchConstraintBlockers': signingBlockers,
