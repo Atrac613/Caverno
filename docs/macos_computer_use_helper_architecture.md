@@ -1496,6 +1496,11 @@ Only the user should run this TCC runtime command:
 
 `bash tool/run_macos_computer_use_manual_tcc_signoff.sh`
 
+To preview the release helper path and expected report locations without
+running the M8 runtime sign-off, use:
+
+`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only`
+
 The wrapper runs the M8 runtime sign-off, writes a timestamped report under
 `build/integration_test_reports/`, and prints the parser command. It still only
 measures TCC state; it does not grant permissions, edit TCC, or operate System

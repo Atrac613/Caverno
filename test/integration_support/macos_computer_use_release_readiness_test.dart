@@ -1600,6 +1600,8 @@ void main() {
         recommendation.evidencePath,
         '${root.path}/macos_computer_use_manual_tcc_<timestamp>/manual_tcc_report_summary.json',
       );
+      expect(recommendation.nextAction, contains('--handoff-only'));
+      expect(recommendation.nextAction, contains('without running M8'));
       expect(recommendation.nextAction, contains(helperPath));
       expect(
         recommendation.nextAction,

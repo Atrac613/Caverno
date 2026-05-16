@@ -6,6 +6,12 @@ macOS TCC surfaces.
 
 ## Commands
 
+Manual TCC handoff preview command:
+
+```bash
+bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only
+```
+
 Manual runtime sign-off command:
 
 ```bash
