@@ -4088,6 +4088,128 @@ CODE_SIGN_IDENTITY = Developer ID Application
       expect(markdown, contains('Recommended next command:'));
     });
 
+    test('M31 navigator skips user-operated evidence when requested', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_skip_user_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final entries = <ReadinessArtifactEntry>[
+        ReadinessArtifactEntry(
+          id: 'release_artifact',
+          label: 'M7 release artifact report',
+          path: '${root.path}/release_artifact.json',
+          exists: true,
+          status: 'ready',
+        ),
+        ReadinessArtifactEntry(
+          id: 'canary_history',
+          label: 'Computer Use canary history',
+          path: '${root.path}/canary_history.json',
+          exists: true,
+          status: 'ready',
+        ),
+        ReadinessArtifactEntry(
+          id: 'manual_tcc',
+          label: 'Latest manual TCC evidence',
+          path: '',
+          exists: false,
+        ),
+        ReadinessArtifactEntry(
+          id: 'desktop_action_canary',
+          label: 'Latest desktop action canary summary',
+          path: '',
+          exists: false,
+        ),
+        ReadinessArtifactEntry(
+          id: 'llm_canary',
+          label: 'Latest LLM canary summary',
+          path: '',
+          exists: false,
+        ),
+      ];
+
+      final defaultNavigator = buildReadinessNextStepNavigator(root, entries);
+      final automationSafeNavigator = buildReadinessNextStepNavigator(
+        root,
+        entries,
+        true,
+      );
+
+      expect(defaultNavigator.mode, 'default');
+      expect(defaultNavigator.recommendation.artifactId, 'manual_tcc');
+      expect(defaultNavigator.recommendation.requiresUserOperation, isTrue);
+      expect(automationSafeNavigator.mode, 'automation_safe_only');
+      expect(
+        automationSafeNavigator.recommendation.priority,
+        'collect_required_evidence',
+      );
+      expect(automationSafeNavigator.recommendation.artifactId, 'llm_canary');
+      expect(
+        automationSafeNavigator.recommendation.recommendedCommand,
+        'bash tool/run_macos_computer_use_mvp_fixture_llm_canary.sh',
+      );
+      expect(
+        automationSafeNavigator.recommendation.requiresUserOperation,
+        isFalse,
+      );
+      expect(
+        automationSafeNavigator.toMarkdown(),
+        contains('- Mode: automation_safe_only'),
+      );
+    });
+
+    test('M31 navigator CLI supports automation-safe-only mode', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_cli_skip_user_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      _writeJson(
+        File('${root.path}/macos_computer_use_release_artifact_signoff.json'),
+        _releaseReport(status: 'ready'),
+      );
+      _writeJson(
+        File('${root.path}/macos_computer_use_canary_history.json'),
+        <String, Object?>{
+          'schemaName': 'macos_computer_use_canary_history',
+          'stable': true,
+          'runCount': 1,
+        },
+      );
+
+      final result = await Process.run('dart', [
+        'run',
+        'tool/macos_computer_use_next_step_navigator.dart',
+        '--root',
+        root.path,
+        '--automation-safe-only',
+      ]);
+
+      expect(result.exitCode, 0);
+      expect('${result.stdout}', contains('Mode: automation_safe_only'));
+      expect('${result.stdout}', contains('Artifact: llm_canary'));
+      expect(
+        '${result.stdout}',
+        contains('run_macos_computer_use_mvp_fixture_llm_canary.sh'),
+      );
+      final summary =
+          jsonDecode(
+                File(
+                  '${root.path}/macos_computer_use_next_step_navigator.json',
+                ).readAsStringSync(),
+              )
+              as Map<String, dynamic>;
+      final recommendation = summary['recommendation'] as Map<String, dynamic>;
+      expect(summary['mode'], 'automation_safe_only');
+      expect(recommendation['artifactId'], 'llm_canary');
+      expect(recommendation['requiresUserOperation'], isFalse);
+    });
+
     test('M31 navigator recommends M39 after required evidence is ready', () {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_m31_navigator_m39_test_',

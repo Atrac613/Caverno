@@ -1198,12 +1198,14 @@ class ReadinessNextStepNavigator {
   const ReadinessNextStepNavigator({
     required this.status,
     required this.reportRoot,
+    required this.mode,
     required this.recommendation,
     required this.operationBoundary,
   });
 
   final String status;
   final String reportRoot;
+  final String mode;
   final ReadinessNextStepRecommendation recommendation;
   final Map<String, Object?> operationBoundary;
 
@@ -1214,6 +1216,7 @@ class ReadinessNextStepNavigator {
       'milestone': 'M31',
       'status': status,
       'reportRoot': reportRoot,
+      'mode': mode,
       'recommendation': recommendation.toJson(),
       'operationBoundary': operationBoundary,
     };
@@ -1225,6 +1228,7 @@ class ReadinessNextStepNavigator {
       ..writeln()
       ..writeln('- Status: $status')
       ..writeln('- Report root: `$reportRoot`')
+      ..writeln('- Mode: $mode')
       ..writeln('- Priority: ${recommendation.priority}')
       ..writeln('- Artifact: `${recommendation.artifactId}`')
       ..writeln('- Artifact status: ${recommendation.artifactStatus}')
@@ -1696,6 +1700,7 @@ ReadinessArtifactIndex buildReadinessArtifactIndex(Directory reportRoot) {
 ReadinessNextStepNavigator buildReadinessNextStepNavigator(
   Directory reportRoot, [
   List<ReadinessArtifactEntry>? entries,
+  bool skipUserOperated = false,
 ]) {
   final indexEntries =
       entries ?? buildReadinessArtifactIndex(reportRoot).entries;
@@ -1703,12 +1708,18 @@ ReadinessNextStepNavigator buildReadinessNextStepNavigator(
   final byId = <String, ReadinessArtifactEntry>{
     for (final entry in indexEntries) entry.id: entry,
   };
-  final recommendation = _nextStepRecommendation(reportRoot, byId, rehearsal);
+  final recommendation = _nextStepRecommendation(
+    reportRoot,
+    byId,
+    rehearsal,
+    skipUserOperated: skipUserOperated,
+  );
   return ReadinessNextStepNavigator(
     status: recommendation.artifactId == 'none'
         ? 'no_action_available'
         : 'ready',
     reportRoot: reportRoot.path,
+    mode: skipUserOperated ? 'automation_safe_only' : 'default',
     recommendation: recommendation,
     operationBoundary: MacosComputerUseOperationBoundary.values,
   );
@@ -1886,8 +1897,9 @@ List<ReadinessArtifactEntry> _blockedReviewArtifacts(
 ReadinessNextStepRecommendation _nextStepRecommendation(
   Directory reportRoot,
   Map<String, ReadinessArtifactEntry> entriesById,
-  ReadinessFinalSignoffRehearsal rehearsal,
-) {
+  ReadinessFinalSignoffRehearsal rehearsal, {
+  bool skipUserOperated = false,
+}) {
   final blocked = _firstEntryByPriority(
     entriesById,
     const <String>[
@@ -1926,23 +1938,30 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       blocked,
     );
     if (releaseSigningRecommendation != null) {
-      return releaseSigningRecommendation;
+      if (!skipUserOperated ||
+          !releaseSigningRecommendation.requiresUserOperation) {
+        return releaseSigningRecommendation;
+      }
+    } else {
+      final recommendation = _recommendationForEntry(
+        priority: 'resolve_blocked_evidence',
+        entry: blocked,
+        nextAction:
+            blocked.nextAction ??
+            'Resolve blocked ${blocked.label} evidence before continuing.',
+        recommendedCommand: _blockedEvidenceCommand(blocked, reportRoot),
+        requiresUserOperation: blocked.id == 'spaces_canary',
+      );
+      if (!skipUserOperated || !recommendation.requiresUserOperation) {
+        return recommendation;
+      }
     }
-    return _recommendationForEntry(
-      priority: 'resolve_blocked_evidence',
-      entry: blocked,
-      nextAction:
-          blocked.nextAction ??
-          'Resolve blocked ${blocked.label} evidence before continuing.',
-      recommendedCommand: _blockedEvidenceCommand(blocked, reportRoot),
-      requiresUserOperation: blocked.id == 'spaces_canary',
-    );
   }
 
   final m16Entry = entriesById['m16_approval_packet'];
   if (m16Entry?.status == 'ready' &&
       m16Entry?.details['approvalStatus'] != 'approved') {
-    return _recommendationForEntry(
+    final recommendation = _recommendationForEntry(
       priority: 'collect_m16_user_approvals',
       entry: m16Entry!,
       nextAction:
@@ -1951,11 +1970,17 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
       recommendedCommand: rehearsal.m16ApprovalPacketCommand,
       requiresUserOperation: true,
     );
+    if (!skipUserOperated) {
+      return recommendation;
+    }
   }
 
   for (final candidate in _commandCandidates(rehearsal)) {
     final entry = entriesById[candidate.artifactId];
     if (entry == null || entry.exists) {
+      continue;
+    }
+    if (skipUserOperated && candidate.requiresUserOperation) {
       continue;
     }
     return _recommendationForEntry(
@@ -1967,25 +1992,29 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     );
   }
 
-  final missing = _firstEntryByPriority(
-    entriesById,
-    MacosComputerUseMvpGuidance.requiredEvidenceIds,
-    (entry) => !entry.exists,
-  );
-  if (missing != null) {
+  for (final artifactId in MacosComputerUseMvpGuidance.requiredEvidenceIds) {
+    final missing = entriesById[artifactId];
+    if (missing == null || missing.exists) {
+      continue;
+    }
+    final requiresUserOperation = MacosComputerUseMvpGuidance
+        .userOperatedEvidenceIds
+        .contains(missing.id);
+    if (skipUserOperated && requiresUserOperation) {
+      continue;
+    }
     return _recommendationForEntry(
       priority: 'collect_required_evidence',
       entry: missing,
       nextAction: _missingArtifactNextStepAction(missing.id, entriesById),
       recommendedCommand: _requiredEvidenceCommand(missing.id, reportRoot),
       evidencePath: _missingArtifactExpectedPath(missing.id, reportRoot),
-      requiresUserOperation: MacosComputerUseMvpGuidance.userOperatedEvidenceIds
-          .contains(missing.id),
+      requiresUserOperation: requiresUserOperation,
     );
   }
 
   final spacesEntry = entriesById['spaces_canary'];
-  if (spacesEntry != null && !spacesEntry.exists) {
+  if (spacesEntry != null && !spacesEntry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_spaces_canary',
       entry: spacesEntry,
@@ -1998,7 +2027,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m39Entry = entriesById['m39_beta_signoff'];
-  if (m39Entry != null && !m39Entry.exists) {
+  if (m39Entry != null && !m39Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m39_beta_signoff',
       entry: m39Entry,
@@ -2010,7 +2039,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m40Entry = entriesById['m40_production_launch_gate'];
-  if (m40Entry != null && !m40Entry.exists) {
+  if (m40Entry != null && !m40Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m40_production_launch_gate',
       entry: m40Entry,
@@ -2022,7 +2051,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m50Entry = entriesById['m50_signed_beta_gate'];
-  if (m50Entry != null && !m50Entry.exists) {
+  if (m50Entry != null && !m50Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m50_signed_beta_gate',
       entry: m50Entry,
@@ -2034,7 +2063,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m51Entry = entriesById['m51_production_launch_gate'];
-  if (m51Entry != null && !m51Entry.exists) {
+  if (m51Entry != null && !m51Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m51_production_launch_gate',
       entry: m51Entry,
@@ -2046,7 +2075,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m52Entry = entriesById['m52_product_release_rollout'];
-  if (m52Entry != null && !m52Entry.exists) {
+  if (m52Entry != null && !m52Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m52_product_release_rollout',
       entry: m52Entry,
@@ -2058,7 +2087,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m53Entry = entriesById['m53_post_release_guardrails'];
-  if (m53Entry != null && !m53Entry.exists) {
+  if (m53Entry != null && !m53Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m53_post_release_guardrails',
       entry: m53Entry,
@@ -2070,7 +2099,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m54Entry = entriesById['m54_rollout_expansion_gate'];
-  if (m54Entry != null && !m54Entry.exists) {
+  if (m54Entry != null && !m54Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m54_rollout_expansion_gate',
       entry: m54Entry,
@@ -2082,7 +2111,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m55Entry = entriesById['m55_post_expansion_monitoring_gate'];
-  if (m55Entry != null && !m55Entry.exists) {
+  if (m55Entry != null && !m55Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m55_post_expansion_monitoring_gate',
       entry: m55Entry,
@@ -2094,7 +2123,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   }
 
   final m56Entry = entriesById['m56_rollout_decision_handoff_gate'];
-  if (m56Entry != null && !m56Entry.exists) {
+  if (m56Entry != null && !m56Entry.exists && !skipUserOperated) {
     return _recommendationForEntry(
       priority: 'run_m56_rollout_decision_handoff_gate',
       entry: m56Entry,
@@ -2120,6 +2149,10 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     );
   }
 
+  if (skipUserOperated) {
+    return _automationSafeFallbackRecommendation(reportRoot);
+  }
+
   return ReadinessNextStepRecommendation(
     priority: 'none',
     artifactId: 'none',
@@ -2127,6 +2160,24 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
     artifactStatus: 'missing',
     evidencePath: reportRoot.path,
     nextAction: 'Produce Computer Use readiness evidence before continuing.',
+    recommendedCommand: _mvpReadinessPreflightCommand(reportRoot),
+    boundary:
+        'report-only navigation; TCC and desktop actions remain user-operated',
+    requiresUserOperation: false,
+  );
+}
+
+ReadinessNextStepRecommendation _automationSafeFallbackRecommendation(
+  Directory reportRoot,
+) {
+  return ReadinessNextStepRecommendation(
+    priority: 'refresh_automation_safe_readiness',
+    artifactId: 'automation_safe_preflight',
+    artifactLabel: 'Automation-safe readiness preflight',
+    artifactStatus: 'ready',
+    evidencePath: reportRoot.path,
+    nextAction:
+        'Run the report-only readiness preflight while user-operated evidence remains deferred.',
     recommendedCommand: _mvpReadinessPreflightCommand(reportRoot),
     boundary:
         'report-only navigation; TCC and desktop actions remain user-operated',

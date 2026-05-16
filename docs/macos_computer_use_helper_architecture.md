@@ -403,7 +403,10 @@ surface until the user intentionally enables it.
   `dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports`.
   The readiness artifact index also embeds the same recommendation under
   `nextStepNavigator` so PR review can see the current command, evidence path,
-  priority, and user-operation boundary in one place.
+  priority, and user-operation boundary in one place. Use
+  `--automation-safe-only` or `--skip-user-operated` when user-operated TCC,
+  desktop action, Spaces, approval, or launch evidence is intentionally
+  deferred and the operator needs the next report-only command instead.
 - M32: Move Computer Use from the default settings surface into an Advanced
   Computer Use page. The normal settings page should show only a compact
   enabled/disabled summary, while the dedicated page owns permission status,

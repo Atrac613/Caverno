@@ -417,6 +417,7 @@ void main() {
       architectureDoc,
       contains('M31: Add a next-step navigator for Computer Use artifacts'),
     );
+    expect(architectureDoc, contains('--automation-safe-only'));
     expect(
       architectureDoc,
       contains('M32: Move Computer Use from the default settings surface'),

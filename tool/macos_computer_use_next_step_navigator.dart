@@ -9,6 +9,7 @@ Future<void> main(List<String> args) async {
   var reportRootPath = 'build/integration_test_reports';
   String? outputJsonPath;
   String? outputMarkdownPath;
+  var skipUserOperated = false;
 
   for (var index = 0; index < args.length; index += 1) {
     final arg = args[index];
@@ -31,6 +32,9 @@ Future<void> main(List<String> args) async {
           return _usageError('--output-md requires a value.');
         }
         outputMarkdownPath = args[index];
+      case '--skip-user-operated':
+      case '--automation-safe-only':
+        skipUserOperated = true;
       case '--help':
         _printUsage();
         return;
@@ -40,7 +44,11 @@ Future<void> main(List<String> args) async {
   }
 
   final reportRoot = Directory(reportRootPath)..createSync(recursive: true);
-  final navigator = buildReadinessNextStepNavigator(reportRoot);
+  final navigator = buildReadinessNextStepNavigator(
+    reportRoot,
+    null,
+    skipUserOperated,
+  );
   final outputJson = File(
     outputJsonPath ??
         '${reportRoot.path}/${MacosComputerUseMvpGuidance.nextStepNavigatorJsonFile}',
@@ -59,6 +67,7 @@ Future<void> main(List<String> args) async {
   stdout.writeln('- JSON: ${outputJson.path}');
   stdout.writeln('- Markdown: ${outputMarkdown.path}');
   stdout.writeln('Next step status: ${navigator.status}');
+  stdout.writeln('Mode: ${navigator.mode}');
   stdout.writeln('Priority: ${recommendation.priority}');
   stdout.writeln('Artifact: ${recommendation.artifactId}');
   stdout.writeln('Evidence path: ${recommendation.evidencePath}');
@@ -72,7 +81,8 @@ Future<void> main(List<String> args) async {
 void _printUsage() {
   stdout.writeln(
     'Usage: dart run tool/macos_computer_use_next_step_navigator.dart '
-    '[--root path] [--output-json path] [--output-md path]',
+    '[--root path] [--output-json path] [--output-md path] '
+    '[--skip-user-operated|--automation-safe-only]',
   );
 }
 
