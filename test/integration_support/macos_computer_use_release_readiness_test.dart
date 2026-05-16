@@ -1077,6 +1077,47 @@ void main() {
           'public_action_label',
         ]),
       );
+      expect(
+        m16Entry.details['suggestedApprovedExactText'],
+        'Good morning from Caverno',
+      );
+      expect(
+        m16Entry.details['suggestedApprovedTargetLabel'],
+        'What is happening?',
+      );
+      expect(m16Entry.details['suggestedApprovedPublicActionLabel'], 'Post');
+      final nextRecommendation = index.nextStepNavigator.recommendation;
+      expect(nextRecommendation.priority, 'collect_m16_user_approvals');
+      expect(nextRecommendation.artifactId, 'm16_approval_packet');
+      expect(nextRecommendation.requiresUserOperation, isTrue);
+      expect(
+        nextRecommendation.nextAction,
+        contains('Re-run M16 with the approved values'),
+      );
+      expect(
+        nextRecommendation.recommendedCommand,
+        contains("--approved-exact-text 'Good morning from Caverno'"),
+      );
+      expect(
+        nextRecommendation.recommendedCommand,
+        contains("--approved-target-label 'What is happening?'"),
+      );
+      expect(
+        nextRecommendation.recommendedCommand,
+        contains('--approved-public-action-label Post'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Suggested exact text approval: Good morning from Caverno'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Suggested target approval: What is happening?'),
+      );
+      expect(
+        index.toMarkdown(),
+        contains('- Suggested public action approval: Post'),
+      );
       expect(index.toMarkdown(), contains('Latest MVP LLM readiness summary'));
       expect(index.toMarkdown(), contains('Latest MVP demo readiness summary'));
       expect(index.toMarkdown(), contains('Latest LLM canary summary'));

@@ -381,6 +381,15 @@ class ReadinessArtifactIndex {
           '- Approval blockers: ${_joinedOrNone(_detailsStringList(m16ApprovalPacketEntry.details['approvalBlockers']))}',
         )
         ..writeln(
+          '- Suggested exact text approval: ${_markdownCell(m16ApprovalPacketEntry.details['suggestedApprovedExactText'])}',
+        )
+        ..writeln(
+          '- Suggested target approval: ${_markdownCell(m16ApprovalPacketEntry.details['suggestedApprovedTargetLabel'])}',
+        )
+        ..writeln(
+          '- Suggested public action approval: ${_markdownCell(m16ApprovalPacketEntry.details['suggestedApprovedPublicActionLabel'])}',
+        )
+        ..writeln(
           '- Execution boundary: ${m16ApprovalPacketEntry.details['executionBoundary'] ?? 'unknown'}',
         );
     }
@@ -1961,13 +1970,15 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
   final m16Entry = entriesById['m16_approval_packet'];
   if (m16Entry?.status == 'ready' &&
       m16Entry?.details['approvalStatus'] != 'approved') {
+    final approvalCommand = _m16ApprovalPacketApprovalCommand(
+      reportRoot,
+      entriesById,
+    );
     final recommendation = _recommendationForEntry(
       priority: 'collect_m16_user_approvals',
       entry: m16Entry!,
-      nextAction:
-          m16Entry.nextAction ??
-          'Ask the user to approve exact text, target, and public action before the future execution milestone.',
-      recommendedCommand: rehearsal.m16ApprovalPacketCommand,
+      nextAction: _m16ApprovalPacketApprovalNextAction(m16Entry),
+      recommendedCommand: approvalCommand ?? rehearsal.m16ApprovalPacketCommand,
       requiresUserOperation: true,
     );
     if (!skipUserOperated) {
@@ -2688,6 +2699,63 @@ String? _m16ApprovalPacketCommand(
     command.addAll(<String>['--m15-llm-review', reviewPath]);
   }
   return command.map(_shellQuote).join(' ');
+}
+
+String? _m16ApprovalPacketApprovalCommand(
+  Directory reportRoot,
+  Map<String, ReadinessArtifactEntry> entriesById,
+) {
+  final packetEntry = entriesById['m16_approval_packet'];
+  if (packetEntry?.status != 'ready' ||
+      packetEntry?.details['approvalStatus'] == 'approved') {
+    return null;
+  }
+  final handoffEntry = entriesById['m15_action_proposal_handoff'];
+  final handoffPath = handoffEntry?.path ?? '';
+  if (handoffPath.isEmpty || handoffEntry?.status != 'ready') {
+    return null;
+  }
+  final command = <String>[
+    'bash',
+    'tool/run_macos_computer_use_m16_approval_packet.sh',
+    '--root',
+    reportRoot.path,
+    '--m15-handoff',
+    handoffPath,
+  ];
+  final reviewEntry = entriesById['m15_llm_review_canary'];
+  final reviewPath = reviewEntry?.path ?? '';
+  if (reviewPath.isNotEmpty && reviewEntry?.status == 'ready') {
+    command.addAll(<String>['--m15-llm-review', reviewPath]);
+  }
+  final exactText = packetEntry?.details['suggestedApprovedExactText'];
+  if (exactText is String && exactText.trim().isNotEmpty) {
+    command.addAll(<String>['--approved-exact-text', exactText.trim()]);
+  }
+  final targetLabel = packetEntry?.details['suggestedApprovedTargetLabel'];
+  if (targetLabel is String && targetLabel.trim().isNotEmpty) {
+    command.addAll(<String>['--approved-target-label', targetLabel.trim()]);
+  }
+  final publicActionLabel =
+      packetEntry?.details['suggestedApprovedPublicActionLabel'];
+  if (publicActionLabel is String && publicActionLabel.trim().isNotEmpty) {
+    command.addAll(<String>[
+      '--approved-public-action-label',
+      publicActionLabel.trim(),
+    ]);
+  }
+  return command.map(_shellQuote).join(' ');
+}
+
+String _m16ApprovalPacketApprovalNextAction(ReadinessArtifactEntry entry) {
+  final blockers = _detailsStringList(entry.details['approvalBlockers']);
+  final base =
+      entry.nextAction ??
+      'Ask the user to approve exact text, target, and public action before the future execution milestone.';
+  if (blockers.isEmpty) {
+    return base;
+  }
+  return '$base Re-run M16 with the approved values only after the user confirms: ${blockers.join(', ')}.';
 }
 
 String? _m17ExecutionRehearsalCommand(
@@ -3726,6 +3794,17 @@ String? _m16ApprovalPacketNextAction(Map<String, dynamic> json) {
 Map<String, Object?> _m16ApprovalPacketDetails(Map<String, dynamic> json) {
   final gate = json['m16ApprovalPacketGate'];
   final gateMap = gate is Map<String, dynamic> ? gate : null;
+  final suggestedApprovedExactText = _firstMapString(
+    _jsonList(json['exactTextCandidates']),
+    'text',
+  );
+  final suggestedApprovedTargetLabel = _preferredM16TargetLabel(
+    _jsonList(json['textEntryTargets']),
+  );
+  final suggestedApprovedPublicActionLabel = _firstMapString(
+    _jsonList(json['publicActionTargets']),
+    'label',
+  );
   return <String, Object?>{
     'approvalStatus': json['approvalStatus']?.toString(),
     'executionBoundary': json['executionBoundary']?.toString(),
@@ -3737,12 +3816,54 @@ Map<String, Object?> _m16ApprovalPacketDetails(Map<String, dynamic> json) {
     'textEntryTargetCount': _jsonList(json['textEntryTargets']).length,
     'publicActionTargetCount': _jsonList(json['publicActionTargets']).length,
     'approvalBlockers': _jsonStringList(json['approvalBlockers']),
+    'suggestedApprovedExactText': suggestedApprovedExactText,
+    'suggestedApprovedTargetLabel': suggestedApprovedTargetLabel,
+    'suggestedApprovedPublicActionLabel': suggestedApprovedPublicActionLabel,
     if (gateMap != null) ...<String, Object?>{
       'gateStatus': gateMap['status']?.toString(),
       'gateReady': gateMap['ready'],
       'gateBlockers': _jsonStringList(gateMap['blockers']),
     },
   };
+}
+
+String? _firstMapString(List<Object?> values, String key) {
+  for (final value in values) {
+    if (value is! Map) {
+      continue;
+    }
+    final text = value[key]?.toString().trim();
+    if (text != null && text.isNotEmpty) {
+      return text;
+    }
+  }
+  return null;
+}
+
+String? _preferredM16TargetLabel(List<Object?> targets) {
+  String? fallback;
+  String? intentLikeFallback;
+  for (final target in targets) {
+    if (target is! Map) {
+      continue;
+    }
+    final label = target['label']?.toString().trim();
+    if (label == null || label.isEmpty) {
+      continue;
+    }
+    final role = target['role']?.toString().toLowerCase() ?? '';
+    final lowerLabel = label.toLowerCase();
+    fallback ??= label;
+    if (lowerLabel.contains('happening') ||
+        lowerLabel.contains('compose') ||
+        lowerLabel.contains('post')) {
+      intentLikeFallback ??= label;
+    }
+    if (role.contains('compose') || role.contains('text_field')) {
+      return label;
+    }
+  }
+  return intentLikeFallback ?? fallback;
 }
 
 String? _m17ExecutionRehearsalStatus(Map<String, dynamic> json) {
