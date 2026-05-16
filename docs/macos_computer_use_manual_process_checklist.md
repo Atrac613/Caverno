@@ -30,6 +30,9 @@ Report parser command for automation after the user provides the report:
 dart run tool/macos_computer_use_manual_tcc_report.dart <user-produced-m8-report-or-summary.json>
 ```
 
+When the parsed summary is ready, it includes the next automation-safe release
+readiness and next-step navigator commands under `nextAutomationSafeCommands`.
+
 ## Post-Merge Main Sanity Check
 
 Run these checks after merging Computer Use changes into `main`. They do not

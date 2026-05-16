@@ -57,12 +57,16 @@ class ManualTccReportSummary {
   List<ManualTccCheckSummary> get failedChecks =>
       checks.where((check) => !check.ok).toList(growable: false);
 
-  Map<String, Object?> toJson() {
+  Map<String, Object?> toJson({String? evidencePath}) {
+    final nextCommands = ready
+        ? manualTccPostIntakeCommands(evidencePath ?? reportPath)
+        : const <String, String>{};
     return <String, Object?>{
       'schemaName': 'macos_computer_use_manual_tcc_report_summary',
       'schemaVersion': 1,
       'automationBoundary': 'parse_user_produced_report_only',
       'reportPath': reportPath,
+      'evidencePath': evidencePath ?? reportPath,
       'status': status,
       'ready': ready,
       'blockers': blockers,
@@ -76,10 +80,14 @@ class ManualTccReportSummary {
           .map((check) => check.toJson())
           .toList(growable: false),
       'checks': checks.map((check) => check.toJson()).toList(growable: false),
+      if (nextCommands.isNotEmpty) 'nextAutomationSafeCommands': nextCommands,
     };
   }
 
-  String toMarkdown() {
+  String toMarkdown({String? evidencePath}) {
+    final nextCommands = ready
+        ? manualTccPostIntakeCommands(evidencePath ?? reportPath)
+        : const <String, String>{};
     final buffer = StringBuffer()
       ..writeln('# macOS Computer Use Manual TCC Report')
       ..writeln()
@@ -110,6 +118,18 @@ class ManualTccReportSummary {
     if (captureNextAction != null && captureNextAction!.trim().isNotEmpty) {
       buffer.writeln('- Capture next action: $captureNextAction');
     }
+    if (nextCommands.isNotEmpty) {
+      buffer
+        ..writeln()
+        ..writeln('## Next Automation-Safe Commands')
+        ..writeln()
+        ..writeln(
+          '- Release readiness: `${_escapeMarkdownCode(nextCommands['releaseReadinessSignoff'])}`',
+        )
+        ..writeln(
+          '- Next-step navigator: `${_escapeMarkdownCode(nextCommands['nextStepNavigator'])}`',
+        );
+    }
 
     if (failedChecks.isNotEmpty) {
       buffer
@@ -139,6 +159,16 @@ class ManualTccReportSummary {
 
     return buffer.toString();
   }
+}
+
+Map<String, String> manualTccPostIntakeCommands(String evidencePath) {
+  final quotedEvidencePath = _shellQuote(evidencePath);
+  return <String, String>{
+    'releaseReadinessSignoff':
+        'bash tool/run_macos_computer_use_release_readiness.sh --signoff --manual-tcc-report $quotedEvidencePath',
+    'nextStepNavigator':
+        'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
+  };
 }
 
 ManualTccReportSummary readManualTccReport(File reportFile) {
@@ -302,4 +332,19 @@ String _markdownCell(Object? value) {
     return '-';
   }
   return text.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+String _escapeMarkdownCode(Object? value) {
+  final text = value?.toString() ?? '';
+  return text.replaceAll('`', r'\`');
+}
+
+String _shellQuote(String value) {
+  if (value.isEmpty) {
+    return "''";
+  }
+  if (RegExp(r'^[A-Za-z0-9_@%+=:,./-]+$').hasMatch(value)) {
+    return value;
+  }
+  return "'${value.replaceAll("'", "'\\''")}'";
 }

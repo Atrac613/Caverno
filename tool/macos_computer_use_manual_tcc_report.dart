@@ -68,12 +68,16 @@ Future<void> main(List<String> args) async {
   );
 
   await outputJson.writeAsString(
-    const JsonEncoder.withIndent('  ').convert(summary.toJson()),
+    const JsonEncoder.withIndent(
+      '  ',
+    ).convert(summary.toJson(evidencePath: outputJson.path)),
   );
-  await outputMarkdown.writeAsString(summary.toMarkdown());
+  await outputMarkdown.writeAsString(
+    summary.toMarkdown(evidencePath: outputJson.path),
+  );
 
   stdout.writeln('Manual TCC report summary written to ${outputJson.path}');
-  stdout.writeln(summary.toMarkdown());
+  stdout.writeln(summary.toMarkdown(evidencePath: outputJson.path));
 
   if (!summary.ready) {
     exitCode = 1;

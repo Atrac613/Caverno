@@ -167,6 +167,75 @@ void main() {
       expect(summary.toMarkdown(), contains('- Ready: true'));
     });
 
+    test('CLI writes post-intake readiness commands', () async {
+      final root = Directory.systemTemp.createTempSync(
+        'manual_tcc_cli_post_intake_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final inputFile = File('${root.path}/raw_m8_report.json')
+        ..writeAsStringSync(
+          jsonEncode(<String, Object?>{
+            'releaseRuntimeSignoffGate': <String, Object?>{
+              'status': 'ready',
+              'blockers': <String>[],
+              'appPath': '/tmp/Caverno.app',
+              'helperPath': '/tmp/Caverno Computer Use.app',
+              'checks': <Map<String, Object?>>[
+                <String, Object?>{
+                  'id': 'permission_status',
+                  'label': 'Permission status',
+                  'status': 'ready',
+                  'ok': true,
+                },
+              ],
+            },
+          }),
+        );
+      final outputDir = Directory('${root.path}/manual tcc summaries')
+        ..createSync();
+      final outputJson = File(
+        '${outputDir.path}/manual_tcc_report_summary.json',
+      );
+      final outputMarkdown = File(
+        '${outputDir.path}/manual_tcc_report_summary.md',
+      );
+
+      final result = await Process.run('dart', <String>[
+        'run',
+        'tool/macos_computer_use_manual_tcc_report.dart',
+        inputFile.path,
+        '--output-json',
+        outputJson.path,
+        '--output-md',
+        outputMarkdown.path,
+      ]);
+
+      expect(result.exitCode, 0, reason: '${result.stdout}\n${result.stderr}');
+      final summaryJson =
+          jsonDecode(outputJson.readAsStringSync()) as Map<String, dynamic>;
+      final nextCommands =
+          summaryJson['nextAutomationSafeCommands'] as Map<String, dynamic>;
+
+      expect(summaryJson['ready'], isTrue);
+      expect(summaryJson['evidencePath'], outputJson.path);
+      expect(
+        nextCommands['releaseReadinessSignoff'],
+        contains("--manual-tcc-report '${outputJson.path}'"),
+      );
+      expect(
+        nextCommands['nextStepNavigator'],
+        'dart run tool/macos_computer_use_next_step_navigator.dart --root build/integration_test_reports',
+      );
+      expect(
+        outputMarkdown.readAsStringSync(),
+        contains('## Next Automation-Safe Commands'),
+      );
+      expect('${result.stdout}', contains('Release readiness:'));
+    });
+
     test('surfaces blocked checks and next actions', () {
       final summary = buildManualTccReportSummary(<String, dynamic>{
         'releaseRuntimeSignoffGate': <String, dynamic>{
