@@ -105,18 +105,16 @@ buildMacosComputerUseReleaseSigningPreflight({
         r'^\s*/?macos/Runner/Configs/Signing\.local\.xcconfig\s*$',
         multiLine: true,
       ).hasMatch(gitignoreContent);
-  final hasDevelopmentTeam =
-      signingLocalContent != null &&
-      RegExp(
-        r'^\s*DEVELOPMENT_TEAM\s*=',
-        multiLine: true,
-      ).hasMatch(signingLocalContent);
-  final hasCodeSignIdentity =
-      signingLocalContent != null &&
-      RegExp(
-        r'^\s*CODE_SIGN_IDENTITY\s*=',
-        multiLine: true,
-      ).hasMatch(signingLocalContent);
+  final developmentTeam = _xcconfigValue(
+    signingLocalContent,
+    'DEVELOPMENT_TEAM',
+  );
+  final codeSignIdentity = _xcconfigValue(
+    signingLocalContent,
+    'CODE_SIGN_IDENTITY',
+  );
+  final developmentTeamReady = _validDevelopmentTeam(developmentTeam);
+  final codeSignIdentityReady = _validCodeSignIdentity(codeSignIdentity);
   final validIdentities = codeSigningIdentities
       .where((line) => line.trim().isNotEmpty && !line.contains('0 valid'))
       .toList(growable: false);
@@ -148,16 +146,24 @@ buildMacosComputerUseReleaseSigningPreflight({
     _check(
       id: 'development_team',
       label: 'Development team',
-      ok: hasDevelopmentTeam,
+      ok: developmentTeamReady,
       nextAction:
-          'Add DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig.',
+          'Add a concrete 10-character DEVELOPMENT_TEAM to macos/Runner/Configs/Signing.local.xcconfig.',
+      details: <String, Object?>{
+        'configured': developmentTeam != null,
+        'valueStatus': _developmentTeamStatus(developmentTeam),
+      },
     ),
     _check(
       id: 'code_sign_identity',
       label: 'Code sign identity override',
-      ok: hasCodeSignIdentity,
+      ok: codeSignIdentityReady,
       nextAction:
           'Add a non-ad-hoc CODE_SIGN_IDENTITY to macos/Runner/Configs/Signing.local.xcconfig.',
+      details: <String, Object?>{
+        'configured': codeSignIdentity != null,
+        'valueStatus': _codeSignIdentityStatus(codeSignIdentity),
+      },
     ),
     _check(
       id: 'keychain_code_signing_identity',
@@ -179,6 +185,62 @@ buildMacosComputerUseReleaseSigningPreflight({
     operationBoundary:
         'report-only signing setup check; it does not sign, notarize, staple, grant TCC, or operate desktop apps.',
   );
+}
+
+String? _xcconfigValue(String? content, String key) {
+  if (content == null) {
+    return null;
+  }
+  final match = RegExp(
+    '^\\s*${RegExp.escape(key)}\\s*=\\s*(.*?)\\s*\$',
+    multiLine: true,
+  ).firstMatch(content);
+  final value = match?.group(1)?.trim();
+  if (value == null || value.isEmpty) {
+    return value;
+  }
+  return value;
+}
+
+bool _validDevelopmentTeam(String? value) {
+  return _developmentTeamStatus(value) == 'valid';
+}
+
+String _developmentTeamStatus(String? value) {
+  if (value == null) {
+    return 'missing';
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return 'empty';
+  }
+  if (normalized == 'YOURTEAMID') {
+    return 'placeholder';
+  }
+  if (!RegExp(r'^[A-Z0-9]{10}$').hasMatch(normalized)) {
+    return 'invalid_format';
+  }
+  return 'valid';
+}
+
+bool _validCodeSignIdentity(String? value) {
+  return _codeSignIdentityStatus(value) == 'valid';
+}
+
+String _codeSignIdentityStatus(String? value) {
+  if (value == null) {
+    return 'missing';
+  }
+  final normalized = value.trim();
+  if (normalized.isEmpty) {
+    return 'empty';
+  }
+  if (normalized == '-' ||
+      normalized.toLowerCase() == 'ad hoc' ||
+      normalized.toLowerCase() == 'sign to run locally') {
+    return 'ad_hoc';
+  }
+  return 'valid';
 }
 
 String encodeReleaseSigningPreflightJson(

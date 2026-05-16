@@ -3543,6 +3543,58 @@ CODE_SIGN_IDENTITY = Apple Development
       );
     });
 
+    test('release signing preflight rejects placeholder local signing setup', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_release_signing_preflight_placeholder_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+      final signingDir = Directory('${root.path}/macos/Runner/Configs')
+        ..createSync(recursive: true);
+      File(
+        '${root.path}/.gitignore',
+      ).writeAsStringSync('/macos/Runner/Configs/Signing.local.xcconfig\n');
+      File(
+        '${signingDir.path}/Signing.local.xcconfig.example',
+      ).writeAsStringSync('''
+// Copy this file to Signing.local.xcconfig for local release signing.
+''');
+      File('${signingDir.path}/Signing.local.xcconfig').writeAsStringSync('''
+DEVELOPMENT_TEAM = YOURTEAMID
+CODE_SIGN_IDENTITY = -
+''');
+
+      final report = buildMacosComputerUseReleaseSigningPreflight(
+        projectRoot: root,
+        codeSigningIdentities: const <String>[
+          '1) 0000000000000000000000000000000000000000 "Apple Development: Example"',
+        ],
+      );
+      final checksById = <String, MacosComputerUseReleaseSigningPreflightCheck>{
+        for (final check in report.checks) check.id: check,
+      };
+
+      expect(report.ready, isFalse);
+      expect(report.status, 'blocked');
+      expect(
+        checksById['development_team']?.details['valueStatus'],
+        'placeholder',
+      );
+      expect(
+        checksById['code_sign_identity']?.details['valueStatus'],
+        'ad_hoc',
+      );
+      expect(
+        report.failedChecks.map((check) => check.id),
+        contains('development_team'),
+      );
+      expect(
+        report.failedChecks.map((check) => check.id),
+        contains('code_sign_identity'),
+      );
+    });
+
     test(
       'M33 release packaging CLI writes JSON and Markdown outputs',
       () async {
