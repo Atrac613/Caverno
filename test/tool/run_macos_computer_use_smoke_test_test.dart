@@ -676,8 +676,8 @@ void main() {
   });
 
   test('Computer Use helper runs as a single hidden agent process', () {
-    expect(runnerInfoPlist, isNot(contains('NSSystemAudioUsageDescription')));
-    expect(helperInfoPlist, contains('NSSystemAudioUsageDescription'));
+    expect(runnerInfoPlist, isNot(contains('NSAudioCaptureUsageDescription')));
+    expect(helperInfoPlist, contains('NSAudioCaptureUsageDescription'));
     expect(runnerSource, isNot(contains('CGRequestScreenCaptureAccess')));
     expect(runnerSource, contains('main_app_screen_capture_blocked'));
     expect(helperSource, contains('screenCaptureDeniedResponse'));

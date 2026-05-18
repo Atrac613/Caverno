@@ -159,7 +159,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
               true &&
           helperInfoPlist?.contains('<key>LSUIElement</key>') == true &&
           helperInfoPlist?.contains(
-                '<key>NSSystemAudioUsageDescription</key>',
+                '<key>NSAudioCaptureUsageDescription</key>',
               ) ==
               true,
       nextAction:
