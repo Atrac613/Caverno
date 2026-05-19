@@ -52,6 +52,19 @@ class MemoryExtractionDraft {
 class SessionMemoryService {
   SessionMemoryService(this._repository);
 
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+  static final RegExp _lineBreakPattern = RegExp(r'\r?\n');
+  static final RegExp _preferenceHintPattern = RegExp(
+    r'(短く|簡潔|要点|結論から|箇条書き|ステップ|コード|実装|サンプル|日本語|英語|丁寧|フランク|理由|根拠|詳しく)',
+  );
+  static final RegExp _personaHintPattern = RegExp(
+    r'(私は|ぼくは|僕は|仕事|職業|エンジニア|デザイナー|学生|PM|マネージャー)',
+  );
+  static final RegExp _factHintPattern = RegExp(
+    r'(\d+円|\d+ドル|\$\d|\d+kg|\d+g|\d+ml|\d+リットル|\d+個|\d+枚|\d+本|\d+台|\d+回|買った|購入|契約|決めた|予約|申し込|登録|支払|paid|bought|purchased|cost|price|\d+\s*yen)',
+    caseSensitive: false,
+  );
+
   final ChatMemoryRepository _repository;
   final _uuid = const Uuid();
 
@@ -353,7 +366,7 @@ class SessionMemoryService {
   }
 
   String _normalizeMemoryText(String value) {
-    return value.toLowerCase().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return value.toLowerCase().replaceAll(_whitespaceRunPattern, ' ').trim();
   }
 
   List<_ScoredMemory> _scoreMemories({
@@ -665,7 +678,7 @@ class SessionMemoryService {
   }
 
   Set<String> _biGrams(String text) {
-    final normalized = text.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    final normalized = text.toLowerCase().replaceAll(_whitespaceRunPattern, '');
     if (normalized.isEmpty) return const {};
     if (normalized.length == 1) return {normalized};
 
@@ -677,25 +690,20 @@ class SessionMemoryService {
   }
 
   bool _looksLikePreference(String text) {
-    return RegExp(
-      r'(短く|簡潔|要点|結論から|箇条書き|ステップ|コード|実装|サンプル|日本語|英語|丁寧|フランク|理由|根拠|詳しく)',
-    ).hasMatch(text);
+    return _preferenceHintPattern.hasMatch(text);
   }
 
   bool _looksLikePersona(String text) {
-    return RegExp(r'(私は|ぼくは|僕は|仕事|職業|エンジニア|デザイナー|学生|PM|マネージャー)').hasMatch(text);
+    return _personaHintPattern.hasMatch(text);
   }
 
   bool _looksLikeFact(String text) {
-    return RegExp(
-      r'(\d+円|\d+ドル|\$\d|\d+kg|\d+g|\d+ml|\d+リットル|\d+個|\d+枚|\d+本|\d+台|\d+回|買った|購入|契約|決めた|予約|申し込|登録|支払|paid|bought|purchased|cost|price|\d+\s*yen)',
-      caseSensitive: false,
-    ).hasMatch(text);
+    return _factHintPattern.hasMatch(text);
   }
 
   List<String> _splitLines(String text) {
     return text
-        .split(RegExp(r'\r?\n'))
+        .split(_lineBreakPattern)
         .map((line) => line.trim())
         .where((line) => line.isNotEmpty)
         .toList();
@@ -712,7 +720,7 @@ class SessionMemoryService {
   }
 
   String _normalizeSentence(String text) {
-    return text.replaceAll(RegExp(r'\s+'), ' ').trim();
+    return text.replaceAll(_whitespaceRunPattern, ' ').trim();
   }
 
   String _truncate(String text, int maxLength) {
