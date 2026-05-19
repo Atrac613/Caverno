@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:freezed_annotation/freezed_annotation.dart';
 
 part 'routine.freezed.dart';
@@ -15,6 +17,160 @@ enum RoutineGoogleChatRule { onSuccess, onFailure, always }
 
 enum RoutineDeliveryStatus { notRequested, skipped, delivered, failed }
 
+enum RoutinePlanRevisionKind { draft, approved, restored }
+
+@freezed
+abstract class RoutinePlanRevision with _$RoutinePlanRevision {
+  const RoutinePlanRevision._();
+
+  const factory RoutinePlanRevision({
+    required String markdown,
+    required DateTime createdAt,
+    @JsonKey(unknownEnumValue: RoutinePlanRevisionKind.draft)
+    @Default(RoutinePlanRevisionKind.draft)
+    RoutinePlanRevisionKind kind,
+    @Default('') String label,
+  }) = _RoutinePlanRevision;
+
+  factory RoutinePlanRevision.fromJson(Map<String, dynamic> json) =>
+      _$RoutinePlanRevisionFromJson(json);
+
+  String? get normalizedMarkdown {
+    final trimmed = markdown.trimRight();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedLabel {
+    final trimmed = label.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+}
+
+@freezed
+abstract class RoutinePlanArtifact with _$RoutinePlanArtifact {
+  const RoutinePlanArtifact._();
+
+  const factory RoutinePlanArtifact({
+    @Default('') String draftMarkdown,
+    @Default('') String approvedMarkdown,
+    @Default('') String approvedSourceHash,
+    DateTime? approvedAt,
+    DateTime? updatedAt,
+    @JsonKey(
+      fromJson: _routinePlanRevisionsFromJson,
+      toJson: _routinePlanRevisionsToJson,
+    )
+    @Default(<RoutinePlanRevision>[])
+    List<RoutinePlanRevision> revisions,
+  }) = _RoutinePlanArtifact;
+
+  factory RoutinePlanArtifact.fromJson(Map<String, dynamic> json) =>
+      _$RoutinePlanArtifactFromJson(json);
+
+  String? get normalizedDraftMarkdown {
+    final trimmed = draftMarkdown.trimRight();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedApprovedMarkdown {
+    final trimmed = approvedMarkdown.trimRight();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String? get normalizedApprovedSourceHash {
+    final trimmed = approvedSourceHash.trim();
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  bool get hasDraft => normalizedDraftMarkdown != null;
+
+  bool get hasApproved => normalizedApprovedMarkdown != null;
+
+  bool get hasContent => hasDraft || hasApproved;
+
+  bool get hasPendingEdits =>
+      normalizedDraftMarkdown != null &&
+      normalizedDraftMarkdown != normalizedApprovedMarkdown;
+
+  List<RoutinePlanRevision> get historyEntries => revisions
+      .where((entry) => entry.normalizedMarkdown != null)
+      .toList(growable: false);
+
+  bool isApprovedForSource(String sourceHash) {
+    final normalizedSourceHash = sourceHash.trim();
+    return normalizedSourceHash.isNotEmpty &&
+        normalizedApprovedMarkdown != null &&
+        normalizedApprovedSourceHash == normalizedSourceHash;
+  }
+
+  RoutinePlanArtifact recordRevision({
+    required String markdown,
+    required RoutinePlanRevisionKind kind,
+    String label = '',
+    DateTime? createdAt,
+    int maxEntries = 12,
+  }) {
+    final normalizedMarkdown = markdown.trimRight();
+    if (normalizedMarkdown.isEmpty) {
+      return this;
+    }
+
+    final revision = RoutinePlanRevision(
+      markdown: normalizedMarkdown,
+      createdAt: createdAt ?? DateTime.now(),
+      kind: kind,
+      label: label.trim(),
+    );
+    final nextHistory = <RoutinePlanRevision>[
+      revision,
+      ...historyEntries.where(
+        (entry) =>
+            entry.normalizedMarkdown != normalizedMarkdown ||
+            entry.kind != kind,
+      ),
+    ];
+    final trimmedHistory = nextHistory.length <= maxEntries
+        ? nextHistory
+        : nextHistory.sublist(0, maxEntries);
+    return copyWith(revisions: trimmedHistory);
+  }
+}
+
+List<RoutinePlanRevision> _routinePlanRevisionsFromJson(List<dynamic>? json) {
+  if (json == null) {
+    return const <RoutinePlanRevision>[];
+  }
+  return json
+      .map((item) {
+        if (item is RoutinePlanRevision) {
+          return item;
+        }
+        return RoutinePlanRevision.fromJson(
+          Map<String, dynamic>.from(item as Map),
+        );
+      })
+      .toList(growable: false);
+}
+
+List<Map<String, dynamic>> _routinePlanRevisionsToJson(
+  List<RoutinePlanRevision> revisions,
+) {
+  return revisions.map((revision) => revision.toJson()).toList(growable: false);
+}
+
+RoutinePlanArtifact? _routinePlanArtifactFromJson(Map<String, dynamic>? json) {
+  if (json == null) {
+    return null;
+  }
+  return RoutinePlanArtifact.fromJson(json);
+}
+
+Map<String, dynamic>? _routinePlanArtifactToJson(
+  RoutinePlanArtifact? artifact,
+) {
+  return artifact?.toJson();
+}
+
 @freezed
 abstract class RoutineRunRecord with _$RoutineRunRecord {
   const RoutineRunRecord._();
@@ -29,6 +185,8 @@ abstract class RoutineRunRecord with _$RoutineRunRecord {
     @JsonKey(unknownEnumValue: RoutineRunTrigger.manual)
     @Default(RoutineRunTrigger.manual)
     RoutineRunTrigger trigger,
+    @Default(false) bool usedPlan,
+    @Default('') String planSourceHash,
     @Default(0) int durationMs,
     @Default(false) bool usedTools,
     @Default(0) int toolCallCount,
@@ -140,6 +298,11 @@ abstract class Routine with _$Routine {
     RoutineGoogleChatRule googleChatRule,
     @Default('') String workspaceDirectory,
     @Default(false) bool allowWorkspaceWrites,
+    @JsonKey(
+      fromJson: _routinePlanArtifactFromJson,
+      toJson: _routinePlanArtifactToJson,
+    )
+    RoutinePlanArtifact? planArtifact,
     @Default(1) int intervalValue,
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)
@@ -165,6 +328,38 @@ abstract class Routine with _$Routine {
   bool get hasWorkspaceWriteAccess =>
       toolsEnabled && allowWorkspaceWrites && hasWorkspaceDirectory;
 
+  RoutinePlanArtifact get effectivePlanArtifact =>
+      planArtifact ?? const RoutinePlanArtifact();
+
+  String get planSourceHash => _computeRoutinePlanSourceHash(
+    prompt: trimmedPrompt,
+    toolsEnabled: toolsEnabled,
+    completionAction: completionAction.name,
+    googleChatRule: googleChatRule.name,
+    workspaceDirectory: trimmedWorkspaceDirectory,
+    allowWorkspaceWrites: allowWorkspaceWrites,
+  );
+
+  String? get freshApprovedPlanMarkdown {
+    final artifact = effectivePlanArtifact;
+    if (!artifact.isApprovedForSource(planSourceHash)) {
+      return null;
+    }
+    return artifact.normalizedApprovedMarkdown;
+  }
+
+  bool get hasApprovedPlan => effectivePlanArtifact.hasApproved;
+
+  bool get hasPlanDraft => effectivePlanArtifact.hasDraft;
+
+  bool get hasPendingPlanEdits => effectivePlanArtifact.hasPendingEdits;
+
+  bool get isApprovedPlanFresh => freshApprovedPlanMarkdown != null;
+
+  bool get hasStaleApprovedPlan => hasApprovedPlan && !isApprovedPlanFresh;
+
+  bool get needsPlanAttention => hasStaleApprovedPlan || hasPendingPlanEdits;
+
   RoutineRunRecord? get latestRun => runs.isEmpty ? null : runs.first;
 
   int get consecutiveFailureCount {
@@ -183,4 +378,34 @@ abstract class Routine with _$Routine {
 
   bool get allowsPromptGoogleChatPost =>
       completionAction == RoutineCompletionAction.promptGoogleChat;
+}
+
+String _computeRoutinePlanSourceHash({
+  required String prompt,
+  required bool toolsEnabled,
+  required String completionAction,
+  required String googleChatRule,
+  required String workspaceDirectory,
+  required bool allowWorkspaceWrites,
+}) {
+  final sourcePayload = jsonEncode(<String, Object?>{
+    'prompt': prompt.trim(),
+    'toolsEnabled': toolsEnabled,
+    'completionAction': completionAction,
+    'googleChatRule': googleChatRule,
+    'workspaceDirectory': workspaceDirectory.trim(),
+    'allowWorkspaceWrites': allowWorkspaceWrites,
+  });
+  return _computeStableRoutineHash(sourcePayload);
+}
+
+String _computeStableRoutineHash(String value) {
+  const int offsetBasis = 0x811c9dc5;
+  const int prime = 0x01000193;
+  var hash = offsetBasis;
+  for (final codeUnit in value.codeUnits) {
+    hash ^= codeUnit;
+    hash = (hash * prime) & 0xffffffff;
+  }
+  return hash.toRadixString(16).padLeft(8, '0');
 }

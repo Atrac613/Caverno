@@ -91,10 +91,12 @@ class RoutineExecutionService {
 
     try {
       final allowedTools = _allowedRoutineTools(routine);
+      final approvedPlan = routine.freshApprovedPlanMarkdown;
       final systemPrompt = _buildRoutineSystemPrompt(
         now: startedAt,
         routine: routine,
         allowedTools: allowedTools,
+        approvedPlan: approvedPlan,
       );
       final messages = [
         Message(
@@ -141,6 +143,8 @@ class RoutineExecutionService {
           finishedAt: finishedAt,
           status: RoutineRunStatus.failed,
           trigger: trigger,
+          usedPlan: approvedPlan != null,
+          planSourceHash: approvedPlan == null ? '' : routine.planSourceHash,
           durationMs: durationMs,
           usedTools: executionResult.toolResults.isNotEmpty,
           toolCallCount: executionResult.toolResults.length,
@@ -159,6 +163,8 @@ class RoutineExecutionService {
         finishedAt: finishedAt,
         status: RoutineRunStatus.completed,
         trigger: trigger,
+        usedPlan: approvedPlan != null,
+        planSourceHash: approvedPlan == null ? '' : routine.planSourceHash,
         durationMs: durationMs,
         usedTools: executionResult.toolResults.isNotEmpty,
         toolCallCount: executionResult.toolResults.length,
@@ -198,6 +204,7 @@ class RoutineExecutionService {
     required DateTime now,
     required Routine routine,
     required List<Map<String, dynamic>> allowedTools,
+    String? approvedPlan,
   }) {
     final toolNames = _toolNamesFromDefinitions(allowedTools);
     final basePrompt = SystemPromptBuilder.build(
@@ -212,12 +219,23 @@ class RoutineExecutionService {
       allowedToolNames: toolNames.toSet(),
     );
 
-    if (allowedTools.isEmpty && routineGuidance.isEmpty) {
+    if (allowedTools.isEmpty &&
+        routineGuidance.isEmpty &&
+        approvedPlan == null) {
       return basePrompt;
     }
 
     return [
       basePrompt,
+      if (approvedPlan != null) ...[
+        'Approved routine plan: the user approved this plan for the current '
+            'routine configuration. Follow it during unattended execution. '
+            'Treat the current routine prompt as the live trigger and the '
+            'approved plan as the execution contract. Do not expand the scope '
+            'beyond the approved plan unless a safe read-only check is needed '
+            'to complete the routine.',
+        _truncateApprovedPlanForPrompt(approvedPlan),
+      ],
       if (allowedTools.isNotEmpty)
         'Routine execution context: this is an unattended scheduled/manual routine. '
             'When the routine prompt asks for diagnostics, lookup, or inspection '
@@ -228,6 +246,10 @@ class RoutineExecutionService {
             'is collected.',
       ...routineGuidance,
     ].join('\n');
+  }
+
+  String _truncateApprovedPlanForPrompt(String plan) {
+    return RoutineScheduleService.truncateOutput(plan, maxLength: 6000);
   }
 
   Future<RoutineToolExecutionResult> _executeRoutine({

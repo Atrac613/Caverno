@@ -90,6 +90,9 @@ class RoutineHomeSnapshotBuilder {
     if (RoutineScheduleService.isDue(routine)) {
       return true;
     }
+    if (routine.needsPlanAttention) {
+      return true;
+    }
     return routine.latestRun?.requiresAttention ?? false;
   }
 
@@ -166,10 +169,13 @@ class RoutineHomeSnapshotBuilder {
     if (RoutineScheduleService.isDue(routine)) {
       return 1;
     }
-    if (routine.latestRun?.requiresAttention ?? false) {
+    if (routine.needsPlanAttention) {
       return 2;
     }
-    return 3;
+    if (routine.latestRun?.requiresAttention ?? false) {
+      return 3;
+    }
+    return 4;
   }
 
   static int _compareNullableDate(

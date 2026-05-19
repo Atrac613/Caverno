@@ -126,6 +126,40 @@ void main() {
       expect(duplicate.nextRunAt, isNotNull);
     });
 
+    test('saves and approves routine plan drafts with source hash', () async {
+      final source = buildRoutine(
+        id: 'routine-1',
+        name: 'Morning summary',
+        toolsEnabled: true,
+      );
+      final container = await createContainer(initialRoutines: [source]);
+      addTearDown(container.dispose);
+
+      final notifier = container.read(routinesNotifierProvider.notifier);
+      await notifier.savePlanDraft(
+        routineId: source.id,
+        markdown: '# Routine Plan\n- Search before summarizing.',
+      );
+
+      final drafted = notifier.findRoutine(source.id);
+      expect(drafted, isNotNull);
+      expect(drafted!.hasPlanDraft, isTrue);
+      expect(drafted.hasPendingPlanEdits, isTrue);
+      expect(drafted.effectivePlanArtifact.historyEntries, hasLength(1));
+
+      await notifier.approvePlanDraft(source.id);
+
+      final approved = notifier.findRoutine(source.id);
+      expect(approved, isNotNull);
+      expect(approved!.isApprovedPlanFresh, isTrue);
+      expect(approved.hasPendingPlanEdits, isFalse);
+      expect(
+        approved.effectivePlanArtifact.approvedSourceHash,
+        approved.planSourceHash,
+      );
+      expect(approved.effectivePlanArtifact.historyEntries, hasLength(2));
+    });
+
     test(
       'clearRunHistory removes stored runs and last run timestamp',
       () async {

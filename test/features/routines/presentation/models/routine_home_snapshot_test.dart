@@ -11,6 +11,7 @@ void main() {
     bool enabled = true,
     DateTime? nextRunAt,
     List<RoutineRunRecord> runs = const [],
+    RoutinePlanArtifact? planArtifact,
   }) {
     final createdAt = DateTime(2026, 4, 21, 8);
     return Routine(
@@ -24,6 +25,7 @@ void main() {
       intervalUnit: RoutineIntervalUnit.hours,
       nextRunAt: nextRunAt,
       runs: runs,
+      planArtifact: planArtifact,
     );
   }
 
@@ -184,6 +186,32 @@ void main() {
 
       expect(snapshot.attentionCount, 0);
       expect(snapshot.sections.single.kind, RoutineHomeSectionKind.scheduled);
+    });
+
+    test('moves stale approved plans into the attention section', () {
+      final baseRoutine = buildRoutine(
+        id: 'planned',
+        name: 'Planned routine',
+        updatedAt: DateTime(2026, 4, 21, 10),
+        nextRunAt: DateTime(3026, 4, 21, 11),
+      );
+      final plannedRoutine = baseRoutine.copyWith(
+        prompt: 'Summarize the changed updates.',
+        planArtifact: RoutinePlanArtifact(
+          approvedMarkdown: '# Routine Plan\n- Summarize updates.',
+          approvedSourceHash: baseRoutine.planSourceHash,
+          approvedAt: DateTime(2026, 4, 21, 10, 5),
+        ),
+      );
+
+      final snapshot = RoutineHomeSnapshotBuilder.build(
+        routines: [plannedRoutine],
+        runningRoutineIds: const <String>{},
+      );
+
+      expect(snapshot.attentionCount, 1);
+      expect(snapshot.sections.single.kind, RoutineHomeSectionKind.attention);
+      expect(snapshot.sections.single.routines.single.id, 'planned');
     });
   });
 }

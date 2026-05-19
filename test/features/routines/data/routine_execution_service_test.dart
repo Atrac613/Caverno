@@ -127,6 +127,47 @@ void main() {
     });
 
     test(
+      'injects fresh approved routine plans into execution prompts',
+      () async {
+        final baseRoutine = buildRoutine(toolsEnabled: true);
+        final plannedRoutine = baseRoutine.copyWith(
+          planArtifact: RoutinePlanArtifact(
+            approvedMarkdown:
+                '# Routine Plan\n- Search for updates before answering.',
+            approvedSourceHash: baseRoutine.planSourceHash,
+            approvedAt: DateTime(2026, 4, 21, 10, 5),
+          ),
+        );
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Plan followed.',
+            finishReason: 'stop',
+          ),
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [_toolDefinition('web_search', 'Search the web')],
+          resultsByToolName: const {},
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults(),
+        );
+
+        final record = await service.execute(plannedRoutine);
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.usedPlan, isTrue);
+        expect(record.planSourceHash, plannedRoutine.planSourceHash);
+        final systemPrompt = dataSource.lastToolAwareMessages
+            .singleWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(systemPrompt, contains('Approved routine plan'));
+        expect(systemPrompt, contains('Search for updates before answering.'));
+      },
+    );
+
+    test(
       'fails when the final routine answer is truncated thinking only',
       () async {
         final dataSource = _FakeChatDataSource(

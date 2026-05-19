@@ -174,6 +174,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       googleChatRule: source.googleChatRule,
       workspaceDirectory: source.workspaceDirectory,
       allowWorkspaceWrites: source.allowWorkspaceWrites,
+      planArtifact: source.planArtifact,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
     );
@@ -194,6 +195,64 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       updatedAt: DateTime.now(),
     );
     await _persistRoutine(updated);
+  }
+
+  Future<void> savePlanDraft({
+    required String routineId,
+    required String markdown,
+  }) async {
+    final existing = _findRoutine(routineId);
+    if (existing == null) {
+      return;
+    }
+
+    final normalizedMarkdown = markdown.trimRight();
+    final now = DateTime.now();
+    final nextArtifact = existing.effectivePlanArtifact
+        .copyWith(draftMarkdown: normalizedMarkdown, updatedAt: now)
+        .recordRevision(
+          markdown: normalizedMarkdown,
+          kind: RoutinePlanRevisionKind.draft,
+          label: 'Saved routine plan draft',
+          createdAt: now,
+        );
+    await _persistRoutine(
+      existing.copyWith(planArtifact: nextArtifact, updatedAt: now),
+    );
+  }
+
+  Future<void> approvePlanDraft(String routineId) async {
+    final existing = _findRoutine(routineId);
+    if (existing == null) {
+      return;
+    }
+
+    final currentArtifact = existing.effectivePlanArtifact;
+    final markdown =
+        currentArtifact.normalizedDraftMarkdown ??
+        currentArtifact.normalizedApprovedMarkdown;
+    if (markdown == null) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final nextArtifact = currentArtifact
+        .copyWith(
+          draftMarkdown: markdown,
+          approvedMarkdown: markdown,
+          approvedSourceHash: existing.planSourceHash,
+          approvedAt: now,
+          updatedAt: now,
+        )
+        .recordRevision(
+          markdown: markdown,
+          kind: RoutinePlanRevisionKind.approved,
+          label: 'Approved routine plan',
+          createdAt: now,
+        );
+    await _persistRoutine(
+      existing.copyWith(planArtifact: nextArtifact, updatedAt: now),
+    );
   }
 
   Future<void> acknowledgeLatestFailure(String routineId) async {

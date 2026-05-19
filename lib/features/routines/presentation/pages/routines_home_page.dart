@@ -484,6 +484,21 @@ class _RoutineCard extends StatelessWidget {
                               label: 'routines.google_chat_badge'.tr(),
                               color: colorScheme.tertiaryContainer,
                             ),
+                          if (routine.hasPendingPlanEdits)
+                            _RoutineStatusChip(
+                              label: 'routines.plan_draft_badge'.tr(),
+                              color: colorScheme.secondaryContainer,
+                            )
+                          else if (routine.hasStaleApprovedPlan)
+                            _RoutineStatusChip(
+                              label: 'routines.plan_stale_badge'.tr(),
+                              color: colorScheme.errorContainer,
+                            )
+                          else if (routine.isApprovedPlanFresh)
+                            _RoutineStatusChip(
+                              label: 'routines.plan_approved_badge'.tr(),
+                              color: colorScheme.primaryContainer,
+                            ),
                           if (isRunning)
                             _RoutineStatusChip(
                               label: 'routines.running_badge'.tr(),

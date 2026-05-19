@@ -29,6 +29,8 @@ void main() {
         deliveryMessage: 'Posted to Google Chat.',
         preview: 'Finished successfully',
         output: 'Full output',
+        usedPlan: true,
+        planSourceHash: 'plan-hash',
         failureAcknowledged: true,
       );
 
@@ -53,6 +55,8 @@ void main() {
       expect(decoded.deliveryMessage, 'Posted to Google Chat.');
       expect(decoded.preview, 'Finished successfully');
       expect(decoded.output, 'Full output');
+      expect(decoded.usedPlan, isTrue);
+      expect(decoded.planSourceHash, 'plan-hash');
       expect(decoded.failureAcknowledged, isTrue);
     });
 
@@ -194,6 +198,79 @@ void main() {
       );
       expect(decoded.postsToGoogleChat, isFalse);
       expect(decoded.allowsPromptGoogleChatPost, isTrue);
+    });
+
+    test('tracks approved routine plans against the current source hash', () {
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'LAN watch',
+        prompt: 'Scan LAN and report new devices.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        toolsEnabled: true,
+        workspaceDirectory: '/tmp/caverno-routines/lan-watch',
+        allowWorkspaceWrites: true,
+        completionAction: RoutineCompletionAction.promptGoogleChat,
+      );
+      final artifact = RoutinePlanArtifact(
+        draftMarkdown: '# Routine Plan\nScan LAN.',
+        approvedMarkdown: '# Routine Plan\nScan LAN.',
+        approvedSourceHash: routine.planSourceHash,
+        approvedAt: DateTime(2026, 4, 21, 9, 10),
+      );
+      final plannedRoutine = routine.copyWith(planArtifact: artifact);
+
+      expect(plannedRoutine.isApprovedPlanFresh, isTrue);
+      expect(plannedRoutine.hasStaleApprovedPlan, isFalse);
+      expect(plannedRoutine.freshApprovedPlanMarkdown, contains('Scan LAN'));
+
+      final changedRoutine = plannedRoutine.copyWith(
+        prompt: 'Scan LAN and report all devices.',
+      );
+
+      expect(changedRoutine.isApprovedPlanFresh, isFalse);
+      expect(changedRoutine.hasStaleApprovedPlan, isTrue);
+      expect(changedRoutine.freshApprovedPlanMarkdown, isNull);
+    });
+
+    test('preserves routine plan artifact revisions through JSON', () {
+      final artifact = RoutinePlanArtifact(
+        draftMarkdown: '# Draft',
+        approvedMarkdown: '# Approved',
+        approvedSourceHash: 'hash-1',
+        approvedAt: DateTime(2026, 4, 21, 9),
+        updatedAt: DateTime(2026, 4, 21, 9, 5),
+        revisions: [
+          RoutinePlanRevision(
+            markdown: '# Approved',
+            createdAt: DateTime(2026, 4, 21, 9),
+            kind: RoutinePlanRevisionKind.approved,
+            label: 'Approved routine plan',
+          ),
+        ],
+      );
+      final routine = Routine(
+        id: 'routine-1',
+        name: 'LAN watch',
+        prompt: 'Scan LAN.',
+        createdAt: DateTime(2026, 4, 21, 8),
+        updatedAt: DateTime(2026, 4, 21, 9),
+        planArtifact: artifact,
+      );
+
+      final decoded = Routine.fromJson(routine.toJson());
+
+      expect(decoded.effectivePlanArtifact.normalizedDraftMarkdown, '# Draft');
+      expect(
+        decoded.effectivePlanArtifact.normalizedApprovedMarkdown,
+        '# Approved',
+      );
+      expect(decoded.effectivePlanArtifact.approvedSourceHash, 'hash-1');
+      expect(decoded.effectivePlanArtifact.historyEntries, hasLength(1));
+      expect(
+        decoded.effectivePlanArtifact.historyEntries.single.kind,
+        RoutinePlanRevisionKind.approved,
+      );
     });
   });
 }

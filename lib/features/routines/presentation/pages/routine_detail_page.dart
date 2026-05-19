@@ -130,6 +130,23 @@ class RoutineDetailPage extends ConsumerWidget {
                             context,
                           ).colorScheme.tertiaryContainer,
                         ),
+                      if (routine.hasPendingPlanEdits)
+                        _StatusChip(
+                          label: 'routines.plan_draft_badge'.tr(),
+                          color: Theme.of(
+                            context,
+                          ).colorScheme.secondaryContainer,
+                        )
+                      else if (routine.hasStaleApprovedPlan)
+                        _StatusChip(
+                          label: 'routines.plan_stale_badge'.tr(),
+                          color: Theme.of(context).colorScheme.errorContainer,
+                        )
+                      else if (routine.isApprovedPlanFresh)
+                        _StatusChip(
+                          label: 'routines.plan_approved_badge'.tr(),
+                          color: Theme.of(context).colorScheme.primaryContainer,
+                        ),
                     ],
                   ),
                   const SizedBox(height: 16),
@@ -187,6 +204,11 @@ class RoutineDetailPage extends ConsumerWidget {
                         label: 'routines.completion_action_label'.tr(),
                         value: _formatCompletionAction(context, routine),
                       ),
+                      if (routine.effectivePlanArtifact.hasContent)
+                        _MetaLine(
+                          label: 'routines.plan_status_label'.tr(),
+                          value: _formatPlanStatus(routine),
+                        ),
                       if (routine.postsToGoogleChat)
                         _MetaLine(
                           label: 'routines.google_chat_rule_label'.tr(),
@@ -406,6 +428,19 @@ class RoutineDetailPage extends ConsumerWidget {
         'routines.google_chat_rule_on_failure'.tr(),
       RoutineGoogleChatRule.always => 'routines.google_chat_rule_always'.tr(),
     };
+  }
+
+  String _formatPlanStatus(Routine routine) {
+    if (routine.hasPendingPlanEdits) {
+      return 'routines.plan_status_draft'.tr();
+    }
+    if (routine.hasStaleApprovedPlan) {
+      return 'routines.plan_status_stale'.tr();
+    }
+    if (routine.isApprovedPlanFresh) {
+      return 'routines.plan_status_approved'.tr();
+    }
+    return 'routines.plan_status_unapproved'.tr();
   }
 
   Future<void> _duplicateRoutine(

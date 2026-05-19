@@ -6,6 +6,62 @@ part of 'routine.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_RoutinePlanRevision _$RoutinePlanRevisionFromJson(Map<String, dynamic> json) =>
+    _RoutinePlanRevision(
+      markdown: json['markdown'] as String,
+      createdAt: DateTime.parse(json['createdAt'] as String),
+      kind:
+          $enumDecodeNullable(
+            _$RoutinePlanRevisionKindEnumMap,
+            json['kind'],
+            unknownValue: RoutinePlanRevisionKind.draft,
+          ) ??
+          RoutinePlanRevisionKind.draft,
+      label: json['label'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$RoutinePlanRevisionToJson(
+  _RoutinePlanRevision instance,
+) => <String, dynamic>{
+  'markdown': instance.markdown,
+  'createdAt': instance.createdAt.toIso8601String(),
+  'kind': _$RoutinePlanRevisionKindEnumMap[instance.kind]!,
+  'label': instance.label,
+};
+
+const _$RoutinePlanRevisionKindEnumMap = {
+  RoutinePlanRevisionKind.draft: 'draft',
+  RoutinePlanRevisionKind.approved: 'approved',
+  RoutinePlanRevisionKind.restored: 'restored',
+};
+
+_RoutinePlanArtifact _$RoutinePlanArtifactFromJson(Map<String, dynamic> json) =>
+    _RoutinePlanArtifact(
+      draftMarkdown: json['draftMarkdown'] as String? ?? '',
+      approvedMarkdown: json['approvedMarkdown'] as String? ?? '',
+      approvedSourceHash: json['approvedSourceHash'] as String? ?? '',
+      approvedAt: json['approvedAt'] == null
+          ? null
+          : DateTime.parse(json['approvedAt'] as String),
+      updatedAt: json['updatedAt'] == null
+          ? null
+          : DateTime.parse(json['updatedAt'] as String),
+      revisions: json['revisions'] == null
+          ? const <RoutinePlanRevision>[]
+          : _routinePlanRevisionsFromJson(json['revisions'] as List?),
+    );
+
+Map<String, dynamic> _$RoutinePlanArtifactToJson(
+  _RoutinePlanArtifact instance,
+) => <String, dynamic>{
+  'draftMarkdown': instance.draftMarkdown,
+  'approvedMarkdown': instance.approvedMarkdown,
+  'approvedSourceHash': instance.approvedSourceHash,
+  'approvedAt': instance.approvedAt?.toIso8601String(),
+  'updatedAt': instance.updatedAt?.toIso8601String(),
+  'revisions': _routinePlanRevisionsToJson(instance.revisions),
+};
+
 _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
     _RoutineRunRecord(
       id: json['id'] as String,
@@ -25,6 +81,8 @@ _RoutineRunRecord _$RoutineRunRecordFromJson(Map<String, dynamic> json) =>
             unknownValue: RoutineRunTrigger.manual,
           ) ??
           RoutineRunTrigger.manual,
+      usedPlan: json['usedPlan'] as bool? ?? false,
+      planSourceHash: json['planSourceHash'] as String? ?? '',
       durationMs: (json['durationMs'] as num?)?.toInt() ?? 0,
       usedTools: json['usedTools'] as bool? ?? false,
       toolCallCount: (json['toolCallCount'] as num?)?.toInt() ?? 0,
@@ -66,6 +124,8 @@ Map<String, dynamic> _$RoutineRunRecordToJson(
   'finishedAt': instance.finishedAt.toIso8601String(),
   'status': _$RoutineRunStatusEnumMap[instance.status]!,
   'trigger': _$RoutineRunTriggerEnumMap[instance.trigger]!,
+  'usedPlan': instance.usedPlan,
+  'planSourceHash': instance.planSourceHash,
   'durationMs': instance.durationMs,
   'usedTools': instance.usedTools,
   'toolCallCount': instance.toolCallCount,
@@ -139,6 +199,9 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
       RoutineGoogleChatRule.onFailure,
   workspaceDirectory: json['workspaceDirectory'] as String? ?? '',
   allowWorkspaceWrites: json['allowWorkspaceWrites'] as bool? ?? false,
+  planArtifact: _routinePlanArtifactFromJson(
+    json['planArtifact'] as Map<String, dynamic>?,
+  ),
   intervalValue: (json['intervalValue'] as num?)?.toInt() ?? 1,
   intervalUnit:
       $enumDecodeNullable(
@@ -174,6 +237,7 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'googleChatRule': _$RoutineGoogleChatRuleEnumMap[instance.googleChatRule]!,
   'workspaceDirectory': instance.workspaceDirectory,
   'allowWorkspaceWrites': instance.allowWorkspaceWrites,
+  'planArtifact': _routinePlanArtifactToJson(instance.planArtifact),
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),
