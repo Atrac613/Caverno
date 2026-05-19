@@ -443,6 +443,7 @@ class MacosComputerUseService {
     final response = await _invokeJson('pressKey', {
       'key': key,
       'modifiers': ['control'],
+      'physical_modifiers': true,
       'reason': reason is String && reason.trim().isNotEmpty
           ? reason.trim()
           : 'Switch macOS Space after explicit approval.',

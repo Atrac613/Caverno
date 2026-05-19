@@ -175,6 +175,16 @@ fresh runtime evidence is required.
    The desktop action canary does not auto-launch Caverno.app by default, which
    keeps main-app TCC prompts out of the helper-owned canary path.
 
+   If the user is validating the local Release app/helper instead of the default
+   Debug app/helper, use:
+
+   ```bash
+   bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --release-build
+   ```
+
+   This is local Release path evidence only. It is not notarization evidence and
+   does not create M50 signed beta evidence.
+
    If the user wants the canary runner to build and launch the fixture first,
    use:
 
@@ -276,14 +286,14 @@ fresh runtime evidence is required.
 8. Prepare product-lane macOS Spaces evidence before M39/M40 gates:
 
    ```bash
-   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only
+   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only
    ```
 
 9. Ask the user to prepare two macOS Spaces with a harmless inactive-Space
    window, then run:
 
    ```bash
-   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next
+   bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff
    ```
 
    The expected product-lane Spaces path is:

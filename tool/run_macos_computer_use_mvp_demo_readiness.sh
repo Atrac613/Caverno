@@ -393,7 +393,7 @@ if not llm_summary_path:
     )
 if not manual_tcc_report:
     next_user_actions.append(
-        "Run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only` first to print the helper grant target without running M8. Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`."
+        "Run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only` first to print the split permission targets without running M8. Ask the user to run `bash tool/run_macos_computer_use_manual_tcc_signoff.sh` and provide `manual_tcc_report_summary.json`."
     )
 if not desktop_action_summary:
     next_user_actions.append(

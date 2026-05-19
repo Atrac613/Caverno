@@ -414,7 +414,7 @@ void main() {
     );
     expect(
       find.text(
-        'Overlay helper: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+        'Overlay grant targets: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app, /Applications/Caverno.app',
       ),
       findsOneWidget,
     );
@@ -1091,8 +1091,18 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'draggableTileReady': true,
       'helperBundlePath':
           '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
-      'nextAction':
-          'Drag Caverno Computer Use into the permission list, then recheck.',
+      'grantTargetBundlePath': permission == 'screenRecording'
+          ? '/Applications/Caverno.app'
+          : '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'grantTargetDisplayName': permission == 'screenRecording'
+          ? 'Caverno.app'
+          : 'Caverno Computer Use',
+      'grantTargetPermissionLabel': permission == 'screenRecording'
+          ? 'Screen & System Audio Recording'
+          : 'Accessibility',
+      'nextAction': permission == 'screenRecording'
+          ? 'Drag Caverno.app into the permission list, then recheck.'
+          : 'Drag Caverno Computer Use into the permission list, then recheck.',
     });
   }
 
@@ -1271,6 +1281,10 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
             'overlayMode': 'floating_helper_panel',
             'helperBundlePath':
                 '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'grantTargetBundlePath':
+                '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'grantTargetDisplayName': 'Caverno Computer Use',
+            'grantTargetPermissionLabel': 'Accessibility',
             'dragPasteboardTypes': [
               'public.file-url',
               'public.url',
@@ -1290,6 +1304,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
             'overlayMode': 'floating_helper_panel',
             'helperBundlePath':
                 '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'grantTargetBundlePath': '/Applications/Caverno.app',
+            'grantTargetDisplayName': 'Caverno.app',
+            'grantTargetPermissionLabel': 'Screen & System Audio Recording',
             'dragPasteboardTypes': [
               'public.file-url',
               'public.url',

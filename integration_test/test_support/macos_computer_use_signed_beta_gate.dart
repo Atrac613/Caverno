@@ -233,22 +233,218 @@ Map<String, Object?> signedBetaChecklistTemplate() {
     'schemaVersion': 1,
     'milestone': 'M50',
     'automationBoundary': 'user_operated_signed_beta_checks',
-    'notarizedBetaBuild': _readyTemplate(
+    'notarizedBetaBuild': _manualTemplate(
       '<notarization ticket, stapler validation, or signed beta build note>',
     ),
-    'cleanInstall': _readyTemplate('<clean install note or artifact path>'),
-    'upgradeMigration': _readyTemplate(
+    'cleanInstall': _manualTemplate('<clean install note or artifact path>'),
+    'upgradeMigration': _manualTemplate(
       '<upgrade and migration note or artifact path>',
     ),
-    'permissionGrant': _readyTemplate(
+    'permissionGrant': _manualTemplate(
       '<permission grant note or artifact path>',
     ),
-    'permissionRevocation': _readyTemplate(
+    'permissionRevocation': _manualTemplate(
       '<permission revocation recovery note or artifact path>',
     ),
-    'helperRestart': _readyTemplate('<helper restart note or artifact path>'),
-    'xpcFallbackObservability': _readyTemplate(
+    'helperRestart': _manualTemplate('<helper restart note or artifact path>'),
+    'xpcFallbackObservability': _manualTemplate(
       '<XPC fallback diagnostics note or artifact path>',
+    ),
+  };
+}
+
+String signedBetaChecklistHandoffMarkdown({
+  required Directory reportRoot,
+  required MacosComputerUseSignedBetaInputs inputs,
+  String? completedChecklistPath,
+}) {
+  final checklistPath =
+      completedChecklistPath ??
+      '${reportRoot.path}/macos_computer_use_m50_signed_beta_checklist_completed.json';
+  final templatePath =
+      inputs.signedBetaChecklistPath ??
+      '${reportRoot.path}/macos_computer_use_m50_signed_beta_checklist_template.json';
+  final prerequisiteRows = <_M50HandoffArtifact>[
+    _M50HandoffArtifact(
+      label: 'M7 release artifact sign-off',
+      option: '--release-artifact-report',
+      path: inputs.releaseArtifactReportPath,
+      ready: _releaseArtifactReady(inputs.releaseArtifactReport),
+    ),
+    _M50HandoffArtifact(
+      label: 'M33 release packaging',
+      option: '--release-packaging-report',
+      path: inputs.releasePackagingReportPath,
+      ready: _releasePackagingReady(inputs.releasePackagingReport),
+    ),
+    _M50HandoffArtifact(
+      label: 'M46 element-grounded LLM evaluation',
+      option: '--m46-element-grounded-llm-eval',
+      path: inputs.m46ElementGroundedLlmEvalSummaryPath,
+      ready: _m46ElementGroundedReady(inputs.m46ElementGroundedLlmEvalSummary),
+    ),
+    _M50HandoffArtifact(
+      label: 'M48 user-operated action pilot',
+      option: '--m48-user-operated-action-pilot',
+      path: inputs.m48UserOperatedActionPilotPath,
+      ready: _m48ActionPilotReady(inputs.m48UserOperatedActionPilot),
+    ),
+    _M50HandoffArtifact(
+      label: 'M49 privacy and audit release pack',
+      option: '--m49-privacy-audit-release-pack',
+      path: inputs.m49PrivacyAuditReleasePackPath,
+      ready: _m49PrivacyAuditReady(inputs.m49PrivacyAuditReleasePack),
+    ),
+  ];
+  final evidenceItems = <_M50ChecklistEvidence>[
+    const _M50ChecklistEvidence(
+      field: 'notarizedBetaBuild',
+      label: 'Notarized signed beta build',
+      evidence:
+          'Notarization ticket, stapler validation, and signed beta build identifier.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'cleanInstall',
+      label: 'Clean install',
+      evidence:
+          'Clean install result for the signed beta build and the tested macOS version.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'upgradeMigration',
+      label: 'Upgrade and migration',
+      evidence:
+          'Upgrade source build, signed beta target build, and migration result.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'permissionGrant',
+      label: 'Permission grant',
+      evidence:
+          'Helper Accessibility grant and Caverno Screen & System Audio Recording grant result.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'permissionRevocation',
+      label: 'Permission revocation recovery',
+      evidence:
+          'Revocation and recovery result for helper Accessibility plus app Screen & System Audio Recording.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'helperRestart',
+      label: 'Helper restart',
+      evidence:
+          'Restart result showing one signed helper process and healthy app-helper connection.',
+    ),
+    const _M50ChecklistEvidence(
+      field: 'xpcFallbackObservability',
+      label: 'XPC fallback observability',
+      evidence:
+          'Diagnostics or log note showing the signed beta exposes XPC fallback state.',
+    ),
+  ];
+  final command = _m50RerunCommand(
+    reportRoot: reportRoot,
+    completedChecklistPath: checklistPath,
+    artifacts: prerequisiteRows,
+  );
+  final missing = prerequisiteRows
+      .where((artifact) => !artifact.ready)
+      .map((artifact) => artifact.label)
+      .toList(growable: false);
+
+  final buffer = StringBuffer()
+    ..writeln('# macOS Computer Use M50 Signed Beta Handoff')
+    ..writeln()
+    ..writeln('- Boundary: user-operated signed beta evidence only')
+    ..writeln('- TCC grants: user-operated')
+    ..writeln('- Desktop actions: user-operated')
+    ..writeln('- Checklist template: `${_escapeMarkdownCode(templatePath)}`')
+    ..writeln('- Completed checklist: `${_escapeMarkdownCode(checklistPath)}`')
+    ..writeln('- Prerequisite status: ${missing.isEmpty ? 'ready' : 'blocked'}')
+    ..writeln()
+    ..writeln('## Prerequisite Artifacts')
+    ..writeln()
+    ..writeln('| Artifact | Ready | Path |')
+    ..writeln('| --- | --- | --- |');
+  for (final artifact in prerequisiteRows) {
+    buffer.writeln(
+      '| ${_markdownCell(artifact.label)} | ${artifact.ready} | ${_artifactCell(artifact.path)} |',
+    );
+  }
+
+  buffer
+    ..writeln()
+    ..writeln('## User-Operated Evidence')
+    ..writeln()
+    ..writeln('| Checklist Field | Evidence To Record |')
+    ..writeln('| --- | --- |');
+  for (final item in evidenceItems) {
+    buffer.writeln(
+      '| `${item.field}` | ${_markdownCell('${item.label}: ${item.evidence}')} |',
+    );
+  }
+
+  buffer
+    ..writeln()
+    ..writeln('## Completed Checklist Shape')
+    ..writeln()
+    ..writeln('Each field must be concrete evidence, not a placeholder:')
+    ..writeln()
+    ..writeln('```json')
+    ..writeln(
+      const JsonEncoder.withIndent(
+        '  ',
+      ).convert(signedBetaChecklistCompletedExample()),
+    )
+    ..writeln('```')
+    ..writeln()
+    ..writeln('## Rerun Command')
+    ..writeln()
+    ..writeln('```bash')
+    ..writeln(command)
+    ..writeln('```')
+    ..writeln()
+    ..writeln('## Manual Boundary')
+    ..writeln()
+    ..writeln(
+      'This handoff does not sign, notarize, staple, grant TCC, open System Settings, capture screens, click, type, submit, post, purchase, export raw payloads, or operate desktop apps.',
+    )
+    ..writeln();
+  return buffer.toString();
+}
+
+Map<String, Object?> signedBetaChecklistCompletedExample() {
+  Map<String, Object?> readySection(String evidence) {
+    return <String, Object?>{
+      'status': 'ready',
+      'ready': true,
+      'evidence': evidence,
+    };
+  }
+
+  return <String, Object?>{
+    'schemaName': 'macos_computer_use_m50_signed_beta_checklist',
+    'schemaVersion': 1,
+    'milestone': 'M50',
+    'automationBoundary': 'user_operated_signed_beta_checks',
+    'notarizedBetaBuild': readySection(
+      'Signed beta build notarized and stapled; stapler validation passed for Caverno.app.',
+    ),
+    'cleanInstall': readySection(
+      'Clean install completed with signed beta build on the target macOS version.',
+    ),
+    'upgradeMigration': readySection(
+      'Upgrade from the previous build to the signed beta build completed with settings preserved.',
+    ),
+    'permissionGrant': readySection(
+      'Helper Accessibility and Caverno Screen & System Audio Recording grants were completed for the signed beta build.',
+    ),
+    'permissionRevocation': readySection(
+      'Permission revocation and recovery completed for helper Accessibility and app Screen & System Audio Recording.',
+    ),
+    'helperRestart': readySection(
+      'Signed beta app and helper restarted with exactly one helper process and healthy connection.',
+    ),
+    'xpcFallbackObservability': readySection(
+      'Signed beta diagnostics showed XPC fallback observability without raw payload export.',
     ),
   };
 }
@@ -295,7 +491,7 @@ MacosComputerUseSignedBetaSummary buildMacosComputerUseSignedBetaSummary(
       field: 'permissionGrant',
       inputs: inputs,
       nextAction:
-          'Ask the user to grant helper-owned Accessibility and Screen & System Audio Recording for the signed beta build, then record the evidence.',
+          'Ask the user to grant helper-owned Accessibility and Caverno.app Screen & System Audio Recording for the signed beta build, then record the evidence.',
     ),
     _checklistGate(
       id: 'permission_revocation',
@@ -303,7 +499,7 @@ MacosComputerUseSignedBetaSummary buildMacosComputerUseSignedBetaSummary(
       field: 'permissionRevocation',
       inputs: inputs,
       nextAction:
-          'Ask the user to revoke and recover helper-owned permissions for the signed beta build, then record the evidence.',
+          'Ask the user to revoke and recover helper Accessibility plus Caverno.app Screen & System Audio Recording for the signed beta build, then record the evidence.',
     ),
     _checklistGate(
       id: 'helper_restart',
@@ -530,20 +726,30 @@ MacosComputerUseSignedBetaGate _checklistGate({
     );
   }
   final section = _mapValue(checklist[field]);
-  final ready = _readyValue(section);
+  final sectionReady = _readyValue(section);
+  final evidenceReady = _hasConcreteEvidence(section['evidence']);
+  final ready = sectionReady && evidenceReady;
+  final status = ready
+      ? 'ready'
+      : sectionReady && !evidenceReady
+      ? 'evidence_required'
+      : _statusValue(section, fallback: 'blocked');
   return MacosComputerUseSignedBetaGate(
     id: id,
     label: label,
-    status: ready ? 'ready' : _statusValue(section, fallback: 'blocked'),
+    status: status,
     ready: ready,
     nextAction: ready
         ? '$label signed beta evidence is ready.'
+        : sectionReady && !evidenceReady
+        ? 'Replace the $label placeholder with concrete signed beta evidence before M50 can pass.'
         : (section['nextAction'] as String? ?? nextAction),
     userOperated: true,
     artifactPath: inputs.signedBetaChecklistPath,
     details: <String, Object?>{
       'checklistField': field,
       'evidence': section['evidence'],
+      'evidenceReady': evidenceReady,
       'notes': section['notes'],
     },
   );
@@ -618,8 +824,8 @@ MacosComputerUseSignedBetaGate _m48UserOperatedActionCycleGate(
       pilot['ready'] == true &&
       gate['status'] == 'ready' &&
       _stringList(gate['blockers']).isEmpty &&
-      pilot['desktopActionBoundary'] == 'user_operated' &&
-      pilot['tccBoundary'] == 'user_operated' &&
+      _m48DesktopActionBoundaryReady(pilot['desktopActionBoundary']) &&
+      _m48TccBoundaryReady(pilot['tccBoundary']) &&
       pilot['llmBoundary'] == 'no_llm_call';
   return MacosComputerUseSignedBetaGate(
     id: 'user_operated_action_cycle',
@@ -693,12 +899,165 @@ bool _readyValue(Map<String, dynamic> section) {
       section['status'] == 'passed';
 }
 
-Map<String, Object?> _readyTemplate(String evidence) {
+Map<String, Object?> _manualTemplate(String evidence) {
   return <String, Object?>{
-    'status': 'ready',
-    'ready': true,
+    'status': 'manual_required',
+    'ready': false,
     'evidence': evidence,
+    'nextAction':
+        'Replace this placeholder with concrete signed beta evidence.',
   };
+}
+
+bool _hasConcreteEvidence(Object? value) {
+  if (value is String) {
+    final trimmed = value.trim();
+    return trimmed.isNotEmpty && !_looksLikePlaceholder(trimmed);
+  }
+  if (value is Iterable) {
+    return value.any(_hasConcreteEvidence);
+  }
+  if (value is Map) {
+    return value.values.any(_hasConcreteEvidence);
+  }
+  return value != null;
+}
+
+bool _looksLikePlaceholder(String value) {
+  final lower = value.trim().toLowerCase();
+  if (lower.startsWith('<') && lower.endsWith('>')) {
+    return true;
+  }
+  return lower == 'todo' || lower == 'tbd' || lower == 'replace-me';
+}
+
+bool _m48DesktopActionBoundaryReady(Object? value) {
+  return value == 'user_operated_evidence_only' || value == 'user_operated';
+}
+
+bool _m48TccBoundaryReady(Object? value) {
+  return value == 'no_tcc_operation' || value == 'user_operated';
+}
+
+bool _releaseArtifactReady(Map<String, dynamic>? report) {
+  if (report == null) {
+    return false;
+  }
+  final gate = _mapValue(report['releaseSignoffGate']);
+  return gate['status'] == 'ready' && _stringList(gate['blockers']).isEmpty;
+}
+
+bool _releasePackagingReady(Map<String, dynamic>? packaging) {
+  if (packaging == null) {
+    return false;
+  }
+  const requiredIds = <String>{
+    'main_release_entitlements',
+    'helper_release_entitlements',
+    'hardened_runtime',
+    'helper_bundle_identity',
+    'launch_agent_mach_service',
+    'embed_helper_phase',
+    'identity_free_signing_defaults',
+  };
+  final readyIds = <String>{};
+  for (final check in _listValue(packaging['checks'])) {
+    if (check is Map && check['ok'] == true) {
+      readyIds.add('${check['id']}');
+    }
+  }
+  return packaging['schemaName'] ==
+          'macos_computer_use_m33_release_packaging' &&
+      packaging['ready'] == true &&
+      readyIds.containsAll(requiredIds);
+}
+
+bool _m46ElementGroundedReady(Map<String, dynamic>? summary) {
+  if (summary == null) {
+    return false;
+  }
+  final gate = _mapValue(summary['m46ElementGroundedLlmEvaluationGate']);
+  final coverage = _listValue(summary['requiredCoverage']);
+  return summary['schemaName'] ==
+          'macos_computer_use_m46_element_grounded_llm_eval_summary' &&
+      summary['ready'] == true &&
+      gate['ok'] == true &&
+      coverage.isNotEmpty &&
+      coverage.every((item) => item is Map && item['ok'] == true);
+}
+
+bool _m48ActionPilotReady(Map<String, dynamic>? pilot) {
+  if (pilot == null) {
+    return false;
+  }
+  final gate = _mapValue(pilot['m48UserOperatedActionPilotGate']);
+  return pilot['schemaName'] ==
+          'macos_computer_use_m48_user_operated_action_pilot' &&
+      pilot['ready'] == true &&
+      gate['status'] == 'ready' &&
+      _stringList(gate['blockers']).isEmpty &&
+      _m48DesktopActionBoundaryReady(pilot['desktopActionBoundary']) &&
+      _m48TccBoundaryReady(pilot['tccBoundary']) &&
+      pilot['llmBoundary'] == 'no_llm_call';
+}
+
+bool _m49PrivacyAuditReady(Map<String, dynamic>? pack) {
+  if (pack == null) {
+    return false;
+  }
+  final gate = _mapValue(pack['m49PrivacyAuditReleasePackGate']);
+  return pack['schemaName'] ==
+          'macos_computer_use_m49_privacy_audit_release_pack' &&
+      pack['ready'] == true &&
+      gate['status'] == 'ready' &&
+      _stringList(gate['blockers']).isEmpty &&
+      pack['desktopActionBoundary'] == 'no_desktop_action' &&
+      pack['tccBoundary'] == 'no_tcc_operation' &&
+      pack['llmBoundary'] == 'no_llm_call' &&
+      pack['rawPayloadExportBoundary'] == 'no_raw_payload_export';
+}
+
+String _m50RerunCommand({
+  required Directory reportRoot,
+  required String completedChecklistPath,
+  required List<_M50HandoffArtifact> artifacts,
+}) {
+  String pathFor(String option, String placeholder) {
+    for (final artifact in artifacts) {
+      if (artifact.option != option) {
+        continue;
+      }
+      final path = artifact.path;
+      if (path == null || path.trim().isEmpty) {
+        return placeholder;
+      }
+      return _shellQuote(path);
+    }
+    return placeholder;
+  }
+
+  return 'bash tool/run_macos_computer_use_m50_signed_beta_gate.sh '
+      '--signed-beta-checklist ${_shellQuote(completedChecklistPath)} '
+      '--release-artifact-report ${pathFor('--release-artifact-report', '<release-artifact-signoff.json>')} '
+      '--release-packaging-report ${pathFor('--release-packaging-report', '<macos_computer_use_release_packaging.json>')} '
+      '--m46-element-grounded-llm-eval ${pathFor('--m46-element-grounded-llm-eval', '<canary_summary.json>')} '
+      '--m48-user-operated-action-pilot ${pathFor('--m48-user-operated-action-pilot', '<user_operated_action_pilot.json>')} '
+      '--m49-privacy-audit-release-pack ${pathFor('--m49-privacy-audit-release-pack', '<privacy_audit_release_pack.json>')} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _shellQuote(String value) {
+  if (value.isEmpty) {
+    return "''";
+  }
+  if (!RegExp(r'''[^A-Za-z0-9_@%+=:,./-]''').hasMatch(value)) {
+    return value;
+  }
+  return "'${value.replaceAll("'", "'\"'\"'")}'";
+}
+
+String _escapeMarkdownCode(String value) {
+  return value.replaceAll('`', r'\`');
 }
 
 String _statusValue(Map<dynamic, dynamic> json, {required String fallback}) {
@@ -796,4 +1155,30 @@ String _artifactCell(String? path) {
 
 String _markdownCell(Object? value) {
   return '$value'.replaceAll('|', r'\|').replaceAll('\n', '<br>');
+}
+
+class _M50HandoffArtifact {
+  const _M50HandoffArtifact({
+    required this.label,
+    required this.option,
+    required this.path,
+    required this.ready,
+  });
+
+  final String label;
+  final String option;
+  final String? path;
+  final bool ready;
+}
+
+class _M50ChecklistEvidence {
+  const _M50ChecklistEvidence({
+    required this.field,
+    required this.label,
+    required this.evidence,
+  });
+
+  final String field;
+  final String label;
+  final String evidence;
 }

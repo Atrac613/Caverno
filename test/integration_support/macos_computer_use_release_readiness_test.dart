@@ -1919,7 +1919,7 @@ void main() {
       expect(recommendation.artifactId, 'spaces_canary');
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only',
       );
       expect(recommendation.requiresUserOperation, isTrue);
     });
@@ -4408,7 +4408,7 @@ CODE_SIGN_IDENTITY = Developer ID Application
       );
       expect(
         recommendation.recommendedCommand,
-        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only',
       );
     });
 
@@ -4578,6 +4578,53 @@ CODE_SIGN_IDENTITY = Developer ID Application
           '--m50-signed-beta-gate <macos_computer_use_m50_signed_beta_gate.json>',
         ),
       );
+    });
+
+    test('M31 navigator guides M50 evidence-required checklist blockers', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m31_navigator_m50_evidence_required_test_',
+      );
+      addTearDown(() {
+        root.deleteSync(recursive: true);
+      });
+
+      final m50Path =
+          '${root.path}/macos_computer_use_m50_signed_beta_gate_999/macos_computer_use_m50_signed_beta_gate.json';
+      _writeJson(File(m50Path), _m50SignedBetaGate(ready: false));
+
+      final index = buildReadinessArtifactIndex(root);
+      final entry = index.entries.singleWhere(
+        (entry) => entry.id == 'm50_signed_beta_gate',
+      );
+      final recommendation = index.nextStepNavigator.recommendation;
+
+      expect(entry.exists, isTrue);
+      expect(entry.status, 'blocked');
+      expect(entry.nextAction, contains('concrete evidence'));
+      expect(
+        entry.details['evidenceRequiredGateIds'],
+        contains('notarized_beta_build'),
+      );
+      expect(
+        entry.details['evidenceRequiredGateIds'],
+        contains('xpc_fallback_observability'),
+      );
+      expect(recommendation.priority, 'resolve_blocked_evidence');
+      expect(recommendation.artifactId, 'm50_signed_beta_gate');
+      expect(recommendation.requiresUserOperation, isTrue);
+      expect(
+        recommendation.nextAction,
+        contains('Complete the M50 signed beta checklist'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('<completed-m50-signed-beta-checklist.json>'),
+      );
+      expect(
+        recommendation.recommendedCommand,
+        contains('--release-artifact-report /tmp/release.json'),
+      );
+      expect(index.toMarkdown(), contains('Evidence-required gates'));
     });
 
     test('M31 navigator recommends M52 after M51 is ready', () {
@@ -7079,6 +7126,121 @@ Map<String, dynamic> _m40ProductionLaunchGate({required bool ready}) {
             : 'Run the M39 beta sign-off first.',
         'userOperated': true,
       },
+    ],
+  };
+}
+
+Map<String, dynamic> _m50SignedBetaGate({required bool ready}) {
+  final manualGateIds = <String>[
+    'notarized_beta_build',
+    'clean_install',
+    'upgrade_migration',
+    'permission_grant',
+    'permission_revocation',
+    'helper_restart',
+    'xpc_fallback_observability',
+  ];
+  final automationReadyGateIds = <String>[
+    'signed_beta_artifact',
+    'release_packaging_lane',
+    'element_grounded_llm_evaluation',
+    'user_operated_action_cycle',
+    'privacy_audit_release_pack',
+  ];
+  final blockedGateIds = ready ? <String>[] : manualGateIds;
+  final readyGateIds = ready
+      ? <String>[...automationReadyGateIds, ...manualGateIds]
+      : automationReadyGateIds;
+
+  Map<String, Object?> gate({
+    required String id,
+    required String label,
+    required bool userOperated,
+    required String artifactPath,
+  }) {
+    final blocked = blockedGateIds.contains(id);
+    return <String, Object?>{
+      'id': id,
+      'label': label,
+      'status': blocked ? 'evidence_required' : 'ready',
+      'ready': !blocked,
+      'nextAction': blocked
+          ? 'Replace the $label placeholder with concrete signed beta evidence before M50 can pass.'
+          : '$label evidence is ready.',
+      'userOperated': userOperated,
+      'artifactPath': artifactPath,
+    };
+  }
+
+  return <String, dynamic>{
+    'schemaName': 'macos_computer_use_m50_signed_beta_gate',
+    'schemaVersion': 1,
+    'milestone': 'M50',
+    'automationBoundary': 'read_reports_only',
+    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated',
+    'status': ready ? 'ready' : 'blocked',
+    'ready': ready,
+    'readyGateIds': readyGateIds,
+    'blockedGateIds': blockedGateIds,
+    'userOperatedGateIds': manualGateIds,
+    'signedBetaReviewSummary': <String, Object?>{
+      'status': ready ? 'ready_for_signed_beta' : 'blocked_gates_present',
+      'readyGateIds': readyGateIds,
+      'blockedGateIds': blockedGateIds,
+      'blockedUserOperatedGateIds': blockedGateIds,
+      'blockedAutomationSafeGateIds': <String>[],
+      'operationBoundarySummary':
+          'M50 reads signed beta evidence only; signed beta checks remain user-operated.',
+    },
+    'm50SignedBetaGate': <String, Object?>{
+      'status': ready ? 'ready' : 'blocked',
+      'ready': ready,
+      'blockers': blockedGateIds
+          .map((id) => '$id:evidence_required')
+          .toList(growable: false),
+      'nextAction': ready
+          ? 'M50 signed beta evidence is ready for M51 production launch gate refresh.'
+          : 'Resolve blocked M50 signed beta checks before starting M51.',
+    },
+    'gates': <Map<String, Object?>>[
+      gate(
+        id: 'signed_beta_artifact',
+        label: 'Signed beta artifact',
+        userOperated: false,
+        artifactPath: '/tmp/release.json',
+      ),
+      gate(
+        id: 'release_packaging_lane',
+        label: 'Release packaging lane',
+        userOperated: false,
+        artifactPath: '/tmp/packaging.json',
+      ),
+      for (final id in manualGateIds)
+        gate(
+          id: id,
+          label: id,
+          userOperated: true,
+          artifactPath: '/tmp/m50-checklist.json',
+        ),
+      gate(
+        id: 'element_grounded_llm_evaluation',
+        label: 'Element-grounded LLM evaluation',
+        userOperated: false,
+        artifactPath: '/tmp/m46.json',
+      ),
+      gate(
+        id: 'user_operated_action_cycle',
+        label: 'User-operated action cycle',
+        userOperated: true,
+        artifactPath: '/tmp/m48.json',
+      ),
+      gate(
+        id: 'privacy_audit_release_pack',
+        label: 'Privacy and audit release pack',
+        userOperated: true,
+        artifactPath: '/tmp/m49.json',
+      ),
     ],
   };
 }

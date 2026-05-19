@@ -10,10 +10,13 @@ RUN_DIR="${REPORT_ROOT}/macos_computer_use_spaces_canary_${RUN_ID}"
 SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 SUMMARY_EXIT_STATUS="${RUN_DIR}/summary_exit_status"
+APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_APP_PATH:-}"
+HELPER_PATH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_HELPER_PATH:-}"
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_SPACES_LAUNCH_CAVERNO:-0}"
 REQUIRE_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_INACTIVE_WINDOW:-0}"
 FOCUS_INACTIVE_SPACE_WINDOW="${CAVERNO_MACOS_COMPUTER_USE_SPACES_FOCUS_INACTIVE_WINDOW:-0}"
 SWITCH_SPACE_DIRECTION="${CAVERNO_MACOS_COMPUTER_USE_SPACES_SWITCH_DIRECTION:-}"
+REQUIRE_APP_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_APP_PATH_MATCH:-0}"
 REQUIRE_HELPER_PATH_MATCH="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REQUIRE_HELPER_PATH_MATCH:-0}"
 REPLACE_HELPER="${CAVERNO_MACOS_COMPUTER_USE_SPACES_REPLACE_HELPER:-0}"
 HANDOFF_ONLY=0
@@ -50,7 +53,10 @@ print_spaces_canary_context() {
   echo "  Focus inactive Space window: ${FOCUS_INACTIVE_SPACE_WINDOW}"
   echo "  Switch Space direction: ${SWITCH_SPACE_DIRECTION:-not requested}"
   echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
+  echo "  App path: ${APP_PATH:-default debug app}"
+  echo "  Helper path: ${HELPER_PATH:-default embedded helper}"
   echo "  Require inactive Space window: ${REQUIRE_INACTIVE_SPACE_WINDOW}"
+  echo "  Require app path match: ${REQUIRE_APP_PATH_MATCH}"
   echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
   echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
   echo "  Report dir: ${RUN_DIR}"
@@ -68,6 +74,16 @@ while [[ $# -gt 0 ]]; do
     --report-root)
       require_value "$@"
       REPORT_ROOT="$2"
+      shift 2
+      ;;
+    --app)
+      require_value "$@"
+      APP_PATH="$2"
+      shift 2
+      ;;
+    --helper)
+      require_value "$@"
+      HELPER_PATH="$2"
       shift 2
       ;;
     --launch-caverno)
@@ -100,11 +116,18 @@ while [[ $# -gt 0 ]]; do
       REQUIRE_HELPER_PATH_MATCH=1
       shift
       ;;
+    --require-app-path-match)
+      REQUIRE_APP_PATH_MATCH=1
+      shift
+      ;;
     --replace-helper)
       REPLACE_HELPER=1
       shift
       ;;
     --release-helper-signoff)
+      APP_PATH="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
+      HELPER_PATH="${APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
+      REQUIRE_APP_PATH_MATCH=1
       REQUIRE_HELPER_PATH_MATCH=1
       REPLACE_HELPER=1
       shift
@@ -120,6 +143,8 @@ Usage: bash tool/run_macos_computer_use_spaces_canary.sh [options]
 Options:
   --repeat COUNT       Run the canary multiple times.
   --report-root PATH   Report root directory.
+  --app PATH           Expected Caverno.app path for the probe.
+  --helper PATH        Expected Caverno Computer Use helper path for the probe.
   --launch-caverno     Also launch Caverno.app from this script. By default the
                        no-build probe requires Caverno.app to be already running
                        so the script does not trigger main-app TCC prompts.
@@ -127,9 +152,9 @@ Options:
                        Require at least one window marked outside the active
                        Space. Prepare two macOS Spaces manually before running.
   --focus-inactive-space-window
-                       User-operated focus canary: focus the first inactive
-                       Space window, then list active Space windows again.
-                       This requires Accessibility and may switch Spaces.
+                       User-operated focus canary: focus a normal inactive
+                       Space window candidate, then list active Space windows
+                       again. This requires Accessibility and may switch Spaces.
   --switch-space-next  User-operated Space switch canary: send Control-Right,
                        then list active Space windows again. Prepare an
                        adjacent Space and enable Mission Control shortcuts.
@@ -141,9 +166,12 @@ Options:
                        Equivalent explicit Space switch direction.
   --require-helper-path-match
                        Fail when the running helper is not the embedded helper.
+  --require-app-path-match
+                       Fail when the running Caverno.app does not match --app.
   --replace-helper     Stop a mismatched running helper before probing.
   --release-helper-signoff
-                       Equivalent to --require-helper-path-match --replace-helper.
+                       Use the release app/helper paths and replace a
+                       mismatched helper before probing.
   --handoff-only       Print the Spaces setup checklist and expected report
                        paths without running the canary.
 
@@ -213,6 +241,12 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
     --report "${run_report}"
     --spaces-canary
   )
+  if [[ -n "${APP_PATH}" ]]; then
+    probe_args+=(--app "${APP_PATH}")
+  fi
+  if [[ -n "${HELPER_PATH}" ]]; then
+    probe_args+=(--helper "${HELPER_PATH}")
+  fi
   if [[ "${LAUNCH_CAVERNO_APP}" != "1" ]]; then
     probe_args+=(--no-launch-app)
   fi
@@ -227,6 +261,9 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
   if [[ "${REQUIRE_HELPER_PATH_MATCH}" == "1" ]]; then
     probe_args+=(--require-helper-path-match)
+  fi
+  if [[ "${REQUIRE_APP_PATH_MATCH}" == "1" ]]; then
+    probe_args+=(--require-app-path-match)
   fi
   if [[ "${REPLACE_HELPER}" == "1" ]]; then
     probe_args+=(--replace-helper)
@@ -291,12 +328,19 @@ for report_file in sorted(run_dir.glob("run_*.json")):
         "allSpacesWindowCount": gate.get("allSpacesWindowCount", 0),
         "inactiveSpaceWindowCount": gate.get("inactiveSpaceWindowCount", 0),
         "focusWindowSent": focus_gate.get("focusWindowSent", False),
+        "focusWindowConfirmed": focus_gate.get("focusWindowConfirmed", False),
         "postFocusTargetVisible": focus_gate.get("postFocusTargetVisible", False),
         "switchKeySent": switch_gate.get("switchKeySent", False),
         "switchKeyOk": switch_gate.get("switchKeyOk", False),
+        "physicalModifiers": switch_gate.get("physicalModifiers", False),
+        "physicalModifierKeys": switch_gate.get("physicalModifierKeys", []),
         "postSwitchActiveSpaceObserved": switch_gate.get(
             "postSwitchActiveSpaceObserved",
             False,
+        ),
+        "postSwitchObservationAttempts": switch_gate.get(
+            "postSwitchObservationAttempts",
+            [],
         ),
         "activeWindowInventoryChanged": switch_gate.get(
             "activeWindowInventoryChanged",
@@ -316,7 +360,9 @@ for report_file in sorted(run_dir.glob("run_*.json")):
 failed = [run for run in runs if not run.get("ok")]
 inactive_seen = any((run.get("inactiveSpaceWindowCount") or 0) > 0 for run in runs)
 focus_ready = (not focus_inactive) or all(
-    run.get("focusWindowSent") and run.get("postFocusTargetVisible")
+    run.get("focusWindowSent") and
+    run.get("focusWindowConfirmed") and
+    run.get("postFocusTargetVisible")
     for run in runs
 )
 switch_ready = (not switch_space) or all(

@@ -388,15 +388,134 @@ private func isInactiveSpaceWindow(_ window: [String: Any]) -> Bool {
   return !status.isEmpty && status != "active_space_visible"
 }
 
-private func firstInactiveSpaceWindow(_ response: [String: Any]) -> [String: Any]? {
-  for window in windowsArray(response) {
-    guard let normalized = normalizedWindow(window),
-      isInactiveSpaceWindow(normalized) else {
-      continue
-    }
-    return normalized
+private func numberValue(_ value: Any?) -> Double? {
+  if let number = value as? NSNumber {
+    return number.doubleValue
+  }
+  if let double = value as? Double {
+    return double
+  }
+  if let int = value as? Int {
+    return Double(int)
   }
   return nil
+}
+
+private func focusableInactiveSpaceWindowScore(_ window: [String: Any]) -> Int? {
+  guard isInactiveSpaceWindow(window) else {
+    return nil
+  }
+
+  let appName = (window["appName"] as? String ?? "").lowercased()
+  let title = (window["title"] as? String ?? "").trimmingCharacters(
+    in: .whitespacesAndNewlines
+  )
+  let knownServiceApps = [
+    "cursoruiviewservice",
+    "systemuiserver",
+    "controlcenter",
+    "notificationcenter",
+    "textinputmenuagent",
+  ]
+  if knownServiceApps.contains(where: { appName.contains($0) }) {
+    return nil
+  }
+
+  if let layer = numberValue(window["layer"]), layer != 0 {
+    return nil
+  }
+  if let alpha = numberValue(window["alpha"]), alpha <= 0 {
+    return nil
+  }
+
+  let bounds = window["bounds"] as? [String: Any] ?? [:]
+  let width = numberValue(bounds["width"]) ?? 0
+  let height = numberValue(bounds["height"]) ?? 0
+  guard width >= 160, height >= 120 else {
+    return nil
+  }
+
+  var score = 0
+  if !title.isEmpty {
+    score += 100
+  }
+  if width >= 360, height >= 240 {
+    score += 40
+  }
+  if !appName.isEmpty {
+    score += 20
+  }
+  return score
+}
+
+private func windowFocusSignature(_ window: [String: Any]) -> String? {
+  let appName = (window["appName"] as? String ?? "").trimmingCharacters(
+    in: .whitespacesAndNewlines
+  )
+  let title = (window["title"] as? String ?? "").trimmingCharacters(
+    in: .whitespacesAndNewlines
+  )
+  guard !appName.isEmpty, !title.isEmpty else {
+    return nil
+  }
+  return "\(appName.lowercased())\u{0}\(title.lowercased())"
+}
+
+private func windowAppName(_ window: [String: Any]) -> String? {
+  let appName = (window["appName"] as? String ?? "").trimmingCharacters(
+    in: .whitespacesAndNewlines
+  )
+  return appName.isEmpty ? nil : appName.lowercased()
+}
+
+private func activeWindowAppNames(_ response: [String: Any]) -> Set<String> {
+  Set(windowsArray(response).compactMap { window in
+    windowAppName(normalizedWindow(window) ?? window)
+  })
+}
+
+private func activeWindowFocusSignatures(_ response: [String: Any]) -> Set<String> {
+  Set(windowsArray(response).compactMap { window in
+    windowFocusSignature(normalizedWindow(window) ?? window)
+  })
+}
+
+private func firstFocusableInactiveSpaceWindow(
+  _ response: [String: Any],
+  activeWindows: [String: Any]
+) -> [String: Any]? {
+  let activeApps = activeWindowAppNames(activeWindows)
+  let activeSignatures = activeWindowFocusSignatures(activeWindows)
+  var bestDistinctAppWindow: [String: Any]?
+  var bestDistinctAppScore = Int.min
+  var bestDistinctWindow: [String: Any]?
+  var bestDistinctScore = Int.min
+  var bestFallbackWindow: [String: Any]?
+  var bestFallbackScore = Int.min
+
+  for window in windowsArray(response) {
+    guard let normalized = normalizedWindow(window),
+      let score = focusableInactiveSpaceWindowScore(normalized) else {
+      continue
+    }
+    if score > bestFallbackScore {
+      bestFallbackWindow = normalized
+      bestFallbackScore = score
+    }
+    let signature = windowFocusSignature(normalized)
+    let duplicatesActiveWindow = signature.map(activeSignatures.contains) ?? false
+    let appName = windowAppName(normalized)
+    let duplicatesActiveApp = appName.map(activeApps.contains) ?? false
+    if !duplicatesActiveApp, !duplicatesActiveWindow, score > bestDistinctAppScore {
+      bestDistinctAppWindow = normalized
+      bestDistinctAppScore = score
+    }
+    if !duplicatesActiveWindow, score > bestDistinctScore {
+      bestDistinctWindow = normalized
+      bestDistinctScore = score
+    }
+  }
+  return bestDistinctAppWindow ?? bestDistinctWindow ?? bestFallbackWindow
 }
 
 private func windowInventoryContains(windowID: Int, response: [String: Any]) -> Bool {
@@ -413,6 +532,21 @@ private func windowIdSet(_ response: [String: Any]) -> Set<Int> {
 
 private func sortedWindowIds(_ response: [String: Any]) -> [Int] {
   windowIdSet(response).sorted()
+}
+
+private func activeSpaceInventoryAttempt(
+  attempt: Int,
+  response: [String: Any],
+  beforeWindowIds: Set<Int>
+) -> [String: Any] {
+  let currentWindowIds = windowIdSet(response)
+  return [
+    "attempt": attempt,
+    "ok": response["ok"] as? Bool ?? false,
+    "activeWindowCount": currentWindowIds.count,
+    "activeWindowIds": currentWindowIds.sorted(),
+    "activeWindowInventoryChanged": currentWindowIds != beforeWindowIds,
+  ]
 }
 
 private func fixtureWindow(_ response: [String: Any]) -> [String: Any]? {
@@ -585,6 +719,7 @@ private func buildSpacesFocusCanaryGate(
 ) -> [String: Any] {
   let targetWindowId = intWindowId(targetWindow)
   let focusOk = focusResult["ok"] as? Bool ?? false
+  let focusConfirmed = focusResult["focusedWindow"] as? Bool ?? false
   let postFocusOk = postFocusActiveWindows["ok"] as? Bool ?? false
   let targetVisibleAfterFocus = targetWindowId.map {
     windowInventoryContains(windowID: $0, response: postFocusActiveWindows)
@@ -596,6 +731,9 @@ private func buildSpacesFocusCanaryGate(
   }
   if !focusOk {
     blockers.append("focus_window_failed")
+  }
+  if focusOk && !focusConfirmed {
+    blockers.append("focus_window_not_confirmed")
   }
   if !postFocusOk {
     blockers.append("post_focus_active_space_inventory_failed")
@@ -615,12 +753,13 @@ private func buildSpacesFocusCanaryGate(
     "targetWindowId": jsonValue(targetWindowId),
     "focusWindowSent": targetWindowId != nil,
     "focusWindowOk": focusOk,
+    "focusWindowConfirmed": focusConfirmed,
     "postFocusActiveSpaceObserved": postFocusOk,
     "postFocusTargetVisible": targetVisibleAfterFocus,
     "blockers": blockers,
     "nextAction": ready
       ? "Focus canary verified that the inactive-Space target became visible in the active Space inventory. Run computer_vision_observe before any pointer or keyboard input."
-      : "Prepare a harmless window on another Space, grant Accessibility to the helper, then rerun the focus canary.",
+      : "Prepare a normal harmless app window from an app that is not visible on the active Space, grant Accessibility to the helper, then rerun the focus canary.",
   ]
 }
 
@@ -657,8 +796,12 @@ private func buildSpacesSwitchCanaryGate(
   let beforeWindowIds = sortedWindowIds(beforeActiveWindows)
   let postSwitchWindowIds = sortedWindowIds(postSwitchActiveWindows)
   let switchKeyOk = switchResult["ok"] as? Bool ?? false
+  let physicalModifiers = switchResult["physicalModifiers"] as? Bool ?? false
+  let physicalModifierKeys = switchResult["physicalModifierKeys"] as? [Any] ?? []
   let postSwitchOk = postSwitchActiveWindows["ok"] as? Bool ?? false
   let activeWindowInventoryChanged = beforeWindowIds != postSwitchWindowIds
+  let observationAttempts =
+    postSwitchActiveWindows["observationAttempts"] as? [[String: Any]] ?? []
 
   var blockers: [String] = []
   if keyName == nil {
@@ -666,6 +809,9 @@ private func buildSpacesSwitchCanaryGate(
   }
   if !switchKeyOk {
     blockers.append("space_switch_keypress_failed")
+  }
+  if switchKeyOk && !physicalModifiers {
+    blockers.append("physical_modifier_key_events_missing")
   }
   if !postSwitchOk {
     blockers.append("post_switch_active_space_inventory_failed")
@@ -686,12 +832,15 @@ private func buildSpacesSwitchCanaryGate(
     "modifiers": ["control"],
     "switchKeySent": keyName != nil,
     "switchKeyOk": switchKeyOk,
+    "physicalModifiers": physicalModifiers,
+    "physicalModifierKeys": physicalModifierKeys,
     "postSwitchActiveSpaceObserved": postSwitchOk,
     "activeWindowInventoryChanged": activeWindowInventoryChanged,
     "beforeActiveWindowIds": beforeWindowIds,
     "postSwitchActiveWindowIds": postSwitchWindowIds,
     "beforeActiveWindowCount": beforeWindowIds.count,
     "postSwitchActiveWindowCount": postSwitchWindowIds.count,
+    "postSwitchObservationAttempts": observationAttempts,
     "blockers": blockers,
     "nextAction": ready
       ? "Space switch canary verified Control-Left/Right changed the active Space inventory. Run computer_vision_observe before any pointer or keyboard input."
@@ -934,7 +1083,10 @@ if let appProcessIdentifier {
     }
   }
   if config.spacesFocusCanary {
-    spacesFocusTargetWindow = firstInactiveSpaceWindow(allSpacesWindows)
+    spacesFocusTargetWindow = firstFocusableInactiveSpaceWindow(
+      allSpacesWindows,
+      activeWindows: windows
+    )
     if let windowId = intWindowId(spacesFocusTargetWindow) {
       spacesFocusWindow = runStep(
         &steps,
@@ -996,28 +1148,48 @@ if let appProcessIdentifier {
           arguments: [
             "key": keyName,
             "modifiers": ["control"],
+            "physical_modifiers": true,
             "reason": "Spaces switch canary was explicitly user-operated and limited to a Space-switch keypress plus re-observation.",
           ],
           senderProcessIdentifier: appProcessIdentifier,
           timeout: 4
         )
       }
-      Thread.sleep(forTimeInterval: 0.8)
       spacesPostSwitchActiveWindows = runStep(
         &steps,
         id: "spaces_post_switch_active_windows",
         label: "List active Space windows after switching Spaces"
       ) {
-        client.send(
-          command: "listWindows",
-          arguments: [
-            "max_windows": 80,
-            "include_current_app": false,
-            "main_app_pid": appProcessIdentifier,
-          ],
-          senderProcessIdentifier: appProcessIdentifier,
-          timeout: 4
-        )
+        let beforeWindowIds = windowIdSet(windows)
+        var attempts: [[String: Any]] = []
+        var finalResponse: [String: Any] = [:]
+        for attempt in 1...6 {
+          Thread.sleep(forTimeInterval: 0.45)
+          let response = client.send(
+            command: "listWindows",
+            arguments: [
+              "max_windows": 80,
+              "include_current_app": false,
+              "main_app_pid": appProcessIdentifier,
+            ],
+            senderProcessIdentifier: appProcessIdentifier,
+            timeout: 4
+          )
+          finalResponse = response
+          let attemptReport = activeSpaceInventoryAttempt(
+            attempt: attempt,
+            response: response,
+            beforeWindowIds: beforeWindowIds
+          )
+          attempts.append(attemptReport)
+          if attemptReport["ok"] as? Bool ?? false,
+            attemptReport["activeWindowInventoryChanged"] as? Bool ?? false {
+            break
+          }
+        }
+        finalResponse["observationAttempts"] = attempts
+        finalResponse["observedInventoryChange"] = windowIdSet(finalResponse) != beforeWindowIds
+        return finalResponse
       }
     } else {
       steps.append([

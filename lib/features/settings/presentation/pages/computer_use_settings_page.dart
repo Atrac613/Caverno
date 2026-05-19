@@ -2243,7 +2243,9 @@ class _IpcRuntimeSummary extends StatelessWidget {
       ..._stringList(accessibilityOverlay?['dragPasteboardTypes']),
       ..._stringList(screenRecordingOverlay?['dragPasteboardTypes']),
     ]);
-    final overlayHelperPaths = _uniqueStrings([
+    final overlayGrantTargetPaths = _uniqueStrings([
+      _stringValue(accessibilityOverlay?['grantTargetBundlePath']),
+      _stringValue(screenRecordingOverlay?['grantTargetBundlePath']),
       _stringValue(accessibilityOverlay?['helperBundlePath']),
       _stringValue(screenRecordingOverlay?['helperBundlePath']),
     ]).map(_shortPath).toList(growable: false);
@@ -2593,10 +2595,10 @@ class _IpcRuntimeSummary extends StatelessWidget {
                 label: 'Overlay pasteboard',
                 value: overlayPasteboardTypes.join(', '),
               ),
-            if (overlayHelperPaths.isNotEmpty)
+            if (overlayGrantTargetPaths.isNotEmpty)
               _InfoChip(
-                label: 'Overlay helper',
-                value: overlayHelperPaths.join(', '),
+                label: 'Overlay grant targets',
+                value: overlayGrantTargetPaths.join(', '),
               ),
             if (overlayBlockers.isNotEmpty)
               _InfoChip(

@@ -114,6 +114,56 @@ void main() {
       },
     );
 
+    test('blocks ready checklist sections with placeholder evidence', () {
+      final root = Directory.systemTemp.createTempSync(
+        'computer_use_m50_signed_beta_placeholder_',
+      );
+      addTearDown(() => root.deleteSync(recursive: true));
+
+      _writeJson(
+        '${root.path}/manual/m50_signed_beta_checklist.json',
+        _signedBetaChecklistWithPlaceholderEvidence(),
+      );
+      _writeJson(
+        '${root.path}/m7/release_artifact.json',
+        _releaseArtifactReport(),
+      );
+      _writeJson(
+        '${root.path}/macos_computer_use_release_packaging.json',
+        _releasePackagingReport(),
+      );
+      _writeJson(
+        '${root.path}/m46/canary_summary.json',
+        _m46ElementGroundedLlmEvalSummary(),
+      );
+      _writeJson(
+        '${root.path}/m48/user_operated_action_pilot.json',
+        _m48UserOperatedActionPilot(),
+      );
+      _writeJson(
+        '${root.path}/m49/privacy_audit_release_pack.json',
+        _m49PrivacyAuditReleasePack(),
+      );
+
+      final summary = buildMacosComputerUseSignedBetaSummary(
+        readMacosComputerUseSignedBetaInputs(reportRoot: root),
+      );
+      final placeholderGate = summary.gates.singleWhere(
+        (gate) => gate.id == 'notarized_beta_build',
+      );
+      final blockedIds = summary.blockedGates
+          .map((gate) => gate.id)
+          .toList(growable: false);
+
+      expect(summary.ready, isFalse);
+      expect(placeholderGate.status, 'evidence_required');
+      expect(placeholderGate.details['evidenceReady'], isFalse);
+      expect(blockedIds, contains('notarized_beta_build'));
+      expect(blockedIds, contains('permission_grant'));
+      expect(blockedIds, isNot(contains('signed_beta_artifact')));
+      expect(blockedIds, isNot(contains('user_operated_action_cycle')));
+    });
+
     test('CLI writes JSON and Markdown summaries', () async {
       final root = Directory.systemTemp.createTempSync(
         'computer_use_m50_signed_beta_cli_',
@@ -179,6 +229,68 @@ void main() {
       );
     });
 
+    test(
+      'CLI writes a user-operated handoff with resolved artifacts',
+      () async {
+        final root = Directory.systemTemp.createTempSync(
+          'computer_use_m50_signed_beta_handoff_',
+        );
+        addTearDown(() => root.deleteSync(recursive: true));
+
+        _writeJson(
+          '${root.path}/manual/m50_signed_beta_checklist.json',
+          _signedBetaChecklistWithPlaceholderEvidence(),
+        );
+        final releaseArtifactPath = _writeJson(
+          '${root.path}/m7.json',
+          _releaseArtifactReport(),
+        );
+        final packagingPath = _writeJson(
+          '${root.path}/m33.json',
+          _releasePackagingReport(),
+        );
+        final m46Path = _writeJson(
+          '${root.path}/m46.json',
+          _m46ElementGroundedLlmEvalSummary(),
+        );
+        final m48Path = _writeJson(
+          '${root.path}/m48.json',
+          _m48UserOperatedActionPilot(),
+        );
+        final m49Path = _writeJson(
+          '${root.path}/m49.json',
+          _m49PrivacyAuditReleasePack(),
+        );
+        final outputMd = '${root.path}/handoff/m50_handoff.md';
+
+        final result = await Process.run('dart', <String>[
+          'run',
+          'tool/macos_computer_use_signed_beta_gate.dart',
+          '--root',
+          root.path,
+          '--write-handoff',
+          outputMd,
+        ]);
+
+        expect(
+          result.exitCode,
+          0,
+          reason: '${result.stdout}\n${result.stderr}',
+        );
+        final handoff = File(outputMd).readAsStringSync();
+        expect(handoff, contains('M50 Signed Beta Handoff'));
+        expect(handoff, contains('notarizedBetaBuild'));
+        expect(handoff, contains('xpcFallbackObservability'));
+        expect(handoff, contains('--signed-beta-checklist'));
+        expect(handoff, contains(releaseArtifactPath));
+        expect(handoff, contains(packagingPath));
+        expect(handoff, contains(m46Path));
+        expect(handoff, contains(m48Path));
+        expect(handoff, contains(m49Path));
+        expect(handoff, contains('does not sign, notarize, staple'));
+      },
+    );
+
     test('wrapper and docs keep M50 report-only boundaries visible', () {
       final wrapper = File(
         'tool/run_macos_computer_use_m50_signed_beta_gate.sh',
@@ -194,6 +306,7 @@ void main() {
       expect(wrapper, contains('does not sign, notarize, staple'));
       expect(wrapper, contains('grant TCC'));
       expect(wrapper, contains('operate desktop apps'));
+      expect(wrapper, contains('handoff-only'));
       expect(architecture, contains('macos_computer_use_m50_signed_beta_gate'));
       expect(checklist, contains('M50 Signed Beta Gate'));
       expect(checklist, contains('read_reports_only'));
@@ -228,6 +341,38 @@ Map<String, Object?> _signedBetaChecklist() {
     'permissionRevocation': readySection('Permission revocation passed.'),
     'helperRestart': readySection('Helper restart passed.'),
     'xpcFallbackObservability': readySection('XPC fallback was observable.'),
+  };
+}
+
+Map<String, Object?> _signedBetaChecklistWithPlaceholderEvidence() {
+  Map<String, Object?> readySection(String evidence) {
+    return <String, Object?>{
+      'status': 'ready',
+      'ready': true,
+      'evidence': evidence,
+    };
+  }
+
+  return <String, Object?>{
+    'schemaName': 'macos_computer_use_m50_signed_beta_checklist',
+    'schemaVersion': 1,
+    'milestone': 'M50',
+    'automationBoundary': 'user_operated_signed_beta_checks',
+    'notarizedBetaBuild': readySection(
+      '<notarization ticket, stapler validation, or signed beta build note>',
+    ),
+    'cleanInstall': readySection('<clean install note or artifact path>'),
+    'upgradeMigration': readySection(
+      '<upgrade and migration note or artifact path>',
+    ),
+    'permissionGrant': readySection('<permission grant note or artifact path>'),
+    'permissionRevocation': readySection(
+      '<permission revocation recovery note or artifact path>',
+    ),
+    'helperRestart': readySection('<helper restart note or artifact path>'),
+    'xpcFallbackObservability': readySection(
+      '<XPC fallback diagnostics note or artifact path>',
+    ),
   };
 }
 
@@ -310,8 +455,8 @@ Map<String, Object?> _m48UserOperatedActionPilot() {
     'milestone': 'M48',
     'ready': true,
     'status': 'ready',
-    'desktopActionBoundary': 'user_operated',
-    'tccBoundary': 'user_operated',
+    'desktopActionBoundary': 'user_operated_evidence_only',
+    'tccBoundary': 'no_tcc_operation',
     'llmBoundary': 'no_llm_call',
     'm48UserOperatedActionPilotGate': <String, Object?>{
       'status': 'ready',

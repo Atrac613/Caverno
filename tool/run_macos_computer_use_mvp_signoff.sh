@@ -2861,7 +2861,7 @@ cat >"${HANDOFF_MD}" <<EOF
    bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only
    \`\`\`
 
-2. Manual TCC sign-off after granting the helper in macOS privacy settings:
+2. Manual TCC sign-off after granting Accessibility to the helper and Screen & System Audio Recording to Caverno.app:
 
    \`\`\`bash
    bash tool/run_macos_computer_use_manual_tcc_signoff.sh
@@ -2926,7 +2926,7 @@ cat "${M30_OBSERVE_RESULT_INTAKE_FRAGMENT}" >>"${HANDOFF_MD}"
   echo "## Missing Input Next Actions"
   echo
   if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discovered" ]]; then
-    echo "- Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the helper grant target without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
+    echo "- Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the split permission targets without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
   fi
   if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
     echo "- Run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only\` first to print the safe target checklist without running the desktop action. Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` after preparing the safe target and provide \`canary_summary.json\`."
@@ -3101,7 +3101,7 @@ echo "  bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-targ
 echo
 echo "MVP handoff next actions:"
 if [[ "${manual_tcc_status}" != "provided" && "${manual_tcc_status}" != "discovered" ]]; then
-  echo "  - Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the helper grant target without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
+  echo "  - Run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh --handoff-only\` first to print the split permission targets without running M8. Ask the user to run \`bash tool/run_macos_computer_use_manual_tcc_signoff.sh\` and provide \`manual_tcc_report_summary.json\`."
 fi
 if [[ "${desktop_action_status}" != "provided" && "${desktop_action_status}" != "discovered" ]]; then
   echo "  - Run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only\` first to print the safe target checklist without running the desktop action. Ask the user to run \`bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target\` after preparing the safe target and provide \`canary_summary.json\`."

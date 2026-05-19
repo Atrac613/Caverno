@@ -345,7 +345,7 @@ Map<String, Object?> _diagnostics() {
       'schemaName': 'macos_computer_use_audit_privacy_controls',
       'schemaVersion': 1,
       'milestone': 'M37',
-      'status': 'ready',
+      'status': 'defined',
       'defaultExportRedacted': true,
       'explicitPayloadExportRequired': true,
       'm37AuditPrivacyGate': <String, Object?>{

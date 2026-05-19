@@ -298,9 +298,11 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
   private func presentPermissionOverlay(pane: SettingsPane) -> PermissionOverlayPresentation {
     let helperBundleURL = Bundle.main.bundleURL
+    let grantTargetBundleURL = pane.grantTargetBundleURL(helperBundleURL: helperBundleURL)
     let controller = PermissionOverlayWindowController(
       pane: pane,
-      helperBundleURL: helperBundleURL,
+      grantTargetBundleURL: grantTargetBundleURL,
+      grantTargetDisplayName: pane.grantTargetDisplayName,
       returnWindow: window,
       onReturnToOnboarding: { [weak self] in
         self?.refreshPermissionRows()
@@ -319,8 +321,11 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       overlayHidesOnDeactivate: controller.window?.hidesOnDeactivate == true,
       overlayIsFloatingPanel: (controller.window as? NSPanel)?.isFloatingPanel == true,
       helperBundlePath: helperBundleURL.path,
-      draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
-      dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
+      grantTargetBundlePath: grantTargetBundleURL.path,
+      grantTargetDisplayName: pane.grantTargetDisplayName,
+      grantTargetPermissionLabel: pane.permissionLabel,
+      draggableTileReady: FileManager.default.fileExists(atPath: grantTargetBundleURL.path),
+      dragPasteboardTypes: PermissionGrantBundleDragTileView.dragPasteboardTypeNames
     )
   }
 
@@ -353,7 +358,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
       "overlayRequested": true,
       "overlayMode": "floating_helper_panel",
       "lastOnboardingTransition": result.transition.toMap(),
-      "nextAction": "Drag Caverno Computer Use into the permission list, then recheck.",
+      "nextAction": pane.overlayNextAction,
     ]
   }
 
@@ -523,7 +528,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let screenRecordingRow = PermissionRowView(
       symbolName: "camera.viewfinder",
       title: "Screenshots",
-      subtitle: "Caverno uses screenshots to know where to click.",
+      subtitle: "Caverno.app owns Screen & System Audio Recording for approved capture.",
       buttonTitle: "Allow",
       action: { [weak self] row in
         self?.startPermissionFlow(pane: .screenRecording, row: row)
@@ -542,7 +547,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let permissionSmokeRow = SmokeStepRowView(
       title: "Permissions",
-      subtitle: "Accessibility and Screen & System Audio Recording are granted."
+      subtitle: "Helper Accessibility and Caverno.app Screen & System Audio Recording are granted."
     )
     let displayScreenshotSmokeRow = SmokeStepRowView(
       title: "Display Screenshot",
@@ -581,7 +586,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let footer = NSTextField(
       wrappingLabelWithString:
-        "Grant permissions to Caverno Computer Use, not Caverno. You can revoke them at any time in System Settings."
+        "Grant Accessibility to Caverno Computer Use and Screen & System Audio Recording to Caverno.app. You can revoke them at any time in System Settings."
     )
     footer.font = .systemFont(ofSize: 12, weight: .regular)
     footer.textColor = .tertiaryLabelColor
@@ -885,7 +890,34 @@ fileprivate enum SettingsPane {
     case .accessibility:
       return "Accessibility"
     case .screenRecording:
-      return "Screenshots"
+      return "Screen & System Audio Recording"
+    }
+  }
+
+  var grantTargetDisplayName: String {
+    switch self {
+    case .privacy:
+      return "Caverno"
+    case .accessibility:
+      return "Caverno Computer Use"
+    case .screenRecording:
+      return "Caverno.app"
+    }
+  }
+
+  var overlayNextAction: String {
+    "Drag \(grantTargetDisplayName) into the permission list, then recheck."
+  }
+
+  func grantTargetBundleURL(helperBundleURL: URL) -> URL {
+    switch self {
+    case .screenRecording:
+      return helperBundleURL
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+        .deletingLastPathComponent()
+    case .privacy, .accessibility:
+      return helperBundleURL
     }
   }
 
@@ -924,6 +956,9 @@ fileprivate struct PermissionOverlayPresentation {
   let overlayHidesOnDeactivate: Bool
   let overlayIsFloatingPanel: Bool
   let helperBundlePath: String
+  let grantTargetBundlePath: String
+  let grantTargetDisplayName: String
+  let grantTargetPermissionLabel: String
   let draggableTileReady: Bool
   let dragPasteboardTypes: [String]
 
@@ -940,8 +975,11 @@ fileprivate struct PermissionOverlayPresentation {
       overlayHidesOnDeactivate: false,
       overlayIsFloatingPanel: false,
       helperBundlePath: helperBundleURL.path,
+      grantTargetBundlePath: helperBundleURL.path,
+      grantTargetDisplayName: "Caverno Computer Use",
+      grantTargetPermissionLabel: "Accessibility",
       draggableTileReady: FileManager.default.fileExists(atPath: helperBundleURL.path),
-      dragPasteboardTypes: HelperBundleDragTileView.dragPasteboardTypeNames
+      dragPasteboardTypes: PermissionGrantBundleDragTileView.dragPasteboardTypeNames
     )
   }
 
@@ -956,6 +994,9 @@ fileprivate struct PermissionOverlayPresentation {
       "overlayHidesOnDeactivate": overlayHidesOnDeactivate,
       "overlayIsFloatingPanel": overlayIsFloatingPanel,
       "helperBundlePath": helperBundlePath,
+      "grantTargetBundlePath": grantTargetBundlePath,
+      "grantTargetDisplayName": grantTargetDisplayName,
+      "grantTargetPermissionLabel": grantTargetPermissionLabel,
       "draggableTileReady": draggableTileReady,
       "dragPasteboardTypes": dragPasteboardTypes,
     ]
@@ -1007,22 +1048,25 @@ fileprivate struct OnboardingTransitionDiagnostic {
 
 private final class PermissionOverlayWindowController: NSWindowController {
   private let pane: SettingsPane
-  private let helperBundleURL: URL
+  private let grantTargetBundleURL: URL
+  private let grantTargetDisplayName: String
   private weak var returnWindow: NSWindow?
   private let onReturnToOnboarding: () -> Void
   private var dragCueArrow: NSImageView?
-  private var dragTile: HelperBundleDragTileView?
+  private var dragTile: PermissionGrantBundleDragTileView?
   private(set) var overlayPlacement = "screen_fallback"
   private(set) var overlayForegroundPolicy = "not_shown"
 
   init(
     pane: SettingsPane,
-    helperBundleURL: URL,
+    grantTargetBundleURL: URL,
+    grantTargetDisplayName: String,
     returnWindow: NSWindow?,
     onReturnToOnboarding: @escaping () -> Void
   ) {
     self.pane = pane
-    self.helperBundleURL = helperBundleURL
+    self.grantTargetBundleURL = grantTargetBundleURL
+    self.grantTargetDisplayName = grantTargetDisplayName
     self.returnWindow = returnWindow
     self.onReturnToOnboarding = onReturnToOnboarding
 
@@ -1160,7 +1204,10 @@ private final class PermissionOverlayWindowController: NSWindowController {
     instructionRow.alignment = .centerY
     instructionRow.spacing = 8
 
-    let tile = HelperBundleDragTileView(helperBundleURL: helperBundleURL)
+    let tile = PermissionGrantBundleDragTileView(
+      bundleURL: grantTargetBundleURL,
+      displayName: grantTargetDisplayName
+    )
     tile.translatesAutoresizingMaskIntoConstraints = false
     tile.heightAnchor.constraint(equalToConstant: 36).isActive = true
     dragTile = tile
@@ -1182,7 +1229,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
   }
 
   private var instructionText: String {
-    "Drag Caverno Computer Use to the list above to allow \(pane.overlayInstructionLabel)"
+    "Drag \(grantTargetDisplayName) to the list above to allow \(pane.overlayInstructionLabel)"
   }
 
   func animationTargetFrame(matching sourceSize: NSSize?) -> NSRect? {
@@ -1398,7 +1445,7 @@ private final class PermissionOverlayWindowController: NSWindowController {
   }
 }
 
-private final class HelperBundleDragTileView: NSView, NSDraggingSource {
+private final class PermissionGrantBundleDragTileView: NSView, NSDraggingSource {
   static let dragPasteboardTypes: [NSPasteboard.PasteboardType] = [
     .fileURL,
     .URL,
@@ -1407,10 +1454,12 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
   ]
   static let dragPasteboardTypeNames = dragPasteboardTypes.map(\.rawValue)
 
-  private let helperBundleURL: URL
+  private let bundleURL: URL
+  private let displayName: String
 
-  init(helperBundleURL: URL) {
-    self.helperBundleURL = helperBundleURL
+  init(bundleURL: URL, displayName: String) {
+    self.bundleURL = bundleURL
+    self.displayName = displayName
     super.init(frame: .zero)
     wantsLayer = true
     layer?.cornerRadius = 10
@@ -1427,11 +1476,11 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
 
   override func mouseDragged(with event: NSEvent) {
     let pasteboardItem = NSPasteboardItem()
-    pasteboardItem.setString(helperBundleURL.absoluteString, forType: .fileURL)
-    pasteboardItem.setString(helperBundleURL.absoluteString, forType: .URL)
-    pasteboardItem.setString(helperBundleURL.path, forType: .string)
+    pasteboardItem.setString(bundleURL.absoluteString, forType: .fileURL)
+    pasteboardItem.setString(bundleURL.absoluteString, forType: .URL)
+    pasteboardItem.setString(bundleURL.path, forType: .string)
     pasteboardItem.setString(
-      helperBundleURL.absoluteString,
+      bundleURL.absoluteString,
       forType: NSPasteboard.PasteboardType("NSURLPboardType")
     )
     let draggingItem = NSDraggingItem(pasteboardWriter: pasteboardItem)
@@ -1463,12 +1512,12 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
     addSubview(stack)
 
     let icon = NSImageView()
-    icon.image = NSWorkspace.shared.icon(forFile: helperBundleURL.path)
+    icon.image = NSWorkspace.shared.icon(forFile: bundleURL.path)
     icon.translatesAutoresizingMaskIntoConstraints = false
     icon.widthAnchor.constraint(equalToConstant: 24).isActive = true
     icon.heightAnchor.constraint(equalToConstant: 24).isActive = true
 
-    let label = NSTextField(labelWithString: "Caverno Computer Use")
+    let label = NSTextField(labelWithString: displayName)
     label.font = .systemFont(ofSize: 13, weight: .semibold)
     label.textColor = .labelColor
 
@@ -1483,7 +1532,7 @@ private final class HelperBundleDragTileView: NSView, NSDraggingSource {
   }
 
   private func draggingImage() -> NSImage {
-    let image = NSWorkspace.shared.icon(forFile: helperBundleURL.path)
+    let image = NSWorkspace.shared.icon(forFile: bundleURL.path)
     image.size = NSSize(width: 48, height: 48)
     return image
   }
@@ -2204,8 +2253,7 @@ private final class ComputerUseHelperIpc: NSObject {
     overlay["settingsOpened"] = opened
     overlay["overlayRequested"] = true
     overlay["overlayMode"] = "floating_helper_panel"
-    overlay["nextAction"] =
-      "Drag Caverno Computer Use into the permission list, then recheck."
+    overlay["nextAction"] = pane.overlayNextAction
     return baseResponse(
       ok: opened,
       extra: overlay
@@ -2979,7 +3027,13 @@ private final class ComputerUseHelperIpc: NSObject {
       )
     }
 
-    let flags = eventFlags(arguments["modifiers"] as? [String] ?? [])
+    let modifiers = arguments["modifiers"] as? [String] ?? []
+    let flags = eventFlags(modifiers)
+    let physicalModifiers =
+      boolValue(arguments["physical_modifiers"] ?? arguments["physicalModifiers"]) ?? false
+    let physicalModifierKeyCodes = physicalModifiers
+      ? modifiers.compactMap(modifierKeyCode)
+      : []
     guard
       let down = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: true),
       let up = CGEvent(keyboardEventSource: nil, virtualKey: keyCode, keyDown: false)
@@ -2989,12 +3043,24 @@ private final class ComputerUseHelperIpc: NSObject {
 
     down.flags = flags
     up.flags = flags
+    for modifierKeyCode in physicalModifierKeyCodes {
+      CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: true)?
+        .post(tap: .cghidEventTap)
+      usleep(5_000)
+    }
     down.post(tap: .cghidEventTap)
     up.post(tap: .cghidEventTap)
+    for modifierKeyCode in physicalModifierKeyCodes.reversed() {
+      CGEvent(keyboardEventSource: nil, virtualKey: modifierKeyCode, keyDown: false)?
+        .post(tap: .cghidEventTap)
+      usleep(5_000)
+    }
     return baseResponse(
       extra: [
         "key": rawKey,
-        "modifiers": arguments["modifiers"] as? [String] ?? [],
+        "modifiers": modifiers,
+        "physicalModifiers": physicalModifiers,
+        "physicalModifierKeys": physicalModifierKeyCodes,
       ]
     )
   }
@@ -4419,6 +4485,21 @@ private func eventFlags(_ modifiers: [String]) -> CGEventFlags {
     }
   }
   return flags
+}
+
+private func modifierKeyCode(_ modifier: String) -> CGKeyCode? {
+  switch modifier.lowercased() {
+  case "cmd", "command", "meta":
+    return keyCodes["command"]
+  case "shift":
+    return keyCodes["shift"]
+  case "option", "alt":
+    return keyCodes["option"]
+  case "ctrl", "control":
+    return keyCodes["control"]
+  default:
+    return nil
+  }
 }
 
 private func rectMap(_ rect: CGRect) -> [String: Double] {

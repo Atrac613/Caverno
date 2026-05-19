@@ -2136,7 +2136,7 @@ Map<String, dynamic> _manualTccHandoff({
       'releaseRuntimeReadiness.status == ready',
     ],
     'nextAction':
-        'Run the handoff command first to print the helper grant target, then ask the user to run the manual TCC command from Terminal after granting macOS permissions.',
+        'Run the handoff command first to print the split permission targets, then ask the user to run the manual TCC command from Terminal after granting macOS permissions.',
   };
 }
 

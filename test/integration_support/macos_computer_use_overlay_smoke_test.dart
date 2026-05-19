@@ -79,6 +79,15 @@ Map<String, dynamic> _overlay(
     'overlayHidesOnDeactivate': overlayHidesOnDeactivate,
     'overlayPlacement': 'system_settings_window',
     'overlayMode': 'floating_helper_panel',
+    'grantTargetBundlePath': permission == 'screenRecording'
+        ? '/Applications/Caverno.app'
+        : '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+    'grantTargetDisplayName': permission == 'screenRecording'
+        ? 'Caverno.app'
+        : 'Caverno Computer Use',
+    'grantTargetPermissionLabel': permission == 'screenRecording'
+        ? 'Screen & System Audio Recording'
+        : 'Accessibility',
     'dragPasteboardTypes': <String>['public.file-url'],
   };
 }

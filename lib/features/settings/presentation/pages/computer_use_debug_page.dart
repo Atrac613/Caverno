@@ -1220,7 +1220,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       );
       await runStep(
         'refresh_permissions',
-        'Refresh helper-owned permissions',
+        'Refresh split permissions',
         (service) => service.getPermissions(),
         onResult: _storePermissions,
       );

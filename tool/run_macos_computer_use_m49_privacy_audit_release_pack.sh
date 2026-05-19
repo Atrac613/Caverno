@@ -391,6 +391,7 @@ summary = {
     "desktopActionBoundary": "no_desktop_action",
     "tccBoundary": "no_tcc_operation",
     "llmBoundary": "no_llm_call",
+    "rawPayloadExportBoundary": "no_raw_payload_export",
     "sourceArtifacts": {
         "m48Pilot": str(m48_pilot_path),
         "diagnostics": str(diagnostics_path),

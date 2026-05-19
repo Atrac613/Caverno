@@ -733,6 +733,9 @@ class ReadinessArtifactIndex {
           '- Blocked user-operated gates: ${_joinedOrNone(_detailsStringList(m50SignedBetaGateEntry.details['blockedUserOperatedGateIds']))}',
         )
         ..writeln(
+          '- Evidence-required gates: ${_joinedOrNone(_detailsStringList(m50SignedBetaGateEntry.details['evidenceRequiredGateIds']))}',
+        )
+        ..writeln(
           '- Boundary: ${m50SignedBetaGateEntry.details['operationBoundarySummary'] ?? 'unknown'}',
         );
     }
@@ -1959,7 +1962,7 @@ ReadinessNextStepRecommendation _nextStepRecommendation(
             blocked.nextAction ??
             'Resolve blocked ${blocked.label} evidence before continuing.',
         recommendedCommand: _blockedEvidenceCommand(blocked, reportRoot),
-        requiresUserOperation: blocked.id == 'spaces_canary',
+        requiresUserOperation: _blockedEvidenceRequiresUserOperation(blocked),
       );
       if (!skipUserOperated || !recommendation.requiresUserOperation) {
         return recommendation;
@@ -2272,10 +2275,27 @@ String _blockedEvidenceCommand(
   if (entry.id == 'spaces_canary') {
     return MacosComputerUseMvpGuidance.spacesCanaryHandoffCommand;
   }
+  if (entry.id == 'm50_signed_beta_gate') {
+    return _m50BlockedEvidenceCommand(entry, reportRoot);
+  }
   return MacosComputerUseMvpGuidance.artifactIndexCommand.replaceFirst(
     'build/integration_test_reports',
     reportRoot.path,
   );
+}
+
+bool _blockedEvidenceRequiresUserOperation(ReadinessArtifactEntry entry) {
+  if (entry.id == 'spaces_canary') {
+    return true;
+  }
+  final blockedUserOperatedGateIds = _detailsStringList(
+    entry.details['blockedUserOperatedGateIds'],
+  );
+  final blockedAutomationSafeGateIds = _detailsStringList(
+    entry.details['blockedAutomationSafeGateIds'],
+  );
+  return blockedUserOperatedGateIds.isNotEmpty &&
+      blockedAutomationSafeGateIds.isEmpty;
 }
 
 bool _releaseArtifactEntryHasSigningConstraintBlocker(
@@ -2505,6 +2525,32 @@ String _m40ProductionLaunchGateCommand(Directory reportRoot) {
 
 String _m50SignedBetaGateCommand(Directory reportRoot) {
   return '${MacosComputerUseMvpGuidance.m50SignedBetaGateCommand} '
+      '--root ${_shellQuote(reportRoot.path)}';
+}
+
+String _m50BlockedEvidenceCommand(
+  ReadinessArtifactEntry entry,
+  Directory reportRoot,
+) {
+  final artifactPaths = entry.details['gateArtifactPaths'];
+  final artifactPathMap = artifactPaths is Map
+      ? artifactPaths.map((key, value) => MapEntry('$key', '$value'))
+      : const <String, String>{};
+  String pathOrPlaceholder(String gateId, String placeholder) {
+    final path = artifactPathMap[gateId]?.trim();
+    if (path == null || path.isEmpty || path == 'null') {
+      return placeholder;
+    }
+    return _shellQuote(path);
+  }
+
+  return 'bash tool/run_macos_computer_use_m50_signed_beta_gate.sh '
+      '--signed-beta-checklist <completed-m50-signed-beta-checklist.json> '
+      '--release-artifact-report ${pathOrPlaceholder('signed_beta_artifact', '<release-artifact-signoff.json>')} '
+      '--release-packaging-report ${pathOrPlaceholder('release_packaging_lane', '<macos_computer_use_release_packaging.json>')} '
+      '--m46-element-grounded-llm-eval ${pathOrPlaceholder('element_grounded_llm_evaluation', '<canary_summary.json>')} '
+      '--m48-user-operated-action-pilot ${pathOrPlaceholder('user_operated_action_cycle', '<user_operated_action_pilot.json>')} '
+      '--m49-privacy-audit-release-pack ${pathOrPlaceholder('privacy_audit_release_pack', '<privacy_audit_release_pack.json>')} '
       '--root ${_shellQuote(reportRoot.path)}';
 }
 
@@ -4835,6 +4881,10 @@ String? _m50SignedBetaGateNextAction(Map<String, dynamic> json) {
     return 'Use M50 signed beta evidence as an input to the M51 production launch gate.';
   }
   if (status == 'blocked') {
+    final evidenceRequiredGateIds = _m50EvidenceRequiredGateIds(json);
+    if (evidenceRequiredGateIds.isNotEmpty) {
+      return 'Complete the M50 signed beta checklist with concrete evidence for ${evidenceRequiredGateIds.join(', ')}, then rerun the M50 signed beta gate.';
+    }
     return 'Resolve M50 signed beta blockers before preparing the M51 production launch gate.';
   }
   return null;
@@ -4844,6 +4894,25 @@ Map<String, Object?> _m50SignedBetaGateDetails(Map<String, dynamic> json) {
   final review = json['signedBetaReviewSummary'];
   final reviewMap = review is Map<String, dynamic> ? review : null;
   final gates = _jsonList(json['gates']);
+  final gateStatuses = <String, String>{};
+  final gateArtifactPaths = <String, String>{};
+  for (final gate in gates) {
+    if (gate is! Map) {
+      continue;
+    }
+    final id = gate['id']?.toString();
+    if (id == null || id.isEmpty) {
+      continue;
+    }
+    final status = gate['status']?.toString();
+    if (status != null && status.isNotEmpty) {
+      gateStatuses[id] = status;
+    }
+    final artifactPath = gate['artifactPath']?.toString();
+    if (artifactPath != null && artifactPath.isNotEmpty) {
+      gateArtifactPaths[id] = artifactPath;
+    }
+  }
   return <String, Object?>{
     'milestone': json['milestone']?.toString(),
     'automationBoundary': json['automationBoundary']?.toString(),
@@ -4852,6 +4921,9 @@ Map<String, Object?> _m50SignedBetaGateDetails(Map<String, dynamic> json) {
     'readyGateIds': _jsonStringList(json['readyGateIds']),
     'blockedGateIds': _jsonStringList(json['blockedGateIds']),
     'userOperatedGateIds': _jsonStringList(json['userOperatedGateIds']),
+    'evidenceRequiredGateIds': _m50EvidenceRequiredGateIds(json),
+    'gateStatuses': gateStatuses,
+    'gateArtifactPaths': gateArtifactPaths,
     'gateCount': gates.length,
     if (reviewMap != null) ...<String, Object?>{
       'reviewStatus': reviewMap['status']?.toString(),
@@ -4867,6 +4939,34 @@ Map<String, Object?> _m50SignedBetaGateDetails(Map<String, dynamic> json) {
           ?.toString(),
     },
   };
+}
+
+List<String> _m50EvidenceRequiredGateIds(Map<String, dynamic> json) {
+  final gates = _jsonList(json['gates']);
+  final evidenceRequiredGateIds = <String>[];
+  for (final gate in gates) {
+    if (gate is! Map) {
+      continue;
+    }
+    final id = gate['id']?.toString();
+    if (id == null || id.isEmpty) {
+      continue;
+    }
+    if (gate['status']?.toString() == 'evidence_required') {
+      evidenceRequiredGateIds.add(id);
+    }
+  }
+  if (evidenceRequiredGateIds.isNotEmpty) {
+    return evidenceRequiredGateIds;
+  }
+  final gate = json['m50SignedBetaGate'];
+  if (gate is! Map) {
+    return const <String>[];
+  }
+  return _jsonStringList(gate['blockers'])
+      .where((blocker) => blocker.endsWith(':evidence_required'))
+      .map((blocker) => blocker.split(':').first)
+      .toList(growable: false);
 }
 
 String? _m51ProductionLaunchGateStatus(Map<String, dynamic> json) {

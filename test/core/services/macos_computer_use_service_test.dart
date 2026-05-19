@@ -505,6 +505,7 @@ void main() {
       expect(calls.map((call) => call.method), ['pressKey']);
       expect(calls.single.arguments, containsPair('key', 'left'));
       expect(calls.single.arguments, containsPair('modifiers', ['control']));
+      expect(calls.single.arguments, containsPair('physical_modifiers', true));
       expect(
         result,
         containsPair('schemaName', 'macos_computer_use_space_switch'),

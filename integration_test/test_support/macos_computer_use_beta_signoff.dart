@@ -259,7 +259,7 @@ MacosComputerUseBetaSignoffSummary buildMacosComputerUseBetaSignoffSummary(
       field: 'permissionGrant',
       inputs: inputs,
       nextAction:
-          'Ask the user to grant Accessibility and Screen & System Audio Recording, then record the result in the M39 manual beta checklist.',
+          'Ask the user to grant Accessibility to Caverno Computer Use and Screen & System Audio Recording to Caverno.app, then record the result in the M39 manual beta checklist.',
     ),
     _manualChecklistGate(
       id: 'permission_revocation',
@@ -267,7 +267,7 @@ MacosComputerUseBetaSignoffSummary buildMacosComputerUseBetaSignoffSummary(
       field: 'permissionRevocation',
       inputs: inputs,
       nextAction:
-          'Ask the user to revoke and recover the helper permissions, then record the result in the M39 manual beta checklist.',
+          'Ask the user to revoke and recover helper Accessibility plus Caverno.app Screen & System Audio Recording, then record the result in the M39 manual beta checklist.',
     ),
     _manualChecklistGate(
       id: 'helper_restart',

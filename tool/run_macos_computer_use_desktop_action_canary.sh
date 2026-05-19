@@ -14,6 +14,9 @@ SUMMARY_JSON="${RUN_DIR}/canary_summary.json"
 SUMMARY_MD="${RUN_DIR}/canary_summary.md"
 FIXTURE_TARGET=0
 FIXTURE_APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_MVP_FIXTURE_APP_PATH:-}"
+APP_PATH="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_APP_PATH:-}"
+HELPER_PATH="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_HELPER_PATH:-}"
+RELEASE_BUILD=0
 LAUNCH_FIXTURE=0
 RESTORE_DEBUG_APP="${CAVERNO_MACOS_COMPUTER_USE_RESTORE_DEBUG_APP_AFTER_CANARY:-0}"
 LAUNCH_CAVERNO_APP="${CAVERNO_MACOS_COMPUTER_USE_DESKTOP_ACTION_LAUNCH_CAVERNO:-0}"
@@ -49,6 +52,9 @@ print_desktop_action_context() {
   echo "  Repeat count: ${REPEAT_COUNT}"
   echo "  No-rebuild helper probe: $([[ "${LEGACY_INTEGRATION}" == "1" ]] && echo false || echo true)"
   echo "  Auto-launch Caverno.app: ${LAUNCH_CAVERNO_APP}"
+  echo "  Expected app path: ${APP_PATH:-default Debug Caverno.app}"
+  echo "  Expected helper path: ${HELPER_PATH:-default embedded Debug helper}"
+  echo "  Release build path requested: ${RELEASE_BUILD}"
   echo "  Require helper path match: ${REQUIRE_HELPER_PATH_MATCH}"
   echo "  Replace helper if mismatched: ${REPLACE_HELPER}"
   echo "  Preserve current helper/TCC: $([[ "${REPLACE_HELPER}" == "1" ]] && echo false || echo true)"
@@ -94,6 +100,22 @@ while [[ $# -gt 0 ]]; do
       FIXTURE_APP_PATH="$2"
       shift 2
       ;;
+    --app-path)
+      require_value "$@"
+      APP_PATH="$2"
+      shift 2
+      ;;
+    --helper-path)
+      require_value "$@"
+      HELPER_PATH="$2"
+      shift 2
+      ;;
+    --release-build)
+      RELEASE_BUILD=1
+      APP_PATH="${ROOT_DIR}/build/macos/Build/Products/Release/Caverno.app"
+      HELPER_PATH="${APP_PATH}/Contents/Helpers/Caverno Computer Use.app"
+      shift
+      ;;
     --skip-restore-debug-app)
       RESTORE_DEBUG_APP=0
       shift
@@ -136,6 +158,13 @@ Options:
   --launch-fixture     Build and launch the MVP fixture before the user-operated canary.
   --fixture-app-path PATH
                        Record an already built MVP fixture app path.
+  --app-path PATH      Probe a specific Caverno.app path instead of the default
+                       Debug build path.
+  --helper-path PATH   Probe a specific Caverno Computer Use.app helper path
+                       instead of the default embedded Debug helper.
+  --release-build      Use the local Release/Caverno.app and embedded helper
+                       paths. This does not imply notarization or signed beta
+                       evidence.
   --skip-restore-debug-app
                        Do not rebuild the normal Debug Caverno.app after the canary.
   --launch-caverno     Also launch Caverno.app from this script. By default the
@@ -218,6 +247,12 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
       --require-capture
       --require-input
     )
+    if [[ -n "${APP_PATH}" ]]; then
+      probe_args+=(--app "${APP_PATH}")
+    fi
+    if [[ -n "${HELPER_PATH}" ]]; then
+      probe_args+=(--helper "${HELPER_PATH}")
+    fi
     if [[ "${LAUNCH_CAVERNO_APP}" != "1" ]]; then
       probe_args+=(--no-launch-app)
     fi
@@ -239,7 +274,7 @@ for index in $(seq 1 "${REPEAT_COUNT}"); do
   fi
 done
 
-RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" LAUNCH_FIXTURE="${LAUNCH_FIXTURE}" REQUIRE_HELPER_PATH_MATCH="${REQUIRE_HELPER_PATH_MATCH}" REPLACE_HELPER="${REPLACE_HELPER}" python3 - <<'PY'
+RUN_DIR="${RUN_DIR}" SUMMARY_JSON="${SUMMARY_JSON}" SUMMARY_MD="${SUMMARY_MD}" FIXTURE_TARGET="${FIXTURE_TARGET}" FIXTURE_APP_PATH="${FIXTURE_APP_PATH}" APP_PATH="${APP_PATH}" HELPER_PATH="${HELPER_PATH}" RELEASE_BUILD="${RELEASE_BUILD}" LAUNCH_FIXTURE="${LAUNCH_FIXTURE}" REQUIRE_HELPER_PATH_MATCH="${REQUIRE_HELPER_PATH_MATCH}" REPLACE_HELPER="${REPLACE_HELPER}" python3 - <<'PY'
 import json
 import os
 from pathlib import Path
@@ -250,6 +285,9 @@ summary_json = Path(os.environ["SUMMARY_JSON"])
 summary_md = Path(os.environ["SUMMARY_MD"])
 fixture_target = os.environ["FIXTURE_TARGET"] == "1"
 fixture_app_path = os.environ.get("FIXTURE_APP_PATH", "")
+app_path = os.environ.get("APP_PATH", "")
+helper_path = os.environ.get("HELPER_PATH", "")
+release_build = os.environ["RELEASE_BUILD"] == "1"
 launch_fixture = os.environ["LAUNCH_FIXTURE"] == "1"
 require_helper_path_match = os.environ["REQUIRE_HELPER_PATH_MATCH"] == "1"
 replace_helper = os.environ["REPLACE_HELPER"] == "1"
@@ -392,6 +430,9 @@ summary = {
     "helperPathMatchRequired": require_helper_path_match,
     "helperReplacementRequested": replace_helper,
     "helperTccPreservedByDefault": not replace_helper,
+    "expectedAppPath": app_path or None,
+    "expectedHelperPath": helper_path or None,
+    "releaseBuildPathRequested": release_build,
     "fixtureApp": fixture_app if fixture_target else None,
     "safeTarget": fixture_app["safeTarget"] if fixture_target else None,
     "fixtureExpectedOutcomes": {

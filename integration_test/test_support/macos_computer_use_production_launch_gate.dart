@@ -679,7 +679,10 @@ bool _auditPrivacyReady(Map<String, dynamic> controls) {
   }
   final gate = _mapValue(controls['m37AuditPrivacyGate']);
   final blockers = _stringList(gate['blockers']);
-  return controls['status'] == 'ready' &&
+  final controlsStatus = controls['status'];
+  final controlsDefinedOrReady =
+      controlsStatus == 'ready' || controlsStatus == 'defined';
+  return controlsDefinedOrReady &&
       gate['status'] == 'ready' &&
       controls['defaultExportRedacted'] == true &&
       controls['explicitPayloadExportRequired'] == true &&

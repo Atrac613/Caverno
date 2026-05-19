@@ -163,6 +163,16 @@ Then ask the user to launch Caverno.app manually and run:
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
 ```
 
+If the currently validated app/helper pair is the local Release build rather
+than the default Debug build, run:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --release-build
+```
+
+This validates the local Release paths only. It is not notarization evidence and
+does not create M50 signed beta evidence.
+
 The canary does not auto-launch Caverno.app by default. If Caverno.app is not
 already running, the report will ask the user to launch it manually and rerun
 the command. Use `--launch-caverno` only when intentionally debugging main-app

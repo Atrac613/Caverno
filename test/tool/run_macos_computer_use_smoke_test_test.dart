@@ -816,6 +816,8 @@ void main() {
     expect(helperSource, contains('case accessibilitySnapshot'));
     expect(helperSource, contains('case .accessibilitySnapshot'));
     expect(helperSource, contains('private func accessibilitySnapshot'));
+    expect(helperSource, contains('private func modifierKeyCode'));
+    expect(helperSource, contains('"physicalModifiers": physicalModifiers'));
     expect(
       helperSource,
       contains('"schemaName": "macos_computer_use_accessibility_snapshot"'),
@@ -1410,6 +1412,13 @@ void main() {
     expect(desktopActionCanaryScript, contains('--no-launch-app'));
     expect(desktopActionCanaryScript, contains('--launch-caverno'));
     expect(desktopActionCanaryScript, contains('Auto-launch Caverno.app'));
+    expect(desktopActionCanaryScript, contains('--app-path'));
+    expect(desktopActionCanaryScript, contains('--helper-path'));
+    expect(desktopActionCanaryScript, contains('--release-build'));
+    expect(desktopActionCanaryScript, contains('Expected app path:'));
+    expect(desktopActionCanaryScript, contains('expectedAppPath'));
+    expect(desktopActionCanaryScript, contains('expectedHelperPath'));
+    expect(desktopActionCanaryScript, contains('releaseBuildPathRequested'));
     expect(desktopActionCanaryScript, contains('--legacy-integration'));
     expect(desktopActionCanaryScript, contains('--desktop-action-canary'));
     expect(desktopActionCanaryScript, contains('--require-helper-path-match'));
@@ -1583,7 +1592,10 @@ void main() {
     expect(spacesCanaryScript, contains('--focus-inactive-space-window'));
     expect(spacesCanaryScript, contains('--switch-space-next'));
     expect(spacesCanaryScript, contains('--switch-space-previous'));
+    expect(spacesCanaryScript, contains('--app PATH'));
+    expect(spacesCanaryScript, contains('--helper PATH'));
     expect(spacesCanaryScript, contains('--handoff-only'));
+    expect(spacesCanaryScript, contains('Build/Products/Release/Caverno.app'));
     expect(
       spacesCanaryScript,
       contains('Handoff only: no Spaces canary was executed.'),
@@ -1601,6 +1613,7 @@ void main() {
       spacesCanaryScript,
       contains('macos_computer_use_readiness_artifact_index.dart'),
     );
+    expect(spacesCanaryScript, contains('--require-app-path-match'));
     expect(
       spacesCanaryScript,
       contains('macos_computer_use_next_step_navigator.dart'),
@@ -1626,11 +1639,28 @@ void main() {
       contains('"requiresApprovedInputBeforeSwitching"'),
     );
     expect(existingHelperProbe, contains('spacesFocusCanaryGate'));
+    expect(existingHelperProbe, contains('firstFocusableInactiveSpaceWindow'));
+    expect(existingHelperProbe, contains('focusableInactiveSpaceWindowScore'));
+    expect(existingHelperProbe, contains('activeWindowAppNames'));
+    expect(existingHelperProbe, contains('bestDistinctAppWindow'));
+    expect(existingHelperProbe, contains('activeWindowFocusSignatures'));
+    expect(existingHelperProbe, contains('windowFocusSignature'));
+    expect(existingHelperProbe, contains('activeWindows: windows'));
+    expect(existingHelperProbe, contains('focusWindowConfirmed'));
+    expect(existingHelperProbe, contains('focus_window_not_confirmed'));
     expect(existingHelperProbe, contains('spaces_focus_inactive_window'));
     expect(existingHelperProbe, contains('spaces_post_focus_active_windows'));
     expect(existingHelperProbe, contains('spacesSwitchCanaryGate'));
     expect(existingHelperProbe, contains('spaces_switch_keypress'));
+    expect(existingHelperProbe, contains('"physical_modifiers": true'));
     expect(existingHelperProbe, contains('spaces_post_switch_active_windows'));
+    expect(existingHelperProbe, contains('postSwitchObservationAttempts'));
+    expect(existingHelperProbe, contains('activeSpaceInventoryAttempt'));
+    expect(
+      existingHelperProbe,
+      contains('physical_modifier_key_events_missing'),
+    );
+    expect(spacesCanaryScript, contains('physicalModifierKeys'));
     expect(
       existingHelperProbe,
       contains('active_space_inventory_unchanged_after_switch'),
@@ -4178,6 +4208,10 @@ void main() {
         );
         expect(summary, contains('"milestone": "M49"'));
         expect(summary, contains('"ready": true'));
+        expect(
+          summary,
+          contains('"rawPayloadExportBoundary": "no_raw_payload_export"'),
+        );
         expect(summary, contains('"m49PrivacyAuditReleasePackGate"'));
         expect(summary, contains('"default_export_redacted"'));
         expect(summary, contains('"required_redactions_declared"'));
@@ -7510,7 +7544,7 @@ void main() {
     expect(
       mvpChecklist,
       contains(
-        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+        'bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only',
       ),
     );
     expect(

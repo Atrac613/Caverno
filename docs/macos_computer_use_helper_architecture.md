@@ -41,26 +41,27 @@ timeouts or named-service startup failures.
 ### M1: Permission-First Onboarding
 
 The main task for M1 is the helper-owned permission overlay. `Caverno.app`
-opens the onboarding flow and requests the overlay through helper IPC, but
-`Caverno Computer Use.app` owns the foreground guide because it is the bundle
-that receives macOS privacy grants.
+opens the onboarding flow and requests the overlay through helper IPC, while
+`Caverno Computer Use.app` owns the foreground guide.
 
 The overlay is a floating helper window, not injected UI inside System Settings.
 It should guide the user after the relevant Privacy & Security pane is opened,
-show the exact permission owner, and provide a draggable app tile for
-`Caverno Computer Use.app` when macOS requires drag-and-drop into a privacy
-list.
+show the exact permission owner, and provide a draggable app tile for either
+`Caverno Computer Use.app` or `Caverno.app` when macOS requires drag-and-drop
+into a privacy list.
 
 M1 acceptance criteria:
 
 - Accessibility and Screen & System Audio Recording actions open the targeted
   System Settings panes and show the helper-owned overlay above them.
-- The overlay contains a draggable `Caverno Computer Use.app` tile backed by
-  the helper app bundle URL.
+- The overlay contains a draggable `Caverno Computer Use.app` tile for
+  Accessibility and a draggable `Caverno.app` tile for Screen & System Audio
+  Recording.
 - The overlay is borderless, uses a compact permission-list panel, and includes
   a left-side return arrow that animates the user back to Caverno's setup flow.
-- The overlay clearly states that macOS permissions are granted to
-  `Caverno Computer Use.app`, not to `Caverno.app`.
+- The overlay clearly states that Accessibility is granted to
+  `Caverno Computer Use.app`, while Screen & System Audio Recording is granted
+  to `Caverno.app`.
 - The flow never attempts to modify TCC databases or automatically grant
   permissions.
 - After the user grants permissions, `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`
@@ -73,15 +74,15 @@ Current M1 implementation status:
   over helper IPC and are advertised in the XPC parity command list.
 - The helper opens the targeted System Settings pane and presents a floating
   AppKit panel owned by `Caverno Computer Use.app`.
-- The overlay contains a draggable helper app bundle tile and a left-side return
-  arrow.
+- The overlay contains a draggable grant-target app bundle tile and a left-side
+  return arrow.
 - The overlay rechecks the relevant permission locally and reports placement
   diagnostics such as `overlayPlacement`, `overlayShown`, and
   `draggableTileReady`.
 - The helper onboarding `Allow` buttons open the matching System Settings pane,
   replace the selected permission row with a `COMPLETE IN SYSTEM SETTINGS`
   placeholder, and animate a snapshot of that row toward the floating overlay's
-  draggable helper tile.
+  draggable grant-target tile.
 - The helper reports the most recent Allow transition as
   `lastOnboardingTransition`, including `transitionSourcePermission`,
   `transitionPlaceholderShown`, `transitionAnimationTarget`, and the source /
@@ -103,8 +104,9 @@ M1 overlay readiness gate:
   System Audio Recording overlays to report `overlayShown`,
   `draggableTileReady`, and a matching permission identifier.
 - The smoke report's `overlaySmoke` section records `overlayPlacement`,
-  `overlayMode`, `helperBundlePath`, and `dragPasteboardTypes` so hands-on drag
-  failures can be diagnosed without rerunning the full unsafe input sequence.
+  `overlayMode`, `helperBundlePath`, `grantTargetBundlePath`,
+  `grantTargetDisplayName`, and `dragPasteboardTypes` so hands-on drag failures
+  can be diagnosed without rerunning the full unsafe input sequence.
 - The floating overlay includes an upward drag cue and aligns the onboarding
   transition target with the actual draggable helper tile.
 - The floating overlay is borderless so it does not show macOS traffic-light
@@ -163,9 +165,10 @@ Current M1 status:
   run. Release builds still need their own TCC grant and smoke pass because
   macOS records privacy grants per signed bundle path and identity.
 
-The drag/drop sign-off is intentionally manual. Adding the helper to macOS
-privacy lists changes system privacy settings, so it must only happen after an
-explicit action-time confirmation from the person operating the Mac.
+The drag/drop sign-off is intentionally manual. Adding either Caverno app
+bundle to macOS privacy lists changes system privacy settings, so it must only
+happen after an explicit action-time confirmation from the person operating the
+Mac.
 
 Manual sign-off notes:
 
@@ -173,7 +176,7 @@ Manual sign-off notes:
   passed after the tile-target transition update. Both Accessibility and Screen
   & System Audio Recording overlays reported `overlayShown`,
   `draggableTileReady`, and matching permission identifiers. The current debug
-  helper path still needs Screen Recording before capture readiness can pass.
+  Screen Recording now targets `Caverno.app` before capture readiness can pass.
 - 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay`
   passed with both permission overlays reporting `overlayShown` and
   `draggableTileReady`.
@@ -187,18 +190,17 @@ Manual sign-off notes:
   drag, scroll, and key press.
 - 2026-04-28: `bash tool/run_macos_computer_use_smoke_test.sh --require-capture`
   failed as expected with `screen_capture_permission_missing`; rerun it after
-  granting Screen Recording to the exact `Caverno Computer Use.app` helper path
-  shown in the smoke report.
+  granting Screen Recording to the exact `Caverno.app` path shown in the smoke
+  report.
 - 2026-04-28: `bash tool/run_macos_computer_use_existing_helper_probe.sh --require-helper-path-match --require-capture`
   confirmed `helperPathMatchesExpected: true`, `inputReady: true`, and
   `captureReady: false`. The probe failed only because the required capture
   gate was blocked by `screenCaptureGranted: false`; it also confirmed
   display screenshots still work while window capture requires Screen
   Recording.
-- 2026-04-28: System Settings accepted `Caverno Computer Use.app` through the
-  standard Add flow for Accessibility and Screen & System Audio Recording.
-  After restarting the helper, the helper onboarding UI reported both
-  permissions as `Done`.
+- 2026-04-28: System Settings accepted the standard Add flow for helper
+  Accessibility and Screen & System Audio Recording. Current split-owner builds
+  use `Caverno.app` for Screen & System Audio Recording.
 - 2026-04-28: The helper onboarding UI **Verify** action completed display and
   window observation checks: display screenshot `3600 x 2338 px` and window
   capture `Codex #203679`.
@@ -234,7 +236,8 @@ Drag/drop sign-off runbook:
   valid embedded-helper sign-off, even when the bundle identifier matches.
 - Run `bash tool/run_macos_computer_use_smoke_test.sh --require-overlay` to
   show both overlays and confirm `draggableTileReady` is true.
-- Drag the overlay tile into Accessibility and Screen & System Audio Recording.
+- Drag the overlay tile into Accessibility for `Caverno Computer Use.app` and
+  into Screen & System Audio Recording for `Caverno.app`.
   Record whether macOS accepts the drop, requests Quit & Reopen, or requires the
   standard Add flow fallback.
 - If the drag/drop target refuses the overlay tile, use the `+` button in the
@@ -586,12 +589,25 @@ Handoff preview before any desktop action is attempted:
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --handoff-only
 ```
 
-Manual run after the user grants Accessibility and Screen & System Audio
-Recording, launches Caverno.app manually, and prepares a safe click target:
+Manual run after the user grants Accessibility to `Caverno Computer Use.app`,
+grants Screen & System Audio Recording to `Caverno.app`, launches Caverno.app
+manually, and prepares a safe click target:
 
 ```bash
 bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target
 ```
+
+When validating the local release build without treating it as signed beta
+evidence, keep the same user-operated safe-target boundary and point the probe
+at the Release app/helper paths:
+
+```bash
+bash tool/run_macos_computer_use_desktop_action_canary.sh --fixture-target --release-build
+```
+
+Use `--app-path` and `--helper-path` only when intentionally validating a
+specific installed or built app/helper pair. These path overrides do not sign,
+notarize, staple, or create M50 signed beta evidence.
 
 The default runner is no-build because macOS TCC permissions are tied to the
 exact helper bundle identity. Rebuilding the Debug app during the canary can
@@ -653,6 +669,7 @@ User-operated Space switch run:
 ```bash
 bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next --handoff-only
 bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next
+bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-next --release-helper-signoff
 bash tool/run_macos_computer_use_spaces_canary.sh --switch-space-previous
 ```
 
@@ -665,17 +682,23 @@ each probe report contains `spacesCanaryGate` with `activeSpaceWindowCount`,
 `requiresApprovedInputBeforeSwitching`, and `spaceIdentifiersAvailable`.
 
 The focus run is an explicit user-operated exception to the observe-only
-boundary. It sends one `focusWindow` request to the first inactive-Space
-candidate, then records `spacesFocusCanaryGate` and a fresh active-Space window
-inventory. It must not click, type, submit, capture private content, or treat a
-focused window as safe for input until a later `computer_vision_observe` runs.
+boundary. It sends one `focusWindow` request to a normal inactive-Space
+candidate, preferring titled app windows whose app is not visible on the active
+Space and ignoring small service windows,
+then records `spacesFocusCanaryGate` and a fresh active-Space window inventory.
+The gate requires both `focusWindowConfirmed` and a post-focus active-Space
+observation of the target window. It must not click, type, submit, capture
+private content, or treat a focused window as safe for input until a later
+`computer_vision_observe` runs.
 
 The Space switch run is a separate user-operated exception. It sends one
-Control-Right or Control-Left `pressKey` request, then records
-`spacesSwitchCanaryGate` and a fresh active-Space window inventory. It requires
-an adjacent macOS Space with a different harmless window plus enabled Mission
-Control shortcuts. It does not move the pointer or type text, and any later
-pointer or keyboard input still requires a fresh `computer_vision_observe`.
+Control-Right or Control-Left `pressKey` request with physical modifier
+key-down/key-up events, then records
+`spacesSwitchCanaryGate` and polls the active-Space window inventory briefly so
+the report can tolerate normal Space transition timing. It requires an adjacent
+macOS Space with a different harmless window plus enabled Mission Control
+shortcuts. It does not move the pointer or type text, and any later pointer or
+keyboard input still requires a fresh `computer_vision_observe`.
 
 The readiness artifact index treats `macos_computer_use_spaces_canary_summary`
 as the product-lane multi-desktop evidence. For release review, the latest
@@ -1110,8 +1133,9 @@ M7 release sign-off notes:
   LaunchAgent signing-constraint blockers.
 - The same run reported `releaseRuntimeReadiness.status: not_measured`; the
   remaining release runtime task is to install and launch the release app,
-  grant Accessibility plus Screen & System Audio Recording to the release
-  helper, and run a live runtime smoke against that installed app.
+  grant Accessibility to the release helper plus Screen & System Audio
+  Recording to the release `Caverno.app`, and run a live runtime smoke against
+  that installed app.
 
 Current M8 implementation status:
 
@@ -2088,6 +2112,8 @@ M50 adds a report-only signed beta gate for the element-grounded Computer Use
 release path:
 
 ```bash
+bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --handoff-only
+
 bash tool/run_macos_computer_use_m50_signed_beta_gate.sh \
   --signed-beta-checklist <m50-signed-beta-checklist.json> \
   --release-artifact-report <release-artifact-signoff.json> \
@@ -2099,6 +2125,7 @@ bash tool/run_macos_computer_use_m50_signed_beta_gate.sh \
 
 The runner writes:
 
+- `macos_computer_use_m50_signed_beta_handoff.md`
 - `macos_computer_use_m50_signed_beta_gate.json`
 - `macos_computer_use_m50_signed_beta_gate.md`
 

@@ -17,6 +17,8 @@ M49_PRIVACY_AUDIT_RELEASE_PACK=""
 EXIT_POLICY="strict"
 WRITE_TEMPLATE="no"
 TEMPLATE_PATH=""
+WRITE_HANDOFF="no"
+HANDOFF_PATH=""
 
 require_value() {
   if [[ $# -lt 2 || -z "${2:-}" || "${2}" == --* ]]; then
@@ -40,6 +42,8 @@ Options:
   --output-json PATH                       Output summary JSON path.
   --output-md PATH                         Output summary Markdown path.
   --write-template [PATH]                  Write a signed beta checklist template and exit.
+  --write-handoff [PATH]                   Write a user-operated signed beta handoff and exit.
+  --handoff-only [PATH]                    Alias for --write-handoff.
   --report-only                            Always exit 0 after writing the report.
   --strict                                 Exit non-zero when any M50 gate is blocked.
   --help                                   Show this help.
@@ -108,6 +112,15 @@ while [[ $# -gt 0 ]]; do
         shift 1
       fi
       ;;
+    --write-handoff|--handoff-only)
+      WRITE_HANDOFF="yes"
+      if [[ $# -ge 2 && -n "${2:-}" && "${2}" != --* ]]; then
+        HANDOFF_PATH="$2"
+        shift 2
+      else
+        shift 1
+      fi
+      ;;
     --report-only)
       EXIT_POLICY="report-only"
       shift 1
@@ -143,6 +156,35 @@ if [[ "${WRITE_TEMPLATE}" == "yes" ]]; then
     args+=("${TEMPLATE_PATH}")
   fi
   echo "Writing M50 signed beta checklist template"
+  echo "  Report root: ${REPORT_ROOT}"
+  dart "${args[@]}"
+  exit $?
+fi
+
+if [[ "${WRITE_HANDOFF}" == "yes" ]]; then
+  args+=("--write-handoff")
+  if [[ -n "${HANDOFF_PATH}" ]]; then
+    args+=("${HANDOFF_PATH}")
+  fi
+  if [[ -n "${SIGNED_BETA_CHECKLIST}" ]]; then
+    args+=("--signed-beta-checklist" "${SIGNED_BETA_CHECKLIST}")
+  fi
+  if [[ -n "${RELEASE_ARTIFACT_REPORT}" ]]; then
+    args+=("--release-artifact-report" "${RELEASE_ARTIFACT_REPORT}")
+  fi
+  if [[ -n "${RELEASE_PACKAGING_REPORT}" ]]; then
+    args+=("--release-packaging-report" "${RELEASE_PACKAGING_REPORT}")
+  fi
+  if [[ -n "${M46_ELEMENT_GROUNDED_LLM_EVAL}" ]]; then
+    args+=("--m46-element-grounded-llm-eval" "${M46_ELEMENT_GROUNDED_LLM_EVAL}")
+  fi
+  if [[ -n "${M48_USER_OPERATED_ACTION_PILOT}" ]]; then
+    args+=("--m48-user-operated-action-pilot" "${M48_USER_OPERATED_ACTION_PILOT}")
+  fi
+  if [[ -n "${M49_PRIVACY_AUDIT_RELEASE_PACK}" ]]; then
+    args+=("--m49-privacy-audit-release-pack" "${M49_PRIVACY_AUDIT_RELEASE_PACK}")
+  fi
+  echo "Writing M50 signed beta handoff"
   echo "  Report root: ${REPORT_ROOT}"
   dart "${args[@]}"
   exit $?

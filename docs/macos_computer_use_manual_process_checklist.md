@@ -77,7 +77,8 @@ Spaces:
 
 For a user-operated focus check:
 
-1. Complete the two-Space setup above.
+1. Complete the two-Space setup above with a target window from an app that is
+   not visible on the active Space.
 2. Confirm Accessibility is granted to the expected helper path.
 3. Run:
 
@@ -117,9 +118,9 @@ For a user-operated Space switch check:
 For product release readiness, provide the latest
 `macos_computer_use_spaces_canary_summary` to the artifact index. It should
 come from a handoff preview followed by a run such as
-`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only`
+`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only`
 and then
-`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next`
+`bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff`
 or the equivalent previous-Space direction, with
 `requiresApprovedInputBeforeSwitching` true. Ready summaries include
 `nextAutomationSafeCommands` for refreshing the artifact index and M31
@@ -691,24 +692,26 @@ available:
 
 1. Write or refresh the signed beta checklist template:
    `bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --write-template`.
-2. Attach signed artifact evidence from the M7 release artifact sign-off.
-3. Attach M33 release packaging evidence.
-4. Attach notarization ticket and stapler validation evidence in the M50 signed
+2. Write the user-operated handoff:
+   `bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --handoff-only`.
+3. Attach signed artifact evidence from the M7 release artifact sign-off.
+4. Attach M33 release packaging evidence.
+5. Attach notarization ticket and stapler validation evidence in the M50 signed
    beta checklist.
-5. Ask the user to complete clean install, upgrade, permission grant,
+6. Ask the user to complete clean install, upgrade, permission grant,
    permission revocation, helper restart, and XPC fallback observability checks
    with the signed beta build.
-6. Confirm M46 produced a ready
+7. Confirm M46 produced a ready
    `macos_computer_use_m46_element_grounded_llm_eval_summary`.
-7. Confirm M48 produced a ready
+8. Confirm M48 produced a ready
    `macos_computer_use_m48_user_operated_action_pilot`.
-8. Confirm M49 produced a ready
+9. Confirm M49 produced a ready
    `macos_computer_use_m49_privacy_audit_release_pack`.
-9. Run
+10. Run
    `bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --signed-beta-checklist <m50-signed-beta-checklist.json> --release-artifact-report <release-artifact-signoff.json> --release-packaging-report <macos_computer_use_release_packaging.json> --m46-element-grounded-llm-eval <canary_summary.json> --m48-user-operated-action-pilot <user_operated_action_pilot.json> --m49-privacy-audit-release-pack <privacy_audit_release_pack.json>`.
-10. Confirm `schemaName` is `macos_computer_use_m50_signed_beta_gate`.
-11. Confirm `signedBetaReviewSummary.status` is `ready_for_signed_beta`.
-12. Confirm `m50SignedBetaGate.status` is `ready`.
+11. Confirm `schemaName` is `macos_computer_use_m50_signed_beta_gate`.
+12. Confirm `signedBetaReviewSummary.status` is `ready_for_signed_beta`.
+13. Confirm `m50SignedBetaGate.status` is `ready`.
 
 Do not use M50 to sign, notarize, staple, grant TCC, open System Settings,
 capture screens, click, type, navigate, submit, post, purchase, export raw
@@ -1010,8 +1013,10 @@ Expected smoke fields:
 1. Open Accessibility or Screen & System Audio Recording from the onboarding UI.
 2. Confirm System Settings opens.
 3. Confirm the floating permission overlay appears near the permission list.
-4. Confirm the overlay remains visible while System Settings is active.
-5. Use the overlay back button to return to onboarding.
+4. Confirm the Accessibility overlay drags `Caverno Computer Use.app`.
+5. Confirm the Screen & System Audio Recording overlay drags `Caverno.app`.
+6. Confirm the overlay remains visible while System Settings is active.
+7. Use the overlay back button to return to onboarding.
 
 Expected overlay fields:
 

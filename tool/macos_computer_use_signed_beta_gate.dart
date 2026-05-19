@@ -7,6 +7,7 @@ Future<void> main(List<String> args) async {
   var reportRootPath = 'build/integration_test_reports';
   var exitPolicy = 'strict';
   var writeTemplateOnly = false;
+  var writeHandoffOnly = false;
   String? signedBetaChecklistPath;
   String? releaseArtifactReportPath;
   String? releasePackagingReportPath;
@@ -16,6 +17,7 @@ Future<void> main(List<String> args) async {
   String? outputJsonPath;
   String? outputMarkdownPath;
   String? templatePath;
+  String? handoffPath;
 
   for (var index = 0; index < args.length; index += 1) {
     final arg = args[index];
@@ -74,6 +76,12 @@ Future<void> main(List<String> args) async {
           index += 1;
           templatePath = args[index];
         }
+      case '--write-handoff':
+        writeHandoffOnly = true;
+        if (index + 1 < args.length && !args[index + 1].startsWith('--')) {
+          index += 1;
+          handoffPath = args[index];
+        }
       case '--exit-policy':
         index += 1;
         if (index >= args.length) {
@@ -106,6 +114,12 @@ Future<void> main(List<String> args) async {
   final reportRoot = Directory(reportRootPath);
   reportRoot.createSync(recursive: true);
 
+  if (writeTemplateOnly && writeHandoffOnly) {
+    return _usageError(
+      '--write-template and --write-handoff cannot be used together.',
+    );
+  }
+
   if (writeTemplateOnly) {
     final templateFile = File(
       templatePath ??
@@ -130,6 +144,23 @@ Future<void> main(List<String> args) async {
     m48UserOperatedActionPilotPath: m48UserOperatedActionPilotPath,
     m49PrivacyAuditReleasePackPath: m49PrivacyAuditReleasePackPath,
   );
+
+  if (writeHandoffOnly) {
+    final handoffFile = File(
+      handoffPath ??
+          '${reportRoot.path}/macos_computer_use_m50_signed_beta_handoff.md',
+    );
+    handoffFile.parent.createSync(recursive: true);
+    await handoffFile.writeAsString(
+      signedBetaChecklistHandoffMarkdown(
+        reportRoot: reportRoot,
+        inputs: inputs,
+      ),
+    );
+    stdout.writeln('M50 signed beta handoff written to ${handoffFile.path}');
+    return;
+  }
+
   final summary = buildMacosComputerUseSignedBetaSummary(inputs);
   final outputJson = File(
     outputJsonPath ??
@@ -163,8 +194,9 @@ void _printUsage() {
     '[--m46-element-grounded-llm-eval path] '
     '[--m48-user-operated-action-pilot path] '
     '[--m49-privacy-audit-release-pack path] '
-    '[--write-template [path]] [--exit-policy strict|report-only] '
-    '[--output-json path] [--output-md path]',
+    '[--write-template [path]] [--write-handoff [path]] '
+    '[--exit-policy strict|report-only] [--output-json path] '
+    '[--output-md path]',
   );
 }
 

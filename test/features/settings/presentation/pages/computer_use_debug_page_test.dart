@@ -128,13 +128,13 @@ void main() {
     );
     expect(
       find.textContaining(
-        'macOS Spaces canary handoff: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+        'macOS Spaces canary handoff: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only',
       ),
       findsOneWidget,
     );
     expect(
       find.textContaining(
-        'macOS Spaces canary command: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next',
+        'macOS Spaces canary command: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff',
       ),
       findsOneWidget,
     );
@@ -247,7 +247,7 @@ void main() {
     );
     expect(
       find.textContaining(
-        'macOS Spaces preview: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --handoff-only',
+        'macOS Spaces preview: bash tool/run_macos_computer_use_spaces_canary.sh --require-inactive-space-window --switch-space-next --release-helper-signoff --handoff-only',
       ),
       findsOneWidget,
     );
@@ -738,7 +738,7 @@ void main() {
     expect(service.stopHelperWorkCallCount, 1);
   });
 
-  testWidgets('launches helper and refreshes helper-owned permissions', (
+  testWidgets('launches helper and refreshes split permissions', (
     tester,
   ) async {
     final service = _FakeMacosComputerUseService();

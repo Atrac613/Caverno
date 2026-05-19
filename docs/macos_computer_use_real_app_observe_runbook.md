@@ -223,6 +223,8 @@ signed beta work.
 Use M50 after M49 is ready and the signed beta build evidence is available:
 
 ```bash
+bash tool/run_macos_computer_use_m50_signed_beta_gate.sh --handoff-only
+
 bash tool/run_macos_computer_use_m50_signed_beta_gate.sh \
   --signed-beta-checklist <m50-signed-beta-checklist.json> \
   --release-artifact-report <release-artifact-signoff.json> \
@@ -234,6 +236,7 @@ bash tool/run_macos_computer_use_m50_signed_beta_gate.sh \
 
 The runner writes:
 
+- `macos_computer_use_m50_signed_beta_handoff.md`
 - `macos_computer_use_m50_signed_beta_gate.json`
 - `macos_computer_use_m50_signed_beta_gate.md`
 
