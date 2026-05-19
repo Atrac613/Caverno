@@ -1078,6 +1078,7 @@ class LocalShellTools {
       caseSensitive: !ignoreCase,
       multiLine: true,
     );
+    final fileMatcher = _wildcardToRegExp(filePattern);
     final matches = <String>[];
 
     await for (final entity in Directory(
@@ -1086,8 +1087,8 @@ class LocalShellTools {
       if (entity is! File) continue;
       final relativePath = _relativePath(entity.path, searchRoot);
       final fileName = entity.uri.pathSegments.last;
-      if (!_wildcardToRegExp(filePattern).hasMatch(relativePath) &&
-          !_wildcardToRegExp(filePattern).hasMatch(fileName)) {
+      if (!fileMatcher.hasMatch(relativePath) &&
+          !fileMatcher.hasMatch(fileName)) {
         continue;
       }
       try {
