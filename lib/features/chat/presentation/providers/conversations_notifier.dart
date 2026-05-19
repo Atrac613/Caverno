@@ -100,15 +100,22 @@ const defaultConversationTitle = '__new_conversation__';
 class ConversationsNotifier extends Notifier<ConversationsState> {
   late final ConversationRepository _repository;
   final _uuid = const Uuid();
+  final Set<String> _freshConversationScopes = <String>{};
 
   @override
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
+    final initialWorkspaceMode = WorkspaceMode.chat;
+    final initialProjectId = _normalizeProjectId(initialWorkspaceMode, null);
+    _freshConversationScopes.add(
+      _conversationScopeKey(initialWorkspaceMode, initialProjectId),
+    );
     final scopedState = _buildScopedState(
       conversations: _repository.getAll(),
-      workspaceMode: WorkspaceMode.chat,
-      projectId: null,
+      workspaceMode: initialWorkspaceMode,
+      projectId: initialProjectId,
       createIfMissing: true,
+      createFreshConversation: true,
     );
     Future<void>.microtask(() async {
       if (!ref.mounted) {
@@ -125,8 +132,9 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required String? projectId,
     String? preferredConversationId,
     required bool createIfMissing,
+    bool createFreshConversation = false,
   }) {
-    final normalizedProjectId = workspaceMode.usesProjects ? projectId : null;
+    final normalizedProjectId = _normalizeProjectId(workspaceMode, projectId);
     final visibleConversations = workspaceMode.usesConversations
         ? conversations
               .where((conversation) {
@@ -140,6 +148,26 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
               })
               .toList(growable: false)
         : const <Conversation>[];
+    var nextConversations = conversations;
+
+    if (createFreshConversation &&
+        createIfMissing &&
+        workspaceMode.usesConversations) {
+      final fresh = _createConversation(
+        workspaceMode: workspaceMode,
+        projectId: normalizedProjectId,
+      );
+      _repository.save(fresh);
+      nextConversations = [fresh, ...conversations];
+      _sortConversations(nextConversations);
+
+      return ConversationsState(
+        conversations: nextConversations,
+        currentConversationId: fresh.id,
+        activeWorkspaceMode: workspaceMode,
+        activeProjectId: normalizedProjectId,
+      );
+    }
 
     String? currentConversationId = preferredConversationId;
     if (currentConversationId != null &&
@@ -152,7 +180,6 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         ? null
         : visibleConversations.first.id;
 
-    var nextConversations = conversations;
     if (currentConversationId == null &&
         createIfMissing &&
         workspaceMode.usesConversations) {
@@ -172,6 +199,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       activeWorkspaceMode: workspaceMode,
       activeProjectId: normalizedProjectId,
     );
+  }
+
+  String? _normalizeProjectId(WorkspaceMode workspaceMode, String? projectId) {
+    if (!workspaceMode.usesProjects) {
+      return null;
+    }
+    final trimmed = projectId?.trim() ?? '';
+    return trimmed.isEmpty ? null : trimmed;
+  }
+
+  String _conversationScopeKey(WorkspaceMode workspaceMode, String? projectId) {
+    return '${workspaceMode.name}:${projectId ?? ''}';
   }
 
   Conversation _createConversation({
@@ -260,13 +299,26 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     required WorkspaceMode workspaceMode,
     String? projectId,
     bool createIfMissing = true,
+    bool createFreshOnFirstOpen = false,
   }) {
+    final normalizedProjectId = _normalizeProjectId(workspaceMode, projectId);
+    final scopeKey = _conversationScopeKey(workspaceMode, normalizedProjectId);
+    final shouldCreateFreshConversation =
+        createFreshOnFirstOpen &&
+        createIfMissing &&
+        workspaceMode.usesConversations &&
+        !_freshConversationScopes.contains(scopeKey);
+    if (shouldCreateFreshConversation) {
+      _freshConversationScopes.add(scopeKey);
+    }
+
     state = _buildScopedState(
       conversations: state.conversations,
       workspaceMode: workspaceMode,
-      projectId: projectId,
+      projectId: normalizedProjectId,
       preferredConversationId: state.currentConversationId,
       createIfMissing: createIfMissing,
+      createFreshConversation: shouldCreateFreshConversation,
     );
     ensureCurrentPlanArtifactBackfilled();
   }

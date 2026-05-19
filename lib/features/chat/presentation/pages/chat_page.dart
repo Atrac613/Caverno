@@ -127,6 +127,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       conversationsNotifier.activateWorkspace(
         workspaceMode: WorkspaceMode.chat,
         createIfMissing: true,
+        createFreshOnFirstOpen: true,
       );
       await settingsNotifier.updateAssistantMode(AssistantMode.general);
       return;
@@ -151,6 +152,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
       workspaceMode: WorkspaceMode.coding,
       projectId: projectId,
       createIfMissing: projectId != null,
+      createFreshOnFirstOpen: projectId != null,
     );
     await settingsNotifier.updateAssistantMode(
       currentAssistantMode == AssistantMode.general
@@ -175,6 +177,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
           workspaceMode: WorkspaceMode.coding,
           projectId: project.id,
           createIfMissing: true,
+          createFreshOnFirstOpen: true,
         );
     final currentAssistantMode = ref
         .read(settingsNotifierProvider)

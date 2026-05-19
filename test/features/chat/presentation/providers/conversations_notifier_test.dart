@@ -60,6 +60,98 @@ void main() {
     container.dispose();
   });
 
+  test('startup creates a fresh chat conversation', () async {
+    final savedConversation = Conversation(
+      id: 'saved-chat',
+      title: 'Saved chat',
+      messages: [
+        Message(
+          id: 'saved-message',
+          content: 'Continue the previous topic',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 20, 10),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 20, 10),
+      updatedAt: DateTime(2026, 4, 20, 10),
+      workspaceMode: WorkspaceMode.chat,
+    );
+    await repository.save(savedConversation);
+
+    final state = container.read(conversationsNotifierProvider);
+    final currentConversation = state.currentConversation;
+
+    expect(currentConversation, isNotNull);
+    expect(currentConversation!.id, isNot(savedConversation.id));
+    expect(currentConversation.title, defaultConversationTitle);
+    expect(currentConversation.messages, isEmpty);
+    expect(currentConversation.workspaceMode, WorkspaceMode.chat);
+    expect(repository.getById(currentConversation.id), isNotNull);
+  });
+
+  test('first coding workspace open creates a fresh project thread', () async {
+    final savedThread = Conversation(
+      id: 'saved-coding-thread',
+      title: 'Saved coding thread',
+      messages: [
+        Message(
+          id: 'saved-coding-message',
+          content: 'Continue the prior implementation',
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 20, 11),
+        ),
+      ],
+      createdAt: DateTime(2026, 4, 20, 11),
+      updatedAt: DateTime(2026, 4, 20, 11),
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await repository.save(savedThread);
+
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    notifier.activateWorkspace(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      createIfMissing: true,
+      createFreshOnFirstOpen: true,
+    );
+
+    var state = container.read(conversationsNotifierProvider);
+    final freshThread = state.currentConversation;
+    expect(freshThread, isNotNull);
+    expect(freshThread!.id, isNot(savedThread.id));
+    expect(freshThread.title, defaultConversationTitle);
+    expect(freshThread.messages, isEmpty);
+    expect(freshThread.workspaceMode, WorkspaceMode.coding);
+    expect(freshThread.normalizedProjectId, 'project-1');
+    final freshThreadId = freshThread.id;
+
+    notifier.activateWorkspace(
+      workspaceMode: WorkspaceMode.chat,
+      createIfMissing: true,
+      createFreshOnFirstOpen: true,
+    );
+    notifier.activateWorkspace(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+      createIfMissing: true,
+      createFreshOnFirstOpen: true,
+    );
+
+    state = container.read(conversationsNotifierProvider);
+    expect(state.currentConversation?.id, freshThreadId);
+    expect(
+      state.conversations
+          .where(
+            (conversation) =>
+                conversation.workspaceMode == WorkspaceMode.coding &&
+                conversation.normalizedProjectId == 'project-1',
+          )
+          .length,
+      2,
+    );
+  });
+
   test(
     'updateCurrentWorkflow persists workflow data for current thread',
     () async {
