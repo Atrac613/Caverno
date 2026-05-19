@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../../core/services/google_chat_delivery_service.dart';
 import '../../../core/types/assistant_mode.dart';
+import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
 import '../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../chat/data/datasources/mcp_tool_service.dart';
@@ -82,6 +83,7 @@ class RoutineExecutionService {
   static const int _maxStoredOutputLength = 24000;
   static const int _maxStoredToolArgumentsLength = 4000;
   static const int _maxStoredToolResultLength = 12000;
+  static const int _maxGeneratedPlanLength = 12000;
 
   Future<RoutineRunRecord> execute(
     Routine routine, {
@@ -192,12 +194,136 @@ class RoutineExecutionService {
     }
   }
 
+  Future<String> generatePlanDraft(Routine routine) async {
+    final now = DateTime.now();
+    final allowedTools = _allowedRoutineTools(routine);
+    final toolNames = _toolNamesFromDefinitions(allowedTools);
+    final messages = [
+      Message(
+        id: 'routine_plan_system',
+        content: _buildRoutinePlanSystemPrompt(
+          now: now,
+          allowedToolNames: toolNames,
+        ),
+        role: MessageRole.system,
+        timestamp: now,
+      ),
+      Message(
+        id: 'routine_plan_user',
+        content: _buildRoutinePlanDraftRequest(
+          routine: routine,
+          allowedToolNames: toolNames,
+        ),
+        role: MessageRole.user,
+        timestamp: now,
+      ),
+    ];
+
+    final result = await _dataSource.createChatCompletion(
+      messages: messages,
+      model: _settings.model,
+      temperature: _settings.temperature,
+      maxTokens: _settings.maxTokens,
+    );
+    final markdown = _textSegmentsOnly(result.content).trimRight();
+    if (markdown.trim().isEmpty) {
+      throw StateError('Routine plan draft generation returned no content.');
+    }
+    return RoutineScheduleService.truncateOutput(
+      markdown,
+      maxLength: _maxGeneratedPlanLength,
+    );
+  }
+
   String _resolveLanguageCode() {
     final preference = _settings.language.trim().toLowerCase();
     if (preference == 'ja' || preference == 'en') {
       return preference;
     }
     return 'en';
+  }
+
+  String _buildRoutinePlanSystemPrompt({
+    required DateTime now,
+    required List<String> allowedToolNames,
+  }) {
+    final basePrompt = SystemPromptBuilder.build(
+      now: now,
+      assistantMode: AssistantMode.general,
+      languageCode: _resolveLanguageCode(),
+      toolNames: allowedToolNames,
+    );
+
+    return [
+      basePrompt,
+      'Routine plan mode: create a reviewable Markdown execution plan for an '
+          'unattended routine. Do not execute the routine. Do not call tools. '
+          'Do not ask follow-up questions. If information is missing, write '
+          'explicit assumptions and safe fallback steps. Keep the plan concise '
+          'enough to be injected into future routine executions.',
+    ].join('\n');
+  }
+
+  String _buildRoutinePlanDraftRequest({
+    required Routine routine,
+    required List<String> allowedToolNames,
+  }) {
+    final buffer = StringBuffer()
+      ..writeln('Create a routine execution plan for this routine.')
+      ..writeln()
+      ..writeln('Routine name:')
+      ..writeln(routine.trimmedName)
+      ..writeln()
+      ..writeln('Routine prompt:')
+      ..writeln(routine.trimmedPrompt)
+      ..writeln()
+      ..writeln('Schedule:')
+      ..writeln(
+        'Every ${RoutineScheduleService.normalizeIntervalValue(routine.intervalValue)} '
+        '${routine.intervalUnit.name}',
+      )
+      ..writeln()
+      ..writeln('Tools:')
+      ..writeln(
+        allowedToolNames.isEmpty
+            ? 'No routine tools are enabled.'
+            : allowedToolNames.join(', '),
+      )
+      ..writeln()
+      ..writeln('Workspace:')
+      ..writeln(
+        routine.hasWorkspaceDirectory
+            ? routine.trimmedWorkspaceDirectory
+            : 'No routine workspace directory is configured.',
+      )
+      ..writeln()
+      ..writeln('Workspace writes:')
+      ..writeln(routine.hasWorkspaceWriteAccess ? 'Allowed' : 'Not allowed')
+      ..writeln()
+      ..writeln('Completion action:')
+      ..writeln(routine.completionAction.name);
+
+    final currentPlan =
+        routine.effectivePlanArtifact.normalizedDraftMarkdown ??
+        routine.effectivePlanArtifact.normalizedApprovedMarkdown;
+    if (currentPlan != null) {
+      buffer
+        ..writeln()
+        ..writeln('Existing plan to revise:')
+        ..writeln(_truncateApprovedPlanForPrompt(currentPlan));
+    }
+
+    buffer
+      ..writeln()
+      ..writeln('Return only Markdown with these sections:')
+      ..writeln('- Objective')
+      ..writeln('- Approved Scope')
+      ..writeln('- Execution Steps')
+      ..writeln('- Tool and Workspace Policy')
+      ..writeln('- Completion Criteria')
+      ..writeln('- Failure Handling');
+
+    return buffer.toString().trimRight();
   }
 
   String _buildRoutineSystemPrompt({
@@ -250,6 +376,17 @@ class RoutineExecutionService {
 
   String _truncateApprovedPlanForPrompt(String plan) {
     return RoutineScheduleService.truncateOutput(plan, maxLength: 6000);
+  }
+
+  String _textSegmentsOnly(String content) {
+    final parsed = ContentParser.parse(content);
+    final buffer = StringBuffer();
+    for (final segment in parsed.segments) {
+      if (segment.type == ContentType.text) {
+        buffer.write(segment.content);
+      }
+    }
+    return buffer.toString();
   }
 
   Future<RoutineToolExecutionResult> _executeRoutine({

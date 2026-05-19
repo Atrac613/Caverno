@@ -167,6 +167,45 @@ void main() {
       },
     );
 
+    test('generates routine plan drafts without executing tools', () async {
+      final dataSource = _FakeChatDataSource(
+        plainResults: [
+          ChatCompletionResult(
+            content:
+                '<think>Drafting.</think># Routine Plan\n\n## Objective\nSummarize updates.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        definitions: [_toolDefinition('web_search', 'Search the web')],
+        resultsByToolName: const {},
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        mcpToolService: toolService,
+        settings: AppSettings.defaults(),
+      );
+
+      final markdown = await service.generatePlanDraft(
+        buildRoutine(toolsEnabled: true),
+      );
+
+      expect(markdown, startsWith('# Routine Plan'));
+      expect(markdown, isNot(contains('<think>')));
+      expect(dataSource.toolRequestNames, isEmpty);
+      final systemPrompt = dataSource.lastPlainMessages
+          .singleWhere((message) => message.role == MessageRole.system)
+          .content;
+      final userPrompt = dataSource.lastPlainMessages
+          .singleWhere((message) => message.role == MessageRole.user)
+          .content;
+      expect(systemPrompt, contains('Routine plan mode'));
+      expect(systemPrompt, contains('Do not call tools'));
+      expect(userPrompt, contains('Summarize the latest updates.'));
+      expect(userPrompt, contains('web_search'));
+    });
+
     test(
       'fails when the final routine answer is truncated thinking only',
       () async {
@@ -1000,6 +1039,7 @@ class _FakeChatDataSource implements ChatDataSource {
   bool _usedInitialToolAwareResult = false;
 
   List<String> toolRequestNames = const [];
+  List<Message> lastPlainMessages = const [];
   List<Message> lastToolAwareMessages = const [];
   List<ToolResultInfo> lastToolResults = const [];
   int createChatCompletionWithToolResultsCallCount = 0;
@@ -1029,6 +1069,7 @@ class _FakeChatDataSource implements ChatDataSource {
       return ChatCompletionResult(content: '', finishReason: 'stop');
     }
 
+    lastPlainMessages = messages;
     if (_plainResults.isEmpty) {
       return ChatCompletionResult(content: '', finishReason: 'stop');
     }

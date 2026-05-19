@@ -22,6 +22,7 @@ class RoutineDetailPage extends ConsumerWidget {
         .read(routinesNotifierProvider.notifier)
         .findRoutine(routineId);
     final isRunning = routinesState.isRunning(routineId);
+    final isGeneratingPlan = routinesState.isGeneratingPlan(routineId);
     final latestRun = routine?.latestRun;
     final requiresFailureAcknowledgement =
         latestRun?.requiresAttention ?? false;
@@ -254,6 +255,20 @@ class RoutineDetailPage extends ConsumerWidget {
             ),
           ),
           const SizedBox(height: 16),
+          _RoutinePlanCard(
+            routine: routine,
+            isGenerating: isGeneratingPlan,
+            onGenerateDraft: isRunning || isGeneratingPlan
+                ? null
+                : () => _generatePlanDraft(context, ref, routine),
+            onEditDraft: isGeneratingPlan
+                ? null
+                : () => _showPlanEditor(context, ref, routine),
+            onApproveDraft: isRunning || isGeneratingPlan
+                ? null
+                : () => _approveRoutinePlan(context, ref, routine),
+          ),
+          const SizedBox(height: 16),
           Text(
             'routines.history_title'.tr(),
             style: Theme.of(context).textTheme.titleMedium,
@@ -408,6 +423,111 @@ class RoutineDetailPage extends ConsumerWidget {
           workspaceDirectory: result.workspaceDirectory,
           allowWorkspaceWrites: result.allowWorkspaceWrites,
         );
+  }
+
+  Future<void> _generatePlanDraft(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    try {
+      final markdown = await ref
+          .read(routinesNotifierProvider.notifier)
+          .generatePlanDraft(routine.id);
+      if (!context.mounted || markdown == null) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('routines.plan_draft_generated'.tr())),
+      );
+    } catch (error) {
+      if (!context.mounted) {
+        return;
+      }
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text(
+            'routines.plan_generation_failed'.tr(
+              namedArgs: {'error': error.toString()},
+            ),
+          ),
+        ),
+      );
+    }
+  }
+
+  Future<void> _showPlanEditor(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    final result = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      builder: (context) =>
+          _RoutinePlanEditorSheet(initialMarkdown: _initialPlanDraft(routine)),
+    );
+
+    if (result == null) {
+      return;
+    }
+
+    await ref
+        .read(routinesNotifierProvider.notifier)
+        .savePlanDraft(routineId: routine.id, markdown: result);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('routines.plan_draft_saved'.tr())));
+  }
+
+  Future<void> _approveRoutinePlan(
+    BuildContext context,
+    WidgetRef ref,
+    Routine routine,
+  ) async {
+    await ref
+        .read(routinesNotifierProvider.notifier)
+        .approvePlanDraft(routine.id);
+    if (!context.mounted) {
+      return;
+    }
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('routines.plan_approved'.tr())));
+  }
+
+  String _initialPlanDraft(Routine routine) {
+    final artifact = routine.effectivePlanArtifact;
+    return artifact.normalizedDraftMarkdown ??
+        artifact.normalizedApprovedMarkdown ??
+        _starterPlanDraft(routine);
+  }
+
+  String _starterPlanDraft(Routine routine) {
+    final buffer = StringBuffer()
+      ..writeln('# Routine Plan')
+      ..writeln()
+      ..writeln('## Objective')
+      ..writeln(routine.trimmedPrompt)
+      ..writeln()
+      ..writeln('## Approved Scope')
+      ..writeln('- ')
+      ..writeln()
+      ..writeln('## Execution Steps')
+      ..writeln('1. ')
+      ..writeln()
+      ..writeln('## Tool and Workspace Policy')
+      ..writeln('- ')
+      ..writeln()
+      ..writeln('## Completion Criteria')
+      ..writeln('- ')
+      ..writeln()
+      ..writeln('## Failure Handling')
+      ..writeln('- ');
+    return buffer.toString().trimRight();
   }
 
   String _formatCompletionAction(BuildContext context, Routine routine) {
@@ -834,6 +954,11 @@ class _RunRecordCard extends StatelessWidget {
                     ),
                     color: theme.colorScheme.tertiaryContainer,
                   ),
+                if (run.usedPlan)
+                  _StatusChip(
+                    label: 'routines.plan_used_badge'.tr(),
+                    color: theme.colorScheme.primaryContainer,
+                  ),
                 if (run.deliveryStatus != RoutineDeliveryStatus.notRequested)
                   _StatusChip(
                     label: _deliveryStatusLabel(run),
@@ -1006,5 +1131,248 @@ class _MetaLine extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+class _RoutinePlanCard extends StatelessWidget {
+  const _RoutinePlanCard({
+    required this.routine,
+    required this.isGenerating,
+    required this.onGenerateDraft,
+    required this.onEditDraft,
+    required this.onApproveDraft,
+  });
+
+  final Routine routine;
+  final bool isGenerating;
+  final VoidCallback? onGenerateDraft;
+  final VoidCallback? onEditDraft;
+  final VoidCallback? onApproveDraft;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final artifact = routine.effectivePlanArtifact;
+    final markdown =
+        artifact.normalizedDraftMarkdown ?? artifact.normalizedApprovedMarkdown;
+    final canApprove =
+        routine.hasPendingPlanEdits ||
+        routine.hasStaleApprovedPlan ||
+        (routine.hasPlanDraft && !routine.hasApprovedPlan);
+    final approveLabelKey =
+        routine.hasStaleApprovedPlan && !routine.hasPendingPlanEdits
+        ? 'routines.plan_reapprove'
+        : 'routines.plan_approve_draft';
+
+    return Card(
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                Icon(
+                  Icons.route_outlined,
+                  size: 20,
+                  color: theme.colorScheme.primary,
+                ),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'routines.plan_title'.tr(),
+                    style: theme.textTheme.titleMedium,
+                  ),
+                ),
+                _StatusChip(
+                  label: _planStatusLabel(routine),
+                  color: _planStatusColor(theme, routine),
+                ),
+              ],
+            ),
+            const SizedBox(height: 12),
+            if (markdown == null)
+              Text(
+                'routines.plan_empty'.tr(),
+                style: theme.textTheme.bodyMedium?.copyWith(
+                  color: theme.colorScheme.onSurfaceVariant,
+                ),
+              )
+            else
+              ConstrainedBox(
+                constraints: const BoxConstraints(maxHeight: 220),
+                child: SingleChildScrollView(
+                  child: SelectableText(
+                    RoutineScheduleService.truncateOutput(
+                      markdown,
+                      maxLength: 2400,
+                    ),
+                    style: theme.textTheme.bodySmall?.copyWith(height: 1.35),
+                  ),
+                ),
+              ),
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                OutlinedButton.icon(
+                  onPressed: onGenerateDraft,
+                  icon: isGenerating
+                      ? const SizedBox.square(
+                          dimension: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined, size: 18),
+                  label: Text(
+                    isGenerating
+                        ? 'routines.plan_generating_draft'.tr()
+                        : 'routines.plan_generate_draft'.tr(),
+                  ),
+                ),
+                OutlinedButton.icon(
+                  onPressed: onEditDraft,
+                  icon: const Icon(Icons.edit_note_outlined, size: 18),
+                  label: Text('routines.plan_edit_draft'.tr()),
+                ),
+                if (canApprove)
+                  FilledButton.tonalIcon(
+                    onPressed: onApproveDraft,
+                    icon: const Icon(Icons.verified_outlined, size: 18),
+                    label: Text(approveLabelKey.tr()),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  String _planStatusLabel(Routine routine) {
+    if (routine.hasPendingPlanEdits) {
+      return 'routines.plan_status_draft'.tr();
+    }
+    if (routine.hasStaleApprovedPlan) {
+      return 'routines.plan_status_stale'.tr();
+    }
+    if (routine.isApprovedPlanFresh) {
+      return 'routines.plan_status_approved'.tr();
+    }
+    return 'routines.plan_status_unapproved'.tr();
+  }
+
+  Color _planStatusColor(ThemeData theme, Routine routine) {
+    if (routine.hasPendingPlanEdits) {
+      return theme.colorScheme.secondaryContainer;
+    }
+    if (routine.hasStaleApprovedPlan) {
+      return theme.colorScheme.errorContainer;
+    }
+    if (routine.isApprovedPlanFresh) {
+      return theme.colorScheme.primaryContainer;
+    }
+    return theme.colorScheme.surfaceContainerHighest;
+  }
+}
+
+class _RoutinePlanEditorSheet extends StatefulWidget {
+  const _RoutinePlanEditorSheet({required this.initialMarkdown});
+
+  final String initialMarkdown;
+
+  @override
+  State<_RoutinePlanEditorSheet> createState() =>
+      _RoutinePlanEditorSheetState();
+}
+
+class _RoutinePlanEditorSheetState extends State<_RoutinePlanEditorSheet> {
+  final _formKey = GlobalKey<FormState>();
+  late final TextEditingController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = TextEditingController(text: widget.initialMarkdown);
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final maxHeight = MediaQuery.of(context).size.height * 0.86;
+    return SafeArea(
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          16,
+          16,
+          16,
+          16 + MediaQuery.of(context).viewInsets.bottom,
+        ),
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxHeight: maxHeight),
+          child: Form(
+            key: _formKey,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'routines.plan_editor_title'.tr(),
+                  style: Theme.of(context).textTheme.titleLarge,
+                ),
+                const SizedBox(height: 12),
+                Expanded(
+                  child: TextFormField(
+                    controller: _controller,
+                    expands: true,
+                    minLines: null,
+                    maxLines: null,
+                    keyboardType: TextInputType.multiline,
+                    textAlignVertical: TextAlignVertical.top,
+                    decoration: InputDecoration(
+                      labelText: 'routines.plan_markdown_label'.tr(),
+                      border: const OutlineInputBorder(),
+                      alignLabelWithHint: true,
+                    ),
+                    validator: (value) {
+                      if ((value ?? '').trim().isEmpty) {
+                        return 'routines.plan_editor_empty_error'.tr();
+                      }
+                      return null;
+                    },
+                  ),
+                ),
+                const SizedBox(height: 12),
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.of(context).pop(),
+                      child: Text('common.cancel'.tr()),
+                    ),
+                    const SizedBox(width: 8),
+                    FilledButton(
+                      onPressed: _save,
+                      child: Text('common.save'.tr()),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _save() {
+    if (!(_formKey.currentState?.validate() ?? false)) {
+      return;
+    }
+    Navigator.of(context).pop(_controller.text.trimRight());
   }
 }

@@ -14,22 +14,30 @@ class RoutinesState {
   const RoutinesState({
     required this.routines,
     this.runningRoutineIds = const <String>{},
+    this.generatingPlanRoutineIds = const <String>{},
   });
 
   final List<Routine> routines;
   final Set<String> runningRoutineIds;
+  final Set<String> generatingPlanRoutineIds;
 
   RoutinesState copyWith({
     List<Routine>? routines,
     Set<String>? runningRoutineIds,
+    Set<String>? generatingPlanRoutineIds,
   }) {
     return RoutinesState(
       routines: routines ?? this.routines,
       runningRoutineIds: runningRoutineIds ?? this.runningRoutineIds,
+      generatingPlanRoutineIds:
+          generatingPlanRoutineIds ?? this.generatingPlanRoutineIds,
     );
   }
 
   bool isRunning(String routineId) => runningRoutineIds.contains(routineId);
+
+  bool isGeneratingPlan(String routineId) =>
+      generatingPlanRoutineIds.contains(routineId);
 }
 
 final routinesNotifierProvider =
@@ -201,11 +209,54 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required String routineId,
     required String markdown,
   }) async {
+    await _savePlanDraft(
+      routineId: routineId,
+      markdown: markdown,
+      revisionLabel: 'Saved routine plan draft',
+    );
+  }
+
+  Future<String?> generatePlanDraft(String routineId) async {
+    final existing = _findRoutine(routineId);
+    if (existing == null) {
+      return null;
+    }
+    if (state.isGeneratingPlan(routineId)) {
+      return null;
+    }
+
+    state = state.copyWith(
+      generatingPlanRoutineIds: {...state.generatingPlanRoutineIds, routineId},
+    );
+
+    try {
+      final markdown = await ref
+          .read(routineExecutionServiceProvider)
+          .generatePlanDraft(existing);
+      await _savePlanDraft(
+        routineId: routineId,
+        markdown: markdown,
+        revisionLabel: 'Generated routine plan draft',
+      );
+      return markdown;
+    } finally {
+      state = state.copyWith(
+        generatingPlanRoutineIds: {
+          ...state.generatingPlanRoutineIds.where((id) => id != routineId),
+        },
+      );
+    }
+  }
+
+  Future<void> _savePlanDraft({
+    required String routineId,
+    required String markdown,
+    required String revisionLabel,
+  }) async {
     final existing = _findRoutine(routineId);
     if (existing == null) {
       return;
     }
-
     final normalizedMarkdown = markdown.trimRight();
     final now = DateTime.now();
     final nextArtifact = existing.effectivePlanArtifact
@@ -213,7 +264,7 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         .recordRevision(
           markdown: normalizedMarkdown,
           kind: RoutinePlanRevisionKind.draft,
-          label: 'Saved routine plan draft',
+          label: revisionLabel,
           createdAt: now,
         );
     await _persistRoutine(
