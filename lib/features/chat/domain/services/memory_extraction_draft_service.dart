@@ -6,6 +6,8 @@ import 'session_memory_service.dart';
 class MemoryExtractionDraftService {
   MemoryExtractionDraftService._();
 
+  static final RegExp _whitespaceRun = RegExp(r'\s+');
+
   static const systemPrompt =
       'You extract reusable user memory from a conversation. '
       'Output only a single valid JSON object with no markdown. '
@@ -40,7 +42,7 @@ class MemoryExtractionDraftService {
         continue;
       }
       final role = message.role.name;
-      final content = message.content.replaceAll(RegExp(r'\s+'), ' ').trim();
+      final content = message.content.replaceAll(_whitespaceRun, ' ').trim();
       final clipped = content.length > 360
           ? '${content.substring(0, 360)}...'
           : content;
@@ -137,7 +139,7 @@ class MemoryExtractionDraftService {
     }
     final values = raw
         .whereType<String>()
-        .map((value) => value.replaceAll(RegExp(r'\s+'), ' ').trim())
+        .map((value) => value.replaceAll(_whitespaceRun, ' ').trim())
         .where((value) => value.isNotEmpty)
         .toList();
     if (values.length <= maxLength) {
