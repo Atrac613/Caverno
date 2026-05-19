@@ -108,6 +108,12 @@ class McpToolService {
     'computer_stop_system_audio_recording',
   };
 
+  static final RegExp _serverKeyInvalidChars = RegExp(r'[^a-zA-Z0-9_]+');
+  static final RegExp _serverKeyConsecutiveUnderscores = RegExp(r'_+');
+  static final RegExp _serverKeyEdgeUnderscores = RegExp(r'^_|_$');
+  static final RegExp _whitespaceRun = RegExp(r'\s+');
+  static final RegExp _hexSeparatorChars = RegExp(r'[\s:-]');
+
   McpToolService({
     this.mcpClients = const [],
     this.searxngClient,
@@ -422,9 +428,11 @@ class McpToolService {
             if (uri.host.isNotEmpty) uri.host else 'server',
             if (uri.hasPort) uri.port.toString(),
           ].join('_');
-    final sanitized = rawValue.replaceAll(RegExp(r'[^a-zA-Z0-9_]+'), '_');
-    final collapsed = sanitized.replaceAll(RegExp(r'_+'), '_');
-    final normalized = collapsed.replaceAll(RegExp(r'^_|_$'), '').toLowerCase();
+    final sanitized = rawValue.replaceAll(_serverKeyInvalidChars, '_');
+    final collapsed = sanitized.replaceAll(_serverKeyConsecutiveUnderscores, '_');
+    final normalized = collapsed
+        .replaceAll(_serverKeyEdgeUnderscores, '')
+        .toLowerCase();
     final shortBase = normalized.isEmpty
         ? 'server'
         : normalized.substring(
@@ -2464,7 +2472,7 @@ class McpToolService {
     final conversations = conversationRepository!.getAll();
     final keywords = query
         .toLowerCase()
-        .split(RegExp(r'\s+'))
+        .split(_whitespaceRun)
         .where((k) => k.isNotEmpty)
         .toList();
     if (keywords.isEmpty) return 'Error: no valid search keywords';
@@ -3918,7 +3926,7 @@ class McpToolService {
   }
 
   static Uint8List _hexDecodeValue(String hex) {
-    final clean = hex.replaceAll(RegExp(r'[\s:-]'), '');
+    final clean = hex.replaceAll(_hexSeparatorChars, '');
     final bytes = <int>[];
     for (var i = 0; i + 1 < clean.length; i += 2) {
       bytes.add(int.parse(clean.substring(i, i + 2), radix: 16));
@@ -3965,7 +3973,7 @@ class McpToolService {
   }
 
   Set<String> _biGrams(String text) {
-    final normalized = text.toLowerCase().replaceAll(RegExp(r'\s+'), '');
+    final normalized = text.toLowerCase().replaceAll(_whitespaceRun, '');
     if (normalized.isEmpty) return const {};
     if (normalized.length == 1) return {normalized};
     final grams = <String>{};
