@@ -287,6 +287,16 @@ class LanScanService {
   /// Default ports to probe on each discovered host.
   static const List<int> _defaultPorts = [22, 80, 443, 8080];
 
+  static final RegExp _arpEntryPattern = RegExp(
+    r'(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]+)',
+  );
+  static final RegExp _macOsNdpEntryPattern = RegExp(
+    r'^([0-9a-fA-F:%.]+)\s+([0-9a-fA-F:]+|\(incomplete\))\s+(\S+)',
+  );
+  static final RegExp _linuxIpv6NeighborPattern = RegExp(
+    r'^([0-9a-fA-F:%.]+)\s+dev\s+(\S+)(?:\s+lladdr\s+([0-9a-fA-F:]+))?',
+  );
+
   /// Trigger a LAN scan and return the results as a JSON string.
   Future<String> startScan({
     String? subnet,
@@ -729,12 +739,9 @@ class LanScanService {
 
       final table = <String, LanLinkLayerEntry>{};
       final lines = (result.stdout as String).split('\n');
-      final regex = RegExp(
-        r'(\S+)\s+\((\d+\.\d+\.\d+\.\d+)\)\s+at\s+([0-9a-fA-F:]+)',
-      );
 
       for (final line in lines) {
-        final match = regex.firstMatch(line);
+        final match = _arpEntryPattern.firstMatch(line);
         if (match == null) {
           continue;
         }
@@ -781,12 +788,9 @@ class LanScanService {
 
       final table = <String, LanLinkLayerEntry>{};
       final lines = (result.stdout as String).split('\n');
-      final regex = RegExp(
-        r'^([0-9a-fA-F:%.]+)\s+([0-9a-fA-F:]+|\(incomplete\))\s+(\S+)',
-      );
 
       for (final line in lines) {
-        final match = regex.firstMatch(line.trim());
+        final match = _macOsNdpEntryPattern.firstMatch(line.trim());
         if (match == null) {
           continue;
         }
@@ -822,9 +826,6 @@ class LanScanService {
 
       final table = <String, LanLinkLayerEntry>{};
       final lines = (result.stdout as String).split('\n');
-      final regex = RegExp(
-        r'^([0-9a-fA-F:%.]+)\s+dev\s+(\S+)(?:\s+lladdr\s+([0-9a-fA-F:]+))?',
-      );
 
       for (final line in lines) {
         final trimmed = line.trim();
@@ -834,7 +835,7 @@ class LanScanService {
           continue;
         }
 
-        final match = regex.firstMatch(trimmed);
+        final match = _linuxIpv6NeighborPattern.firstMatch(trimmed);
         if (match == null) {
           continue;
         }
