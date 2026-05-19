@@ -8,7 +8,10 @@ import '../../../../core/constants/api_constants.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../domain/entities/message.dart';
+import '../../domain/entities/tool_call_info.dart';
 import 'chat_datasource.dart';
+
+export '../../domain/entities/tool_call_info.dart' show ToolCallInfo, ToolResultInfo;
 
 /// Token usage statistics from a completion response.
 class TokenUsage {
@@ -60,29 +63,6 @@ class ChatCompletionResult {
       toolCalls != null &&
       toolCalls!.isNotEmpty &&
       (finishReason == 'tool_calls' || finishReason == 'toolCalls');
-}
-
-/// Tool call information
-class ToolCallInfo {
-  ToolCallInfo({required this.id, required this.name, required this.arguments});
-
-  final String id;
-  final String name;
-  final Map<String, dynamic> arguments;
-}
-
-class ToolResultInfo {
-  ToolResultInfo({
-    required this.id,
-    required this.name,
-    required this.arguments,
-    required this.result,
-  });
-
-  final String id;
-  final String name;
-  final Map<String, dynamic> arguments;
-  final String result;
 }
 
 class ChatRemoteDataSource implements ChatDataSource {

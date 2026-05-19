@@ -1,6 +1,6 @@
 import 'dart:convert';
 
-import '../../data/datasources/chat_remote_datasource.dart';
+import '../entities/tool_call_info.dart';
 
 class ToolResultPromptBuilder {
   ToolResultPromptBuilder._();
