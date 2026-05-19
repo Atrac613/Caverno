@@ -38,13 +38,13 @@ dependencies:
   # Internationalization
   easy_localization: ^3.0.7
 
-  # 状態管理
+  # State management
   flutter_riverpod: ^3.0.0
 
-  # OpenAI互換API通信
+  # OpenAI-compatible API client
   openai_dart: ^4.2.0
 
-  # イミュータブルモデル
+  # Immutable models
   freezed_annotation: ^3.1.0
   json_annotation: ^4.11.0
 

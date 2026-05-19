@@ -18,14 +18,14 @@ class ChatSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
-  late SessionMemoryService _sessionMemoryService;
+  late final SessionMemoryService _sessionMemoryService;
   late MemorySnapshot _memorySnapshot;
   late List<MemoryEntry> _storedMemories;
   late List<MemoryReviewItem> _reviewQueue;
   late List<MemorySessionSummary> _sessionSummaries;
-  late TextEditingController _profilePersonaController;
-  late TextEditingController _profilePreferencesController;
-  late TextEditingController _profileDoNotController;
+  final _profilePersonaController = TextEditingController();
+  final _profilePreferencesController = TextEditingController();
+  final _profileDoNotController = TextEditingController();
 
   final _profileDebouncer = Debouncer();
 
@@ -41,15 +41,9 @@ class _ChatSettingsPageState extends ConsumerState<ChatSettingsPage> {
     _sessionSummaries = _sessionMemoryService.loadSessionSummaries();
     final profile = _memorySnapshot.profile;
 
-    _profilePersonaController = TextEditingController(
-      text: profile.persona.join('\n'),
-    );
-    _profilePreferencesController = TextEditingController(
-      text: profile.preferences.join('\n'),
-    );
-    _profileDoNotController = TextEditingController(
-      text: profile.doNot.join('\n'),
-    );
+    _profilePersonaController.text = profile.persona.join('\n');
+    _profilePreferencesController.text = profile.preferences.join('\n');
+    _profileDoNotController.text = profile.doNot.join('\n');
   }
 
   @override

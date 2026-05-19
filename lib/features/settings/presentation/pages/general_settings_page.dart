@@ -21,10 +21,10 @@ class GeneralSettingsPage extends ConsumerStatefulWidget {
 }
 
 class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
-  late TextEditingController _baseUrlController;
-  late TextEditingController _apiKeyController;
-  late TextEditingController _maxTokensController;
-  late TextEditingController _googleChatWebhookController;
+  final _baseUrlController = TextEditingController();
+  final _apiKeyController = TextEditingController();
+  final _maxTokensController = TextEditingController();
+  final _googleChatWebhookController = TextEditingController();
 
   final _baseUrlDebouncer = Debouncer();
   final _apiKeyDebouncer = Debouncer();
@@ -36,14 +36,10 @@ class _GeneralSettingsPageState extends ConsumerState<GeneralSettingsPage> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsNotifierProvider);
-    _baseUrlController = TextEditingController(text: settings.baseUrl);
-    _apiKeyController = TextEditingController(text: settings.apiKey);
-    _maxTokensController = TextEditingController(
-      text: settings.maxTokens.toString(),
-    );
-    _googleChatWebhookController = TextEditingController(
-      text: settings.googleChatWebhookUrl,
-    );
+    _baseUrlController.text = settings.baseUrl;
+    _apiKeyController.text = settings.apiKey;
+    _maxTokensController.text = settings.maxTokens.toString();
+    _googleChatWebhookController.text = settings.googleChatWebhookUrl;
   }
 
   @override
