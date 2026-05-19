@@ -12,6 +12,20 @@ class ConversationCompactionService {
   static const int maxPlanBullets = 4;
   static const int maxBulletLength = 180;
 
+  static final RegExp _thinkBlockPattern = RegExp(
+    r'<think>.*?</think>',
+    dotAll: true,
+    caseSensitive: false,
+  );
+  static final RegExp _toolBlockPattern = RegExp(
+    r'<tool_(call|use|result)>.*?</tool_(call|use|result)>',
+    dotAll: true,
+    caseSensitive: false,
+  );
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+  static final RegExp _headingPrefixPattern = RegExp(r'^#+\s*');
+  static final RegExp _bulletMarkerPattern = RegExp(r'[-*]\s+');
+
   static ConversationCompactionArtifact? buildArtifact({
     required List<Message> messages,
     String? planDocument,
@@ -130,19 +144,12 @@ class ConversationCompactionService {
 
   static String _normalizeMessageContent(Message message) {
     final raw = message.content;
-    final withoutThinkBlocks = raw.replaceAll(
-      RegExp(r'<think>.*?</think>', dotAll: true, caseSensitive: false),
-      ' ',
-    );
+    final withoutThinkBlocks = raw.replaceAll(_thinkBlockPattern, ' ');
     final withoutToolBlocks = withoutThinkBlocks.replaceAll(
-      RegExp(
-        r'<tool_(call|use|result)>.*?</tool_(call|use|result)>',
-        dotAll: true,
-        caseSensitive: false,
-      ),
+      _toolBlockPattern,
       ' ',
     );
-    final normalized = withoutToolBlocks.replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = withoutToolBlocks.replaceAll(_whitespaceRunPattern, ' ').trim();
     if (normalized.isNotEmpty) {
       return normalized;
     }
@@ -174,16 +181,16 @@ class ConversationCompactionService {
 
       String normalizedLine = trimmed;
       if (normalizedLine.startsWith('#')) {
-        normalizedLine = normalizedLine.replaceFirst(RegExp(r'^#+\s*'), '');
+        normalizedLine = normalizedLine.replaceFirst(_headingPrefixPattern, '');
       } else if (normalizedLine.startsWith('- [ ]')) {
         normalizedLine = normalizedLine.substring(5).trim();
       } else if (normalizedLine.startsWith('- [x]')) {
         normalizedLine = normalizedLine.substring(5).trim();
-      } else if (normalizedLine.startsWith(RegExp(r'[-*]\s+'))) {
+      } else if (normalizedLine.startsWith(_bulletMarkerPattern)) {
         normalizedLine = normalizedLine.substring(1).trim();
       }
 
-      normalizedLine = normalizedLine.replaceAll(RegExp(r'\s+'), ' ').trim();
+      normalizedLine = normalizedLine.replaceAll(_whitespaceRunPattern, ' ').trim();
       if (normalizedLine.isEmpty) {
         continue;
       }
