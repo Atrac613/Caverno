@@ -14,13 +14,15 @@ class WhisperService {
   String baseUrl;
   final http.Client _client;
 
+  static final RegExp _trailingSlashPattern = RegExp(r'/$');
+
   /// Transcribe WAV audio bytes to text via Whisper API.
   Future<String> transcribe(
     Uint8List wavBytes, {
     String language = 'ja',
     String model = 'whisper-1',
   }) async {
-    final base = baseUrl.replaceAll(RegExp(r'/$'), '');
+    final base = baseUrl.replaceAll(_trailingSlashPattern, '');
     final isV1 = base.endsWith('/v1');
     final endpoint = isV1 ? '/audio/transcriptions' : '/inference';
     final uri = Uri.parse('$base$endpoint');
@@ -60,7 +62,7 @@ class WhisperService {
   /// Tries multiple known endpoints since whisper.cpp versions differ
   /// in which routes they expose.
   Future<bool> isAvailable() async {
-    final base = baseUrl.replaceAll(RegExp(r'/$'), '');
+    final base = baseUrl.replaceAll(_trailingSlashPattern, '');
     final isV1 = base.endsWith('/v1');
 
     // Candidates in order of likelihood.
