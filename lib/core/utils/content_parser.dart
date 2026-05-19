@@ -114,6 +114,35 @@ class ContentParser {
   // Partial tag (unclosed <)
   static final _partialTagPattern = RegExp(r'<[^>]*$');
 
+  // Helpers reused across tool-call parsing strategies.
+  static final _whitespacePattern = RegExp(r'\s');
+  static final _wordOnlyPattern = RegExp(r'^\w+$');
+  static final _newlinePattern = RegExp(r'[\n\r]+');
+  static final _looseIdentifierPattern = RegExp(r'[a-zA-Z_][a-zA-Z0-9_-]*');
+  static final _thinkOpenTagPattern = RegExp(r'^<(think|thinking|thought)>');
+  static final _controlToolCallPattern = RegExp(
+    r'^call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*(\{.*\})$',
+    dotAll: true,
+  );
+  static final _xmlArgPattern = RegExp(
+    r'^(\w+)\s*[\n\r]+<arg_key>(\w+)</arg_key>\s*[\n\r]*<arg_value>(.+?)</arg_value>',
+    dotAll: true,
+  );
+  static final _simpleToolCallPattern = RegExp(
+    r'(\w+)\s*\(\s*"([^"]+)"\s*\)',
+  );
+  static final _nameKeyPattern = RegExp(
+    r'name\s*[:=]\s*["\x27]?(\w+)["\x27]?',
+    caseSensitive: false,
+  );
+  static final _queryKeyPattern = RegExp(
+    r'query\s*[:=]\s*["\x27]?([^"\x27]+)["\x27]?',
+    caseSensitive: false,
+  );
+  static final _looseObjectNormalizePattern = RegExp(
+    r'([{\s,])([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)',
+  );
+
   /// Parse content into segments
   static ParseResult parse(String content) {
     if (content.isEmpty) {
@@ -261,9 +290,7 @@ class ContentParser {
           if (match != null) {
             // Extract partial thinking content after the opening tag
             final fullMatch = match.group(0) ?? '';
-            final tagNameMatch = RegExp(
-              r'^<(think|thinking|thought)>',
-            ).firstMatch(fullMatch);
+            final tagNameMatch = _thinkOpenTagPattern.firstMatch(fullMatch);
             if (tagNameMatch != null) {
               capturedIncompleteContent = fullMatch
                   .substring(tagNameMatch.end)
@@ -393,10 +420,7 @@ class ContentParser {
       // JSON parse failed - try other formats
     }
 
-    final controlCallMatch = RegExp(
-      r'^call\s*:\s*([a-zA-Z_][a-zA-Z0-9_-]*)\s*(\{.*\})$',
-      dotAll: true,
-    ).firstMatch(trimmed);
+    final controlCallMatch = _controlToolCallPattern.firstMatch(trimmed);
     if (controlCallMatch != null) {
       final name = controlCallMatch.group(1)!;
       final objectLiteral = controlCallMatch.group(2)!;
@@ -412,11 +436,7 @@ class ContentParser {
 
     // XML format: tool_name\n<arg_key>key</arg_key>\n<arg_value>value</arg_value>
     // e.g.: web_search\n<arg_key>query</arg_key>\n<arg_value>search query</arg_value>
-    final xmlArgPattern = RegExp(
-      r'^(\w+)\s*[\n\r]+<arg_key>(\w+)</arg_key>\s*[\n\r]*<arg_value>(.+?)</arg_value>',
-      dotAll: true,
-    );
-    final xmlMatch = xmlArgPattern.firstMatch(trimmed);
+    final xmlMatch = _xmlArgPattern.firstMatch(trimmed);
     if (xmlMatch != null) {
       final name = xmlMatch.group(1)!;
       final argKey = xmlMatch.group(2)!;
@@ -430,9 +450,7 @@ class ContentParser {
 
     // Try simple format
     // web_search("query")
-    final simpleMatch = RegExp(
-      r'(\w+)\s*\(\s*"([^"]+)"\s*\)',
-    ).firstMatch(trimmed);
+    final simpleMatch = _simpleToolCallPattern.firstMatch(trimmed);
     if (simpleMatch != null) {
       return ToolCallData(
         name: simpleMatch.group(1)!,
@@ -442,14 +460,8 @@ class ContentParser {
     }
 
     // name: xxx, query: xxx format
-    final nameMatch = RegExp(
-      r'name\s*[:=]\s*["\x27]?(\w+)["\x27]?',
-      caseSensitive: false,
-    ).firstMatch(trimmed);
-    final queryMatch = RegExp(
-      r'query\s*[:=]\s*["\x27]?([^"\x27]+)["\x27]?',
-      caseSensitive: false,
-    ).firstMatch(trimmed);
+    final nameMatch = _nameKeyPattern.firstMatch(trimmed);
+    final queryMatch = _queryKeyPattern.firstMatch(trimmed);
 
     if (nameMatch != null) {
       return ToolCallData(
@@ -463,10 +475,10 @@ class ContentParser {
 
     // Simple format: first line is tool name, rest is arguments
     // e.g.: web_search\nquery text here
-    final lines = trimmed.split(RegExp(r'[\n\r]+'));
+    final lines = trimmed.split(_newlinePattern);
     if (lines.length >= 2) {
       final possibleName = lines[0].trim();
-      if (RegExp(r'^\w+$').hasMatch(possibleName)) {
+      if (_wordOnlyPattern.hasMatch(possibleName)) {
         final queryText = lines.skip(1).join(' ').trim();
         if (queryText.isNotEmpty) {
           return ToolCallData(
@@ -533,7 +545,7 @@ class ContentParser {
     }
 
     final normalized = trimmed.replaceAllMapped(
-      RegExp(r'([{\s,])([a-zA-Z_][a-zA-Z0-9_-]*)(\s*:)'),
+      _looseObjectNormalizePattern,
       (match) => '${match.group(1)}"${match.group(2)}"${match.group(3)}',
     );
 
@@ -635,7 +647,8 @@ class ContentParser {
   }
 
   static int _skipWhitespace(String source, int index) {
-    while (index < source.length && RegExp(r'\s').hasMatch(source[index])) {
+    while (index < source.length &&
+        _whitespacePattern.hasMatch(source[index])) {
       index += 1;
     }
     return index;
@@ -644,7 +657,7 @@ class ContentParser {
   static int _skipWhitespaceAndCommas(String source, int index) {
     while (index < source.length) {
       final char = source[index];
-      if (char == ',' || RegExp(r'\s').hasMatch(char)) {
+      if (char == ',' || _whitespacePattern.hasMatch(char)) {
         index += 1;
         continue;
       }
@@ -662,9 +675,7 @@ class ContentParser {
       return _LooseToken(source.substring(index + 1, end), end + 1);
     }
 
-    final match = RegExp(
-      r'[a-zA-Z_][a-zA-Z0-9_-]*',
-    ).matchAsPrefix(source, index);
+    final match = _looseIdentifierPattern.matchAsPrefix(source, index);
     if (match == null) return null;
     return _LooseToken(match.group(0)!, match.end);
   }
