@@ -857,8 +857,9 @@ runtime_readiness = {
         "Screen & System Audio Recording",
     ],
     "nextAction": (
-        "Install and launch the release app, grant the release helper in macOS "
-        "Privacy & Security, then run a live release runtime smoke on that installed app."
+        "Install and launch the release app, grant Accessibility to the release helper "
+        "and Screen & System Audio Recording to Caverno.app in macOS Privacy & Security, "
+        "then run a live release runtime smoke on that installed app."
     ),
 }
 gate = {
@@ -1009,9 +1010,9 @@ def next_action(blockers):
     if "release_runtime_helper_path_mismatch" in blockers:
         return "Stop the running helper and rerun --m8-runtime-signoff."
     if "release_runtime_permissions_blocked" in blockers:
-        return "Ask the user to grant Accessibility and Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually."
+        return "Ask the user to grant Accessibility to the release helper and Screen & System Audio Recording to the release Caverno.app, then rerun --m8-runtime-signoff manually."
     if "release_runtime_capture_blocked" in blockers:
-        return "Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually."
+        return "Ask the user to grant Screen & System Audio Recording to the release Caverno.app, then rerun --m8-runtime-signoff manually."
     return "Resolve the failed M8 runtime checks, then ask the user to rerun --m8-runtime-signoff manually."
 
 
@@ -1092,15 +1093,15 @@ checks = [
     ),
     check_item(
         "screen_capture",
-        "Release helper Screen & System Audio Recording",
+        "Release app Screen & System Audio Recording",
         screen_capture_ok,
-        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno Computer Use helper.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno.app.",
     ),
     check_item(
         "display_screenshot",
         "Release display screenshot",
         display_ok,
-        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno.app, then rerun --m8-runtime-signoff manually.",
     ),
     check_item(
         "list_windows",
@@ -1112,13 +1113,13 @@ checks = [
         "window_capture",
         "Release window capture",
         window_ok,
-        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno.app, then rerun --m8-runtime-signoff manually.",
     ),
     check_item(
         "system_audio_resolved",
         "Release system audio readiness",
         audio_resolved,
-        next_action="Ask the user to grant Screen & System Audio Recording to the release helper, then rerun --m8-runtime-signoff manually.",
+        next_action="Ask the user to grant Screen & System Audio Recording to the release Caverno.app, then rerun --m8-runtime-signoff manually.",
     ),
 ]
 runtime_status = "ready" if not runtime_blockers else "blocked"

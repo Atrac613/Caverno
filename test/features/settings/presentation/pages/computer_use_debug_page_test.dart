@@ -29,7 +29,8 @@ void main() {
     );
     expect(find.text('Computer Use App Boundary'), findsOneWidget);
     expect(find.text('Current executor'), findsOneWidget);
-    expect(find.text('Permission owner now'), findsOneWidget);
+    expect(find.text('Accessibility owner'), findsOneWidget);
+    expect(find.text('Screen/audio owner'), findsOneWidget);
     expect(find.text('Target helper'), findsOneWidget);
     expect(find.text('Caverno Computer Use (helper_ipc)'), findsOneWidget);
     expect(find.text('Installed'), findsOneWidget);
@@ -614,9 +615,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text(
-        'Grant Screen & System Audio Recording to Caverno Computer Use',
-      ),
+      find.text('Grant Screen & System Audio Recording to Caverno.app'),
       findsOneWidget,
     );
     expect(find.text('XPC Production Ready'), findsOneWidget);
@@ -661,7 +660,7 @@ void main() {
     expect(find.text('Manual Smoke Boundary'), findsOneWidget);
     expect(
       find.text(
-        'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
+        'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use and Caverno.app. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
       ),
       findsOneWidget,
     );

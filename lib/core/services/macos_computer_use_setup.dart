@@ -296,6 +296,44 @@ class MacosComputerUseBackends {
   );
 }
 
+String _macosComputerUseGrantInstruction({
+  required String accessibilityOwnerName,
+  required List<String> permissionLabels,
+}) {
+  final grants = <String>[
+    if (permissionLabels.contains('Accessibility'))
+      'Accessibility to $accessibilityOwnerName',
+    if (permissionLabels.contains('Screen & System Audio Recording'))
+      'Screen & System Audio Recording to Caverno.app',
+  ];
+  if (grants.isEmpty) {
+    return 'the missing macOS permissions';
+  }
+  if (grants.length == 1) {
+    return grants.single;
+  }
+  return '${grants.sublist(0, grants.length - 1).join(', ')} and ${grants.last}';
+}
+
+String _macosComputerUseReenableInstruction({
+  required String accessibilityOwnerName,
+  required List<String> permissionLabels,
+}) {
+  final grants = <String>[
+    if (permissionLabels.contains('Accessibility'))
+      'Accessibility for $accessibilityOwnerName',
+    if (permissionLabels.contains('Screen & System Audio Recording'))
+      'Screen & System Audio Recording for Caverno.app',
+  ];
+  if (grants.isEmpty) {
+    return 'the disabled macOS permissions';
+  }
+  if (grants.length == 1) {
+    return grants.single;
+  }
+  return '${grants.sublist(0, grants.length - 1).join(', ')} and ${grants.last}';
+}
+
 class MacosComputerUseIpcInfo {
   const MacosComputerUseIpcInfo({
     required this.version,
@@ -321,6 +359,10 @@ class MacosComputerUseIpcInfo {
     required this.xpcRegistrationRequirement,
     required this.xpcProductionBlockers,
     required this.xpcProductionNextAction,
+    required this.mainAppOwnsTccPermissions,
+    required this.tccPermissionOwnerBundleIdentifier,
+    required this.tccPermissionOwnerDisplayName,
+    required this.helperActsAsOsActionExecutor,
     required this.mainAppUnsafeOsActionsAllowed,
     required this.helperOwnsUnsafeOsActions,
     required this.helperOwnedActionCategories,
@@ -351,6 +393,10 @@ class MacosComputerUseIpcInfo {
   final String xpcRegistrationRequirement;
   final List<String> xpcProductionBlockers;
   final String xpcProductionNextAction;
+  final bool mainAppOwnsTccPermissions;
+  final String tccPermissionOwnerBundleIdentifier;
+  final String tccPermissionOwnerDisplayName;
+  final bool helperActsAsOsActionExecutor;
   final bool mainAppUnsafeOsActionsAllowed;
   final bool helperOwnsUnsafeOsActions;
   final List<String> helperOwnedActionCategories;
@@ -382,6 +428,10 @@ class MacosComputerUseIpcInfo {
       'xpcRegistrationRequirement': xpcRegistrationRequirement,
       'xpcProductionBlockers': xpcProductionBlockers,
       'xpcProductionNextAction': xpcProductionNextAction,
+      'mainAppOwnsTccPermissions': mainAppOwnsTccPermissions,
+      'tccPermissionOwnerBundleIdentifier': tccPermissionOwnerBundleIdentifier,
+      'tccPermissionOwnerDisplayName': tccPermissionOwnerDisplayName,
+      'helperActsAsOsActionExecutor': helperActsAsOsActionExecutor,
       'mainAppUnsafeOsActionsAllowed': mainAppUnsafeOsActionsAllowed,
       'helperOwnsUnsafeOsActions': helperOwnsUnsafeOsActions,
       'helperOwnedActionCategories': helperOwnedActionCategories,
@@ -432,6 +482,12 @@ class MacosComputerUseIpc {
   static const xpcRegistrationRequirement = 'launchd_mach_service_registration';
   static const xpcProductionBlockers = <String>[];
   static const xpcProductionNextAction = 'XPC is production ready.';
+  static const mainAppOwnsTccPermissions = true;
+  static const tccPermissionOwnerBundleIdentifier =
+      MacosComputerUseBackends.mainAppBundleIdentifier;
+  static const tccPermissionOwnerDisplayName =
+      MacosComputerUseBackends.mainAppDisplayName;
+  static const helperActsAsOsActionExecutor = true;
   static const mainAppUnsafeOsActionsAllowed = false;
   static const helperOwnsUnsafeOsActions = true;
   static const helperOwnedActionCategories = [
@@ -515,6 +571,10 @@ class MacosComputerUseIpc {
     xpcRegistrationRequirement: xpcRegistrationRequirement,
     xpcProductionBlockers: xpcProductionBlockers,
     xpcProductionNextAction: xpcProductionNextAction,
+    mainAppOwnsTccPermissions: mainAppOwnsTccPermissions,
+    tccPermissionOwnerBundleIdentifier: tccPermissionOwnerBundleIdentifier,
+    tccPermissionOwnerDisplayName: tccPermissionOwnerDisplayName,
+    helperActsAsOsActionExecutor: helperActsAsOsActionExecutor,
     mainAppUnsafeOsActionsAllowed: mainAppUnsafeOsActionsAllowed,
     helperOwnsUnsafeOsActions: helperOwnsUnsafeOsActions,
     helperOwnedActionCategories: helperOwnedActionCategories,
@@ -600,7 +660,7 @@ class MacosComputerUseInstallMigrationGuardrails {
     ];
     final status = blockers.isEmpty ? 'ready' : 'blocked';
     final regrantReason = tccRegrantRequired
-        ? 'macOS TCC grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes.'
+        ? 'Helper Accessibility grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes.'
         : 'The current helper identity matches the expected embedded helper path.';
 
     return {
@@ -943,7 +1003,7 @@ class MacosComputerUsePermissionRecoverySummary {
       helperUnreachable: helperUnreachable,
       mainAppPermissionPromptsBlocked: mainAppPermissionPromptsBlocked,
       mainAppPermissionPromptBoundary: mainAppPermissionPromptsBlocked
-          ? 'helper_owned_only'
+          ? 'split_permission_owner'
           : 'in_process_compatibility',
       nextAction: nextAction,
     );
@@ -1001,10 +1061,18 @@ class MacosComputerUsePermissionRecoverySummary {
       return 'Refresh or restart ${backend.permissionOwnerName} so Caverno reads current helper diagnostics.';
     }
     if (revokedPermissionLabels.isNotEmpty) {
-      return 'Ask the user to re-enable ${backend.permissionOwnerName} in System Settings, then recheck permissions.';
+      final grants = _macosComputerUseReenableInstruction(
+        accessibilityOwnerName: backend.permissionOwnerName,
+        permissionLabels: revokedPermissionLabels,
+      );
+      return 'Ask the user to re-enable $grants in System Settings, then recheck permissions.';
     }
     if (missingPermissionLabels.isNotEmpty) {
-      return 'Open the helper-owned permission overlay, grant ${backend.permissionOwnerName}, then recheck permissions.';
+      final grants = _macosComputerUseGrantInstruction(
+        accessibilityOwnerName: backend.permissionOwnerName,
+        permissionLabels: missingPermissionLabels,
+      );
+      return 'Open System Settings, grant $grants, then recheck permissions.';
     }
     return 'No recovery action is needed.';
   }
@@ -1267,7 +1335,11 @@ class MacosComputerUseSetupChecklist {
       return 'Run screenshots first, then arm input or audio checks only when needed.';
     }
     if (hasSnapshot) {
-      return 'Open System Settings, grant ${backend.permissionOwnerName}, then refresh permissions.';
+      final grants = _macosComputerUseGrantInstruction(
+        accessibilityOwnerName: backend.permissionOwnerName,
+        permissionLabels: missingPermissionLabels,
+      );
+      return 'Open System Settings, grant $grants, then refresh permissions.';
     }
     return 'Use Refresh to load the current macOS privacy state.';
   }

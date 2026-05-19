@@ -67,10 +67,10 @@ void main() {
     await _tapByKey(tester, 'settings-menu-computer-use');
 
     expect(find.byType(ComputerUseSettingsPage), findsOneWidget);
-    expect(find.text('Helper-owned desktop control'), findsOneWidget);
+    expect(find.text('App-owned TCC, helper execution'), findsOneWidget);
     expect(
       find.text(
-        'Caverno Computer Use owns macOS permissions and desktop actions. TCC grants and real desktop operations remain user-operated.',
+        'Caverno.app owns Screen & System Audio Recording. Caverno Computer Use executes approved desktop actions, and all TCC grants remain user-operated.',
       ),
       findsOneWidget,
     );
@@ -168,6 +168,8 @@ void main() {
     );
     expect(text, contains('"m37AuditPrivacyGate"'));
     expect(text, contains('"explicitPayloadExportRequired": true'));
+    expect(text, contains('"mainAppOwnsTccPermissions": true'));
+    expect(text, contains('"helperActsAsOsActionExecutor": true'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
     expect(text, contains('"xpcNextParityCommands"'));
@@ -457,7 +459,7 @@ void main() {
     );
     expect(
       find.text(
-        'Live capture next action: Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
+        'Live capture next action: Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun smoke manually.',
       ),
       findsOneWidget,
     );
@@ -626,7 +628,7 @@ void main() {
     );
     expect(
       find.text(
-        'TCC owner helper: .../Build/Products/Debug/Caverno Computer Use.app',
+        'Runtime helper: .../Build/Products/Debug/Caverno Computer Use.app',
       ),
       findsOneWidget,
     );
@@ -808,7 +810,9 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('blocked; use helper-owned permission overlay'),
+      find.text(
+        'Accessibility via helper; Screen & System Audio Recording via Caverno.app',
+      ),
       findsOneWidget,
     );
     expect(find.text('Next recovery action'), findsOneWidget);
@@ -1240,7 +1244,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'tccOwnerHelperPath':
               '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
           'nextAction':
-              'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
+              'Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun smoke manually.',
         },
         'inputGate': {
           'status': 'not_armed',

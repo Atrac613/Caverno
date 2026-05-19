@@ -161,7 +161,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               icon: Icons.verified_user_outlined,
               title: 'Permissions',
               subtitle:
-                  'Launch the helper, then grant Caverno Computer Use in macOS Privacy & Security.',
+                  'Launch the helper, then grant Accessibility to Caverno Computer Use and Screen & System Audio Recording to Caverno.app.',
             ),
             const SizedBox(height: 12),
             _HelperBoundaryPanel(backend: setupChecklist.backend),
@@ -818,7 +818,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
               icon: Icons.privacy_tip_outlined,
               title: 'Manual Smoke Boundary',
               body:
-                  'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
+                  'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use and Caverno.app. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
             ),
             const SizedBox(height: 12),
             Wrap(
@@ -1545,8 +1545,7 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       },
       {
         'id': 'grant_screen_recording',
-        'label':
-            'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'label': 'Grant Screen & System Audio Recording to Caverno.app',
         'complete': _permissionValue('screenCaptureGranted') == true,
       },
       {
@@ -2368,7 +2367,7 @@ class _HelperBoundaryPanel extends StatelessWidget {
                       const SizedBox(height: 2),
                       Text(
                         backend.usesSeparateHelper
-                            ? 'Privileged desktop control runs in the helper app.'
+                            ? 'Privileged desktop control runs in the helper app while capture TCC stays on Caverno.app.'
                             : 'Smoke checks still use the in-process compatibility backend.',
                         style: Theme.of(context).textTheme.bodySmall,
                       ),
@@ -2383,8 +2382,12 @@ class _HelperBoundaryPanel extends StatelessWidget {
               value: '${backend.displayName} (${backend.executionMode})',
             ),
             _BoundaryValueRow(
-              label: 'Permission owner now',
+              label: 'Accessibility owner',
               value: backend.permissionOwnerName,
+            ),
+            const _BoundaryValueRow(
+              label: 'Screen/audio owner',
+              value: 'Caverno.app',
             ),
             _BoundaryValueRow(
               label: 'Target helper',

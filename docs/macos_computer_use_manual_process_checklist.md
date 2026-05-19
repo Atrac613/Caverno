@@ -177,8 +177,8 @@ from automation:
    `Revoked permissions`.
 5. Confirm stale helper diagnostics or helper path mismatches produce a restart
    action before any permission prompt instruction.
-6. Confirm `Main app prompts` says to use the helper-owned permission overlay
-   for helper IPC mode.
+6. Confirm `Permission owners` separates Accessibility on the helper from
+   Screen & System Audio Recording on `Caverno.app`.
 7. Confirm copied or exported diagnostics contain
    `permissionRecoverySummary`.
 
@@ -761,9 +761,9 @@ build:
 4. Confirm `installMigrationGuardrails.oldHelperActionRequestsBlocked` is
    `true`.
 5. If `helperPathMismatch` or stale helper path diagnostics are present,
-   confirm the UI explains that macOS TCC grants are tied to the helper app
-   identity and that regrant may be required only after the user restarts from
-   the installed Caverno bundle.
+   confirm the UI explains that helper Accessibility grants are tied to the
+   helper app identity and that regrant may be required only after the user
+   restarts from the installed Caverno bundle.
 6. Confirm old or mismatched helpers can still report status, show permission
    recovery UI, and accept emergency stop, but do not handle screenshot,
    window, pointer, keyboard, or system-audio action requests.

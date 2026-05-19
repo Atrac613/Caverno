@@ -1582,10 +1582,10 @@ String _captureNextAction({
     return 'Capture smoke is ready.';
   }
   if (failureClasses.contains('screen_capture_permission_missing')) {
-    return 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.';
+    return 'Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun smoke manually.';
   }
   if (failureClasses.any((failure) => failure.endsWith('_permission_denied'))) {
-    return 'Ask the user to confirm Screen & System Audio Recording is granted to the helper shown as the TCC owner, then rerun smoke manually.';
+    return 'Ask the user to confirm Screen & System Audio Recording is granted to Caverno.app, then rerun smoke manually.';
   }
   if (failureClasses.contains('window_list_runtime_failed')) {
     return 'Inspect the list_windows step diagnostics, keep a visible desktop window open, then rerun smoke.';
@@ -1826,7 +1826,7 @@ Map<String, dynamic> _audioGate(
         : !unsafeArmed
         ? 'Rerun smoke with unsafe arming for system audio checks.'
         : !screenCaptureGranted
-        ? 'Grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke.'
+        ? 'Grant Screen & System Audio Recording to Caverno.app, then rerun smoke.'
         : 'Inspect system audio runtime failures after permissions are granted.',
   };
 }
@@ -1864,7 +1864,7 @@ Map<String, dynamic> _m4SignoffGate({
       'nextAction':
           permissionGate?['blockers'] is List &&
               (permissionGate?['blockers'] as List).isNotEmpty
-          ? 'Grant the missing macOS permissions to Caverno Computer Use, then rerun --m4-signoff.'
+          ? 'Grant Accessibility to Caverno Computer Use and Screen & System Audio Recording to Caverno.app, then rerun --m4-signoff.'
           : 'Required permission gate is clear.',
     },
     {

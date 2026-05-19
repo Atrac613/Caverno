@@ -493,7 +493,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let subtitle = NSTextField(
       wrappingLabelWithString:
-        "Caverno Computer Use owns the macOS permissions needed to observe screens and control apps. These permissions are used only after Caverno asks you to run a desktop task."
+        "Caverno.app owns Screen & System Audio Recording, and Caverno Computer Use owns helper execution for approved desktop tasks."
     )
     subtitle.font = .systemFont(ofSize: 15, weight: .regular)
     subtitle.textColor = .secondaryLabelColor
@@ -1639,6 +1639,10 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
   static let xpcProductionBlockers: [String] = []
   static let xpcProductionNextAction = "XPC is production ready."
+  static let mainAppOwnsTccPermissions = true
+  static let tccPermissionOwnerBundleIdentifier = mainAppBundleIdentifier
+  static let tccPermissionOwnerDisplayName = "Caverno"
+  static let helperActsAsOsActionExecutor = true
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
   static let helperOwnedActionCategories = [
@@ -3114,6 +3118,10 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcRegistrationRequirement": ComputerUseHelperIpcSchema.xpcRegistrationRequirement,
       "xpcProductionBlockers": ComputerUseHelperIpcSchema.xpcProductionBlockers,
       "xpcProductionNextAction": ComputerUseHelperIpcSchema.xpcProductionNextAction,
+      "mainAppOwnsTccPermissions": ComputerUseHelperIpcSchema.mainAppOwnsTccPermissions,
+      "tccPermissionOwnerBundleIdentifier": ComputerUseHelperIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "tccPermissionOwnerDisplayName": ComputerUseHelperIpcSchema.tccPermissionOwnerDisplayName,
+      "helperActsAsOsActionExecutor": ComputerUseHelperIpcSchema.helperActsAsOsActionExecutor,
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,
@@ -3180,7 +3188,7 @@ private final class ComputerUseHelperIpc: NSObject {
   private func screenCaptureDeniedResponse() -> [String: Any] {
     errorResponse(
       code: "screen_capture_denied",
-      error: "Screen & System Audio Recording permission is required. Grant Caverno Computer Use in System Settings > Privacy & Security > Screen & System Audio Recording."
+      error: "Screen & System Audio Recording permission is required. Grant Caverno.app in System Settings > Privacy & Security > Screen & System Audio Recording."
     )
   }
 
@@ -3290,6 +3298,10 @@ private final class ComputerUseHelperIpc: NSObject {
       "xpcRegistrationRequirement": ComputerUseHelperIpcSchema.xpcRegistrationRequirement,
       "xpcProductionBlockers": ComputerUseHelperIpcSchema.xpcProductionBlockers,
       "xpcProductionNextAction": ComputerUseHelperIpcSchema.xpcProductionNextAction,
+      "mainAppOwnsTccPermissions": ComputerUseHelperIpcSchema.mainAppOwnsTccPermissions,
+      "tccPermissionOwnerBundleIdentifier": ComputerUseHelperIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "tccPermissionOwnerDisplayName": ComputerUseHelperIpcSchema.tccPermissionOwnerDisplayName,
+      "helperActsAsOsActionExecutor": ComputerUseHelperIpcSchema.helperActsAsOsActionExecutor,
       "mainAppUnsafeOsActionsAllowed": ComputerUseHelperIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": ComputerUseHelperIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": ComputerUseHelperIpcSchema.helperOwnedActionCategories,

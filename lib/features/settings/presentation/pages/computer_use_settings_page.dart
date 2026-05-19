@@ -519,7 +519,7 @@ class _ComputerUseOnboardingCardState
       return const _ComputerUsePrimaryAction(
         kind: _ComputerUsePrimaryActionKind.launch,
         label: 'Open Computer Use',
-        detail: 'Launch the helper app so macOS can attach permissions to it.',
+        detail: 'Launch the helper app so it can execute approved OS actions.',
         icon: Icons.rocket_launch_outlined,
       );
     }
@@ -543,8 +543,7 @@ class _ComputerUseOnboardingCardState
       return const _ComputerUsePrimaryAction(
         kind: _ComputerUsePrimaryActionKind.openScreenRecording,
         label: 'Open Screen Recording',
-        detail:
-            'Grant Screen & System Audio Recording to Caverno Computer Use.',
+        detail: 'Grant Screen & System Audio Recording to Caverno.app.',
         icon: Icons.screenshot_monitor_outlined,
       );
     }
@@ -915,8 +914,7 @@ class _ComputerUseOnboardingCardState
       },
       {
         'id': 'grant_screen_recording',
-        'label':
-            'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'label': 'Grant Screen & System Audio Recording to Caverno.app',
         'complete': _permissionValue('screenCaptureGranted') == true,
       },
       {
@@ -1194,6 +1192,18 @@ class _ComputerUseOnboardingCardState
       'helperSharedDiagnosticsStaleReasons':
           snapshot['helperSharedDiagnosticsStaleReasons'],
       'helperSharedDiagnosticsAgeMs': snapshot['helperSharedDiagnosticsAgeMs'],
+      'mainAppOwnsTccPermissions':
+          snapshot['mainAppOwnsTccPermissions'] ??
+          MacosComputerUseIpc.current.mainAppOwnsTccPermissions,
+      'tccPermissionOwnerBundleIdentifier':
+          snapshot['tccPermissionOwnerBundleIdentifier'] ??
+          MacosComputerUseIpc.current.tccPermissionOwnerBundleIdentifier,
+      'tccPermissionOwnerDisplayName':
+          snapshot['tccPermissionOwnerDisplayName'] ??
+          MacosComputerUseIpc.current.tccPermissionOwnerDisplayName,
+      'helperActsAsOsActionExecutor':
+          snapshot['helperActsAsOsActionExecutor'] ??
+          MacosComputerUseIpc.current.helperActsAsOsActionExecutor,
       'mainAppUnsafeOsActionsAllowed':
           snapshot['mainAppUnsafeOsActionsAllowed'] ??
           MacosComputerUseIpc.current.mainAppUnsafeOsActionsAllowed,
@@ -1447,10 +1457,14 @@ class _ComputerUseOnboardingCardState
       'failureClasses': blockers,
       'blockers': blockers,
       'tccOwnerHelperPath': helperPath,
+      'tccPermissionOwnerBundleIdentifier':
+          MacosComputerUseIpc.current.tccPermissionOwnerBundleIdentifier,
+      'tccPermissionOwnerDisplayName':
+          MacosComputerUseIpc.current.tccPermissionOwnerDisplayName,
       'nextAction': blockers.isEmpty
           ? 'Display and window capture passed in helper verification.'
           : !screenCaptureGranted
-          ? 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun the smoke sequence manually.'
+          ? 'Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun the smoke sequence manually.'
           : 'Open Smoke Sequence, then press Run Smoke Sequence to rerun display and window capture checks.',
     };
   }
@@ -1742,9 +1756,9 @@ class _PermissionRecoverySummary extends StatelessWidget {
                 value: 'unreachable',
               ),
             _RecoveryDetailRow(
-              label: 'Main app prompts',
+              label: 'Permission owners',
               value: summary.mainAppPermissionPromptsBlocked
-                  ? 'blocked; use helper-owned permission overlay'
+                  ? 'Accessibility via helper; Screen & System Audio Recording via Caverno.app'
                   : 'available for compatibility backend',
             ),
             _RecoveryDetailRow(
@@ -1849,7 +1863,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
                   : 'needs IPC',
               ok: helperReady,
               detail:
-                  'Caverno.app stays the chat client; Caverno Computer Use owns macOS permissions and OS actions.',
+                  'Caverno.app owns Screen & System Audio Recording; Caverno Computer Use executes approved OS actions.',
             ),
             _GatePlanRow(
               label: 'Accessibility permission',
@@ -1865,7 +1879,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
               ok: screenCaptureGranted,
               detail: screenCaptureGranted
                   ? 'Display and window capture can be verified.'
-                  : 'Grant Screen & System Audio Recording to Caverno Computer Use.',
+                  : 'Grant Screen & System Audio Recording to Caverno.app.',
             ),
             _GatePlanRow(
               label: 'Capture smoke',
@@ -2143,6 +2157,15 @@ class _IpcRuntimeSummary extends StatelessWidget {
         runtime['helperOwnsUnsafeOsActions'] == true;
     final mainAppUnsafeOsActionsAllowed =
         runtime['mainAppUnsafeOsActionsAllowed'] == true;
+    final mainAppOwnsTccPermissions =
+        runtime['mainAppOwnsTccPermissions'] == true;
+    final helperActsAsOsActionExecutor =
+        runtime['helperActsAsOsActionExecutor'] == true;
+    final tccPermissionOwnerDisplayName =
+        _stringValue(runtime['tccPermissionOwnerDisplayName']) ?? 'unknown';
+    final tccPermissionOwnerBundleIdentifier = _stringValue(
+      runtime['tccPermissionOwnerBundleIdentifier'],
+    );
     final fallbackActive = runtime['preferredFallbackActive'] == true;
     final status = fallbackActive
         ? 'preferred XPC fell back to $fallback'
@@ -2400,7 +2423,7 @@ class _IpcRuntimeSummary extends StatelessWidget {
               ),
             if (helperPathMismatch && tccOwnerHelperPath != null)
               _InfoChip(
-                label: 'TCC owner helper',
+                label: 'Runtime helper',
                 value: _shortPath(tccOwnerHelperPath),
               ),
             if (preservedMismatchedHelperPath)
@@ -2632,6 +2655,21 @@ class _IpcRuntimeSummary extends StatelessWidget {
             _InfoChip(
               label: 'XPC next action',
               value: '${runtime['xpcProductionNextAction']}',
+            ),
+            _InfoChip(
+              label: 'TCC owner',
+              value: mainAppOwnsTccPermissions
+                  ? tccPermissionOwnerDisplayName
+                  : 'helper',
+            ),
+            if (tccPermissionOwnerBundleIdentifier != null)
+              _InfoChip(
+                label: 'TCC owner bundle',
+                value: tccPermissionOwnerBundleIdentifier,
+              ),
+            _InfoChip(
+              label: 'OS executor',
+              value: helperActsAsOsActionExecutor ? 'helper' : 'main app',
             ),
             _InfoChip(
               label: 'OS action owner',

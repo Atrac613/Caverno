@@ -107,6 +107,7 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
     root,
     'macos/ComputerUseHelper/Release.entitlements',
   );
+  final runnerInfoPlist = _read(root, 'macos/Runner/Info.plist');
   final helperInfoPlist = _read(root, 'macos/ComputerUseHelper/Info.plist');
   final launchAgent = _read(
     root,
@@ -157,13 +158,17 @@ MacosComputerUseReleasePackagingReport buildMacosComputerUseReleasePackaging({
                 'PRODUCT_BUNDLE_IDENTIFIER = "com.noguwo.apps.caverno.computer-use";',
               ) ==
               true &&
+          runnerInfoPlist?.contains(
+                '<key>NSAudioCaptureUsageDescription</key>',
+              ) ==
+              true &&
           helperInfoPlist?.contains('<key>LSUIElement</key>') == true &&
           helperInfoPlist?.contains(
                 '<key>NSAudioCaptureUsageDescription</key>',
               ) ==
               true,
       nextAction:
-          'Keep Caverno Computer Use as a hidden agent bundle with system audio usage copy.',
+          'Keep Caverno.app as the Screen & System Audio Recording owner and Caverno Computer Use as a hidden agent bundle.',
     ),
     _check(
       id: 'launch_agent_mach_service',

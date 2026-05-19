@@ -351,6 +351,8 @@ void main() {
     );
     expect(architectureDoc, contains('mainAppUnsafeOsActionsAllowed=false'));
     expect(architectureDoc, contains('helperOwnsUnsafeOsActions=true'));
+    expect(architectureDoc, contains('mainAppOwnsTccPermissions=true'));
+    expect(architectureDoc, contains('helperActsAsOsActionExecutor=true'));
     expect(
       architectureDoc,
       contains('Remaining work is review hardening and user-operated sign-off'),
@@ -676,10 +678,12 @@ void main() {
   });
 
   test('Computer Use helper runs as a single hidden agent process', () {
-    expect(runnerInfoPlist, isNot(contains('NSAudioCaptureUsageDescription')));
+    expect(runnerInfoPlist, contains('NSAudioCaptureUsageDescription'));
     expect(helperInfoPlist, contains('NSAudioCaptureUsageDescription'));
-    expect(runnerSource, isNot(contains('CGRequestScreenCaptureAccess')));
-    expect(runnerSource, contains('main_app_screen_capture_blocked'));
+    expect(runnerSource, contains('CGRequestScreenCaptureAccess'));
+    expect(runnerSource, isNot(contains('main_app_screen_capture_blocked')));
+    expect(runnerSource, contains('mainAppOwnsTccPermissions'));
+    expect(helperSource, contains('helperActsAsOsActionExecutor'));
     expect(helperSource, contains('screenCaptureDeniedResponse'));
     expect(
       helperSource,

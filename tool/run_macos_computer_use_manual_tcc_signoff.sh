@@ -26,9 +26,9 @@ print_manual_tcc_context() {
   echo "macOS Computer Use manual TCC sign-off"
   echo "  Boundary: user-operated manual verification only"
   echo "  This wrapper does not grant permissions, edit TCC, or operate System Settings."
-  echo "  Before running, grant the release Caverno Computer Use helper in:"
-  echo "    System Settings > Privacy & Security > Accessibility"
-  echo "    System Settings > Privacy & Security > Screen & System Audio Recording"
+  echo "  Before running, grant these release permissions:"
+  echo "    Accessibility: Caverno Computer Use helper"
+  echo "    Screen & System Audio Recording: Caverno.app"
   echo "  Release helper: ${RELEASE_HELPER_PATH}"
   echo "  Release helper exists: $(release_helper_exists_text)"
   if [[ ! -d "${RELEASE_HELPER_PATH}" ]]; then

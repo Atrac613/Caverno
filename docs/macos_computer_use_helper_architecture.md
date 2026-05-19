@@ -1297,7 +1297,8 @@ required onboarding Allow-transition readiness. The live smoke report includes
 
 - the running or diagnosed helper matches the embedded
   `Caverno.app/Contents/Helpers/Caverno Computer Use.app` path;
-- Accessibility and Screen & System Audio Recording are granted to that helper;
+- Accessibility is granted to that helper, and Screen & System Audio Recording
+  is granted to `Caverno.app`;
 - display and window capture pass;
 - system audio is either ready or unsupported on the runtime;
 - both permission overlays show a draggable helper tile;
@@ -1537,7 +1538,7 @@ Manual steps for the user:
 2. Open macOS System Settings > Privacy & Security.
 3. Grant Accessibility to the exact release helper:
    `build/macos/Build/Products/Release/Caverno.app/Contents/Helpers/Caverno Computer Use.app`.
-4. Grant Screen & System Audio Recording to the same release helper.
+4. Grant Screen & System Audio Recording to the release `Caverno.app`.
 5. Run `bash tool/run_macos_computer_use_smoke_test.sh --m8-runtime-signoff`
    from a user-controlled terminal.
 6. Treat the run as complete only when `releaseRuntimeSignoffGate.status` is
@@ -1549,12 +1550,13 @@ Blocked report handling:
   rerun the manual command.
 - `release_runtime_helper_path_mismatch`: quit the running
   `Caverno Computer Use.app`, then rerun the manual command.
-- `release_runtime_permissions_blocked`: grant both Accessibility and Screen &
-  System Audio Recording to the release helper, then rerun the manual command.
+- `release_runtime_permissions_blocked`: grant Accessibility to the release
+  helper and Screen & System Audio Recording to the release `Caverno.app`, then
+  rerun the manual command.
 - `release_runtime_capture_blocked`: grant Screen & System Audio Recording to
-  the release helper, then rerun the manual command.
+  the release `Caverno.app`, then rerun the manual command.
 - `release_runtime_audio_blocked`: grant Screen & System Audio Recording to the
-  release helper, then rerun the manual command.
+  release `Caverno.app`, then rerun the manual command.
 
 Avoid rebuilding between a successful manual grant and the runtime sign-off
 unless the release artifact intentionally changed. Rebuilding can change the
@@ -1711,8 +1713,8 @@ reachable and the required macOS permissions are granted.
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --register-xpc-agent`.
 4. For an XPC-only strict production gate, add `--strict-xpc`; for a temporary
    registration, add `--cleanup-xpc-agent`.
-5. Grant Accessibility and Screen & System Audio Recording to
-   `Caverno Computer Use`.
+5. Grant Accessibility to `Caverno Computer Use` and Screen & System Audio
+   Recording to `Caverno.app`.
 6. Run input and audio checks without clicks:
    `bash tool/run_macos_computer_use_smoke_test.sh --reporter compact --unsafe-armed`.
 7. Run the click check only when the pointer target is safe:
@@ -1755,7 +1757,8 @@ reachable and the required macOS permissions are granted.
 - Live click smoke checks require the additional
   `CAVERNO_MACOS_COMPUTER_USE_SMOKE_UNSAFE_CLICK_ARMED=1` or
   `--unsafe-click-armed` gate because they can change foreground app state.
-- Helper IPC diagnostics include `mainAppUnsafeOsActionsAllowed=false`,
+- Helper IPC diagnostics include `mainAppOwnsTccPermissions=true`,
+  `helperActsAsOsActionExecutor=true`, `mainAppUnsafeOsActionsAllowed=false`,
   `helperOwnsUnsafeOsActions=true`, and helper-owned action categories so the
   boundary is visible in exported reports.
 - Live smoke reports include `unsafeOperationSummary` so manual runs can verify
@@ -1773,7 +1776,7 @@ The product UI should model the helper setup as a checklist:
 1. Helper installed or launchable.
 2. Helper reachable over IPC.
 3. Accessibility granted to `Caverno Computer Use`.
-4. Screen & System Audio Recording granted to `Caverno Computer Use`.
+4. Screen & System Audio Recording granted to `Caverno.app`.
 5. Optional positive smoke checks for screenshot, pointer movement, text input,
    and system audio recording.
 
@@ -1781,7 +1784,7 @@ Each missing state should have one primary action:
 
 - Launch helper.
 - Open Accessibility settings with the helper-owned overlay.
-- Open Screen & System Audio Recording settings with the helper-owned overlay.
+- Open Screen & System Audio Recording settings for `Caverno.app`.
 - Refresh status.
 - Run a focused smoke check.
 
@@ -1792,9 +1795,10 @@ migration plan has been converted into these completion checks:
 
 - Helper status models and onboarding copy are visible in Settings and the
   Computer Use debug page.
-- `Caverno Computer Use.app` is bundled in `Caverno.app` and owns macOS
-  Accessibility, Screen & System Audio Recording, input, observation, and
-  system-audio operations.
+- `Caverno Computer Use.app` is bundled in `Caverno.app` and owns helper
+  execution for Accessibility, input, observation, and system-audio operations.
+- `Caverno.app` owns Screen & System Audio Recording TCC while the helper
+  executes approved capture and audio commands.
 - Helper IPC supports `ping`, `permissionStatus`, `openSettings`,
   `showPermissionOverlay`, `startOnboardingPermissionFlow`, `stopAll`,
   observation, accessibility snapshot, window, input, keyboard, scroll, and
@@ -1805,11 +1809,13 @@ migration plan has been converted into these completion checks:
   and system audio recording are routed through the helper backend.
 - Input and sensitive helper commands remain behind app-level approval plus
   explicit action-time arming.
-- The helper-owned permission overlay is available for Accessibility and
-  Screen & System Audio Recording onboarding.
+- The permission onboarding flow separates helper Accessibility from
+  `Caverno.app` Screen & System Audio Recording.
 - The main app no longer owns unsafe macOS Computer Use actions. Diagnostics
-  report `mainAppUnsafeOsActionsAllowed=false`,
-  `helperOwnsUnsafeOsActions=true`, and the helper-owned action categories.
+  report `mainAppOwnsTccPermissions=true`,
+  `helperActsAsOsActionExecutor=true`,
+  `mainAppUnsafeOsActionsAllowed=false`, `helperOwnsUnsafeOsActions=true`, and
+  the helper-owned action categories.
 
 Remaining work is review hardening and user-operated sign-off rather than
 migration: the Advanced settings flow, post-merge sanity checks, release

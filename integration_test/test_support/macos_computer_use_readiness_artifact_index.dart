@@ -2484,7 +2484,7 @@ String _missingArtifactNextStepAction(
 
   final helperPath = entriesById['release_artifact']?.details['helperPath'];
   if (helperPath is String && helperPath.trim().isNotEmpty) {
-    return '${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility and Screen & System Audio Recording to the release helper at `$helperPath` before running it.';
+    return '${MacosComputerUseMvpGuidance.manualTccNextAction} Grant Accessibility to the release helper at `$helperPath` and Screen & System Audio Recording to the release Caverno.app before running it.';
   }
   return MacosComputerUseMvpGuidance.manualTccNextAction;
 }

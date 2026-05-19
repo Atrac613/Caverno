@@ -244,6 +244,10 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
   static let xpcProductionBlockers: [String] = []
   static let xpcProductionNextAction = "XPC is production ready."
+  static let mainAppOwnsTccPermissions = true
+  static let tccPermissionOwnerBundleIdentifier = "com.noguwo.apps.caverno"
+  static let tccPermissionOwnerDisplayName = "Caverno"
+  static let helperActsAsOsActionExecutor = true
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
   static let helperOwnedActionCategories = [
@@ -427,6 +431,10 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
       "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
       "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
+      "mainAppOwnsTccPermissions": MacosComputerUseIpcSchema.mainAppOwnsTccPermissions,
+      "tccPermissionOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "tccPermissionOwnerDisplayName": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+      "helperActsAsOsActionExecutor": MacosComputerUseIpcSchema.helperActsAsOsActionExecutor,
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
@@ -616,7 +624,7 @@ final class MacosComputerUseHelperClient: NSObject {
       "helperDiagnosticsStaleReasons": staleReasons,
       "tccRegrantRequired": tccRegrantRequired,
       "tccRegrantReason": tccRegrantRequired
-        ? "macOS TCC grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes."
+        ? "Helper Accessibility grants are tied to the helper app identity. Regrant may be required after the helper path, executable, or signing identity changes."
         : "The current helper identity matches the expected embedded helper path.",
       "oldHelperActionRequestsBlocked": true,
       "allowedDuringMigration": [
@@ -1267,6 +1275,10 @@ final class MacosComputerUseHelperClient: NSObject {
         "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
         "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
         "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
+        "mainAppOwnsTccPermissions": MacosComputerUseIpcSchema.mainAppOwnsTccPermissions,
+        "tccPermissionOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+        "tccPermissionOwnerDisplayName": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+        "helperActsAsOsActionExecutor": MacosComputerUseIpcSchema.helperActsAsOsActionExecutor,
         "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
         "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
         "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
@@ -1893,6 +1905,10 @@ final class MacosComputerUseHelperClient: NSObject {
       "xpcRegistrationRequirement": MacosComputerUseIpcSchema.xpcRegistrationRequirement,
       "xpcProductionBlockers": MacosComputerUseIpcSchema.xpcProductionBlockers,
       "xpcProductionNextAction": MacosComputerUseIpcSchema.xpcProductionNextAction,
+      "mainAppOwnsTccPermissions": MacosComputerUseIpcSchema.mainAppOwnsTccPermissions,
+      "tccPermissionOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "tccPermissionOwnerDisplayName": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+      "helperActsAsOsActionExecutor": MacosComputerUseIpcSchema.helperActsAsOsActionExecutor,
       "mainAppUnsafeOsActionsAllowed": MacosComputerUseIpcSchema.mainAppUnsafeOsActionsAllowed,
       "helperOwnsUnsafeOsActions": MacosComputerUseIpcSchema.helperOwnsUnsafeOsActions,
       "helperOwnedActionCategories": MacosComputerUseIpcSchema.helperOwnedActionCategories,
@@ -2103,13 +2119,23 @@ final class MacosComputerUseChannel {
   }
 
   private func permissionSnapshot() -> [String: Any] {
+    let screenCaptureGranted: Bool
+    if #available(macOS 10.15, *) {
+      screenCaptureGranted = CGPreflightScreenCaptureAccess()
+    } else {
+      screenCaptureGranted = true
+    }
+    let nextAction = screenCaptureGranted
+      ? "Screen & System Audio Recording is granted to Caverno.app."
+      : "Grant Screen & System Audio Recording to Caverno.app in System Settings."
     return [
       "accessibilityGranted": AXIsProcessTrusted(),
-      "screenCaptureGranted": false,
+      "screenCaptureGranted": screenCaptureGranted,
       "systemAudioRecordingSupported": isSystemAudioRecordingSupported(),
-      "screenCaptureOwner": helperDisplayName,
-      "mainAppScreenCaptureRequestBlocked": true,
-      "nextAction": "Launch Caverno Computer Use and grant Screen & System Audio Recording to the helper.",
+      "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+      "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "mainAppScreenCaptureRequestBlocked": false,
+      "nextAction": nextAction,
     ]
   }
 
@@ -2122,13 +2148,28 @@ final class MacosComputerUseChannel {
   }
 
   private func requestScreenCapture(result: @escaping FlutterResult) {
+    if #available(macOS 10.15, *) {
+      let granted = CGRequestScreenCaptureAccess()
+      let nextAction = granted
+        ? "Screen & System Audio Recording is granted to Caverno.app."
+        : "Grant Screen & System Audio Recording to Caverno.app in System Settings, then retry Computer Use."
+      result([
+        "ok": granted,
+        "screenCaptureGranted": granted,
+        "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+        "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+        "mainAppScreenCaptureRequestBlocked": false,
+        "nextAction": nextAction,
+      ])
+      return
+    }
     result([
-      "ok": false,
-      "code": "main_app_screen_capture_blocked",
-      "screenCaptureGranted": false,
-      "screenCaptureOwner": helperDisplayName,
-      "error": "Caverno.app does not request Screen & System Audio Recording. Computer Use permissions belong to Caverno Computer Use.",
-      "nextAction": "Open the helper-owned permission overlay and grant Screen & System Audio Recording to Caverno Computer Use.",
+      "ok": true,
+      "screenCaptureGranted": true,
+      "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
+      "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
+      "mainAppScreenCaptureRequestBlocked": false,
+      "nextAction": "Screen capture permission is not required on this macOS runtime.",
     ])
   }
 
