@@ -889,9 +889,18 @@ void main() {
     final chatStateSource = File(
       'lib/features/chat/presentation/providers/chat_state.dart',
     ).readAsStringSync();
-    final chatNotifierSource = File(
-      'lib/features/chat/presentation/providers/chat_notifier.dart',
-    ).readAsStringSync();
+    final chatNotifierSource = Directory(
+      'lib/features/chat/presentation/providers',
+    )
+        .listSync()
+        .whereType<File>()
+        .where(
+          (entity) =>
+              entity.path.endsWith('.dart') &&
+              entity.uri.pathSegments.last.startsWith('chat_notifier'),
+        )
+        .map((file) => file.readAsStringSync())
+        .join('\n');
     final chatPageSource = File(
       'lib/features/chat/presentation/pages/chat_page.dart',
     ).readAsStringSync();
@@ -922,9 +931,18 @@ void main() {
     final policySource = File(
       'lib/core/services/macos_computer_use_tool_policy.dart',
     ).readAsStringSync();
-    final chatNotifierSource = File(
-      'lib/features/chat/presentation/providers/chat_notifier.dart',
-    ).readAsStringSync();
+    final chatNotifierSource = Directory(
+      'lib/features/chat/presentation/providers',
+    )
+        .listSync()
+        .whereType<File>()
+        .where(
+          (entity) =>
+              entity.path.endsWith('.dart') &&
+              entity.uri.pathSegments.last.startsWith('chat_notifier'),
+        )
+        .map((file) => file.readAsStringSync())
+        .join('\n');
     final chatPageSource = File(
       'lib/features/chat/presentation/pages/chat_page.dart',
     ).readAsStringSync();

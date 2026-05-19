@@ -1,0 +1,105 @@
+// Same-library extension on [ChatNotifier]; see chat_notifier_git_handlers.dart
+// for the rationale behind the `ignore_for_file` directive.
+// ignore_for_file: invalid_use_of_protected_member, invalid_use_of_visible_for_testing_member
+
+part of 'chat_notifier.dart';
+
+extension ChatNotifierBleHandlers on ChatNotifier {
+  Future<McpToolResult> _handleBleConnect(ToolCallInfo toolCall) async {
+    final deviceId = (toolCall.arguments['device_id'] as String?)?.trim() ?? '';
+    if (deviceId.isEmpty) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'device_id is required',
+      );
+    }
+
+    final cacheArguments = <String, dynamic>{'device_id': deviceId};
+    final cachedResult = _lookupToolApprovalResult(
+      toolCall.name,
+      cacheArguments,
+    );
+    if (cachedResult != null) {
+      return cachedResult;
+    }
+
+    final bleService = ref.read(bleServiceProvider);
+    final scanResults = bleService.getScanResults();
+    final device = scanResults.where(
+      (d) => d.peripheral.uuid.toString() == deviceId,
+    );
+    final deviceName = device.isNotEmpty ? device.first.name : null;
+
+    final approved = await requestBleConnect(
+      deviceId: deviceId,
+      deviceName: deviceName,
+    );
+    if (!approved) {
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'User cancelled BLE connection',
+        ),
+      );
+    }
+
+    try {
+      await bleService.connect(deviceId);
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: 'Connected to ${deviceName ?? deviceId}',
+          isSuccess: true,
+        ),
+      );
+    } catch (e) {
+      appLog('[Tool] BLE connect failed: $e');
+      return _rememberToolApprovalResult(
+        toolCall.name,
+        cacheArguments,
+        McpToolResult(
+          toolName: toolCall.name,
+          result: '',
+          isSuccess: false,
+          errorMessage: 'BLE connect failed: $e',
+        ),
+      );
+    }
+  }
+
+  /// Puts a pending BLE connect request into state and returns a future
+  /// that completes with `true` (approved) or `false` (denied).
+  Future<bool> requestBleConnect({
+    required String deviceId,
+    String? deviceName,
+  }) {
+    final completer = Completer<bool>();
+    state = state.copyWith(
+      pendingBleConnect: PendingBleConnect(
+        id: const Uuid().v4(),
+        deviceId: deviceId,
+        deviceName: deviceName,
+        completer: completer,
+      ),
+    );
+    return completer.future;
+  }
+
+  /// Resolves a pending BLE connect dialog from the UI layer.
+  void resolveBleConnect({required String id, required bool approved}) {
+    final pending = state.pendingBleConnect;
+    if (pending == null || pending.id != id) return;
+    if (!pending.completer.isCompleted) {
+      pending.completer.complete(approved);
+    }
+    state = state.copyWith(pendingBleConnect: null);
+  }
+}
