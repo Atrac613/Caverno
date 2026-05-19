@@ -93,6 +93,17 @@ class ConversationPlanExecutionGuardrails {
     ' finished',
   ];
 
+  static final RegExp _markdownEmphasisPattern = RegExp(r'[`*_]');
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+  static final RegExp _missingPythonModulePattern = RegExp(
+    "No module named ['\\\"]([^'\\\"]+)['\\\"]",
+    caseSensitive: false,
+  );
+  static final RegExp _inferredTargetPathPattern = RegExp(
+    r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+    caseSensitive: false,
+  );
+
   static List<String> effectiveTargetPathsForTask(
     ConversationWorkflowTask task,
   ) => _effectiveTargetPaths(task).toList(growable: false);
@@ -639,8 +650,8 @@ class ConversationPlanExecutionGuardrails {
     return value
         .trim()
         .toLowerCase()
-        .replaceAll(RegExp(r'[`*_]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(_markdownEmphasisPattern, '')
+        .replaceAll(_whitespaceRunPattern, ' ')
         .trim();
   }
 
@@ -771,10 +782,6 @@ class ConversationPlanExecutionGuardrails {
   }
 
   static String? blockedPythonImportModule(List<ToolResultInfo> toolResults) {
-    final importPattern = RegExp(
-      "No module named ['\\\"]([^'\\\"]+)['\\\"]",
-      caseSensitive: false,
-    );
     for (final toolResult in toolResults) {
       final decoded = _tryDecodeMap(toolResult.result);
       final candidates = <String>[
@@ -787,7 +794,7 @@ class ConversationPlanExecutionGuardrails {
         if (candidate.isEmpty) {
           continue;
         }
-        final match = importPattern.firstMatch(candidate);
+        final match = _missingPythonModulePattern.firstMatch(candidate);
         if (match != null) {
           return match.group(1)?.trim();
         }
@@ -1291,8 +1298,8 @@ class ConversationPlanExecutionGuardrails {
     }
     final normalizedText = text
         .toLowerCase()
-        .replaceAll(RegExp(r'[`*_]'), '')
-        .replaceAll(RegExp(r'\s+'), ' ')
+        .replaceAll(_markdownEmphasisPattern, '')
+        .replaceAll(_whitespaceRunPattern, ' ')
         .trim();
     if (normalizedText.isEmpty) {
       return const <String>{};
@@ -1354,10 +1361,7 @@ class ConversationPlanExecutionGuardrails {
       return const <String>{};
     }
 
-    final matches = RegExp(
-      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
-      caseSensitive: false,
-    ).allMatches(text);
+    final matches = _inferredTargetPathPattern.allMatches(text);
     final inferredTargets = <String>{};
     for (final match in matches) {
       final candidate = _normalizePath(match.group(1));
