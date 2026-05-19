@@ -44,6 +44,16 @@ class ConversationValidationToolResultInference {
     'http_head',
   };
 
+  static final RegExp _sshExitCodePattern = RegExp(
+    r'^exit_code:\s*(.+)$',
+    multiLine: true,
+  );
+  static final RegExp _inferredTargetFilePattern = RegExp(
+    r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
+    caseSensitive: false,
+  );
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+
   static ConversationValidationToolResultInferenceResult? infer({
     required ConversationWorkflowTask task,
     required Iterable<ConversationValidationToolResultInput> toolResults,
@@ -162,10 +172,7 @@ class ConversationValidationToolResultInference {
   }
 
   static _ParsedValidationToolResult? _parseSshToolResult(String rawResult) {
-    final exitCodeMatch = RegExp(
-      r'^exit_code:\s*(.+)$',
-      multiLine: true,
-    ).firstMatch(rawResult);
+    final exitCodeMatch = _sshExitCodePattern.firstMatch(rawResult);
     final exitCodeLabel = exitCodeMatch?.group(1)?.trim();
     final exitCode = exitCodeLabel == null || exitCodeLabel == 'n/a'
         ? null
@@ -558,10 +565,7 @@ class ConversationValidationToolResultInference {
   }
 
   static Set<String> _inferTargetFilesFromText(String text) {
-    final matches = RegExp(
-      r'(?:(?:^|[\s`"(]))([A-Za-z0-9_./-]+\.[A-Za-z][A-Za-z0-9]{0,7}|__init__\.py|\.gitignore)(?=$|[\s`)",.:;])',
-      caseSensitive: false,
-    ).allMatches(text);
+    final matches = _inferredTargetFilePattern.allMatches(text);
     final inferredTargets = <String>{};
     for (final match in matches) {
       final candidate = _normalizeText(match.group(1))?.toLowerCase();
@@ -577,7 +581,7 @@ class ConversationValidationToolResultInference {
     if (value == null) {
       return null;
     }
-    final normalized = value.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    final normalized = value.toString().replaceAll(_whitespaceRunPattern, ' ').trim();
     return normalized.isEmpty ? null : normalized;
   }
 
