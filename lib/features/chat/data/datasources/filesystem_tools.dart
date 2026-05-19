@@ -26,6 +26,8 @@ class FilesystemTools {
   static const int _maxDiffPreviewChars = 12000;
   static const int _maxLcsCells = 60000;
 
+  static final RegExp _windowsDriveLetterPath = RegExp(r'^[A-Za-z]:[\\/]');
+
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
 
@@ -526,7 +528,7 @@ class FilesystemTools {
   static bool _isAbsolutePath(String path) {
     return path.startsWith('/') ||
         path.startsWith(r'\\') ||
-        RegExp(r'^[A-Za-z]:[\\/]').hasMatch(path);
+        _windowsDriveLetterPath.hasMatch(path);
   }
 
   static String _relativePath(String candidatePath, String basePath) {
