@@ -57,6 +57,8 @@ class ConversationPlanProjectionService {
 
   static const _taskIdReuseThreshold = 0.75;
 
+  static final RegExp _titleTokenSplitter = RegExp(r'[^a-z0-9]+');
+
   static ConversationPlanProjection deriveExecutionProjection({
     required String approvedMarkdown,
     DateTime? derivedAt,
@@ -527,7 +529,7 @@ class ConversationPlanProjectionService {
   static Set<String> _titleTokens(String title) {
     return title
         .toLowerCase()
-        .split(RegExp(r'[^a-z0-9]+'))
+        .split(_titleTokenSplitter)
         .map((token) => token.trim())
         .where(
           (token) => token.length >= 3 && !_ignoredTitleTokens.contains(token),
