@@ -8,6 +8,11 @@ import 'conversation_execution_summary_service.dart';
 class ConversationPlanningPromptService {
   ConversationPlanningPromptService._();
 
+  static final RegExp _trailingWhitespaceBeforeNewlinePattern = RegExp(
+    r'\s+\n',
+  );
+  static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
+
   static String buildWorkflowProposalRequest({
     required Conversation currentConversation,
     required List<Message> messages,
@@ -475,7 +480,9 @@ class ConversationPlanningPromptService {
   }
 
   static String _clipProposalPlanDocument(String markdown) {
-    final normalized = markdown.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    final normalized = markdown
+        .replaceAll(_trailingWhitespaceBeforeNewlinePattern, '\n')
+        .trim();
     if (normalized.length <= 1800) {
       return normalized;
     }
@@ -483,7 +490,9 @@ class ConversationPlanningPromptService {
   }
 
   static String _clipPlanningResearchContext(String context) {
-    final normalized = context.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    final normalized = context
+        .replaceAll(_trailingWhitespaceBeforeNewlinePattern, '\n')
+        .trim();
     if (normalized.length <= 1600) {
       return normalized;
     }
@@ -491,7 +500,9 @@ class ConversationPlanningPromptService {
   }
 
   static String _clipAdditionalPlanningContext(String context) {
-    final normalized = context.replaceAll(RegExp(r'\s+\n'), '\n').trim();
+    final normalized = context
+        .replaceAll(_trailingWhitespaceBeforeNewlinePattern, '\n')
+        .trim();
     if (normalized.length <= 1200) {
       return normalized;
     }
@@ -506,6 +517,6 @@ class ConversationPlanningPromptService {
         buffer.write(segment.content);
       }
     }
-    return buffer.toString().replaceAll(RegExp(r'\s+'), ' ').trim();
+    return buffer.toString().replaceAll(_whitespaceRunPattern, ' ').trim();
   }
 }
