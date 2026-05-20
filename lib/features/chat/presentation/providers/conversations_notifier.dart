@@ -153,6 +153,17 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     if (createFreshConversation &&
         createIfMissing &&
         workspaceMode.usesConversations) {
+      final latestConversation = visibleConversations.firstOrNull;
+      if (latestConversation != null &&
+          _isReusableEmptyConversation(latestConversation)) {
+        return ConversationsState(
+          conversations: nextConversations,
+          currentConversationId: latestConversation.id,
+          activeWorkspaceMode: workspaceMode,
+          activeProjectId: normalizedProjectId,
+        );
+      }
+
       final fresh = _createConversation(
         workspaceMode: workspaceMode,
         projectId: normalizedProjectId,
@@ -199,6 +210,16 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       activeWorkspaceMode: workspaceMode,
       activeProjectId: normalizedProjectId,
     );
+  }
+
+  bool _isReusableEmptyConversation(Conversation conversation) {
+    return conversation.title == defaultConversationTitle &&
+        conversation.messages.isEmpty &&
+        !conversation.hasWorkflowContext &&
+        !conversation.hasPlanArtifact &&
+        !conversation.hasCompactionArtifact &&
+        conversation.executionProgress.isEmpty &&
+        conversation.openQuestionProgress.isEmpty;
   }
 
   String? _normalizeProjectId(WorkspaceMode workspaceMode, String? projectId) {

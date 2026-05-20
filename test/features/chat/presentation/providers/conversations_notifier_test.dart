@@ -60,18 +60,43 @@ void main() {
     container.dispose();
   });
 
-  test('startup creates a fresh chat conversation', () async {
+  test(
+    'startup creates a fresh chat conversation when latest chat has messages',
+    () async {
+      final savedConversation = Conversation(
+        id: 'saved-chat',
+        title: 'Saved chat',
+        messages: [
+          Message(
+            id: 'saved-message',
+            content: 'Continue the previous topic',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 20, 10),
+          ),
+        ],
+        createdAt: DateTime(2026, 4, 20, 10),
+        updatedAt: DateTime(2026, 4, 20, 10),
+        workspaceMode: WorkspaceMode.chat,
+      );
+      await repository.save(savedConversation);
+
+      final state = container.read(conversationsNotifierProvider);
+      final currentConversation = state.currentConversation;
+
+      expect(currentConversation, isNotNull);
+      expect(currentConversation!.id, isNot(savedConversation.id));
+      expect(currentConversation.title, defaultConversationTitle);
+      expect(currentConversation.messages, isEmpty);
+      expect(currentConversation.workspaceMode, WorkspaceMode.chat);
+      expect(repository.getById(currentConversation.id), isNotNull);
+    },
+  );
+
+  test('startup reuses the latest empty chat conversation', () async {
     final savedConversation = Conversation(
-      id: 'saved-chat',
-      title: 'Saved chat',
-      messages: [
-        Message(
-          id: 'saved-message',
-          content: 'Continue the previous topic',
-          role: MessageRole.user,
-          timestamp: DateTime(2026, 4, 20, 10),
-        ),
-      ],
+      id: 'empty-chat',
+      title: defaultConversationTitle,
+      messages: const [],
       createdAt: DateTime(2026, 4, 20, 10),
       updatedAt: DateTime(2026, 4, 20, 10),
       workspaceMode: WorkspaceMode.chat,
@@ -82,11 +107,9 @@ void main() {
     final currentConversation = state.currentConversation;
 
     expect(currentConversation, isNotNull);
-    expect(currentConversation!.id, isNot(savedConversation.id));
-    expect(currentConversation.title, defaultConversationTitle);
+    expect(currentConversation!.id, savedConversation.id);
     expect(currentConversation.messages, isEmpty);
-    expect(currentConversation.workspaceMode, WorkspaceMode.chat);
-    expect(repository.getById(currentConversation.id), isNotNull);
+    expect(repository.getAll(), hasLength(1));
   });
 
   test('first coding workspace open creates a fresh project thread', () async {
@@ -151,6 +174,47 @@ void main() {
       2,
     );
   });
+
+  test(
+    'first coding workspace open reuses the latest empty project thread',
+    () async {
+      final savedThread = Conversation(
+        id: 'empty-coding-thread',
+        title: defaultConversationTitle,
+        messages: const [],
+        createdAt: DateTime(2026, 4, 20, 11),
+        updatedAt: DateTime(2026, 4, 20, 11),
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await repository.save(savedThread);
+
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+      notifier.activateWorkspace(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+        createIfMissing: true,
+        createFreshOnFirstOpen: true,
+      );
+
+      final state = container.read(conversationsNotifierProvider);
+      final currentThread = state.currentConversation;
+
+      expect(currentThread, isNotNull);
+      expect(currentThread!.id, savedThread.id);
+      expect(currentThread.messages, isEmpty);
+      expect(
+        state.conversations
+            .where(
+              (conversation) =>
+                  conversation.workspaceMode == WorkspaceMode.coding &&
+                  conversation.normalizedProjectId == 'project-1',
+            )
+            .length,
+        1,
+      );
+    },
+  );
 
   test(
     'updateCurrentWorkflow persists workflow data for current thread',
