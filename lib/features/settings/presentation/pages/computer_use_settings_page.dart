@@ -156,6 +156,8 @@ class _ComputerUseOnboardingCardState
       helperIpcReady: helperIpcReady,
       accessibilityGranted: accessibilityGranted,
       screenCaptureGranted: screenCaptureGranted,
+      screenRecordingGrantFlowPendingRestart:
+          _screenRecordingGrantFlowPendingRestart(),
     );
     final helperIpcRuntime = _helperIpcRuntime();
     final permissionRecoverySummary = _permissionRecoverySummary(
@@ -514,6 +516,7 @@ class _ComputerUseOnboardingCardState
     required bool helperIpcReady,
     required bool accessibilityGranted,
     required bool screenCaptureGranted,
+    required bool screenRecordingGrantFlowPendingRestart,
   }) {
     if (!helperInstalled || !helperRunning) {
       return const _ComputerUsePrimaryAction(
@@ -540,10 +543,20 @@ class _ComputerUseOnboardingCardState
       );
     }
     if (!screenCaptureGranted) {
+      if (screenRecordingGrantFlowPendingRestart) {
+        return const _ComputerUsePrimaryAction(
+          kind: _ComputerUsePrimaryActionKind.restart,
+          label: 'Restart Helper',
+          detail:
+              'Restart Caverno Computer Use so macOS applies the screen recording grant.',
+          icon: Icons.restart_alt,
+        );
+      }
       return const _ComputerUsePrimaryAction(
         kind: _ComputerUsePrimaryActionKind.openScreenRecording,
         label: 'Open Screen Recording',
-        detail: 'Grant Screen & System Audio Recording to Caverno Computer Use.',
+        detail:
+            'Grant Screen & System Audio Recording to Caverno Computer Use.',
         icon: Icons.screenshot_monitor_outlined,
       );
     }
@@ -622,6 +635,7 @@ class _ComputerUseOnboardingCardState
         if (helper != null) {
           _helperStatus = {...?_helperStatus, ...helper};
         }
+        _lastPermissionOverlayResult = null;
       });
       final readiness = _decodeMap(await service.waitForHelperIpcReady());
       if (!mounted) {
@@ -914,7 +928,8 @@ class _ComputerUseOnboardingCardState
       },
       {
         'id': 'grant_screen_recording',
-        'label': 'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'label':
+            'Grant Screen & System Audio Recording to Caverno Computer Use',
         'complete': _permissionValue('screenCaptureGranted') == true,
       },
       {
@@ -982,6 +997,16 @@ class _ComputerUseOnboardingCardState
       }
     }
     return null;
+  }
+
+  bool _screenRecordingGrantFlowPendingRestart() {
+    final result = _lastPermissionOverlayResult;
+    if (result == null) {
+      return false;
+    }
+    final permission = result['permission'] ?? result['section'];
+    final opened = result['settingsOpened'] == true || result['ok'] == true;
+    return opened == true && permission == 'screenRecording';
   }
 
   Map<String, dynamic>? _onboardingVerification() {

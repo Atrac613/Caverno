@@ -1343,7 +1343,7 @@ if !appPathMatchesExpected {
 } else if !helperPathMatchesExpected {
   nextAction = "Stop the standalone helper and rerun the probe with --replace-helper before using these results for embedded-helper sign-off."
 } else if !screenCaptureGranted {
-  nextAction = "Grant Screen & System Audio Recording to the expected Caverno.app path, then rerun this probe with --require-capture."
+  nextAction = "Grant Screen & System Audio Recording to the expected Caverno Computer Use helper path, restart the helper if macOS asks, then rerun this probe with --require-capture."
 } else if !inputReady {
   nextAction = "Grant Accessibility to the expected embedded helper path, then rerun this probe with --require-input."
 } else {

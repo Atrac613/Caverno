@@ -766,7 +766,7 @@ void main() {
     expect(find.text('Open Screen Recording Settings'), findsOneWidget);
     expect(find.text('Permission flow'), findsOneWidget);
     expect(find.text('Open Accessibility'), findsAtLeastNWidgets(1));
-    expect(find.text('Open Screen Recording'), findsOneWidget);
+    expect(find.text('Open Screen Recording'), findsAtLeastNWidgets(1));
 
     await _tapByKey(
       tester,
@@ -790,6 +790,29 @@ void main() {
       find.textContaining('Last permission overlay:', skipOffstage: false),
       findsOneWidget,
     );
+  });
+
+  testWidgets('offers helper restart after screen recording grant flow', (
+    tester,
+  ) async {
+    final service = _FakeMacosComputerUseService(screenCaptureGranted: false);
+    await _pumpPage(tester, service);
+
+    expect(find.text('Open Screen Recording'), findsAtLeastNWidgets(1));
+
+    await _tapByKey(
+      tester,
+      'computer-use-settings-primary-action',
+      wait: const Duration(milliseconds: 700),
+    );
+
+    expect(service.permissionOverlays, ['screenRecording']);
+    expect(find.text('Restart Helper'), findsOneWidget);
+
+    await _tapByKey(tester, 'computer-use-settings-primary-action');
+
+    expect(service.restartHelperCallCount, 1);
+    expect(find.text('Open Screen Recording'), findsAtLeastNWidgets(1));
   });
 
   testWidgets('distinguishes revoked permissions from missing permissions', (

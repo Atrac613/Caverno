@@ -327,6 +327,10 @@ void main() {
         helperReachable: true,
         accessibilityGranted: true,
         screenCaptureGranted: false,
+        screenCapturePreflightGranted: false,
+        screenCaptureProbeAttempted: null,
+        screenCaptureProbeSucceeded: null,
+        screenCaptureDetectionMethod: null,
         systemAudioRecordingSupported: true,
       ),
     );
@@ -453,6 +457,10 @@ void main() {
         helperReachable: true,
         accessibilityGranted: false,
         screenCaptureGranted: false,
+        screenCapturePreflightGranted: false,
+        screenCaptureProbeAttempted: null,
+        screenCaptureProbeSucceeded: null,
+        screenCaptureDetectionMethod: null,
         systemAudioRecordingSupported: true,
       ),
       onboardingVerification: const {
@@ -474,7 +482,7 @@ void main() {
     expect(summary.mainAppPermissionPromptBoundary, 'split_permission_owner');
     expect(
       summary.nextAction,
-      'Ask the user to re-enable Accessibility and Screen & System Audio Recording for Caverno Computer Use in System Settings, then recheck permissions.',
+      'Ask the user to re-enable Accessibility and Screen & System Audio Recording for Caverno Computer Use in System Settings, restart Caverno Computer Use, then recheck permissions.',
     );
   });
 
@@ -485,6 +493,10 @@ void main() {
         helperReachable: true,
         accessibilityGranted: true,
         screenCaptureGranted: true,
+        screenCapturePreflightGranted: true,
+        screenCaptureProbeAttempted: null,
+        screenCaptureProbeSucceeded: null,
+        screenCaptureDetectionMethod: null,
         systemAudioRecordingSupported: true,
       ),
       helperStatus: const {
@@ -608,6 +620,55 @@ void main() {
     expect(
       checklist.subtitle,
       'Open System Settings, grant Screen & System Audio Recording to Caverno, then refresh permissions.',
+    );
+  });
+
+  test('accepts a successful screen capture probe as permission evidence', () {
+    final permissions = MacosComputerUsePermissionSnapshot.fromMap({
+      'accessibilityGranted': true,
+      'screenCaptureGranted': false,
+      'screenCapturePreflightGranted': false,
+      'screenCaptureProbeAttempted': true,
+      'screenCaptureProbeSucceeded': true,
+      'screenCaptureDetectionMethod': 'screen_capture_kit_shareable_content',
+      'systemAudioRecordingSupported': true,
+    });
+
+    expect(permissions.screenCaptureGranted, isTrue);
+    expect(permissions.screenCapturePreflightGranted, isFalse);
+    expect(permissions.screenCaptureProbeAttempted, isTrue);
+    expect(permissions.screenCaptureProbeSucceeded, isTrue);
+    expect(
+      permissions.screenCaptureDetectionMethod,
+      'screen_capture_kit_shareable_content',
+    );
+    expect(permissions.hasRequiredPermissions, isTrue);
+  });
+
+  test('asks to restart the helper after a screen recording grant', () {
+    final permissions = MacosComputerUsePermissionSnapshot.fromMap({
+      'backend': 'helper',
+      'helperReachable': true,
+      'accessibilityGranted': true,
+      'screenCaptureGranted': false,
+      'systemAudioRecordingSupported': true,
+    });
+    final checklist = MacosComputerUseSetupChecklist(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: permissions,
+    );
+    final summary = MacosComputerUsePermissionRecoverySummary.fromState(
+      backend: MacosComputerUseBackends.helperIpc,
+      permissions: permissions,
+    );
+
+    expect(
+      checklist.subtitle,
+      'Open System Settings, grant Screen & System Audio Recording to Caverno Computer Use, restart Caverno Computer Use, then refresh permissions.',
+    );
+    expect(
+      summary.nextAction,
+      'Open System Settings, grant Screen & System Audio Recording to Caverno Computer Use, restart Caverno Computer Use, then recheck permissions.',
     );
   });
 

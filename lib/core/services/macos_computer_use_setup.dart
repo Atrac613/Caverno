@@ -1063,6 +1063,10 @@ class MacosComputerUsePermissionRecoverySummary {
         accessibilityOwnerName: backend.permissionOwnerName,
         permissionLabels: revokedPermissionLabels,
       );
+      if (backend.usesSeparateHelper &&
+          revokedPermissionLabels.contains('Screen & System Audio Recording')) {
+        return 'Ask the user to re-enable $grants in System Settings, restart ${backend.permissionOwnerName}, then recheck permissions.';
+      }
       return 'Ask the user to re-enable $grants in System Settings, then recheck permissions.';
     }
     if (missingPermissionLabels.isNotEmpty) {
@@ -1070,6 +1074,10 @@ class MacosComputerUsePermissionRecoverySummary {
         accessibilityOwnerName: backend.permissionOwnerName,
         permissionLabels: missingPermissionLabels,
       );
+      if (backend.usesSeparateHelper &&
+          missingPermissionLabels.contains('Screen & System Audio Recording')) {
+        return 'Open System Settings, grant $grants, restart ${backend.permissionOwnerName}, then recheck permissions.';
+      }
       return 'Open System Settings, grant $grants, then recheck permissions.';
     }
     return 'No recovery action is needed.';
@@ -1242,6 +1250,10 @@ class MacosComputerUsePermissionSnapshot {
     required this.helperReachable,
     required this.accessibilityGranted,
     required this.screenCaptureGranted,
+    required this.screenCapturePreflightGranted,
+    required this.screenCaptureProbeAttempted,
+    required this.screenCaptureProbeSucceeded,
+    required this.screenCaptureDetectionMethod,
     required this.systemAudioRecordingSupported,
   });
 
@@ -1249,6 +1261,10 @@ class MacosComputerUsePermissionSnapshot {
     Map<String, dynamic>? values,
   ) {
     final helperReachable = values?['helperReachable'];
+    final screenCaptureGranted = _boolValue(values?['screenCaptureGranted']);
+    final screenCaptureProbeSucceeded = _boolValue(
+      values?['screenCaptureProbeSucceeded'],
+    );
     return MacosComputerUsePermissionSnapshot(
       helperReachable: helperReachable is bool
           ? helperReachable
@@ -1256,7 +1272,21 @@ class MacosComputerUsePermissionSnapshot {
           ? true
           : null,
       accessibilityGranted: _boolValue(values?['accessibilityGranted']),
-      screenCaptureGranted: _boolValue(values?['screenCaptureGranted']),
+      screenCaptureGranted: screenCaptureGranted == true
+          ? true
+          : screenCaptureProbeSucceeded == true
+          ? true
+          : screenCaptureGranted,
+      screenCapturePreflightGranted: _boolValue(
+        values?['screenCapturePreflightGranted'],
+      ),
+      screenCaptureProbeAttempted: _boolValue(
+        values?['screenCaptureProbeAttempted'],
+      ),
+      screenCaptureProbeSucceeded: screenCaptureProbeSucceeded,
+      screenCaptureDetectionMethod: _stringValue(
+        values?['screenCaptureDetectionMethod'],
+      ),
       systemAudioRecordingSupported: _boolValue(
         values?['systemAudioRecordingSupported'],
       ),
@@ -1266,6 +1296,10 @@ class MacosComputerUsePermissionSnapshot {
   final bool? helperReachable;
   final bool? accessibilityGranted;
   final bool? screenCaptureGranted;
+  final bool? screenCapturePreflightGranted;
+  final bool? screenCaptureProbeAttempted;
+  final bool? screenCaptureProbeSucceeded;
+  final String? screenCaptureDetectionMethod;
   final bool? systemAudioRecordingSupported;
 
   bool get hasRequiredPermissions =>
@@ -1288,12 +1322,20 @@ class MacosComputerUsePermissionSnapshot {
       'helperReachable': helperReachable,
       'accessibilityGranted': accessibilityGranted,
       'screenCaptureGranted': screenCaptureGranted,
+      'screenCapturePreflightGranted': screenCapturePreflightGranted,
+      'screenCaptureProbeAttempted': screenCaptureProbeAttempted,
+      'screenCaptureProbeSucceeded': screenCaptureProbeSucceeded,
+      'screenCaptureDetectionMethod': screenCaptureDetectionMethod,
       'systemAudioRecordingSupported': systemAudioRecordingSupported,
     };
   }
 
   static bool? _boolValue(Object? value) {
     return value is bool ? value : null;
+  }
+
+  static String? _stringValue(Object? value) {
+    return value is String && value.isNotEmpty ? value : null;
   }
 }
 
@@ -1337,6 +1379,10 @@ class MacosComputerUseSetupChecklist {
         accessibilityOwnerName: backend.permissionOwnerName,
         permissionLabels: missingPermissionLabels,
       );
+      if (backend.usesSeparateHelper &&
+          missingPermissionLabels.contains('Screen & System Audio Recording')) {
+        return 'Open System Settings, grant $grants, restart ${backend.permissionOwnerName}, then refresh permissions.';
+      }
       return 'Open System Settings, grant $grants, then refresh permissions.';
     }
     return 'Use Refresh to load the current macOS privacy state.';

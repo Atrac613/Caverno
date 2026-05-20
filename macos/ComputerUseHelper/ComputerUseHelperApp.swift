@@ -1530,15 +1530,101 @@ private final class PermissionGrantBundleDragTileView: NSView, NSDraggingSource 
 
 private struct PermissionSnapshot {
   let accessibilityGranted: Bool
-  let screenCaptureGranted: Bool
+  let screenCaptureStatus: ScreenCapturePermissionStatus
   let systemAudioRecordingSupported: Bool
 
+  var screenCaptureGranted: Bool {
+    screenCaptureStatus.granted
+  }
+
   func toMap() -> [String: Any] {
-    [
+    var response: [String: Any] = [
       "accessibilityGranted": accessibilityGranted,
       "screenCaptureGranted": screenCaptureGranted,
       "systemAudioRecordingSupported": systemAudioRecordingSupported,
     ]
+    screenCaptureStatus.add(to: &response)
+    return response
+  }
+}
+
+private struct ScreenCapturePermissionStatus {
+  let preflightGranted: Bool
+  let probeAttempted: Bool
+  let probeSucceeded: Bool?
+  let probeError: String?
+  let probeDetail: String?
+  let detectionMethod: String
+
+  var granted: Bool {
+    preflightGranted || probeSucceeded == true
+  }
+
+  func add(to response: inout [String: Any]) {
+    response["screenCapturePreflightGranted"] = preflightGranted
+    response["screenCaptureProbeAttempted"] = probeAttempted
+    response["screenCaptureDetectionMethod"] = detectionMethod
+    if let probeSucceeded {
+      response["screenCaptureProbeSucceeded"] = probeSucceeded
+    }
+    if let probeError {
+      response["screenCaptureProbeError"] = probeError
+    }
+    if let probeDetail {
+      response["screenCaptureProbeDetail"] = probeDetail
+    }
+  }
+
+  static func preflightOnly() -> ScreenCapturePermissionStatus {
+    let preflightGranted = screenCapturePreflightGranted()
+    return ScreenCapturePermissionStatus(
+      preflightGranted: preflightGranted,
+      probeAttempted: false,
+      probeSucceeded: nil,
+      probeError: nil,
+      probeDetail: preflightGranted
+        ? "CGPreflightScreenCaptureAccess returned granted."
+        : "CGPreflightScreenCaptureAccess returned denied.",
+      detectionMethod: "cg_preflight"
+    )
+  }
+
+  static func fromShareableContentProbe(
+    preflightGranted: Bool,
+    probeSucceeded: Bool,
+    probeError: String?,
+    probeDetail: String
+  ) -> ScreenCapturePermissionStatus {
+    ScreenCapturePermissionStatus(
+      preflightGranted: preflightGranted,
+      probeAttempted: true,
+      probeSucceeded: probeSucceeded,
+      probeError: probeError,
+      probeDetail: probeDetail,
+      detectionMethod: probeSucceeded
+        ? "screen_capture_kit_shareable_content"
+        : "screen_capture_kit_shareable_content_failed"
+    )
+  }
+}
+
+private final class ScreenCapturePermissionProbeCompletion {
+  private let lock = NSLock()
+  private var completed = false
+  private let completion: (ScreenCapturePermissionStatus) -> Void
+
+  init(completion: @escaping (ScreenCapturePermissionStatus) -> Void) {
+    self.completion = completion
+  }
+
+  func finish(_ status: ScreenCapturePermissionStatus) {
+    lock.lock()
+    let shouldComplete = !completed
+    completed = true
+    lock.unlock()
+    if shouldComplete {
+      completion(status)
+    }
   }
 }
 
@@ -1594,19 +1680,80 @@ private struct OnboardingVerificationResult {
   }
 }
 
-private func computerUsePermissionSnapshot() -> PermissionSnapshot {
-  let screenCaptureGranted: Bool
-  if #available(macOS 10.15, *) {
-    screenCaptureGranted = CGPreflightScreenCaptureAccess()
-  } else {
-    screenCaptureGranted = true
-  }
-
+private func computerUsePermissionSnapshot(
+  screenCaptureStatus: ScreenCapturePermissionStatus = .preflightOnly()
+) -> PermissionSnapshot {
   return PermissionSnapshot(
     accessibilityGranted: AXIsProcessTrusted(),
-    screenCaptureGranted: screenCaptureGranted,
+    screenCaptureStatus: screenCaptureStatus,
     systemAudioRecordingSupported: systemAudioRecordingSupported()
   )
+}
+
+private func screenCapturePreflightGranted() -> Bool {
+  if #available(macOS 10.15, *) {
+    return CGPreflightScreenCaptureAccess()
+  }
+  return true
+}
+
+private func screenCapturePermissionStatus(
+  completion: @escaping (ScreenCapturePermissionStatus) -> Void
+) {
+  let preflightGranted = screenCapturePreflightGranted()
+  if preflightGranted {
+    completion(.preflightOnly())
+    return
+  }
+
+  guard #available(macOS 13.0, *) else {
+    completion(
+      ScreenCapturePermissionStatus.fromShareableContentProbe(
+        preflightGranted: preflightGranted,
+        probeSucceeded: false,
+        probeError: "screen_capture_kit_unavailable",
+        probeDetail: "ScreenCaptureKit permission probe requires macOS 13 or later."
+      )
+    )
+    return
+  }
+
+  let once = ScreenCapturePermissionProbeCompletion(completion: completion)
+
+  DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + .milliseconds(900)) {
+    once.finish(
+      ScreenCapturePermissionStatus.fromShareableContentProbe(
+        preflightGranted: preflightGranted,
+        probeSucceeded: false,
+        probeError: "screen_capture_probe_timeout",
+        probeDetail: "ScreenCaptureKit did not return shareable content before the permission check timeout."
+      )
+    )
+  }
+
+  SCShareableContent.getExcludingDesktopWindows(false, onScreenWindowsOnly: true) { content, error in
+    if let error {
+      once.finish(
+        ScreenCapturePermissionStatus.fromShareableContentProbe(
+          preflightGranted: preflightGranted,
+          probeSucceeded: false,
+          probeError: error.localizedDescription,
+          probeDetail: "ScreenCaptureKit could not enumerate shareable content."
+        )
+      )
+      return
+    }
+    let displayCount = content?.displays.count ?? 0
+    let windowCount = content?.windows.count ?? 0
+    once.finish(
+      ScreenCapturePermissionStatus.fromShareableContentProbe(
+        preflightGranted: preflightGranted,
+        probeSucceeded: displayCount > 0 || windowCount > 0,
+        probeError: nil,
+        probeDetail: "ScreenCaptureKit returned \(displayCount) display(s) and \(windowCount) window(s)."
+      )
+    )
+  }
 }
 
 private func systemAudioRecordingSupported() -> Bool {
@@ -2143,7 +2290,7 @@ private final class ComputerUseHelperIpc: NSObject {
     case .showMainWindow:
       completion(showMainWindow(arguments: request.arguments))
     case .permissionStatus:
-      completion(permissionStatus())
+      permissionStatus(completion: completion)
     case .openSettings:
       completion(openSettings(arguments: request.arguments))
     case .showPermissionOverlay:
@@ -2183,12 +2330,24 @@ private final class ComputerUseHelperIpc: NSObject {
     }
   }
 
-  private func permissionStatus() -> [String: Any] {
-    var response = baseResponse()
-    for (key, value) in computerUsePermissionSnapshot().toMap() {
-      response[key] = value
+  private func permissionStatus(completion: @escaping ([String: Any]) -> Void) {
+    screenCapturePermissionStatus { [weak self] screenCaptureStatus in
+      guard let self else {
+        completion([
+          "ok": false,
+          "code": "helper_unavailable",
+          "error": "Caverno Computer Use stopped before permission status completed.",
+        ])
+        return
+      }
+      var response = self.baseResponse()
+      for (key, value) in computerUsePermissionSnapshot(
+        screenCaptureStatus: screenCaptureStatus
+      ).toMap() {
+        response[key] = value
+      }
+      completion(response)
     }
-    return response
   }
 
   private func showMainWindow(arguments: [String: Any]) -> [String: Any] {
@@ -2290,15 +2449,14 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   private func screenshot(arguments: [String: Any]) -> [String: Any] {
-    guard computerUsePermissionSnapshot().screenCaptureGranted else {
-      return screenCaptureDeniedResponse()
-    }
-
     guard let screen = resolveScreen(arguments: arguments) else {
       return errorResponse(code: "display_not_found", error: "No display is available")
     }
 
     guard let image = CGDisplayCreateImage(screen.displayID) else {
+      if !computerUsePermissionSnapshot().screenCaptureGranted {
+        return screenCaptureDeniedResponse()
+      }
       return errorResponse(
         code: "screenshot_failed",
         error: "Failed to capture the display. Grant Screen Recording permission in System Settings."
@@ -2628,10 +2786,6 @@ private final class ComputerUseHelperIpc: NSObject {
   }
 
   private func screenshotWindow(arguments: [String: Any]) -> [String: Any] {
-    guard computerUsePermissionSnapshot().screenCaptureGranted else {
-      return screenCaptureDeniedResponse()
-    }
-
     guard let windowID = windowID(arguments: arguments) else {
       return errorResponse(code: "invalid_args", error: "window_id is required")
     }
@@ -2655,6 +2809,9 @@ private final class ComputerUseHelperIpc: NSObject {
       CGWindowID(windowID),
       [.boundsIgnoreFraming, .bestResolution]
     ) else {
+      if !computerUsePermissionSnapshot().screenCaptureGranted {
+        return screenCaptureDeniedResponse()
+      }
       return errorResponse(
         code: "screenshot_failed",
         error: "Failed to capture the window. Grant Screen Recording permission in System Settings.",
@@ -3496,7 +3653,21 @@ private func windowSpaceNextAction(spaceScope: WindowSpaceScope) -> String {
 
 private func performOnboardingVerification() -> OnboardingVerificationResult {
   let permissions = computerUsePermissionSnapshot()
-  let permissionsReady = permissions.accessibilityGranted && permissions.screenCaptureGranted
+  let displayScreenshotStep = verifyOnboardingDisplayScreenshot(permissions: permissions)
+  let windowCaptureStep = verifyOnboardingWindowCapture(permissions: permissions)
+  let screenCaptureUsable =
+    permissions.screenCaptureGranted || displayScreenshotStep.ok || windowCaptureStep.ok
+  var permissionMap = permissions.toMap()
+  permissionMap["screenCaptureGranted"] = screenCaptureUsable
+  permissionMap["screenCaptureProbeAttempted"] = true
+  permissionMap["screenCaptureProbeSucceeded"] = screenCaptureUsable
+  permissionMap["screenCaptureProbeDetail"] = screenCaptureUsable
+    ? "Onboarding capture verification succeeded."
+    : "Onboarding capture verification failed."
+  permissionMap["screenCaptureDetectionMethod"] = screenCaptureUsable
+    ? "onboarding_capture_verification"
+    : permissions.screenCaptureStatus.detectionMethod
+  let permissionsReady = permissions.accessibilityGranted && screenCaptureUsable
   let permissionStep = OnboardingVerificationStep(
     id: "permissions",
     label: "Permissions",
@@ -3505,24 +3676,16 @@ private func performOnboardingVerification() -> OnboardingVerificationResult {
   )
   return OnboardingVerificationResult(
     generatedAt: Date(),
-    permissions: permissions.toMap(),
+    permissions: permissionMap,
     permissionStep: permissionStep,
-    displayScreenshotStep: verifyOnboardingDisplayScreenshot(permissions: permissions),
-    windowCaptureStep: verifyOnboardingWindowCapture(permissions: permissions)
+    displayScreenshotStep: displayScreenshotStep,
+    windowCaptureStep: windowCaptureStep
   )
 }
 
 private func verifyOnboardingDisplayScreenshot(
   permissions: PermissionSnapshot
 ) -> OnboardingVerificationStep {
-  guard permissions.screenCaptureGranted else {
-    return OnboardingVerificationStep(
-      id: "display_screenshot",
-      label: "Display Screenshot",
-      ok: false,
-      detail: "Screen Recording required"
-    )
-  }
   guard let screen = NSScreen.main else {
     return OnboardingVerificationStep(
       id: "display_screenshot",
@@ -3536,7 +3699,9 @@ private func verifyOnboardingDisplayScreenshot(
       id: "display_screenshot",
       label: "Display Screenshot",
       ok: false,
-      detail: "Screen Recording required"
+      detail: permissions.screenCaptureGranted
+        ? "Capture failed"
+        : "Screen Recording required"
     )
   }
   if image.width <= 0 || image.height <= 0 {
@@ -3558,14 +3723,6 @@ private func verifyOnboardingDisplayScreenshot(
 private func verifyOnboardingWindowCapture(
   permissions: PermissionSnapshot
 ) -> OnboardingVerificationStep {
-  guard permissions.screenCaptureGranted else {
-    return OnboardingVerificationStep(
-      id: "window_capture",
-      label: "Window Capture",
-      ok: false,
-      detail: "Screen Recording required"
-    )
-  }
   let helperPid = Int(ProcessInfo.processInfo.processIdentifier)
   let candidates = visibleWindows()
   guard let window = candidates.first(where: { $0.ownerPID != helperPid }) ?? candidates.first else {
@@ -3586,7 +3743,9 @@ private func verifyOnboardingWindowCapture(
       id: "window_capture",
       label: "Window Capture",
       ok: false,
-      detail: "Window capture failed"
+      detail: permissions.screenCaptureGranted
+        ? "Window capture failed"
+        : "Screen Recording required"
     )
   }
   if image.width <= 0 || image.height <= 0 {

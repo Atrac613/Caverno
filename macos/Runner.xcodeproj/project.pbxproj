@@ -669,6 +669,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
@@ -689,6 +691,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Profile;
@@ -812,6 +815,8 @@
 			buildSettings = {
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
@@ -831,6 +836,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -843,6 +849,8 @@
 				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_ENTITLEMENTS = Runner/Release.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
@@ -863,6 +871,7 @@
 					"$(inherited)",
 					"@executable_path/../Frameworks",
 				);
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -888,8 +897,11 @@
 			baseConfigurationReference = C0DE10000000000000000013 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ComputerUseHelper/DebugProfile.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -908,6 +920,7 @@
 				PRODUCT_COPYRIGHT = "Copyright 2026 com.noguwo.apps. All rights reserved.";
 				PRODUCT_MODULE_NAME = CavernoComputerUse;
 				PRODUCT_NAME = "Caverno Computer Use";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 			};
@@ -918,8 +931,11 @@
 			baseConfigurationReference = C0DE10000000000000000013 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ComputerUseHelper/Release.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
 				ENABLE_HARDENED_RUNTIME = YES;
 				FRAMEWORK_SEARCH_PATHS = "";
@@ -938,6 +954,7 @@
 				PRODUCT_COPYRIGHT = "Copyright 2026 com.noguwo.apps. All rights reserved.";
 				PRODUCT_MODULE_NAME = CavernoComputerUse;
 				PRODUCT_NAME = "Caverno Computer Use";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Release;
@@ -947,8 +964,11 @@
 			baseConfigurationReference = C0DE10000000000000000013 /* Signing.xcconfig */;
 			buildSettings = {
 				CODE_SIGN_ENTITLEMENTS = ComputerUseHelper/Release.entitlements;
+				CODE_SIGN_IDENTITY = "Apple Development";
+				CODE_SIGN_STYLE = Automatic;
 				COMBINE_HIDPI_IMAGES = YES;
 				CURRENT_PROJECT_VERSION = 1;
+				DEVELOPMENT_TEAM = 89UG59TBNX;
 				ENABLE_APP_SANDBOX = NO;
 				FRAMEWORK_SEARCH_PATHS = "";
 				GENERATE_INFOPLIST_FILE = NO;
@@ -966,6 +986,7 @@
 				PRODUCT_COPYRIGHT = "Copyright 2026 com.noguwo.apps. All rights reserved.";
 				PRODUCT_MODULE_NAME = CavernoComputerUse;
 				PRODUCT_NAME = "Caverno Computer Use";
+				PROVISIONING_PROFILE_SPECIFIER = "";
 				SWIFT_VERSION = 5.0;
 			};
 			name = Profile;

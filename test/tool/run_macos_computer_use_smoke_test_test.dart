@@ -619,6 +619,14 @@ void main() {
     expect(existingHelperProbe, contains('"appPathMatchesExpected"'));
   });
 
+  test('existing helper probe points screen recording TCC at helper path', () {
+    expect(
+      existingHelperProbe,
+      contains('expected Caverno Computer Use helper path'),
+    );
+    expect(existingHelperProbe, isNot(contains('expected Caverno.app path')));
+  });
+
   test('M9 keeps TCC runtime sign-off user operated', () {
     expect(script, contains('Manual TCC sign-off notice'));
     expect(script, contains('does not grant permissions or edit TCC'));
@@ -685,22 +693,32 @@ void main() {
     expect(runnerSource, contains('mainAppOwnsTccPermissions'));
     expect(helperSource, contains('helperActsAsOsActionExecutor'));
     expect(helperSource, contains('screenCaptureDeniedResponse'));
+    expect(helperSource, contains('screenCapturePreflightGranted'));
+    expect(helperSource, contains('screenCapturePermissionStatus'));
+    expect(helperSource, contains('screen_capture_kit_shareable_content'));
     expect(
       helperSource,
-      contains('guard computerUsePermissionSnapshot().screenCaptureGranted'),
-    );
-    expect(
-      helperSource,
-      contains(
-        'displayScreenshotStep: verifyOnboardingDisplayScreenshot(permissions: permissions)',
+      isNot(
+        contains('guard computerUsePermissionSnapshot().screenCaptureGranted'),
       ),
     );
     expect(
       helperSource,
       contains(
-        'windowCaptureStep: verifyOnboardingWindowCapture(permissions: permissions)',
+        'let displayScreenshotStep = verifyOnboardingDisplayScreenshot(permissions: permissions)',
       ),
     );
+    expect(
+      helperSource,
+      contains('displayScreenshotStep: displayScreenshotStep'),
+    );
+    expect(
+      helperSource,
+      contains(
+        'let windowCaptureStep = verifyOnboardingWindowCapture(permissions: permissions)',
+      ),
+    );
+    expect(helperSource, contains('windowCaptureStep: windowCaptureStep'));
     expect(helperInfoPlist, contains('<key>LSUIElement</key>'));
     expect(helperInfoPlist, contains('<true/>'));
     expect(
@@ -889,18 +907,17 @@ void main() {
     final chatStateSource = File(
       'lib/features/chat/presentation/providers/chat_state.dart',
     ).readAsStringSync();
-    final chatNotifierSource = Directory(
-      'lib/features/chat/presentation/providers',
-    )
-        .listSync()
-        .whereType<File>()
-        .where(
-          (entity) =>
-              entity.path.endsWith('.dart') &&
-              entity.uri.pathSegments.last.startsWith('chat_notifier'),
-        )
-        .map((file) => file.readAsStringSync())
-        .join('\n');
+    final chatNotifierSource =
+        Directory('lib/features/chat/presentation/providers')
+            .listSync()
+            .whereType<File>()
+            .where(
+              (entity) =>
+                  entity.path.endsWith('.dart') &&
+                  entity.uri.pathSegments.last.startsWith('chat_notifier'),
+            )
+            .map((file) => file.readAsStringSync())
+            .join('\n');
     final chatPageSource = File(
       'lib/features/chat/presentation/pages/chat_page.dart',
     ).readAsStringSync();
@@ -931,18 +948,17 @@ void main() {
     final policySource = File(
       'lib/core/services/macos_computer_use_tool_policy.dart',
     ).readAsStringSync();
-    final chatNotifierSource = Directory(
-      'lib/features/chat/presentation/providers',
-    )
-        .listSync()
-        .whereType<File>()
-        .where(
-          (entity) =>
-              entity.path.endsWith('.dart') &&
-              entity.uri.pathSegments.last.startsWith('chat_notifier'),
-        )
-        .map((file) => file.readAsStringSync())
-        .join('\n');
+    final chatNotifierSource =
+        Directory('lib/features/chat/presentation/providers')
+            .listSync()
+            .whereType<File>()
+            .where(
+              (entity) =>
+                  entity.path.endsWith('.dart') &&
+                  entity.uri.pathSegments.last.startsWith('chat_notifier'),
+            )
+            .map((file) => file.readAsStringSync())
+            .join('\n');
     final chatPageSource = File(
       'lib/features/chat/presentation/pages/chat_page.dart',
     ).readAsStringSync();
