@@ -615,7 +615,7 @@ void main() {
       findsOneWidget,
     );
     expect(
-      find.text('Grant Screen & System Audio Recording to Caverno.app'),
+      find.text('Grant Screen & System Audio Recording to Caverno Computer Use'),
       findsOneWidget,
     );
     expect(find.text('XPC Production Ready'), findsOneWidget);
@@ -660,7 +660,7 @@ void main() {
     expect(find.text('Manual Smoke Boundary'), findsOneWidget);
     expect(
       find.text(
-        'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use and Caverno.app. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
+        'Run Smoke Sequence uses the permissions already granted to Caverno Computer Use. TCC grants and desktop actions stay user-operated; input and audio checks run only after explicit arming.',
       ),
       findsOneWidget,
     );

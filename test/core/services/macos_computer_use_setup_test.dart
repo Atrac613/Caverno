@@ -86,12 +86,12 @@ void main() {
     );
     expect(info['xpcProductionBlockers'], isEmpty);
     expect(info['xpcProductionNextAction'], 'XPC is production ready.');
-    expect(info['mainAppOwnsTccPermissions'], isTrue);
+    expect(info['mainAppOwnsTccPermissions'], isFalse);
     expect(
       info['tccPermissionOwnerBundleIdentifier'],
-      'com.noguwo.apps.caverno',
+      'com.noguwo.apps.caverno.computer-use',
     );
-    expect(info['tccPermissionOwnerDisplayName'], 'Caverno');
+    expect(info['tccPermissionOwnerDisplayName'], 'Caverno Computer Use');
     expect(info['helperActsAsOsActionExecutor'], isTrue);
     expect(info['mainAppUnsafeOsActionsAllowed'], isFalse);
     expect(info['helperOwnsUnsafeOsActions'], isTrue);
@@ -408,7 +408,7 @@ void main() {
     );
     expect(
       diagnostics['helperIpcProtocol'],
-      containsPair('mainAppOwnsTccPermissions', true),
+      containsPair('mainAppOwnsTccPermissions', false),
     );
     expect(
       diagnostics['helperIpcProtocol'],
@@ -474,7 +474,7 @@ void main() {
     expect(summary.mainAppPermissionPromptBoundary, 'split_permission_owner');
     expect(
       summary.nextAction,
-      'Ask the user to re-enable Accessibility for Caverno Computer Use and Screen & System Audio Recording for Caverno.app in System Settings, then recheck permissions.',
+      'Ask the user to re-enable Accessibility and Screen & System Audio Recording for Caverno Computer Use in System Settings, then recheck permissions.',
     );
   });
 
@@ -607,7 +607,7 @@ void main() {
     ]);
     expect(
       checklist.subtitle,
-      'Open System Settings, grant Screen & System Audio Recording to Caverno.app, then refresh permissions.',
+      'Open System Settings, grant Screen & System Audio Recording to Caverno, then refresh permissions.',
     );
   });
 

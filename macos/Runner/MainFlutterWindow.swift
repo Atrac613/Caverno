@@ -244,9 +244,9 @@ fileprivate enum MacosComputerUseIpcSchema {
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
   static let xpcProductionBlockers: [String] = []
   static let xpcProductionNextAction = "XPC is production ready."
-  static let mainAppOwnsTccPermissions = true
-  static let tccPermissionOwnerBundleIdentifier = "com.noguwo.apps.caverno"
-  static let tccPermissionOwnerDisplayName = "Caverno"
+  static let mainAppOwnsTccPermissions = false
+  static let tccPermissionOwnerBundleIdentifier = "com.noguwo.apps.caverno.computer-use"
+  static let tccPermissionOwnerDisplayName = "Caverno Computer Use"
   static let helperActsAsOsActionExecutor = true
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
@@ -2119,23 +2119,18 @@ final class MacosComputerUseChannel {
   }
 
   private func permissionSnapshot() -> [String: Any] {
-    let screenCaptureGranted: Bool
-    if #available(macOS 10.15, *) {
-      screenCaptureGranted = CGPreflightScreenCaptureAccess()
-    } else {
-      screenCaptureGranted = true
-    }
-    let nextAction = screenCaptureGranted
-      ? "Screen & System Audio Recording is granted to Caverno.app."
-      : "Grant Screen & System Audio Recording to Caverno.app in System Settings."
+    // Screen & System Audio Recording is owned by Caverno Computer Use (the helper).
+    // The main app must not call CGPreflightScreenCaptureAccess, because that API
+    // registers the calling process with TCC and causes a misleading "Caverno would
+    // like to record" prompt for users who only need to grant the helper.
     return [
       "accessibilityGranted": AXIsProcessTrusted(),
-      "screenCaptureGranted": screenCaptureGranted,
+      "screenCaptureGranted": false,
       "systemAudioRecordingSupported": isSystemAudioRecordingSupported(),
       "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
       "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
-      "mainAppScreenCaptureRequestBlocked": false,
-      "nextAction": nextAction,
+      "mainAppScreenCaptureRequestBlocked": true,
+      "nextAction": "Query helperPermissionStatus to read Screen & System Audio Recording owned by Caverno Computer Use.",
     ]
   }
 
@@ -2148,28 +2143,20 @@ final class MacosComputerUseChannel {
   }
 
   private func requestScreenCapture(result: @escaping FlutterResult) {
-    if #available(macOS 10.15, *) {
-      let granted = CGRequestScreenCaptureAccess()
-      let nextAction = granted
-        ? "Screen & System Audio Recording is granted to Caverno.app."
-        : "Grant Screen & System Audio Recording to Caverno.app in System Settings, then retry Computer Use."
-      result([
-        "ok": granted,
-        "screenCaptureGranted": granted,
-        "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
-        "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
-        "mainAppScreenCaptureRequestBlocked": false,
-        "nextAction": nextAction,
-      ])
-      return
-    }
+    // Refuse to call CGRequestScreenCaptureAccess from the main app. The helper
+    // owns Screen & System Audio Recording; prompting the main app would register
+    // Caverno with TCC and grant the wrong process.
     result([
-      "ok": true,
-      "screenCaptureGranted": true,
+      "ok": false,
+      "screenCaptureGranted": false,
       "screenCaptureOwner": MacosComputerUseIpcSchema.tccPermissionOwnerDisplayName,
       "screenCaptureOwnerBundleIdentifier": MacosComputerUseIpcSchema.tccPermissionOwnerBundleIdentifier,
-      "mainAppScreenCaptureRequestBlocked": false,
-      "nextAction": "Screen capture permission is not required on this macOS runtime.",
+      "mainAppScreenCaptureRequestBlocked": true,
+      "code": "main_app_screen_capture_request_blocked",
+      "error":
+        "Caverno does not own Screen & System Audio Recording. Drive the helper onboarding flow so the user grants Caverno Computer Use instead.",
+      "nextAction":
+        "Call showPermissionOverlay or startOnboardingPermissionFlow on the helper backend to direct the user to grant Caverno Computer Use.",
     ])
   }
 

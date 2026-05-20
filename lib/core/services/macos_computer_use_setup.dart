@@ -300,38 +300,36 @@ String _macosComputerUseGrantInstruction({
   required String accessibilityOwnerName,
   required List<String> permissionLabels,
 }) {
-  final grants = <String>[
-    if (permissionLabels.contains('Accessibility'))
-      'Accessibility to $accessibilityOwnerName',
+  final labels = <String>[
+    if (permissionLabels.contains('Accessibility')) 'Accessibility',
     if (permissionLabels.contains('Screen & System Audio Recording'))
-      'Screen & System Audio Recording to Caverno.app',
+      'Screen & System Audio Recording',
   ];
-  if (grants.isEmpty) {
+  if (labels.isEmpty) {
     return 'the missing macOS permissions';
   }
-  if (grants.length == 1) {
-    return grants.single;
-  }
-  return '${grants.sublist(0, grants.length - 1).join(', ')} and ${grants.last}';
+  final joined = labels.length == 1
+      ? labels.single
+      : '${labels.sublist(0, labels.length - 1).join(', ')} and ${labels.last}';
+  return '$joined to $accessibilityOwnerName';
 }
 
 String _macosComputerUseReenableInstruction({
   required String accessibilityOwnerName,
   required List<String> permissionLabels,
 }) {
-  final grants = <String>[
-    if (permissionLabels.contains('Accessibility'))
-      'Accessibility for $accessibilityOwnerName',
+  final labels = <String>[
+    if (permissionLabels.contains('Accessibility')) 'Accessibility',
     if (permissionLabels.contains('Screen & System Audio Recording'))
-      'Screen & System Audio Recording for Caverno.app',
+      'Screen & System Audio Recording',
   ];
-  if (grants.isEmpty) {
+  if (labels.isEmpty) {
     return 'the disabled macOS permissions';
   }
-  if (grants.length == 1) {
-    return grants.single;
-  }
-  return '${grants.sublist(0, grants.length - 1).join(', ')} and ${grants.last}';
+  final joined = labels.length == 1
+      ? labels.single
+      : '${labels.sublist(0, labels.length - 1).join(', ')} and ${labels.last}';
+  return '$joined for $accessibilityOwnerName';
 }
 
 class MacosComputerUseIpcInfo {
@@ -482,11 +480,11 @@ class MacosComputerUseIpc {
   static const xpcRegistrationRequirement = 'launchd_mach_service_registration';
   static const xpcProductionBlockers = <String>[];
   static const xpcProductionNextAction = 'XPC is production ready.';
-  static const mainAppOwnsTccPermissions = true;
+  static const mainAppOwnsTccPermissions = false;
   static const tccPermissionOwnerBundleIdentifier =
-      MacosComputerUseBackends.mainAppBundleIdentifier;
+      MacosComputerUseBackends.helperBundleIdentifier;
   static const tccPermissionOwnerDisplayName =
-      MacosComputerUseBackends.mainAppDisplayName;
+      MacosComputerUseBackends.helperDisplayName;
   static const helperActsAsOsActionExecutor = true;
   static const mainAppUnsafeOsActionsAllowed = false;
   static const helperOwnsUnsafeOsActions = true;

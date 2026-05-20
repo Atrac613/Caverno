@@ -498,7 +498,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let subtitle = NSTextField(
       wrappingLabelWithString:
-        "Caverno.app owns Screen & System Audio Recording, and Caverno Computer Use owns helper execution for approved desktop tasks."
+        "Caverno Computer Use owns Accessibility and Screen & System Audio Recording, and executes approved desktop tasks."
     )
     subtitle.font = .systemFont(ofSize: 15, weight: .regular)
     subtitle.textColor = .secondaryLabelColor
@@ -528,7 +528,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
     let screenRecordingRow = PermissionRowView(
       symbolName: "camera.viewfinder",
       title: "Screenshots",
-      subtitle: "Caverno.app owns Screen & System Audio Recording for approved capture.",
+      subtitle: "Caverno Computer Use owns Screen & System Audio Recording for approved capture.",
       buttonTitle: "Allow",
       action: { [weak self] row in
         self?.startPermissionFlow(pane: .screenRecording, row: row)
@@ -547,7 +547,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let permissionSmokeRow = SmokeStepRowView(
       title: "Permissions",
-      subtitle: "Helper Accessibility and Caverno.app Screen & System Audio Recording are granted."
+      subtitle: "Caverno Computer Use Accessibility and Screen & System Audio Recording are granted."
     )
     let displayScreenshotSmokeRow = SmokeStepRowView(
       title: "Display Screenshot",
@@ -586,7 +586,7 @@ final class ComputerUseHelperApp: NSObject, NSApplicationDelegate {
 
     let footer = NSTextField(
       wrappingLabelWithString:
-        "Grant Accessibility to Caverno Computer Use and Screen & System Audio Recording to Caverno.app. You can revoke them at any time in System Settings."
+        "Grant Accessibility and Screen & System Audio Recording to Caverno Computer Use. You can revoke them at any time in System Settings."
     )
     footer.font = .systemFont(ofSize: 12, weight: .regular)
     footer.textColor = .tertiaryLabelColor
@@ -898,10 +898,8 @@ fileprivate enum SettingsPane {
     switch self {
     case .privacy:
       return "Caverno"
-    case .accessibility:
+    case .accessibility, .screenRecording:
       return "Caverno Computer Use"
-    case .screenRecording:
-      return "Caverno.app"
     }
   }
 
@@ -910,15 +908,7 @@ fileprivate enum SettingsPane {
   }
 
   func grantTargetBundleURL(helperBundleURL: URL) -> URL {
-    switch self {
-    case .screenRecording:
-      return helperBundleURL
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-        .deletingLastPathComponent()
-    case .privacy, .accessibility:
-      return helperBundleURL
-    }
+    return helperBundleURL
   }
 
   var url: URL? {
@@ -1688,9 +1678,9 @@ private enum ComputerUseHelperIpcSchema {
   static let xpcRegistrationRequirement = "launchd_mach_service_registration"
   static let xpcProductionBlockers: [String] = []
   static let xpcProductionNextAction = "XPC is production ready."
-  static let mainAppOwnsTccPermissions = true
-  static let tccPermissionOwnerBundleIdentifier = mainAppBundleIdentifier
-  static let tccPermissionOwnerDisplayName = "Caverno"
+  static let mainAppOwnsTccPermissions = false
+  static let tccPermissionOwnerBundleIdentifier = helperBundleIdentifier
+  static let tccPermissionOwnerDisplayName = "Caverno Computer Use"
   static let helperActsAsOsActionExecutor = true
   static let mainAppUnsafeOsActionsAllowed = false
   static let helperOwnsUnsafeOsActions = true
@@ -3254,7 +3244,7 @@ private final class ComputerUseHelperIpc: NSObject {
   private func screenCaptureDeniedResponse() -> [String: Any] {
     errorResponse(
       code: "screen_capture_denied",
-      error: "Screen & System Audio Recording permission is required. Grant Caverno.app in System Settings > Privacy & Security > Screen & System Audio Recording."
+      error: "Screen & System Audio Recording permission is required. Grant Caverno Computer Use in System Settings > Privacy & Security > Screen & System Audio Recording."
     )
   }
 

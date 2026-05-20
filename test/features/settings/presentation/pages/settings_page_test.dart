@@ -67,10 +67,10 @@ void main() {
     await _tapByKey(tester, 'settings-menu-computer-use');
 
     expect(find.byType(ComputerUseSettingsPage), findsOneWidget);
-    expect(find.text('App-owned TCC, helper execution'), findsOneWidget);
+    expect(find.text('Helper-owned TCC, helper execution'), findsOneWidget);
     expect(
       find.text(
-        'Caverno.app owns Screen & System Audio Recording. Caverno Computer Use executes approved desktop actions, and all TCC grants remain user-operated.',
+        'Caverno Computer Use owns Accessibility and Screen & System Audio Recording, executes approved desktop actions, and all TCC grants remain user-operated.',
       ),
       findsOneWidget,
     );
@@ -168,7 +168,7 @@ void main() {
     );
     expect(text, contains('"m37AuditPrivacyGate"'));
     expect(text, contains('"explicitPayloadExportRequired": true'));
-    expect(text, contains('"mainAppOwnsTccPermissions": true'));
+    expect(text, contains('"mainAppOwnsTccPermissions": false'));
     expect(text, contains('"helperActsAsOsActionExecutor": true'));
     expect(text, contains('"mainAppUnsafeOsActionsAllowed": false'));
     expect(text, contains('"helperOwnsUnsafeOsActions": true'));
@@ -414,7 +414,7 @@ void main() {
     );
     expect(
       find.text(
-        'Overlay grant targets: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app, /Applications/Caverno.app',
+        'Overlay grant targets: .../Caverno.app/Contents/Helpers/Caverno Computer Use.app',
       ),
       findsOneWidget,
     );
@@ -459,7 +459,7 @@ void main() {
     );
     expect(
       find.text(
-        'Live capture next action: Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun smoke manually.',
+        'Live capture next action: Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
       ),
       findsOneWidget,
     );
@@ -811,7 +811,7 @@ void main() {
     );
     expect(
       find.text(
-        'Accessibility via helper; Screen & System Audio Recording via Caverno.app',
+        'Accessibility and Screen & System Audio Recording via Caverno Computer Use',
       ),
       findsOneWidget,
     );
@@ -1091,18 +1091,14 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
       'draggableTileReady': true,
       'helperBundlePath':
           '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
-      'grantTargetBundlePath': permission == 'screenRecording'
-          ? '/Applications/Caverno.app'
-          : '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
-      'grantTargetDisplayName': permission == 'screenRecording'
-          ? 'Caverno.app'
-          : 'Caverno Computer Use',
+      'grantTargetBundlePath':
+          '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+      'grantTargetDisplayName': 'Caverno Computer Use',
       'grantTargetPermissionLabel': permission == 'screenRecording'
           ? 'Screen & System Audio Recording'
           : 'Accessibility',
-      'nextAction': permission == 'screenRecording'
-          ? 'Drag Caverno.app into the permission list, then recheck.'
-          : 'Drag Caverno Computer Use into the permission list, then recheck.',
+      'nextAction':
+          'Drag Caverno Computer Use into the permission list, then recheck.',
     });
   }
 
@@ -1254,7 +1250,7 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
           'tccOwnerHelperPath':
               '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
           'nextAction':
-              'Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun smoke manually.',
+              'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun smoke manually.',
         },
         'inputGate': {
           'status': 'not_armed',
@@ -1304,8 +1300,9 @@ class _FakeMacosComputerUseService extends MacosComputerUseService {
             'overlayMode': 'floating_helper_panel',
             'helperBundlePath':
                 '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
-            'grantTargetBundlePath': '/Applications/Caverno.app',
-            'grantTargetDisplayName': 'Caverno.app',
+            'grantTargetBundlePath':
+                '/Applications/Caverno.app/Contents/Helpers/Caverno Computer Use.app',
+            'grantTargetDisplayName': 'Caverno Computer Use',
             'grantTargetPermissionLabel': 'Screen & System Audio Recording',
             'dragPasteboardTypes': [
               'public.file-url',

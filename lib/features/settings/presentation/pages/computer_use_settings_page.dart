@@ -543,7 +543,7 @@ class _ComputerUseOnboardingCardState
       return const _ComputerUsePrimaryAction(
         kind: _ComputerUsePrimaryActionKind.openScreenRecording,
         label: 'Open Screen Recording',
-        detail: 'Grant Screen & System Audio Recording to Caverno.app.',
+        detail: 'Grant Screen & System Audio Recording to Caverno Computer Use.',
         icon: Icons.screenshot_monitor_outlined,
       );
     }
@@ -914,7 +914,7 @@ class _ComputerUseOnboardingCardState
       },
       {
         'id': 'grant_screen_recording',
-        'label': 'Grant Screen & System Audio Recording to Caverno.app',
+        'label': 'Grant Screen & System Audio Recording to Caverno Computer Use',
         'complete': _permissionValue('screenCaptureGranted') == true,
       },
       {
@@ -1464,7 +1464,7 @@ class _ComputerUseOnboardingCardState
       'nextAction': blockers.isEmpty
           ? 'Display and window capture passed in helper verification.'
           : !screenCaptureGranted
-          ? 'Ask the user to grant Screen & System Audio Recording to Caverno.app, then rerun the smoke sequence manually.'
+          ? 'Ask the user to grant Screen & System Audio Recording to Caverno Computer Use, then rerun the smoke sequence manually.'
           : 'Open Smoke Sequence, then press Run Smoke Sequence to rerun display and window capture checks.',
     };
   }
@@ -1758,7 +1758,7 @@ class _PermissionRecoverySummary extends StatelessWidget {
             _RecoveryDetailRow(
               label: 'Permission owners',
               value: summary.mainAppPermissionPromptsBlocked
-                  ? 'Accessibility via helper; Screen & System Audio Recording via Caverno.app'
+                  ? 'Accessibility and Screen & System Audio Recording via Caverno Computer Use'
                   : 'available for compatibility backend',
             ),
             _RecoveryDetailRow(
@@ -1863,7 +1863,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
                   : 'needs IPC',
               ok: helperReady,
               detail:
-                  'Caverno.app owns Screen & System Audio Recording; Caverno Computer Use executes approved OS actions.',
+                  'Caverno Computer Use owns Accessibility and Screen & System Audio Recording, and executes approved OS actions.',
             ),
             _GatePlanRow(
               label: 'Accessibility permission',
@@ -1879,7 +1879,7 @@ class _ComputerUseGatePlan extends StatelessWidget {
               ok: screenCaptureGranted,
               detail: screenCaptureGranted
                   ? 'Display and window capture can be verified.'
-                  : 'Grant Screen & System Audio Recording to Caverno.app.',
+                  : 'Grant Screen & System Audio Recording to Caverno Computer Use.',
             ),
             _GatePlanRow(
               label: 'Capture smoke',
