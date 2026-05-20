@@ -1,0 +1,90 @@
+#!/usr/bin/env bash
+#
+# tool/safe-flutter — Flutter wrapper that blocks macOS builds outside
+# the canonical worktree.
+#
+# Why:
+#   Multiple git worktrees that each build the macOS app produce multiple
+#   Caverno.app bundles claiming com.noguwo.apps.caverno. macOS
+#   LaunchServices then routes launchd / XPC requests to whichever copy
+#   was registered last, TCC grants drift across helper paths, and the
+#   Computer Use helper reports helper_bundle_path_mismatch. This wrapper
+#   refuses macOS builds in any worktree that has not been designated as
+#   the canonical macOS dev location.
+#
+# How to designate a worktree as the canonical macOS dev location:
+#   touch .macos-canonical
+#
+# The .macos-canonical sentinel is gitignored so each developer can
+# choose their own canonical worktree.
+#
+# Bypass (e.g., for one-off intentional builds elsewhere):
+#   FLUTTER_ALLOW_MACOS_HERE=1 tool/safe-flutter build macos --debug
+#
+# Cleanup if multiple worktrees have already polluted LaunchServices:
+#   tool/macos_dev_preflight.sh
+
+set -euo pipefail
+
+# Resolve worktree root. Fall back to the script's parent when not in a
+# git working tree (e.g., archived snapshot). Group the fallback in a
+# subshell so the `&& pwd` does not run for both branches.
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+WORKTREE="$(git -C "$SCRIPT_DIR" rev-parse --show-toplevel 2>/dev/null || (cd "$SCRIPT_DIR/.." && pwd))"
+
+# Detect whether the invocation targets macOS. Only exact-token matches
+# qualify so that `--target=lib/main_macos.dart` and similar paths do not
+# trigger the guard.
+wants_macos=false
+prev=""
+for arg in "$@"; do
+  case "$arg" in
+    -dmacos|--device-id=macos|--device=macos)
+      wants_macos=true
+      ;;
+    macos)
+      case "$prev" in
+        # `flutter build macos`, `flutter run -d macos`, etc.
+        build|run|install|attach|test|drive|--device|--device-id|-d)
+          wants_macos=true
+          ;;
+      esac
+      ;;
+  esac
+  prev="$arg"
+done
+
+if $wants_macos \
+   && [[ "${FLUTTER_ALLOW_MACOS_HERE:-0}" != "1" ]] \
+   && [[ ! -f "$WORKTREE/.macos-canonical" ]]
+then
+  cat <<EOF >&2
+Error: macOS builds are blocked in this worktree.
+  worktree : $WORKTREE
+  reason   : .macos-canonical sentinel not present
+
+Multiple worktrees building macOS produce conflicting Caverno.app
+bundles that LaunchServices and TCC cannot distinguish.
+
+To allow macOS builds in this worktree:
+  touch "$WORKTREE/.macos-canonical"
+
+To bypass the guard once (without designating this worktree):
+  FLUTTER_ALLOW_MACOS_HERE=1 ${BASH_SOURCE[0]##*/} $*
+
+If a prior conflict has already polluted LaunchServices, clean it with:
+  $WORKTREE/tool/macos_dev_preflight.sh
+EOF
+  exit 1
+fi
+
+# Delegate to the real flutter. Prefer fvm when the worktree pins a
+# Flutter SDK version, so the wrapper matches whatever the project
+# expects.
+if command -v fvm >/dev/null 2>&1 \
+   && { [[ -f "$WORKTREE/.fvmrc" ]] || [[ -d "$WORKTREE/.fvm" ]]; }
+then
+  exec fvm flutter "$@"
+else
+  exec flutter "$@"
+fi

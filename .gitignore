@@ -57,3 +57,6 @@ screenshots/
 
 # Local macOS signing overrides
 /macos/Runner/Configs/Signing.local.xcconfig
+
+# macOS canonical worktree sentinel for tool/safe-flutter
+.macos-canonical
