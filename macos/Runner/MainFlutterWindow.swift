@@ -2007,6 +2007,8 @@ final class MacosComputerUseChannel {
       requestAccessibility(result: result)
     case "requestScreenCapture":
       requestScreenCapture(result: result)
+    case "mainAppScreenCapturePreflight":
+      result(mainAppScreenCapturePreflight())
     case "openSystemSettings":
       openSystemSettings(call, result: result)
     case "listWindows":
@@ -2140,6 +2142,27 @@ final class MacosComputerUseChannel {
     ] as CFDictionary
     let trusted = AXIsProcessTrustedWithOptions(options)
     result(["accessibilityGranted": trusted])
+  }
+
+  // Query-only preflight for the MAIN APP's Screen Recording grant. Used by
+  // chat clipboard / drag flows that depend on super_clipboard /
+  // super_native_extensions, which call CGWindowListCreate* and therefore
+  // need the main app to hold Screen Recording. Returns the current state
+  // without prompting the user; super_clipboard's own calls handle the
+  // initial prompt registration when needed.
+  private func mainAppScreenCapturePreflight() -> [String: Any] {
+    let granted: Bool
+    if #available(macOS 10.15, *) {
+      granted = CGPreflightScreenCaptureAccess()
+    } else {
+      granted = true
+    }
+    return [
+      "ok": true,
+      "screenCaptureGranted": granted,
+      "ownerBundleIdentifier": Bundle.main.bundleIdentifier ?? "",
+      "purpose": "main_app_clipboard_drag",
+    ]
   }
 
   private func requestScreenCapture(result: @escaping FlutterResult) {

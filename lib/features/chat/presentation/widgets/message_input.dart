@@ -11,6 +11,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:super_clipboard/super_clipboard.dart';
 
+import '../../../../core/services/macos_main_app_permissions_service.dart';
 import '../../../../core/services/voice_providers.dart';
 import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
@@ -425,6 +426,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
             completer.complete(true);
           } catch (e) {
             debugPrint('Failed to read clipboard image: $e');
+            await _surfaceMacOSScreenRecordingHintIfNeeded();
             completer.complete(false);
           }
         });
@@ -433,6 +435,33 @@ class _MessageInputState extends ConsumerState<MessageInput> {
     }
 
     return false;
+  }
+
+  /// On macOS, super_clipboard / super_native_extensions reads of image
+  /// clipboard data go through CoreGraphics window APIs that require
+  /// Screen Recording. When the user has revoked that grant, the read
+  /// fails silently. Detect the case and surface a recovery snackbar
+  /// instead of leaving the paste failure invisible.
+  Future<void> _surfaceMacOSScreenRecordingHintIfNeeded() async {
+    if (!Platform.isMacOS) return;
+    final granted = await MacosMainAppPermissions.isScreenCaptureGranted();
+    if (granted) return;
+    if (!mounted) return;
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    messenger?.hideCurrentSnackBar();
+    messenger?.showSnackBar(
+      SnackBar(
+        content: const Text(
+          'Image paste requires Screen Recording for Caverno. '
+          'Grant it in System Settings to enable clipboard images.',
+        ),
+        action: SnackBarAction(
+          label: 'Open Settings',
+          onPressed: MacosMainAppPermissions.openScreenRecordingSettings,
+        ),
+        duration: const Duration(seconds: 8),
+      ),
+    );
   }
 
   Future<void> _handleContentInserted(KeyboardInsertedContent content) async {
