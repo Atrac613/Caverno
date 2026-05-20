@@ -1,7 +1,9 @@
 import 'dart:collection';
+import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:caverno/core/services/macos_computer_use_audit_log.dart';
 import 'package:caverno/core/services/google_chat_delivery_service.dart';
 import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
@@ -10,6 +12,7 @@ import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/routines/data/routine_execution_service.dart';
 import 'package:caverno/features/routines/domain/entities/routine.dart';
+import 'package:caverno/features/routines/domain/services/routine_computer_use_action_allowlist.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 void main() {
@@ -125,6 +128,471 @@ void main() {
         'query': 'tokyo weather',
       });
     });
+
+    test('allows Computer Use observation tools during routines', () async {
+      final dataSource = _FakeChatDataSource(
+        initialToolAwareResult: ChatCompletionResult(
+          content: 'Observing the current desktop',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-observe',
+              name: 'computer_vision_observe',
+              arguments: const {'target': 'front_window'},
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        toolLoopResult: ChatCompletionResult(
+          content: 'Collected desktop observation',
+          finishReason: 'stop',
+        ),
+        plainResults: [
+          ChatCompletionResult(
+            content: 'Safari is the active window.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        definitions: [
+          _toolDefinition('computer_vision_observe', 'Observe the desktop'),
+          _toolDefinition('computer_click', 'Click a desktop target'),
+        ],
+        resultsByToolName: {
+          'computer_vision_observe': const McpToolResult(
+            toolName: 'computer_vision_observe',
+            result: '{"ok":true,"summary":"Safari is active"}',
+            isSuccess: true,
+          ),
+        },
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        mcpToolService: toolService,
+        settings: AppSettings.defaults(),
+      );
+
+      final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+      expect(record.isSuccessful, isTrue);
+      expect(record.toolNames, ['computer_vision_observe']);
+      expect(dataSource.toolRequestNames, ['computer_vision_observe']);
+      expect(toolService.executedCalls, hasLength(1));
+      expect(toolService.executedCalls.single.name, 'computer_vision_observe');
+      expect(toolService.executedCalls.single.arguments, {
+        'target': 'front_window',
+      });
+      final systemPrompt = dataSource.lastToolAwareMessages
+          .singleWhere((message) => message.role == MessageRole.system)
+          .content;
+      expect(
+        systemPrompt,
+        contains('Computer Use is available only for observation'),
+      );
+      expect(systemPrompt, contains('cannot perform unattended pointer'));
+    });
+
+    test('blocks Computer Use action tools during routines', () async {
+      final dataSource = _FakeChatDataSource(
+        initialToolAwareResult: ChatCompletionResult(
+          content: 'Trying to publish from the desktop',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-click',
+              name: 'computer_click',
+              arguments: const {
+                'x': 120,
+                'y': 80,
+                'target': {
+                  'label': 'Post',
+                  'role': 'button',
+                  'risk': 'public_action',
+                },
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        toolLoopResult: ChatCompletionResult(
+          content: 'Collected blocked action result',
+          finishReason: 'stop',
+        ),
+        plainResults: [
+          ChatCompletionResult(
+            content: 'The desktop action was blocked.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        definitions: [
+          _toolDefinition('computer_vision_observe', 'Observe the desktop'),
+          _toolDefinition('computer_click', 'Click a desktop target'),
+        ],
+        resultsByToolName: const {},
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        mcpToolService: toolService,
+        settings: AppSettings.defaults(),
+      );
+
+      final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+      expect(record.isSuccessful, isTrue);
+      expect(record.toolNames, ['computer_click']);
+      expect(dataSource.toolRequestNames, ['computer_vision_observe']);
+      expect(toolService.executedCalls, isEmpty);
+      expect(dataSource.lastToolResults, hasLength(1));
+      expect(dataSource.lastToolResults.single.name, 'computer_click');
+      expect(
+        dataSource.lastToolResults.single.result,
+        contains('routine_computer_use_action_denied'),
+      );
+      expect(
+        dataSource.lastToolResults.single.result,
+        contains('public-action tools require interactive user approval'),
+      );
+    });
+
+    test(
+      'runs allowlisted Computer Use actions when boundaries match',
+      () async {
+        MacosComputerUseAuditLog.instance.clear();
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Publishing the approved morning post',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-click',
+                name: 'computer_click',
+                arguments: const {
+                  'x': 120,
+                  'y': 80,
+                  'target': {
+                    'label': 'Post',
+                    'role': 'button',
+                    'action': 'publish',
+                    'risk': 'public_action',
+                    'appName': 'Safari',
+                    'windowTitle': 'X',
+                  },
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected post click result',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'The allowlisted post action completed.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('computer_vision_observe', 'Observe the desktop'),
+            _toolDefinition('computer_click', 'Click a desktop target'),
+          ],
+          resultsByToolName: {
+            'computer_click': const McpToolResult(
+              toolName: 'computer_click',
+              result: '{"ok":true}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults().copyWith(
+            routineComputerUseActionAllowlist: const [
+              RoutineComputerUseActionAllowlistEntry(
+                id: 'x-post-button',
+                label: 'X Post button',
+                toolName: 'computer_click',
+                targetLabelContains: 'Post',
+                targetRole: 'button',
+                targetAction: 'publish',
+                targetRisk: 'public_action',
+                appNameContains: 'Safari',
+                windowTitleContains: 'X',
+              ),
+            ],
+          ),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.toolNames, ['computer_click']);
+        expect(dataSource.toolRequestNames, [
+          'computer_vision_observe',
+          'computer_click',
+        ]);
+        expect(toolService.executedCalls, hasLength(1));
+        expect(toolService.executedCalls.single.name, 'computer_click');
+        expect(
+          MacosComputerUseAuditLog.instance.entries.single.approvalResult,
+          'routine_allowlist:x-post-button',
+        );
+        final systemPrompt = dataSource.lastToolAwareMessages
+            .singleWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(systemPrompt, contains('Computer Use action auto-execution'));
+        expect(systemPrompt, contains('target.risk=public_action'));
+      },
+    );
+
+    test('allows generated text when text input boundaries match', () async {
+      MacosComputerUseAuditLog.instance.clear();
+      final dataSource = _FakeChatDataSource(
+        initialToolAwareResult: ChatCompletionResult(
+          content: 'Typing the generated morning post',
+          toolCalls: [
+            ToolCallInfo(
+              id: 'tool-type',
+              name: 'computer_type_text',
+              arguments: const {
+                'text': 'Good morning. The sky looks clear today.',
+                'target': {
+                  'label': 'Post text',
+                  'role': 'text_field',
+                  'action': 'type',
+                  'risk': 'input',
+                  'appName': 'Safari',
+                  'windowTitle': 'X',
+                },
+              },
+            ),
+          ],
+          finishReason: 'tool_calls',
+        ),
+        toolLoopResult: ChatCompletionResult(
+          content: 'Collected text input result',
+          finishReason: 'stop',
+        ),
+        plainResults: [
+          ChatCompletionResult(
+            content: 'The generated text was typed.',
+            finishReason: 'stop',
+          ),
+        ],
+      );
+      final toolService = _FakeMcpToolService(
+        definitions: [
+          _toolDefinition('computer_vision_observe', 'Observe the desktop'),
+          _toolDefinition('computer_type_text', 'Type text'),
+        ],
+        resultsByToolName: {
+          'computer_type_text': const McpToolResult(
+            toolName: 'computer_type_text',
+            result: '{"ok":true}',
+            isSuccess: true,
+          ),
+        },
+      );
+      final service = RoutineExecutionService(
+        dataSource: dataSource,
+        mcpToolService: toolService,
+        settings: AppSettings.defaults().copyWith(
+          routineComputerUseActionAllowlist: const [
+            RoutineComputerUseActionAllowlistEntry(
+              id: 'x-post-text-any',
+              label: 'X post generated text',
+              toolName: 'computer_type_text',
+              targetRole: 'text_field',
+              targetAction: 'type',
+              targetRisk: 'input',
+              appNameContains: 'Safari',
+              windowTitleContains: 'X',
+            ),
+          ],
+        ),
+      );
+
+      final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+      expect(record.isSuccessful, isTrue);
+      expect(record.toolNames, ['computer_type_text']);
+      expect(dataSource.toolRequestNames, [
+        'computer_vision_observe',
+        'computer_type_text',
+      ]);
+      expect(toolService.executedCalls, hasLength(1));
+      expect(toolService.executedCalls.single.name, 'computer_type_text');
+      expect(
+        toolService.executedCalls.single.arguments['text'],
+        'Good morning. The sky looks clear today.',
+      );
+      expect(
+        MacosComputerUseAuditLog.instance.entries.single.approvalResult,
+        'routine_allowlist:x-post-text-any',
+      );
+    });
+
+    test(
+      'blocks allowlisted Computer Use tools when boundaries do not match',
+      () async {
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Trying the wrong public action',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-click',
+                name: 'computer_click',
+                arguments: const {
+                  'x': 120,
+                  'y': 80,
+                  'target': {
+                    'label': 'Delete',
+                    'role': 'button',
+                    'action': 'delete',
+                    'risk': 'destructive',
+                    'appName': 'Safari',
+                    'windowTitle': 'X',
+                  },
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected blocked action result',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'The action was blocked by the allowlist.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('computer_vision_observe', 'Observe the desktop'),
+            _toolDefinition('computer_click', 'Click a desktop target'),
+          ],
+          resultsByToolName: const {},
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults().copyWith(
+            routineComputerUseActionAllowlist: const [
+              RoutineComputerUseActionAllowlistEntry(
+                id: 'x-post-button',
+                toolName: 'computer_click',
+                targetLabelContains: 'Post',
+                targetRisk: 'public_action',
+              ),
+            ],
+          ),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.toolNames, ['computer_click']);
+        expect(toolService.executedCalls, isEmpty);
+        expect(dataSource.lastToolResults.single.result, contains('denied'));
+        expect(
+          dataSource.lastToolResults.single.result,
+          contains('routine_computer_use_action_denied'),
+        );
+      },
+    );
+
+    test(
+      'opens allowlisted Safari URLs through the routine tool',
+      () async {
+        MacosComputerUseAuditLog.instance.clear();
+        final processCalls = <_ProcessCall>[];
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Opening X in Safari',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-safari',
+                name: RoutineComputerUseActionAllowlist
+                    .routineOpenSafariUrlToolName,
+                arguments: const {
+                  'url': 'https://x.com/compose/post',
+                  'reason': 'Prepare the approved morning post.',
+                },
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResult: ChatCompletionResult(
+            content: 'Collected Safari open result',
+            finishReason: 'stop',
+          ),
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Safari opened the approved X compose page.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          processRunner: (executable, arguments) async {
+            processCalls.add(
+              _ProcessCall(executable: executable, arguments: arguments),
+            );
+            return ProcessResult(7, 0, '', '');
+          },
+          settings: AppSettings.defaults().copyWith(
+            routineComputerUseActionAllowlist: const [
+              RoutineComputerUseActionAllowlistEntry(
+                id: 'x-compose-url',
+                label: 'X compose URL',
+                toolName: RoutineComputerUseActionAllowlist
+                    .routineOpenSafariUrlToolName,
+                urlHost: 'x.com',
+                urlStartsWith: 'https://x.com/',
+              ),
+            ],
+          ),
+        );
+
+        final record = await service.execute(buildRoutine(toolsEnabled: true));
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.toolNames, [
+          RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName,
+        ]);
+        expect(dataSource.toolRequestNames, [
+          RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName,
+        ]);
+        expect(processCalls, hasLength(1));
+        expect(processCalls.single.executable, '/usr/bin/open');
+        expect(processCalls.single.arguments, [
+          '-a',
+          'Safari',
+          'https://x.com/compose/post',
+        ]);
+        expect(dataSource.lastToolResults.single.result, contains('"ok":true'));
+        expect(
+          dataSource.lastToolResults.single.result,
+          contains('routine_safari_url_open_result'),
+        );
+        expect(
+          MacosComputerUseAuditLog.instance.entries.single.approvalResult,
+          'routine_allowlist:x-compose-url',
+        );
+        final systemPrompt = dataSource.lastToolAwareMessages
+            .singleWhere((message) => message.role == MessageRole.system)
+            .content;
+        expect(systemPrompt, contains('exact allowlisted URL'));
+      },
+      skip: Platform.isMacOS ? false : 'Safari URL opening is macOS-only.',
+    );
 
     test(
       'injects fresh approved routine plans into execution prompts',
@@ -1182,6 +1650,13 @@ class _ExecutedToolCall {
 
   final String name;
   final Map<String, dynamic> arguments;
+}
+
+class _ProcessCall {
+  const _ProcessCall({required this.executable, required this.arguments});
+
+  final String executable;
+  final List<String> arguments;
 }
 
 class _FakeGoogleChatDeliveryService extends GoogleChatDeliveryService {

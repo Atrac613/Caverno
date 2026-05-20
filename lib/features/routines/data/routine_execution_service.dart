@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../core/services/google_chat_delivery_service.dart';
+import '../../../core/services/macos_computer_use_audit_log.dart';
+import '../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../core/types/assistant_mode.dart';
 import '../../../core/utils/content_parser.dart';
 import '../../chat/data/datasources/chat_datasource.dart';
@@ -18,6 +20,7 @@ import '../../chat/presentation/providers/mcp_tool_provider.dart';
 import '../../settings/domain/entities/app_settings.dart';
 import '../../settings/presentation/providers/settings_notifier.dart';
 import '../domain/entities/routine.dart';
+import '../domain/services/routine_computer_use_action_allowlist.dart';
 import '../domain/services/routine_schedule_service.dart';
 import '../domain/services/routine_tool_policy.dart';
 import 'routine_tool_runner.dart';
@@ -33,6 +36,9 @@ final routineExecutionServiceProvider = Provider<RoutineExecutionService>((
   );
 });
 
+typedef RoutineProcessRunner =
+    Future<ProcessResult> Function(String executable, List<String> arguments);
+
 class RoutineExecutionService {
   RoutineExecutionService({
     required ChatDataSource dataSource,
@@ -40,14 +46,17 @@ class RoutineExecutionService {
     McpToolService? mcpToolService,
     required AppSettings settings,
     RoutineToolRunner? toolRunner,
+    RoutineProcessRunner? processRunner,
   }) : _dataSource = dataSource,
        _googleChatDeliveryService = googleChatDeliveryService,
        _mcpToolService = mcpToolService,
        _toolRunner = toolRunner ?? RoutineToolRunner(dataSource: dataSource),
+       _processRunner = processRunner ?? _defaultProcessRunner,
        _settings = settings;
 
   static const String googleChatPostToolName = 'routine_google_chat_post';
   static const String _googleChatSourceLabel = 'Google Chat';
+  static const String _safariSourceLabel = 'Safari';
 
   static Map<String, dynamic> get _googleChatPostToolDefinition => {
     'type': 'function',
@@ -74,16 +83,51 @@ class RoutineExecutionService {
     },
   };
 
+  static Map<String, dynamic> get _openSafariUrlToolDefinition => {
+    'type': 'function',
+    RoutineToolPolicy.routineToolDefinitionKey: true,
+    McpToolEntity.openAiSourceLabelKey: _safariSourceLabel,
+    'function': {
+      'name': RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName,
+      'description':
+          'Open an allowlisted HTTP or HTTPS URL in Safari for a routine. '
+          'Use this before Computer Use observation and approved input/click '
+          'actions when the routine needs Safari to show a specific page.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'url': {
+            'type': 'string',
+            'description': 'HTTP or HTTPS URL to open in Safari.',
+          },
+          'reason': {
+            'type': 'string',
+            'description': 'Why this Safari page is needed.',
+          },
+        },
+        'required': ['url'],
+      },
+    },
+  };
+
   final ChatDataSource _dataSource;
   final GoogleChatDeliveryService? _googleChatDeliveryService;
   final McpToolService? _mcpToolService;
   final RoutineToolRunner _toolRunner;
+  final RoutineProcessRunner _processRunner;
   final AppSettings _settings;
   final Uuid _uuid = const Uuid();
   static const int _maxStoredOutputLength = 24000;
   static const int _maxStoredToolArgumentsLength = 4000;
   static const int _maxStoredToolResultLength = 12000;
   static const int _maxGeneratedPlanLength = 12000;
+
+  static Future<ProcessResult> _defaultProcessRunner(
+    String executable,
+    List<String> arguments,
+  ) {
+    return Process.run(executable, arguments);
+  }
 
   Future<RoutineRunRecord> execute(
     Routine routine, {
@@ -278,10 +322,7 @@ class RoutineExecutionService {
       ..writeln(routine.trimmedPrompt)
       ..writeln()
       ..writeln('Schedule:')
-      ..writeln(
-        'Every ${RoutineScheduleService.normalizeIntervalValue(routine.intervalValue)} '
-        '${routine.intervalUnit.name}',
-      )
+      ..writeln(_routineScheduleDescription(routine))
       ..writeln()
       ..writeln('Tools:')
       ..writeln(
@@ -324,6 +365,14 @@ class RoutineExecutionService {
       ..writeln('- Failure Handling');
 
     return buffer.toString().trimRight();
+  }
+
+  String _routineScheduleDescription(Routine routine) {
+    if (routine.scheduleMode == RoutineScheduleMode.dailyTime) {
+      return 'Daily at ${RoutineScheduleService.formatTimeOfDayMinutes(routine.timeOfDayMinutes)}';
+    }
+    return 'Every ${RoutineScheduleService.normalizeIntervalValue(routine.intervalValue)} '
+        '${routine.intervalUnit.name}';
   }
 
   String _buildRoutineSystemPrompt({
@@ -458,6 +507,50 @@ class RoutineExecutionService {
         'successfully. Keep the message concise.',
       );
     }
+    final allowedComputerUseActionToolNames =
+        RoutineComputerUseActionAllowlist.allowedToolNames(
+          _settings.enabledRoutineComputerUseActionAllowlist,
+        );
+    if (allowedToolNames.any(
+      RoutineToolPolicy.isComputerUseObservationToolName,
+    )) {
+      guidance.add(
+        allowedComputerUseActionToolNames.isEmpty
+            ? 'Computer Use is available only for observation during routines. '
+                  'You may inspect permissions, windows, displays, screenshots, '
+                  'or visual state, but routines cannot perform unattended '
+                  'pointer, keyboard, focus, audio, posting, sending, '
+                  'submitting, or publishing actions.'
+            : 'Computer Use observation tools are available during routines. '
+                  'Action tools are limited by the routine allowlist below; do '
+                  'not call any Computer Use action that is not allowlisted.',
+      );
+    }
+    if (allowedComputerUseActionToolNames.isNotEmpty) {
+      guidance.add(
+        'Computer Use action auto-execution is restricted by the routine '
+        'allowlist. Only these action tools may run automatically when the '
+        'tool arguments also match an enabled allowlist entry: '
+        '${allowedComputerUseActionToolNames.join(', ')}. Include concrete '
+        'target metadata such as target.label, target.role, target.action, '
+        'target.risk, target.appName, target.appBundleId, and '
+        'target.windowTitle. For text input, include the exact text in text. '
+        'Public posting, sending, submitting, or publishing controls must use '
+        'target.risk=public_action.',
+      );
+      if (allowedComputerUseActionToolNames.contains(
+        RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName,
+      )) {
+        guidance.add(
+          'When a routine needs Safari, call '
+          '${RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName} '
+          'with the exact allowlisted URL first, then observe the page before '
+          'typing or clicking. For public posting flows, type only the exact '
+          'allowlisted text, observe the result, and click only the '
+          'allowlisted public-action target.',
+        );
+      }
+    }
     return guidance;
   }
 
@@ -469,10 +562,21 @@ class RoutineExecutionService {
       if (_settings.hasGoogleChatWebhook && routine.allowsPromptGoogleChatPost)
         _googleChatPostToolDefinition,
     ];
+    final allowedComputerUseActionToolNames =
+        RoutineComputerUseActionAllowlist.allowedToolNames(
+          _settings.enabledRoutineComputerUseActionAllowlist,
+        );
     return RoutineToolPolicy.filterAllowedToolDefinitions(
       _mcpToolService?.getOpenAiToolDefinitions() ?? const [],
       allowWorkspaceWrites: routine.hasWorkspaceWriteAccess,
-      extraDefinitions: extraDefinitions,
+      allowedComputerUseActionToolNames: allowedComputerUseActionToolNames,
+      extraDefinitions: [
+        ...extraDefinitions,
+        if (allowedComputerUseActionToolNames.contains(
+          RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName,
+        ))
+          _openSafariUrlToolDefinition,
+      ],
     );
   }
 
@@ -489,11 +593,37 @@ class RoutineExecutionService {
     required Set<String> allowedToolNames,
   }) async {
     if (!allowedToolNames.contains(toolCall.name)) {
+      if (RoutineToolPolicy.isComputerUseActionToolName(toolCall.name)) {
+        return RoutineToolPolicy.buildComputerUseActionDeniedResult(toolCall);
+      }
       return RoutineToolPolicy.buildDeniedResult(toolCall);
     }
 
     if (toolCall.name == googleChatPostToolName) {
       return _postRoutineGoogleChatMessage(toolCall);
+    }
+
+    final computerUseAllowlistEntry =
+        RoutineComputerUseActionAllowlist.matchingEntry(
+          toolCall: toolCall,
+          entries: _settings.enabledRoutineComputerUseActionAllowlist,
+        );
+    if (RoutineToolPolicy.isComputerUseActionToolName(toolCall.name) &&
+        computerUseAllowlistEntry == null) {
+      return RoutineToolPolicy.buildComputerUseActionDeniedResult(toolCall);
+    }
+    if (toolCall.name ==
+        RoutineComputerUseActionAllowlist.routineOpenSafariUrlToolName) {
+      if (computerUseAllowlistEntry == null) {
+        return RoutineToolPolicy.buildComputerUseActionDeniedResult(toolCall);
+      }
+      final result = await _openRoutineSafariUrl(toolCall);
+      _recordRoutineComputerUseAllowlistResult(
+        toolCall: toolCall,
+        allowlistEntry: computerUseAllowlistEntry,
+        result: result,
+      );
+      return result;
     }
 
     final toolService = _mcpToolService;
@@ -509,9 +639,93 @@ class RoutineExecutionService {
       return scopedArgumentsResult.deniedResult!;
     }
 
-    return toolService.executeTool(
+    final result = await toolService.executeTool(
       name: toolCall.name,
       arguments: scopedArgumentsResult.arguments,
+    );
+    if (computerUseAllowlistEntry != null) {
+      _recordRoutineComputerUseAllowlistResult(
+        toolCall: toolCall,
+        allowlistEntry: computerUseAllowlistEntry,
+        result: result,
+      );
+    }
+    return result;
+  }
+
+  Future<McpToolResult> _openRoutineSafariUrl(ToolCallInfo toolCall) async {
+    if (!Platform.isMacOS) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'unsupported_platform',
+          'error': 'Opening Safari URLs is only available on macOS.',
+        }),
+        isSuccess: false,
+        errorMessage: 'Opening Safari URLs is only available on macOS',
+      );
+    }
+
+    final url = (toolCall.arguments['url'] as String?)?.trim() ?? '';
+    final uri = Uri.tryParse(url);
+    if (uri == null || (uri.scheme != 'https' && uri.scheme != 'http')) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: jsonEncode({
+          'ok': false,
+          'code': 'invalid_url',
+          'error': 'routine_open_safari_url requires an HTTP or HTTPS URL.',
+          'url': url,
+        }),
+        isSuccess: false,
+        errorMessage: 'Invalid Safari URL',
+      );
+    }
+
+    final processResult = await _processRunner('/usr/bin/open', [
+      '-a',
+      'Safari',
+      url,
+    ]);
+    final success = processResult.exitCode == 0;
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: jsonEncode({
+        'ok': success,
+        'schemaName': 'routine_safari_url_open_result',
+        'url': url,
+        'appName': 'Safari',
+        'exitCode': processResult.exitCode,
+        if ((processResult.stdout as String).trim().isNotEmpty)
+          'stdout': (processResult.stdout as String).trim(),
+        if ((processResult.stderr as String).trim().isNotEmpty)
+          'stderr': (processResult.stderr as String).trim(),
+        'nextAction': success
+            ? 'Run computer_vision_observe to verify Safari and the page before input or click actions.'
+            : 'Check Safari availability and the URL allowlist before retrying.',
+      }),
+      isSuccess: success,
+      errorMessage: success
+          ? null
+          : ((processResult.stderr as String).trim().isEmpty
+                ? 'Failed to open Safari URL'
+                : (processResult.stderr as String).trim()),
+    );
+  }
+
+  void _recordRoutineComputerUseAllowlistResult({
+    required ToolCallInfo toolCall,
+    required RoutineComputerUseActionAllowlistEntry allowlistEntry,
+    required McpToolResult result,
+  }) {
+    MacosComputerUseAuditLog.instance.record(
+      toolName: toolCall.name,
+      policy: MacosComputerUseToolPolicy.decision(toolCall.name),
+      approvalResult: 'routine_allowlist:${allowlistEntry.id}',
+      success: result.isSuccess,
+      result: result.result,
+      errorCode: result.errorMessage,
     );
   }
 

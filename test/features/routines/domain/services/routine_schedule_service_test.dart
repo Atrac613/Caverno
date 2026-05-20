@@ -8,6 +8,8 @@ void main() {
     bool enabled = true,
     int intervalValue = 2,
     RoutineIntervalUnit intervalUnit = RoutineIntervalUnit.hours,
+    RoutineScheduleMode scheduleMode = RoutineScheduleMode.interval,
+    int timeOfDayMinutes = 480,
     DateTime? nextRunAt,
   }) {
     final now = DateTime(2026, 4, 21, 10);
@@ -20,6 +22,8 @@ void main() {
       enabled: enabled,
       intervalValue: intervalValue,
       intervalUnit: intervalUnit,
+      scheduleMode: scheduleMode,
+      timeOfDayMinutes: timeOfDayMinutes,
       nextRunAt: nextRunAt,
     );
   }
@@ -58,6 +62,39 @@ void main() {
 
       expect(nextRunAt, DateTime(2026, 4, 24, 10));
     });
+
+    test('computes the next daily wall-clock run today', () {
+      final routine = buildRoutine(
+        scheduleMode: RoutineScheduleMode.dailyTime,
+        timeOfDayMinutes: 8 * 60,
+      );
+      final from = DateTime(2026, 4, 21, 7, 30);
+
+      final nextRunAt = RoutineScheduleService.computeNextRunAt(
+        routine: routine,
+        from: from,
+      );
+
+      expect(nextRunAt, DateTime(2026, 4, 21, 8));
+    });
+
+    test(
+      'computes the next daily wall-clock run tomorrow after time passes',
+      () {
+        final routine = buildRoutine(
+          scheduleMode: RoutineScheduleMode.dailyTime,
+          timeOfDayMinutes: 8 * 60,
+        );
+        final from = DateTime(2026, 4, 21, 8, 1);
+
+        final nextRunAt = RoutineScheduleService.computeNextRunAt(
+          routine: routine,
+          from: from,
+        );
+
+        expect(nextRunAt, DateTime(2026, 4, 22, 8));
+      },
+    );
 
     test('summarizes only visible text content', () {
       final summary = RoutineScheduleService.summarizeOutput(

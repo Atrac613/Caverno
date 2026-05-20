@@ -6,6 +6,17 @@ class RoutineScheduleService {
 
   static int normalizeIntervalValue(int value) => value < 1 ? 1 : value;
 
+  static int normalizeTimeOfDayMinutes(int value) {
+    return value.clamp(0, Duration.minutesPerDay - 1);
+  }
+
+  static String formatTimeOfDayMinutes(int value) {
+    final minutes = normalizeTimeOfDayMinutes(value);
+    final hour = minutes ~/ Duration.minutesPerHour;
+    final minute = minutes % Duration.minutesPerHour;
+    return '${hour.toString().padLeft(2, '0')}:${minute.toString().padLeft(2, '0')}';
+  }
+
   static Duration intervalDuration(Routine routine) {
     final intervalValue = normalizeIntervalValue(routine.intervalValue);
     return switch (routine.intervalUnit) {
@@ -16,7 +27,28 @@ class RoutineScheduleService {
   }
 
   static DateTime computeNextRunAt({required Routine routine, DateTime? from}) {
-    return (from ?? DateTime.now()).add(intervalDuration(routine));
+    final currentTime = from ?? DateTime.now();
+    if (routine.scheduleMode == RoutineScheduleMode.dailyTime) {
+      return _computeNextDailyRunAt(routine: routine, from: currentTime);
+    }
+    return currentTime.add(intervalDuration(routine));
+  }
+
+  static DateTime _computeNextDailyRunAt({
+    required Routine routine,
+    required DateTime from,
+  }) {
+    final minutes = normalizeTimeOfDayMinutes(routine.timeOfDayMinutes);
+    final candidate = DateTime(
+      from.year,
+      from.month,
+      from.day,
+      minutes ~/ Duration.minutesPerHour,
+      minutes % Duration.minutesPerHour,
+    );
+    return candidate.isAfter(from)
+        ? candidate
+        : candidate.add(const Duration(days: 1));
   }
 
   static bool isDue(Routine routine, {DateTime? now}) {

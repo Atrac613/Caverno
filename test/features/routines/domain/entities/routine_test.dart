@@ -231,6 +231,15 @@ void main() {
       expect(changedRoutine.isApprovedPlanFresh, isFalse);
       expect(changedRoutine.hasStaleApprovedPlan, isTrue);
       expect(changedRoutine.freshApprovedPlanMarkdown, isNull);
+
+      final rescheduledRoutine = plannedRoutine.copyWith(
+        scheduleMode: RoutineScheduleMode.dailyTime,
+        timeOfDayMinutes: 8 * Duration.minutesPerHour,
+      );
+
+      expect(rescheduledRoutine.isApprovedPlanFresh, isFalse);
+      expect(rescheduledRoutine.hasStaleApprovedPlan, isTrue);
+      expect(rescheduledRoutine.freshApprovedPlanMarkdown, isNull);
     });
 
     test('preserves routine plan artifact revisions through JSON', () {

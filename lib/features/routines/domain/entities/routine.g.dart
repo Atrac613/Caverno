@@ -210,6 +210,14 @@ _Routine _$RoutineFromJson(Map<String, dynamic> json) => _Routine(
         unknownValue: RoutineIntervalUnit.hours,
       ) ??
       RoutineIntervalUnit.hours,
+  scheduleMode:
+      $enumDecodeNullable(
+        _$RoutineScheduleModeEnumMap,
+        json['scheduleMode'],
+        unknownValue: RoutineScheduleMode.interval,
+      ) ??
+      RoutineScheduleMode.interval,
+  timeOfDayMinutes: (json['timeOfDayMinutes'] as num?)?.toInt() ?? 480,
   nextRunAt: json['nextRunAt'] == null
       ? null
       : DateTime.parse(json['nextRunAt'] as String),
@@ -240,6 +248,8 @@ Map<String, dynamic> _$RoutineToJson(_Routine instance) => <String, dynamic>{
   'planArtifact': _routinePlanArtifactToJson(instance.planArtifact),
   'intervalValue': instance.intervalValue,
   'intervalUnit': _$RoutineIntervalUnitEnumMap[instance.intervalUnit]!,
+  'scheduleMode': _$RoutineScheduleModeEnumMap[instance.scheduleMode]!,
+  'timeOfDayMinutes': instance.timeOfDayMinutes,
   'nextRunAt': instance.nextRunAt?.toIso8601String(),
   'lastRunAt': instance.lastRunAt?.toIso8601String(),
   'runs': instance.runs,
@@ -261,4 +271,9 @@ const _$RoutineIntervalUnitEnumMap = {
   RoutineIntervalUnit.minutes: 'minutes',
   RoutineIntervalUnit.hours: 'hours',
   RoutineIntervalUnit.days: 'days',
+};
+
+const _$RoutineScheduleModeEnumMap = {
+  RoutineScheduleMode.interval: 'interval',
+  RoutineScheduleMode.dailyTime: 'dailyTime',
 };

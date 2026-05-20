@@ -10,6 +10,8 @@ class RoutineEditorResult {
     required this.prompt,
     required this.intervalValue,
     required this.intervalUnit,
+    required this.scheduleMode,
+    required this.timeOfDayMinutes,
     required this.enabled,
     required this.notifyOnCompletion,
     required this.toolsEnabled,
@@ -23,6 +25,8 @@ class RoutineEditorResult {
   final String prompt;
   final int intervalValue;
   final RoutineIntervalUnit intervalUnit;
+  final RoutineScheduleMode scheduleMode;
+  final int timeOfDayMinutes;
   final bool enabled;
   final bool notifyOnCompletion;
   final bool toolsEnabled;
@@ -48,6 +52,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
   late final TextEditingController _intervalController;
   late final TextEditingController _workspaceDirectoryController;
   late RoutineIntervalUnit _intervalUnit;
+  late RoutineScheduleMode _scheduleMode;
+  late TimeOfDay _timeOfDay;
   late bool _enabled;
   late bool _notifyOnCompletion;
   late bool _toolsEnabled;
@@ -72,6 +78,13 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
       text: initialRoutine?.workspaceDirectory ?? '',
     );
     _intervalUnit = initialRoutine?.intervalUnit ?? RoutineIntervalUnit.hours;
+    _scheduleMode =
+        initialRoutine?.scheduleMode ?? RoutineScheduleMode.interval;
+    final timeMinutes = initialRoutine?.timeOfDayMinutes ?? 480;
+    _timeOfDay = TimeOfDay(
+      hour: (timeMinutes ~/ Duration.minutesPerHour).clamp(0, 23),
+      minute: (timeMinutes % Duration.minutesPerHour).clamp(0, 59),
+    );
     _enabled = initialRoutine?.enabled ?? true;
     _notifyOnCompletion = initialRoutine?.notifyOnCompletion ?? true;
     _toolsEnabled = initialRoutine?.toolsEnabled ?? false;
@@ -147,53 +160,95 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
                   },
                 ),
                 const SizedBox(height: 16),
-                Row(
-                  children: [
-                    Expanded(
-                      child: TextFormField(
-                        controller: _intervalController,
-                        decoration: InputDecoration(
-                          labelText: 'routines.interval_value_label'.tr(),
-                          border: const OutlineInputBorder(),
+                DropdownButtonFormField<RoutineScheduleMode>(
+                  initialValue: _scheduleMode,
+                  decoration: InputDecoration(
+                    labelText: 'routines.schedule_mode_label'.tr(),
+                    border: const OutlineInputBorder(),
+                  ),
+                  items: RoutineScheduleMode.values
+                      .map(
+                        (mode) => DropdownMenuItem(
+                          value: mode,
+                          child: Text(_scheduleModeLabel(mode)),
                         ),
-                        keyboardType: TextInputType.number,
-                        validator: (value) {
-                          final parsed = int.tryParse((value ?? '').trim());
-                          if (parsed == null || parsed < 1) {
-                            return 'routines.interval_value_required'.tr();
-                          }
-                          return null;
-                        },
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: DropdownButtonFormField<RoutineIntervalUnit>(
-                        initialValue: _intervalUnit,
-                        decoration: InputDecoration(
-                          labelText: 'routines.interval_unit_label'.tr(),
-                          border: const OutlineInputBorder(),
-                        ),
-                        items: RoutineIntervalUnit.values
-                            .map(
-                              (unit) => DropdownMenuItem(
-                                value: unit,
-                                child: Text(_intervalUnitLabel(unit)),
-                              ),
-                            )
-                            .toList(growable: false),
-                        onChanged: (value) {
-                          if (value == null) {
-                            return;
-                          }
-                          setState(() {
-                            _intervalUnit = value;
-                          });
-                        },
-                      ),
-                    ),
-                  ],
+                      )
+                      .toList(growable: false),
+                  onChanged: (value) {
+                    if (value == null) {
+                      return;
+                    }
+                    setState(() {
+                      _scheduleMode = value;
+                    });
+                  },
                 ),
+                const SizedBox(height: 12),
+                if (_scheduleMode == RoutineScheduleMode.interval)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: _intervalController,
+                          decoration: InputDecoration(
+                            labelText: 'routines.interval_value_label'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                          keyboardType: TextInputType.number,
+                          validator: (value) {
+                            if (_scheduleMode != RoutineScheduleMode.interval) {
+                              return null;
+                            }
+                            final parsed = int.tryParse((value ?? '').trim());
+                            if (parsed == null || parsed < 1) {
+                              return 'routines.interval_value_required'.tr();
+                            }
+                            return null;
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: DropdownButtonFormField<RoutineIntervalUnit>(
+                          initialValue: _intervalUnit,
+                          decoration: InputDecoration(
+                            labelText: 'routines.interval_unit_label'.tr(),
+                            border: const OutlineInputBorder(),
+                          ),
+                          items: RoutineIntervalUnit.values
+                              .map(
+                                (unit) => DropdownMenuItem(
+                                  value: unit,
+                                  child: Text(_intervalUnitLabel(unit)),
+                                ),
+                              )
+                              .toList(growable: false),
+                          onChanged: (value) {
+                            if (value == null) {
+                              return;
+                            }
+                            setState(() {
+                              _intervalUnit = value;
+                            });
+                          },
+                        ),
+                      ),
+                    ],
+                  )
+                else
+                  ListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text('routines.daily_time_label'.tr()),
+                    subtitle: Text(_timeOfDay.format(context)),
+                    trailing: const Icon(Icons.schedule),
+                    onTap: _pickDailyTime,
+                    shape: RoundedRectangleBorder(
+                      side: BorderSide(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
                 const SizedBox(height: 8),
                 SwitchListTile(
                   contentPadding: EdgeInsets.zero,
@@ -348,6 +403,13 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     };
   }
 
+  String _scheduleModeLabel(RoutineScheduleMode mode) {
+    return switch (mode) {
+      RoutineScheduleMode.interval => 'routines.schedule_mode_interval'.tr(),
+      RoutineScheduleMode.dailyTime => 'routines.schedule_mode_daily_time'.tr(),
+    };
+  }
+
   String _completionActionLabel(RoutineCompletionAction action) {
     return switch (action) {
       RoutineCompletionAction.none => 'routines.completion_action_none'.tr(),
@@ -378,12 +440,27 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
     });
   }
 
+  Future<void> _pickDailyTime() async {
+    final selected = await showTimePicker(
+      context: context,
+      initialTime: _timeOfDay,
+    );
+    if (selected == null || !mounted) {
+      return;
+    }
+    setState(() {
+      _timeOfDay = selected;
+    });
+  }
+
   void _save() {
     if (!(_formKey.currentState?.validate() ?? false)) {
       return;
     }
 
     final intervalValue = int.tryParse(_intervalController.text.trim()) ?? 1;
+    final timeOfDayMinutes =
+        _timeOfDay.hour * Duration.minutesPerHour + _timeOfDay.minute;
 
     Navigator.of(context).pop(
       RoutineEditorResult(
@@ -391,6 +468,8 @@ class _RoutineEditorSheetState extends State<RoutineEditorSheet> {
         prompt: _promptController.text.trim(),
         intervalValue: intervalValue,
         intervalUnit: _intervalUnit,
+        scheduleMode: _scheduleMode,
+        timeOfDayMinutes: timeOfDayMinutes,
         enabled: _enabled,
         notifyOnCompletion: _notifyOnCompletion,
         toolsEnabled: _toolsEnabled,

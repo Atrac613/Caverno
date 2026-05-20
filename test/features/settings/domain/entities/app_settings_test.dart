@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
@@ -30,10 +32,9 @@ void main() {
       ],
     );
 
-    expect(
-      settings.enabledMcpServers.map((server) => server.normalizedUrl),
-      ['http://trusted.example'],
-    );
+    expect(settings.enabledMcpServers.map((server) => server.normalizedUrl), [
+      'http://trusted.example',
+    ]);
     expect(
       settings.connectableMcpServers.map((server) => server.normalizedUrl),
       containsAll(['http://trusted.example', 'http://pending.example']),
@@ -59,5 +60,48 @@ void main() {
       'https://chat.googleapis.com/v1/spaces/test',
     );
     expect(settings.hasGoogleChatWebhook, isTrue);
+  });
+
+  test('preserves routine Computer Use action allowlist entries', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'test-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      routineComputerUseActionAllowlist: [
+        RoutineComputerUseActionAllowlistEntry(
+          id: 'x-post-button',
+          label: 'X Post button',
+          toolName: 'computer_click',
+          targetLabelContains: 'Post',
+          targetRole: 'button',
+          targetAction: 'publish',
+          targetRisk: 'public_action',
+          appNameContains: 'Safari',
+          appBundleId: 'com.apple.Safari',
+          windowTitleContains: 'X',
+        ),
+        RoutineComputerUseActionAllowlistEntry(
+          id: 'empty-boundary',
+          toolName: 'computer_click',
+        ),
+      ],
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.routineComputerUseActionAllowlist, hasLength(2));
+    expect(
+      decoded.routineComputerUseActionAllowlist.first.targetRisk,
+      'public_action',
+    );
+    expect(decoded.enabledRoutineComputerUseActionAllowlist, hasLength(1));
+    expect(
+      decoded.enabledRoutineComputerUseActionAllowlist.single.id,
+      'x-post-button',
+    );
   });
 }

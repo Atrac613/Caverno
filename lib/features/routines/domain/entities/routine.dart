@@ -7,6 +7,8 @@ part 'routine.g.dart';
 
 enum RoutineIntervalUnit { minutes, hours, days }
 
+enum RoutineScheduleMode { interval, dailyTime }
+
 enum RoutineRunStatus { completed, failed }
 
 enum RoutineRunTrigger { manual, scheduled }
@@ -307,6 +309,10 @@ abstract class Routine with _$Routine {
     @JsonKey(unknownEnumValue: RoutineIntervalUnit.hours)
     @Default(RoutineIntervalUnit.hours)
     RoutineIntervalUnit intervalUnit,
+    @JsonKey(unknownEnumValue: RoutineScheduleMode.interval)
+    @Default(RoutineScheduleMode.interval)
+    RoutineScheduleMode scheduleMode,
+    @Default(480) int timeOfDayMinutes,
     DateTime? nextRunAt,
     DateTime? lastRunAt,
     @Default(<RoutineRunRecord>[]) List<RoutineRunRecord> runs,
@@ -338,6 +344,10 @@ abstract class Routine with _$Routine {
     googleChatRule: googleChatRule.name,
     workspaceDirectory: trimmedWorkspaceDirectory,
     allowWorkspaceWrites: allowWorkspaceWrites,
+    intervalValue: intervalValue,
+    intervalUnit: intervalUnit.name,
+    scheduleMode: scheduleMode.name,
+    timeOfDayMinutes: timeOfDayMinutes,
   );
 
   String? get freshApprovedPlanMarkdown {
@@ -387,6 +397,10 @@ String _computeRoutinePlanSourceHash({
   required String googleChatRule,
   required String workspaceDirectory,
   required bool allowWorkspaceWrites,
+  required int intervalValue,
+  required String intervalUnit,
+  required String scheduleMode,
+  required int timeOfDayMinutes,
 }) {
   final sourcePayload = jsonEncode(<String, Object?>{
     'prompt': prompt.trim(),
@@ -395,6 +409,10 @@ String _computeRoutinePlanSourceHash({
     'googleChatRule': googleChatRule,
     'workspaceDirectory': workspaceDirectory.trim(),
     'allowWorkspaceWrites': allowWorkspaceWrites,
+    'intervalValue': intervalValue,
+    'intervalUnit': intervalUnit,
+    'scheduleMode': scheduleMode,
+    'timeOfDayMinutes': timeOfDayMinutes,
   });
   return _computeStableRoutineHash(sourcePayload);
 }

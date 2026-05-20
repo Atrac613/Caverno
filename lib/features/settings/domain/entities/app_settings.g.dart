@@ -6,6 +6,44 @@ part of 'app_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_RoutineComputerUseActionAllowlistEntry
+_$RoutineComputerUseActionAllowlistEntryFromJson(Map<String, dynamic> json) =>
+    _RoutineComputerUseActionAllowlistEntry(
+      id: json['id'] as String,
+      enabled: json['enabled'] as bool? ?? true,
+      label: json['label'] as String? ?? '',
+      toolName: json['toolName'] as String? ?? '',
+      targetLabelContains: json['targetLabelContains'] as String? ?? '',
+      targetRole: json['targetRole'] as String? ?? '',
+      targetAction: json['targetAction'] as String? ?? '',
+      targetRisk: json['targetRisk'] as String? ?? '',
+      appNameContains: json['appNameContains'] as String? ?? '',
+      appBundleId: json['appBundleId'] as String? ?? '',
+      windowTitleContains: json['windowTitleContains'] as String? ?? '',
+      urlHost: json['urlHost'] as String? ?? '',
+      urlStartsWith: json['urlStartsWith'] as String? ?? '',
+      exactText: json['exactText'] as String? ?? '',
+    );
+
+Map<String, dynamic> _$RoutineComputerUseActionAllowlistEntryToJson(
+  _RoutineComputerUseActionAllowlistEntry instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'enabled': instance.enabled,
+  'label': instance.label,
+  'toolName': instance.toolName,
+  'targetLabelContains': instance.targetLabelContains,
+  'targetRole': instance.targetRole,
+  'targetAction': instance.targetAction,
+  'targetRisk': instance.targetRisk,
+  'appNameContains': instance.appNameContains,
+  'appBundleId': instance.appBundleId,
+  'windowTitleContains': instance.windowTitleContains,
+  'urlHost': instance.urlHost,
+  'urlStartsWith': instance.urlStartsWith,
+  'exactText': instance.exactText,
+};
+
 _McpServerConfig _$McpServerConfigFromJson(Map<String, dynamic> json) =>
     _McpServerConfig(
       url: json['url'] as String? ?? '',
@@ -97,6 +135,15 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
           ?.map((e) => e as String)
           .toList() ??
       const <String>[],
+  routineComputerUseActionAllowlist:
+      (json['routineComputerUseActionAllowlist'] as List<dynamic>?)
+          ?.map(
+            (e) => RoutineComputerUseActionAllowlistEntry.fromJson(
+              e as Map<String, dynamic>,
+            ),
+          )
+          .toList() ??
+      const <RoutineComputerUseActionAllowlistEntry>[],
 );
 
 Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
@@ -126,6 +173,8 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'showMemoryUpdates': instance.showMemoryUpdates,
       'demoMode': instance.demoMode,
       'disabledBuiltInTools': instance.disabledBuiltInTools,
+      'routineComputerUseActionAllowlist':
+          instance.routineComputerUseActionAllowlist,
     };
 
 const _$AssistantModeEnumMap = {

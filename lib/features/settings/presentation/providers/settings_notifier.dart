@@ -80,7 +80,9 @@ class SettingsNotifier extends Notifier<AppSettings> {
         ),
     ];
 
-    final httpServers = normalizedServers.where((s) => s.type == McpServerType.http);
+    final httpServers = normalizedServers.where(
+      (s) => s.type == McpServerType.http,
+    );
     final activeUrls = AppSettings.activeMcpUrlsFromServers(httpServers);
     state = state.copyWith(
       mcpUrl: activeUrls.isEmpty ? '' : activeUrls.first,
@@ -186,6 +188,44 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final current = Set<String>.from(state.disabledBuiltInTools);
     disabled ? current.addAll(toolNames) : current.removeAll(toolNames);
     state = state.copyWith(disabledBuiltInTools: current.toList());
+    await _repository.save(state);
+  }
+
+  Future<void> upsertRoutineComputerUseActionAllowlistEntry(
+    RoutineComputerUseActionAllowlistEntry entry,
+  ) async {
+    final entries = List<RoutineComputerUseActionAllowlistEntry>.from(
+      state.routineComputerUseActionAllowlist,
+    );
+    final index = entries.indexWhere((item) => item.id == entry.id);
+    if (index == -1) {
+      entries.add(entry);
+    } else {
+      entries[index] = entry;
+    }
+    state = state.copyWith(routineComputerUseActionAllowlist: entries);
+    await _repository.save(state);
+  }
+
+  Future<void> toggleRoutineComputerUseActionAllowlistEntry(
+    String entryId,
+    bool enabled,
+  ) async {
+    final entries = [
+      for (final entry in state.routineComputerUseActionAllowlist)
+        entry.id == entryId ? entry.copyWith(enabled: enabled) : entry,
+    ];
+    state = state.copyWith(routineComputerUseActionAllowlist: entries);
+    await _repository.save(state);
+  }
+
+  Future<void> removeRoutineComputerUseActionAllowlistEntry(
+    String entryId,
+  ) async {
+    final entries = state.routineComputerUseActionAllowlist
+        .where((entry) => entry.id != entryId)
+        .toList(growable: false);
+    state = state.copyWith(routineComputerUseActionAllowlist: entries);
     await _repository.save(state);
   }
 

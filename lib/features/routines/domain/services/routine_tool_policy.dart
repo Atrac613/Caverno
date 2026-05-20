@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import '../../../../core/services/macos_computer_use_tool_policy.dart';
 import '../../../chat/data/datasources/chat_remote_datasource.dart';
 import '../../../chat/domain/entities/mcp_tool_entity.dart';
 import '../../../chat/domain/services/tool_result_prompt_builder.dart';
@@ -68,12 +69,24 @@ class RoutineToolPolicy {
     if (_allowedToolNames.contains(toolName)) {
       return true;
     }
+    if (MacosComputerUseToolPolicy.isAllowedInPlanning(toolName)) {
+      return true;
+    }
 
     final namespaceIndex = toolName.indexOf('__');
     if (namespaceIndex <= 0) {
       return false;
     }
     return _allowedToolNames.contains(toolName.substring(0, namespaceIndex));
+  }
+
+  static bool isComputerUseObservationToolName(String toolName) {
+    return MacosComputerUseToolPolicy.isAllowedInPlanning(toolName);
+  }
+
+  static bool isComputerUseActionToolName(String toolName) {
+    return MacosComputerUseToolPolicy.isComputerUseTool(toolName) &&
+        MacosComputerUseToolPolicy.requiresUserApproval(toolName);
   }
 
   static bool isWorkspaceWriteToolName(String toolName) {
@@ -92,6 +105,7 @@ class RoutineToolPolicy {
   static List<Map<String, dynamic>> filterAllowedToolDefinitions(
     List<Map<String, dynamic>> definitions, {
     bool allowWorkspaceWrites = false,
+    Set<String> allowedComputerUseActionToolNames = const <String>{},
     List<Map<String, dynamic>> extraDefinitions = const [],
   }) {
     final filtered = [...definitions, ...extraDefinitions]
@@ -101,6 +115,7 @@ class RoutineToolPolicy {
               (isExternalMcpToolDefinition(tool) ||
                   isRoutineToolDefinition(tool) ||
                   isAllowedToolName(name) ||
+                  allowedComputerUseActionToolNames.contains(name) ||
                   (allowWorkspaceWrites && isWorkspaceWriteToolName(name)));
         })
         .toList(growable: false);
@@ -131,6 +146,28 @@ class RoutineToolPolicy {
       result: payload,
       isSuccess: false,
       errorMessage: 'Routine blocked non-read-only tool execution',
+    );
+  }
+
+  static McpToolResult buildComputerUseActionDeniedResult(
+    ToolCallInfo toolCall,
+  ) {
+    final payload = jsonEncode({
+      'error':
+          'Routine execution allows Computer Use action tools only when a '
+          'matching routine allowlist entry exists. Pointer, keyboard, focus, '
+          'audio, and public-action tools require interactive user approval '
+          'unless they are explicitly allowlisted for unattended routines.',
+      'code': 'permission_denied',
+      'reason': 'routine_computer_use_action_denied',
+      'tool': toolCall.name,
+    });
+
+    return McpToolResult(
+      toolName: toolCall.name,
+      result: payload,
+      isSuccess: false,
+      errorMessage: 'Routine blocked a Computer Use action tool',
     );
   }
 

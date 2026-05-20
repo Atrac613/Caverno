@@ -14,6 +14,50 @@ enum McpServerType { http, stdio }
 enum McpServerTrustState { pending, trusted, blocked }
 
 @freezed
+abstract class RoutineComputerUseActionAllowlistEntry
+    with _$RoutineComputerUseActionAllowlistEntry {
+  const RoutineComputerUseActionAllowlistEntry._();
+
+  const factory RoutineComputerUseActionAllowlistEntry({
+    required String id,
+    @Default(true) bool enabled,
+    @Default('') String label,
+    @Default('') String toolName,
+    @Default('') String targetLabelContains,
+    @Default('') String targetRole,
+    @Default('') String targetAction,
+    @Default('') String targetRisk,
+    @Default('') String appNameContains,
+    @Default('') String appBundleId,
+    @Default('') String windowTitleContains,
+    @Default('') String urlHost,
+    @Default('') String urlStartsWith,
+    @Default('') String exactText,
+  }) = _RoutineComputerUseActionAllowlistEntry;
+
+  factory RoutineComputerUseActionAllowlistEntry.fromJson(
+    Map<String, dynamic> json,
+  ) => _$RoutineComputerUseActionAllowlistEntryFromJson(json);
+
+  String get normalizedToolName => toolName.trim();
+
+  String get normalizedLabel => label.trim();
+
+  bool get hasBoundary {
+    return targetLabelContains.trim().isNotEmpty ||
+        targetRole.trim().isNotEmpty ||
+        targetAction.trim().isNotEmpty ||
+        targetRisk.trim().isNotEmpty ||
+        appNameContains.trim().isNotEmpty ||
+        appBundleId.trim().isNotEmpty ||
+        windowTitleContains.trim().isNotEmpty ||
+        urlHost.trim().isNotEmpty ||
+        urlStartsWith.trim().isNotEmpty ||
+        exactText.isNotEmpty;
+  }
+}
+
+@freezed
 abstract class McpServerConfig with _$McpServerConfig {
   const McpServerConfig._();
 
@@ -103,6 +147,9 @@ abstract class AppSettings with _$AppSettings {
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool demoMode,
     @Default(<String>[]) List<String> disabledBuiltInTools,
+    @Default(<RoutineComputerUseActionAllowlistEntry>[])
+    List<RoutineComputerUseActionAllowlistEntry>
+    routineComputerUseActionAllowlist,
   }) = _AppSettings;
 
   factory AppSettings.defaults() => const AppSettings(
@@ -126,6 +173,17 @@ abstract class AppSettings with _$AppSettings {
 
   Set<String> get disabledBuiltInToolsSet =>
       Set<String>.from(disabledBuiltInTools);
+
+  List<RoutineComputerUseActionAllowlistEntry>
+  get enabledRoutineComputerUseActionAllowlist =>
+      routineComputerUseActionAllowlist
+          .where(
+            (entry) =>
+                entry.enabled &&
+                entry.normalizedToolName.isNotEmpty &&
+                entry.hasBoundary,
+          )
+          .toList(growable: false);
 
   List<McpServerConfig> get configuredMcpServers {
     if (mcpServers.isNotEmpty) {

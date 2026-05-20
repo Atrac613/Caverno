@@ -314,6 +314,15 @@ class RoutineDetailPage extends ConsumerWidget {
   }
 
   String _formatSchedule(Routine routine) {
+    if (routine.scheduleMode == RoutineScheduleMode.dailyTime) {
+      return 'routines.daily_at_time'.tr(
+        namedArgs: {
+          'time': RoutineScheduleService.formatTimeOfDayMinutes(
+            routine.timeOfDayMinutes,
+          ),
+        },
+      );
+    }
     final value = RoutineScheduleService.normalizeIntervalValue(
       routine.intervalValue,
     );
@@ -415,6 +424,8 @@ class RoutineDetailPage extends ConsumerWidget {
           prompt: result.prompt,
           intervalValue: result.intervalValue,
           intervalUnit: result.intervalUnit,
+          scheduleMode: result.scheduleMode,
+          timeOfDayMinutes: result.timeOfDayMinutes,
           enabled: result.enabled,
           notifyOnCompletion: result.notifyOnCompletion,
           toolsEnabled: result.toolsEnabled,

@@ -61,6 +61,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required String prompt,
     required int intervalValue,
     required RoutineIntervalUnit intervalUnit,
+    required RoutineScheduleMode scheduleMode,
+    required int timeOfDayMinutes,
     required bool enabled,
     required bool notifyOnCompletion,
     required bool toolsEnabled,
@@ -87,6 +89,10 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         intervalValue,
       ),
       intervalUnit: intervalUnit,
+      scheduleMode: scheduleMode,
+      timeOfDayMinutes: RoutineScheduleService.normalizeTimeOfDayMinutes(
+        timeOfDayMinutes,
+      ),
     );
 
     final prepared = _prepareRoutineForPersistence(routine, previous: null);
@@ -99,6 +105,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
     required String prompt,
     required int intervalValue,
     required RoutineIntervalUnit intervalUnit,
+    required RoutineScheduleMode scheduleMode,
+    required int timeOfDayMinutes,
     required bool enabled,
     required bool notifyOnCompletion,
     required bool toolsEnabled,
@@ -127,6 +135,10 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         intervalValue,
       ),
       intervalUnit: intervalUnit,
+      scheduleMode: scheduleMode,
+      timeOfDayMinutes: RoutineScheduleService.normalizeTimeOfDayMinutes(
+        timeOfDayMinutes,
+      ),
       updatedAt: DateTime.now(),
     );
 
@@ -185,6 +197,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
       planArtifact: source.planArtifact,
       intervalValue: source.intervalValue,
       intervalUnit: source.intervalUnit,
+      scheduleMode: source.scheduleMode,
+      timeOfDayMinutes: source.timeOfDayMinutes,
     );
     final prepared = _prepareRoutineForPersistence(duplicate, previous: null);
     await _persistRoutines([...state.routines, prepared]);
@@ -481,6 +495,8 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
         previous.enabled != routine.enabled ||
         previous.intervalValue != routine.intervalValue ||
         previous.intervalUnit != routine.intervalUnit ||
+        previous.scheduleMode != routine.scheduleMode ||
+        previous.timeOfDayMinutes != routine.timeOfDayMinutes ||
         previous.nextRunAt == null ||
         !(previous.nextRunAt!.isAfter(now));
 
@@ -500,6 +516,9 @@ class RoutinesNotifier extends Notifier<RoutinesState> {
           routine.hasWorkspaceDirectory,
       intervalValue: RoutineScheduleService.normalizeIntervalValue(
         routine.intervalValue,
+      ),
+      timeOfDayMinutes: RoutineScheduleService.normalizeTimeOfDayMinutes(
+        routine.timeOfDayMinutes,
       ),
       nextRunAt: nextRunAt,
       updatedAt: now,
