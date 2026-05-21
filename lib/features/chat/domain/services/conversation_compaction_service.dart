@@ -1,6 +1,24 @@
 import '../entities/conversation_compaction_artifact.dart';
 import '../entities/message.dart';
 
+enum ConversationTokenPressureLevel { normal, warning, critical }
+
+class ConversationTokenPressure {
+  const ConversationTokenPressure({
+    required this.estimatedPromptTokens,
+    required this.promptTokenBudget,
+    required this.warningThresholdTokens,
+    required this.level,
+    required this.shouldAutoCompact,
+  });
+
+  final int estimatedPromptTokens;
+  final int promptTokenBudget;
+  final int warningThresholdTokens;
+  final ConversationTokenPressureLevel level;
+  final bool shouldAutoCompact;
+}
+
 class ConversationCompactionService {
   ConversationCompactionService._();
 
@@ -11,6 +29,7 @@ class ConversationCompactionService {
   static const int maxSummaryBullets = 12;
   static const int maxPlanBullets = 4;
   static const int maxBulletLength = 180;
+  static const double tokenWarningRatio = 0.8;
 
   static final RegExp _thinkBlockPattern = RegExp(
     r'<think>.*?</think>',
@@ -25,20 +44,26 @@ class ConversationCompactionService {
   static final RegExp _whitespaceRunPattern = RegExp(r'\s+');
   static final RegExp _headingPrefixPattern = RegExp(r'^#+\s*');
   static final RegExp _bulletMarkerPattern = RegExp(r'[-*]\s+');
+  static final RegExp _contextLengthErrorPattern = RegExp(
+    r'(context length|context window|maximum context|prompt too long|too many tokens|token limit|tokens? exceed|exceeds? .*context|input .*too long|max(?:imum)? tokens)',
+    caseSensitive: false,
+  );
 
   static ConversationCompactionArtifact? buildArtifact({
     required List<Message> messages,
     String? planDocument,
     DateTime? now,
+    bool force = false,
   }) {
     final normalizedMessages = messages
         .where((message) => !message.isStreaming)
         .toList(growable: false);
-    if (!_needsCompaction(normalizedMessages)) {
+    if (!force && !_needsCompaction(normalizedMessages)) {
       return null;
     }
 
-    final compactedMessageCount = normalizedMessages.length - recentMessagesToKeep;
+    final compactedMessageCount =
+        normalizedMessages.length - recentMessagesToKeep;
     if (compactedMessageCount <= 0) {
       return null;
     }
@@ -72,6 +97,37 @@ class ConversationCompactionService {
     return _needsCompaction(normalizedMessages);
   }
 
+  static ConversationTokenPressure assessTokenPressure({
+    required List<Message> messages,
+    int promptTokenBudget = maxEstimatedPromptTokens,
+  }) {
+    final normalizedMessages = messages
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    final budget = promptTokenBudget <= 0
+        ? maxEstimatedPromptTokens
+        : promptTokenBudget;
+    final estimatedTokens = estimatePromptTokens(normalizedMessages);
+    final warningThreshold = (budget * tokenWarningRatio).round();
+    final level = estimatedTokens >= budget
+        ? ConversationTokenPressureLevel.critical
+        : estimatedTokens >= warningThreshold
+        ? ConversationTokenPressureLevel.warning
+        : ConversationTokenPressureLevel.normal;
+
+    return ConversationTokenPressure(
+      estimatedPromptTokens: estimatedTokens,
+      promptTokenBudget: budget,
+      warningThresholdTokens: warningThreshold,
+      level: level,
+      shouldAutoCompact: _needsCompaction(normalizedMessages),
+    );
+  }
+
+  static bool isContextLengthError(String error) {
+    return _contextLengthErrorPattern.hasMatch(error);
+  }
+
   static List<Message> retainMessages({
     required List<Message> messages,
     ConversationCompactionArtifact? artifact,
@@ -99,17 +155,15 @@ class ConversationCompactionService {
   }
 
   static bool _needsCompaction(List<Message> messages) {
-    if (messages.length < minMessagesBeforeCompaction) {
+    if (messages.length <= recentMessagesToKeep) {
       return false;
     }
-    return estimatePromptTokens(messages) > maxEstimatedPromptTokens ||
+    final estimatedTokens = estimatePromptTokens(messages);
+    return estimatedTokens > maxEstimatedPromptTokens ||
         messages.length > minMessagesBeforeCompaction;
   }
 
-  static String _buildSummary(
-    List<Message> messages, {
-    String? planDocument,
-  }) {
+  static String _buildSummary(List<Message> messages, {String? planDocument}) {
     final sections = <String>[];
     final planBullets = _extractPlanBullets(planDocument);
     if (planBullets.isNotEmpty) {
@@ -149,7 +203,9 @@ class ConversationCompactionService {
       _toolBlockPattern,
       ' ',
     );
-    final normalized = withoutToolBlocks.replaceAll(_whitespaceRunPattern, ' ').trim();
+    final normalized = withoutToolBlocks
+        .replaceAll(_whitespaceRunPattern, ' ')
+        .trim();
     if (normalized.isNotEmpty) {
       return normalized;
     }
@@ -190,7 +246,9 @@ class ConversationCompactionService {
         normalizedLine = normalizedLine.substring(1).trim();
       }
 
-      normalizedLine = normalizedLine.replaceAll(_whitespaceRunPattern, ' ').trim();
+      normalizedLine = normalizedLine
+          .replaceAll(_whitespaceRunPattern, ' ')
+          .trim();
       if (normalizedLine.isEmpty) {
         continue;
       }

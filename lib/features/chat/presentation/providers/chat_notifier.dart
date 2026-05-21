@@ -5476,6 +5476,8 @@ class ChatNotifier extends Notifier<ChatState> {
         .read(conversationsNotifierProvider)
         .currentConversation;
     final messages = state.messages.where((m) => !m.isStreaming).toList();
+    final forceCompaction = _forcePromptCompactionForNextRequest;
+    _forcePromptCompactionForNextRequest = false;
     final promptMessages = <Message>[_createSystemMessage()];
     if (_temporalReferenceContext != null) {
       promptMessages.add(
@@ -5490,6 +5492,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final compactionArtifact = _resolvePromptCompactionArtifact(
       currentConversation: currentConversation,
       messages: messages,
+      forceCompaction: forceCompaction,
     );
     if (compactionArtifact?.hasContent ?? false) {
       promptMessages.add(
@@ -5512,12 +5515,19 @@ class ChatNotifier extends Notifier<ChatState> {
     if (_hiddenPrompt != null) {
       result.add(_hiddenPrompt!);
     }
+    _updateContextTokenPressureState(
+      pressure: ConversationCompactionService.assessTokenPressure(
+        messages: result,
+      ),
+      compactionActive: compactionArtifact?.hasContent ?? false,
+    );
     return result;
   }
 
   ConversationCompactionArtifact? _resolvePromptCompactionArtifact({
     required Conversation? currentConversation,
     required List<Message> messages,
+    bool forceCompaction = false,
   }) {
     final freshArtifact = ConversationCompactionService.buildArtifact(
       messages: messages,
@@ -5525,6 +5535,7 @@ class ChatNotifier extends Notifier<ChatState> {
         isPlanning: currentConversation.isPlanningSession,
       ),
       now: currentConversation?.effectiveCompactionArtifact.updatedAt,
+      force: forceCompaction,
     );
     if (freshArtifact != null) {
       return freshArtifact;
@@ -5534,6 +5545,30 @@ class ChatNotifier extends Notifier<ChatState> {
       return persistedArtifact;
     }
     return null;
+  }
+
+  void _updateContextTokenPressureState({
+    required ConversationTokenPressure pressure,
+    required bool compactionActive,
+  }) {
+    if (!ref.mounted) return;
+    final nextLevel = switch (pressure.level) {
+      ConversationTokenPressureLevel.normal => ContextTokenPressureLevel.normal,
+      ConversationTokenPressureLevel.warning =>
+        ContextTokenPressureLevel.warning,
+      ConversationTokenPressureLevel.critical =>
+        ContextTokenPressureLevel.critical,
+    };
+    if (state.estimatedPromptTokens == pressure.estimatedPromptTokens &&
+        state.contextTokenPressureLevel == nextLevel &&
+        state.promptCompactionActive == compactionActive) {
+      return;
+    }
+    state = state.copyWith(
+      estimatedPromptTokens: pressure.estimatedPromptTokens,
+      contextTokenPressureLevel: nextLevel,
+      promptCompactionActive: compactionActive,
+    );
   }
 
   final _uuid = const Uuid();
@@ -5547,6 +5582,7 @@ class ChatNotifier extends Notifier<ChatState> {
   static const int _maxContentToolContinuations = 5;
   int _contentToolContinuationCount = 0;
   Future<void> _contentToolExecutionTail = Future<void>.value();
+  bool _forcePromptCompactionForNextRequest = false;
 
   Future<void> sendMessage(
     String content, {
@@ -6160,7 +6196,7 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Sends a streaming request without tools.
-  Future<void> _sendWithoutTools() async {
+  Future<void> _sendWithoutTools({bool allowContextRetry = true}) async {
     if (!ref.mounted) return;
     try {
       final stream = _dataSource.streamChatCompletion(
@@ -6179,6 +6215,19 @@ class ChatNotifier extends Notifier<ChatState> {
             '[ChatNotifier] _sendWithoutTools stream onError: ${error.runtimeType}: $error',
           );
           appLog('[ChatNotifier] stackTrace: $stackTrace');
+          if (allowContextRetry) {
+            unawaited(
+              _retryAfterContextLengthError(
+                error,
+                () => _sendWithoutTools(allowContextRetry: false),
+              ).then((retried) {
+                if (!retried) {
+                  _handleError(error.toString());
+                }
+              }),
+            );
+            return;
+          }
           _handleError(error.toString());
         },
         onDone: () {
@@ -6188,19 +6237,76 @@ class ChatNotifier extends Notifier<ChatState> {
     } catch (e, stackTrace) {
       appLog('[ChatNotifier] _sendWithoutTools catch: ${e.runtimeType}: $e');
       appLog('[ChatNotifier] stackTrace: $stackTrace');
+      if (allowContextRetry &&
+          await _retryAfterContextLengthError(
+            e,
+            () => _sendWithoutTools(allowContextRetry: false),
+          )) {
+        return;
+      }
       _handleError(e.toString());
     }
   }
 
+  Future<bool> _retryAfterContextLengthError(
+    Object error,
+    Future<void> Function() retry,
+  ) async {
+    if (!ConversationCompactionService.isContextLengthError(error.toString())) {
+      return false;
+    }
+
+    final messages = state.messages
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final artifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+      planDocument: currentConversation?.displayPlanDocument(
+        isPlanning: currentConversation.isPlanningSession,
+      ),
+      now: DateTime.now(),
+      force: true,
+    );
+    if (artifact == null || !artifact.hasContent) {
+      appLog(
+        '[Compaction] Context-length retry skipped because no compactable history is available',
+      );
+      return false;
+    }
+
+    appLog(
+      '[Compaction] Retrying after context-length error with ${artifact.compactedMessageCount} compacted message(s)',
+    );
+    _forcePromptCompactionForNextRequest = true;
+    _resetStreamingAssistantForRetry();
+    await retry();
+    return true;
+  }
+
+  void _resetStreamingAssistantForRetry() {
+    if (!ref.mounted || state.messages.isEmpty) return;
+    final updatedMessages = [...state.messages];
+    final lastIndex = updatedMessages.length - 1;
+    final lastMessage = updatedMessages[lastIndex];
+    if (lastMessage.role != MessageRole.assistant || !lastMessage.isStreaming) {
+      return;
+    }
+    updatedMessages[lastIndex] = lastMessage.copyWith(content: '', error: null);
+    state = state.copyWith(messages: updatedMessages, error: null);
+  }
+
   /// Sends a request with tool support (function calling).
-  Future<void> _sendWithTools() async {
+  Future<void> _sendWithTools({bool allowContextRetry = true}) async {
     if (!ref.mounted) return;
     try {
       // Fetch tool definitions from the MCP tool service.
       final allTools = _mcpToolService?.getOpenAiToolDefinitions() ?? [];
       if (allTools.isEmpty) {
         // Fall back to normal streaming when no tools are available.
-        await _sendWithoutTools();
+        await _sendWithoutTools(allowContextRetry: allowContextRetry);
         return;
       }
       appLog(
@@ -6320,6 +6426,14 @@ class ChatNotifier extends Notifier<ChatState> {
       final errorStr = e.toString().toLowerCase();
       appLog('[Tool] Error occurred: $e');
 
+      if (allowContextRetry &&
+          await _retryAfterContextLengthError(
+            e,
+            () => _sendWithTools(allowContextRetry: false),
+          )) {
+        return;
+      }
+
       // Fall back to normal mode for tool-related failures.
       // Examples include JSON parse errors, empty responses, or invalid payloads.
       if (errorStr.contains('formatexception') ||
@@ -6333,7 +6447,7 @@ class ChatNotifier extends Notifier<ChatState> {
           errorStr.contains('500') ||
           errorStr.contains('server error')) {
         appLog('[Tool] LLM may not support tools, falling back to normal mode');
-        await _sendWithoutTools();
+        await _sendWithoutTools(allowContextRetry: allowContextRetry);
         return;
       }
       _handleError(e.toString());

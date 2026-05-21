@@ -4,6 +4,8 @@ import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/services/conversation_compaction_service.dart';
 
 void main() {
+  String repeatedText(int length) => List.filled(length, 'x').join();
+
   List<Message> buildMessages(int count) {
     return List<Message>.generate(count, (index) {
       final isUser = index.isEven;
@@ -23,7 +25,8 @@ void main() {
 
     final artifact = ConversationCompactionService.buildArtifact(
       messages: messages,
-      planDocument: '# Plan\n\n## Goal\nShip plan context\n\n- Validate before writing files',
+      planDocument:
+          '# Plan\n\n## Goal\nShip plan context\n\n- Validate before writing files',
       now: DateTime(2026, 4, 18, 13, 0),
     );
 
@@ -53,6 +56,64 @@ void main() {
     expect(artifact, isNull);
   });
 
+  test('buildArtifact compacts token-heavy conversations before 14 turns', () {
+    final messages = List<Message>.generate(9, (index) {
+      return Message(
+        id: 'large-message-$index',
+        content: 'large context ${repeatedText(3500)}',
+        role: index.isEven ? MessageRole.user : MessageRole.assistant,
+        timestamp: DateTime(2026, 4, 18, 14, index),
+      );
+    });
+
+    final artifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+    );
+
+    expect(artifact, isNotNull);
+    expect(artifact!.compactedMessageCount, 1);
+    expect(artifact.retainedMessageCount, 8);
+  });
+
+  test('assessTokenPressure reports warning and critical states', () {
+    final warning = ConversationCompactionService.assessTokenPressure(
+      messages: [
+        Message(
+          id: 'warning',
+          content: repeatedText(20000),
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 18),
+        ),
+      ],
+    );
+    final critical = ConversationCompactionService.assessTokenPressure(
+      messages: [
+        Message(
+          id: 'critical',
+          content: repeatedText(26000),
+          role: MessageRole.user,
+          timestamp: DateTime(2026, 4, 18),
+        ),
+      ],
+    );
+
+    expect(warning.level, ConversationTokenPressureLevel.warning);
+    expect(critical.level, ConversationTokenPressureLevel.critical);
+  });
+
+  test('isContextLengthError detects prompt-too-long failures', () {
+    expect(
+      ConversationCompactionService.isContextLengthError(
+        'This model has a maximum context length of 8192 tokens.',
+      ),
+      isTrue,
+    );
+    expect(
+      ConversationCompactionService.isContextLengthError('Network timeout'),
+      isFalse,
+    );
+  });
+
   test('buildArtifact preserves tool-heavy turns in the summary', () {
     final messages = List<Message>.generate(16, (index) {
       final isUser = index.isEven;
@@ -73,7 +134,9 @@ void main() {
     expect(artifact, isNotNull);
     expect(
       artifact!.normalizedSummary,
-      contains('Assistant executed tool calls and returned structured results.'),
+      contains(
+        'Assistant executed tool calls and returned structured results.',
+      ),
     );
   });
 }

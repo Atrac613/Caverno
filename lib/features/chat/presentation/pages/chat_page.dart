@@ -657,7 +657,9 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     isPlanMode: isPlanMode,
                   ),
                 // Token usage indicator
-                if (canCompose && chatState.totalTokens > 0)
+                if (canCompose &&
+                    (chatState.totalTokens > 0 ||
+                        chatState.estimatedPromptTokens > 0))
                   _buildTokenUsageBar(context, chatState),
                 // Input area
                 if (canCompose)

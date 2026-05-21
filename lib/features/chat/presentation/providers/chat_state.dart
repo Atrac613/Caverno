@@ -8,6 +8,8 @@ import '../../domain/entities/message.dart';
 
 part 'chat_state.freezed.dart';
 
+enum ContextTokenPressureLevel { normal, warning, critical }
+
 /// Approval payload returned by the SSH connect dialog.
 ///
 /// All fields may have been edited by the user before approval.
@@ -307,6 +309,10 @@ abstract class ChatState with _$ChatState {
     @Default(0) int promptTokens,
     @Default(0) int completionTokens,
     @Default(0) int totalTokens,
+    @Default(0) int estimatedPromptTokens,
+    @Default(ContextTokenPressureLevel.normal)
+    ContextTokenPressureLevel contextTokenPressureLevel,
+    @Default(false) bool promptCompactionActive,
     // SSH tool UI flow — holders contain Completers so they live outside
     // the freezed equality graph.
     PendingSshConnect? pendingSshConnect,

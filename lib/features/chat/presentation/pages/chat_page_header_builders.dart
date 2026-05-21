@@ -7,6 +7,17 @@ part of 'chat_page.dart';
 extension _ChatPageHeaderBuilders on _ChatPageState {
   Widget _buildTokenUsageBar(BuildContext context, ChatState chatState) {
     final theme = Theme.of(context);
+    final pressureColor = switch (chatState.contextTokenPressureLevel) {
+      ContextTokenPressureLevel.normal => theme.colorScheme.outline,
+      ContextTokenPressureLevel.warning => theme.colorScheme.tertiary,
+      ContextTokenPressureLevel.critical => theme.colorScheme.error,
+    };
+    final contextLabel = chatState.estimatedPromptTokens > 0
+        ? ' • estimated prompt ${_formatTokenCount(chatState.estimatedPromptTokens)}'
+        : '';
+    final compactionLabel = chatState.promptCompactionActive
+        ? ' • compaction active'
+        : '';
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       decoration: BoxDecoration(
@@ -17,11 +28,7 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.end,
         children: [
-          Icon(
-            Icons.token_outlined,
-            size: 14,
-            color: theme.colorScheme.outline,
-          ),
+          Icon(Icons.token_outlined, size: 14, color: pressureColor),
           const SizedBox(width: 4),
           Text(
             'chat.token_usage'.tr(
@@ -31,10 +38,13 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
                 'total': _formatTokenCount(chatState.totalTokens),
               },
             ),
-            style: theme.textTheme.labelSmall?.copyWith(
-              color: theme.colorScheme.outline,
-            ),
+            style: theme.textTheme.labelSmall?.copyWith(color: pressureColor),
           ),
+          if (contextLabel.isNotEmpty || compactionLabel.isNotEmpty)
+            Text(
+              '$contextLabel$compactionLabel',
+              style: theme.textTheme.labelSmall?.copyWith(color: pressureColor),
+            ),
         ],
       ),
     );
@@ -414,5 +424,4 @@ extension _ChatPageHeaderBuilders on _ChatPageState {
       ),
     );
   }
-
 }
