@@ -5471,12 +5471,13 @@ class ChatNotifier extends Notifier<ChatState> {
   }
 
   /// Prepares the message list sent to the LLM, including system messages.
-  List<Message> _prepareMessagesForLLM() {
+  List<Message> _prepareMessagesForLLM({bool forceCompaction = false}) {
     final currentConversation = ref
         .read(conversationsNotifierProvider)
         .currentConversation;
     final messages = state.messages.where((m) => !m.isStreaming).toList();
-    final forceCompaction = _forcePromptCompactionForNextRequest;
+    final shouldForceCompaction =
+        forceCompaction || _forcePromptCompactionForNextRequest;
     _forcePromptCompactionForNextRequest = false;
     final promptMessages = <Message>[_createSystemMessage()];
     if (_temporalReferenceContext != null) {
@@ -5492,7 +5493,7 @@ class ChatNotifier extends Notifier<ChatState> {
     final compactionArtifact = _resolvePromptCompactionArtifact(
       currentConversation: currentConversation,
       messages: messages,
-      forceCompaction: forceCompaction,
+      forceCompaction: shouldForceCompaction,
     );
     if (compactionArtifact?.hasContent ?? false) {
       promptMessages.add(
@@ -6298,6 +6299,112 @@ class ChatNotifier extends Notifier<ChatState> {
     state = state.copyWith(messages: updatedMessages, error: null);
   }
 
+  bool _hasCompactablePromptHistory() {
+    final messages = state.messages
+        .where((message) => !message.isStreaming)
+        .toList(growable: false);
+    final currentConversation = ref
+        .read(conversationsNotifierProvider)
+        .currentConversation;
+    final artifact = ConversationCompactionService.buildArtifact(
+      messages: messages,
+      planDocument: currentConversation?.displayPlanDocument(
+        isPlanning: currentConversation.isPlanningSession,
+      ),
+      now: DateTime.now(),
+      force: true,
+    );
+    return artifact?.hasContent ?? false;
+  }
+
+  Future<ChatCompletionResult> _createToolResultCompletionWithContextRetry({
+    required String logLabel,
+    required List<Message> Function(bool forceCompaction) buildMessages,
+    required List<ToolResultInfo> toolResults,
+    required String? assistantContent,
+    required List<Map<String, dynamic>> tools,
+  }) async {
+    Future<ChatCompletionResult> send({required bool forceCompaction}) {
+      return _dataSource.createChatCompletionWithToolResults(
+        messages: buildMessages(forceCompaction),
+        toolResults: toolResults,
+        assistantContent: assistantContent,
+        tools: tools,
+        model: _settings.model,
+        temperature: _settings.temperature,
+        maxTokens: _settings.maxTokens,
+      );
+    }
+
+    try {
+      return await send(forceCompaction: false);
+    } catch (error) {
+      if (!ConversationCompactionService.isContextLengthError(
+            error.toString(),
+          ) ||
+          !_hasCompactablePromptHistory()) {
+        rethrow;
+      }
+      appLog(
+        '[Compaction] Retrying $logLabel after context-length error with forced prompt compaction',
+      );
+      return send(forceCompaction: true);
+    }
+  }
+
+  Future<void> _streamToolResultAnswerWithContextRetry({
+    required List<ToolResultInfo> toolResults,
+  }) async {
+    Future<void> streamAnswer({required bool forceCompaction}) async {
+      final messagesForLLM = _prepareMessagesForLLM(
+        forceCompaction: forceCompaction,
+      );
+      messagesForLLM.addAll(_buildToolResultAnswerMessages(toolResults));
+
+      _appendToLastMessage('<think>');
+
+      final stream = _dataSource.streamChatCompletion(
+        messages: messagesForLLM,
+        model: _settings.model,
+        temperature: _settings.temperature,
+        maxTokens: _settings.maxTokens,
+      );
+
+      var isFirstChunk = true;
+      await for (final chunk in stream) {
+        if (!ref.mounted) return;
+        if (isFirstChunk) {
+          isFirstChunk = false;
+          _removeTrailingThinkTag();
+          if (state.messages.isNotEmpty &&
+              state.messages.last.content.isNotEmpty) {
+            _appendToLastMessage('\n');
+          }
+        }
+        _appendToLastMessage(chunk);
+      }
+      if (isFirstChunk) {
+        _removeTrailingThinkTag();
+      }
+    }
+
+    try {
+      await streamAnswer(forceCompaction: false);
+    } catch (error) {
+      if (!ConversationCompactionService.isContextLengthError(
+            error.toString(),
+          ) ||
+          !_hasCompactablePromptHistory()) {
+        rethrow;
+      }
+      appLog(
+        '[Compaction] Retrying final tool-result answer after context-length error with forced prompt compaction',
+      );
+      _removeTrailingThinkTag();
+      await streamAnswer(forceCompaction: true);
+    }
+  }
+
   /// Sends a request with tool support (function calling).
   Future<void> _sendWithTools({bool allowContextRetry = true}) async {
     if (!ref.mounted) return;
@@ -6679,8 +6786,11 @@ class ChatNotifier extends Notifier<ChatState> {
               return;
             }
             final tools = mcpToolService.getOpenAiToolDefinitions();
-            final recoveryMessages = _prepareMessagesForLLM()
-              ..add(
+            List<Message> buildRecoveryMessages(bool forceCompaction) {
+              final messages = _prepareMessagesForLLM(
+                forceCompaction: forceCompaction,
+              );
+              messages.add(
                 Message(
                   id: 'tool_recovery_${DateTime.now().millisecondsSinceEpoch}',
                   role: MessageRole.user,
@@ -6691,15 +6801,16 @@ class ChatNotifier extends Notifier<ChatState> {
                   timestamp: DateTime.now(),
                 ),
               );
-            final recoveryResult = await _dataSource
-                .createChatCompletionWithToolResults(
-                  messages: recoveryMessages,
+              return messages;
+            }
+
+            final recoveryResult =
+                await _createToolResultCompletionWithContextRetry(
+                  logLabel: 'duplicate inspection recovery',
+                  buildMessages: buildRecoveryMessages,
                   toolResults: lastNonEmptyBatchToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
-                  model: _settings.model,
-                  temperature: _settings.temperature,
-                  maxTokens: _settings.maxTokens,
                 );
             if (!ref.mounted) return;
             _removeTrailingThinkTag();
@@ -6746,8 +6857,11 @@ class ChatNotifier extends Notifier<ChatState> {
               return;
             }
             final tools = mcpToolService.getOpenAiToolDefinitions();
-            final recoveryMessages = _prepareMessagesForLLM()
-              ..add(
+            List<Message> buildRecoveryMessages(bool forceCompaction) {
+              final messages = _prepareMessagesForLLM(
+                forceCompaction: forceCompaction,
+              );
+              messages.add(
                 Message(
                   id: 'tool_followup_recovery_${DateTime.now().millisecondsSinceEpoch}',
                   role: MessageRole.user,
@@ -6758,15 +6872,16 @@ class ChatNotifier extends Notifier<ChatState> {
                   timestamp: DateTime.now(),
                 ),
               );
-            final recoveryResult = await _dataSource
-                .createChatCompletionWithToolResults(
-                  messages: recoveryMessages,
+              return messages;
+            }
+
+            final recoveryResult =
+                await _createToolResultCompletionWithContextRetry(
+                  logLabel: 'duplicate follow-up recovery',
+                  buildMessages: buildRecoveryMessages,
                   toolResults: lastNonEmptyBatchToolResults,
                   assistantContent: currentAssistantContent,
                   tools: tools,
-                  model: _settings.model,
-                  temperature: _settings.temperature,
-                  maxTokens: _settings.maxTokens,
                 );
             if (!ref.mounted) return;
             _removeTrailingThinkTag();
@@ -6827,14 +6942,13 @@ class ChatNotifier extends Notifier<ChatState> {
         return;
       }
       final tools = mcpToolService.getOpenAiToolDefinitions();
-      final nextResult = await _dataSource.createChatCompletionWithToolResults(
-        messages: _prepareMessagesForLLM(),
+      final nextResult = await _createToolResultCompletionWithContextRetry(
+        logLabel: 'tool-result follow-up',
+        buildMessages: (forceCompaction) =>
+            _prepareMessagesForLLM(forceCompaction: forceCompaction),
         toolResults: batchToolResults,
         assistantContent: currentAssistantContent,
         tools: tools,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
       );
 
       if (!ref.mounted) return;
@@ -6908,8 +7022,11 @@ class ChatNotifier extends Notifier<ChatState> {
             executedToolResults: executedToolResults,
             pendingToolCalls: currentToolCalls,
           );
-          final recoveryMessages = _prepareMessagesForLLM()
-            ..add(
+          List<Message> buildRecoveryMessages(bool forceCompaction) {
+            final messages = _prepareMessagesForLLM(
+              forceCompaction: forceCompaction,
+            );
+            messages.add(
               Message(
                 id: 'tool_loop_exhaustion_recovery_${DateTime.now().millisecondsSinceEpoch}',
                 role: MessageRole.user,
@@ -6920,15 +7037,16 @@ class ChatNotifier extends Notifier<ChatState> {
                 timestamp: DateTime.now(),
               ),
             );
-          final recoveryResult = await _dataSource
-              .createChatCompletionWithToolResults(
-                messages: recoveryMessages,
+            return messages;
+          }
+
+          final recoveryResult =
+              await _createToolResultCompletionWithContextRetry(
+                logLabel: 'tool-loop exhaustion recovery',
+                buildMessages: buildRecoveryMessages,
                 toolResults: recoveryToolResults,
                 assistantContent: currentAssistantContent,
                 tools: tools,
-                model: _settings.model,
-                temperature: _settings.temperature,
-                maxTokens: _settings.maxTokens,
               );
           if (!ref.mounted) return;
           _removeTrailingThinkTag();
@@ -6988,42 +7106,9 @@ class ChatNotifier extends Notifier<ChatState> {
 
       if (!ref.mounted) return;
 
-      // Build answer messages that include redacted tool text and attach
-      // screenshot payloads as vision content for multimodal models.
-      final messagesForLLM = _prepareMessagesForLLM();
-      messagesForLLM.addAll(
-        _buildToolResultAnswerMessages(executedToolResults),
+      await _streamToolResultAnswerWithContextRetry(
+        toolResults: executedToolResults,
       );
-
-      // Show a thinking indicator while waiting for the final streaming answer.
-      _appendToLastMessage('<think>');
-
-      // Stream the final answer.
-      final stream = _dataSource.streamChatCompletion(
-        messages: messagesForLLM,
-        model: _settings.model,
-        temperature: _settings.temperature,
-        maxTokens: _settings.maxTokens,
-      );
-
-      var isFirstChunk = true;
-      await for (final chunk in stream) {
-        if (!ref.mounted) return;
-        if (isFirstChunk) {
-          isFirstChunk = false;
-          // Remove the temporary thinking indicator now that real data arrives.
-          _removeTrailingThinkTag();
-          if (state.messages.isNotEmpty &&
-              state.messages.last.content.isNotEmpty) {
-            _appendToLastMessage('\n');
-          }
-        }
-        _appendToLastMessage(chunk);
-      }
-      // If the stream was empty, still clean up the indicator.
-      if (isFirstChunk) {
-        _removeTrailingThinkTag();
-      }
     } else if (!hasTextResponse) {
       appLog('[Tool] Tool loop reached maximum iterations (no text response)');
       if (state.messages.isNotEmpty) {

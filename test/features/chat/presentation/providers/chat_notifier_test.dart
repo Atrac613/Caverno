@@ -459,6 +459,8 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     this.intermediateToolRoleResponseContent = '',
     this.toolRoleResponseContent = '',
     this.finalAnswerChunks = const ['Combined tool summary'],
+    this.failFirstToolResultCompletionWithContextLength = false,
+    this.failFirstFinalAnswerStreamWithContextLength = false,
   });
 
   final List<ToolCallInfo> initialToolCalls;
@@ -466,7 +468,11 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   final String intermediateToolRoleResponseContent;
   final String toolRoleResponseContent;
   final List<String> finalAnswerChunks;
+  final bool failFirstToolResultCompletionWithContextLength;
+  final bool failFirstFinalAnswerStreamWithContextLength;
   final List<List<ToolResultInfo>> toolResultBatches = [];
+  final List<List<Message>> toolResultRequestMessages = [];
+  final List<List<Message>> finalAnswerRequestMessages = [];
   List<Message> finalAnswerMessages = const [];
   var _toolLoopResponseCount = 0;
 
@@ -477,7 +483,15 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async* {
-    finalAnswerMessages = List<Message>.from(messages);
+    final requestMessages = List<Message>.from(messages);
+    finalAnswerRequestMessages.add(requestMessages);
+    finalAnswerMessages = requestMessages;
+    if (failFirstFinalAnswerStreamWithContextLength &&
+        finalAnswerRequestMessages.length == 1) {
+      throw StateError(
+        'This model has a maximum context length of 8192 tokens',
+      );
+    }
     yield* Stream<String>.fromIterable(finalAnswerChunks);
   }
 
@@ -553,8 +567,15 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) async {
+    toolResultRequestMessages.add(List<Message>.from(messages));
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
     _toolLoopResponseCount += 1;
+    if (failFirstToolResultCompletionWithContextLength &&
+        _toolLoopResponseCount == 1) {
+      throw StateError(
+        'This model has a maximum context length of 8192 tokens',
+      );
+    }
     if (_toolLoopResponseCount == 1 && followUpToolCalls.isNotEmpty) {
       return ChatCompletionResult(
         content: intermediateToolRoleResponseContent,
@@ -1518,6 +1539,172 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage retries tool-result follow-up with forced prompt compaction',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': 'README.md'},
+          ),
+        ],
+        failFirstToolResultCompletionWithContextLength: true,
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_file': 'README contents'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final previousMessages = List<Message>.generate(10, (index) {
+          return Message(
+            id: 'history-$index',
+            content:
+                'Previous conversation turn $index with enough detail to summarize.',
+            role: index.isEven ? MessageRole.user : MessageRole.assistant,
+            timestamp: DateTime(2026, 1, 1).add(Duration(minutes: index)),
+          );
+        });
+        toolNotifier.syncConversation(
+          conversationId: null,
+          messages: previousMessages,
+        );
+
+        await toolNotifier.sendMessage('Inspect the README');
+
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(toolDataSource.toolResultRequestMessages, hasLength(2));
+        expect(
+          toolDataSource.toolResultRequestMessages.first.any(
+            (message) => message.id == 'system_compaction',
+          ),
+          isFalse,
+        );
+        expect(
+          toolDataSource.toolResultRequestMessages.last.any(
+            (message) => message.id == 'system_compaction',
+          ),
+          isTrue,
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Combined tool summary'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
+  test(
+    'sendMessage retries final tool-result answer with forced prompt compaction',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': 'README.md'},
+          ),
+        ],
+        failFirstFinalAnswerStreamWithContextLength: true,
+      );
+      final toolService = _FakeMcpToolService(
+        results: const {'read_file': 'README contents'},
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+        final previousMessages = List<Message>.generate(10, (index) {
+          return Message(
+            id: 'history-$index',
+            content:
+                'Previous conversation turn $index with enough detail to summarize.',
+            role: index.isEven ? MessageRole.user : MessageRole.assistant,
+            timestamp: DateTime(2026, 1, 1).add(Duration(minutes: index)),
+          );
+        });
+        toolNotifier.syncConversation(
+          conversationId: null,
+          messages: previousMessages,
+        );
+
+        await toolNotifier.sendMessage('Inspect the README');
+
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(1));
+        expect(toolDataSource.finalAnswerRequestMessages, hasLength(2));
+        expect(
+          toolDataSource.finalAnswerRequestMessages.first.any(
+            (message) => message.id == 'system_compaction',
+          ),
+          isFalse,
+        );
+        expect(
+          toolDataSource.finalAnswerRequestMessages.last.any(
+            (message) => message.id == 'system_compaction',
+          ),
+          isTrue,
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Combined tool summary'),
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          isNot(contains('<think>')),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test('approved input actions record post-action observations', () async {
     for (final caseData in const [
