@@ -392,6 +392,7 @@ class FilesystemTools {
     String? filePattern,
     bool caseSensitive = false,
     int maxResults = _maxSearchResults,
+    int offset = 0,
   }) async {
     final directory = Directory(path);
     if (!directory.existsSync()) {
@@ -399,6 +400,9 @@ class FilesystemTools {
     }
     if (query.trim().isEmpty) {
       return jsonEncode({'error': 'query is required'});
+    }
+    if (offset < 0) {
+      return jsonEncode({'error': 'offset must be greater than or equal to 0'});
     }
 
     try {
@@ -409,6 +413,7 @@ class FilesystemTools {
 
       final matches = <String>[];
       var scannedFiles = 0;
+      var matchedLinesSeen = 0;
 
       await for (final entity in directory.list(
         recursive: true,
@@ -440,7 +445,12 @@ class FilesystemTools {
           final line = lines[index];
           final haystack = caseSensitive ? line : line.toLowerCase();
           if (haystack.contains(normalizedQuery)) {
+            if (matchedLinesSeen < offset) {
+              matchedLinesSeen += 1;
+              continue;
+            }
             matches.add('$relativePath:${index + 1}: $line');
+            matchedLinesSeen += 1;
             if (matches.length >= maxResults) {
               return jsonEncode({
                 'path': directory.absolute.path,
@@ -448,6 +458,8 @@ class FilesystemTools {
                 'matches': matches,
                 'match_count': matches.length,
                 'scanned_files': scannedFiles,
+                if (offset > 0) 'offset': offset,
+                'matches_seen': matchedLinesSeen,
                 'truncated': true,
               });
             }
@@ -461,6 +473,8 @@ class FilesystemTools {
         'matches': matches,
         'match_count': matches.length,
         'scanned_files': scannedFiles,
+        if (offset > 0) 'offset': offset,
+        'matches_seen': matchedLinesSeen,
       });
     } on FileSystemException catch (error) {
       return _buildFilesystemError(

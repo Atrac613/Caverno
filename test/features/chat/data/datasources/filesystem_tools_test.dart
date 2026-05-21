@@ -154,6 +154,34 @@ void main() {
     );
   });
 
+  test('searchFiles paginates matching lines with offset', () async {
+    final libDir = Directory('${tempDir.path}${Platform.pathSeparator}lib')
+      ..createSync(recursive: true);
+    await File(
+      '${libDir.path}${Platform.pathSeparator}matches.txt',
+    ).writeAsString('needle one\nneedle two\nneedle three\nneedle four\n');
+
+    final searchResult =
+        jsonDecode(
+              await FilesystemTools.searchFiles(
+                path: tempDir.path,
+                query: 'needle',
+                maxResults: 2,
+                offset: 1,
+              ),
+            )
+            as Map<String, dynamic>;
+    final searchMatches = (searchResult['matches'] as List<dynamic>)
+        .cast<String>();
+
+    expect(searchMatches, hasLength(2));
+    expect(searchMatches.first, contains('matches.txt:2'));
+    expect(searchMatches.last, contains('matches.txt:3'));
+    expect(searchResult['offset'], 1);
+    expect(searchResult['matches_seen'], 3);
+    expect(searchResult['truncated'], isTrue);
+  });
+
   test('buildWriteDiffPreview returns a unified diff for text changes', () async {
     final targetPath =
         '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}diff_sample.txt';

@@ -793,12 +793,16 @@ class McpToolService {
       final caseSensitive = arguments['case_sensitive'] as bool? ?? false;
       final maxResults = ((arguments['max_results'] as num?)?.toInt() ?? 200)
           .clamp(1, 1000);
+      final offset = ((arguments['offset'] as num?)?.toInt() ?? 0)
+          .clamp(0, 1000000)
+          .toInt();
       final result = await FilesystemTools.searchFiles(
         path: path,
         query: query,
         filePattern: filePattern,
         caseSensitive: caseSensitive,
         maxResults: maxResults,
+        offset: offset,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
@@ -3420,6 +3424,11 @@ class McpToolService {
           'max_results': {
             'type': 'integer',
             'description': 'Maximum number of matching lines to return.',
+          },
+          'offset': {
+            'type': 'integer',
+            'description':
+                'Number of matching lines to skip before returning results.',
           },
         },
         'required': ['query'],
