@@ -66,6 +66,48 @@ void main() {
     expect(updated, 'hello agent');
   });
 
+  test('readFile returns requested line range metadata', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}range_sample.txt';
+    final file = File(targetPath);
+    file.createSync(recursive: true);
+    file.writeAsStringSync('one\ntwo\nthree\nfour\n');
+
+    final readResult =
+        jsonDecode(
+              await FilesystemTools.readFile(
+                path: targetPath,
+                offset: 2,
+                limit: 2,
+              ),
+            )
+            as Map<String, dynamic>;
+
+    expect(readResult['content'], 'two\nthree');
+    expect(readResult['start_line'], 2);
+    expect(readResult['line_count'], 2);
+    expect(readResult['total_lines'], 4);
+    expect(readResult['truncated_by_limit'], isTrue);
+  });
+
+  test('readFile reports empty content for an out-of-range offset', () async {
+    final targetPath =
+        '${tempDir.path}${Platform.pathSeparator}lib${Platform.pathSeparator}short_sample.txt';
+    final file = File(targetPath);
+    file.createSync(recursive: true);
+    file.writeAsStringSync('one\ntwo\n');
+
+    final readResult =
+        jsonDecode(await FilesystemTools.readFile(path: targetPath, offset: 10))
+            as Map<String, dynamic>;
+
+    expect(readResult['content'], '');
+    expect(readResult['start_line'], 10);
+    expect(readResult['line_count'], 0);
+    expect(readResult['total_lines'], 2);
+    expect(readResult.containsKey('truncated'), isFalse);
+  });
+
   test('findFiles and searchFiles return project matches', () async {
     final libDir = Directory('${tempDir.path}${Platform.pathSeparator}lib')
       ..createSync(recursive: true);

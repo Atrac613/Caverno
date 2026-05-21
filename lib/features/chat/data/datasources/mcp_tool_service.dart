@@ -660,9 +660,16 @@ class McpToolService {
       }
       final maxChars = ((arguments['max_chars'] as num?)?.toInt() ?? 120000)
           .clamp(100, 500000);
+      final offset = ((arguments['offset'] as num?)?.toInt() ?? 1)
+          .clamp(1, 1000000000)
+          .toInt();
+      final rawLimit = (arguments['limit'] as num?)?.toInt();
+      final limit = rawLimit?.clamp(1, 20000).toInt();
       final result = await FilesystemTools.readFile(
         path: path,
         maxChars: maxChars,
+        offset: offset,
+        limit: limit,
       );
       return McpToolResult(toolName: name, result: result, isSuccess: true);
     }
@@ -3242,7 +3249,7 @@ class McpToolService {
     'function': {
       'name': 'read_file',
       'description':
-          'Read a UTF-8 text file from the local project. Use this to inspect source files and configs.',
+          'Read a UTF-8 text file from the local project. Use offset and limit to inspect a specific line range in large files.',
       'parameters': {
         'type': 'object',
         'properties': {
@@ -3253,6 +3260,14 @@ class McpToolService {
           'max_chars': {
             'type': 'integer',
             'description': 'Maximum number of characters to return.',
+          },
+          'offset': {
+            'type': 'integer',
+            'description': '1-based start line for range reads.',
+          },
+          'limit': {
+            'type': 'integer',
+            'description': 'Maximum number of lines to return.',
           },
         },
         'required': ['path'],

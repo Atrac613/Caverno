@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 
 class TextFileSnapshot {
   const TextFileSnapshot({
@@ -15,6 +16,22 @@ class TextFileSnapshot {
   final String? error;
 }
 
+class _LineRangeSelection {
+  const _LineRangeSelection({
+    required this.content,
+    required this.startLine,
+    required this.lineCount,
+    required this.totalLines,
+    required this.truncatedByLimit,
+  });
+
+  final String content;
+  final int startLine;
+  final int lineCount;
+  final int totalLines;
+  final bool truncatedByLimit;
+}
+
 class FilesystemTools {
   FilesystemTools._();
 
@@ -27,6 +44,15 @@ class FilesystemTools {
   static const int _maxLcsCells = 60000;
 
   static final RegExp _windowsDriveLetterPath = RegExp(r'^[A-Za-z]:[\\/]');
+  static const Set<String> _blockedReadPaths = {
+    '/dev/null',
+    '/dev/random',
+    '/dev/stdin',
+    '/dev/stdout',
+    '/dev/stderr',
+    '/dev/urandom',
+    '/dev/zero',
+  };
 
   static bool get isDesktopPlatform =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
@@ -53,6 +79,11 @@ class FilesystemTools {
     return File.fromUri(
       Directory(normalizedDefaultRoot).uri.resolve(trimmed),
     ).absolute.path;
+  }
+
+  static bool _isBlockedReadPath(String path) {
+    if (Platform.isWindows) return false;
+    return _blockedReadPaths.contains(path);
   }
 
   static Future<String> listDirectory({
@@ -113,22 +144,64 @@ class FilesystemTools {
   static Future<String> readFile({
     required String path,
     int maxChars = _maxReadChars,
+    int offset = 1,
+    int? limit,
   }) async {
     final file = File(path);
     if (!file.existsSync()) {
       return jsonEncode({'error': 'File does not exist: $path'});
     }
+    if (offset < 1) {
+      return jsonEncode({'error': 'offset must be greater than or equal to 1'});
+    }
+    if (limit != null && limit < 1) {
+      return jsonEncode({'error': 'limit must be greater than or equal to 1'});
+    }
+
+    final absolutePath = file.absolute.path;
+    if (_isBlockedReadPath(absolutePath)) {
+      return jsonEncode({
+        'error': 'Special device files are not supported by read_file.',
+        'path': absolutePath,
+      });
+    }
 
     try {
       final rawBytes = await file.readAsBytes();
       final content = utf8.decode(rawBytes, allowMalformed: false);
-      final truncated = content.length > maxChars;
-      return jsonEncode({
+      final lineRangeRequested = offset > 1 || limit != null;
+      final totalLines = content.isEmpty
+          ? 0
+          : const LineSplitter().convert(content).length;
+      final selectedContent = lineRangeRequested
+          ? _selectLineRange(content: content, offset: offset, limit: limit)
+          : _LineRangeSelection(
+              content: content,
+              startLine: content.isEmpty ? 0 : 1,
+              lineCount: totalLines,
+              totalLines: totalLines,
+              truncatedByLimit: false,
+            );
+      final truncatedByChars = selectedContent.content.length > maxChars;
+      final returnedContent = truncatedByChars
+          ? selectedContent.content.substring(0, maxChars)
+          : selectedContent.content;
+      final response = <String, dynamic>{
         'path': file.absolute.path,
-        'content': truncated ? content.substring(0, maxChars) : content,
+        'content': returnedContent,
         'size_bytes': rawBytes.length,
-        if (truncated) 'truncated': true,
-      });
+        'start_line': selectedContent.startLine,
+        'line_count': selectedContent.lineCount,
+        'total_lines': selectedContent.totalLines,
+        if (offset > 1) 'offset': offset,
+        'limit': limit,
+        if (truncatedByChars || selectedContent.truncatedByLimit)
+          'truncated': true,
+        if (truncatedByChars) 'truncated_by_chars': true,
+        if (selectedContent.truncatedByLimit) 'truncated_by_limit': true,
+      };
+      response.removeWhere((_, value) => value == null);
+      return jsonEncode(response);
     } on FormatException {
       return jsonEncode({
         'error':
@@ -142,6 +215,48 @@ class FilesystemTools {
         error: error,
       );
     }
+  }
+
+  static _LineRangeSelection _selectLineRange({
+    required String content,
+    required int offset,
+    required int? limit,
+  }) {
+    if (content.isEmpty) {
+      return const _LineRangeSelection(
+        content: '',
+        startLine: 0,
+        lineCount: 0,
+        totalLines: 0,
+        truncatedByLimit: false,
+      );
+    }
+
+    final lines = const LineSplitter().convert(content);
+    final totalLines = lines.length;
+    if (offset > totalLines) {
+      return _LineRangeSelection(
+        content: '',
+        startLine: offset,
+        lineCount: 0,
+        totalLines: totalLines,
+        truncatedByLimit: false,
+      );
+    }
+
+    final startIndex = offset - 1;
+    final endIndex = limit == null
+        ? totalLines
+        : math.min(totalLines, startIndex + limit);
+    final selectedLines = lines.sublist(startIndex, endIndex);
+
+    return _LineRangeSelection(
+      content: selectedLines.join('\n'),
+      startLine: offset,
+      lineCount: selectedLines.length,
+      totalLines: totalLines,
+      truncatedByLimit: endIndex < totalLines,
+    );
   }
 
   static Future<String> writeFile({
