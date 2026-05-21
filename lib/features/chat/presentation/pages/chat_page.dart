@@ -5830,21 +5830,24 @@ class _ChatPageState extends ConsumerState<ChatPage>
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 24,
                                   ),
-                                  child: CheckboxListTile(
-                                    value: unsafeArmed,
-                                    onChanged: (value) {
-                                      setSheetState(() {
-                                        unsafeArmed = value ?? false;
-                                      });
-                                    },
-                                    controlAffinity:
-                                        ListTileControlAffinity.leading,
-                                    contentPadding: EdgeInsets.zero,
-                                    title: const Text(
-                                      'Arm this Computer Use action',
-                                    ),
-                                    subtitle: const Text(
-                                      'I understand this can control the Mac and should run now.',
+                                  child: Material(
+                                    color: Colors.transparent,
+                                    child: CheckboxListTile(
+                                      value: unsafeArmed,
+                                      onChanged: (value) {
+                                        setSheetState(() {
+                                          unsafeArmed = value ?? false;
+                                        });
+                                      },
+                                      controlAffinity:
+                                          ListTileControlAffinity.leading,
+                                      contentPadding: EdgeInsets.zero,
+                                      title: const Text(
+                                        'Arm this Computer Use action',
+                                      ),
+                                      subtitle: const Text(
+                                        'I understand this can control the Mac and should run now.',
+                                      ),
                                     ),
                                   ),
                                 ),
