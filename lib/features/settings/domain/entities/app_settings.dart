@@ -13,6 +13,38 @@ enum McpServerType { http, stdio }
 
 enum McpServerTrustState { pending, trusted, blocked }
 
+enum LocalCommandPermissionAction { allow, deny, ask }
+
+enum LocalCommandPermissionMatch { exact, prefix }
+
+@freezed
+abstract class LocalCommandPermissionRule with _$LocalCommandPermissionRule {
+  const LocalCommandPermissionRule._();
+
+  const factory LocalCommandPermissionRule({
+    required String id,
+    @Default(true) bool enabled,
+    @JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask)
+    @Default(LocalCommandPermissionAction.ask)
+    LocalCommandPermissionAction action,
+    @JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact)
+    @Default(LocalCommandPermissionMatch.exact)
+    LocalCommandPermissionMatch match,
+    @Default('') String pattern,
+    @Default('') String workingDirectory,
+    DateTime? createdAt,
+  }) = _LocalCommandPermissionRule;
+
+  factory LocalCommandPermissionRule.fromJson(Map<String, dynamic> json) =>
+      _$LocalCommandPermissionRuleFromJson(json);
+
+  String get normalizedPattern => pattern.trim();
+
+  String get normalizedWorkingDirectory => workingDirectory.trim();
+
+  bool get isUsable => enabled && normalizedPattern.isNotEmpty;
+}
+
 @freezed
 abstract class RoutineComputerUseActionAllowlistEntry
     with _$RoutineComputerUseActionAllowlistEntry {
@@ -147,6 +179,8 @@ abstract class AppSettings with _$AppSettings {
     @Default(false) bool showMemoryUpdates,
     @Default(false) bool demoMode,
     @Default(<String>[]) List<String> disabledBuiltInTools,
+    @Default(<LocalCommandPermissionRule>[])
+    List<LocalCommandPermissionRule> localCommandPermissionRules,
     @Default(<RoutineComputerUseActionAllowlistEntry>[])
     List<RoutineComputerUseActionAllowlistEntry>
     routineComputerUseActionAllowlist,
@@ -173,6 +207,11 @@ abstract class AppSettings with _$AppSettings {
 
   Set<String> get disabledBuiltInToolsSet =>
       Set<String>.from(disabledBuiltInTools);
+
+  List<LocalCommandPermissionRule> get enabledLocalCommandPermissionRules =>
+      localCommandPermissionRules
+          .where((rule) => rule.enabled && rule.normalizedPattern.isNotEmpty)
+          .toList(growable: false);
 
   List<RoutineComputerUseActionAllowlistEntry>
   get enabledRoutineComputerUseActionAllowlist =>

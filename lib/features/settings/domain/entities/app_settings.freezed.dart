@@ -13,6 +13,287 @@ part of 'app_settings.dart';
 T _$identity<T>(T value) => value;
 
 /// @nodoc
+mixin _$LocalCommandPermissionRule {
+
+ String get id; bool get enabled;@JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask) LocalCommandPermissionAction get action;@JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact) LocalCommandPermissionMatch get match; String get pattern; String get workingDirectory; DateTime? get createdAt;
+/// Create a copy of LocalCommandPermissionRule
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$LocalCommandPermissionRuleCopyWith<LocalCommandPermissionRule> get copyWith => _$LocalCommandPermissionRuleCopyWithImpl<LocalCommandPermissionRule>(this as LocalCommandPermissionRule, _$identity);
+
+  /// Serializes this LocalCommandPermissionRule to a JSON map.
+  Map<String, dynamic> toJson();
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is LocalCommandPermissionRule&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.action, action) || other.action == action)&&(identical(other.match, match) || other.match == match)&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.workingDirectory, workingDirectory) || other.workingDirectory == workingDirectory)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,enabled,action,match,pattern,workingDirectory,createdAt);
+
+@override
+String toString() {
+  return 'LocalCommandPermissionRule(id: $id, enabled: $enabled, action: $action, match: $match, pattern: $pattern, workingDirectory: $workingDirectory, createdAt: $createdAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $LocalCommandPermissionRuleCopyWith<$Res>  {
+  factory $LocalCommandPermissionRuleCopyWith(LocalCommandPermissionRule value, $Res Function(LocalCommandPermissionRule) _then) = _$LocalCommandPermissionRuleCopyWithImpl;
+@useResult
+$Res call({
+ String id, bool enabled,@JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask) LocalCommandPermissionAction action,@JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact) LocalCommandPermissionMatch match, String pattern, String workingDirectory, DateTime? createdAt
+});
+
+
+
+
+}
+/// @nodoc
+class _$LocalCommandPermissionRuleCopyWithImpl<$Res>
+    implements $LocalCommandPermissionRuleCopyWith<$Res> {
+  _$LocalCommandPermissionRuleCopyWithImpl(this._self, this._then);
+
+  final LocalCommandPermissionRule _self;
+  final $Res Function(LocalCommandPermissionRule) _then;
+
+/// Create a copy of LocalCommandPermissionRule
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? id = null,Object? enabled = null,Object? action = null,Object? match = null,Object? pattern = null,Object? workingDirectory = null,Object? createdAt = freezed,}) {
+  return _then(_self.copyWith(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
+as LocalCommandPermissionAction,match: null == match ? _self.match : match // ignore: cast_nullable_to_non_nullable
+as LocalCommandPermissionMatch,pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
+as String,workingDirectory: null == workingDirectory ? _self.workingDirectory : workingDirectory // ignore: cast_nullable_to_non_nullable
+as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+}
+
+
+/// Adds pattern-matching-related methods to [LocalCommandPermissionRule].
+extension LocalCommandPermissionRulePatterns on LocalCommandPermissionRule {
+/// A variant of `map` that fallback to returning `orElse`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeMap<TResult extends Object?>(TResult Function( _LocalCommandPermissionRule value)?  $default,{required TResult orElse(),}){
+final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule() when $default != null:
+return $default(_that);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// Callbacks receives the raw object, upcasted.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case final Subclass2 value:
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult map<TResult extends Object?>(TResult Function( _LocalCommandPermissionRule value)  $default,){
+final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule():
+return $default(_that);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `map` that fallback to returning `null`.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case final Subclass value:
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? mapOrNull<TResult extends Object?>(TResult? Function( _LocalCommandPermissionRule value)?  $default,){
+final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule() when $default != null:
+return $default(_that);case _:
+  return null;
+
+}
+}
+/// A variant of `when` that fallback to an `orElse` callback.
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return orElse();
+/// }
+/// ```
+
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String id,  bool enabled, @JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask)  LocalCommandPermissionAction action, @JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact)  LocalCommandPermissionMatch match,  String pattern,  String workingDirectory,  DateTime? createdAt)?  $default,{required TResult orElse(),}) {final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule() when $default != null:
+return $default(_that.id,_that.enabled,_that.action,_that.match,_that.pattern,_that.workingDirectory,_that.createdAt);case _:
+  return orElse();
+
+}
+}
+/// A `switch`-like method, using callbacks.
+///
+/// As opposed to `map`, this offers destructuring.
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case Subclass2(:final field2):
+///     return ...;
+/// }
+/// ```
+
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String id,  bool enabled, @JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask)  LocalCommandPermissionAction action, @JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact)  LocalCommandPermissionMatch match,  String pattern,  String workingDirectory,  DateTime? createdAt)  $default,) {final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule():
+return $default(_that.id,_that.enabled,_that.action,_that.match,_that.pattern,_that.workingDirectory,_that.createdAt);case _:
+  throw StateError('Unexpected subclass');
+
+}
+}
+/// A variant of `when` that fallback to returning `null`
+///
+/// It is equivalent to doing:
+/// ```dart
+/// switch (sealedClass) {
+///   case Subclass(:final field):
+///     return ...;
+///   case _:
+///     return null;
+/// }
+/// ```
+
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String id,  bool enabled, @JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask)  LocalCommandPermissionAction action, @JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact)  LocalCommandPermissionMatch match,  String pattern,  String workingDirectory,  DateTime? createdAt)?  $default,) {final _that = this;
+switch (_that) {
+case _LocalCommandPermissionRule() when $default != null:
+return $default(_that.id,_that.enabled,_that.action,_that.match,_that.pattern,_that.workingDirectory,_that.createdAt);case _:
+  return null;
+
+}
+}
+
+}
+
+/// @nodoc
+@JsonSerializable()
+
+class _LocalCommandPermissionRule extends LocalCommandPermissionRule {
+  const _LocalCommandPermissionRule({required this.id, this.enabled = true, @JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask) this.action = LocalCommandPermissionAction.ask, @JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact) this.match = LocalCommandPermissionMatch.exact, this.pattern = '', this.workingDirectory = '', this.createdAt}): super._();
+  factory _LocalCommandPermissionRule.fromJson(Map<String, dynamic> json) => _$LocalCommandPermissionRuleFromJson(json);
+
+@override final  String id;
+@override@JsonKey() final  bool enabled;
+@override@JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask) final  LocalCommandPermissionAction action;
+@override@JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact) final  LocalCommandPermissionMatch match;
+@override@JsonKey() final  String pattern;
+@override@JsonKey() final  String workingDirectory;
+@override final  DateTime? createdAt;
+
+/// Create a copy of LocalCommandPermissionRule
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$LocalCommandPermissionRuleCopyWith<_LocalCommandPermissionRule> get copyWith => __$LocalCommandPermissionRuleCopyWithImpl<_LocalCommandPermissionRule>(this, _$identity);
+
+@override
+Map<String, dynamic> toJson() {
+  return _$LocalCommandPermissionRuleToJson(this, );
+}
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _LocalCommandPermissionRule&&(identical(other.id, id) || other.id == id)&&(identical(other.enabled, enabled) || other.enabled == enabled)&&(identical(other.action, action) || other.action == action)&&(identical(other.match, match) || other.match == match)&&(identical(other.pattern, pattern) || other.pattern == pattern)&&(identical(other.workingDirectory, workingDirectory) || other.workingDirectory == workingDirectory)&&(identical(other.createdAt, createdAt) || other.createdAt == createdAt));
+}
+
+@JsonKey(includeFromJson: false, includeToJson: false)
+@override
+int get hashCode => Object.hash(runtimeType,id,enabled,action,match,pattern,workingDirectory,createdAt);
+
+@override
+String toString() {
+  return 'LocalCommandPermissionRule(id: $id, enabled: $enabled, action: $action, match: $match, pattern: $pattern, workingDirectory: $workingDirectory, createdAt: $createdAt)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$LocalCommandPermissionRuleCopyWith<$Res> implements $LocalCommandPermissionRuleCopyWith<$Res> {
+  factory _$LocalCommandPermissionRuleCopyWith(_LocalCommandPermissionRule value, $Res Function(_LocalCommandPermissionRule) _then) = __$LocalCommandPermissionRuleCopyWithImpl;
+@override @useResult
+$Res call({
+ String id, bool enabled,@JsonKey(unknownEnumValue: LocalCommandPermissionAction.ask) LocalCommandPermissionAction action,@JsonKey(unknownEnumValue: LocalCommandPermissionMatch.exact) LocalCommandPermissionMatch match, String pattern, String workingDirectory, DateTime? createdAt
+});
+
+
+
+
+}
+/// @nodoc
+class __$LocalCommandPermissionRuleCopyWithImpl<$Res>
+    implements _$LocalCommandPermissionRuleCopyWith<$Res> {
+  __$LocalCommandPermissionRuleCopyWithImpl(this._self, this._then);
+
+  final _LocalCommandPermissionRule _self;
+  final $Res Function(_LocalCommandPermissionRule) _then;
+
+/// Create a copy of LocalCommandPermissionRule
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? id = null,Object? enabled = null,Object? action = null,Object? match = null,Object? pattern = null,Object? workingDirectory = null,Object? createdAt = freezed,}) {
+  return _then(_LocalCommandPermissionRule(
+id: null == id ? _self.id : id // ignore: cast_nullable_to_non_nullable
+as String,enabled: null == enabled ? _self.enabled : enabled // ignore: cast_nullable_to_non_nullable
+as bool,action: null == action ? _self.action : action // ignore: cast_nullable_to_non_nullable
+as LocalCommandPermissionAction,match: null == match ? _self.match : match // ignore: cast_nullable_to_non_nullable
+as LocalCommandPermissionMatch,pattern: null == pattern ? _self.pattern : pattern // ignore: cast_nullable_to_non_nullable
+as String,workingDirectory: null == workingDirectory ? _self.workingDirectory : workingDirectory // ignore: cast_nullable_to_non_nullable
+as String,createdAt: freezed == createdAt ? _self.createdAt : createdAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,
+  ));
+}
+
+
+}
+
+
+/// @nodoc
 mixin _$RoutineComputerUseActionAllowlistEntry {
 
  String get id; bool get enabled; String get label; String get toolName; String get targetLabelContains; String get targetRole; String get targetAction; String get targetRisk; String get appNameContains; String get appBundleId; String get windowTitleContains; String get urlHost; String get urlStartsWith; String get exactText;
@@ -606,7 +887,7 @@ mixin _$AppSettings {
 
  String get baseUrl; String get model; String get apiKey; double get temperature; int get maxTokens; String get googleChatWebhookUrl; String get mcpUrl; List<String> get mcpUrls; List<McpServerConfig> get mcpServers; bool get mcpEnabled;// Voice settings
  bool get ttsEnabled; bool get autoReadEnabled; double get speechRate;// Voice mode (Whisper + VOICEVOX)
- bool get voiceModeAutoStop; String get whisperUrl; String get voicevoxUrl; int get voicevoxSpeakerId; String get language;@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode get assistantMode; bool get confirmFileMutations; bool get confirmLocalCommands; bool get confirmGitWrites; bool get showMemoryUpdates; bool get demoMode; List<String> get disabledBuiltInTools; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;
+ bool get voiceModeAutoStop; String get whisperUrl; String get voicevoxUrl; int get voicevoxSpeakerId; String get language;@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode get assistantMode; bool get confirmFileMutations; bool get confirmLocalCommands; bool get confirmGitWrites; bool get showMemoryUpdates; bool get demoMode; List<String> get disabledBuiltInTools; List<LocalCommandPermissionRule> get localCommandPermissionRules; List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist;
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -619,16 +900,16 @@ $AppSettingsCopyWith<AppSettings> get copyWith => _$AppSettingsCopyWithImpl<AppS
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other.mcpUrls, mcpUrls)&&const DeepCollectionEquality().equals(other.mcpServers, mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&const DeepCollectionEquality().equals(other.disabledBuiltInTools, disabledBuiltInTools)&&const DeepCollectionEquality().equals(other.localCommandPermissionRules, localCommandPermissionRules)&&const DeepCollectionEquality().equals(other.routineComputerUseActionAllowlist, routineComputerUseActionAllowlist));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,baseUrl,model,apiKey,temperature,maxTokens,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,showMemoryUpdates,demoMode,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist)]);
+int get hashCode => Object.hashAll([runtimeType,baseUrl,model,apiKey,temperature,maxTokens,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(mcpUrls),const DeepCollectionEquality().hash(mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,showMemoryUpdates,demoMode,const DeepCollectionEquality().hash(disabledBuiltInTools),const DeepCollectionEquality().hash(localCommandPermissionRules),const DeepCollectionEquality().hash(routineComputerUseActionAllowlist)]);
 
 @override
 String toString() {
-  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, showMemoryUpdates: $showMemoryUpdates, demoMode: $demoMode, disabledBuiltInTools: $disabledBuiltInTools, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
+  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, showMemoryUpdates: $showMemoryUpdates, demoMode: $demoMode, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
 }
 
 
@@ -639,7 +920,7 @@ abstract mixin class $AppSettingsCopyWith<$Res>  {
   factory $AppSettingsCopyWith(AppSettings value, $Res Function(AppSettings) _then) = _$AppSettingsCopyWithImpl;
 @useResult
 $Res call({
- String baseUrl, String model, String apiKey, double temperature, int maxTokens, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool showMemoryUpdates, bool demoMode, List<String> disabledBuiltInTools, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
+ String baseUrl, String model, String apiKey, double temperature, int maxTokens, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool showMemoryUpdates, bool demoMode, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
 });
 
 
@@ -656,7 +937,7 @@ class _$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? showMemoryUpdates = null,Object? demoMode = null,Object? disabledBuiltInTools = null,Object? routineComputerUseActionAllowlist = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? showMemoryUpdates = null,Object? demoMode = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,}) {
   return _then(_self.copyWith(
 baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
@@ -683,7 +964,8 @@ as bool,confirmGitWrites: null == confirmGitWrites ? _self.confirmGitWrites : co
 as bool,showMemoryUpdates: null == showMemoryUpdates ? _self.showMemoryUpdates : showMemoryUpdates // ignore: cast_nullable_to_non_nullable
 as bool,demoMode: null == demoMode ? _self.demoMode : demoMode // ignore: cast_nullable_to_non_nullable
 as bool,disabledBuiltInTools: null == disabledBuiltInTools ? _self.disabledBuiltInTools : disabledBuiltInTools // ignore: cast_nullable_to_non_nullable
-as List<String>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self.routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
+as List<String>,localCommandPermissionRules: null == localCommandPermissionRules ? _self.localCommandPermissionRules : localCommandPermissionRules // ignore: cast_nullable_to_non_nullable
+as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self.routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
 as List<RoutineComputerUseActionAllowlistEntry>,
   ));
 }
@@ -769,10 +1051,10 @@ return $default(_that);case _:
 /// }
 /// ```
 
-@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,{required TResult orElse(),}) {final _that = this;
+@optionalTypeArgs TResult maybeWhen<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,{required TResult orElse(),}) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
   return orElse();
 
 }
@@ -790,10 +1072,10 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 /// }
 /// ```
 
-@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)  $default,) {final _that = this;
+@optionalTypeArgs TResult when<TResult extends Object?>(TResult Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings():
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
   throw StateError('Unexpected subclass');
 
 }
@@ -810,10 +1092,10 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 /// }
 /// ```
 
-@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,) {final _that = this;
+@optionalTypeArgs TResult? whenOrNull<TResult extends Object?>(TResult? Function( String baseUrl,  String model,  String apiKey,  double temperature,  int maxTokens,  String googleChatWebhookUrl,  String mcpUrl,  List<String> mcpUrls,  List<McpServerConfig> mcpServers,  bool mcpEnabled,  bool ttsEnabled,  bool autoReadEnabled,  double speechRate,  bool voiceModeAutoStop,  String whisperUrl,  String voicevoxUrl,  int voicevoxSpeakerId,  String language, @JsonKey(unknownEnumValue: AssistantMode.general)  AssistantMode assistantMode,  bool confirmFileMutations,  bool confirmLocalCommands,  bool confirmGitWrites,  bool showMemoryUpdates,  bool demoMode,  List<String> disabledBuiltInTools,  List<LocalCommandPermissionRule> localCommandPermissionRules,  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist)?  $default,) {final _that = this;
 switch (_that) {
 case _AppSettings() when $default != null:
-return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.routineComputerUseActionAllowlist);case _:
+return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.maxTokens,_that.googleChatWebhookUrl,_that.mcpUrl,_that.mcpUrls,_that.mcpServers,_that.mcpEnabled,_that.ttsEnabled,_that.autoReadEnabled,_that.speechRate,_that.voiceModeAutoStop,_that.whisperUrl,_that.voicevoxUrl,_that.voicevoxSpeakerId,_that.language,_that.assistantMode,_that.confirmFileMutations,_that.confirmLocalCommands,_that.confirmGitWrites,_that.showMemoryUpdates,_that.demoMode,_that.disabledBuiltInTools,_that.localCommandPermissionRules,_that.routineComputerUseActionAllowlist);case _:
   return null;
 
 }
@@ -825,7 +1107,7 @@ return $default(_that.baseUrl,_that.model,_that.apiKey,_that.temperature,_that.m
 @JsonSerializable()
 
 class _AppSettings extends AppSettings {
-  const _AppSettings({required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.showMemoryUpdates = false, this.demoMode = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[]}): _mcpUrls = mcpUrls,_mcpServers = mcpServers,_disabledBuiltInTools = disabledBuiltInTools,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,super._();
+  const _AppSettings({required this.baseUrl, required this.model, required this.apiKey, required this.temperature, required this.maxTokens, this.googleChatWebhookUrl = '', this.mcpUrl = '', final  List<String> mcpUrls = const <String>[], final  List<McpServerConfig> mcpServers = const <McpServerConfig>[], this.mcpEnabled = false, this.ttsEnabled = true, this.autoReadEnabled = false, this.speechRate = 0.5, this.voiceModeAutoStop = true, this.whisperUrl = 'http://localhost:8080', this.voicevoxUrl = 'http://localhost:50021', this.voicevoxSpeakerId = 0, this.language = 'system', @JsonKey(unknownEnumValue: AssistantMode.general) this.assistantMode = AssistantMode.general, this.confirmFileMutations = true, this.confirmLocalCommands = true, this.confirmGitWrites = true, this.showMemoryUpdates = false, this.demoMode = false, final  List<String> disabledBuiltInTools = const <String>[], final  List<LocalCommandPermissionRule> localCommandPermissionRules = const <LocalCommandPermissionRule>[], final  List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist = const <RoutineComputerUseActionAllowlistEntry>[]}): _mcpUrls = mcpUrls,_mcpServers = mcpServers,_disabledBuiltInTools = disabledBuiltInTools,_localCommandPermissionRules = localCommandPermissionRules,_routineComputerUseActionAllowlist = routineComputerUseActionAllowlist,super._();
   factory _AppSettings.fromJson(Map<String, dynamic> json) => _$AppSettingsFromJson(json);
 
 @override final  String baseUrl;
@@ -873,6 +1155,13 @@ class _AppSettings extends AppSettings {
   return EqualUnmodifiableListView(_disabledBuiltInTools);
 }
 
+ final  List<LocalCommandPermissionRule> _localCommandPermissionRules;
+@override@JsonKey() List<LocalCommandPermissionRule> get localCommandPermissionRules {
+  if (_localCommandPermissionRules is EqualUnmodifiableListView) return _localCommandPermissionRules;
+  // ignore: implicit_dynamic_type
+  return EqualUnmodifiableListView(_localCommandPermissionRules);
+}
+
  final  List<RoutineComputerUseActionAllowlistEntry> _routineComputerUseActionAllowlist;
 @override@JsonKey() List<RoutineComputerUseActionAllowlistEntry> get routineComputerUseActionAllowlist {
   if (_routineComputerUseActionAllowlist is EqualUnmodifiableListView) return _routineComputerUseActionAllowlist;
@@ -894,16 +1183,16 @@ Map<String, dynamic> toJson() {
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AppSettings&&(identical(other.baseUrl, baseUrl) || other.baseUrl == baseUrl)&&(identical(other.model, model) || other.model == model)&&(identical(other.apiKey, apiKey) || other.apiKey == apiKey)&&(identical(other.temperature, temperature) || other.temperature == temperature)&&(identical(other.maxTokens, maxTokens) || other.maxTokens == maxTokens)&&(identical(other.googleChatWebhookUrl, googleChatWebhookUrl) || other.googleChatWebhookUrl == googleChatWebhookUrl)&&(identical(other.mcpUrl, mcpUrl) || other.mcpUrl == mcpUrl)&&const DeepCollectionEquality().equals(other._mcpUrls, _mcpUrls)&&const DeepCollectionEquality().equals(other._mcpServers, _mcpServers)&&(identical(other.mcpEnabled, mcpEnabled) || other.mcpEnabled == mcpEnabled)&&(identical(other.ttsEnabled, ttsEnabled) || other.ttsEnabled == ttsEnabled)&&(identical(other.autoReadEnabled, autoReadEnabled) || other.autoReadEnabled == autoReadEnabled)&&(identical(other.speechRate, speechRate) || other.speechRate == speechRate)&&(identical(other.voiceModeAutoStop, voiceModeAutoStop) || other.voiceModeAutoStop == voiceModeAutoStop)&&(identical(other.whisperUrl, whisperUrl) || other.whisperUrl == whisperUrl)&&(identical(other.voicevoxUrl, voicevoxUrl) || other.voicevoxUrl == voicevoxUrl)&&(identical(other.voicevoxSpeakerId, voicevoxSpeakerId) || other.voicevoxSpeakerId == voicevoxSpeakerId)&&(identical(other.language, language) || other.language == language)&&(identical(other.assistantMode, assistantMode) || other.assistantMode == assistantMode)&&(identical(other.confirmFileMutations, confirmFileMutations) || other.confirmFileMutations == confirmFileMutations)&&(identical(other.confirmLocalCommands, confirmLocalCommands) || other.confirmLocalCommands == confirmLocalCommands)&&(identical(other.confirmGitWrites, confirmGitWrites) || other.confirmGitWrites == confirmGitWrites)&&(identical(other.showMemoryUpdates, showMemoryUpdates) || other.showMemoryUpdates == showMemoryUpdates)&&(identical(other.demoMode, demoMode) || other.demoMode == demoMode)&&const DeepCollectionEquality().equals(other._disabledBuiltInTools, _disabledBuiltInTools)&&const DeepCollectionEquality().equals(other._localCommandPermissionRules, _localCommandPermissionRules)&&const DeepCollectionEquality().equals(other._routineComputerUseActionAllowlist, _routineComputerUseActionAllowlist));
 }
 
 @JsonKey(includeFromJson: false, includeToJson: false)
 @override
-int get hashCode => Object.hashAll([runtimeType,baseUrl,model,apiKey,temperature,maxTokens,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,showMemoryUpdates,demoMode,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist)]);
+int get hashCode => Object.hashAll([runtimeType,baseUrl,model,apiKey,temperature,maxTokens,googleChatWebhookUrl,mcpUrl,const DeepCollectionEquality().hash(_mcpUrls),const DeepCollectionEquality().hash(_mcpServers),mcpEnabled,ttsEnabled,autoReadEnabled,speechRate,voiceModeAutoStop,whisperUrl,voicevoxUrl,voicevoxSpeakerId,language,assistantMode,confirmFileMutations,confirmLocalCommands,confirmGitWrites,showMemoryUpdates,demoMode,const DeepCollectionEquality().hash(_disabledBuiltInTools),const DeepCollectionEquality().hash(_localCommandPermissionRules),const DeepCollectionEquality().hash(_routineComputerUseActionAllowlist)]);
 
 @override
 String toString() {
-  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, showMemoryUpdates: $showMemoryUpdates, demoMode: $demoMode, disabledBuiltInTools: $disabledBuiltInTools, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
+  return 'AppSettings(baseUrl: $baseUrl, model: $model, apiKey: $apiKey, temperature: $temperature, maxTokens: $maxTokens, googleChatWebhookUrl: $googleChatWebhookUrl, mcpUrl: $mcpUrl, mcpUrls: $mcpUrls, mcpServers: $mcpServers, mcpEnabled: $mcpEnabled, ttsEnabled: $ttsEnabled, autoReadEnabled: $autoReadEnabled, speechRate: $speechRate, voiceModeAutoStop: $voiceModeAutoStop, whisperUrl: $whisperUrl, voicevoxUrl: $voicevoxUrl, voicevoxSpeakerId: $voicevoxSpeakerId, language: $language, assistantMode: $assistantMode, confirmFileMutations: $confirmFileMutations, confirmLocalCommands: $confirmLocalCommands, confirmGitWrites: $confirmGitWrites, showMemoryUpdates: $showMemoryUpdates, demoMode: $demoMode, disabledBuiltInTools: $disabledBuiltInTools, localCommandPermissionRules: $localCommandPermissionRules, routineComputerUseActionAllowlist: $routineComputerUseActionAllowlist)';
 }
 
 
@@ -914,7 +1203,7 @@ abstract mixin class _$AppSettingsCopyWith<$Res> implements $AppSettingsCopyWith
   factory _$AppSettingsCopyWith(_AppSettings value, $Res Function(_AppSettings) _then) = __$AppSettingsCopyWithImpl;
 @override @useResult
 $Res call({
- String baseUrl, String model, String apiKey, double temperature, int maxTokens, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool showMemoryUpdates, bool demoMode, List<String> disabledBuiltInTools, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
+ String baseUrl, String model, String apiKey, double temperature, int maxTokens, String googleChatWebhookUrl, String mcpUrl, List<String> mcpUrls, List<McpServerConfig> mcpServers, bool mcpEnabled, bool ttsEnabled, bool autoReadEnabled, double speechRate, bool voiceModeAutoStop, String whisperUrl, String voicevoxUrl, int voicevoxSpeakerId, String language,@JsonKey(unknownEnumValue: AssistantMode.general) AssistantMode assistantMode, bool confirmFileMutations, bool confirmLocalCommands, bool confirmGitWrites, bool showMemoryUpdates, bool demoMode, List<String> disabledBuiltInTools, List<LocalCommandPermissionRule> localCommandPermissionRules, List<RoutineComputerUseActionAllowlistEntry> routineComputerUseActionAllowlist
 });
 
 
@@ -931,7 +1220,7 @@ class __$AppSettingsCopyWithImpl<$Res>
 
 /// Create a copy of AppSettings
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? showMemoryUpdates = null,Object? demoMode = null,Object? disabledBuiltInTools = null,Object? routineComputerUseActionAllowlist = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? baseUrl = null,Object? model = null,Object? apiKey = null,Object? temperature = null,Object? maxTokens = null,Object? googleChatWebhookUrl = null,Object? mcpUrl = null,Object? mcpUrls = null,Object? mcpServers = null,Object? mcpEnabled = null,Object? ttsEnabled = null,Object? autoReadEnabled = null,Object? speechRate = null,Object? voiceModeAutoStop = null,Object? whisperUrl = null,Object? voicevoxUrl = null,Object? voicevoxSpeakerId = null,Object? language = null,Object? assistantMode = null,Object? confirmFileMutations = null,Object? confirmLocalCommands = null,Object? confirmGitWrites = null,Object? showMemoryUpdates = null,Object? demoMode = null,Object? disabledBuiltInTools = null,Object? localCommandPermissionRules = null,Object? routineComputerUseActionAllowlist = null,}) {
   return _then(_AppSettings(
 baseUrl: null == baseUrl ? _self.baseUrl : baseUrl // ignore: cast_nullable_to_non_nullable
 as String,model: null == model ? _self.model : model // ignore: cast_nullable_to_non_nullable
@@ -958,7 +1247,8 @@ as bool,confirmGitWrites: null == confirmGitWrites ? _self.confirmGitWrites : co
 as bool,showMemoryUpdates: null == showMemoryUpdates ? _self.showMemoryUpdates : showMemoryUpdates // ignore: cast_nullable_to_non_nullable
 as bool,demoMode: null == demoMode ? _self.demoMode : demoMode // ignore: cast_nullable_to_non_nullable
 as bool,disabledBuiltInTools: null == disabledBuiltInTools ? _self._disabledBuiltInTools : disabledBuiltInTools // ignore: cast_nullable_to_non_nullable
-as List<String>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self._routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
+as List<String>,localCommandPermissionRules: null == localCommandPermissionRules ? _self._localCommandPermissionRules : localCommandPermissionRules // ignore: cast_nullable_to_non_nullable
+as List<LocalCommandPermissionRule>,routineComputerUseActionAllowlist: null == routineComputerUseActionAllowlist ? _self._routineComputerUseActionAllowlist : routineComputerUseActionAllowlist // ignore: cast_nullable_to_non_nullable
 as List<RoutineComputerUseActionAllowlistEntry>,
   ));
 }

@@ -30,7 +30,9 @@ void main() {
       command: 'echo ok',
       workingDirectory: '/tmp',
       reason: 'Verify pending approval detection.',
-      completer: Completer<bool>(),
+      warningTitle: null,
+      warningMessage: null,
+      completer: Completer<LocalCommandApproval>(),
     );
 
     expect(

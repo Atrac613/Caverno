@@ -43,6 +43,7 @@ import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
+import '../../../settings/domain/services/local_command_permission_service.dart';
 import 'chat_state.dart';
 import 'coding_projects_notifier.dart';
 import 'conversations_notifier.dart';

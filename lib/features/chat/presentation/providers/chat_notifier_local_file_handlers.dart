@@ -239,6 +239,26 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       'working_directory': workingDirectory,
     };
 
+    final permissionDecision = LocalCommandPermissionService.evaluate(
+      command: command,
+      workingDirectory: workingDirectory,
+      rules: _settings.localCommandPermissionRules,
+    );
+    if (permissionDecision.isDenied) {
+      return McpToolResult(
+        toolName: toolCall.name,
+        result: '',
+        isSuccess: false,
+        errorMessage: 'Local command was denied by a saved permission rule',
+      );
+    }
+    if (permissionDecision.isAllowed) {
+      return _mcpToolService!.executeTool(
+        name: toolCall.name,
+        arguments: localArguments,
+      );
+    }
+
     if (LocalShellTools.isReadOnly(command)) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
@@ -261,12 +281,29 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       );
     }
 
-    final approved = await requestLocalCommand(
+    final riskWarning = LocalCommandPermissionService.riskWarningFor(command);
+    final approval = await requestLocalCommand(
       command: command,
       workingDirectory: workingDirectory,
       reason: toolCall.arguments['reason'] as String?,
+      warningTitle: riskWarning?.title,
+      warningMessage: riskWarning?.message,
     );
-    if (!approved) {
+
+    if (approval.shouldRemember) {
+      await ref
+          .read(settingsNotifierProvider.notifier)
+          .upsertLocalCommandPermissionRule(
+            LocalCommandPermissionService.buildExactRule(
+              id: const Uuid().v4(),
+              action: approval.rememberedRuleAction!,
+              command: command,
+              workingDirectory: workingDirectory,
+            ).copyWith(match: approval.rememberedRuleMatch!),
+          );
+    }
+
+    if (!approval.approved) {
       return _rememberToolApprovalResult(
         toolCall.name,
         localArguments,
@@ -286,29 +323,36 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
     return _rememberToolApprovalResult(toolCall.name, localArguments, result);
   }
 
-  Future<bool> requestLocalCommand({
+  Future<LocalCommandApproval> requestLocalCommand({
     required String command,
     required String workingDirectory,
     String? reason,
+    String? warningTitle,
+    String? warningMessage,
   }) {
-    final completer = Completer<bool>();
+    final completer = Completer<LocalCommandApproval>();
     state = state.copyWith(
       pendingLocalCommand: PendingLocalCommand(
         id: const Uuid().v4(),
         command: command,
         workingDirectory: workingDirectory,
         reason: reason,
+        warningTitle: warningTitle,
+        warningMessage: warningMessage,
         completer: completer,
       ),
     );
     return completer.future;
   }
 
-  void resolveLocalCommand({required String id, required bool approved}) {
+  void resolveLocalCommand({
+    required String id,
+    required LocalCommandApproval approval,
+  }) {
     final pending = state.pendingLocalCommand;
     if (pending == null || pending.id != id) return;
     if (!pending.completer.isCompleted) {
-      pending.completer.complete(approved);
+      pending.completer.complete(approval);
     }
     state = state.copyWith(pendingLocalCommand: null);
   }

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:freezed_annotation/freezed_annotation.dart';
 
+import '../../../settings/domain/entities/app_settings.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 
@@ -97,6 +98,8 @@ class PendingLocalCommand {
     required this.command,
     required this.workingDirectory,
     required this.reason,
+    required this.warningTitle,
+    required this.warningMessage,
     required this.completer,
   });
 
@@ -104,7 +107,24 @@ class PendingLocalCommand {
   final String command;
   final String workingDirectory;
   final String? reason;
-  final Completer<bool> completer;
+  final String? warningTitle;
+  final String? warningMessage;
+  final Completer<LocalCommandApproval> completer;
+}
+
+class LocalCommandApproval {
+  const LocalCommandApproval({
+    required this.approved,
+    this.rememberedRuleAction,
+    this.rememberedRuleMatch,
+  });
+
+  final bool approved;
+  final LocalCommandPermissionAction? rememberedRuleAction;
+  final LocalCommandPermissionMatch? rememberedRuleMatch;
+
+  bool get shouldRemember =>
+      rememberedRuleAction != null && rememberedRuleMatch != null;
 }
 
 /// Decision for a macOS computer-use action approval request.

@@ -6,6 +6,55 @@ part of 'app_settings.dart';
 // JsonSerializableGenerator
 // **************************************************************************
 
+_LocalCommandPermissionRule _$LocalCommandPermissionRuleFromJson(
+  Map<String, dynamic> json,
+) => _LocalCommandPermissionRule(
+  id: json['id'] as String,
+  enabled: json['enabled'] as bool? ?? true,
+  action:
+      $enumDecodeNullable(
+        _$LocalCommandPermissionActionEnumMap,
+        json['action'],
+        unknownValue: LocalCommandPermissionAction.ask,
+      ) ??
+      LocalCommandPermissionAction.ask,
+  match:
+      $enumDecodeNullable(
+        _$LocalCommandPermissionMatchEnumMap,
+        json['match'],
+        unknownValue: LocalCommandPermissionMatch.exact,
+      ) ??
+      LocalCommandPermissionMatch.exact,
+  pattern: json['pattern'] as String? ?? '',
+  workingDirectory: json['workingDirectory'] as String? ?? '',
+  createdAt: json['createdAt'] == null
+      ? null
+      : DateTime.parse(json['createdAt'] as String),
+);
+
+Map<String, dynamic> _$LocalCommandPermissionRuleToJson(
+  _LocalCommandPermissionRule instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'enabled': instance.enabled,
+  'action': _$LocalCommandPermissionActionEnumMap[instance.action]!,
+  'match': _$LocalCommandPermissionMatchEnumMap[instance.match]!,
+  'pattern': instance.pattern,
+  'workingDirectory': instance.workingDirectory,
+  'createdAt': instance.createdAt?.toIso8601String(),
+};
+
+const _$LocalCommandPermissionActionEnumMap = {
+  LocalCommandPermissionAction.allow: 'allow',
+  LocalCommandPermissionAction.deny: 'deny',
+  LocalCommandPermissionAction.ask: 'ask',
+};
+
+const _$LocalCommandPermissionMatchEnumMap = {
+  LocalCommandPermissionMatch.exact: 'exact',
+  LocalCommandPermissionMatch.prefix: 'prefix',
+};
+
 _RoutineComputerUseActionAllowlistEntry
 _$RoutineComputerUseActionAllowlistEntryFromJson(Map<String, dynamic> json) =>
     _RoutineComputerUseActionAllowlistEntry(
@@ -135,6 +184,14 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
           ?.map((e) => e as String)
           .toList() ??
       const <String>[],
+  localCommandPermissionRules:
+      (json['localCommandPermissionRules'] as List<dynamic>?)
+          ?.map(
+            (e) =>
+                LocalCommandPermissionRule.fromJson(e as Map<String, dynamic>),
+          )
+          .toList() ??
+      const <LocalCommandPermissionRule>[],
   routineComputerUseActionAllowlist:
       (json['routineComputerUseActionAllowlist'] as List<dynamic>?)
           ?.map(
@@ -173,6 +230,7 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'showMemoryUpdates': instance.showMemoryUpdates,
       'demoMode': instance.demoMode,
       'disabledBuiltInTools': instance.disabledBuiltInTools,
+      'localCommandPermissionRules': instance.localCommandPermissionRules,
       'routineComputerUseActionAllowlist':
           instance.routineComputerUseActionAllowlist,
     };

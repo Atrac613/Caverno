@@ -6,6 +6,7 @@ import '../../data/settings_file_service.dart';
 import '../../data/settings_qr_service.dart';
 import '../../data/settings_repository.dart';
 import '../../domain/entities/app_settings.dart';
+import '../../domain/services/local_command_permission_service.dart';
 
 final sharedPreferencesProvider = Provider<SharedPreferences>((ref) {
   throw UnimplementedError('SharedPreferences must be overridden in main');
@@ -188,6 +189,54 @@ class SettingsNotifier extends Notifier<AppSettings> {
     final current = Set<String>.from(state.disabledBuiltInTools);
     disabled ? current.addAll(toolNames) : current.removeAll(toolNames);
     state = state.copyWith(disabledBuiltInTools: current.toList());
+    await _repository.save(state);
+  }
+
+  Future<void> upsertLocalCommandPermissionRule(
+    LocalCommandPermissionRule rule,
+  ) async {
+    final validationError = LocalCommandPermissionService.validateRule(rule);
+    if (validationError != null) {
+      throw ArgumentError(validationError);
+    }
+
+    final normalizedRule = rule.copyWith(
+      pattern: LocalCommandPermissionService.normalizePattern(rule.pattern),
+      workingDirectory: LocalCommandPermissionService.normalizePattern(
+        rule.workingDirectory,
+      ),
+      createdAt: rule.createdAt ?? DateTime.now(),
+    );
+    final rules = List<LocalCommandPermissionRule>.from(
+      state.localCommandPermissionRules,
+    );
+    final index = rules.indexWhere((item) => item.id == normalizedRule.id);
+    if (index == -1) {
+      rules.add(normalizedRule);
+    } else {
+      rules[index] = normalizedRule;
+    }
+    state = state.copyWith(localCommandPermissionRules: rules);
+    await _repository.save(state);
+  }
+
+  Future<void> toggleLocalCommandPermissionRule(
+    String ruleId,
+    bool enabled,
+  ) async {
+    final rules = [
+      for (final rule in state.localCommandPermissionRules)
+        rule.id == ruleId ? rule.copyWith(enabled: enabled) : rule,
+    ];
+    state = state.copyWith(localCommandPermissionRules: rules);
+    await _repository.save(state);
+  }
+
+  Future<void> removeLocalCommandPermissionRule(String ruleId) async {
+    final rules = state.localCommandPermissionRules
+        .where((rule) => rule.id != ruleId)
+        .toList(growable: false);
+    state = state.copyWith(localCommandPermissionRules: rules);
     await _repository.save(state);
   }
 

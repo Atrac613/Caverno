@@ -31,6 +31,7 @@ import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/conversation_plan_execution_guardrails.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
+import '../../../settings/domain/entities/app_settings.dart';
 import '../providers/chat_notifier.dart';
 import '../providers/chat_state.dart';
 import '../providers/conversations_notifier.dart';
@@ -5070,7 +5071,7 @@ class _ChatPageState extends ConsumerState<ChatPage>
     BuildContext context,
     PendingLocalCommand pending,
   ) async {
-    final approved = await showModalBottomSheet<bool>(
+    final approval = await showModalBottomSheet<LocalCommandApproval>(
       context: context,
       isDismissible: false,
       enableDrag: true,
@@ -5171,6 +5172,63 @@ class _ChatPageState extends ConsumerState<ChatPage>
                   ),
                   const SizedBox(height: 16),
                 ],
+                if (pending.warningTitle != null &&
+                    pending.warningTitle!.isNotEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 24),
+                    child: Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(14),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.errorContainer.withValues(
+                          alpha: 0.45,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.error.withValues(
+                            alpha: 0.25,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Icon(
+                            Icons.warning_amber_rounded,
+                            size: 20,
+                            color: theme.colorScheme.error,
+                          ),
+                          const SizedBox(width: 10),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  pending.warningTitle!,
+                                  style: theme.textTheme.bodyMedium?.copyWith(
+                                    fontWeight: FontWeight.w700,
+                                    color: theme.colorScheme.onErrorContainer,
+                                  ),
+                                ),
+                                if (pending.warningMessage != null &&
+                                    pending.warningMessage!.isNotEmpty) ...[
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    pending.warningMessage!,
+                                    style: theme.textTheme.bodySmall?.copyWith(
+                                      color: theme.colorScheme.onErrorContainer,
+                                    ),
+                                  ),
+                                ],
+                              ],
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Padding(
                   padding: const EdgeInsets.symmetric(horizontal: 24),
                   child: Container(
@@ -5209,22 +5267,75 @@ class _ChatPageState extends ConsumerState<ChatPage>
                     children: [
                       Expanded(
                         child: OutlinedButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, false),
+                          onPressed: () => Navigator.pop(
+                            sheetContext,
+                            const LocalCommandApproval(approved: false),
+                          ),
                           icon: const Icon(Icons.block_rounded, size: 18),
                           label: const Text('Deny'),
                         ),
                       ),
                       const SizedBox(width: 12),
                       Expanded(
-                        flex: 2,
+                        child: OutlinedButton.icon(
+                          onPressed: () => Navigator.pop(
+                            sheetContext,
+                            const LocalCommandApproval(
+                              approved: false,
+                              rememberedRuleAction:
+                                  LocalCommandPermissionAction.deny,
+                              rememberedRuleMatch:
+                                  LocalCommandPermissionMatch.exact,
+                            ),
+                          ),
+                          icon: const Icon(
+                            Icons.lock_outline_rounded,
+                            size: 18,
+                          ),
+                          label: const Text('Always Deny'),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Padding(
+                  padding: EdgeInsets.fromLTRB(
+                    24,
+                    0,
+                    24,
+                    16 + MediaQuery.of(sheetContext).padding.bottom,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
                         child: FilledButton.icon(
-                          onPressed: () => Navigator.pop(sheetContext, true),
+                          onPressed: () => Navigator.pop(
+                            sheetContext,
+                            const LocalCommandApproval(approved: true),
+                          ),
                           icon: const Icon(Icons.play_arrow_rounded, size: 20),
                           label: const Text('Approve & Run'),
                           style: FilledButton.styleFrom(
                             backgroundColor: theme.colorScheme.error,
                             foregroundColor: theme.colorScheme.onError,
                           ),
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: () => Navigator.pop(
+                            sheetContext,
+                            const LocalCommandApproval(
+                              approved: true,
+                              rememberedRuleAction:
+                                  LocalCommandPermissionAction.allow,
+                              rememberedRuleMatch:
+                                  LocalCommandPermissionMatch.exact,
+                            ),
+                          ),
+                          icon: const Icon(Icons.verified_user_outlined),
+                          label: const Text('Always Allow'),
                         ),
                       ),
                     ],
@@ -5239,7 +5350,10 @@ class _ChatPageState extends ConsumerState<ChatPage>
 
     ref
         .read(chatNotifierProvider.notifier)
-        .resolveLocalCommand(id: pending.id, approved: approved ?? false);
+        .resolveLocalCommand(
+          id: pending.id,
+          approval: approval ?? const LocalCommandApproval(approved: false),
+        );
   }
 
   Future<void> _showComputerUseActionDialog(

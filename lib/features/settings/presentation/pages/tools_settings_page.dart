@@ -6,6 +6,7 @@ import '../../domain/entities/app_settings.dart';
 import '../../domain/entities/built_in_tool_info.dart';
 import '../providers/settings_notifier.dart';
 import 'built_in_tools_settings_page.dart';
+import 'local_command_permission_rules_page.dart';
 import 'mcp_servers_settings_page.dart';
 import 'routine_computer_use_allowlist_page.dart';
 
@@ -62,6 +63,7 @@ class ToolsSettingsPage extends ConsumerWidget {
           ),
           const Divider(),
           _buildBuiltInToolsTile(context, settings),
+          _buildLocalCommandPermissionRulesTile(context, settings),
           _buildRoutineComputerUseAllowlistTile(context, settings),
           _buildMcpServersTile(context, settings),
         ],
@@ -85,6 +87,27 @@ class ToolsSettingsPage extends ConsumerWidget {
       onTap: () => Navigator.push(
         context,
         MaterialPageRoute(builder: (_) => const BuiltInToolsSettingsPage()),
+      ),
+    );
+  }
+
+  Widget _buildLocalCommandPermissionRulesTile(
+    BuildContext context,
+    AppSettings settings,
+  ) {
+    final enabledCount = settings.enabledLocalCommandPermissionRules.length;
+    final totalCount = settings.localCommandPermissionRules.length;
+
+    return ListTile(
+      leading: const Icon(Icons.verified_user_outlined),
+      title: const Text('Local Command Rules'),
+      subtitle: Text('$enabledCount of $totalCount saved rule(s) enabled'),
+      trailing: const Icon(Icons.chevron_right),
+      onTap: () => Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => const LocalCommandPermissionRulesPage(),
+        ),
       ),
     );
   }
