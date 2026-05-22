@@ -1,9 +1,52 @@
 import 'dart:convert';
+import 'dart:math' as math;
 
 import '../entities/tool_call_info.dart';
 
+enum ToolResultPromptBudgetMode { normal, compact }
+
+class _ToolResultPromptBudget {
+  const _ToolResultPromptBudget({
+    required this.maxTotalResultChars,
+    required this.maxSingleResultChars,
+    required this.maxStringValueChars,
+    required this.maxReadFileContentChars,
+    required this.maxCommandOutputChars,
+    required this.maxListItems,
+    required this.maxImageAttachments,
+  });
+
+  final int maxTotalResultChars;
+  final int maxSingleResultChars;
+  final int maxStringValueChars;
+  final int maxReadFileContentChars;
+  final int maxCommandOutputChars;
+  final int maxListItems;
+  final int maxImageAttachments;
+}
+
 class ToolResultPromptBuilder {
   ToolResultPromptBuilder._();
+
+  static const _normalBudget = _ToolResultPromptBudget(
+    maxTotalResultChars: 48000,
+    maxSingleResultChars: 20000,
+    maxStringValueChars: 12000,
+    maxReadFileContentChars: 12000,
+    maxCommandOutputChars: 8000,
+    maxListItems: 120,
+    maxImageAttachments: 2,
+  );
+
+  static const _compactBudget = _ToolResultPromptBudget(
+    maxTotalResultChars: 16000,
+    maxSingleResultChars: 8000,
+    maxStringValueChars: 4000,
+    maxReadFileContentChars: 4000,
+    maxCommandOutputChars: 3000,
+    maxListItems: 40,
+    maxImageAttachments: 1,
+  );
 
   static List<Map<String, dynamic>> dedupeToolsByName(
     List<Map<String, dynamic>> tools,
@@ -20,6 +63,94 @@ class ToolResultPromptBuilder {
       }
     }
     return deduped;
+  }
+
+  static List<ToolResultInfo> budgetToolResults(
+    List<ToolResultInfo> toolResults, {
+    ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
+  }) {
+    if (toolResults.isEmpty) {
+      return const [];
+    }
+
+    final budget = _budgetForMode(mode);
+    final imageResultIndexes = <int>[];
+    for (var index = 0; index < toolResults.length; index += 1) {
+      final decoded = _tryDecodeJsonMap(toolResults[index].result);
+      if (decoded?['imageBase64'] is String) {
+        imageResultIndexes.add(index);
+      }
+    }
+    final keptImageIndexes = imageResultIndexes
+        .skip(
+          math.max(0, imageResultIndexes.length - budget.maxImageAttachments),
+        )
+        .toSet();
+
+    final budgeted = <ToolResultInfo>[];
+    for (var index = 0; index < toolResults.length; index += 1) {
+      final toolResult = toolResults[index];
+      final result = _budgetToolResultPayload(
+        toolResult,
+        budget: budget,
+        keepImagePayload: keptImageIndexes.contains(index),
+      );
+      budgeted.add(
+        ToolResultInfo(
+          id: toolResult.id,
+          name: toolResult.name,
+          arguments: toolResult.arguments,
+          result: result,
+        ),
+      );
+    }
+
+    final totalChars = budgeted.fold<int>(
+      0,
+      (count, toolResult) => count + toolResult.result.length,
+    );
+    if (totalChars <= budget.maxTotalResultChars) {
+      return budgeted;
+    }
+
+    final perResultTarget = math.max(
+      1200,
+      (budget.maxTotalResultChars / budgeted.length).floor(),
+    );
+    return budgeted
+        .map(
+          (toolResult) => ToolResultInfo(
+            id: toolResult.id,
+            name: toolResult.name,
+            arguments: toolResult.arguments,
+            result: _truncateTextWithMiddle(
+              toolResult.result,
+              maxChars: perResultTarget,
+              reason:
+                  'Tool result was further reduced to fit the prompt budget.',
+            ),
+          ),
+        )
+        .toList(growable: false);
+  }
+
+  static bool hasAdditionalCompactBudgetReduction(
+    List<ToolResultInfo> toolResults,
+  ) {
+    final normal = budgetToolResults(toolResults);
+    final compact = budgetToolResults(
+      toolResults,
+      mode: ToolResultPromptBudgetMode.compact,
+    );
+    if (normal.length != compact.length) {
+      return true;
+    }
+    for (var index = 0; index < normal.length; index += 1) {
+      if (normal[index].result != compact[index].result) {
+        return true;
+      }
+    }
+    return false;
   }
 
   static String buildAnswerPrompt(
@@ -136,6 +267,224 @@ class ToolResultPromptBuilder {
           'radios, access points, or BSSIDs rather than user devices.';
     }
     return null;
+  }
+
+  static _ToolResultPromptBudget _budgetForMode(
+    ToolResultPromptBudgetMode mode,
+  ) {
+    return switch (mode) {
+      ToolResultPromptBudgetMode.normal => _normalBudget,
+      ToolResultPromptBudgetMode.compact => _compactBudget,
+    };
+  }
+
+  static String _budgetToolResultPayload(
+    ToolResultInfo toolResult, {
+    required _ToolResultPromptBudget budget,
+    required bool keepImagePayload,
+  }) {
+    final decoded = _tryDecodeJsonMap(toolResult.result);
+    if (decoded == null) {
+      return _truncateTextWithMiddle(
+        toolResult.result,
+        maxChars: budget.maxSingleResultChars,
+        reason: 'Tool result was reduced to fit the prompt budget.',
+      );
+    }
+
+    final budgeted = switch (toolResult.name) {
+      'read_file' => _budgetReadFileResult(decoded, budget: budget),
+      'local_execute_command' ||
+      'git_execute_command' => _budgetCommandResult(decoded, budget: budget),
+      'search_files' => _budgetListResult(
+        decoded,
+        budget: budget,
+        listKey: 'matches',
+        countKey: 'match_count',
+        nextOffsetKey: 'next_offset',
+      ),
+      'list_directory' => _budgetListResult(
+        decoded,
+        budget: budget,
+        listKey: 'entries',
+        countKey: 'entry_count',
+      ),
+      'find_files' => _budgetListResult(
+        decoded,
+        budget: budget,
+        listKey: 'matches',
+        countKey: 'match_count',
+      ),
+      _ => _budgetJsonMap(decoded, budget: budget),
+    };
+
+    if (!keepImagePayload && budgeted['imageBase64'] is String) {
+      budgeted
+        ..['imageBase64'] = '[omitted from this request to fit prompt budget]'
+        ..['image_omitted_for_prompt_budget'] = true;
+    }
+
+    final encoded = jsonEncode(budgeted);
+    return _truncateTextWithMiddle(
+      encoded,
+      maxChars: budget.maxSingleResultChars,
+      reason: 'Tool result was reduced to fit the prompt budget.',
+    );
+  }
+
+  static Map<String, dynamic> _budgetReadFileResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+  }) {
+    final result = _budgetJsonMap(decoded, budget: budget);
+    final content = decoded['content'];
+    if (content is String && content.length > budget.maxReadFileContentChars) {
+      result
+        ..['content'] = _truncateTextWithMiddle(
+          content,
+          maxChars: budget.maxReadFileContentChars,
+          reason: 'File content was reduced to fit the prompt budget.',
+        )
+        ..['content_reduced_for_prompt_budget'] = true
+        ..['omitted_content_chars'] =
+            content.length - budget.maxReadFileContentChars
+        ..['read_more_hint'] = _buildReadMoreHint(decoded);
+    }
+    return result;
+  }
+
+  static Map<String, dynamic> _budgetCommandResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+  }) {
+    final result = _budgetJsonMap(decoded, budget: budget);
+    for (final key in const ['stdout', 'stderr']) {
+      final value = decoded[key];
+      if (value is String && value.length > budget.maxCommandOutputChars) {
+        result
+          ..[key] = _truncateTextWithMiddle(
+            value,
+            maxChars: budget.maxCommandOutputChars,
+            reason: '$key was reduced to fit the prompt budget.',
+          )
+          ..['${key}_reduced_for_prompt_budget'] = true;
+      }
+    }
+    return result;
+  }
+
+  static Map<String, dynamic> _budgetListResult(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+    required String listKey,
+    required String countKey,
+    String? nextOffsetKey,
+  }) {
+    final result = _budgetJsonMap(decoded, budget: budget);
+    final items = decoded[listKey];
+    if (items is List && items.length > budget.maxListItems) {
+      result
+        ..[listKey] = items.take(budget.maxListItems).toList(growable: false)
+        ..['${listKey}_reduced_for_prompt_budget'] = true
+        ..['omitted_${listKey}_count'] = items.length - budget.maxListItems;
+      final offset = decoded['offset'];
+      if (nextOffsetKey != null) {
+        result[nextOffsetKey] =
+            (offset is int ? offset : 0) + budget.maxListItems;
+      }
+      if (!result.containsKey(countKey)) {
+        result[countKey] = items.length;
+      }
+    }
+    return result;
+  }
+
+  static Map<String, dynamic> _budgetJsonMap(
+    Map<String, dynamic> decoded, {
+    required _ToolResultPromptBudget budget,
+  }) {
+    return decoded.map(
+      (key, value) =>
+          MapEntry(key, _budgetJsonValue(value, key: key, budget: budget)),
+    );
+  }
+
+  static Object? _budgetJsonValue(
+    Object? value, {
+    required String key,
+    required _ToolResultPromptBudget budget,
+  }) {
+    if (value is String) {
+      if (key == 'imageBase64') {
+        return value;
+      }
+      return _truncateTextWithMiddle(
+        value,
+        maxChars: budget.maxStringValueChars,
+        reason: 'String field was reduced to fit the prompt budget.',
+      );
+    }
+    if (value is List) {
+      final retained = value
+          .take(budget.maxListItems)
+          .map((item) => _budgetJsonValue(item, key: key, budget: budget))
+          .toList(growable: false);
+      if (value.length <= budget.maxListItems) {
+        return retained;
+      }
+      return [
+        ...retained,
+        {'omitted_items_for_prompt_budget': value.length - budget.maxListItems},
+      ];
+    }
+    if (value is Map) {
+      return value.map(
+        (mapKey, mapValue) => MapEntry(
+          mapKey.toString(),
+          _budgetJsonValue(mapValue, key: mapKey.toString(), budget: budget),
+        ),
+      );
+    }
+    return value;
+  }
+
+  static String _buildReadMoreHint(Map<String, dynamic> decoded) {
+    final path = decoded['path'];
+    final startLine = decoded['start_line'];
+    final lineCount = decoded['line_count'];
+    final totalLines = decoded['total_lines'];
+    if (path is String &&
+        startLine is int &&
+        lineCount is int &&
+        totalLines is int &&
+        lineCount > 0 &&
+        startLine + lineCount <= totalLines) {
+      final nextOffset = startLine + lineCount;
+      return 'Call read_file with path "$path", offset $nextOffset, and a smaller limit to inspect omitted lines.';
+    }
+    if (path is String) {
+      return 'Call read_file with path "$path", offset, and limit to inspect a smaller exact range.';
+    }
+    return 'Call read_file with offset and limit to inspect a smaller exact range.';
+  }
+
+  static String _truncateTextWithMiddle(
+    String value, {
+    required int maxChars,
+    required String reason,
+  }) {
+    if (value.length <= maxChars) {
+      return value;
+    }
+    final marker =
+        '\n\n[$reason Omitted ${value.length - maxChars} character(s).]\n\n';
+    if (maxChars <= marker.length + 20) {
+      return value.substring(0, math.max(0, maxChars));
+    }
+    final retainedChars = maxChars - marker.length;
+    final headChars = (retainedChars * 0.65).floor();
+    final tailChars = retainedChars - headChars;
+    return '${value.substring(0, headChars)}$marker${value.substring(value.length - tailChars)}';
   }
 
   static Map<String, dynamic>? _tryDecodeJsonMap(String value) {

@@ -6324,10 +6324,13 @@ class ChatNotifier extends Notifier<ChatState> {
     required String? assistantContent,
     required List<Map<String, dynamic>> tools,
   }) async {
-    Future<ChatCompletionResult> send({required bool forceCompaction}) {
+    Future<ChatCompletionResult> send({
+      required bool forceCompaction,
+      required ToolResultPromptBudgetMode budgetMode,
+    }) {
       return _dataSource.createChatCompletionWithToolResults(
         messages: buildMessages(forceCompaction),
-        toolResults: toolResults,
+        toolResults: _budgetToolResultsForPrompt(toolResults, mode: budgetMode),
         assistantContent: assistantContent,
         tools: tools,
         model: _settings.model,
@@ -6337,29 +6340,46 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
-      return await send(forceCompaction: false);
+      return await send(
+        forceCompaction: false,
+        budgetMode: ToolResultPromptBudgetMode.normal,
+      );
     } catch (error) {
+      final hasCompactableHistory = _hasCompactablePromptHistory();
+      final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
+        toolResults,
+      );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),
           ) ||
-          !_hasCompactablePromptHistory()) {
+          (!hasCompactableHistory && !hasToolResultBudget)) {
         rethrow;
       }
       appLog(
-        '[Compaction] Retrying $logLabel after context-length error with forced prompt compaction',
+        '[Compaction] Retrying $logLabel after context-length error with '
+        '${hasCompactableHistory ? 'forced prompt compaction' : 'unchanged prompt history'} '
+        'and compact tool results',
       );
-      return send(forceCompaction: true);
+      return send(
+        forceCompaction: hasCompactableHistory,
+        budgetMode: ToolResultPromptBudgetMode.compact,
+      );
     }
   }
 
   Future<void> _streamToolResultAnswerWithContextRetry({
     required List<ToolResultInfo> toolResults,
   }) async {
-    Future<void> streamAnswer({required bool forceCompaction}) async {
+    Future<void> streamAnswer({
+      required bool forceCompaction,
+      required ToolResultPromptBudgetMode budgetMode,
+    }) async {
       final messagesForLLM = _prepareMessagesForLLM(
         forceCompaction: forceCompaction,
       );
-      messagesForLLM.addAll(_buildToolResultAnswerMessages(toolResults));
+      messagesForLLM.addAll(
+        _buildToolResultAnswerMessages(toolResults, budgetMode: budgetMode),
+      );
 
       _appendToLastMessage('<think>');
 
@@ -6389,19 +6409,31 @@ class ChatNotifier extends Notifier<ChatState> {
     }
 
     try {
-      await streamAnswer(forceCompaction: false);
+      await streamAnswer(
+        forceCompaction: false,
+        budgetMode: ToolResultPromptBudgetMode.normal,
+      );
     } catch (error) {
+      final hasCompactableHistory = _hasCompactablePromptHistory();
+      final hasToolResultBudget = _hasAdditionalCompactToolResultBudget(
+        toolResults,
+      );
       if (!ConversationCompactionService.isContextLengthError(
             error.toString(),
           ) ||
-          !_hasCompactablePromptHistory()) {
+          (!hasCompactableHistory && !hasToolResultBudget)) {
         rethrow;
       }
       appLog(
-        '[Compaction] Retrying final tool-result answer after context-length error with forced prompt compaction',
+        '[Compaction] Retrying final tool-result answer after context-length '
+        'error with ${hasCompactableHistory ? 'forced prompt compaction' : 'unchanged prompt history'} '
+        'and compact tool results',
       );
       _removeTrailingThinkTag();
-      await streamAnswer(forceCompaction: true);
+      await streamAnswer(
+        forceCompaction: hasCompactableHistory,
+        budgetMode: ToolResultPromptBudgetMode.compact,
+      );
     }
   }
 
@@ -6567,28 +6599,42 @@ class ChatNotifier extends Notifier<ChatState> {
     return ToolResultPromptBuilder.dedupeToolsByName(tools);
   }
 
-  String _buildToolResultAnswerPrompt(List<ToolResultInfo> toolResults) {
-    return ToolResultPromptBuilder.buildAnswerPrompt(
+  List<ToolResultInfo> _budgetToolResultsForPrompt(
+    List<ToolResultInfo> toolResults, {
+    ToolResultPromptBudgetMode mode = ToolResultPromptBudgetMode.normal,
+  }) {
+    return ToolResultPromptBuilder.budgetToolResults(toolResults, mode: mode);
+  }
+
+  bool _hasAdditionalCompactToolResultBudget(List<ToolResultInfo> toolResults) {
+    return ToolResultPromptBuilder.hasAdditionalCompactBudgetReduction(
       toolResults,
-      descriptionsByName: _toolDescriptionsByName(),
     );
   }
 
   List<Message> _buildToolResultAnswerMessages(
-    List<ToolResultInfo> toolResults,
-  ) {
+    List<ToolResultInfo> toolResults, {
+    ToolResultPromptBudgetMode budgetMode = ToolResultPromptBudgetMode.normal,
+  }) {
+    final budgetedToolResults = _budgetToolResultsForPrompt(
+      toolResults,
+      mode: budgetMode,
+    );
     final timestamp = DateTime.now();
     final messages = <Message>[
       Message(
         id: 'tool_result_${timestamp.microsecondsSinceEpoch}',
-        content: _buildToolResultAnswerPrompt(toolResults),
+        content: ToolResultPromptBuilder.buildAnswerPrompt(
+          budgetedToolResults,
+          descriptionsByName: _toolDescriptionsByName(),
+        ),
         role: MessageRole.user,
         timestamp: timestamp,
       ),
     ];
 
-    for (var i = 0; i < toolResults.length; i++) {
-      final toolResult = toolResults[i];
+    for (var i = 0; i < budgetedToolResults.length; i++) {
+      final toolResult = budgetedToolResults[i];
       final decoded = _tryDecodeMap(toolResult.result);
       if (decoded == null) {
         continue;

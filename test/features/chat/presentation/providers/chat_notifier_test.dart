@@ -1706,6 +1706,87 @@ void main() {
     },
   );
 
+  test(
+    'sendMessage retries tool-result follow-up with compact tool results only',
+    () async {
+      final largeContent = '${'A' * 24000}\nneedle\n${'B' * 24000}';
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-read',
+            name: 'read_file',
+            arguments: const {'path': 'large.log'},
+          ),
+        ],
+        failFirstToolResultCompletionWithContextLength: true,
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          'read_file': jsonEncode({
+            'path': '/workspace/large.log',
+            'content': largeContent,
+            'size_bytes': largeContent.length,
+            'start_line': 1,
+            'line_count': 2000,
+            'total_lines': 4000,
+          }),
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Inspect the large log');
+
+        expect(toolService.executedToolNames, ['read_file']);
+        expect(toolDataSource.toolResultBatches, hasLength(2));
+        expect(
+          toolDataSource.toolResultBatches.first.single.result.length,
+          greaterThan(
+            toolDataSource.toolResultBatches.last.single.result.length,
+          ),
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.result,
+          contains('content_reduced_for_prompt_budget'),
+        );
+        expect(
+          toolDataSource.toolResultRequestMessages.last.any(
+            (message) => message.id == 'system_compaction',
+          ),
+          isFalse,
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Combined tool summary'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
+
   test('approved input actions record post-action observations', () async {
     for (final caseData in const [
       (

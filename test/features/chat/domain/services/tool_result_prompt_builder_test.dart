@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
@@ -79,6 +81,90 @@ void main() {
       expect(prompt, isNot(contains('large-payload')));
       expect(prompt, contains('[attached as image content]'));
       expect(prompt, contains('"width":800'));
+    });
+
+    test('reduces oversized read_file content for prompt budget', () {
+      final largeContent = '${'A' * 9000}\nneedle\n${'B' * 9000}';
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'read_file',
+          arguments: const {'path': 'lib/main.dart'},
+          result: jsonEncode({
+            'path': '/workspace/lib/main.dart',
+            'content': largeContent,
+            'size_bytes': largeContent.length,
+            'start_line': 1,
+            'line_count': 400,
+            'total_lines': 800,
+          }),
+        ),
+      ], mode: ToolResultPromptBudgetMode.compact);
+
+      final decoded =
+          jsonDecode(budgeted.single.result) as Map<String, dynamic>;
+
+      expect(decoded['content'], isNot(contains('needle')));
+      expect(decoded['content_reduced_for_prompt_budget'], isTrue);
+      expect(decoded['read_more_hint'], contains('read_file'));
+      expect(
+        (decoded['content'] as String).length,
+        lessThan(largeContent.length),
+      );
+    });
+
+    test('reduces search result lists and exposes the next offset', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'search_files',
+          arguments: const {'query': 'TODO'},
+          result: jsonEncode({
+            'path': '/workspace',
+            'query': 'TODO',
+            'matches': List<String>.generate(
+              60,
+              (index) => 'lib/file_$index.dart:${index + 1}: TODO',
+            ),
+            'match_count': 60,
+            'offset': 20,
+          }),
+        ),
+      ], mode: ToolResultPromptBudgetMode.compact);
+
+      final decoded =
+          jsonDecode(budgeted.single.result) as Map<String, dynamic>;
+
+      expect(decoded['matches'], hasLength(40));
+      expect(decoded['matches_reduced_for_prompt_budget'], isTrue);
+      expect(decoded['omitted_matches_count'], 20);
+      expect(decoded['next_offset'], 60);
+    });
+
+    test('keeps only the latest compact image attachment payload', () {
+      final budgeted = ToolResultPromptBuilder.budgetToolResults([
+        ToolResultInfo(
+          id: 'tool-1',
+          name: 'computer_screenshot',
+          arguments: const {},
+          result:
+              '{"imageBase64":"first-image","imageMimeType":"image/png","width":800}',
+        ),
+        ToolResultInfo(
+          id: 'tool-2',
+          name: 'computer_screenshot_window',
+          arguments: const {},
+          result:
+              '{"imageBase64":"latest-image","imageMimeType":"image/png","width":600}',
+        ),
+      ], mode: ToolResultPromptBudgetMode.compact);
+
+      final first = jsonDecode(budgeted.first.result) as Map<String, dynamic>;
+      final second = jsonDecode(budgeted.last.result) as Map<String, dynamic>;
+
+      expect(first['imageBase64'], isNot('first-image'));
+      expect(first['image_omitted_for_prompt_budget'], isTrue);
+      expect(second['imageBase64'], 'latest-image');
     });
   });
 }
