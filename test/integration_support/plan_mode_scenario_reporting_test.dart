@@ -170,6 +170,56 @@ void main() {
       },
     );
 
+    test('uses started task targets for auto-continued execution', () {
+      final savedWorkflow = const ConversationWorkflowSpec(
+        goal: 'Create a host health CLI.',
+        tasks: <ConversationWorkflowTask>[
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Initialize project structure',
+            targetFiles: <String>['requirements.txt', 'README.md'],
+          ),
+          ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Implement CLI entry point',
+            targetFiles: <String>['main.py'],
+          ),
+        ],
+      );
+      final conversation = _conversation(
+        const ConversationWorkflowSpec(
+          goal: 'Create a host health CLI.',
+          tasks: <ConversationWorkflowTask>[
+            ConversationWorkflowTask(
+              id: 'task-1',
+              title: 'Initialize project structure',
+              status: ConversationWorkflowTaskStatus.completed,
+              targetFiles: <String>['requirements.txt', 'README.md'],
+            ),
+            ConversationWorkflowTask(
+              id: 'task-2',
+              title: 'Implement CLI entry point',
+              status: ConversationWorkflowTaskStatus.inProgress,
+              targetFiles: <String>['main.py'],
+            ),
+            ConversationWorkflowTask(
+              id: 'task-3',
+              title: 'Add JSON report output',
+              targetFiles: <String>['report.py'],
+            ),
+          ],
+        ),
+      );
+
+      expect(
+        resolvePlanModeScenarioSavedTaskTargetFiles(
+          conversation: conversation,
+          savedWorkflow: savedWorkflow,
+        ),
+        <String>['README.md', 'main.py', 'requirements.txt'],
+      );
+    });
+
     test(
       'infers projected task targets from task text when explicit targets are empty',
       () {

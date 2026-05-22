@@ -190,11 +190,31 @@ List<String> resolvePlanModeScenarioSavedTaskTargetFiles({
   required Conversation conversation,
   required ConversationWorkflowSpec savedWorkflow,
 }) {
+  final startedTaskTargets = _nonPendingTaskTargetFiles(
+    conversation.projectedExecutionTasks,
+  );
+  if (startedTaskTargets.isNotEmpty) {
+    return startedTaskTargets;
+  }
+
   final savedTaskTargets = _firstNonEmptyTaskTargetFiles(savedWorkflow.tasks);
   if (savedTaskTargets.isNotEmpty) {
     return savedTaskTargets;
   }
   return _firstNonEmptyTaskTargetFiles(conversation.projectedExecutionTasks);
+}
+
+List<String> _nonPendingTaskTargetFiles(List<ConversationWorkflowTask> tasks) {
+  final targets = <String>{};
+  for (final task in tasks) {
+    if (task.status == ConversationWorkflowTaskStatus.pending) {
+      continue;
+    }
+    targets.addAll(_effectiveTaskTargetFiles(task));
+  }
+  final values = targets.toList(growable: false);
+  values.sort();
+  return values;
 }
 
 List<String> _firstNonEmptyTaskTargetFiles(
