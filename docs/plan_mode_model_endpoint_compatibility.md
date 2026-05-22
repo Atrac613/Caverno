@@ -48,6 +48,10 @@ Recommended defaults:
 Use `CAVERNO_PLAN_MODE_PREFLIGHT=0` only when the endpoint is otherwise known
 to be reachable and intentionally does not expose `/models`.
 
+Record model-by-model runs in
+[`docs/plan_mode_live_llm_model_canary_matrix.md`](plan_mode_live_llm_model_canary_matrix.md)
+before switching to the next model.
+
 ## Product Settings Preflight
 
 The General settings page uses the configured base URL and API key to fetch the
@@ -127,6 +131,8 @@ paths.
 Current compatibility evidence comes from:
 
 - deterministic Plan Mode smoke and report-quality tests
+- model-by-model live canary history in
+  `docs/plan_mode_live_llm_model_canary_matrix.md`
 - PM5 live gate evidence in `docs/roadmap.md`
 - PM5 ping CLI canary summary:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1778555057/canary_summary.json`
@@ -142,6 +148,53 @@ Latest PM5 live evidence used:
 - unexpected warnings: `0`
 - report quality blockers: `0`
 - task drift: none detected
+
+Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
+
+- initial PM5 attempt:
+  - date: 2026-05-22
+  - PM5 live gate result: failed
+  - live smoke result: `2/3` passed
+  - failed scenario: `live_clarify_recovery`
+  - failure class: `unclassified`
+  - failure detail: proposal approval completed, but execution did not start
+    and the expected stream-with-tools log was absent
+  - same-model standalone ping CLI canary result: `1/1` passed
+  - unexpected warnings: `0`
+  - task drift: none detected by the report
+  - live suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779431068428/plan_mode_live_suite_macos_report.json`
+  - standalone ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779418974/canary_summary.json`
+- focused rerun:
+  - date: 2026-05-22
+  - scenario: `live_clarify_recovery`
+  - result: passed
+  - report quality blockers: `0`
+  - unexpected warnings: `0`
+  - task drift: none detected
+  - approval path: live harness approval fallback
+  - focused suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779432071837/plan_mode_live_suite_macos_report.json`
+- PM5 retry:
+  - date: 2026-05-22
+  - PM5 live gate result: passed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `1/1` passed
+  - unexpected warnings: `0`
+  - report quality blockers: `0`
+  - task drift: none detected
+  - approval path: live harness approval fallback for all smoke scenarios
+  - cleanup cancellation: used in `live_cli_entrypoint_decision` and
+    `live_clarify_recovery`
+  - smoke suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779432319169/plan_mode_live_suite_macos_report.json`
+  - ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779432707/canary_summary.json`
+
+Interpretation: `qwen3.6-27b-mtp-vision` has a passing PM5 run, but it should
+remain a provisional compatibility result because the first PM5 attempt failed
+and the passing retry still showed cleanup-sensitive behavior.
 
 This evidence supports the current MVP release gate. Broader compatibility
 claims require PM12 long-run or matrix validation across additional endpoints
