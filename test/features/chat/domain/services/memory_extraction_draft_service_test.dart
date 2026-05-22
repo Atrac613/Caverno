@@ -62,4 +62,34 @@ void main() {
     expect(draft.entries, hasLength(1));
     expect(draft.entries.single.type, 'preference');
   });
+
+  test('parseDraft recovers JSON from reasoning text with other objects', () {
+    const raw = '''
+<think>
+The schema shape is {"not_memory":"example"}.
+
+```json
+{
+  "summary":"User prefers concise English summaries.",
+  "open_loops":[],
+  "profile":{
+    "persona":[],
+    "preferences":["Concise English summaries"],
+    "do_not":[]
+  },
+  "memories":[
+    {"text":"The user bought a model canary notebook for 1200 yen on 2026-05-22.","type":"fact","confidence":0.9,"importance":0.8,"ttl_days":null}
+  ]
+}
+```
+</think>
+''';
+
+    final draft = MemoryExtractionDraftService.parseDraft(raw);
+
+    expect(draft, isNotNull);
+    expect(draft!.summary, 'User prefers concise English summaries.');
+    expect(draft.preferences, ['Concise English summaries']);
+    expect(draft.entries.single.text, contains('1200 yen'));
+  });
 }
