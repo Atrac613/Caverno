@@ -130,11 +130,16 @@ jobs:
           channel: stable
           cache: true
 
-      - name: Install dependencies
-        run: flutter pub get
+      - name: Run tests with coverage
+        run: bash tool/codex_verify.sh --no-codegen --no-analyze --coverage
 
-      - name: Run tests
-        run: flutter test
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: flutter-coverage-lcov
+          path: coverage/lcov.info
+          if-no-files-found: warn
 
   plan-mode-smoke:
     name: Plan Mode Smoke

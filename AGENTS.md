@@ -31,6 +31,25 @@ flutter test test/widget_test.dart
 flutter run
 ```
 
+## Codex Development Workflow
+
+- Use `docs/codex_task_template.md` for non-trivial Codex tasks. Prompts should
+  read like GitHub issues: include the goal, affected files or components,
+  reference patterns, acceptance criteria, and the verification command.
+- Start large or risky changes with a short implementation plan before editing.
+  This applies when a task touches multiple feature layers, tool execution,
+  Plan Mode, Computer Use, persistence, generated entities, or release gates.
+- Keep implementation slices small enough to review in roughly one hour or a
+  few hundred lines of code. Prefer follow-up tasks over broad mixed changes.
+- After fixing a bug, search for adjacent patterns that could contain the same
+  issue. Record the search terms or inspected files in the PR or final handoff
+  when the pattern is important.
+- Use `tool/codex_verify.sh` as the default local verification entrypoint. Add
+  `--coverage` when test coverage or missing edge cases are part of the task.
+- For large-file refactors, follow `docs/large_file_refactor_plan.md`. Preserve
+  behavior first, move one concern at a time, and keep focused tests green after
+  each slice.
+
 ## Architecture
 
 Clean Architecture with feature-based modules and Riverpod state management.

@@ -1472,6 +1472,187 @@ void main() {
     },
   );
 
+  test(
+    'taskProposalNeedsRetryForWorkflowForTest allows explicit single-file task',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Create a single-file Python CLI ping tool',
+        constraints: [
+          'Only create ping_cli.py',
+          'No other files',
+          'Validate with python3 ping_cli.py --help',
+        ],
+        acceptanceCriteria: [
+          'The approved implementation must contain exactly one implementation task',
+        ],
+      );
+      const proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Create ping_cli.py with argparse and subprocess ping',
+            targetFiles: ['ping_cli.py'],
+            validationCommand: 'python3 ping_cli.py --help',
+            notes: 'Implement the requested single-file CLI directly.',
+          ),
+        ],
+      );
+
+      final needsRetry = notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        true,
+        workflowSpec,
+      );
+
+      expect(needsRetry, isFalse);
+    },
+  );
+
+  test(
+    'taskProposalNeedsRetryForWorkflowForTest rejects split scaffold files',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Scaffold a Python host health checker',
+        constraints: ['CLI-first tool for one host'],
+        acceptanceCriteria: [
+          'requirements.txt lists the initial dependencies',
+          'README.md documents setup and usage',
+        ],
+      );
+      const proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Create requirements.txt',
+            targetFiles: ['requirements.txt'],
+            validationCommand: 'test -f requirements.txt',
+            notes: 'Create the dependency file first.',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Create README.md',
+            targetFiles: ['README.md'],
+            validationCommand: 'test -f README.md',
+            notes: 'Document setup and usage separately.',
+          ),
+        ],
+      );
+
+      final needsRetry = notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        true,
+        workflowSpec,
+      );
+
+      expect(needsRetry, isTrue);
+    },
+  );
+
+  test(
+    'taskProposalNeedsRetryForWorkflowForTest accepts bundled scaffold files',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Scaffold a Python host health checker',
+        constraints: ['CLI-first tool for one host'],
+        acceptanceCriteria: [
+          'requirements.txt lists the initial dependencies',
+          'README.md documents setup and usage',
+        ],
+      );
+      const proposal = WorkflowTaskProposalDraft(
+        tasks: [
+          ConversationWorkflowTask(
+            id: 'task-1',
+            title: 'Create requirements.txt and README.md',
+            targetFiles: ['requirements.txt', 'README.md'],
+            validationCommand: 'test -f requirements.txt && test -f README.md',
+            notes: 'Create the initial scaffold files together.',
+          ),
+          ConversationWorkflowTask(
+            id: 'task-2',
+            title: 'Implement ping CLI',
+            targetFiles: ['main.py'],
+            validationCommand: 'python3 main.py --help',
+            notes: 'Add the runnable CLI entry point.',
+          ),
+        ],
+      );
+
+      final needsRetry = notifier.taskProposalNeedsRetryForWorkflowForTest(
+        proposal,
+        proposal,
+        true,
+        workflowSpec,
+      );
+
+      expect(needsRetry, isFalse);
+    },
+  );
+
+  test(
+    'buildTaskProposalRetryContextForTest preserves explicit single-task scope',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Create a single-file Python CLI ping tool',
+        constraints: ['Only create ping_cli.py', 'No other files'],
+        acceptanceCriteria: [
+          'The approved implementation must contain exactly one implementation task',
+        ],
+      );
+
+      final retryContext = notifier.buildTaskProposalRetryContextForTest(
+        null,
+        minimalRetry: true,
+        projectLooksEmpty: true,
+        workflowSpec: workflowSpec,
+      );
+
+      expect(
+        retryContext,
+        contains('Return exactly one concrete implementation task'),
+      );
+      expect(
+        retryContext,
+        contains('Do not add a separate verification-only task'),
+      );
+      expect(
+        retryContext,
+        isNot(contains('Return two to four concrete tasks')),
+      );
+    },
+  );
+
+  test(
+    'buildTaskProposalRetryContextForTest preserves first-slice scaffold scope',
+    () {
+      const workflowSpec = ConversationWorkflowSpec(
+        goal: 'Scaffold a Python host health checker',
+        constraints: ['CLI-first tool for one host'],
+        acceptanceCriteria: [
+          'requirements.txt lists the initial dependencies',
+          'README.md documents setup and usage',
+        ],
+      );
+
+      final retryContext = notifier.buildTaskProposalRetryContextForTest(
+        null,
+        minimalRetry: true,
+        projectLooksEmpty: true,
+        workflowSpec: workflowSpec,
+      );
+
+      expect(retryContext, contains('The first task targetFiles must include'));
+      expect(retryContext, contains('readme.md'));
+      expect(retryContext, contains('requirements.txt'));
+      expect(
+        retryContext,
+        contains('Do not split those first-slice scaffold files'),
+      );
+    },
+  );
+
   test('sendMessage executes every tool call in the same batch', () async {
     final toolDataSource = _ToolBatchChatDataSource(
       initialToolCalls: [

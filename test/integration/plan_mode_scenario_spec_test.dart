@@ -97,6 +97,10 @@ void main() {
       scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
       contains('requirements.txt'),
     );
+    expect(
+      scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      contains('README.md'),
+    );
   });
 
   test('PM10 canary candidates keep promotion evidence explicit', () {

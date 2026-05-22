@@ -1494,12 +1494,13 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
       ],
       artifactExpectations: const <PlanModeArtifactExpectation>[
         PlanModeArtifactExpectation(path: 'requirements.txt'),
+        PlanModeArtifactExpectation(path: 'README.md'),
       ],
       planningProposalTimeout: const Duration(minutes: 3),
       harnessTaskExecutionLimit: 1,
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
-        firstTaskTargetFilesContain: <String>['requirements.txt'],
+        firstTaskTargetFilesContain: <String>['requirements.txt', 'README.md'],
       ),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(

@@ -2039,6 +2039,7 @@ class ChatNotifier extends Notifier<ChatState> {
             additionalPlanningContext,
             minimalRetry: attempt.minimalRetry,
             projectLooksEmpty: projectLooksEmpty,
+            workflowSpec: workflowSpec,
           ),
           compact: attempt.compact,
         ),
@@ -2152,16 +2153,20 @@ class ChatNotifier extends Notifier<ChatState> {
     String? additionalPlanningContext, {
     required bool minimalRetry,
     required bool projectLooksEmpty,
+    ConversationWorkflowSpec? workflowSpec,
   }) {
     final normalizedContext = additionalPlanningContext?.trim();
     if (!minimalRetry) {
       return normalizedContext;
     }
 
+    final prefersSingleTask =
+        workflowSpec != null &&
+        _workflowPrefersExplicitSingleTask(workflowSpec);
+
     final retryHint = StringBuffer()
       ..writeln('Retry hint:')
       ..writeln('- Return the smallest valid JSON task list possible.')
-      ..writeln('- Return two to four concrete tasks.')
       ..writeln(
         '- Every task must describe an action the agent can perform immediately.',
       )
@@ -2175,22 +2180,58 @@ class ChatNotifier extends Notifier<ChatState> {
       ..writeln(
         '- Do not use generic validation such as "module importable" or commands that only append src to sys.path.',
       )
-      ..writeln('- Do not stop at a single generic setup or scaffold task.')
       ..writeln(
         '- Do not restate the user request, repo summary, or research context.',
       );
-    if (projectLooksEmpty) {
+    if (prefersSingleTask) {
       retryHint
+        ..writeln('- Return exactly one concrete implementation task.')
         ..writeln(
-          '- The first task may scaffold the workspace, but a later task must implement or validate the requested feature.',
-        )
-        ..writeln('- Include a concrete code task after any scaffold task.')
-        ..writeln(
-          '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
+          '- The single task must include implementation and validation in that task.',
         )
         ..writeln(
-          '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
+          '- Do not add a separate verification-only task or follow-up task.',
         );
+    } else {
+      final requiredFirstSliceTargets = workflowSpec == null
+          ? const <String>{}
+          : _explicitFirstSliceTargetFiles(workflowSpec);
+      retryHint
+        ..writeln('- Return two to four concrete tasks.')
+        ..writeln('- Do not stop at a single generic setup or scaffold task.');
+      if (requiredFirstSliceTargets.isNotEmpty) {
+        final targetList = requiredFirstSliceTargets.toList()..sort();
+        retryHint
+          ..writeln(
+            '- The first task targetFiles must include ${targetList.join(', ')}.',
+          )
+          ..writeln(
+            '- Do not split those first-slice scaffold files into separate tasks.',
+          );
+      }
+    }
+    if (projectLooksEmpty) {
+      if (prefersSingleTask) {
+        retryHint
+          ..writeln(
+            '- In an empty workspace, create the requested single implementation file directly.',
+          )
+          ..writeln(
+            '- Do not scaffold README.md, requirements.txt, tests, or package files unless the workflow explicitly names them.',
+          );
+      } else {
+        retryHint
+          ..writeln(
+            '- The first task may scaffold the workspace, but a later task must implement or validate the requested feature.',
+          )
+          ..writeln('- Include a concrete code task after any scaffold task.')
+          ..writeln(
+            '- Prefer a simple Python entrypoint such as main.py when the workspace is empty.',
+          )
+          ..writeln(
+            '- Avoid pytest-based verification in an empty Python workspace. Prefer standard-library validation such as python3 target.py, python3 tests/test_ping.py, or python3 -m unittest.',
+          );
+      }
       retryHint.writeln(
         '- Prefer Python standard-library or subprocess-based implementations over third-party runtime dependencies unless the user explicitly asked for a package.',
       );
@@ -4352,7 +4393,104 @@ class ChatNotifier extends Notifier<ChatState> {
     if (!_taskProposalNeedsRetry(original, finalized, projectLooksEmpty)) {
       return false;
     }
+    if (_workflowAllowsExplicitSingleTaskProposal(
+      finalized,
+      workflowSpec,
+      projectLooksEmpty: projectLooksEmpty,
+    )) {
+      return false;
+    }
     return !_workflowAllowsSingleReadmeTask(finalized, workflowSpec);
+  }
+
+  bool _workflowAllowsExplicitSingleTaskProposal(
+    WorkflowTaskProposalDraft finalized,
+    ConversationWorkflowSpec workflowSpec, {
+    required bool projectLooksEmpty,
+  }) {
+    if (!projectLooksEmpty ||
+        finalized.tasks.length != 1 ||
+        !_workflowPrefersExplicitSingleTask(workflowSpec)) {
+      return false;
+    }
+
+    final task = finalized.tasks.single;
+    if (_looksLikeVerificationTaskProposal(task) ||
+        _looksLikeGenericScaffoldOnlyTask(task) ||
+        task.validationCommand.trim().isEmpty) {
+      return false;
+    }
+
+    final targets = task.targetFiles
+        .map((path) => path.trim().replaceAll('\\', '/').toLowerCase())
+        .where((path) => path.isNotEmpty)
+        .toSet();
+    if (targets.isEmpty) {
+      return false;
+    }
+
+    final requiredTargets = _explicitSingleTaskTargetFiles(workflowSpec);
+    if (requiredTargets.isNotEmpty &&
+        requiredTargets.any((target) => !targets.contains(target))) {
+      return false;
+    }
+
+    return task.targetFiles.any(_looksLikeImplementationTargetFile);
+  }
+
+  bool _workflowPrefersExplicitSingleTask(
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    final context = _workflowSpecText(workflowSpec);
+    if (context.isEmpty) {
+      return false;
+    }
+
+    final exactTaskConstraint =
+        context.contains('exactly one implementation task') ||
+        context.contains('exactly one task') ||
+        context.contains('single implementation task') ||
+        context.contains('single approved task') ||
+        context.contains('one implementation task');
+    if (exactTaskConstraint) {
+      return true;
+    }
+
+    final singleFileConstraint =
+        context.contains('single-file') ||
+        context.contains('single file') ||
+        context.contains('only create') ||
+        context.contains('create only') ||
+        context.contains('no other files') ||
+        context.contains('root-level');
+    return singleFileConstraint &&
+        _explicitSingleTaskTargetFiles(workflowSpec).isNotEmpty;
+  }
+
+  Set<String> _explicitSingleTaskTargetFiles(
+    ConversationWorkflowSpec workflowSpec,
+  ) {
+    final context = _workflowSpecText(workflowSpec);
+    if (context.isEmpty) {
+      return const <String>{};
+    }
+
+    const knownSingleTaskFiles = <String>{
+      'ping_cli.py',
+      'main.py',
+      'health_check.py',
+      'health_checker.py',
+    };
+    return knownSingleTaskFiles.where((path) => context.contains(path)).toSet();
+  }
+
+  String _workflowSpecText(ConversationWorkflowSpec workflowSpec) {
+    return [
+      workflowSpec.goal,
+      ...workflowSpec.constraints,
+      ...workflowSpec.acceptanceCriteria,
+      ...workflowSpec.openQuestions,
+    ].join(' ').toLowerCase();
   }
 
   bool _taskProposalViolatesExplicitFirstSliceTargets(
@@ -4406,7 +4544,10 @@ class ChatNotifier extends Notifier<ChatState> {
             context.contains('create only') ||
             context.contains('contain exactly') ||
             context.contains('must contain'));
-    if (!constrainsSlice) {
+    final requiresReadmeAndRequirements =
+        context.contains('requirements.txt') &&
+        (context.contains('readme.md') || context.contains('readme'));
+    if (!constrainsSlice && !requiresReadmeAndRequirements) {
       return const <String>{};
     }
 
@@ -4416,6 +4557,7 @@ class ChatNotifier extends Notifier<ChatState> {
       'pyproject.toml',
       '.gitignore',
       'main.py',
+      'ping_cli.py',
     };
     return knownFirstSliceFiles.where((path) => context.contains(path)).toSet();
   }
@@ -5256,11 +5398,13 @@ class ChatNotifier extends Notifier<ChatState> {
     String? additionalPlanningContext, {
     required bool minimalRetry,
     required bool projectLooksEmpty,
+    ConversationWorkflowSpec? workflowSpec,
   }) {
     return _buildTaskProposalRetryContext(
       additionalPlanningContext,
       minimalRetry: minimalRetry,
       projectLooksEmpty: projectLooksEmpty,
+      workflowSpec: workflowSpec,
     );
   }
 

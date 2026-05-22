@@ -54,6 +54,41 @@ dart run build_runner build --delete-conflicting-outputs
 flutter run
 ```
 
+## Development Workflow
+
+Use the Codex task template for focused implementation, debugging, refactor, and
+review work:
+
+- [`docs/codex_task_template.md`](docs/codex_task_template.md)
+- [`.github/ISSUE_TEMPLATE/codex_task.md`](.github/ISSUE_TEMPLATE/codex_task.md)
+
+For local verification, prefer the shared entrypoint:
+
+```bash
+tool/codex_verify.sh
+```
+
+For focused tests:
+
+```bash
+tool/codex_verify.sh --test test/core/utils/content_parser_test.dart
+```
+
+For coverage-sensitive work:
+
+```bash
+tool/codex_verify.sh --coverage
+```
+
+The coverage summary excludes generated `*.freezed.dart` and `*.g.dart` files
+from the line-rate rollup. Coverage output is written under `coverage/`, which
+is intentionally ignored by git.
+
+Large-file refactor guidance lives in
+[`docs/large_file_refactor_plan.md`](docs/large_file_refactor_plan.md). Use it
+before splitting `ChatNotifier`, `ChatPage`, MCP tool services, or large
+Computer Use settings/debug surfaces.
+
 ## Configuration
 
 All settings are configurable in-app via the Settings page:

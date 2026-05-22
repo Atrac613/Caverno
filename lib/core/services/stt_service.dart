@@ -133,8 +133,8 @@ class SttService {
           onDone?.call();
         }
       },
-      localeId: 'ja_JP',
       listenOptions: SpeechListenOptions(
+        localeId: 'ja_JP',
         listenMode: ListenMode.confirmation,
         cancelOnError: true,
         partialResults: true,

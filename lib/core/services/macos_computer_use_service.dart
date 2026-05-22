@@ -106,7 +106,7 @@ class MacosComputerUseService {
       }
     }
     final failed = <String, dynamic>{
-      if (last != null) ...last,
+      ...?last,
       'ok': false,
       'helperReachable': false,
       'ipcReady': false,
@@ -658,7 +658,7 @@ class MacosComputerUseService {
           'selectedTextOmitted': true,
           'rawAttributeValuesOmitted': true,
         },
-        if (extra != null) ...extra,
+        ...?extra,
       };
       if (code != null) {
         response['code'] = code;
