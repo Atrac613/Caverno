@@ -146,6 +146,52 @@ void main() {
     );
   });
 
+  test(
+    'extractCompletedToolCalls ignores tool calls inside thinking blocks',
+    () {
+      const content = '''
+<think>
+I should call this tool later.
+<tool_call>{"name":"echo_marker","arguments":{"marker":"reasoning-only"}}</tool_call>
+</think>
+Done.''';
+
+      final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+      expect(toolCalls, isEmpty);
+    },
+  );
+
+  test(
+    'extractCompletedToolCalls keeps visible calls after thinking blocks',
+    () {
+      const content = '''
+<think>
+I might call the wrong tool first.
+<tool_call>{"name":"emcho_marker","arguments":{"marker":"wrong"}}</tool_call>
+</think>
+<tool_call>{"name":"echo_marker","arguments":{"marker":"visible"}}</tool_call>''';
+
+      final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+      expect(toolCalls, hasLength(1));
+      expect(toolCalls.first.name, 'echo_marker');
+      expect(toolCalls.first.arguments['marker'], 'visible');
+    },
+  );
+
+  test(
+    'extractCompletedToolCalls ignores calls inside unfinished thinking',
+    () {
+      const content =
+          '<think>Still reasoning. call:echo_marker{marker:"hidden"}';
+
+      final toolCalls = ContentParser.extractCompletedToolCalls(content);
+
+      expect(toolCalls, isEmpty);
+    },
+  );
+
   test('parse strips model control tokens from streaming think content', () {
     const content = '<think> <channel|>flutter pub get was executed.';
 

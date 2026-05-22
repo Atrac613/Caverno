@@ -128,9 +128,7 @@ class ContentParser {
     r'^(\w+)\s*[\n\r]+<arg_key>(\w+)</arg_key>\s*[\n\r]*<arg_value>(.+?)</arg_value>',
     dotAll: true,
   );
-  static final _simpleToolCallPattern = RegExp(
-    r'(\w+)\s*\(\s*"([^"]+)"\s*\)',
-  );
+  static final _simpleToolCallPattern = RegExp(r'(\w+)\s*\(\s*"([^"]+)"\s*\)');
   static final _nameKeyPattern = RegExp(
     r'name\s*[:=]\s*["\x27]?(\w+)["\x27]?',
     caseSensitive: false,
@@ -345,12 +343,13 @@ class ContentParser {
   /// Extracts completed `\<tool_call>` and `\<tool_use>` entries.
   static List<ToolCallData> extractCompletedToolCalls(String content) {
     final toolCalls = <ToolCallData>[];
+    final executableContent = _withoutThinkingBlocks(content);
 
     final matches = <_TagMatch>[];
     for (final match in [
-      ..._toolCallPattern.allMatches(content),
-      ..._toolUsePattern.allMatches(content),
-      ..._controlToolCallUntilEndPattern.allMatches(content),
+      ..._toolCallPattern.allMatches(executableContent),
+      ..._toolUsePattern.allMatches(executableContent),
+      ..._controlToolCallUntilEndPattern.allMatches(executableContent),
     ]) {
       if (_overlapsExistingMatch(match.start, match.end, matches)) {
         continue;
@@ -365,7 +364,7 @@ class ContentParser {
       );
     }
 
-    matches.addAll(_extractBareToolCallMatches(content, matches));
+    matches.addAll(_extractBareToolCallMatches(executableContent, matches));
     matches.sort((a, b) => a.start.compareTo(b.start));
 
     for (final match in matches) {
@@ -384,6 +383,15 @@ class ContentParser {
     }
 
     return toolCalls;
+  }
+
+  static String _withoutThinkingBlocks(String content) {
+    var executableContent = content.replaceAll(_thinkPattern, '');
+    final incompleteThink = _incompleteThinkStart.firstMatch(executableContent);
+    if (incompleteThink != null) {
+      executableContent = executableContent.substring(0, incompleteThink.start);
+    }
+    return executableContent;
   }
 
   /// Parse tool_call content
