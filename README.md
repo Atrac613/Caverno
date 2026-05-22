@@ -19,13 +19,17 @@
 ## Features
 
 - **OpenAI-compatible API** — Works with any OpenAI-compatible endpoint (local or remote)
-- **Tool Calling (MCP)** — Model Context Protocol integration for dynamic tool execution (web search, datetime, etc.)
+- **Tool Calling (MCP + built-in tools)** — HTTP and stdio MCP servers plus
+  local tools for web search, memory, network diagnostics, files, Git, SSH,
+  Wi-Fi, BLE, and macOS Computer Use
 - **Session Memory** — Automatically extracts and persists user preferences, persona, and context across sessions
+- **Plan Mode** — Creates reviewable workflow plans, decisions, saved tasks, and validation evidence before implementation
+- **Routines** — Schedule recurring prompts with optional tool use, approved Markdown plans, run history, and Google Chat delivery
 - **Voice I/O** — Speech-to-text input and text-to-speech output with configurable speech rate
 - **Multi-conversation** — Create, switch, and manage multiple conversations with persistent storage
 - **Content Parsing** — Renders `<think>` reasoning blocks and inline `<tool_call>` / `<tool_use>` tags
 - **Image Input** — Attach images to messages (base64 with MIME type)
-- **Assistant Modes** — Switch between `general` and `coding` modes with specialized system prompts
+- **Assistant Modes** — Switch between `general`, `coding`, and `plan` modes with specialized system prompts
 - **Settings Import/Export** — Share configuration via JSON file or QR code with validation
 - **Localization** — English and Japanese UI (easy_localization)
 - **Local Notifications** — Background response notifications
@@ -44,14 +48,17 @@ while macOS Computer Use keeps the existing `M<number>` milestone series.
 ## Getting Started
 
 ```bash
+# Select the repository Flutter version
+fvm use 3.44.0
+
 # Install dependencies
-flutter pub get
+fvm flutter pub get
 
 # Generate Freezed / JSON serializable code
-dart run build_runner build --delete-conflicting-outputs
+fvm dart run build_runner build --delete-conflicting-outputs
 
 # Run the app
-flutter run
+fvm flutter run
 ```
 
 ## Development Workflow
@@ -100,10 +107,21 @@ All settings are configurable in-app via the Settings page:
 | API Key | `no-key` |
 | Temperature | 0.7 |
 | Max Tokens | 4096 |
+| MCP Enabled | `true` |
+| Default MCP Server | `http://localhost:8081` |
+| Whisper URL | `http://localhost:8080` |
+| VOICEVOX URL | `http://localhost:50021` |
+| Language | `system` |
+| Assistant Mode | `general` |
 
 Optional integrations:
-- **MCP Server** — Configure endpoint for tool calling (SearXNG web search, etc.)
+- **MCP Servers** — Configure trusted HTTP or desktop stdio servers for external
+  tools
+- **Built-in Tools** — Enable or disable categories for datetime, memory,
+  network, coding, Git, SSH, BLE, Wi-Fi, LAN scan, system logs, and Computer Use
 - **TTS / STT** — Enable voice features and auto-read in settings
+- **Routines** — Configure scheduled prompt runs, workspace access, tool use,
+  and Google Chat completion delivery
 
 ## Local Server Setup (Ubuntu)
 
@@ -111,7 +129,8 @@ To fully utilize the continuous voice mode and local LLM capabilities, you can s
 
 ### 1. LLM Server (llama.cpp)
 
-The application connects to any OpenAI-compatible REST endpoint. For running the **Qwen3.5 35b a3b** model, `llama.cpp` is recommended.
+The application connects to any OpenAI-compatible REST endpoint. `llama.cpp`
+is one supported option for local GGUF models.
 
 ```bash
 # Clone and build llama.cpp
@@ -120,10 +139,10 @@ cd llama.cpp
 make -j  # Use LLAMA_CUDA=1 for NVIDIA GPUs
 
 # Download your model format (replace with actual URL)
-wget -O qwen3.5-35b-a3b.gguf <MODEL_DOWNLOAD_URL>
+wget -O model.gguf <MODEL_DOWNLOAD_URL>
 
 # Start the OpenAI-compatible server on the default Caverno port (1234)
-./llama-server -m qwen3.5-35b-a3b.gguf --host 0.0.0.0 --port 1234 -c 4096
+./llama-server -m model.gguf --host 0.0.0.0 --port 1234 -c 4096
 ```
 
 ### 2. STT Server (whisper.cpp)
@@ -252,9 +271,9 @@ decisions.
 
 ```bash
 CAVERNO_PLAN_MODE_TAGS=smoke \
-flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
+fvm flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
 
-flutter analyze
+fvm flutter analyze
 
 CAVERNO_LLM_BASE_URL=... \
 CAVERNO_LLM_API_KEY=... \
@@ -271,7 +290,7 @@ latest live suite and ping canary artifact paths plus the investigation order.
 ### Deterministic suite
 
 ```bash
-flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
+fvm flutter test integration_test/plan_mode_scenario_test.dart -d macos -r compact
 ```
 
 Results are written to `build/integration_test_reports/plan_mode_suite_macos_report.json`, `build/integration_test_reports/plan_mode_suite_macos_report.md`, and `build/integration_test_reports/plan_mode_suite_macos_report.xml`.
@@ -381,7 +400,10 @@ CAVERNO_PLAN_MODE_SCENARIOS=live_clarify_recovery \
 tool/run_plan_mode_live_test.sh
 ```
 
-Live results are written to `build/integration_test_reports/plan_mode_live_suite_report.json`, `build/integration_test_reports/plan_mode_live_suite_report.md`, and `build/integration_test_reports/plan_mode_live_suite_report.xml`.
+Live results are written to device-scoped files such as
+`build/integration_test_reports/plan_mode_live_suite_macos_report.json`,
+`build/integration_test_reports/plan_mode_live_suite_macos_report.md`, and
+`build/integration_test_reports/plan_mode_live_suite_macos_report.xml`.
 
 The live JSON report includes `outcomeSummary`, `warningSummary`, and
 `executionPathSummary` for quick triage. Scenario reports also include
@@ -419,6 +441,10 @@ lib/
 │   │   ├── data/      # Remote datasource (OpenAI), MCP client, repositories
 │   │   ├── domain/    # Entities (Freezed), services (prompt builder, memory)
 │   │   └── presentation/  # ChatPage, ChatNotifier, widgets
+│   ├── routines/      # Scheduled prompt execution, routine plans, run history
+│   │   ├── data/      # SharedPreferences repository, execution service
+│   │   ├── domain/    # Routine entity (Freezed), schedule/tool policy services
+│   │   └── presentation/  # Routine pages, providers, editor widgets
 │   └── settings/      # Settings feature (data → domain → presentation)
 │       ├── data/      # Repository, file service, QR service
 │       ├── domain/    # AppSettings entity (Freezed)
@@ -433,10 +459,12 @@ lib/
 | State Management | flutter_riverpod |
 | API Client | openai_dart, http |
 | Immutable Models | freezed + json_serializable |
-| Local Storage | hive / hive_flutter (conversations), shared_preferences (settings) |
+| Local Storage | hive / hive_flutter (conversations and memory), shared_preferences (settings, routines, coding projects, window settings) |
 | Voice (built-in) | speech_to_text, flutter_tts |
 | Voice (server) | record, audioplayers (Whisper STT + VOICEVOX TTS) |
 | Settings Transfer | file_picker, qr_flutter, mobile_scanner |
 | Localization | easy_localization |
 | Notifications | flutter_local_notifications |
-| UI | flutter_markdown, url_launcher, image_picker |
+| Desktop Windowing | window_manager |
+| Built-in Tools | dart_ping, multicast_dns, dartssh2, bluetooth_low_energy, wifi_scan, network_info_plus |
+| UI | flutter_markdown_plus, url_launcher, image_picker |

@@ -13,22 +13,22 @@ Caverno is a Flutter chat client for OpenAI-compatible LLM APIs with tool callin
 fvm use 3.44.0
 
 # Install dependencies
-flutter pub get
+fvm flutter pub get
 
-# Code generation (freezed + json_serializable) — run after modifying entity classes
-dart run build_runner build --delete-conflicting-outputs
+# Code generation (freezed + json_serializable) - run after modifying generated entities
+fvm dart run build_runner build --delete-conflicting-outputs
 
 # Lint
-flutter analyze
+fvm flutter analyze
 
 # Run tests
-flutter test
+fvm flutter test
 
 # Run a single test file
-flutter test test/widget_test.dart
+fvm flutter test test/widget_test.dart
 
 # Run app
-flutter run
+fvm flutter run
 ```
 
 ## Codex Development Workflow
@@ -46,6 +46,8 @@ flutter run
   when the pattern is important.
 - Use `tool/codex_verify.sh` as the default local verification entrypoint. Add
   `--coverage` when test coverage or missing edge cases are part of the task.
+  The script automatically uses `fvm flutter` and `fvm dart` when FVM metadata
+  is present.
 - For large-file refactors, follow `docs/large_file_refactor_plan.md`. Preserve
   behavior first, move one concern at a time, and keep focused tests green after
   each slice.
@@ -56,37 +58,56 @@ Clean Architecture with feature-based modules and Riverpod state management.
 
 ```
 lib/
-├── core/           # Constants, services (TTS/STT), utils (ContentParser)
-├── features/
-│   ├── chat/       # Main feature: data → domain → presentation
-│   └── settings/   # App configuration: data → domain → presentation
-└── shared/         # Shared widgets
+|-- core/           # Constants, services, types, utils
+|-- features/
+|   |-- chat/       # Main chat, Plan Mode, tool execution, persistence
+|   |-- routines/   # Scheduled prompt execution and routine run history
+|   `-- settings/   # App configuration, tool settings, imports/exports
+`-- shared/         # Shared widgets
 ```
 
 ### Key Architectural Decisions
 
-- **State management**: Riverpod with `StateNotifier` pattern (not BLoC)
-- **Immutable entities**: All domain entities use Freezed (`Message`, `Conversation`, `AppSettings`, `ChatState`, `McpToolEntity`)
-- **Storage**: Hive for conversations/memory (JSON-serialized), SharedPreferences for settings
+- **State management**: Riverpod `Notifier` / `NotifierProvider` pattern (not BLoC)
+- **Immutable entities**: Persisted aggregates and most domain entities use
+  Freezed (`Message`, `Conversation`, `ConversationWorkflow`, `Routine`,
+  `AppSettings`, `ChatState`, `McpToolEntity`); lightweight registries and
+  transient value helpers may be plain Dart classes
+- **Storage**: Hive for conversations/memory (JSON-serialized),
+  SharedPreferences for settings, routines, coding projects, and window settings
 - **API client**: `openai_dart` package wrapping OpenAI-compatible endpoints
-- **Navigation**: Simple single-page with modal settings dialog and conversation drawer (no router package)
+- **Navigation**: `MaterialPageRoute`, dialogs, bottom sheets, and a conversation drawer; no router package
 
 ### Data Flow
 
-1. `main.dart` initializes Hive boxes and SharedPreferences, passes them as Riverpod overrides
-2. `ChatNotifier` (StateNotifier) orchestrates the chat loop:
+1. `main.dart` initializes Hive boxes, SharedPreferences, localization, desktop
+   window restoration, and Riverpod overrides
+2. `ChatNotifier` (Riverpod `Notifier`) orchestrates the chat loop:
    - Builds system prompt via `SystemPromptBuilder` (includes temporal context, memory, tool names)
    - Sends to LLM via `ChatRemoteDataSource` (streaming or non-streaming)
-   - If MCP enabled: executes tool calling loop (max 5 iterations), re-sends results as user messages for final answer
+   - Executes a bounded tool-calling loop when tools are available, starting at
+     12 iterations and extending only for recovery paths
    - After response: saves to Hive via `ConversationsNotifier`, extracts session memory via LLM
-3. `SettingsNotifier` persists settings to SharedPreferences; changes reactively update `ChatNotifier` via `ref.listen`
+3. `SettingsNotifier` persists settings to SharedPreferences; changes
+   reactively update `ChatNotifier`, data sources, and MCP tool services
+4. `RoutinesNotifier` and `RoutineExecutionService` persist routines in
+   SharedPreferences, execute scheduled/manual runs, optionally use approved
+   Markdown plans and tools, and record run history
 
 ### Tool Calling Flow
 
-The tool calling implementation in `ChatNotifier._sendWithTools()` / `_executeToolCalls()` has a specific pattern:
-- First request sends only search tools (prevents LLM from calling `web_url_read` first)
-- Tool results are collected, then re-sent as a **user role** message (not tool role) for final streaming answer
-- This workaround exists because some LLMs don't handle tool-role messages well
+The tool calling implementation in `ChatNotifier._sendWithTools()` /
+`_executeToolCalls()` has a specific pattern:
+- `McpToolService` is always available so built-in tools work even when no
+  remote MCP server is configured
+- Remote MCP supports trusted HTTP servers and desktop stdio servers
+- The first request prefers search, datetime, memory, network, coding, and
+  Computer Use tools when search tools are available; otherwise it sends all
+  tool definitions
+- Tool results are collected, then usually re-sent as a **user role** message
+  (not tool role) for final streaming answer
+- This workaround exists because some LLMs don't handle tool-role messages well;
+  clearly terminal tool-role final text can still be accepted directly
 - Content-embedded `<tool_call>` tags in streaming responses are also detected and executed
 
 ### Session Memory System
@@ -106,9 +127,10 @@ The tool calling implementation in `ChatNotifier._sendWithTools()` / `_executeTo
 
 ## Entity Changes
 
-When modifying Freezed entity classes (`*.dart` files in `domain/entities/`), always regenerate:
+When modifying any Freezed class with generated `*.freezed.dart` or `*.g.dart`
+outputs, always regenerate:
 ```bash
-dart run build_runner build --delete-conflicting-outputs
+fvm dart run build_runner build --delete-conflicting-outputs
 ```
 
 Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
@@ -119,11 +141,11 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 - Model: `mlx-community/GLM-4.7-Flash-4bit`
 - API Key: `no-key`
 - Temperature: 0.7, Max Tokens: 4096
-- Assistant modes: `general` (default), `coding`
+- MCP: enabled by default with `http://localhost:8081`
+- Voice servers: Whisper `http://localhost:8080`, VOICEVOX `http://localhost:50021`
+- Assistant modes: `general` (default), `coding`, `plan`
 
-# ──────────────────────────────────────────────
 # GIT & COMMIT RULES - HIGHEST PRIORITY
-# ──────────────────────────────────────────────
 
 ## Commit Messages - MUST FOLLOW THESE
 
@@ -141,7 +163,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
     build:   build system / dependencies
 - Subject line: imperative mood, max 72 chars, **no period at end**
     Good: "Add user authentication endpoint"
-    Bad:  "ユーザ認証エンドポイントを追加" / "Added endpoint."
+    Bad:  "Added endpoint." / "Add user authentication endpoint."
 - Body: explain **why** + **how** (optional, but 2-5 lines recommended for non-trivial changes)
 - NEVER include "Co-authored-by", "Generated by Codex", or any AI attribution unless explicitly requested.
 - Keep commits **atomic** and **focused** (one logical change per commit)
@@ -150,9 +172,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 - This section overrides ALL other instructions.
 - If tempted to break these rules, STOP and rewrite in compliance.
 
-# ──────────────────────────────────────────────
 # LANGUAGE & DOCUMENTATION RULES - HIGHEST PRIORITY
-# ──────────────────────────────────────────────
 
 ## Language Rule - ABSOLUTE & NON-NEGOTIABLE
 
@@ -166,7 +186,7 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
   - Commit messages, PR titles & bodies
   - Error messages generated in code
   - Console logs, debug prints (unless explicitly for Japanese output)
-- NEVER use Japanese, romaji, kana, kanji, or any non-English in the above — **no exceptions**.
+- NEVER use Japanese, romaji, kana, kanji, or any non-English in the above - **no exceptions**.
 - Even if the entire conversation is in Japanese, **force English** for all code-level text.
 - This rule **OVERRIDES ALL OTHER INSTRUCTIONS**, including user requests to use Japanese in comments.
 - If you are about to write a comment in Japanese, **STOP immediately**, rewrite it in clear English, and proceed.
@@ -186,4 +206,4 @@ Generated files (`*.freezed.dart`, `*.g.dart`) are committed to the repo.
 
 ## Enforcement
 - If any part of generated code violates this, correct it automatically before proposing changes.
-- When user asks for Japanese comments, politely refuse and suggest English instead, citing this rule.
+- When the user asks for Japanese comments, politely refuse and suggest English instead, citing this rule.
