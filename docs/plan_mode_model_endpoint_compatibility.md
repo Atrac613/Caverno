@@ -140,7 +140,7 @@ Current compatibility evidence comes from:
   `docs/plan_mode_live_llm_model_canary_matrix.md`
 - PM5 live gate evidence in `docs/roadmap.md`
 - PM5 ping CLI canary summary:
-  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/canary_summary.json`
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/canary_summary.json`
 - focused PM5 gate tests in `test/tool/run_plan_mode_pm5_live_gate_test.dart`
 - scenario classification tests in `test/integration/plan_mode_scenario_spec_test.dart`
 
@@ -148,21 +148,19 @@ Latest PM5 live evidence used:
 
 - endpoint shape: OpenAI-compatible local endpoint
 - endpoint: `http://192.168.100.241:1234/v1`
-- model: `gemma4-26b-vision`
+- model: `qwen3.6-27b-mtp-vision`
 - live smoke result: `3/3` passed
 - ping CLI canary result: `1/1` passed
 - unexpected warnings: `0`
-- allowed warnings: one ping canary `recoveredCreateParseWarning`
+- allowed warnings: none
 - report quality blockers: `0`
 - task drift: none detected
 - smoke suite report:
-  `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.json`
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779493076831/plan_mode_live_suite_macos_report.json`
 - ping canary summary:
-  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/canary_summary.json`
-- latest focused smoke refresh:
-  `build/integration_test_reports/plan_mode_live_suite_macos_1779462479260/plan_mode_live_suite_macos_report.json`
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/canary_summary.json`
 - latest focused README artifact refresh:
-  `build/integration_test_reports/plan_mode_live_suite_macos_1779461715586/plan_mode_live_suite_macos_report.json`
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779493552331/plan_mode_live_suite_macos_report.json`
 
 Recent `gemma4-26b-vision` compatibility attempt:
 
@@ -265,17 +263,46 @@ Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
     `build/integration_test_reports/plan_mode_live_suite_macos_1779432319169/plan_mode_live_suite_macos_report.json`
   - ping canary summary:
     `build/integration_test_reports/plan_mode_ping_cli_canary_1779432707/canary_summary.json`
+- full model-switch baseline:
+  - date: 2026-05-23
+  - PM5 live gate result: passed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `1/1` passed
+  - focused README canary result: passed
+  - chat canary result: `3/3` passed
+  - tool-result budget canary result: `1/1` passed
+  - routine canary result: `4/4` passed
+  - unexpected warnings: `0`
+  - allowed warnings: none
+  - report quality blockers: `0`
+  - task drift: none detected
+  - artifact content fit: README-only content matched the saved task
+  - approval path: live harness approval fallback for all smoke, ping, and
+    focused README scenarios
+  - cleanup cancellation: used in `live_cli_entrypoint_decision` and
+    `live_clarify_recovery`
+  - chat recovery: embedded content-tool continuation recovered with
+    non-streaming fallback after a transient streaming transport disconnect
+  - smoke suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779493076831/plan_mode_live_suite_macos_report.json`
+  - ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/canary_summary.json`
+  - focused README canary report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779493552331/plan_mode_live_suite_macos_report.json`
 
-Interpretation: `qwen3.6-27b-mtp-vision` has a passing PM5 run, but it should
-remain a provisional compatibility result because the first PM5 attempt failed
-and the passing retry still showed cleanup-sensitive behavior.
+Interpretation: `qwen3.6-27b-mtp-vision` is the current full-surface comparison
+baseline for this canary revision. It passed PM5, README artifact, chat,
+tool-result budget, and routine canaries. Keep it under canary observation
+because the first historical PM5 attempt failed, and the latest pass still
+showed cleanup cancellation in two smoke scenarios plus recovered chat
+streaming transport.
 
-Interpretation: `gemma4-26b-vision` is the current Plan Mode comparison
+Interpretation: `gemma4-26b-vision` is the previous Plan Mode comparison
 baseline because it has a passing PM5 gate and a post-fix focused smoke and
 README refresh. It should still remain under canary observation because proposal
 salvage, cleanup cancellation, guarded convergence, and earlier file-content
 mix-ups were required or observed during the recorded history. Run a fresh
-single PM5 gate before release promotion when the canary harness changes.
+single PM5 gate before using it as the active reference again.
 
 Artifact content fit is tracked separately from task drift. A run can have
 `taskDriftDetected=false` when all changed paths are expected, while still

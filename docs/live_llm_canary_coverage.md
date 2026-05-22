@@ -78,16 +78,48 @@ before comparing model behavior.
 
 ## Latest Full-Surface Evidence
 
-### 2026-05-23: `gemma4-26b-vision`
+### 2026-05-23: `qwen3.6-27b-mtp-vision`
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `qwen3.6-27b-mtp-vision`
+- API key: `no-key`
+- Baseline status: current full-surface comparison reference
+- Scope note: all required model-switch canaries ran on the same app and canary
+  revision. Chat, chat-budget, and routine scripts report pass counts through
+  Flutter test output rather than a model-matrix JSON artifact.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding PM5 | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Report quality ready, 0 unexpected warnings, 0 task drift. Smoke used live harness approval fallback for all scenarios, and cleanup cancellation occurred in `live_cli_entrypoint_decision` and `live_clarify_recovery`. |
+| Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | `README.md` was the saved target and actual changed file, contained `CANARY_CONTENT_FIT: README_ONLY`, and converged with one guard activation. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Plain chat, memory extraction JSON, and embedded `<tool_call>` execution passed. Embedded-tool continuation recovered with non-streaming fallback after a transient streaming transport disconnect. |
+| Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully and the model returned `COMPACT_BUDGET_LIVE_OK`. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | New-IP post, no-new-IP no-post, LAN scan failure, and `contents` write-shape branches all passed. |
+
+Artifacts:
+
+- PM5 smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779493076831/plan_mode_live_suite_macos_report.json`
+- PM5 smoke Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779493076831/plan_mode_live_suite_macos_report.md`
+- PM5 ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/run_01_suite_report.json`
+- Focused README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779493552331/plan_mode_live_suite_macos_report.json`
+
+### Previous Reference: `gemma4-26b-vision`
 
 - Endpoint: `http://192.168.100.241:1234/v1`
 - Model discovered from `/models`: `gemma4-26b-vision`
 - API key: `no-key`
-- Baseline status: usable as the current comparison reference
+- Baseline status: previous comparison reference
 - Scope note: PM5 and ping evidence came from the last full PM5 gate rerun.
   Focused smoke, README artifact, and chat evidence were refreshed after the
-  latest canary expectation and parser fixes. Run a fresh full PM5 gate before
-  release promotion.
+  latest canary expectation and parser fixes. Use the qwen baseline above for
+  the current model-switch comparison unless intentionally comparing against
+  the previous reference model.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
@@ -100,9 +132,9 @@ before comparing model behavior.
 
 Artifacts:
 
-- Current smoke refresh report:
+- Previous smoke refresh report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779462479260/plan_mode_live_suite_macos_report.json`
-- Current focused README canary report:
+- Previous focused README canary report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779461715586/plan_mode_live_suite_macos_report.json`
 - PM5 smoke report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.json`
