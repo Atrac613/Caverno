@@ -12,10 +12,12 @@ import 'package:caverno/features/routines/domain/entities/routine.dart';
 import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 
 const _routinePrompt =
-    'LAN scan \u3092\u5b9f\u884c\u3057\u3001\u691c\u51fa\u3055\u308c\u305f\u7aef\u672b IP \u4e00\u89a7\u3092 workspace \u306e lan_devices.json \u306b\u4fdd\u5b58\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n'
-    '\u65e2\u5b58\u30d5\u30a1\u30a4\u30eb\u304c\u3042\u308c\u3070\u8aad\u307f\u8fbc\u307f\u3001\u524d\u56de\u3068\u306e\u5dee\u5206\u3092\u6bd4\u8f03\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n'
-    '\u65b0\u898f IP \u304c\u3042\u308c\u3070 Google Chat \u306b\u65b0\u898f\u7aef\u672b\u4e00\u89a7\u3060\u3051\u3092\u6295\u7a3f\u3057\u3066\u304f\u3060\u3055\u3044\u3002\n'
-    '\u65b0\u898f IP \u304c\u306a\u3051\u308c\u3070\u30d5\u30a1\u30a4\u30eb\u3060\u3051\u66f4\u65b0\u3057\u3001\u6295\u7a3f\u3057\u306a\u3044\u3067\u304f\u3060\u3055\u3044\u3002';
+    'Run a LAN scan and save the detected device IP list to '
+    'lan_devices.json in the routine workspace. If the existing file is '
+    'present, read it first and compare the previous IP list with the current '
+    'scan. If there are newly discovered IPs, post only the newly discovered '
+    'IP list to Google Chat. If there are no newly discovered IPs, update only '
+    'lan_devices.json and do not post to Google Chat.';
 
 void main() {
   final liveEnabled =
@@ -24,100 +26,220 @@ void main() {
   test(
     'live LLM completes the LAN watcher routine with file update and chat alert',
     () async {
-      final baseUrl = _requiredEnv('CAVERNO_LLM_BASE_URL');
-      final apiKey = _requiredEnv('CAVERNO_LLM_API_KEY');
-      final model = _requiredEnv('CAVERNO_LLM_MODEL');
-      final maxTokens = int.tryParse(
-        Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_MAX_TOKENS'] ??
-            Platform.environment['CAVERNO_ROUTINE_LIVE_MAX_TOKENS'] ??
-            '',
+      await _runLanWatcherScenario(
+        previousIps: const ['192.168.100.1', '192.168.100.8'],
+        currentIps: const ['192.168.100.1', '192.168.100.8', '192.168.100.42'],
+        expectedPostedIps: const ['192.168.100.42'],
+        expectGoogleChatPost: true,
       );
-      final temperature = double.tryParse(
-        Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_TEMPERATURE'] ??
-            Platform.environment['CAVERNO_ROUTINE_LIVE_TEMPERATURE'] ??
-            '',
-      );
-
-      final workspace = Directory.systemTemp.createTempSync(
-        'caverno-routine-live-',
-      );
-      final stateFile = File('${workspace.path}/lan_devices.json');
-      const previousIps = ['192.168.100.1', '192.168.100.8'];
-      const currentIps = ['192.168.100.1', '192.168.100.8', '192.168.100.42'];
-      const newIp = '192.168.100.42';
-      await stateFile.writeAsString(
-        const JsonEncoder.withIndent('  ').convert(previousIps),
-      );
-
-      final toolService = _LiveRoutineMcpToolService(
-        workspaceDirectory: workspace.path,
-        lanIps: currentIps,
-      );
-      final deliveryService = _LiveRoutineGoogleChatDeliveryService();
-      final settings = AppSettings.defaults().copyWith(
-        baseUrl: baseUrl,
-        apiKey: apiKey,
-        model: model,
-        temperature: temperature ?? 0.2,
-        maxTokens: maxTokens ?? 4096,
-        googleChatWebhookUrl:
-            'https://chat.googleapis.com/v1/spaces/live-test/messages?key=test&token=test',
-      );
-      final service = RoutineExecutionService(
-        dataSource: ChatRemoteDataSource(baseUrl: baseUrl, apiKey: apiKey),
-        mcpToolService: toolService,
-        googleChatDeliveryService: deliveryService,
-        settings: settings,
-      );
-      final now = DateTime(2026, 4, 25, 15, 0);
-      final routine = Routine(
-        id: 'routine-live-lan-watch',
-        name: 'LAN watcher live validation',
-        prompt: _routinePrompt,
-        createdAt: now,
-        updatedAt: now,
-        enabled: true,
-        toolsEnabled: true,
-        workspaceDirectory: workspace.path,
-        allowWorkspaceWrites: true,
-        completionAction: RoutineCompletionAction.promptGoogleChat,
-      );
-
-      try {
-        final record = await service.execute(routine);
-
-        expect(
-          record.isSuccessful,
-          isTrue,
-          reason: _diagnostic(record, toolService, deliveryService, stateFile),
-        );
-        expect(
-          toolService.executedToolNames,
-          containsAll(['read_file', 'lan_scan', 'write_file']),
-        );
-        expect(
-          record.toolNames,
-          contains(RoutineExecutionService.googleChatPostToolName),
-        );
-        expect(deliveryService.messages, hasLength(1));
-        expect(deliveryService.messages.single, contains(newIp));
-        for (final previousIp in previousIps) {
-          expect(deliveryService.messages.single, isNot(contains(previousIp)));
-        }
-
-        final savedContent = await stateFile.readAsString();
-        for (final currentIp in currentIps) {
-          expect(savedContent, contains(currentIp));
-        }
-      } finally {
-        workspace.deleteSync(recursive: true);
-      }
     },
     skip: liveEnabled
         ? false
         : 'Set CAVERNO_ROUTINE_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 5)),
   );
+
+  test(
+    'live LLM updates the LAN watcher file without posting when no IP is new',
+    () async {
+      await _runLanWatcherScenario(
+        previousIps: const ['192.168.100.1', '192.168.100.8'],
+        currentIps: const ['192.168.100.1', '192.168.100.8'],
+        expectedPostedIps: const <String>[],
+        expectGoogleChatPost: false,
+      );
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_ROUTINE_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test(
+    'live LLM records a LAN scan failure without posting to Google Chat',
+    () async {
+      await _runLanWatcherScenario(
+        previousIps: const ['192.168.100.1', '192.168.100.8'],
+        currentIps: const <String>[],
+        expectedPostedIps: const <String>[],
+        expectGoogleChatPost: false,
+        requireWriteFile: false,
+        lanScanFailureMessage: 'LAN scan adapter is unavailable.',
+      );
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_ROUTINE_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test(
+    'live LLM can write LAN state with the contents argument alias',
+    () async {
+      await _runLanWatcherScenario(
+        prompt:
+            '$_routinePrompt For this canary, when calling write_file, use '
+            'the argument name contents instead of content.',
+        previousIps: const ['192.168.100.1'],
+        currentIps: const ['192.168.100.1', '192.168.100.24'],
+        expectedPostedIps: const ['192.168.100.24'],
+        expectGoogleChatPost: true,
+        expectContentsArgument: true,
+      );
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_ROUTINE_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+}
+
+Future<void> _runLanWatcherScenario({
+  String prompt = _routinePrompt,
+  required List<String> previousIps,
+  required List<String> currentIps,
+  required List<String> expectedPostedIps,
+  required bool expectGoogleChatPost,
+  bool requireWriteFile = true,
+  bool expectContentsArgument = false,
+  String? lanScanFailureMessage,
+}) async {
+  final baseUrl = _requiredEnv('CAVERNO_LLM_BASE_URL');
+  final apiKey = _requiredEnv('CAVERNO_LLM_API_KEY');
+  final model = _requiredEnv('CAVERNO_LLM_MODEL');
+  final maxTokens = int.tryParse(
+    Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_MAX_TOKENS'] ??
+        Platform.environment['CAVERNO_ROUTINE_LIVE_MAX_TOKENS'] ??
+        '',
+  );
+  final temperature = double.tryParse(
+    Platform.environment['CAVERNO_ROUTINE_LIVE_CANARY_TEMPERATURE'] ??
+        Platform.environment['CAVERNO_ROUTINE_LIVE_TEMPERATURE'] ??
+        '',
+  );
+
+  final workspace = Directory.systemTemp.createTempSync(
+    'caverno-routine-live-',
+  );
+  final stateFile = File('${workspace.path}/lan_devices.json');
+  await stateFile.writeAsString(
+    const JsonEncoder.withIndent('  ').convert(previousIps),
+  );
+
+  final toolService = _LiveRoutineMcpToolService(
+    workspaceDirectory: workspace.path,
+    lanIps: currentIps,
+    lanScanFailureMessage: lanScanFailureMessage,
+  );
+  final deliveryService = _LiveRoutineGoogleChatDeliveryService();
+  final settings = AppSettings.defaults().copyWith(
+    baseUrl: baseUrl,
+    apiKey: apiKey,
+    model: model,
+    temperature: temperature ?? 0.2,
+    maxTokens: maxTokens ?? 4096,
+    googleChatWebhookUrl:
+        'https://chat.googleapis.com/v1/spaces/live-test/messages?key=test&token=test',
+  );
+  final service = RoutineExecutionService(
+    dataSource: ChatRemoteDataSource(baseUrl: baseUrl, apiKey: apiKey),
+    mcpToolService: toolService,
+    googleChatDeliveryService: deliveryService,
+    settings: settings,
+  );
+  final now = DateTime(2026, 4, 25, 15, 0);
+  final routine = Routine(
+    id: 'routine-live-lan-watch',
+    name: 'LAN watcher live validation',
+    prompt: prompt,
+    createdAt: now,
+    updatedAt: now,
+    enabled: true,
+    toolsEnabled: true,
+    workspaceDirectory: workspace.path,
+    allowWorkspaceWrites: true,
+    completionAction: RoutineCompletionAction.promptGoogleChat,
+  );
+
+  try {
+    final record = await service.execute(routine);
+    final diagnostic = _diagnostic(
+      record,
+      toolService,
+      deliveryService,
+      stateFile,
+    );
+
+    expect(toolService.executedToolNames, contains('lan_scan'));
+    if (lanScanFailureMessage == null) {
+      expect(record.isSuccessful, isTrue, reason: diagnostic);
+    } else {
+      final failureText = '${record.preview}\n${record.output}\n${record.error}'
+          .toLowerCase();
+      expect(failureText, contains('lan'), reason: diagnostic);
+      expect(
+        failureText,
+        anyOf(contains('fail'), contains('unavailable'), contains('error')),
+        reason: diagnostic,
+      );
+    }
+
+    if (requireWriteFile) {
+      expect(
+        toolService.executedToolNames,
+        containsAll(['read_file', 'lan_scan', 'write_file']),
+        reason: diagnostic,
+      );
+      final savedContent = await stateFile.readAsString();
+      for (final currentIp in currentIps) {
+        expect(savedContent, contains(currentIp), reason: diagnostic);
+      }
+    }
+
+    if (expectContentsArgument) {
+      final writeCalls = toolService.executedCalls.where(
+        (call) => call.name == 'write_file',
+      );
+      expect(writeCalls, isNotEmpty, reason: diagnostic);
+      expect(
+        writeCalls.last.arguments,
+        contains('contents'),
+        reason: diagnostic,
+      );
+    }
+
+    if (expectGoogleChatPost) {
+      expect(
+        record.toolNames,
+        contains(RoutineExecutionService.googleChatPostToolName),
+        reason: diagnostic,
+      );
+      expect(deliveryService.messages, hasLength(1), reason: diagnostic);
+      for (final expectedIp in expectedPostedIps) {
+        expect(
+          deliveryService.messages.single,
+          contains(expectedIp),
+          reason: diagnostic,
+        );
+      }
+      for (final previousIp in previousIps) {
+        expect(
+          deliveryService.messages.single,
+          isNot(contains(previousIp)),
+          reason: diagnostic,
+        );
+      }
+    } else {
+      expect(
+        record.toolNames,
+        isNot(contains(RoutineExecutionService.googleChatPostToolName)),
+        reason: diagnostic,
+      );
+      expect(deliveryService.messages, isEmpty, reason: diagnostic);
+    }
+  } finally {
+    workspace.deleteSync(recursive: true);
+  }
 }
 
 String _requiredEnv(String name) {
@@ -134,6 +256,9 @@ String _diagnostic(
   _LiveRoutineGoogleChatDeliveryService deliveryService,
   File stateFile,
 ) {
+  final executedCalls = toolService.executedCalls
+      .map((call) => '${call.name}:${jsonEncode(call.arguments)}')
+      .join(' | ');
   final buffer = StringBuffer()
     ..writeln('status=${record.status.name}')
     ..writeln('error=${record.error}')
@@ -141,6 +266,7 @@ String _diagnostic(
     ..writeln('output=${record.output}')
     ..writeln('toolNames=${record.toolNames.join(',')}')
     ..writeln('executedToolNames=${toolService.executedToolNames.join(',')}')
+    ..writeln('executedCalls=$executedCalls')
     ..writeln('chatMessages=${deliveryService.messages.join(' | ')}');
   if (stateFile.existsSync()) {
     buffer.writeln('stateFile=${stateFile.readAsStringSync()}');
@@ -167,11 +293,14 @@ class _LiveRoutineMcpToolService extends McpToolService {
   _LiveRoutineMcpToolService({
     required this.workspaceDirectory,
     required this.lanIps,
+    this.lanScanFailureMessage,
   });
 
   final String workspaceDirectory;
   final List<String> lanIps;
+  final String? lanScanFailureMessage;
   final List<String> executedToolNames = [];
+  final List<_ExecutedToolCall> executedCalls = [];
 
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
@@ -227,6 +356,9 @@ class _LiveRoutineMcpToolService extends McpToolService {
     required Map<String, dynamic> arguments,
   }) async {
     executedToolNames.add(name);
+    executedCalls.add(
+      _ExecutedToolCall(name, Map<String, dynamic>.from(arguments)),
+    );
     return switch (name) {
       'read_file' => _readFile(arguments),
       'lan_scan' => _lanScan(),
@@ -264,6 +396,19 @@ class _LiveRoutineMcpToolService extends McpToolService {
   }
 
   McpToolResult _lanScan() {
+    final failureMessage = lanScanFailureMessage;
+    if (failureMessage != null) {
+      return McpToolResult(
+        toolName: 'lan_scan',
+        result: jsonEncode({
+          'ok': false,
+          'code': 'lan_scan_failed',
+          'error': failureMessage,
+        }),
+        isSuccess: false,
+        errorMessage: failureMessage,
+      );
+    }
     return McpToolResult(
       toolName: 'lan_scan',
       result: jsonEncode({
@@ -302,6 +447,13 @@ class _LiveRoutineMcpToolService extends McpToolService {
       isSuccess: true,
     );
   }
+}
+
+class _ExecutedToolCall {
+  const _ExecutedToolCall(this.name, this.arguments);
+
+  final String name;
+  final Map<String, dynamic> arguments;
 }
 
 class _LiveRoutineGoogleChatDeliveryService extends GoogleChatDeliveryService {

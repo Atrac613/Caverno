@@ -15,12 +15,15 @@ surface. Use it as an early warning check when changing routine execution,
 tool-call parsing, workspace file tools, Google Chat notification handling, or
 prompt guidance for local models.
 
-The current canary validates the LAN watcher routine path:
+The current canary validates these LAN watcher routine branches:
 
 - read the previous `lan_devices.json` from a routine workspace
 - run `lan_scan`
 - write the updated IP list back to `lan_devices.json`
 - post only newly discovered IPs through `routine_google_chat_post`
+- update the file without posting when no IP is new
+- record a LAN scan failure without posting
+- write the state file through the `contents` argument alias
 
 ## Runner
 
@@ -69,15 +72,16 @@ The canary uses a live OpenAI-compatible LLM, but isolates side effects:
 - `lan_scan` is a fake MCP tool returning deterministic current IPs
 - Google Chat delivery is captured in memory and never posts to a real webhook
 
-The canary expects the model to call these tools successfully:
+The success and no-new-IP branches expect the model to call these tools:
 
 - `read_file`
 - `lan_scan`
 - `write_file`
-- `routine_google_chat_post`
 
-It also verifies that the saved file contains the current IPs and that the
-captured Google Chat message contains only the new IP.
+The new-IP branches also expect `routine_google_chat_post`. The no-new-IP and
+LAN-failure branches assert that Google Chat is not called. The write-shape
+branch asserts that `write_file` can use the `contents` argument alias and still
+persist the expected JSON list.
 
 ## Why This Is a Canary
 
@@ -123,8 +127,12 @@ Common failure classes:
 
 - Missing `routine_google_chat_post`: the model updated the file but did not
   complete the requested notification flow.
+- Unexpected `routine_google_chat_post`: the model posted when the no-new-IP or
+  failure branch required silence.
 - Missing `write_file`: the model inspected data but failed to persist the
   workspace state.
+- Missing failure evidence: the model received a failing `lan_scan` result but
+  did not explain the failure in the recorded run.
 - Malformed `write_file` arguments: parser compatibility or prompt guidance
   regressed.
 - Think-only or length-finished response: the live model likely hit the token

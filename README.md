@@ -415,6 +415,27 @@ directly instead of depending on a foreground-sensitive approval sheet tap.
 Treat `unexpectedWarnings` as fix targets. `allowedWarnings` are still reported,
 but they have a documented recovery path or scenario-level allow pattern.
 
+## Chat Live LLM Canary
+
+Chat live LLM validation covers plain chat streaming, memory extraction JSON,
+and content-embedded tool-call execution.
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_chat_live_llm_canary.sh
+```
+
+The oversized tool-result recovery path is covered separately:
+
+```bash
+CAVERNO_LLM_BASE_URL=... \
+CAVERNO_LLM_API_KEY=... \
+CAVERNO_LLM_MODEL=... \
+tool/run_tool_result_budget_live_canary.sh
+```
+
 ## Routine Live LLM Canary
 
 Routine live LLM validation is documented in

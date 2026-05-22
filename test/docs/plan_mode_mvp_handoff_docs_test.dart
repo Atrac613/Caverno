@@ -30,6 +30,8 @@ void main() {
       expect(readme, contains('tool/run_plan_mode_pm5_live_gate.sh'));
       expect(readme, contains('CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1'));
       expect(readme, contains('CAVERNO_PLAN_MODE_PM5_SKIP_SMOKE=1'));
+      expect(readme, contains('tool/run_chat_live_llm_canary.sh'));
+      expect(readme, contains('tool/run_tool_result_budget_live_canary.sh'));
     });
 
     test('handoff records readiness signals and review blockers', () {
@@ -115,6 +117,7 @@ void main() {
       expect(coverage, contains('Not ready for smoke promotion'));
       expect(coverage, contains('Promotion Rules'));
       expect(coverage, contains('three consecutive clean live runs'));
+      expect(coverage, contains('CANARY_CONTENT_FIT: README_ONLY'));
     });
 
     test('live LLM canary coverage doc records cross-surface gaps', () {
@@ -124,14 +127,20 @@ void main() {
 
       expect(coverage, contains('# Live LLM Canary Coverage'));
       expect(coverage, contains('| Chat |'));
+      expect(coverage, contains('tool/run_chat_live_llm_canary.sh'));
       expect(coverage, contains('tool/run_tool_result_budget_live_canary.sh'));
       expect(coverage, contains('chat_basic_response_live_canary'));
+      expect(coverage, contains('chat_memory_extraction_live_canary'));
+      expect(coverage, contains('chat_embedded_tool_call_live_canary'));
       expect(coverage, contains('| Coding |'));
       expect(coverage, contains('tool/run_plan_mode_pm5_live_gate.sh'));
       expect(coverage, contains('live_readme_first_canary'));
+      expect(coverage, contains('CANARY_CONTENT_FIT: README_ONLY'));
       expect(coverage, contains('| Routines |'));
       expect(coverage, contains('tool/run_routine_live_llm_canary.sh'));
       expect(coverage, contains('routine_lan_no_new_ip_live_canary'));
+      expect(coverage, contains('routine_lan_tool_failure_live_canary'));
+      expect(coverage, contains('routine_workspace_write_shape_live_canary'));
       expect(coverage, contains('Baseline Model Switch Flow'));
       expect(coverage, contains('three consecutive clean runs'));
     });

@@ -1575,7 +1575,8 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           'and validation approach. Do not create Python source files in the '
           'first slice. The saved task proposal must contain exactly one task, '
           'and that task must create or update README.md. Do not add a '
-          'separate verification-only task.',
+          'separate verification-only task. Include this exact line in '
+          'README.md: CANARY_CONTENT_FIT: README_ONLY.',
       projectName: 'tmp-live-readme-canary',
       tags: const <String>['live', 'canary', 'artifact', 'convergence'],
       workflowResponses: const <PlanModeWorkflowResponseSpec>[
@@ -1591,7 +1592,10 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
       ],
       artifactExpectations: const <PlanModeArtifactExpectation>[
-        PlanModeArtifactExpectation(path: 'README.md'),
+        PlanModeArtifactExpectation(
+          path: 'README.md',
+          contains: <String>['CANARY_CONTENT_FIT: README_ONLY'],
+        ),
       ],
       planningProposalTimeout: const Duration(minutes: 3),
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(

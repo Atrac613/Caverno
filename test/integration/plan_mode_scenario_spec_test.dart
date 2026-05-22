@@ -116,6 +116,16 @@ void main() {
       readmeCanary.resolvedArtifactExpectations.map((item) => item.path),
       contains('README.md'),
     );
+    expect(
+      readmeCanary.resolvedArtifactExpectations
+          .singleWhere((item) => item.path == 'README.md')
+          .contains,
+      contains('CANARY_CONTENT_FIT: README_ONLY'),
+    );
+    expect(
+      readmeCanary.userPrompt,
+      contains('CANARY_CONTENT_FIT: README_ONLY'),
+    );
     expect(readmeCanary.savedWorkflowExpectation, isNotNull);
     expect(
       readmeCanary.savedWorkflowExpectation!.firstTaskTargetFilesContain,

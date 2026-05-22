@@ -30,6 +30,8 @@ only classifies Plan Mode and coding scenarios.
 tracks artifact convergence and guarded tool-loop behavior. It is useful, but
 still has allowed recovery warnings and a guarded convergence expectation that
 should remain visible before it becomes release smoke.
+It also asserts the `CANARY_CONTENT_FIT: README_ONLY` marker so README content
+fit is checked automatically instead of relying only on path-based task drift.
 
 ## First MVP-Adjacent Candidate
 
