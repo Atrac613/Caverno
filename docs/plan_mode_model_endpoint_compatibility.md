@@ -185,6 +185,21 @@ Recent `gemma4-26b-vision` compatibility attempt:
     `build/integration_test_reports/plan_mode_live_suite_macos_1779436941346/plan_mode_live_suite_macos_report.json`
   - ping canary summary:
     `build/integration_test_reports/plan_mode_ping_cli_canary_1779437330/canary_summary.json`
+- focused README canary:
+  - date: 2026-05-22
+  - scenario: `live_readme_first_canary`
+  - result: passed
+  - report quality blockers: `0`
+  - unexpected warnings: `0`
+  - task drift: none detected
+  - artifact content fit: README-only content matched the saved task
+  - approval path: live harness approval fallback
+  - convergence: one saved validation and one guard activation
+  - notable behavior: workflow proposal again used empty `content` with
+    `finishReason.length`, but the task proposal was valid JSON for a single
+    `README.md` task
+  - focused suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779450359095/plan_mode_live_suite_macos_report.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 

@@ -42,6 +42,7 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused `live_clarify_recovery` rerun | Passed | 1/1 focused scenario | Not applicable | 0 | 0 detected | No issue recorded | The PM5 failure did not reproduce when the scenario ran alone; approval used live harness fallback and execution reached tool-aware streaming. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate retry | Passed | 3/3 | 1/1 | 0 | 0 detected | No issue recorded | Provisional pass after one failed PM5 attempt; smoke used live harness fallback for all scenarios and cleanup cancellation occurred in two smoke scenarios. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate | Passed | 3/3 | 1/1 | 0 | 0 detected | Concern: content mixed across target files | First PM5 pass; all scenarios used live harness approval fallback. Planning often returned empty content with `finishReason.length` and useful text only in reasoning. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` | Passed | 1/1 focused canary | Not applicable | 0 | 0 detected | Pass: README-only content | Artifact convergence passed; saved validation guard stopped a duplicate follow-up `write_file` after `ls README.md` succeeded. |
 
 ## Run Evidence
 
@@ -191,6 +192,35 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
   recovered via truncated-reasoning or quality-gate fallback paths, then reached
   tool-aware streaming.
 
+### 2026-05-22: `gemma4-26b-vision` Focused README Canary
+
+- Command:
+  `tool/run_plan_mode_live_test.sh`
+- Environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary`
+  - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+- Focused suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779450359095/plan_mode_live_suite_macos_report.json`
+- Focused suite Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779450359095/plan_mode_live_suite_macos_report.md`
+- Outcome:
+  - focused canary: 1 passed, 0 failed
+  - report quality: ready
+  - unexpected warnings: 0
+  - task drift: 0 detected
+  - artifact content fit: README-only content fit the saved task
+  - approval path: live harness approval fallback
+  - tool-loop convergence: one saved validation, guard activation
+- Notable behavior:
+  Workflow proposal generation again returned empty `content` with
+  `finishReason.length`, but task proposal generation produced valid JSON for a
+  single `README.md` task. After `ls README.md` succeeded, the model attempted a
+  duplicate follow-up `write_file`; the saved-validation guard stopped it.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -265,6 +295,10 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
   - The ping CLI canary produced the correct single `ping_cli.py` target and
     validated `python3 ping_cli.py --help`, but convergence required the saved
     validation guard instead of a natural stop.
+  - The focused `live_readme_first_canary` passed with only `README.md`
+    changed and no artifact content-fit issue. It still required the
+    saved-validation guard because the model attempted another `write_file`
+    after `ls README.md` had already succeeded.
 
 ## Evidence Fields
 
