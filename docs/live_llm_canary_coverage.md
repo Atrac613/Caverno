@@ -69,6 +69,33 @@ Record model-specific evidence in
 [`plan_mode_live_llm_model_canary_matrix.md`](plan_mode_live_llm_model_canary_matrix.md)
 when the run affects Plan Mode or coding compatibility.
 
+## Latest Full-Surface Evidence
+
+### 2026-05-22: `gemma4-26b-vision`
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `gemma4-26b-vision`
+- API key: `no-key`
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Smoke had no warnings and report quality was ready. Ping canary had one allowed `recoveredCreateParseWarning`, report quality ready, and no task drift. |
+| Coding artifact | `live_readme_first_canary` | Failed | 0/1 focused canary | `README.md` with `CANARY_CONTENT_FIT: README_ONLY` was written, but the run produced no saved-validation success log. Report quality blockers: `streamDisconnect` and `missingExpectedSavedTaskTargetFiles`. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Failed | 2/3 tests passed | Plain chat and embedded `<tool_call>` execution passed. Memory extraction failed because the live response ended with `FinishReason.length`, app-facing content was empty, and the parseable JSON appeared only inside reasoning text. |
+| Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully and the model returned `COMPACT_BUDGET_LIVE_OK`. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | New-IP post, no-new-IP no-post, LAN scan failure, and `contents` write-shape branches all passed. |
+
+Artifacts:
+
+- PM5 smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.json`
+- PM5 ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/run_01_suite_report.json`
+- Focused README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779458844245/plan_mode_live_suite_macos_report.json`
+
 ## Chat Coverage
 
 The chat live canary suite covers the default and parser-sensitive paths:

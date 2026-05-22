@@ -43,6 +43,8 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate retry | Passed | 3/3 | 1/1 | 0 | 0 detected | No issue recorded | Provisional pass after one failed PM5 attempt; smoke used live harness fallback for all scenarios and cleanup cancellation occurred in two smoke scenarios. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate | Passed | 3/3 | 1/1 | 0 | 0 detected | Concern: content mixed across target files | First PM5 pass; all scenarios used live harness approval fallback. Planning often returned empty content with `finishReason.length` and useful text only in reasoning. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` | Passed | 1/1 focused canary | Not applicable | 0 | 0 detected | Pass: README-only content | Artifact convergence passed; saved validation guard stopped a duplicate follow-up `write_file` after `ls README.md` succeeded. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Concern: follow-up tasks appeared in smoke logs | Second PM5 pass; smoke report quality was ready. Ping canary had one allowed recovered-create warning and no task drift. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` rerun | Failed | 0/1 focused canary | Not applicable | 0 | 1 detected | README-only content was written but convergence failed | Report quality blocked on missing saved-validation success and missing expected saved task target files. |
 
 ## Run Evidence
 
@@ -221,6 +223,74 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
   single `README.md` task. After `ls README.md` succeeded, the model attempted a
   duplicate follow-up `write_file`; the saved-validation guard stopped it.
 
+### 2026-05-22: `gemma4-26b-vision` PM5 Live Gate Rerun
+
+- PM5 command:
+  `tool/run_plan_mode_pm5_live_gate.sh`
+- PM5 environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+- Smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.json`
+- Smoke suite Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.md`
+- Ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/canary_summary.json`
+- Ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/run_01_suite_report.json`
+- Ping canary live suite archive:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779459478439`
+- Outcome:
+  - live smoke: 3 passed, 0 failed
+  - ping canary: 1 passed, 0 failed
+  - smoke report quality: ready
+  - smoke unexpected warnings: 0
+  - ping unexpected warnings: 0; one allowed `recoveredCreateParseWarning`
+  - task drift: 0 detected in smoke and ping reports
+  - approval paths: 3 live harness approval fallbacks in smoke; 1 live harness
+    approval fallback in ping canary
+  - smoke tool-loop convergence: one saved validation, guard activation
+  - ping canary tool-loop convergence: two saved validations, two guard
+    activations
+- Notable behavior:
+  The PM5 gate passed, but `live_cli_entrypoint_decision` and
+  `live_clarify_recovery` logs showed execution continuing into follow-up tasks
+  after the initial saved task. The structured smoke report still marked task
+  drift as not detected because those scenario rows had no explicit expected
+  target files. Keep artifact inspection in the model comparison checklist.
+
+### 2026-05-22: `gemma4-26b-vision` Focused README Canary Rerun
+
+- Command:
+  `tool/run_plan_mode_live_test.sh`
+- Environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary`
+  - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1`
+- Focused suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779458844245/plan_mode_live_suite_macos_report.json`
+- Focused suite Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779458844245/plan_mode_live_suite_macos_report.md`
+- Outcome:
+  - focused canary: 0 passed, 1 failed
+  - failure class: `streamDisconnect`
+  - report quality: blocked, 2 blockers
+  - blocker reasons: `streamDisconnect`, `missingExpectedSavedTaskTargetFiles`
+  - unexpected warnings: 0
+  - allowed warnings: 2 recovered memory-phase transport warnings
+  - task drift: 1 detected
+  - artifact content fit: `README.md` was written with
+    `CANARY_CONTENT_FIT: README_ONLY`, but saved validation was not observed
+- Failure detail:
+  The model created `README.md` in the temporary project, including the
+  required content-fit marker. The test still failed because no
+  `[Tool] Saved validation command succeeded` log appeared, and the saved task
+  target file list was empty while the scenario expected `README.md`.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -299,6 +369,13 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
     changed and no artifact content-fit issue. It still required the
     saved-validation guard because the model attempted another `write_file`
     after `ls README.md` had already succeeded.
+  - A later full-surface verification passed PM5 again, but the focused
+    `live_readme_first_canary` regressed: `README.md` content was written with
+    the required marker, while saved-validation convergence and saved task
+    target tracking failed.
+  - Chat canaries exposed a stronger memory-extraction weakness: plain chat and
+    embedded content tool-call execution passed, but memory extraction returned
+    empty app-facing content with useful JSON only in reasoning text.
 
 ## Evidence Fields
 
