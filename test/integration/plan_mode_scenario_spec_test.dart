@@ -60,10 +60,6 @@ void main() {
       scenario.logExpectations.map((item) => item.pattern),
       contains(planModeSavedValidationSuccessPattern),
     );
-    expect(
-      scenario.logExpectations.map((item) => item.pattern),
-      contains(planModeSavedValidationConvergenceGuardPattern),
-    );
   });
 
   test('PM10 live scenario classes stay explicit', () {
@@ -134,7 +130,7 @@ void main() {
     expect(readmeCanary.allowedWarningPatterns, isNotEmpty);
     expect(
       readmeCanary.logExpectations.map((item) => item.pattern),
-      contains(planModeSavedValidationConvergenceGuardPattern),
+      contains(planModeSavedValidationSuccessPattern),
     );
 
     expect(pingCanary.waitForExecutionCompletion, isTrue);

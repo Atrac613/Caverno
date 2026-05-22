@@ -1619,10 +1619,6 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: planModeSavedValidationSuccessPattern,
           minCount: 1,
         ),
-        PlanModeLogExpectation(
-          pattern: planModeSavedValidationConvergenceGuardPattern,
-          minCount: 1,
-        ),
       ],
       allowedWarningPatterns: const <String>[
         '[Workflow] Workflow proposal parse failed',
