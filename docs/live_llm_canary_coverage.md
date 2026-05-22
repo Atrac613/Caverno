@@ -23,6 +23,7 @@ For each model switch, run this minimum set before comparing model quality:
    CAVERNO_LLM_BASE_URL=... \
    CAVERNO_LLM_API_KEY=... \
    CAVERNO_LLM_MODEL=... \
+   CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20 \
    CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1 \
    tool/run_plan_mode_pm5_live_gate.sh
    ```
@@ -35,6 +36,7 @@ For each model switch, run this minimum set before comparing model quality:
    CAVERNO_LLM_MODEL=... \
    CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary \
    CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1 \
+   CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20 \
    tool/run_plan_mode_live_test.sh
    ```
 
@@ -69,32 +71,50 @@ Record model-specific evidence in
 [`plan_mode_live_llm_model_canary_matrix.md`](plan_mode_live_llm_model_canary_matrix.md)
 when the run affects Plan Mode or coding compatibility.
 
+Use the same app and canary revision for the reference model and the candidate
+model. If parser recovery, task-drift classification, warning allow rules, or
+saved-validation expectations change between runs, rerun the reference model
+before comparing model behavior.
+
 ## Latest Full-Surface Evidence
 
-### 2026-05-22: `gemma4-26b-vision`
+### 2026-05-23: `gemma4-26b-vision`
 
 - Endpoint: `http://192.168.100.241:1234/v1`
 - Model discovered from `/models`: `gemma4-26b-vision`
 - API key: `no-key`
+- Baseline status: usable as the current comparison reference
+- Scope note: PM5 and ping evidence came from the last full PM5 gate rerun.
+  Focused smoke, README artifact, and chat evidence were refreshed after the
+  latest canary expectation and parser fixes. Run a fresh full PM5 gate before
+  release promotion.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
-| Coding | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Smoke had no warnings and report quality was ready. Ping canary had one allowed `recoveredCreateParseWarning`, report quality ready, and no task drift. |
-| Coding artifact | `live_readme_first_canary` | Failed | 0/1 focused canary | `README.md` with `CANARY_CONTENT_FIT: README_ONLY` was written, but the run produced no saved-validation success log. Report quality blockers: `streamDisconnect` and `missingExpectedSavedTaskTargetFiles`. |
-| Chat | `tool/run_chat_live_llm_canary.sh` | Failed | 2/3 tests passed | Plain chat and embedded `<tool_call>` execution passed. Memory extraction failed because the live response ended with `FinishReason.length`, app-facing content was empty, and the parseable JSON appeared only inside reasoning text. |
+| Coding PM5 | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Full gate passed. Smoke report quality was ready, ping had one allowed `recoveredCreateParseWarning`, and task drift was 0 in both reports. |
+| Coding smoke refresh | `tool/run_plan_mode_live_test.sh` with `CAVERNO_PLAN_MODE_TAGS=smoke` | Passed | 3/3 focused smoke | Report quality ready, 0 task drift, 0 unexpected warnings, and one allowed `recoveredCreateParseWarning`. |
+| Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | `README.md` was the saved target and actual changed file, contained `CANARY_CONTENT_FIT: README_ONLY`, and converged with one guard activation plus one natural stop. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Plain chat, memory extraction JSON, and embedded `<tool_call>` execution passed after reasoning-field JSON parser coverage. |
 | Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully and the model returned `COMPACT_BUDGET_LIVE_OK`. |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | New-IP post, no-new-IP no-post, LAN scan failure, and `contents` write-shape branches all passed. |
 
 Artifacts:
 
+- Current smoke refresh report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779462479260/plan_mode_live_suite_macos_report.json`
+- Current focused README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779461715586/plan_mode_live_suite_macos_report.json`
 - PM5 smoke report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779459048707/plan_mode_live_suite_macos_report.json`
 - PM5 ping canary summary:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/canary_summary.json`
 - PM5 ping canary suite report:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/run_01_suite_report.json`
-- Focused README canary report:
-  `build/integration_test_reports/plan_mode_live_suite_macos_1779458844245/plan_mode_live_suite_macos_report.json`
+
+The chat, chat-budget, and routine live scripts currently report pass counts
+through Flutter test output rather than a model-matrix JSON artifact. Record the
+terminal command output in the model-switch handoff when those scripts are part
+of the comparison.
 
 ## Chat Coverage
 
@@ -189,7 +209,7 @@ service and should not redefine coding smoke stability.
 
 | Trigger | Required canaries |
 |---------|-------------------|
-| Model switch | PM5 gate, README first canary, chat live canary, tool-result budget canary |
+| Model switch | PM5 gate, README first canary, chat live canary, tool-result budget canary; add routine LAN branch canaries for broad cross-surface comparison |
 | Plan Mode prompt or task execution change | PM5 gate, README first canary, ping CLI canary repeat when task completion changed |
 | General chat tool-loop change | Chat live canary, tool-result budget canary |
 | Memory extraction change | Chat live canary |
@@ -209,3 +229,5 @@ A new Live LLM canary can become baseline only when all of these are true:
   before smoke promotion is considered.
 - Its failure adds new information that is not already covered by PM5 or an
   existing canary.
+- The reference model and candidate model were run on the same app and canary
+  revision, or the reference model was rerun after the harness change.

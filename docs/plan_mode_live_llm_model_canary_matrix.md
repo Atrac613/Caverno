@@ -45,6 +45,52 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` | Passed | 1/1 focused canary | Not applicable | 0 | 0 detected | Pass: README-only content | Artifact convergence passed; saved validation guard stopped a duplicate follow-up `write_file` after `ls README.md` succeeded. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Concern: follow-up tasks appeared in smoke logs | Second PM5 pass; smoke report quality was ready. Ping canary had one allowed recovered-create warning and no task drift. |
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` rerun | Failed | 0/1 focused canary | Not applicable | 0 | 1 detected | README-only content was written but convergence failed | Report quality blocked on missing saved-validation success and missing expected saved task target files. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` post-fix rerun | Passed | 1/1 focused canary | Not applicable | 0 | 0 detected | Pass: README-only content | Current artifact baseline. Report quality was ready, saved target tracking matched `README.md`, and convergence used one guard activation plus one natural stop. |
+| 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Smoke suite post-fix rerun | Passed | 3/3 | Not run in this focused rerun | 0 unexpected; 1 allowed `recoveredCreateParseWarning` | 0 detected | No artifact-content issue recorded | Current smoke comparison baseline. Report quality was ready; all scenarios used live harness approval fallback; tool-loop convergence had 3 saved validations, 2 guard activations, and 1 natural stop. |
+
+## Current Comparison Baseline
+
+Use `gemma4-26b-vision` as the current reference model for the next model
+switch only when the candidate is run against the same app and canary revision.
+If the harness, prompts, parser recovery, task-drift classification, or saved
+validation expectations change again, rerun this baseline before judging a new
+model.
+
+Minimum comparison criteria for the next model:
+
+- PM5 live gate passes with smoke `3/3`, ping CLI `1/1`, no report-quality
+  blockers, and no unexpected warnings.
+- Focused `live_readme_first_canary` passes with `README.md` as the saved target,
+  the actual changed file, and the only artifact containing
+  `CANARY_CONTENT_FIT: README_ONLY`.
+- Task drift remains `0 detected` in both PM5 smoke and focused artifact runs.
+- Allowed warnings are recorded by reason; unexpected warnings block promotion.
+- Tool-loop convergence is classified as natural stop or guarded stop, not left
+  unobserved for artifact-sensitive scenarios.
+- The run notes capture proposal parsing, reasoning-only recovery, approval
+  path, cleanup cancellation, content-fit issues, and final completion behavior.
+
+## Next Model Task Breakdown
+
+Use this checklist when switching from the current reference model to the next
+candidate:
+
+1. Capture endpoint metadata from `/models`: exact model ID, owner, context
+   length, capabilities, parameter count, and size when available.
+2. Run the full PM5 live gate with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+   and archive the smoke report plus ping canary summary paths.
+3. Run the focused `live_readme_first_canary` to confirm artifact content fit,
+   saved target tracking, and convergence behavior.
+4. Run the chat live canary and tool-result budget canary so chat, memory
+   extraction, embedded tool-call parsing, and compaction recovery are covered.
+5. Run routine live canaries when the model switch is intended to validate the
+   full product surface, not only coding.
+6. Add a result-matrix row and a run-evidence subsection before moving to the
+   next candidate model.
+7. Classify the candidate as baseline-ready, provisional, blocked by model
+   behavior, or blocked by environment. Do not mark it baseline-ready with
+   unexpected warnings, report-quality blockers, task drift, or unreviewed
+   artifact content-fit concerns.
 
 ## Run Evidence
 
@@ -291,6 +337,53 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
   `[Tool] Saved validation command succeeded` log appeared, and the saved task
   target file list was empty while the scenario expected `README.md`.
 
+### 2026-05-22/23: `gemma4-26b-vision` Post-Fix Baseline Refresh
+
+- Focused README command:
+  `tool/run_plan_mode_live_test.sh`
+- Focused README environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary`
+  - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+- Focused README report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779461715586/plan_mode_live_suite_macos_report.json`
+- Smoke command:
+  `tool/run_plan_mode_live_test.sh`
+- Smoke environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_TAGS=smoke`
+  - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+- Smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779462479260/plan_mode_live_suite_macos_report.json`
+- Outcome:
+  - focused README canary: 1 passed, 0 failed
+  - focused README report quality: ready
+  - focused README unexpected warnings: 0
+  - focused README task drift: 0 detected
+  - focused README artifact content fit: `README.md` matched the saved task and
+    contained `CANARY_CONTENT_FIT: README_ONLY`
+  - focused README convergence: two saved validations, one guard activation, and
+    one natural stop
+  - smoke suite: 3 passed, 0 failed
+  - smoke report quality: ready
+  - smoke warnings: one allowed `recoveredCreateParseWarning`, 0 unexpected
+  - smoke task drift: 0 detected
+  - smoke approval paths: 3 live harness approval fallbacks
+  - smoke convergence: 3 saved validations, 2 guard activations, and 1 natural
+    stop
+- Baseline note:
+  This is the current coding comparison baseline for `gemma4-26b-vision`. The
+  earlier failed README rerun and drift-heavy smoke rerun remain historical
+  evidence because they led to canary expectation and task-drift classification
+  fixes. Do not compare a new model against those superseded failures unless
+  intentionally investigating pre-fix behavior.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -369,13 +462,20 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
     changed and no artifact content-fit issue. It still required the
     saved-validation guard because the model attempted another `write_file`
     after `ls README.md` had already succeeded.
-  - A later full-surface verification passed PM5 again, but the focused
-    `live_readme_first_canary` regressed: `README.md` content was written with
-    the required marker, while saved-validation convergence and saved task
-    target tracking failed.
-  - Chat canaries exposed a stronger memory-extraction weakness: plain chat and
-    embedded content tool-call execution passed, but memory extraction returned
-    empty app-facing content with useful JSON only in reasoning text.
+  - A later focused `live_readme_first_canary` failed before the canary accepted
+    natural-stop convergence. The post-fix rerun passed with saved target
+    tracking, README-only content, and guarded convergence.
+  - A later smoke rerun initially flagged unexpected changed files in scenarios
+    that had no explicit saved target expectations. After task-drift
+    classification was scoped to started tasks, the post-fix smoke rerun passed
+    with report quality ready, 0 task drift, and one allowed recovered-create
+    warning.
+  - Chat canaries originally exposed a memory-extraction weakness where useful
+    JSON appeared only in reasoning text. The current parser and live chat
+    canary baseline cover that shape, and the chat suite now passes for this
+    model.
+  - Compare future models against the post-fix baseline refresh and the full PM5
+    gate, not against superseded pre-fix canary failures.
 
 ## Evidence Fields
 
@@ -387,9 +487,15 @@ Record these fields for every model change:
 - PM5 smoke pass count
 - ping CLI canary pass count and pass rate
 - unexpected warning count
+- allowed warning reasons
 - task drift classification
 - artifact content fit: whether each changed file's contents match the saved
   task intent and file role, even when task drift is 0
+- report-quality readiness and blocker reasons
+- tool-loop convergence status, including saved validation count, guard
+  activations, and natural stops
+- whether the evidence came from a single full PM5 gate or a split set of
+  focused reruns after a harness or parser change
 - archived report paths for the live suite and ping canary summary; avoid the
   top-level `plan_mode_live_suite_macos_report.*` files in long-lived notes
   because each new run overwrites them
