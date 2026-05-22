@@ -62,6 +62,27 @@ void main() {
     );
   });
 
+  test('resolves saved task target files from failure logs', () {
+    expect(
+      resolvePlanModeFailureSavedTaskTargetFiles(
+        logs: const <String>[
+          '[LLM]   [3] user: Use the approved saved task now: Create README.md\n'
+              'Target files: README.md\n'
+              'Validation: ls README.md',
+        ],
+      ),
+      const <String>['README.md'],
+    );
+    expect(
+      resolvePlanModeFailureSavedTaskTargetFiles(
+        logs: const <String>[
+          '[LLM] user: Target files: requirements.txt, `README.md`',
+        ],
+      ),
+      const <String>['requirements.txt', 'README.md'],
+    );
+  });
+
   test('writes failure report and full scenario log', () async {
     final scenarioDir = Directory('${tempDir.path}/scenario')..createSync();
     File('${scenarioDir.path}/README.md').writeAsStringSync('# Project\n');
@@ -133,6 +154,48 @@ void main() {
     );
     expect(report['screenshots'], isNotEmpty);
     expect(report['diagnostics'], isA<Map<String, dynamic>>());
+  });
+
+  test('uses logged target files for failure task drift', () async {
+    final scenarioDir = Directory('${tempDir.path}/scenario')..createSync();
+    File('${scenarioDir.path}/README.md').writeAsStringSync('# Project\n');
+    final phaseTrace = PlanModePhaseTrace()
+      ..proposalReadyAt = DateTime(2026, 5, 12, 12)
+      ..taskProposalReadyAt = DateTime(2026, 5, 12, 12, 1);
+    const budgets = PlanModeTimeoutBudgets(
+      planningTimeout: Duration(seconds: 5),
+      executionTimeout: Duration(seconds: 20),
+      executionStallTimeout: Duration(seconds: 45),
+      overallTimeout: Duration(seconds: 70),
+    );
+    const logs = <String>[
+      '[LLM]   [3] user: Use the approved saved task now: Create README.md\n'
+          'Target files: README.md\n'
+          'Validation: ls README.md',
+    ];
+
+    await writePlanModeFailureScenarioArtifacts(
+      scenario: _scenario(),
+      scenarioDir: scenarioDir,
+      logs: logs,
+      error: StateError('boom'),
+      stackTrace: StackTrace.current,
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+    );
+
+    final report =
+        jsonDecode(
+              File(
+                '${scenarioDir.path}/scenario_report.json',
+              ).readAsStringSync(),
+            )
+            as Map<String, dynamic>;
+    final taskDrift = report['taskDrift'] as Map<String, dynamic>;
+
+    expect(taskDrift['savedTaskTargetFiles'], const <String>['readme.md']);
+    expect(taskDrift['missingExpectedSavedTaskTargetFiles'], isEmpty);
+    expect(report['taskDriftDetected'], isFalse);
   });
 
   test('skips task drift when failure happens before task planning', () async {

@@ -55,6 +55,31 @@ List<String> filterPlanModeFailureCapturedLogs(List<String> logs) {
       .toList(growable: false);
 }
 
+List<String> resolvePlanModeFailureSavedTaskTargetFiles({
+  required List<String> logs,
+}) {
+  final targetPattern = RegExp(
+    r'Target files:\s*([^\r\n]+)',
+    caseSensitive: false,
+  );
+  for (final log in logs.reversed) {
+    final match = targetPattern.firstMatch(log);
+    if (match == null) {
+      continue;
+    }
+    final targets = (match.group(1) ?? '')
+        .split(',')
+        .map((target) => target.replaceAll('`', '').trim())
+        .where((target) => target.isNotEmpty)
+        .where((target) => target.toLowerCase() != 'none')
+        .toList(growable: false);
+    if (targets.isNotEmpty) {
+      return targets;
+    }
+  }
+  return const <String>[];
+}
+
 Future<void> writePlanModeFailureScenarioArtifacts({
   required PlanModeScenarioSpec scenario,
   required Directory scenarioDir,
@@ -96,6 +121,9 @@ Future<void> writePlanModeFailureScenarioArtifacts({
     expectedTargetFiles: shouldEvaluateTaskDrift
         ? scenario.resolvedWorkflowExpectation.firstTaskTargetFilesContain
         : const <String>[],
+    savedTaskTargetFiles: resolvePlanModeFailureSavedTaskTargetFiles(
+      logs: logs,
+    ),
     scenarioDir: scenarioDir,
   ).toJson();
   final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
