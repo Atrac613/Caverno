@@ -381,6 +381,8 @@ rather than smoke, so `CAVERNO_PLAN_MODE_TAGS=smoke` keeps the default live
 smoke surface focused on the core approval and recovery flows.
 Use `docs/plan_mode_scenario_coverage.md` before promoting any canary into
 the default smoke surface.
+Use `docs/live_llm_canary_coverage.md` when comparing chat, coding, and
+routine coverage for a model switch or Live LLM regression investigation.
 
 Examples:
 
@@ -417,6 +419,8 @@ but they have a documented recovery path or scenario-level allow pattern.
 
 Routine live LLM validation is documented in
 [`docs/routine_live_llm_canary.md`](docs/routine_live_llm_canary.md).
+Cross-surface Live LLM coverage for chat, coding, and routines is documented in
+[`docs/live_llm_canary_coverage.md`](docs/live_llm_canary_coverage.md).
 
 Use it when changing routine execution, routine tool-call parsing, workspace
 file tools, or Google Chat notification handling. It is an explicit canary, not

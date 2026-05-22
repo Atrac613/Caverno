@@ -117,6 +117,25 @@ void main() {
       expect(coverage, contains('three consecutive clean live runs'));
     });
 
+    test('live LLM canary coverage doc records cross-surface gaps', () {
+      final coverage = File(
+        'docs/live_llm_canary_coverage.md',
+      ).readAsStringSync();
+
+      expect(coverage, contains('# Live LLM Canary Coverage'));
+      expect(coverage, contains('| Chat |'));
+      expect(coverage, contains('tool/run_tool_result_budget_live_canary.sh'));
+      expect(coverage, contains('chat_basic_response_live_canary'));
+      expect(coverage, contains('| Coding |'));
+      expect(coverage, contains('tool/run_plan_mode_pm5_live_gate.sh'));
+      expect(coverage, contains('live_readme_first_canary'));
+      expect(coverage, contains('| Routines |'));
+      expect(coverage, contains('tool/run_routine_live_llm_canary.sh'));
+      expect(coverage, contains('routine_lan_no_new_ip_live_canary'));
+      expect(coverage, contains('Baseline Model Switch Flow'));
+      expect(coverage, contains('three consecutive clean runs'));
+    });
+
     test('compatibility doc records PM11 endpoint and model boundaries', () {
       final compatibility = File(
         'docs/plan_mode_model_endpoint_compatibility.md',
@@ -137,7 +156,9 @@ void main() {
       expect(compatibility, contains('Evidence Snapshot'));
       expect(compatibility, contains('blocked: environment'));
       expect(compatibility, contains('CAVERNO_LLM_BASE_URL'));
-      expect(compatibility, contains('gemma-4-26B-A4B-it-Q4_K_M.gguf'));
+      expect(compatibility, contains('gemma4-26b-vision'));
+      expect(compatibility, contains('qwen3.6-27b-mtp-vision'));
+      expect(compatibility, contains('artifact content fit'));
     });
 
     test('release package records PM18 user-facing release surface', () {

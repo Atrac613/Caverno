@@ -3,6 +3,10 @@
 This document captures the purpose, scope, and triage workflow for the Routine
 live LLM canary.
 
+For the cross-surface Live LLM coverage map across chat, coding, and routines,
+see [`live_llm_canary_coverage.md`](live_llm_canary_coverage.md). This document
+only describes the current Routine-specific canary.
+
 ## Purpose
 
 The Routine live LLM canary is an explicit diagnostic run for the routine tool
@@ -25,7 +29,7 @@ Run the canary through the helper script:
 ```bash
 CAVERNO_LLM_BASE_URL=http://<llm-host>:1234/v1 \
 CAVERNO_LLM_API_KEY=no-key \
-CAVERNO_LLM_MODEL=gemma-4-26B-A4B-it-Q4_K_M.gguf \
+CAVERNO_LLM_MODEL=... \
 tool/run_routine_live_llm_canary.sh
 ```
 

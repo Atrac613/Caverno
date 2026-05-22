@@ -4,6 +4,10 @@ This document records the Plan Mode scenario classes used after MVP handoff.
 It keeps smoke coverage small, gives canaries clear promotion rules, and
 separates long-run confidence work from the release gate.
 
+For cross-surface Live LLM coverage across chat, coding, and routines, see
+[`live_llm_canary_coverage.md`](live_llm_canary_coverage.md). This document
+only classifies Plan Mode and coding scenarios.
+
 ## Coverage Classes
 
 | Class | Purpose | Default gate |
