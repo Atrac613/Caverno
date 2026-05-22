@@ -85,6 +85,8 @@ Plan Mode works best with models that can:
   convergence guard stopping duplicate follow-up tool calls
 - preserve target-file boundaries when tool results mention extra workspace
   context
+- write artifact contents that match each target file's role and the saved task
+  intent, not only the target file paths
 - summarize completion evidence without reopening completed tasks
 - handle the app's user-role tool-result workaround for models that are weak at
   native tool-role messages
@@ -96,6 +98,7 @@ Treat these as model compatibility risks before assuming app logic is broken:
 - repeated malformed JSON proposals after retry and salvage
 - reasoning-only responses with no workflow or task proposal
 - duplicate or generic task proposals that ignore target-file boundaries
+- content-incorrect artifacts written into otherwise valid target files
 - tool calls that continue after a saved validation command has passed
 - future-task tool calls before the current saved task is terminally complete
 - long pauses that exceed planning, execution, or stall budgets
@@ -107,6 +110,8 @@ Mitigations include:
 - use the PM5 gate artifact index before reading raw logs
 - inspect `warningSummary`, `reportQualitySummary`, and task drift before
   changing product logic
+- inspect artifact content fit separately from task drift because task drift is
+  primarily path-based and can miss wrong content in the right file
 - keep new model coverage in canary or long-run status before expanding smoke
   coverage
 
@@ -164,6 +169,7 @@ Recent `gemma4-26b-vision` compatibility attempt:
   - unexpected warnings: `0`
   - report quality blockers: `0`
   - task drift: none detected by the reports
+  - artifact content fit: concern recorded
   - approval path: live harness approval fallback for all smoke scenarios and
     the ping canary
   - cleanup cancellation: used in `live_host_health_scaffold` and
@@ -230,6 +236,11 @@ and the passing retry still showed cleanup-sensitive behavior.
 Interpretation: `gemma4-26b-vision` has a passing PM5 run, but it should remain
 under canary observation because proposal salvage, cleanup cancellation, and
 file-content mix-ups were required or observed during the pass.
+
+Artifact content fit is tracked separately from task drift. A run can have
+`taskDriftDetected=false` when all changed paths are expected, while still
+having a content-fit concern if the generated text belongs to a different file
+role or task slice.
 
 This evidence supports the current MVP release gate. Broader compatibility
 claims require PM12 long-run or matrix validation across additional endpoints

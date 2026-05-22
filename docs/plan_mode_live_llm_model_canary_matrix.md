@@ -36,12 +36,12 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 
 ## Result Matrix
 
-| Date | Endpoint | Model | Check | Result | Smoke | Ping Canary | Unexpected Warnings | Task Drift | Notes |
-|------|----------|-------|-------|--------|-------|-------------|---------------------|------------|-------|
-| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate | Failed | 2/3; `live_clarify_recovery` failed | Not reached by PM5; same-model standalone ping canary passed 1/1 | 0 | 0 detected | Failed before execution in clarify recovery because no stream-with-tools log was observed after approval. |
-| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused `live_clarify_recovery` rerun | Passed | 1/1 focused scenario | Not applicable | 0 | 0 detected | The PM5 failure did not reproduce when the scenario ran alone; approval used live harness fallback and execution reached tool-aware streaming. |
-| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Provisional pass after one failed PM5 attempt; smoke used live harness fallback for all scenarios and cleanup cancellation occurred in two smoke scenarios. |
-| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate | Passed | 3/3 | 1/1 | 0 | 0 detected | First PM5 pass; all scenarios used live harness approval fallback. Planning often returned empty content with `finishReason.length` and useful text only in reasoning. |
+| Date | Endpoint | Model | Check | Result | Smoke | Ping Canary | Unexpected Warnings | Task Drift | Artifact Content Fit | Notes |
+|------|----------|-------|-------|--------|-------|-------------|---------------------|------------|----------------------|-------|
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate | Failed | 2/3; `live_clarify_recovery` failed | Not reached by PM5; same-model standalone ping canary passed 1/1 | 0 | 0 detected | Not reviewed | Failed before execution in clarify recovery because no stream-with-tools log was observed after approval. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Focused `live_clarify_recovery` rerun | Passed | 1/1 focused scenario | Not applicable | 0 | 0 detected | No issue recorded | The PM5 failure did not reproduce when the scenario ran alone; approval used live harness fallback and execution reached tool-aware streaming. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | PM5 live gate retry | Passed | 3/3 | 1/1 | 0 | 0 detected | No issue recorded | Provisional pass after one failed PM5 attempt; smoke used live harness fallback for all scenarios and cleanup cancellation occurred in two smoke scenarios. |
+| 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | PM5 live gate | Passed | 3/3 | 1/1 | 0 | 0 detected | Concern: content mixed across target files | First PM5 pass; all scenarios used live harness approval fallback. Planning often returned empty content with `finishReason.length` and useful text only in reasoning. |
 
 ## Run Evidence
 
@@ -277,8 +277,10 @@ Record these fields for every model change:
 - ping CLI canary pass count and pass rate
 - unexpected warning count
 - task drift classification
+- artifact content fit: whether each changed file's contents match the saved
+  task intent and file role, even when task drift is 0
 - archived report paths for the live suite and ping canary summary; avoid the
   top-level `plan_mode_live_suite_macos_report.*` files in long-lived notes
   because each new run overwrites them
 - model-specific behavior differences, especially proposal parsing, task scope,
-  tool-call convergence, and final answer completion
+  artifact content fit, tool-call convergence, and final answer completion
