@@ -18,16 +18,39 @@ void main() {
   });
 
   group('plan mode task drift report', () {
-    test('does not flag drift without explicit expected target files', () {
+    test(
+      'uses saved targets when explicit expected target files are omitted',
+      () {
+        final report = buildPlanModeTaskDriftReport(
+          expectedTargetFiles: const <String>[],
+          savedTaskTargetFiles: const <String>['requirements.txt'],
+          actualChangedFiles: const <String>['requirements.txt'],
+        );
+
+        expect(report.driftDetected, isFalse);
+        expect(report.fallbackSource, planModeTaskDriftSourceNone);
+        expect(report.driftReason, planModeTaskDriftReasonNone);
+      },
+    );
+
+    test('flags changed files outside saved targets without expectations', () {
       final report = buildPlanModeTaskDriftReport(
         expectedTargetFiles: const <String>[],
-        savedTaskTargetFiles: const <String>['requirements.txt'],
-        actualChangedFiles: const <String>['requirements.txt'],
+        savedTaskTargetFiles: const <String>['requirements.txt', 'README.md'],
+        actualChangedFiles: const <String>[
+          'requirements.txt',
+          'README.md',
+          'main.py',
+        ],
       );
 
-      expect(report.driftDetected, isFalse);
-      expect(report.fallbackSource, planModeTaskDriftSourceNone);
-      expect(report.driftReason, planModeTaskDriftReasonNone);
+      expect(report.driftDetected, isTrue);
+      expect(report.expectedTargetFiles, isEmpty);
+      expect(report.savedTaskTargetFiles, ['readme.md', 'requirements.txt']);
+      expect(report.unexpectedSavedTaskTargetFiles, isEmpty);
+      expect(report.unexpectedChangedFiles, ['main.py']);
+      expect(report.fallbackSource, planModeTaskDriftSourceActualChangedFiles);
+      expect(report.driftReason, planModeTaskDriftReasonUnexpectedChangedFiles);
     });
 
     test('flags unexpected saved targets and changed files', () {

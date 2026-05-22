@@ -68,19 +68,20 @@ PlanModeTaskDriftReport buildPlanModeTaskDriftReport({
   final expected = _normalizeUniquePaths(expectedTargetFiles);
   final saved = _normalizeUniquePaths(savedTaskTargetFiles);
   final actual = _normalizeUniquePaths(actualChangedFiles);
-  final shouldEvaluate = expected.isNotEmpty;
+  final comparisonTargets = expected.isNotEmpty ? expected : saved;
+  final shouldEvaluate = comparisonTargets.isNotEmpty;
 
-  final missingExpectedSavedTaskTargetFiles = shouldEvaluate
+  final missingExpectedSavedTaskTargetFiles = expected.isNotEmpty
       ? _subtract(expected, saved)
       : const <String>[];
-  final unexpectedSavedTaskTargetFiles = shouldEvaluate
+  final unexpectedSavedTaskTargetFiles = expected.isNotEmpty
       ? _subtract(saved, expected)
       : const <String>[];
   final missingExpectedChangedFiles = shouldEvaluate
-      ? _subtract(expected, actual)
+      ? _subtract(comparisonTargets, actual)
       : const <String>[];
   final unexpectedChangedFiles = shouldEvaluate
-      ? _subtract(actual, expected)
+      ? _subtract(actual, comparisonTargets)
       : const <String>[];
 
   final driftReasons = <String>[
