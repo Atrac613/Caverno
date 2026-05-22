@@ -142,12 +142,43 @@ Current compatibility evidence comes from:
 Latest PM5 live evidence used:
 
 - endpoint shape: OpenAI-compatible local endpoint
-- model: `gemma-4-26B-A4B-it-Q4_K_M.gguf`
+- endpoint: `http://192.168.100.241:1234/v1`
+- model: `gemma4-26b-vision`
 - live smoke result: `3/3` passed
 - ping CLI canary result: `1/1` passed
 - unexpected warnings: `0`
 - report quality blockers: `0`
 - task drift: none detected
+- smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779436941346/plan_mode_live_suite_macos_report.json`
+- ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779437330/canary_summary.json`
+
+Recent `gemma4-26b-vision` compatibility attempt:
+
+- PM5 attempt:
+  - date: 2026-05-22
+  - PM5 live gate result: passed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `1/1` passed
+  - unexpected warnings: `0`
+  - report quality blockers: `0`
+  - task drift: none detected by the reports
+  - approval path: live harness approval fallback for all smoke scenarios and
+    the ping canary
+  - cleanup cancellation: used in `live_host_health_scaffold` and
+    `live_cli_entrypoint_decision`
+  - proposal behavior: repeated empty `content` with `finishReason.length`;
+    recovery depended on reasoning-field salvage and task proposal quality-gate
+    fallback
+  - file behavior: scaffold execution wrote README-style content into both
+    `README.md` and `requirements.txt`; the report still classified task drift
+    as not detected because changes stayed within target files
+  - ping canary convergence: one saved validation and one guard activation
+  - smoke suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779436941346/plan_mode_live_suite_macos_report.json`
+  - ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779437330/canary_summary.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 
@@ -195,6 +226,10 @@ Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 Interpretation: `qwen3.6-27b-mtp-vision` has a passing PM5 run, but it should
 remain a provisional compatibility result because the first PM5 attempt failed
 and the passing retry still showed cleanup-sensitive behavior.
+
+Interpretation: `gemma4-26b-vision` has a passing PM5 run, but it should remain
+under canary observation because proposal salvage, cleanup cancellation, and
+file-content mix-ups were required or observed during the pass.
 
 This evidence supports the current MVP release gate. Broader compatibility
 claims require PM12 long-run or matrix validation across additional endpoints
