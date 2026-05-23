@@ -168,6 +168,124 @@ void main() {
       contains('unexpected warnings 1'),
     );
   });
+
+  test('discovers latest artifacts from a report root', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-discovery-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    _writeJsonPath(
+      directory,
+      'plan_mode_live_suite_macos_100/plan_mode_live_suite_macos_report.json',
+      _planSuiteJson(
+        model: 'old-model',
+        scenarioCount: 3,
+        passedCount: 3,
+        scenarioNames: const [
+          'live_host_health_scaffold',
+          'live_cli_entrypoint_decision',
+          'live_clarify_recovery',
+        ],
+      ),
+    );
+    _writeJsonPath(
+      directory,
+      'plan_mode_live_suite_macos_200/plan_mode_live_suite_macos_report.json',
+      _planSuiteJson(
+        model: 'new-model',
+        scenarioCount: 3,
+        passedCount: 3,
+        scenarioNames: const [
+          'live_host_health_scaffold',
+          'live_cli_entrypoint_decision',
+          'live_clarify_recovery',
+        ],
+      ),
+    );
+    _writeJsonPath(
+      directory,
+      'plan_mode_live_suite_macos_300/plan_mode_live_suite_macos_report.json',
+      _planSuiteJson(
+        model: 'new-model',
+        scenarioCount: 1,
+        passedCount: 1,
+        requestedScenarioNames: const ['live_readme_first_canary'],
+        scenarioNames: const ['live_readme_first_canary'],
+      ),
+    );
+    _writeJsonPath(
+      directory,
+      'plan_mode_ping_cli_canary_400/canary_summary.json',
+      {
+        'runCount': 1,
+        'passedCount': 1,
+        'failedCount': 0,
+        'failureClassCounts': {'passed': 1},
+        'runs': [
+          {'reportQualityBlockerCount': 0},
+        ],
+      },
+    );
+    _writeJsonPath(
+      directory,
+      'chat_live_llm_canary_500/canary_summary.json',
+      _liveSummaryJson(surface: 'chat', canaryName: 'chat_live_llm_canary'),
+    );
+    _writeJsonPath(
+      directory,
+      'tool_result_budget_live_canary_600/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'chat_budget',
+        canaryName: 'tool_result_budget_live_canary',
+        testCount: 1,
+        passedCount: 1,
+        signals: const {'toolResultCompactionRetryCount': 1},
+      ),
+    );
+    _writeJsonPath(
+      directory,
+      'routine_live_llm_canary_700/canary_summary.json',
+      _liveSummaryJson(
+        surface: 'routine',
+        canaryName: 'routine_live_llm_canary',
+        testCount: 4,
+        passedCount: 4,
+      ),
+    );
+
+    final report = await buildLiveLlmCanaryReferenceReportFromArtifacts(
+      label: 'discovered',
+      reportRoot: directory,
+      generatedAt: DateTime.utc(2026, 5, 23),
+    );
+
+    expect(report.result, 'passed');
+    expect(report.entries, hasLength(6));
+    expect(report.model, 'new-model');
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_pm5')
+          .evidencePath,
+      endsWith(
+        'plan_mode_live_suite_macos_200/plan_mode_live_suite_macos_report.json',
+      ),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'coding_artifact')
+          .evidencePath,
+      endsWith(
+        'plan_mode_live_suite_macos_300/plan_mode_live_suite_macos_report.json',
+      ),
+    );
+    expect(
+      report.entries
+          .singleWhere((entry) => entry.surface == 'chat_budget')
+          .riskSummary,
+      contains('compaction retry 1'),
+    );
+  });
 }
 
 File _writeLiveSummary({
@@ -203,4 +321,74 @@ File _writeJson(Directory directory, String fileName, Object value) {
   final file = File('${directory.path}/$fileName');
   file.writeAsStringSync(jsonEncode(value));
   return file;
+}
+
+File _writeJsonPath(Directory directory, String relativePath, Object value) {
+  final file = File('${directory.path}/$relativePath');
+  file.parent.createSync(recursive: true);
+  file.writeAsStringSync(jsonEncode(value));
+  return file;
+}
+
+Map<String, Object?> _planSuiteJson({
+  required String model,
+  required int scenarioCount,
+  required int passedCount,
+  List<String> requestedScenarioNames = const [],
+  List<String> scenarioNames = const [],
+}) {
+  return {
+    'model': model,
+    'baseUrl': 'http://127.0.0.1:1234/v1',
+    'scenarioCount': scenarioCount,
+    'passedCount': passedCount,
+    'failedCount': scenarioCount - passedCount,
+    'requestedScenarioNames': requestedScenarioNames,
+    'warningSummary': {
+      'warnings': 0,
+      'allowedWarnings': 0,
+      'unexpectedWarnings': 0,
+    },
+    'taskDriftSummary': {'detected': 0},
+    'reportQualitySummary': {'blockerCount': 0},
+    'toolLoopConvergenceSummary': {
+      'guardActivations': 0,
+      'naturalStops': passedCount,
+    },
+    'scenarios': [
+      for (final scenario in scenarioNames)
+        {
+          'scenario': scenario,
+          'usedHarnessApprovalFallback': true,
+          'postScenarioCancellationUsed': false,
+        },
+    ],
+  };
+}
+
+Map<String, Object?> _liveSummaryJson({
+  required String surface,
+  required String canaryName,
+  int testCount = 3,
+  int passedCount = 3,
+  Map<String, int> signals = const {},
+}) {
+  return {
+    'schemaName': 'live_llm_canary_summary',
+    'surface': surface,
+    'canaryName': canaryName,
+    'result': passedCount == testCount ? 'passed' : 'failed',
+    'model': 'new-model',
+    'baseUrl': 'http://127.0.0.1:1234/v1',
+    'passedCount': passedCount,
+    'testCount': testCount,
+    'failedCount': testCount - passedCount,
+    'signals': {
+      'recoveredStreamFallbackCount': 0,
+      'toolResultCompactionRetryCount': 0,
+      'transportDisconnectCount': 0,
+      'memoryExtractionFallbackCount': 0,
+      ...signals,
+    },
+  };
 }

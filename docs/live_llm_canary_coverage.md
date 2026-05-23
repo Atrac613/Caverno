@@ -83,6 +83,17 @@ artifacts before updating the model matrix:
 dart run tool/live_llm_canary_reference_report.dart \
   --out-dir build/integration_test_reports/live_llm_reference_<timestamp> \
   --label "qwen3.6-27b-mtp-vision post-hardening" \
+  --report-root build/integration_test_reports
+```
+
+The `--report-root` mode discovers the latest available PM5 smoke, PM5 ping,
+README, chat, tool-result budget, and routine artifacts. Use explicit paths
+when reconstructing an older run set or overriding one discovered artifact:
+
+```bash
+dart run tool/live_llm_canary_reference_report.dart \
+  --out-dir build/integration_test_reports/live_llm_reference_<timestamp> \
+  --label "qwen3.6-27b-mtp-vision post-hardening" \
   --pm5-smoke-report build/integration_test_reports/<smoke>/plan_mode_live_suite_macos_report.json \
   --pm5-ping-summary build/integration_test_reports/<ping>/canary_summary.json \
   --readme-report build/integration_test_reports/<readme>/plan_mode_live_suite_macos_report.json \

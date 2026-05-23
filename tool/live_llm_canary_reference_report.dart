@@ -7,6 +7,7 @@ Future<void> main(List<String> args) async {
     stderr.writeln(
       'Usage: dart run tool/live_llm_canary_reference_report.dart '
       '--out-dir PATH --label LABEL '
+      '[--report-root PATH] '
       '[--pm5-smoke-report PATH] [--pm5-ping-summary PATH] '
       '[--readme-report PATH] [--chat-summary PATH] '
       '[--budget-summary PATH] [--routine-summary PATH]',
@@ -17,8 +18,9 @@ Future<void> main(List<String> args) async {
 
   final LiveLlmCanaryReferenceReport report;
   try {
-    report = await buildLiveLlmCanaryReferenceReport(
+    report = await buildLiveLlmCanaryReferenceReportFromArtifacts(
       label: options.label,
+      reportRoot: options.optionalDirectory('report-root'),
       pm5SmokeReport: options.optionalFile('pm5-smoke-report'),
       pm5PingSummary: options.optionalFile('pm5-ping-summary'),
       readmeReport: options.optionalFile('readme-report'),
@@ -56,6 +58,39 @@ Future<void> main(List<String> args) async {
   if (!report.isSuccessful) {
     exitCode = 1;
   }
+}
+
+Future<LiveLlmCanaryReferenceReport>
+buildLiveLlmCanaryReferenceReportFromArtifacts({
+  required String label,
+  Directory? reportRoot,
+  File? pm5SmokeReport,
+  File? pm5PingSummary,
+  File? readmeReport,
+  File? chatSummary,
+  File? budgetSummary,
+  File? routineSummary,
+  DateTime? generatedAt,
+}) async {
+  final evidence = await resolveLiveLlmCanaryReferenceEvidenceFiles(
+    reportRoot: reportRoot,
+    pm5SmokeReport: pm5SmokeReport,
+    pm5PingSummary: pm5PingSummary,
+    readmeReport: readmeReport,
+    chatSummary: chatSummary,
+    budgetSummary: budgetSummary,
+    routineSummary: routineSummary,
+  );
+  return buildLiveLlmCanaryReferenceReport(
+    label: label,
+    pm5SmokeReport: evidence.pm5SmokeReport,
+    pm5PingSummary: evidence.pm5PingSummary,
+    readmeReport: evidence.readmeReport,
+    chatSummary: evidence.chatSummary,
+    budgetSummary: evidence.budgetSummary,
+    routineSummary: evidence.routineSummary,
+    generatedAt: generatedAt,
+  );
 }
 
 Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
@@ -117,6 +152,86 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
     label: label,
     entries: entries,
   );
+}
+
+Future<LiveLlmCanaryReferenceEvidenceFiles>
+resolveLiveLlmCanaryReferenceEvidenceFiles({
+  Directory? reportRoot,
+  File? pm5SmokeReport,
+  File? pm5PingSummary,
+  File? readmeReport,
+  File? chatSummary,
+  File? budgetSummary,
+  File? routineSummary,
+}) async {
+  if (reportRoot == null) {
+    return LiveLlmCanaryReferenceEvidenceFiles(
+      pm5SmokeReport: pm5SmokeReport,
+      pm5PingSummary: pm5PingSummary,
+      readmeReport: readmeReport,
+      chatSummary: chatSummary,
+      budgetSummary: budgetSummary,
+      routineSummary: routineSummary,
+    );
+  }
+  if (!reportRoot.existsSync()) {
+    throw FileSystemException('Report root not found', reportRoot.path);
+  }
+
+  return LiveLlmCanaryReferenceEvidenceFiles(
+    pm5SmokeReport:
+        pm5SmokeReport ??
+        await _findLatestPlanSuiteReport(reportRoot, _isPm5SmokeReport),
+    pm5PingSummary:
+        pm5PingSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'plan_mode_ping_cli_canary_',
+          fileName: 'canary_summary.json',
+        ),
+    readmeReport:
+        readmeReport ??
+        await _findLatestPlanSuiteReport(reportRoot, _isReadmeFirstReport),
+    chatSummary:
+        chatSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'chat_live_llm_canary_',
+          fileName: 'canary_summary.json',
+        ),
+    budgetSummary:
+        budgetSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'tool_result_budget_live_canary_',
+          fileName: 'canary_summary.json',
+        ),
+    routineSummary:
+        routineSummary ??
+        _findLatestReportFile(
+          reportRoot: reportRoot,
+          directoryPrefix: 'routine_live_llm_canary_',
+          fileName: 'canary_summary.json',
+        ),
+  );
+}
+
+class LiveLlmCanaryReferenceEvidenceFiles {
+  const LiveLlmCanaryReferenceEvidenceFiles({
+    required this.pm5SmokeReport,
+    required this.pm5PingSummary,
+    required this.readmeReport,
+    required this.chatSummary,
+    required this.budgetSummary,
+    required this.routineSummary,
+  });
+
+  final File? pm5SmokeReport;
+  final File? pm5PingSummary;
+  final File? readmeReport;
+  final File? chatSummary;
+  final File? budgetSummary;
+  final File? routineSummary;
 }
 
 class LiveLlmCanaryReferenceReport {
@@ -427,6 +542,14 @@ class LiveLlmCanaryReferenceReportOptions {
     return File(path);
   }
 
+  Directory? optionalDirectory(String name) {
+    final path = values[name];
+    if (path == null || path.isEmpty) {
+      return null;
+    }
+    return Directory(path);
+  }
+
   static LiveLlmCanaryReferenceReportOptions? parse(List<String> args) {
     final values = <String, String>{};
     for (var index = 0; index < args.length; index += 1) {
@@ -577,6 +700,82 @@ Future<LiveLlmCanaryReferenceEntry> _buildLiveSummaryEntry(
   );
 }
 
+Future<File?> _findLatestPlanSuiteReport(
+  Directory reportRoot,
+  bool Function(Map<String, dynamic> json) predicate,
+) async {
+  final candidates = _findReportFiles(
+    reportRoot: reportRoot,
+    directoryPrefix: 'plan_mode_live_suite_macos_',
+    fileName: 'plan_mode_live_suite_macos_report.json',
+  );
+  final matches = <File>[];
+  for (final candidate in candidates) {
+    final json = await _readJsonObject(candidate);
+    if (predicate(json)) {
+      matches.add(candidate);
+    }
+  }
+  return matches.isEmpty ? null : matches.last;
+}
+
+File? _findLatestReportFile({
+  required Directory reportRoot,
+  required String directoryPrefix,
+  required String fileName,
+}) {
+  final candidates = _findReportFiles(
+    reportRoot: reportRoot,
+    directoryPrefix: directoryPrefix,
+    fileName: fileName,
+  );
+  return candidates.isEmpty ? null : candidates.last;
+}
+
+List<File> _findReportFiles({
+  required Directory reportRoot,
+  required String directoryPrefix,
+  required String fileName,
+}) {
+  final files = reportRoot
+      .listSync(recursive: true, followLinks: false)
+      .whereType<File>()
+      .where(
+        (file) =>
+            _baseName(file.path) == fileName &&
+            _baseName(file.parent.path).startsWith(directoryPrefix),
+      )
+      .toList();
+  files.sort((left, right) => left.path.compareTo(right.path));
+  return files;
+}
+
+bool _isReadmeFirstReport(Map<String, dynamic> json) {
+  return _stringList(
+    json['requestedScenarioNames'],
+  ).contains('live_readme_first_canary');
+}
+
+bool _isPm5SmokeReport(Map<String, dynamic> json) {
+  final requestedScenarios = _stringList(json['requestedScenarioNames']);
+  if (requestedScenarios.contains('live_readme_first_canary') ||
+      requestedScenarios.contains('live_ping_cli_completion')) {
+    return false;
+  }
+  final scenarioNames = _asList(json['scenarios'])
+      .whereType<Map>()
+      .map((scenario) => scenario['scenario'] as String?)
+      .whereType<String>()
+      .toSet();
+  const smokeScenarios = {
+    'live_host_health_scaffold',
+    'live_cli_entrypoint_decision',
+    'live_clarify_recovery',
+  };
+  return scenarioNames.containsAll(smokeScenarios) ||
+      requestedScenarios.isEmpty && _asInt(json['scenarioCount']) >= 3;
+}
+
 Future<Map<String, dynamic>> _readJsonObject(File file) async {
   if (!file.existsSync()) {
     throw FileSystemException('Evidence file not found', file.path);
@@ -603,6 +802,10 @@ List<Object?> _asList(Object? value) {
     return value;
   }
   return const <Object?>[];
+}
+
+List<String> _stringList(Object? value) {
+  return _asList(value).whereType<String>().toList(growable: false);
 }
 
 int _asInt(Object? value) {
@@ -635,4 +838,8 @@ String? _firstNonEmpty(Iterable<String?> values) {
 
 String _tableCell(String value) {
   return value.replaceAll('|', r'\|').replaceAll('\n', ' ');
+}
+
+String _baseName(String path) {
+  return path.replaceAll(r'\', '/').split('/').last;
 }
