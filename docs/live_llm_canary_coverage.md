@@ -85,8 +85,8 @@ before comparing model behavior.
 - API key: `no-key`
 - Baseline status: current full-surface comparison reference
 - Scope note: all required model-switch canaries ran on the same app and canary
-  revision. The recorded chat, chat-budget, and routine results predate the
-  shared Live LLM summary wrapper; current wrapper runs write
+  revision. The original recorded chat, chat-budget, and routine results
+  predate the shared Live LLM summary wrapper; refreshed wrapper runs now write
   `canary_summary.json`, `canary_summary.md`, and a captured Flutter JSON log.
 
 | Surface | Check | Result | Evidence | Notes |
@@ -95,7 +95,7 @@ before comparing model behavior.
 | Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | `README.md` was the saved target and actual changed file, contained `CANARY_CONTENT_FIT: README_ONLY`, and converged with one guard activation. |
 | Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Plain chat, memory extraction JSON, and embedded `<tool_call>` execution passed. Embedded-tool continuation recovered with non-streaming fallback after a transient streaming transport disconnect. |
 | Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully and the model returned `COMPACT_BUDGET_LIVE_OK`. |
-| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | New-IP post, no-new-IP no-post, LAN scan failure, and `contents` write-shape branches all passed. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed after prompt hardening | Initial wrapper reruns exposed scoped-notification drift where Google Chat text mixed total active hosts into a new-IP-only notification. After adding explicit scoped notification guidance, two consecutive routine wrapper runs passed 4/4 with no recovery signals. |
 
 Artifacts:
 
@@ -109,8 +109,16 @@ Artifacts:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/run_01_suite_report.json`
 - Focused README canary report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779493552331/plan_mode_live_suite_macos_report.json`
-- Future chat, chat-budget, and routine wrapper runs:
-  `build/integration_test_reports/<canary_name>_<timestamp>/canary_summary.json`
+- Chat wrapper refresh:
+  `build/integration_test_reports/chat_live_llm_canary_1779495371/canary_summary.json`
+- Tool-result budget wrapper refresh:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779495401/canary_summary.json`
+- Routine wrapper content-drift failure before prompt hardening:
+  `build/integration_test_reports/routine_live_llm_canary_1779496133/canary_summary.json`
+- Routine wrapper post-hardening passes:
+  `build/integration_test_reports/routine_live_llm_canary_1779496305/canary_summary.json`
+  and
+  `build/integration_test_reports/routine_live_llm_canary_1779496399/canary_summary.json`
 
 ### Previous Reference: `gemma4-26b-vision`
 

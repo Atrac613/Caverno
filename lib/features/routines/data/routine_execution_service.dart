@@ -57,6 +57,16 @@ class RoutineExecutionService {
   static const String googleChatPostToolName = 'routine_google_chat_post';
   static const String _googleChatSourceLabel = 'Google Chat';
   static const String _safariSourceLabel = 'Safari';
+  static const String _googleChatScopedNotificationGuidance =
+      'When the prompt limits the notification to newly discovered, changed, '
+      'failed, or matching items, include only those matching items in the '
+      'Google Chat text. Do not include previous items, unchanged items, or the '
+      'full current result list as extra context unless the prompt explicitly '
+      'asks for them. If the prompt says to post only the newly discovered IP '
+      'list, the text argument must contain only the newly discovered IP '
+      'addresses. Do not include total active hosts, previous IPs, unchanged '
+      'IPs, subnet metadata, timestamps, or explanatory context in that '
+      'Google Chat text.';
 
   static Map<String, dynamic> get _googleChatPostToolDefinition => {
     'type': 'function',
@@ -69,13 +79,16 @@ class RoutineExecutionService {
           'Chat incoming webhook. When the routine prompt asks for a '
           'conditional Google Chat notification and the condition is true, '
           'call this tool before the final answer. Do not claim that Google '
-          'Chat was posted unless this tool has been called successfully.',
+          'Chat was posted unless this tool has been called successfully. '
+          '$_googleChatScopedNotificationGuidance',
       'parameters': {
         'type': 'object',
         'properties': {
           'text': {
             'type': 'string',
-            'description': 'Message text to post to Google Chat.',
+            'description':
+                'Message text to post to Google Chat. '
+                'For scoped notifications, include only the matching items.',
           },
         },
         'required': ['text'],
@@ -504,7 +517,8 @@ class RoutineExecutionService {
         'for a Google Chat notification is satisfied. If that condition is '
         'satisfied, call $googleChatPostToolName before the final answer. Do '
         'not say that Google Chat was posted unless the tool has been called '
-        'successfully. Keep the message concise.',
+        'successfully. Keep the message concise. '
+        '$_googleChatScopedNotificationGuidance',
       );
     }
     final allowedComputerUseActionToolNames =

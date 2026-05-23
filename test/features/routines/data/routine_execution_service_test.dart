@@ -1296,6 +1296,40 @@ void main() {
         systemPrompt,
         contains('call routine_google_chat_post before the final answer'),
       );
+      expect(
+        systemPrompt,
+        contains('include only those matching items in the Google Chat text'),
+      );
+      expect(systemPrompt, contains('post only the newly discovered IP list'));
+      expect(systemPrompt, contains('Do not include total active hosts'));
+      expect(
+        dataSource.lastToolAwareMessages.last.content,
+        contains('the posted text must include only those matching items'),
+      );
+      expect(
+        dataSource.lastToolAwareMessages.last.content,
+        contains('routine_google_chat_post.text must contain only'),
+      );
+      final googleChatTool = dataSource.lastToolDefinitions.singleWhere(
+        (tool) =>
+            (tool['function'] as Map<String, dynamic>)['name'] ==
+            RoutineExecutionService.googleChatPostToolName,
+      );
+      final googleChatFunction =
+          googleChatTool['function'] as Map<String, dynamic>;
+      expect(
+        googleChatFunction['description'],
+        contains('include only those matching items'),
+      );
+      expect(
+        googleChatFunction['description'],
+        contains('Do not include total active hosts'),
+      );
+      final parameters =
+          googleChatFunction['parameters'] as Map<String, dynamic>;
+      final properties = parameters['properties'] as Map<String, dynamic>;
+      final textProperty = properties['text'] as Map<String, dynamic>;
+      expect(textProperty['description'], contains('For scoped notifications'));
       expect(deliveryService.calls, hasLength(1));
       expect(
         deliveryService.calls.single.webhookUrl,
@@ -1509,6 +1543,7 @@ class _FakeChatDataSource implements ChatDataSource {
   List<String> toolRequestNames = const [];
   List<Message> lastPlainMessages = const [];
   List<Message> lastToolAwareMessages = const [];
+  List<Map<String, dynamic>> lastToolDefinitions = const [];
   List<ToolResultInfo> lastToolResults = const [];
   int createChatCompletionWithToolResultsCallCount = 0;
 
@@ -1521,6 +1556,7 @@ class _FakeChatDataSource implements ChatDataSource {
     int? maxTokens,
   }) async {
     if (tools != null && tools.isNotEmpty) {
+      lastToolDefinitions = tools;
       lastToolAwareMessages = messages;
       toolRequestNames = tools
           .map((tool) => (tool['function'] as Map<String, dynamic>)['name'])

@@ -315,6 +315,16 @@ class RoutineToolRunner {
           'asks for a Google Chat notification when a condition is true, call '
           'routine_google_chat_post before the final answer when the results '
           'show that condition is true.',
+      'When the original routine prompt limits the Google Chat notification to '
+          'newly discovered, changed, failed, or matching items, the posted '
+          'text must include only those matching items. Do not include previous '
+          'items, unchanged items, or the full current result list as extra '
+          'context unless the prompt explicitly asks for them.',
+      'If the original routine prompt says to post only the newly discovered IP '
+          'list, routine_google_chat_post.text must contain only the newly '
+          'discovered IP addresses. Do not include total active hosts, previous '
+          'IPs, unchanged IPs, subnet metadata, timestamps, or explanatory '
+          'context in that Google Chat text.',
       'Do not claim that a file was updated, a message was posted, or any other '
           'side effect was completed unless the corresponding tool call has '
           'succeeded.',

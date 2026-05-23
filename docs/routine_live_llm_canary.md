@@ -137,6 +137,10 @@ Common failure classes:
   complete the requested notification flow.
 - Unexpected `routine_google_chat_post`: the model posted when the no-new-IP or
   failure branch required silence.
+- Scoped notification content drift: the model called
+  `routine_google_chat_post`, but the message included previous IPs, unchanged
+  IPs, total active hosts, or other full-list context when the prompt required
+  only newly discovered IPs.
 - Missing `write_file`: the model inspected data but failed to persist the
   workspace state.
 - Missing failure evidence: the model received a failing `lan_scan` result but
