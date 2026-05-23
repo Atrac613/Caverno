@@ -95,6 +95,23 @@ The generated `reference_report.md` is a compact handoff artifact for comparing
 overall pass counts, task-drift or warning risk, cleanup cancellation, approval
 fallback use, and Live LLM recovery signals before writing narrative docs.
 
+When comparing a candidate model against the current reference, compare the two
+generated reference reports before reading raw logs:
+
+```bash
+dart run tool/live_llm_canary_reference_compare.dart \
+  --reference build/integration_test_reports/<reference>/reference_report.json \
+  --candidate build/integration_test_reports/<candidate>/reference_report.json \
+  --out-dir build/integration_test_reports/live_llm_compare_<timestamp> \
+  --label "reference vs candidate"
+```
+
+The comparison exits non-zero for hard regressions such as failed checks,
+unexpected warnings, task drift, report-quality blockers, transport disconnects,
+stream fallback, or memory fallback increases. Approval fallback, cleanup
+cancellation, guard activation, allowed-warning, and compaction-retry increases
+are recorded as watch signals instead of hard failures.
+
 ## Latest Full-Surface Evidence
 
 ### 2026-05-23: `qwen3.6-27b-mtp-vision`

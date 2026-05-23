@@ -128,6 +128,27 @@ class LiveLlmCanaryReferenceReport {
     required this.entries,
   });
 
+  factory LiveLlmCanaryReferenceReport.fromJson(Map<String, dynamic> json) {
+    final entries = _asList(json['entries'])
+        .whereType<Map>()
+        .map(
+          (entry) => LiveLlmCanaryReferenceEntry.fromJson(
+            Map<String, dynamic>.from(entry),
+          ),
+        )
+        .toList(growable: false);
+    return LiveLlmCanaryReferenceReport(
+      schemaName:
+          json['schemaName'] as String? ?? 'live_llm_canary_reference_report',
+      schemaVersion: _asInt(json['schemaVersion']),
+      generatedAt:
+          DateTime.tryParse(json['generatedAt'] as String? ?? '') ??
+          DateTime.fromMillisecondsSinceEpoch(0, isUtc: true),
+      label: json['label'] as String? ?? 'unlabeled',
+      entries: entries,
+    );
+  }
+
   final String schemaName;
   final int schemaVersion;
   final DateTime generatedAt;
@@ -211,6 +232,23 @@ class LiveLlmCanaryReferenceEntry {
     required this.signals,
   });
 
+  factory LiveLlmCanaryReferenceEntry.fromJson(Map<String, dynamic> json) {
+    return LiveLlmCanaryReferenceEntry(
+      surface: json['surface'] as String? ?? 'unknown',
+      check: json['check'] as String? ?? 'unknown',
+      result: json['result'] as String? ?? 'failed',
+      model: json['model'] as String?,
+      baseUrl: json['baseUrl'] as String?,
+      evidencePath: json['evidencePath'] as String? ?? '',
+      passed: _asInt(json['passed']),
+      total: _asInt(json['total']),
+      failed: _asInt(json['failed']),
+      signals: LiveLlmCanaryReferenceSignals.fromJson(
+        _asObject(json['signals']),
+      ),
+    );
+  }
+
   final String surface;
   final String check;
   final String result;
@@ -257,6 +295,31 @@ class LiveLlmCanaryReferenceSignals {
     this.memoryExtractionFallbackCount = 0,
     this.failureClassCounts = const <String, int>{},
   });
+
+  factory LiveLlmCanaryReferenceSignals.fromJson(Map<String, dynamic> json) {
+    return LiveLlmCanaryReferenceSignals(
+      warningCount: _asInt(json['warningCount']),
+      unexpectedWarningCount: _asInt(json['unexpectedWarningCount']),
+      allowedWarningCount: _asInt(json['allowedWarningCount']),
+      taskDriftCount: _asInt(json['taskDriftCount']),
+      reportQualityBlockerCount: _asInt(json['reportQualityBlockerCount']),
+      guardActivationCount: _asInt(json['guardActivationCount']),
+      naturalStopCount: _asInt(json['naturalStopCount']),
+      cleanupCancellationCount: _asInt(json['cleanupCancellationCount']),
+      approvalFallbackCount: _asInt(json['approvalFallbackCount']),
+      recoveredStreamFallbackCount: _asInt(
+        json['recoveredStreamFallbackCount'],
+      ),
+      toolResultCompactionRetryCount: _asInt(
+        json['toolResultCompactionRetryCount'],
+      ),
+      transportDisconnectCount: _asInt(json['transportDisconnectCount']),
+      memoryExtractionFallbackCount: _asInt(
+        json['memoryExtractionFallbackCount'],
+      ),
+      failureClassCounts: _stringIntMap(json['failureClassCounts']),
+    );
+  }
 
   final int warningCount;
   final int unexpectedWarningCount;
