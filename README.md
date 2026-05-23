@@ -436,6 +436,10 @@ CAVERNO_LLM_MODEL=... \
 tool/run_tool_result_budget_live_canary.sh
 ```
 
+Both scripts write `canary_summary.json`, `canary_summary.md`, and the captured
+Flutter JSON log under `build/integration_test_reports/` so model-switch
+handoffs can compare chat recovery signals across runs.
+
 ## Routine Live LLM Canary
 
 Routine live LLM validation is documented in
@@ -453,6 +457,9 @@ CAVERNO_LLM_API_KEY=... \
 CAVERNO_LLM_MODEL=... \
 tool/run_routine_live_llm_canary.sh
 ```
+
+The routine wrapper writes the same `canary_summary.json`, `canary_summary.md`,
+and captured Flutter JSON log artifact shape as the chat live canaries.
 
 ## Architecture
 

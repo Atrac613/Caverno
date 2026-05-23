@@ -48,20 +48,28 @@ Optional environment variables:
 
 | Variable | Notes |
 |----------|-------|
-| `CAVERNO_ROUTINE_LIVE_CANARY_REPORTER` | Flutter test reporter, defaults to `compact` |
+| `CAVERNO_ROUTINE_LIVE_CANARY_REPORT_ROOT` | Overrides the artifact root; defaults to `build/integration_test_reports` |
+| `CAVERNO_LIVE_LLM_CANARY_REPORT_ROOT` | Shared artifact root for chat, budget, and routine live canaries |
 | `CAVERNO_ROUTINE_LIVE_CANARY_MAX_TOKENS` | Overrides routine max tokens for this run |
 | `CAVERNO_ROUTINE_LIVE_CANARY_TEMPERATURE` | Overrides routine temperature for this run |
 
-The older `CAVERNO_ROUTINE_LIVE_REPORTER`,
-`CAVERNO_ROUTINE_LIVE_MAX_TOKENS`, and
+The older `CAVERNO_ROUTINE_LIVE_MAX_TOKENS` and
 `CAVERNO_ROUTINE_LIVE_TEMPERATURE` aliases are still accepted for compatibility,
-but new runs should prefer the `CAVERNO_ROUTINE_LIVE_CANARY_*` names.
+but new runs should prefer the `CAVERNO_ROUTINE_LIVE_CANARY_*` names. The
+wrapper uses Flutter's JSON reporter internally so it can produce structured
+artifacts.
 
 The script sets `CAVERNO_ROUTINE_LIVE_CANARY=1` before invoking:
 
 ```bash
-flutter test tool/canaries/routine_live_llm_canary_test.dart -r compact
+flutter test tool/canaries/routine_live_llm_canary_test.dart -r json
 ```
+
+Each run writes:
+
+- `build/integration_test_reports/routine_live_llm_canary_<timestamp>/flutter_test.jsonl`
+- `build/integration_test_reports/routine_live_llm_canary_<timestamp>/canary_summary.json`
+- `build/integration_test_reports/routine_live_llm_canary_<timestamp>/canary_summary.md`
 
 ## Test Shape
 

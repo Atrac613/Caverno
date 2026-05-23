@@ -85,8 +85,9 @@ before comparing model behavior.
 - API key: `no-key`
 - Baseline status: current full-surface comparison reference
 - Scope note: all required model-switch canaries ran on the same app and canary
-  revision. Chat, chat-budget, and routine scripts report pass counts through
-  Flutter test output rather than a model-matrix JSON artifact.
+  revision. The recorded chat, chat-budget, and routine results predate the
+  shared Live LLM summary wrapper; current wrapper runs write
+  `canary_summary.json`, `canary_summary.md`, and a captured Flutter JSON log.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
@@ -108,6 +109,8 @@ Artifacts:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779493422/run_01_suite_report.json`
 - Focused README canary report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779493552331/plan_mode_live_suite_macos_report.json`
+- Future chat, chat-budget, and routine wrapper runs:
+  `build/integration_test_reports/<canary_name>_<timestamp>/canary_summary.json`
 
 ### Previous Reference: `gemma4-26b-vision`
 
@@ -143,10 +146,11 @@ Artifacts:
 - PM5 ping canary suite report:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779459449/run_01_suite_report.json`
 
-The chat, chat-budget, and routine live scripts currently report pass counts
-through Flutter test output rather than a model-matrix JSON artifact. Record the
-terminal command output in the model-switch handoff when those scripts are part
-of the comparison.
+The chat, chat-budget, and routine live scripts write
+`canary_summary.json`, `canary_summary.md`, and `flutter_test.jsonl` under
+`build/integration_test_reports/<canary_name>_<timestamp>/`. The summary records
+pass/fail counts plus recovery signals such as non-streaming fallback after a
+streaming disconnect and tool-result compaction retry counts.
 
 ## Chat Coverage
 
