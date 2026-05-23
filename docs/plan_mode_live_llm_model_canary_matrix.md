@@ -48,15 +48,16 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-22 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Focused `live_readme_first_canary` post-fix rerun | Passed | 1/1 focused canary | Not applicable | 0 | 0 detected | Pass: README-only content | Previous artifact baseline. Report quality was ready, saved target tracking matched `README.md`, and convergence used one guard activation plus one natural stop. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Smoke suite post-fix rerun | Passed | 3/3 | Not run in this focused rerun | 0 unexpected; 1 allowed `recoveredCreateParseWarning` | 0 detected | No artifact-content issue recorded | Previous smoke comparison baseline. Report quality was ready; all scenarios used live harness approval fallback; tool-loop convergence had 3 saved validations, 2 guard activations, and 1 natural stop. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Full model-switch baseline | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current full-surface pass: README 1/1, chat 3/3, budget 1/1, routine 4/4. Smoke used live harness fallback for all scenarios; cleanup cancellation occurred in two smoke scenarios; chat embedded-tool continuation recovered after a transient stream disconnect. |
+| 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Post-hardening full-surface rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current reference rerun after routine scoped-notification hardening: README 1/1, chat 3/3, budget 1/1, routine 4/4. Chat and routine had 0 recovery signals; budget had the expected single compaction retry. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 full model-switch pass. `gemma4-26b-vision` remains the previous
-reference for comparison against the same app and canary revision. If the
-harness, prompts, parser recovery, task-drift classification, or saved
-validation expectations change again, rerun the current reference before
-judging a new model.
+2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` remains the
+previous reference for comparison against the same app and canary revision. If
+the harness, prompts, parser recovery, task-drift classification, routine
+scoped-notification guidance, or saved validation expectations change again,
+rerun the current reference before judging a new model.
 
 Minimum comparison criteria for the next model:
 
@@ -452,6 +453,54 @@ candidate:
   full-surface pass for this canary revision, while preserving
   cleanup-sensitive and recovered-stream notes for future comparisons.
 
+### 2026-05-23: `qwen3.6-27b-mtp-vision` Post-Hardening Reference Rerun
+
+- PM5 command:
+  `tool/run_plan_mode_pm5_live_gate.sh`
+- PM5 environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=qwen3.6-27b-mtp-vision`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+  - `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+- Smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779497007635/plan_mode_live_suite_macos_report.json`
+- Smoke suite Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779497007635/plan_mode_live_suite_macos_report.md`
+- Ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779497444/canary_summary.json`
+- Ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779497444/run_01_suite_report.json`
+- Ping canary live suite archive:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779497473182`
+- Focused README report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779497602903/plan_mode_live_suite_macos_report.json`
+- Chat canary summary:
+  `build/integration_test_reports/chat_live_llm_canary_1779497744/canary_summary.json`
+- Tool-result budget canary summary:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779497770/canary_summary.json`
+- Routine canary summary:
+  `build/integration_test_reports/routine_live_llm_canary_1779497791/canary_summary.json`
+- Outcome:
+  - live smoke: 3 passed, 0 failed
+  - ping canary: 1 passed, 0 failed
+  - focused README canary: 1 passed, 0 failed
+  - chat canary: 3 passed, 0 failed
+  - tool-result budget canary: 1 passed, 0 failed
+  - routine canary: 4 passed, 0 failed
+  - unexpected warnings: 0 in smoke, ping, and focused README reports
+  - task drift: 0 detected in smoke, ping, and focused README reports
+  - recovery signals: chat 0, routine 0, budget one expected compaction retry
+  - approval paths: live harness approval fallback in all Plan Mode scenarios
+  - cleanup cancellation: used in `live_host_health_scaffold` and
+    `live_clarify_recovery`
+  - routine scoped-notification hardening held across new-IP post, no-new-IP
+    no-post, LAN scan failure, and `contents` write-shape branches
+- Baseline note:
+  This is the current comparison reference because it reran the full surface
+  after routine scoped-notification hardening and after the shared Live LLM
+  canary summaries were added.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -494,21 +543,26 @@ candidate:
   - The 2026-05-23 full model-switch baseline passed PM5 smoke, ping, focused
     README, chat, tool-result budget, and routine canaries on the same app and
     canary revision.
+  - The post-hardening reference rerun also passed PM5 smoke, ping, focused
+    README, chat, tool-result budget, and routine canaries on the same app and
+    canary revision.
   - Unlike the initial PM5 attempt, the 2026-05-23 PM5 gate passed in one run
     and produced no unexpected warnings, no task drift, and no report-quality
     blockers.
   - Plan Mode still used live harness approval fallback for every smoke, ping,
     and focused README scenario in the latest baseline.
-  - Cleanup cancellation still occurred in `live_cli_entrypoint_decision` and
-    `live_clarify_recovery`, so long-running background completion remains a
-    behavior to watch.
+  - Cleanup cancellation occurred in `live_host_health_scaffold` and
+    `live_clarify_recovery` in the post-hardening reference rerun, so
+    long-running background completion remains a behavior to watch.
   - The focused README canary passed with `README.md` as the saved target and
     actual changed file, plus the `CANARY_CONTENT_FIT: README_ONLY` marker.
-  - The chat canary passed, including memory JSON parsing and embedded
-    content-tool execution. Embedded-tool continuation needed non-streaming
-    recovery after a transient streaming disconnect.
-  - The routine canary passed all recorded branches, including the `contents`
-    write argument alias.
+  - The latest chat canary passed, including memory JSON parsing and embedded
+    content-tool execution, with 0 recovery signals.
+  - The latest tool-result budget canary passed with one expected compaction
+    retry for the oversized tool result path.
+  - The latest routine canary passed all recorded branches, including scoped
+    new-IP notification, no-new-IP no-post, LAN scan failure, and the
+    `contents` write argument alias, with 0 recovery signals.
 
 ### `gemma4-26b-vision`
 
