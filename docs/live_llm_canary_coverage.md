@@ -76,6 +76,25 @@ model. If parser recovery, task-drift classification, warning allow rules, or
 saved-validation expectations change between runs, rerun the reference model
 before comparing model behavior.
 
+After completing the run set, generate a local reference report from the
+artifacts before updating the model matrix:
+
+```bash
+dart run tool/live_llm_canary_reference_report.dart \
+  --out-dir build/integration_test_reports/live_llm_reference_<timestamp> \
+  --label "qwen3.6-27b-mtp-vision post-hardening" \
+  --pm5-smoke-report build/integration_test_reports/<smoke>/plan_mode_live_suite_macos_report.json \
+  --pm5-ping-summary build/integration_test_reports/<ping>/canary_summary.json \
+  --readme-report build/integration_test_reports/<readme>/plan_mode_live_suite_macos_report.json \
+  --chat-summary build/integration_test_reports/<chat>/canary_summary.json \
+  --budget-summary build/integration_test_reports/<budget>/canary_summary.json \
+  --routine-summary build/integration_test_reports/<routine>/canary_summary.json
+```
+
+The generated `reference_report.md` is a compact handoff artifact for comparing
+overall pass counts, task-drift or warning risk, cleanup cancellation, approval
+fallback use, and Live LLM recovery signals before writing narrative docs.
+
 ## Latest Full-Surface Evidence
 
 ### 2026-05-23: `qwen3.6-27b-mtp-vision`
