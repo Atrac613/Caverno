@@ -49,15 +49,17 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Smoke suite post-fix rerun | Passed | 3/3 | Not run in this focused rerun | 0 unexpected; 1 allowed `recoveredCreateParseWarning` | 0 detected | No artifact-content issue recorded | Previous smoke comparison baseline. Report quality was ready; all scenarios used live harness approval fallback; tool-loop convergence had 3 saved validations, 2 guard activations, and 1 natural stop. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Full model-switch baseline | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current full-surface pass: README 1/1, chat 3/3, budget 1/1, routine 4/4. Smoke used live harness fallback for all scenarios; cleanup cancellation occurred in two smoke scenarios; chat embedded-tool continuation recovered after a transient stream disconnect. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Post-hardening full-surface rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current reference rerun after routine scoped-notification hardening: README 1/1, chat 3/3, budget 1/1, routine 4/4. Chat and routine had 0 recovery signals; budget had the expected single compaction retry. |
+| 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Full-surface candidate rerun | Failed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | PM5, README, chat, and budget passed, but routine passed only 3/4. The `contents` argument alias branch failed after the model emitted a raw special-token tool-call shape instead of an executable tool call. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` remains the
-previous reference for comparison against the same app and canary revision. If
-the harness, prompts, parser recovery, task-drift classification, routine
-scoped-notification guidance, or saved validation expectations change again,
-rerun the current reference before judging a new model.
+2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` has a latest
+candidate rerun on the same app revision, but it is not reference-ready because
+the routine alias branch regressed. If the harness, prompts, parser recovery,
+task-drift classification, routine scoped-notification guidance, or saved
+validation expectations change again, rerun the current reference before
+judging a new model.
 
 Minimum comparison criteria for the next model:
 
@@ -501,6 +503,70 @@ candidate:
   after routine scoped-notification hardening and after the shared Live LLM
   canary summaries were added.
 
+### 2026-05-23: `gemma4-26b-vision` Full-Surface Candidate Rerun
+
+- PM5 command:
+  `tool/run_plan_mode_pm5_live_gate.sh`
+- PM5 environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+  - `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+- Smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546363391/plan_mode_live_suite_macos_report.json`
+- Smoke suite Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546363391/plan_mode_live_suite_macos_report.md`
+- Ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779546717/canary_summary.json`
+- Ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779546717/run_01_suite_report.json`
+- Ping canary live suite archive:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546746368`
+- Focused README report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546851868/plan_mode_live_suite_macos_report.json`
+- Chat canary summary:
+  `build/integration_test_reports/chat_live_llm_canary_1779546901/canary_summary.json`
+- Tool-result budget canary summary:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779546936/canary_summary.json`
+- Routine canary summary:
+  `build/integration_test_reports/routine_live_llm_canary_1779546953/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_1779546953/reference_report.json`
+- Comparison against the current reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_1779546953/reference_compare.json`
+- Outcome:
+  - live smoke: 3 passed, 0 failed
+  - ping canary: 1 passed, 0 failed
+  - focused README canary: 1 passed, 0 failed
+  - chat canary: 3 passed, 0 failed
+  - tool-result budget canary: 1 passed, 0 failed
+  - routine canary: 3 passed, 1 failed
+  - generated reference report: 12 passed checks, 1 failed check
+  - comparison against `qwen3.6-27b-mtp-vision`: failed with a routine hard
+    regression and one README convergence watch signal
+  - report quality: ready for smoke and focused README reports
+  - unexpected warnings: 0 in smoke and focused README reports
+  - task drift: 0 detected in smoke and focused README reports
+  - recovery signals: chat 0, routine 0, budget one expected compaction retry
+  - approval paths: live harness approval fallback in all Plan Mode scenarios
+  - cleanup cancellation: used only in `live_clarify_recovery` during the smoke
+    suite
+  - focused README convergence: one saved validation and one guard activation
+- Failure detail:
+  The routine `contents` argument alias test failed after `read_file` and
+  `lan_scan` executed. The model reasoned correctly that it should call
+  `write_file` with the `contents` argument and then post only the newly
+  discovered IP. It then emitted a raw special-token tool-call fragment
+  (`<|tool_call>call:write_file{...}<tool_call|>`) in recovered text instead
+  of an executable tool call. The write and Google Chat post were not executed,
+  leaving the state file unchanged.
+- Candidate note:
+  This run is useful comparison evidence but is not baseline-ready. Treat the
+  model as acceptable for chat and most Plan Mode canaries, and blocked for
+  full-surface promotion until the routine alias tool-call shape is supported
+  or the model stops emitting the raw special-token form.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -614,8 +680,16 @@ candidate:
     JSON appeared only in reasoning text. The current parser and live chat
     canary baseline cover that shape, and the chat suite now passes for this
     model.
-  - Compare future models against the post-fix baseline refresh and the full PM5
-    gate, not against superseded pre-fix canary failures.
+  - The latest full-surface candidate rerun passed PM5, focused README, chat,
+    and budget checks, but failed the routine `contents` argument alias branch.
+  - In the failed routine branch, the model correctly planned a `write_file`
+    call with the `contents` alias, then emitted the call as a raw
+    `<|tool_call>call:write_file{...}<tool_call|>` fragment in recovered text
+    instead of an executable tool call.
+  - Compare future models against the current `qwen3.6-27b-mtp-vision`
+    post-hardening reference. For this model, keep the latest candidate rerun
+    as blocked full-surface evidence and avoid using older superseded pre-fix
+    canary failures as the comparison target.
 
 ## Evidence Fields
 

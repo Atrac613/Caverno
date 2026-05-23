@@ -100,6 +100,9 @@ Treat these as model compatibility risks before assuming app logic is broken:
 - duplicate or generic task proposals that ignore target-file boundaries
 - content-incorrect artifacts written into otherwise valid target files
 - tool calls that continue after a saved validation command has passed
+- raw special-token tool-call fragments in assistant text, such as
+  `<|tool_call>call:write_file{...}<tool_call|>`, when the endpoint does not
+  expose them as executable tool calls
 - future-task tool calls before the current saved task is terminally complete
 - long pauses that exceed planning, execution, or stall budgets
 - final answers that contradict persisted task state
@@ -162,7 +165,7 @@ Latest PM5 live evidence used:
 - latest focused README artifact refresh:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779497602903/plan_mode_live_suite_macos_report.json`
 
-Recent `gemma4-26b-vision` compatibility attempt:
+Recent `gemma4-26b-vision` compatibility attempts:
 
 - PM5 attempt:
   - date: 2026-05-22
@@ -220,6 +223,31 @@ Recent `gemma4-26b-vision` compatibility attempt:
     `build/integration_test_reports/plan_mode_live_suite_macos_1779462479260/plan_mode_live_suite_macos_report.json`
   - focused README canary report:
     `build/integration_test_reports/plan_mode_live_suite_macos_1779461715586/plan_mode_live_suite_macos_report.json`
+- latest full-surface candidate rerun:
+  - date: 2026-05-23
+  - PM5 live gate result: passed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `1/1` passed
+  - focused README canary result: passed
+  - chat canary result: passed, `3/3`
+  - tool-result budget canary result: passed, `1/1`
+  - routine canary result: failed, `3/4`
+  - unexpected warnings: `0`
+  - report quality blockers: `0` in Plan Mode reports
+  - task drift: none detected by the Plan Mode reports
+  - artifact content fit: README-only content matched the saved task
+  - comparison against the current qwen reference: failed with a routine hard
+    regression and one README convergence watch signal
+  - failure detail: the routine alias branch reached `read_file` and
+    `lan_scan`, then the model emitted a raw
+    `<|tool_call>call:write_file{...}<tool_call|>` fragment in recovered text
+    instead of an executable `write_file` tool call with the `contents` alias
+  - compatibility decision: not full-surface baseline-ready until the raw
+    special-token tool-call shape is supported or no longer emitted
+  - candidate reference report:
+    `build/integration_test_reports/live_llm_reference_gemma4_1779546953/reference_report.json`
+  - comparison report:
+    `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_1779546953/reference_compare.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 

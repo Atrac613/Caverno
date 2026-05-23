@@ -167,6 +167,50 @@ Artifacts:
 - Historical routine scoped-notification failure before prompt hardening:
   `build/integration_test_reports/routine_live_llm_canary_1779496133/canary_summary.json`
 
+### 2026-05-23 Candidate: `gemma4-26b-vision`
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `gemma4-26b-vision`
+- API key: `no-key`
+- Baseline status: candidate blocked by a routine hard regression
+- Scope note: the full model-switch canary set ran on the same app and canary
+  revision as the current reference comparison flow. The generated candidate
+  reference report is useful for comparison, but it is failed evidence rather
+  than a promotable baseline.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding PM5 | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Report quality ready, 0 unexpected warnings, 0 task drift. Smoke used live harness approval fallback for all scenarios; cleanup cancellation occurred only in `live_clarify_recovery`. |
+| Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | `README.md` was the saved target and actual changed file, contained `CANARY_CONTENT_FIT: README_ONLY`, and required one saved-validation guard after validation succeeded. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Plain chat, memory extraction JSON, and embedded `<tool_call>` execution passed with 0 recovery signals. |
+| Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully with the expected single compaction retry. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Failed | 3/4 tests passed | New-IP post, no-new-IP no-post, and LAN scan failure passed. The `contents` write-shape branch failed when the model emitted a raw special-token `write_file` call in recovered text instead of an executable tool call. |
+
+Artifacts:
+
+- PM5 smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546363391/plan_mode_live_suite_macos_report.json`
+- PM5 smoke Markdown:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546363391/plan_mode_live_suite_macos_report.md`
+- PM5 ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779546717/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779546717/run_01_suite_report.json`
+- PM5 ping live suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546746368/plan_mode_live_suite_macos_report.json`
+- Focused README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779546851868/plan_mode_live_suite_macos_report.json`
+- Chat wrapper refresh:
+  `build/integration_test_reports/chat_live_llm_canary_1779546901/canary_summary.json`
+- Tool-result budget wrapper refresh:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779546936/canary_summary.json`
+- Routine wrapper refresh:
+  `build/integration_test_reports/routine_live_llm_canary_1779546953/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_1779546953/reference_report.json`
+- Comparison against the current qwen reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_1779546953/reference_compare.json`
+
 ### Previous Reference: `gemma4-26b-vision`
 
 - Endpoint: `http://192.168.100.241:1234/v1`
