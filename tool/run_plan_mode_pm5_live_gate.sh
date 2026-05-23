@@ -24,21 +24,31 @@ SKIP_PING_CANARY="${CAVERNO_PLAN_MODE_PM5_SKIP_PING_CANARY:-0}"
 
 latest_report_file() {
   local pattern="$1"
+  local path_pattern="${2:-}"
   if [[ ! -d "${REPORT_ROOT}" ]]; then
     return 0
   fi
-  find "${REPORT_ROOT}" -type f -name "${pattern}" -print 2>/dev/null | sort | tail -n 1
+  if [[ -n "${path_pattern}" ]]; then
+    find "${REPORT_ROOT}" -type f -path "${path_pattern}" -name "${pattern}" -print 2>/dev/null \
+      | sort \
+      | tail -n 1
+  else
+    find "${REPORT_ROOT}" -type f -name "${pattern}" -print 2>/dev/null \
+      | sort \
+      | tail -n 1
+  fi
 }
 
 print_report_file() {
   local label="$1"
   local pattern="$2"
+  local path_pattern="${3:-}"
   local path
-  path="$(latest_report_file "${pattern}")"
+  path="$(latest_report_file "${pattern}" "${path_pattern}")"
   if [[ -n "${path}" ]]; then
     echo "  ${label}: ${path}"
   else
-    echo "  ${label}: not found (${REPORT_ROOT}/${pattern})"
+    echo "  ${label}: not found (${REPORT_ROOT}/${path_pattern:-${pattern}})"
   fi
 }
 
@@ -49,10 +59,22 @@ print_pm5_gate_artifacts() {
   echo "  Report root: ${REPORT_ROOT}"
   print_report_file "Live suite JSON" "plan_mode_live_suite*_report.json"
   print_report_file "Live suite Markdown" "plan_mode_live_suite*_report.md"
-  print_report_file "Ping canary summary JSON" "canary_summary.json"
-  print_report_file "Ping canary summary Markdown" "canary_summary.md"
-  print_report_file "Ping canary run suite report" "run_*_suite_report.json"
-  print_report_file "Ping canary run log" "run_*_run.log"
+  print_report_file \
+    "Ping canary summary JSON" \
+    "canary_summary.json" \
+    "*/plan_mode_ping_cli_canary_*/canary_summary.json"
+  print_report_file \
+    "Ping canary summary Markdown" \
+    "canary_summary.md" \
+    "*/plan_mode_ping_cli_canary_*/canary_summary.md"
+  print_report_file \
+    "Ping canary run suite report" \
+    "run_*_suite_report.json" \
+    "*/plan_mode_ping_cli_canary_*/run_*_suite_report.json"
+  print_report_file \
+    "Ping canary run log" \
+    "run_*_run.log" \
+    "*/plan_mode_ping_cli_canary_*/run_*_run.log"
   echo "  Release checklist: ${ROOT_DIR}/docs/plan_mode_release_readiness_checklist.md"
   echo "  Stabilization playbook: ${ROOT_DIR}/docs/plan_mode_ping_cli_stabilization_playbook.md"
   echo

@@ -165,6 +165,10 @@ exit 0
         path: fixture.pingHelper.path,
         contents: '''
 #!/usr/bin/env bash
+other_canary_dir="\${CAVERNO_PLAN_MODE_REPORT_ROOT}/tool_result_budget_live_canary_999"
+mkdir -p "\${other_canary_dir}"
+printf '{"failedCount":0}\\n' > "\${other_canary_dir}/canary_summary.json"
+printf '# Other summary\\n' > "\${other_canary_dir}/canary_summary.md"
 canary_dir="\${CAVERNO_PLAN_MODE_REPORT_ROOT}/plan_mode_ping_cli_canary_200"
 mkdir -p "\${canary_dir}"
 printf '{"failedCount":1}\\n' > "\${canary_dir}/canary_summary.json"
@@ -189,7 +193,16 @@ exit 7
         contains('PM5 live gate triage artifacts (failed)'),
       );
       expect(result.stdout, contains('plan_mode_live_suite_macos_report.json'));
-      expect(result.stdout, contains('canary_summary.json'));
+      expect(
+        result.stdout,
+        contains('plan_mode_ping_cli_canary_200/canary_summary.json'),
+      );
+      expect(
+        result.stdout,
+        isNot(
+          contains('tool_result_budget_live_canary_999/canary_summary.json'),
+        ),
+      );
       expect(result.stdout, contains('run_01_suite_report.json'));
       expect(result.stdout, contains('run_01_run.log'));
       expect(
