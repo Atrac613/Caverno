@@ -294,6 +294,31 @@ Recent `gemma4-26b-vision` compatibility attempts:
     `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/canary_summary.json`
   - failure reference report:
     `build/integration_test_reports/live_llm_reference_gemma4_same_revision_pm5_failed_1779588202/reference_report.json`
+- same-revision PM5 retry:
+  - date: 2026-05-24
+  - PM5 live gate result: passed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `1/1` passed
+  - generated PM5-only reference report result: passed, `4/4`
+  - unexpected warnings: `0`
+  - report quality blockers: `0`
+  - task drift: none detected by the report
+  - smoke convergence: 3 saved validations, 0 guard activations, 3 natural
+    stops
+  - ping convergence: 1 saved validation and 1 guard activation
+  - remaining risks: task proposal retries, reasoning-only `finishReason.length`
+    recovery, memory extraction fallback, tool-less recovery, and one cleanup
+    cancellation
+  - compatibility decision: the ping CLI syntax-error failure is not
+    deterministic, but the model remains a recovery-heavy candidate rather than
+    a replacement reference. Require a same-revision full-surface run before
+    promotion.
+  - smoke suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779590250215/plan_mode_live_suite_macos_report.json`
+  - ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/canary_summary.json`
+  - retry reference report:
+    `build/integration_test_reports/live_llm_reference_gemma4_pm5_retry_1779590616/reference_report.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 

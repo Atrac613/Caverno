@@ -242,32 +242,40 @@ Artifacts:
 - Comparison against the current qwen reference:
   `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
 
-### 2026-05-24 Candidate: `gemma4-26b-vision` Same-Revision PM5 Failure
+### 2026-05-24 Candidate: `gemma4-26b-vision` Same-Revision PM5 Pair
 
 - Endpoint: `http://192.168.100.241:1234/v1`
 - Model discovered from `/models`: `gemma4-26b-vision`
 - API key: `no-key`
-- Baseline status: blocked by model repair behavior
-- Scope note: this rerun was started after the routine required-write guard was
-  committed, using one app revision. The PM5 smoke phase passed, but the PM5
-  ping CLI canary failed before the remaining README, chat, budget, and routine
-  canaries were rerun.
+- Baseline status: inconsistent PM5 candidate, not reference-ready
+- Scope note: these reruns were started after the routine required-write guard
+  was committed, using one app revision. The first PM5 run failed in the ping
+  CLI canary, while the immediate retry passed PM5 smoke and ping. The remaining
+  README, chat, budget, and routine canaries were not rerun in this pair.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
-| Coding PM5 smoke | `tool/run_plan_mode_pm5_live_gate.sh` smoke phase | Passed | Smoke 3/3 | Report quality ready, 0 unexpected warnings, 0 task drift, one guarded convergence signal, and cleanup cancellation in all three smoke scenarios. |
-| Coding PM5 ping | `tool/run_plan_mode_pm5_live_gate.sh` ping phase | Failed | Ping canary 0/1 | `live_ping_cli_completion` ended `workflowBlocked`. The model wrote `return result.return` in `ping_cli.py`, validation failed with `SyntaxError`, and the model repeated the same validation command instead of repairing the file. |
+| Coding PM5 first run | `tool/run_plan_mode_pm5_live_gate.sh` | Failed | Smoke 3/3, ping canary 0/1 | `live_ping_cli_completion` ended `workflowBlocked`. The model wrote `return result.return` in `ping_cli.py`, validation failed with `SyntaxError`, and the model repeated the same validation command instead of repairing the file. |
+| Coding PM5 retry | `tool/run_plan_mode_pm5_live_gate.sh` | Passed | Smoke 3/3, ping canary 1/1 | Report quality ready, 0 unexpected warnings, 0 task drift. Smoke had natural-stop convergence but still showed task proposal retries, reasoning-only recovery, memory fallback, tool-less recovery, and one cleanup cancellation. Ping completed with one saved-validation guard. |
 
 Artifacts:
 
-- PM5 smoke report:
+- First PM5 smoke report:
   `build/integration_test_reports/plan_mode_live_suite_macos_1779587820296/plan_mode_live_suite_macos_report.json`
-- PM5 ping canary summary:
+- First PM5 ping canary summary:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/canary_summary.json`
-- PM5 ping canary suite report:
+- First PM5 ping canary suite report:
   `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/run_01_suite_report.json`
-- PM5-only failure reference report:
+- First PM5-only failure reference report:
   `build/integration_test_reports/live_llm_reference_gemma4_same_revision_pm5_failed_1779588202/reference_report.json`
+- Retry PM5 smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779590250215/plan_mode_live_suite_macos_report.json`
+- Retry PM5 ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/canary_summary.json`
+- Retry PM5 ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/run_01_suite_report.json`
+- Retry PM5-only reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_pm5_retry_1779590616/reference_report.json`
 
 ### Previous Reference: `gemma4-26b-vision`
 

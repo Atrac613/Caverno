@@ -52,17 +52,19 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Full-surface candidate rerun | Failed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | PM5, README, chat, and budget passed, but routine passed only 3/4. The `contents` argument alias branch failed after the model emitted a raw special-token tool-call shape instead of an executable tool call. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Post-routine-guard candidate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Routine rerun passed 4/4 after the missing required write guard. The regenerated reference report passed 13/13 and qwen comparison had 0 hard regressions, with README guard activation remaining as a watch signal. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 rerun | Failed | 3/3 | 0/1 | 0 | 0 detected | Not rerun after PM5 failure | PM5 smoke passed, but the ping CLI canary failed with `workflowBlocked`. The model wrote a syntax error (`return result.return`) in `ping_cli.py`, then repeated the same failing validation command instead of repairing the file. |
+| 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Not rerun in this PM5 retry | The immediate PM5 retry passed, so the ping CLI failure is not deterministic. Keep this as recovery-heavy evidence: smoke still needed task-proposal recovery, memory fallback, tool-less recovery, and one cleanup cancellation; ping finished with a saved-validation guard. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
 2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` has a
 historical post-routine-guard mixed-artifact report with 13/13 checks and 0
-hard regressions against that reference, but the same-revision PM5 rerun failed
-in the ping CLI canary. Keep qwen as the named reference until gemma passes
-PM5, README, chat, budget, and routine on the same app revision, or until the
-team intentionally accepts the mixed-artifact candidate despite the later PM5
-failure. If the
+hard regressions against that reference. The same-revision PM5 rerun failed in
+the ping CLI canary, and the immediate PM5 retry passed. Treat that as
+inconsistent, recovery-heavy PM5 behavior rather than a deterministic hard
+block. Keep qwen as the named reference until gemma passes PM5, README, chat,
+budget, and routine on the same app revision, or until the team intentionally
+accepts the mixed-artifact candidate despite the later PM5 instability. If the
 harness, prompts, parser recovery, task-drift classification, routine
 scoped-notification guidance, or saved validation expectations change again,
 rerun the current reference before judging a new model.
@@ -645,11 +647,51 @@ candidate:
   the identical validation command, so duplicate-call recovery skipped it and
   the workflow ended blocked.
 - Evaluation:
-  This supersedes the mixed-artifact promotion path for current decisions. The
-  app and harness correctly surfaced the syntax error and blocked workflow; the
-  remaining issue is model repair behavior after a validation failure. Keep
-  `gemma4-26b-vision` out of baseline-ready status until a same-revision PM5
-  rerun passes the ping CLI canary without a workflow blocker.
+  The app and harness correctly surfaced the syntax error and blocked workflow;
+  the remaining issue is model repair behavior after a validation failure. This
+  run blocks immediate promotion, but it is not the final PM5 classification
+  because the immediate retry below passed.
+
+### 2026-05-24: `gemma4-26b-vision` Same-Revision PM5 Retry
+
+- PM5 command:
+  `tool/run_plan_mode_pm5_live_gate.sh`
+- PM5 environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+  - `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+- Smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779590250215/plan_mode_live_suite_macos_report.json`
+- Ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/canary_summary.json`
+- Ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/run_01_suite_report.json`
+- Ping canary live suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779590645533/plan_mode_live_suite_macos_report.json`
+- PM5 retry reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_pm5_retry_1779590616/reference_report.json`
+- Outcome:
+  - PM5 smoke: 3 passed, 0 failed
+  - PM5 ping canary: 1 passed, 0 failed
+  - generated PM5-only reference report: 4 passed checks, 0 failed checks
+  - report-quality blockers: 0
+  - unexpected warnings: 0
+  - task drift: 0 detected
+  - smoke convergence: 3 saved validations, 0 guard activations, 3 natural
+    stops
+  - ping convergence: 1 saved validation, 1 guard activation
+  - smoke approval path: 3 live harness approval fallbacks
+  - smoke cleanup cancellation: 1
+- Evaluation:
+  The previous ping CLI syntax-error failure did not reproduce on the immediate
+  retry, so classify it as a flaky model/harness interaction rather than a
+  deterministic PM5 blocker. This retry is still not enough for promotion:
+  smoke logs include task-proposal retries, reasoning-only `finishReason.length`
+  recovery, memory extraction fallback, tool-less recovery, and a cleanup
+  cancellation. Require a same-revision full-surface rerun before considering
+  `gemma4-26b-vision` as a replacement reference.
 
 ## Per-Model Notes
 
@@ -781,10 +823,16 @@ candidate:
     wrote a syntax error in `ping_cli.py`, then repeated the same failed
     validation command instead of repairing the file, leaving the saved task in
     `workflowBlocked`.
+  - The immediate PM5 retry passed smoke and ping, so the syntax-error repair
+    failure is not deterministic. The retry still depended on recovery-heavy
+    paths, including reasoning-only proposal recovery, task proposal quality
+    retries, memory fallback, tool-less recovery, and a ping saved-validation
+    guard.
   - Compare future models against the current `qwen3.6-27b-mtp-vision`
     post-hardening reference. For this model, keep the post-routine-guard
-    candidate rerun as historical mixed-artifact evidence, but use the
-    same-revision PM5 failure for current promotion decisions.
+    candidate rerun as historical mixed-artifact evidence, and use the
+    fail-then-pass same-revision PM5 pair as current evidence of inconsistent
+    PM5 behavior.
 
 ## Evidence Fields
 
