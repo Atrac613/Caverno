@@ -53,19 +53,20 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Post-routine-guard candidate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Routine rerun passed 4/4 after the missing required write guard. The regenerated reference report passed 13/13 and qwen comparison had 0 hard regressions, with README guard activation remaining as a watch signal. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 rerun | Failed | 3/3 | 0/1 | 0 | 0 detected | Not rerun after PM5 failure | PM5 smoke passed, but the ping CLI canary failed with `workflowBlocked`. The model wrote a syntax error (`return result.return`) in `ping_cli.py`, then repeated the same failing validation command instead of repairing the file. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Not rerun in this PM5 retry | The immediate PM5 retry passed, so the ping CLI failure is not deterministic. Keep this as recovery-heavy evidence: smoke still needed task-proposal recovery, memory fallback, tool-less recovery, and one cleanup cancellation; ping finished with a saved-validation guard. |
+| 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision full-surface rerun after PM5 retry | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | README 1/1, chat 3/3, budget 1/1, and routine 4/4 passed on the same app revision after the PM5 retry. The generated reference report passed 13/13; comparison against qwen had 0 hard regressions, 1 README guard watch signal, and 1 PM5 cleanup improvement. Keep qwen as the named reference until gemma has repeat clean same-revision evidence or the team accepts the prior PM5 instability. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` has a
-historical post-routine-guard mixed-artifact report with 13/13 checks and 0
-hard regressions against that reference. The same-revision PM5 rerun failed in
-the ping CLI canary, and the immediate PM5 retry passed. Treat that as
-inconsistent, recovery-heavy PM5 behavior rather than a deterministic hard
-block. Keep qwen as the named reference until gemma passes PM5, README, chat,
-budget, and routine on the same app revision, or until the team intentionally
-accepts the mixed-artifact candidate despite the later PM5 instability. If the
-harness, prompts, parser recovery, task-drift classification, routine
+2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` now has a
+same-revision full-surface candidate pass after the PM5 retry: 13/13 checks,
+0 hard regressions against qwen, 1 README guard watch signal, and 1 PM5 cleanup
+improvement. The same app revision also produced a preceding PM5 ping failure
+where the model did not repair invalid generated code, so classify gemma as a
+passing but recovery-heavy candidate rather than the replacement reference.
+Keep qwen as the named reference until gemma repeats clean same-revision
+evidence, or until the team intentionally accepts the fail-then-pass PM5 risk.
+If the harness, prompts, parser recovery, task-drift classification, routine
 scoped-notification guidance, or saved validation expectations change again,
 rerun the current reference before judging a new model.
 
@@ -693,6 +694,54 @@ candidate:
   cancellation. Require a same-revision full-surface rerun before considering
   `gemma4-26b-vision` as a replacement reference.
 
+### 2026-05-24: `gemma4-26b-vision` Same-Revision Full-Surface Rerun
+
+- Baseline commands:
+  - `tool/run_plan_mode_live_test.sh`
+  - `tool/run_chat_live_llm_canary.sh`
+  - `tool/run_tool_result_budget_live_canary.sh`
+  - `tool/run_routine_live_llm_canary.sh`
+- Baseline environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_SCENARIOS=live_readme_first_canary`
+  - `CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS=1`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+- README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779591453357/plan_mode_live_suite_macos_report.json`
+- Chat canary summary:
+  `build/integration_test_reports/chat_live_llm_canary_1779591554/canary_summary.json`
+- Tool-result budget canary summary:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779591586/canary_summary.json`
+- Routine canary summary:
+  `build/integration_test_reports/routine_live_llm_canary_1779591602/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_full_surface_1779591602/reference_report.json`
+- Comparison against the current qwen reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_full_surface_1779591602/reference_compare.json`
+- Outcome:
+  - generated reference report: 13 passed checks, 0 failed checks
+  - PM5 smoke and ping: reused the same-revision PM5 retry above, 4/4 passed
+  - README artifact canary: 1 passed, 0 failed
+  - chat canary: 3 passed, 0 failed, 0 recovery signals
+  - tool-result budget canary: 1 passed, 0 failed, 1 expected compaction retry
+  - routine canary: 4 passed, 0 failed, 0 recovery signals
+  - comparison result: passed
+  - hard regressions against qwen: 0
+  - watch signals against qwen: 1, README guard activations increased from 0
+    to 1
+  - improvements against qwen: 1, PM5 smoke cleanup cancellations decreased
+    from 2 to 1
+- Evaluation:
+  This closes the requested same-revision full-surface candidate run for
+  `gemma4-26b-vision`: all current canary surfaces pass and there is no hard
+  regression against the qwen reference. The promotion decision remains
+  conservative because the same app revision had an immediately preceding PM5
+  ping failure caused by invalid code and failed repair. Treat this as a strong
+  candidate pass, but require repeat clean same-revision evidence before
+  replacing qwen as the named reference.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -828,11 +877,14 @@ candidate:
     paths, including reasoning-only proposal recovery, task proposal quality
     retries, memory fallback, tool-less recovery, and a ping saved-validation
     guard.
+  - The same-revision full-surface rerun after that PM5 retry passed README,
+    chat, tool-result budget, and routine canaries. The generated candidate
+    reference report passed 13/13 and comparison against qwen had 0 hard
+    regressions, 1 README guard watch signal, and 1 PM5 cleanup improvement.
   - Compare future models against the current `qwen3.6-27b-mtp-vision`
-    post-hardening reference. For this model, keep the post-routine-guard
-    candidate rerun as historical mixed-artifact evidence, and use the
-    fail-then-pass same-revision PM5 pair as current evidence of inconsistent
-    PM5 behavior.
+    post-hardening reference. For this model, use the same-revision
+    full-surface rerun as the current candidate-pass evidence and the
+    fail-then-pass PM5 pair as the remaining promotion risk.
 
 ## Evidence Fields
 

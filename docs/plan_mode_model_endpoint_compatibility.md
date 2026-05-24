@@ -319,6 +319,33 @@ Recent `gemma4-26b-vision` compatibility attempts:
     `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/canary_summary.json`
   - retry reference report:
     `build/integration_test_reports/live_llm_reference_gemma4_pm5_retry_1779590616/reference_report.json`
+- same-revision full-surface rerun after PM5 retry:
+  - date: 2026-05-24
+  - PM5 evidence: reused the immediate same-revision PM5 retry above
+  - focused README canary result: passed, `1/1`
+  - chat canary result: passed, `3/3`
+  - tool-result budget canary result: passed, `1/1`
+  - routine canary result: passed, `4/4`
+  - generated reference report result: passed, `13/13`
+  - comparison against the current qwen reference: passed with 0 hard
+    regressions, 1 README convergence watch signal, and 1 PM5 cleanup
+    improvement
+  - compatibility decision: strong candidate pass, but not a replacement
+    reference yet because the same app revision also produced the preceding
+    PM5 ping failure. Require repeat clean same-revision evidence or explicit
+    acceptance of the fail-then-pass PM5 risk.
+  - focused README canary report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779591453357/plan_mode_live_suite_macos_report.json`
+  - chat canary summary:
+    `build/integration_test_reports/chat_live_llm_canary_1779591554/canary_summary.json`
+  - tool-result budget canary summary:
+    `build/integration_test_reports/tool_result_budget_live_canary_1779591586/canary_summary.json`
+  - routine canary summary:
+    `build/integration_test_reports/routine_live_llm_canary_1779591602/canary_summary.json`
+  - candidate reference report:
+    `build/integration_test_reports/live_llm_reference_gemma4_full_surface_1779591602/reference_report.json`
+  - comparison report:
+    `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_full_surface_1779591602/reference_compare.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 
@@ -404,12 +431,13 @@ tool-result budget, and routine canaries. Keep it under canary observation
 because the first historical PM5 attempt failed, and the latest pass still
 showed cleanup cancellation in two smoke scenarios.
 
-Interpretation: `gemma4-26b-vision` is the previous Plan Mode comparison
-baseline because it has a passing PM5 gate and a post-fix focused smoke and
-README refresh. It should still remain under canary observation because proposal
-salvage, cleanup cancellation, guarded convergence, and earlier file-content
-mix-ups were required or observed during the recorded history. Run a fresh
-single PM5 gate before using it as the active reference again.
+Interpretation: `gemma4-26b-vision` is a strong full-surface candidate after
+the same-revision rerun passed 13/13 and compared against qwen with 0 hard
+regressions. It should still remain under canary observation because the same
+revision had a fail-then-pass PM5 pair, proposal salvage, cleanup cancellation,
+guarded convergence, and earlier file-content mix-ups in the recorded history.
+Keep qwen as the active reference until gemma repeats clean same-revision
+evidence or the team explicitly accepts that promotion risk.
 
 Artifact content fit is tracked separately from task drift. A run can have
 `taskDriftDetected=false` when all changed paths are expected, while still

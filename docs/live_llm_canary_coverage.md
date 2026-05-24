@@ -277,6 +277,45 @@ Artifacts:
 - Retry PM5-only reference report:
   `build/integration_test_reports/live_llm_reference_gemma4_pm5_retry_1779590616/reference_report.json`
 
+### 2026-05-24 Candidate: `gemma4-26b-vision` Same-Revision Full Surface
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `gemma4-26b-vision`
+- API key: `no-key`
+- Baseline status: candidate pass, not the named replacement reference
+- Scope note: this rerun completed the same-revision evidence requested after
+  the PM5 retry. PM5 smoke and ping evidence comes from the immediate retry in
+  the pair above; README, chat, budget, and routine were rerun on the same app
+  revision. The qwen comparison has no hard regression, but the prior PM5 ping
+  failure keeps this model in recovery-heavy candidate status.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding PM5 | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Reused from the immediate PM5 retry. Report quality ready, 0 unexpected warnings, 0 task drift, and one ping saved-validation guard. |
+| Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | `README.md` was the saved target and actual changed file, contained `CANARY_CONTENT_FIT: README_ONLY`, and required one saved-validation guard after validation succeeded. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Plain chat, memory extraction JSON, and embedded `<tool_call>` execution passed with 0 recovery signals. |
+| Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Oversized `read_file` result compacted successfully with the expected single compaction retry. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | New-IP post, no-new-IP no-post, LAN scan failure, and `contents` write-shape branches passed with 0 recovery signals. |
+
+Artifacts:
+
+- PM5 retry smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779590250215/plan_mode_live_suite_macos_report.json`
+- PM5 retry ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779590616/canary_summary.json`
+- Focused README canary report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779591453357/plan_mode_live_suite_macos_report.json`
+- Chat canary summary:
+  `build/integration_test_reports/chat_live_llm_canary_1779591554/canary_summary.json`
+- Tool-result budget canary summary:
+  `build/integration_test_reports/tool_result_budget_live_canary_1779591586/canary_summary.json`
+- Routine canary summary:
+  `build/integration_test_reports/routine_live_llm_canary_1779591602/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_full_surface_1779591602/reference_report.json`
+- Comparison against the current qwen reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_full_surface_1779591602/reference_compare.json`
+
 ### Previous Reference: `gemma4-26b-vision`
 
 - Endpoint: `http://192.168.100.241:1234/v1`
