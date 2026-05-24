@@ -106,6 +106,8 @@ Treat these as model compatibility risks before assuming app logic is broken:
 - final answers that acknowledge a required file update is missing but still
   claim the routine completed after another side effect succeeds
 - future-task tool calls before the current saved task is terminally complete
+- validation repair loops that repeat an identical failing command instead of
+  editing the file that caused the validation failure
 - long pauses that exceed planning, execution, or stall budgets
 - final answers that contradict persisted task state
 
@@ -261,16 +263,37 @@ Recent `gemma4-26b-vision` compatibility attempts:
   - comparison against the current qwen reference: passed with 0 hard
     regressions, 1 README convergence watch signal, and 1 PM5 cleanup
     improvement
-  - compatibility decision: provisionally full-surface compatible after the
-    missing required write guard. Keep qwen as the named reference until gemma
-    receives a same-revision full model-switch rerun or the mixed-artifact
-    candidate is explicitly accepted.
+  - compatibility decision: superseded mixed-artifact evidence. Keep qwen as
+    the named reference because the later same-revision PM5 rerun failed the
+    ping CLI canary.
   - routine canary summary:
     `build/integration_test_reports/routine_live_llm_canary_1779587391/canary_summary.json`
   - candidate reference report:
     `build/integration_test_reports/live_llm_reference_gemma4_post_routine_guard_1779587391/reference_report.json`
   - comparison report:
     `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
+- same-revision PM5 rerun:
+  - date: 2026-05-24
+  - PM5 live gate result: failed
+  - live smoke result: `3/3` passed
+  - ping CLI canary result: `0/1` passed
+  - failed scenario: `live_ping_cli_completion`
+  - failure class: `workflowBlocked`
+  - unexpected warnings: `0`
+  - report quality blockers: `1`
+  - task drift: none detected by the report
+  - failure shape: the model wrote `return result.return` into `ping_cli.py`,
+    validation failed with `SyntaxError`, then the model repeated
+    `python3 ping_cli.py --help` instead of editing the file
+  - compatibility decision: blocked for baseline promotion until a
+    same-revision PM5 rerun passes the ping CLI canary without a workflow
+    blocker
+  - smoke suite report:
+    `build/integration_test_reports/plan_mode_live_suite_macos_1779587820296/plan_mode_live_suite_macos_report.json`
+  - ping canary summary:
+    `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/canary_summary.json`
+  - failure reference report:
+    `build/integration_test_reports/live_llm_reference_gemma4_same_revision_pm5_failed_1779588202/reference_report.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 

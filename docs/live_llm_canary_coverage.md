@@ -217,13 +217,13 @@ Artifacts:
 - Endpoint: `http://192.168.100.241:1234/v1`
 - Model discovered from `/models`: `gemma4-26b-vision`
 - API key: `no-key`
-- Baseline status: provisional full-surface candidate pass
+- Baseline status: superseded mixed-artifact candidate pass
 - Scope note: the routine hard regression was fixed by rejecting final answers
   while a required routine workspace write is still missing. The regenerated
   reference report combines the previous PM5, README, chat, and budget
-  artifacts with the new routine rerun, so promote this model to a named
-  reference only after accepting mixed-artifact evidence or rerunning the full
-  model-switch flow on one app revision.
+  artifacts with the new routine rerun. A later same-revision PM5 rerun failed
+  in the ping CLI canary, so this remains historical evidence rather than a
+  promotable model baseline.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
@@ -241,6 +241,33 @@ Artifacts:
   `build/integration_test_reports/live_llm_reference_gemma4_post_routine_guard_1779587391/reference_report.json`
 - Comparison against the current qwen reference:
   `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
+
+### 2026-05-24 Candidate: `gemma4-26b-vision` Same-Revision PM5 Failure
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `gemma4-26b-vision`
+- API key: `no-key`
+- Baseline status: blocked by model repair behavior
+- Scope note: this rerun was started after the routine required-write guard was
+  committed, using one app revision. The PM5 smoke phase passed, but the PM5
+  ping CLI canary failed before the remaining README, chat, budget, and routine
+  canaries were rerun.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding PM5 smoke | `tool/run_plan_mode_pm5_live_gate.sh` smoke phase | Passed | Smoke 3/3 | Report quality ready, 0 unexpected warnings, 0 task drift, one guarded convergence signal, and cleanup cancellation in all three smoke scenarios. |
+| Coding PM5 ping | `tool/run_plan_mode_pm5_live_gate.sh` ping phase | Failed | Ping canary 0/1 | `live_ping_cli_completion` ended `workflowBlocked`. The model wrote `return result.return` in `ping_cli.py`, validation failed with `SyntaxError`, and the model repeated the same validation command instead of repairing the file. |
+
+Artifacts:
+
+- PM5 smoke report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779587820296/plan_mode_live_suite_macos_report.json`
+- PM5 ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/canary_summary.json`
+- PM5 ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/run_01_suite_report.json`
+- PM5-only failure reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_same_revision_pm5_failed_1779588202/reference_report.json`
 
 ### Previous Reference: `gemma4-26b-vision`
 

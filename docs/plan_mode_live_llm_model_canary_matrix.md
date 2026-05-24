@@ -51,15 +51,18 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Post-hardening full-surface rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current reference rerun after routine scoped-notification hardening: README 1/1, chat 3/3, budget 1/1, routine 4/4. Chat and routine had 0 recovery signals; budget had the expected single compaction retry. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Full-surface candidate rerun | Failed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | PM5, README, chat, and budget passed, but routine passed only 3/4. The `contents` argument alias branch failed after the model emitted a raw special-token tool-call shape instead of an executable tool call. |
 | 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Post-routine-guard candidate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Routine rerun passed 4/4 after the missing required write guard. The regenerated reference report passed 13/13 and qwen comparison had 0 hard regressions, with README guard activation remaining as a watch signal. |
+| 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Same-revision PM5 rerun | Failed | 3/3 | 0/1 | 0 | 0 detected | Not rerun after PM5 failure | PM5 smoke passed, but the ping CLI canary failed with `workflowBlocked`. The model wrote a syntax error (`return result.return`) in `ping_cli.py`, then repeated the same failing validation command instead of repairing the file. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` now has a
-post-routine-guard candidate report with 13/13 checks and 0 hard regressions
-against that reference. Keep qwen as the named reference until PM5, README,
-chat, budget, and routine are all rerun on the same app revision for gemma or
-until the team intentionally promotes the mixed-artifact candidate. If the
+2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` has a
+historical post-routine-guard mixed-artifact report with 13/13 checks and 0
+hard regressions against that reference, but the same-revision PM5 rerun failed
+in the ping CLI canary. Keep qwen as the named reference until gemma passes
+PM5, README, chat, budget, and routine on the same app revision, or until the
+team intentionally accepts the mixed-artifact candidate despite the later PM5
+failure. If the
 harness, prompts, parser recovery, task-drift classification, routine
 scoped-notification guidance, or saved validation expectations change again,
 rerun the current reference before judging a new model.
@@ -603,6 +606,51 @@ candidate:
   or after accepting that mixed-artifact evidence is sufficient for the current
   decision.
 
+### 2026-05-24: `gemma4-26b-vision` Same-Revision PM5 Rerun
+
+- PM5 command:
+  `tool/run_plan_mode_pm5_live_gate.sh`
+- PM5 environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+  - `CAVERNO_PLAN_MODE_PREFLIGHT_TIMEOUT_SECONDS=20`
+  - `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1`
+- Smoke suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779587820296/plan_mode_live_suite_macos_report.json`
+- Ping canary summary:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/canary_summary.json`
+- Ping canary suite report:
+  `build/integration_test_reports/plan_mode_ping_cli_canary_1779588202/run_01_suite_report.json`
+- Ping canary live suite report:
+  `build/integration_test_reports/plan_mode_live_suite_macos_1779588231132/plan_mode_live_suite_macos_report.json`
+- Failure reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_same_revision_pm5_failed_1779588202/reference_report.json`
+- Outcome:
+  - PM5 smoke: 3 passed, 0 failed
+  - PM5 ping canary: 0 passed, 1 failed
+  - generated PM5-only reference report: 3 passed checks, 1 failed check
+  - failed scenario: `live_ping_cli_completion`
+  - failure class: `workflowBlocked`
+  - report-quality blockers: 1
+  - unexpected warnings: 0
+  - task drift: 0 detected
+  - smoke approval path: 3 live harness approval fallbacks
+  - smoke cleanup cancellation: 3
+- Failure detail:
+  The model created only the expected `ping_cli.py` target file, but the file
+  contained invalid Python: `return result.return`. The saved validation
+  `python3 ping_cli.py --help` failed with `SyntaxError`. After reading the
+  file, the model claimed the implementation was already working and repeated
+  the identical validation command, so duplicate-call recovery skipped it and
+  the workflow ended blocked.
+- Evaluation:
+  This supersedes the mixed-artifact promotion path for current decisions. The
+  app and harness correctly surfaced the syntax error and blocked workflow; the
+  remaining issue is model repair behavior after a validation failure. Keep
+  `gemma4-26b-vision` out of baseline-ready status until a same-revision PM5
+  rerun passes the ping CLI canary without a workflow blocker.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -729,10 +777,14 @@ candidate:
     passed all four branches for this model. The regenerated candidate
     reference report passed 13/13 and the qwen comparison had no hard
     regressions.
+  - The later same-revision PM5 rerun failed the ping CLI canary. The model
+    wrote a syntax error in `ping_cli.py`, then repeated the same failed
+    validation command instead of repairing the file, leaving the saved task in
+    `workflowBlocked`.
   - Compare future models against the current `qwen3.6-27b-mtp-vision`
-    post-hardening reference. For this model, use the post-routine-guard
-    candidate rerun for current decisions and keep older superseded failures
-    only as compatibility history.
+    post-hardening reference. For this model, keep the post-routine-guard
+    candidate rerun as historical mixed-artifact evidence, but use the
+    same-revision PM5 failure for current promotion decisions.
 
 ## Evidence Fields
 
