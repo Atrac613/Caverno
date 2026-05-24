@@ -50,16 +50,19 @@ tool/run_plan_mode_ping_cli_live_canary.sh \
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Full model-switch baseline | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current full-surface pass: README 1/1, chat 3/3, budget 1/1, routine 4/4. Smoke used live harness fallback for all scenarios; cleanup cancellation occurred in two smoke scenarios; chat embedded-tool continuation recovered after a transient stream disconnect. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `qwen3.6-27b-mtp-vision` | Post-hardening full-surface rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Current reference rerun after routine scoped-notification hardening: README 1/1, chat 3/3, budget 1/1, routine 4/4. Chat and routine had 0 recovery signals; budget had the expected single compaction retry. |
 | 2026-05-23 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Full-surface candidate rerun | Failed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | PM5, README, chat, and budget passed, but routine passed only 3/4. The `contents` argument alias branch failed after the model emitted a raw special-token tool-call shape instead of an executable tool call. |
+| 2026-05-24 | `http://192.168.100.241:1234/v1` | `gemma4-26b-vision` | Post-routine-guard candidate rerun | Passed | 3/3 | 1/1 | 0 | 0 detected | Pass: README-only content | Routine rerun passed 4/4 after the missing required write guard. The regenerated reference report passed 13/13 and qwen comparison had 0 hard regressions, with README guard activation remaining as a watch signal. |
 
 ## Current Comparison Baseline
 
 Use `qwen3.6-27b-mtp-vision` as the current reference model after the
-2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` has a latest
-candidate rerun on the same app revision, but it is not reference-ready because
-the routine alias branch regressed. If the harness, prompts, parser recovery,
-task-drift classification, routine scoped-notification guidance, or saved
-validation expectations change again, rerun the current reference before
-judging a new model.
+2026-05-23 post-hardening full-surface rerun. `gemma4-26b-vision` now has a
+post-routine-guard candidate report with 13/13 checks and 0 hard regressions
+against that reference. Keep qwen as the named reference until PM5, README,
+chat, budget, and routine are all rerun on the same app revision for gemma or
+until the team intentionally promotes the mixed-artifact candidate. If the
+harness, prompts, parser recovery, task-drift classification, routine
+scoped-notification guidance, or saved validation expectations change again,
+rerun the current reference before judging a new model.
 
 Minimum comparison criteria for the next model:
 
@@ -567,6 +570,39 @@ candidate:
   full-surface promotion until the routine alias tool-call shape is supported
   or the model stops emitting the raw special-token form.
 
+### 2026-05-24: `gemma4-26b-vision` Post-Routine-Guard Candidate Rerun
+
+- Routine command:
+  `tool/run_routine_live_llm_canary.sh`
+- Routine environment:
+  - `CAVERNO_LLM_BASE_URL=http://192.168.100.241:1234/v1`
+  - `CAVERNO_LLM_API_KEY=no-key`
+  - `CAVERNO_LLM_MODEL=gemma4-26b-vision`
+- Routine canary summary:
+  `build/integration_test_reports/routine_live_llm_canary_1779587391/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_post_routine_guard_1779587391/reference_report.json`
+- Comparison against the current qwen reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
+- Outcome:
+  - routine canary before the fix: 3 passed, 1 failed
+  - routine canary after the missing required write guard: 4 passed, 0 failed
+  - generated reference report: 13 passed checks, 0 failed checks
+  - comparison against `qwen3.6-27b-mtp-vision`: passed with 0 hard regressions
+  - watch signals: focused README still needed one saved-validation guard
+  - improvements: PM5 smoke cleanup cancellations remained lower than the qwen
+    reference in the regenerated comparison
+  - recovery signals: routine 0
+- Evaluation:
+  The hard routine regression is fixed for the observed `gemma4-26b-vision`
+  failure mode where the model posted to Google Chat before saving the required
+  routine state file. The candidate is now provisionally full-surface
+  compatible, but the reference report combines earlier PM5, README, chat, and
+  budget evidence with the new routine rerun. Promote it to a new model
+  reference only after rerunning the full model-switch flow on one app revision
+  or after accepting that mixed-artifact evidence is sufficient for the current
+  decision.
+
 ## Per-Model Notes
 
 ### `qwen3.6-27b-mtp-vision`
@@ -686,10 +722,17 @@ candidate:
     call with the `contents` alias, then emitted the call as a raw
     `<|tool_call>call:write_file{...}<tool_call|>` fragment in recovered text
     instead of an executable tool call.
+  - A 2026-05-24 routine rerun found a second failure shape: the model skipped
+    the required `write_file`, posted to Google Chat, and then acknowledged in
+    reasoning that the state update was missing while still answering.
+  - After adding the missing required write guard, the routine live canary
+    passed all four branches for this model. The regenerated candidate
+    reference report passed 13/13 and the qwen comparison had no hard
+    regressions.
   - Compare future models against the current `qwen3.6-27b-mtp-vision`
-    post-hardening reference. For this model, keep the latest candidate rerun
-    as blocked full-surface evidence and avoid using older superseded pre-fix
-    canary failures as the comparison target.
+    post-hardening reference. For this model, use the post-routine-guard
+    candidate rerun for current decisions and keep older superseded failures
+    only as compatibility history.
 
 ## Evidence Fields
 

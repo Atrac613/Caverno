@@ -25,6 +25,7 @@ class RoutineToolRunner {
 
   static const int _maxToolLoopIterations = 5;
   static const int _maxFinalToolIterations = 3;
+  static const int _maxMissingActionRetries = 2;
 
   final ChatDataSource _dataSource;
 
@@ -141,8 +142,50 @@ class RoutineToolRunner {
         wasTruncated || _isCompletionTruncated(finalResult.finishReason);
     var executedFinalToolCall = false;
     var finalIteration = 0;
-    while (finalToolCalls.isNotEmpty &&
-        finalIteration < _maxFinalToolIterations) {
+    var missingActionRetries = 0;
+    while (true) {
+      if (finalToolCalls.isEmpty) {
+        final missingToolNames = _missingRequiredRoutineToolNames(
+          messages: messages,
+          availableToolNames: descriptionsByName.keys.toSet(),
+          executedToolResults: executedToolResults,
+        );
+        if (missingToolNames.isNotEmpty &&
+            missingActionRetries < _maxMissingActionRetries) {
+          missingActionRetries += 1;
+          finalResult = await _dataSource.createChatCompletion(
+            messages: [
+              ...messages,
+              Message(
+                id: 'routine_missing_action_${DateTime.now().millisecondsSinceEpoch}',
+                content: _buildMissingRequiredActionPrompt(
+                  missingToolNames,
+                  executedToolResults,
+                  descriptionsByName: descriptionsByName,
+                  originalMessages: messages,
+                ),
+                role: MessageRole.user,
+                timestamp: DateTime.now(),
+              ),
+            ],
+            model: model,
+            temperature: temperature,
+            maxTokens: maxTokens,
+            tools: tools,
+          );
+          finalOutput = finalResult.content.trim();
+          finalToolCalls = _extractToolCalls(finalResult);
+          wasTruncated =
+              wasTruncated || _isCompletionTruncated(finalResult.finishReason);
+          continue;
+        }
+        break;
+      }
+
+      if (finalIteration >= _maxFinalToolIterations) {
+        break;
+      }
+
       finalIteration += 1;
       final batchResult = await _executeToolCallBatch(
         toolCalls: finalToolCalls,
@@ -330,6 +373,106 @@ class RoutineToolRunner {
           'succeeded.',
       basePrompt,
     ].join('\n\n');
+  }
+
+  String _buildMissingRequiredActionPrompt(
+    List<String> missingToolNames,
+    List<ToolResultInfo> toolResults, {
+    required Map<String, String> descriptionsByName,
+    required List<Message> originalMessages,
+  }) {
+    final originalPrompt = _combinedUserPrompt(originalMessages);
+    final requiresContentsAlias =
+        originalPrompt.toLowerCase().contains('contents') &&
+        missingToolNames.contains('write_file');
+    final alreadyPosted = toolResults.any(
+      (result) => result.name == 'routine_google_chat_post',
+    );
+    return [
+      'The routine is not complete. Required tool action(s) are still missing: '
+          '${missingToolNames.join(', ')}.',
+      'Do not provide a final answer yet. Call the missing tool action now.',
+      if (missingToolNames.contains('write_file'))
+        'For write_file, write the current detected state required by the '
+            'original routine prompt before reporting completion.',
+      if (requiresContentsAlias)
+        'The original routine prompt requires the write_file argument name '
+            '`contents`; use `contents` instead of `content`.',
+      if (alreadyPosted)
+        'routine_google_chat_post has already succeeded. Do not call it again '
+            'unless a new notification is still explicitly required.',
+      _buildRoutineAnswerPrompt(
+        toolResults,
+        descriptionsByName: descriptionsByName,
+      ),
+    ].join('\n\n');
+  }
+
+  List<String> _missingRequiredRoutineToolNames({
+    required List<Message> messages,
+    required Set<String> availableToolNames,
+    required List<ToolResultInfo> executedToolResults,
+  }) {
+    final missing = <String>[];
+    final executedToolNames = executedToolResults
+        .map((result) => result.name)
+        .toSet();
+    final prompt = _combinedUserPrompt(messages).toLowerCase();
+
+    if (availableToolNames.contains('write_file') &&
+        !executedToolNames.contains('write_file') &&
+        _promptRequiresFileWrite(prompt) &&
+        _hasWritableCurrentStateEvidence(executedToolResults)) {
+      missing.add('write_file');
+    }
+
+    return missing;
+  }
+
+  String _combinedUserPrompt(List<Message> messages) {
+    return messages
+        .where((message) => message.role == MessageRole.user)
+        .map((message) => message.content)
+        .join('\n');
+  }
+
+  bool _promptRequiresFileWrite(String prompt) {
+    final mentionsFile =
+        prompt.contains('.json') ||
+        prompt.contains('.txt') ||
+        prompt.contains('.md') ||
+        prompt.contains(' file');
+    final mentionsWriteIntent =
+        prompt.contains('save ') ||
+        prompt.contains('update ') ||
+        prompt.contains('write ') ||
+        prompt.contains('record ');
+    return mentionsFile && mentionsWriteIntent;
+  }
+
+  bool _hasWritableCurrentStateEvidence(List<ToolResultInfo> toolResults) {
+    if (toolResults.isEmpty) {
+      return false;
+    }
+
+    final lanScanResults = toolResults
+        .where((result) => result.name == 'lan_scan')
+        .toList(growable: false);
+    if (lanScanResults.isEmpty) {
+      return true;
+    }
+
+    return lanScanResults.any((result) {
+      final text = result.result.toLowerCase();
+      if (text.contains('"ok":false') ||
+          text.contains('lan_scan_failed') ||
+          text.contains('unavailable')) {
+        return false;
+      }
+      return text.contains('"hosts"') ||
+          text.contains('"hosts_found"') ||
+          text.contains('"ip"');
+    });
   }
 }
 

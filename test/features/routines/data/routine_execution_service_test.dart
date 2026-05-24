@@ -18,6 +18,7 @@ import 'package:caverno/features/settings/domain/entities/app_settings.dart';
 void main() {
   Routine buildRoutine({
     bool toolsEnabled = false,
+    String prompt = 'Summarize the latest updates.',
     String workspaceDirectory = '',
     bool allowWorkspaceWrites = false,
     RoutineCompletionAction completionAction = RoutineCompletionAction.none,
@@ -26,7 +27,7 @@ void main() {
     return Routine(
       id: 'routine-1',
       name: 'Morning summary',
-      prompt: 'Summarize the latest updates.',
+      prompt: prompt,
       createdAt: now,
       updatedAt: now,
       toolsEnabled: toolsEnabled,
@@ -1480,6 +1481,147 @@ void main() {
     );
 
     test(
+      'recovers when the final answer skips a required workspace write',
+      () async {
+        final deliveryService = _FakeGoogleChatDeliveryService();
+        final dataSource = _FakeChatDataSource(
+          initialToolAwareResult: ChatCompletionResult(
+            content: 'Reading previous LAN state',
+            toolCalls: [
+              ToolCallInfo(
+                id: 'tool-read',
+                name: 'read_file',
+                arguments: const {'path': 'lan_devices.json'},
+              ),
+            ],
+            finishReason: 'tool_calls',
+          ),
+          toolLoopResults: [
+            ChatCompletionResult(
+              content: 'Scanning current LAN state',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-scan',
+                  name: 'lan_scan',
+                  arguments: const {'ip_version': 'auto'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Evidence collected',
+              finishReason: 'stop',
+            ),
+          ],
+          plainResults: [
+            ChatCompletionResult(
+              content: 'Posting the new device alert before saving state',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-chat',
+                  name: RoutineExecutionService.googleChatPostToolName,
+                  arguments: const {'text': '192.168.100.24'},
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'The notification was posted successfully.',
+              finishReason: 'stop',
+            ),
+            ChatCompletionResult(
+              content: 'Saving the required LAN state',
+              toolCalls: [
+                ToolCallInfo(
+                  id: 'tool-write',
+                  name: 'write_file',
+                  arguments: const {
+                    'path': 'lan_devices.json',
+                    'contents': ['192.168.100.1', '192.168.100.24'],
+                  },
+                ),
+              ],
+              finishReason: 'tool_calls',
+            ),
+            ChatCompletionResult(
+              content: 'Routine completed.',
+              finishReason: 'stop',
+            ),
+          ],
+        );
+        final toolService = _FakeMcpToolService(
+          definitions: [
+            _toolDefinition('read_file', 'Read a file'),
+            _toolDefinition('lan_scan', 'Scan the local network'),
+            _toolDefinition('write_file', 'Write a file'),
+          ],
+          resultsByToolName: {
+            'read_file': const McpToolResult(
+              toolName: 'read_file',
+              result: '{"content":["192.168.100.1"]}',
+              isSuccess: true,
+            ),
+            'lan_scan': const McpToolResult(
+              toolName: 'lan_scan',
+              result:
+                  '{"hosts":[{"ip":"192.168.100.1"},{"ip":"192.168.100.24"}]}',
+              isSuccess: true,
+            ),
+            'write_file': const McpToolResult(
+              toolName: 'write_file',
+              result: '{"bytes_written":42}',
+              isSuccess: true,
+            ),
+          },
+        );
+        final service = RoutineExecutionService(
+          dataSource: dataSource,
+          googleChatDeliveryService: deliveryService,
+          mcpToolService: toolService,
+          settings: AppSettings.defaults().copyWith(
+            googleChatWebhookUrl: 'https://chat.googleapis.com/v1/spaces/test',
+          ),
+        );
+
+        final record = await service.execute(
+          buildRoutine(
+            toolsEnabled: true,
+            prompt:
+                'Run a LAN scan and save the detected device IP list to '
+                'lan_devices.json in the routine workspace. If there are newly '
+                'discovered IPs, post only the newly discovered IP list to '
+                'Google Chat. For this canary, when calling write_file, use '
+                'the argument name contents instead of content.',
+            workspaceDirectory: '/tmp/caverno-routine-workspace',
+            allowWorkspaceWrites: true,
+            completionAction: RoutineCompletionAction.promptGoogleChat,
+          ),
+        );
+
+        expect(record.isSuccessful, isTrue);
+        expect(record.output, 'Routine completed.');
+        expect(record.toolNames, [
+          'read_file',
+          'lan_scan',
+          RoutineExecutionService.googleChatPostToolName,
+          'write_file',
+        ]);
+        expect(toolService.executedCalls.last.name, 'write_file');
+        expect(toolService.executedCalls.last.arguments, contains('contents'));
+        expect(
+          dataSource.toolAwareMessageContents,
+          contains(
+            contains('Required tool action(s) are still missing: write_file'),
+          ),
+        );
+        expect(
+          dataSource.toolAwareMessageContents,
+          contains(contains('use `contents` instead of `content`')),
+        );
+      },
+    );
+
+    test(
       'exposes the prompt-controlled Google Chat tool only when selected',
       () async {
         final dataSource = _FakeChatDataSource(
@@ -1545,6 +1687,7 @@ class _FakeChatDataSource implements ChatDataSource {
   List<Message> lastToolAwareMessages = const [];
   List<Map<String, dynamic>> lastToolDefinitions = const [];
   List<ToolResultInfo> lastToolResults = const [];
+  final toolAwareMessageContents = <String>[];
   int createChatCompletionWithToolResultsCallCount = 0;
 
   @override
@@ -1558,6 +1701,9 @@ class _FakeChatDataSource implements ChatDataSource {
     if (tools != null && tools.isNotEmpty) {
       lastToolDefinitions = tools;
       lastToolAwareMessages = messages;
+      toolAwareMessageContents.addAll(
+        messages.map((message) => message.content),
+      );
       toolRequestNames = tools
           .map((tool) => (tool['function'] as Map<String, dynamic>)['name'])
           .whereType<String>()

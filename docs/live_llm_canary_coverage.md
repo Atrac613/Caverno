@@ -172,11 +172,12 @@ Artifacts:
 - Endpoint: `http://192.168.100.241:1234/v1`
 - Model discovered from `/models`: `gemma4-26b-vision`
 - API key: `no-key`
-- Baseline status: candidate blocked by a routine hard regression
+- Baseline status: superseded blocked candidate
 - Scope note: the full model-switch canary set ran on the same app and canary
   revision as the current reference comparison flow. The generated candidate
   reference report is useful for comparison, but it is failed evidence rather
-  than a promotable baseline.
+  than a promotable baseline. Use the 2026-05-24 post-routine-guard candidate
+  below for the current gemma evaluation.
 
 | Surface | Check | Result | Evidence | Notes |
 |---------|-------|--------|----------|-------|
@@ -210,6 +211,36 @@ Artifacts:
   `build/integration_test_reports/live_llm_reference_gemma4_1779546953/reference_report.json`
 - Comparison against the current qwen reference:
   `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_1779546953/reference_compare.json`
+
+### 2026-05-24 Candidate: `gemma4-26b-vision` Post-Routine Guard
+
+- Endpoint: `http://192.168.100.241:1234/v1`
+- Model discovered from `/models`: `gemma4-26b-vision`
+- API key: `no-key`
+- Baseline status: provisional full-surface candidate pass
+- Scope note: the routine hard regression was fixed by rejecting final answers
+  while a required routine workspace write is still missing. The regenerated
+  reference report combines the previous PM5, README, chat, and budget
+  artifacts with the new routine rerun, so promote this model to a named
+  reference only after accepting mixed-artifact evidence or rerunning the full
+  model-switch flow on one app revision.
+
+| Surface | Check | Result | Evidence | Notes |
+|---------|-------|--------|----------|-------|
+| Coding PM5 | `tool/run_plan_mode_pm5_live_gate.sh` with `CAVERNO_PLAN_MODE_PM5_PING_REPEAT_COUNT=1` | Passed | Smoke 3/3, ping canary 1/1 | Reused from the candidate full-surface rerun. Report quality ready, 0 unexpected warnings, 0 task drift, and one cleanup cancellation in `live_clarify_recovery`. |
+| Coding artifact | `live_readme_first_canary` | Passed | 1/1 focused canary | Reused from the candidate full-surface rerun. `README.md` was the saved target and actual changed file, with one saved-validation guard. |
+| Chat | `tool/run_chat_live_llm_canary.sh` | Passed | 3/3 tests passed | Reused from the candidate full-surface rerun with 0 recovery signals. |
+| Chat budget | `tool/run_tool_result_budget_live_canary.sh` | Passed | 1/1 test passed | Reused from the candidate full-surface rerun with the expected single compaction retry. |
+| Routines | `tool/run_routine_live_llm_canary.sh` | Passed | 4/4 tests passed | Rerun after the missing required write guard. The model recovered the `contents` alias branch and produced 0 recovery signals. |
+
+Artifacts:
+
+- Routine wrapper post-guard refresh:
+  `build/integration_test_reports/routine_live_llm_canary_1779587391/canary_summary.json`
+- Candidate reference report:
+  `build/integration_test_reports/live_llm_reference_gemma4_post_routine_guard_1779587391/reference_report.json`
+- Comparison against the current qwen reference:
+  `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
 
 ### Previous Reference: `gemma4-26b-vision`
 

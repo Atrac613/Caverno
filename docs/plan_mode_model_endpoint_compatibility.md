@@ -103,6 +103,8 @@ Treat these as model compatibility risks before assuming app logic is broken:
 - raw special-token tool-call fragments in assistant text, such as
   `<|tool_call>call:write_file{...}<tool_call|>`, when the endpoint does not
   expose them as executable tool calls
+- final answers that acknowledge a required file update is missing but still
+  claim the routine completed after another side effect succeeds
 - future-task tool calls before the current saved task is terminally complete
 - long pauses that exceed planning, execution, or stall budgets
 - final answers that contradict persisted task state
@@ -248,6 +250,27 @@ Recent `gemma4-26b-vision` compatibility attempts:
     `build/integration_test_reports/live_llm_reference_gemma4_1779546953/reference_report.json`
   - comparison report:
     `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_1779546953/reference_compare.json`
+- post-routine-guard candidate rerun:
+  - date: 2026-05-24
+  - routine canary result before the guard: failed, `3/4`
+  - failure shape: the model skipped the required `write_file`, posted to
+    Google Chat, then noted in reasoning that the state-file update was missing
+    while still returning a final answer
+  - routine canary result after the guard: passed, `4/4`
+  - generated reference report result: passed, `13/13`
+  - comparison against the current qwen reference: passed with 0 hard
+    regressions, 1 README convergence watch signal, and 1 PM5 cleanup
+    improvement
+  - compatibility decision: provisionally full-surface compatible after the
+    missing required write guard. Keep qwen as the named reference until gemma
+    receives a same-revision full model-switch rerun or the mixed-artifact
+    candidate is explicitly accepted.
+  - routine canary summary:
+    `build/integration_test_reports/routine_live_llm_canary_1779587391/canary_summary.json`
+  - candidate reference report:
+    `build/integration_test_reports/live_llm_reference_gemma4_post_routine_guard_1779587391/reference_report.json`
+  - comparison report:
+    `build/integration_test_reports/live_llm_compare_qwen_vs_gemma4_post_routine_guard_1779587391/reference_compare.json`
 
 Recent `qwen3.6-27b-mtp-vision` compatibility attempts:
 
