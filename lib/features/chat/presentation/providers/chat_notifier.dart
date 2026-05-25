@@ -459,6 +459,7 @@ class ChatNotifier extends Notifier<ChatState> {
         sessionMemoryContext: _sessionMemoryContext,
         projectName: activeCodingProject?.name,
         projectRootPath: activeCodingProject?.rootPath,
+        goal: currentConversation?.goal,
         workflowStage:
             currentConversation?.workflowStage ??
             ConversationWorkflowStage.idle,
@@ -8703,6 +8704,13 @@ class ChatNotifier extends Notifier<ChatState> {
 
     // Trigger auto-read when enabled.
     final finalizedLastMessage = updatedMessages.last;
+    await ref
+        .read(conversationsNotifierProvider.notifier)
+        .recordCurrentGoalTurn(
+          assistantResponse: finalizedLastMessage.content,
+          tokenUsageDelta: _accumulatedTokenUsage.totalTokens,
+        );
+
     if (_settings.autoReadEnabled && _settings.ttsEnabled) {
       final lastMsg = finalizedLastMessage;
       if (lastMsg.role == MessageRole.assistant && lastMsg.content.isNotEmpty) {

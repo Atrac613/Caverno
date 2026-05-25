@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/assistant_mode.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/services/system_prompt_builder.dart';
@@ -288,5 +289,47 @@ void main() {
         'Treat the structured workflow data below as a supporting execution projection, not as a separate source of truth.',
       ),
     );
+  });
+
+  test('injects active coding goals into coding mode prompts', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      goal: ConversationGoal(
+        id: 'goal-1',
+        objective: 'Fix the login crash and verify the regression test',
+        tokenBudget: 20000,
+        tokenUsage: 5000,
+        turnBudget: 5,
+        turnsUsed: 2,
+        createdAt: DateTime(2026, 5, 25, 10),
+        updatedAt: DateTime(2026, 5, 25, 10),
+      ),
+    );
+
+    expect(prompt, contains('Active coding goal for this thread:'));
+    expect(
+      prompt,
+      contains('Fix the login crash and verify the regression test'),
+    );
+    expect(prompt, contains('Goal token budget remaining: 15000'));
+    expect(prompt, contains('Goal turn budget remaining: 3'));
+  });
+
+  test('does not inject disabled coding goals', () {
+    final prompt = SystemPromptBuilder.build(
+      now: DateTime(2026, 5, 25, 10, 30),
+      assistantMode: AssistantMode.coding,
+      goal: ConversationGoal(
+        id: 'goal-1',
+        objective: 'Fix the login crash',
+        enabled: false,
+        createdAt: DateTime(2026, 5, 25, 10),
+        updatedAt: DateTime(2026, 5, 25, 10),
+      ),
+    );
+
+    expect(prompt, isNot(contains('Active coding goal for this thread:')));
+    expect(prompt, isNot(contains('Fix the login crash')));
   });
 }

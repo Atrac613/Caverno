@@ -1,5 +1,6 @@
 import '../../../../core/constants/system_prompt_constants.dart';
 import '../../../../core/types/assistant_mode.dart';
+import '../entities/conversation_goal.dart';
 import '../entities/conversation_plan_artifact.dart';
 import '../entities/conversation_workflow.dart';
 
@@ -24,6 +25,7 @@ class SystemPromptBuilder {
     String? sessionMemoryContext,
     String? projectName,
     String? projectRootPath,
+    ConversationGoal? goal,
     ConversationWorkflowStage workflowStage = ConversationWorkflowStage.idle,
     ConversationWorkflowSpec? workflowSpec,
     ConversationPlanArtifact? planArtifact,
@@ -102,6 +104,7 @@ class SystemPromptBuilder {
       }
       final normalizedWorkflowSpec =
           workflowSpec ?? const ConversationWorkflowSpec();
+      final activeGoal = goal?.isActive ?? false ? goal : null;
       final normalizedProjectName = projectName?.trim();
       final normalizedProjectRootPath = projectRootPath?.trim();
       if ((normalizedProjectName?.isNotEmpty ?? false) ||
@@ -112,6 +115,35 @@ class SystemPromptBuilder {
             projectRootPath: normalizedProjectRootPath,
           ),
         );
+      }
+      if (activeGoal != null) {
+        buffer.writeln('Active coding goal for this thread:');
+        buffer.writeln(activeGoal.normalizedObjective!);
+        buffer.writeln(
+          'Keep this goal in force across turns. Continue moving it forward '
+          'until it is complete, genuinely blocked, disabled, or the user '
+          'changes direction.',
+        );
+        buffer.writeln(
+          'When the goal is complete, state the concrete completion evidence. '
+          'When blocked, state the blocking condition and what is needed next.',
+        );
+        final remainingTokens = activeGoal.remainingTokenBudget;
+        if (remainingTokens != null) {
+          buffer.writeln(
+            'Goal token budget remaining: $remainingTokens approximate tokens.',
+          );
+        }
+        final remainingTurns = activeGoal.remainingTurnBudget;
+        if (remainingTurns != null) {
+          buffer.writeln('Goal turn budget remaining: $remainingTurns turns.');
+        }
+        if (activeGoal.budgetExceeded) {
+          buffer.writeln(
+            'The goal budget is exhausted. Do not continue autonomous work '
+            'without explicit user direction.',
+          );
+        }
       }
       if (hasProjectReadTools) {
         buffer.writeln(

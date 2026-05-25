@@ -7,11 +7,13 @@ import '../../data/repositories/conversation_repository.dart';
 import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_execution_progress_inference.dart';
+import '../../domain/services/conversation_goal_progress_inference.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_plan_projection_service.dart';
 import '../../domain/services/conversation_validation_tool_result_inference.dart';
@@ -220,6 +222,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     return conversation.title == defaultConversationTitle &&
         conversation.messages.isEmpty &&
         !conversation.hasWorkflowContext &&
+        !conversation.hasGoal &&
         !conversation.hasPlanArtifact &&
         !conversation.hasCompactionArtifact &&
         conversation.executionProgress.isEmpty &&
@@ -535,6 +538,214 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> saveCurrentGoal({
+    required String objective,
+    required bool enabled,
+    required ConversationGoalStatus status,
+    int tokenBudget = 0,
+    int turnBudget = 0,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) return;
+
+    final normalizedObjective = objective.trim();
+    if (normalizedObjective.isEmpty) {
+      await clearCurrentGoal();
+      return;
+    }
+
+    final now = DateTime.now();
+    final previous = conversation.goal;
+    final objectiveChanged =
+        previous?.normalizedObjective != normalizedObjective;
+    final resetProgress = previous == null || objectiveChanged;
+    final nextStatus = status;
+    final nextGoal = ConversationGoal(
+      id: previous?.id ?? _uuid.v4(),
+      objective: normalizedObjective,
+      enabled: enabled,
+      status: nextStatus,
+      tokenBudget: _sanitizeGoalBudget(tokenBudget),
+      tokenUsage: resetProgress ? 0 : previous.tokenUsage,
+      turnBudget: _sanitizeGoalBudget(turnBudget),
+      turnsUsed: resetProgress ? 0 : previous.turnsUsed,
+      completionSummary: nextStatus == ConversationGoalStatus.completed
+          ? completionSummary?.trim() ??
+                previous?.normalizedCompletionSummary ??
+                ''
+          : '',
+      blockedReason: nextStatus == ConversationGoalStatus.blocked
+          ? blockedReason?.trim() ?? previous?.normalizedBlockedReason ?? ''
+          : '',
+      blockerSignature: resetProgress ? '' : previous.blockerSignature,
+      blockerRepeatCount: resetProgress ? 0 : previous.blockerRepeatCount,
+      createdAt: previous?.createdAt ?? now,
+      updatedAt: now,
+      completedAt: nextStatus == ConversationGoalStatus.completed
+          ? previous?.completedAt ?? now
+          : null,
+      blockedAt: nextStatus == ConversationGoalStatus.blocked
+          ? previous?.blockedAt ?? now
+          : null,
+      lastBlockerSeenAt: resetProgress ? null : previous.lastBlockerSeenAt,
+    );
+
+    await _persistCurrentGoal(nextGoal);
+  }
+
+  Future<void> setCurrentGoalEnabled(bool enabled) async {
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null || goal.enabled == enabled) {
+      return;
+    }
+
+    await _persistCurrentGoal(
+      goal.copyWith(enabled: enabled, updatedAt: DateTime.now()),
+    );
+  }
+
+  Future<void> markCurrentGoalStatus({
+    required ConversationGoalStatus status,
+    String? blockedReason,
+    String? completionSummary,
+  }) async {
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null || !goal.hasObjective) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final nextGoal = goal.copyWith(
+      enabled: true,
+      status: status,
+      completionSummary: status == ConversationGoalStatus.completed
+          ? completionSummary?.trim() ??
+                goal.normalizedCompletionSummary ??
+                'Marked complete by the user.'
+          : '',
+      blockedReason: status == ConversationGoalStatus.blocked
+          ? blockedReason?.trim() ??
+                goal.normalizedBlockedReason ??
+                'Marked blocked by the user.'
+          : '',
+      blockerSignature: status == ConversationGoalStatus.blocked
+          ? goal.blockerSignature
+          : '',
+      blockerRepeatCount: status == ConversationGoalStatus.blocked
+          ? goal.blockerRepeatCount
+          : 0,
+      completedAt: status == ConversationGoalStatus.completed ? now : null,
+      blockedAt: status == ConversationGoalStatus.blocked ? now : null,
+      lastBlockerSeenAt: status == ConversationGoalStatus.blocked
+          ? goal.lastBlockerSeenAt
+          : null,
+      updatedAt: now,
+    );
+
+    await _persistCurrentGoal(nextGoal);
+  }
+
+  Future<void> clearCurrentGoal() async {
+    final conversation = state.currentConversation;
+    if (conversation == null || conversation.goal == null) {
+      return;
+    }
+
+    final updatedConversation = conversation.copyWith(
+      goal: null,
+      updatedAt: DateTime.now(),
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> recordCurrentGoalTurn({
+    required String assistantResponse,
+    required int tokenUsageDelta,
+  }) async {
+    final conversation = state.currentConversation;
+    final goal = conversation?.goal;
+    if (conversation == null || goal == null || !goal.isActive) {
+      return;
+    }
+
+    final now = DateTime.now();
+    final inference = ConversationGoalProgressInference.infer(
+      assistantResponse: assistantResponse,
+      tasks: conversation.projectedExecutionTasks,
+    );
+    final nextTokenUsage =
+        goal.tokenUsage + _sanitizeGoalBudget(tokenUsageDelta);
+    final nextTurnsUsed = goal.turnsUsed + 1;
+
+    var nextGoal = goal.copyWith(
+      tokenUsage: nextTokenUsage,
+      turnsUsed: nextTurnsUsed,
+      updatedAt: now,
+    );
+
+    if (inference.hasCompletion) {
+      nextGoal = nextGoal.copyWith(
+        status: ConversationGoalStatus.completed,
+        completionSummary:
+            inference.completionSummary ?? 'The goal is complete.',
+        blockedReason: '',
+        blockerSignature: '',
+        blockerRepeatCount: 0,
+        completedAt: now,
+        blockedAt: null,
+        lastBlockerSeenAt: null,
+      );
+    } else if (inference.hasBlocker) {
+      final signature = inference.blockerSignature!;
+      final isSameBlocker = signature == goal.blockerSignature;
+      final repeatCount = isSameBlocker ? goal.blockerRepeatCount + 1 : 1;
+      nextGoal = nextGoal.copyWith(
+        blockedReason: inference.blockedReason ?? '',
+        blockerSignature: signature,
+        blockerRepeatCount: repeatCount,
+        lastBlockerSeenAt: now,
+      );
+      if (repeatCount >=
+          ConversationGoalProgressInference.blockedRepeatThreshold) {
+        nextGoal = nextGoal.copyWith(
+          status: ConversationGoalStatus.blocked,
+          blockedAt: now,
+        );
+      }
+    } else if (goal.blockerRepeatCount > 0 ||
+        goal.blockerSignature.isNotEmpty) {
+      nextGoal = nextGoal.copyWith(
+        blockedReason: '',
+        blockerSignature: '',
+        blockerRepeatCount: 0,
+        lastBlockerSeenAt: null,
+      );
+    }
+
+    await _persistCurrentGoal(nextGoal);
+  }
+
+  Future<void> _persistCurrentGoal(ConversationGoal goal) async {
+    final conversation = state.currentConversation;
+    if (conversation == null) {
+      return;
+    }
+
+    final updatedConversation = conversation.copyWith(
+      goal: goal,
+      updatedAt: goal.updatedAt,
+    );
+    await _persistUpdatedConversation(updatedConversation);
+  }
+
+  int _sanitizeGoalBudget(int budget) {
+    return budget < 0 ? 0 : budget;
   }
 
   Future<void> updateCurrentExecutionTaskProgress({

@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 
 void main() {
@@ -15,6 +16,16 @@ void main() {
       workspaceMode: WorkspaceMode.coding,
       projectId: 'project-1',
       workflowStage: ConversationWorkflowStage.implement,
+      goal: ConversationGoal(
+        id: 'goal-1',
+        objective: 'Ship the workflow state safely',
+        tokenBudget: 12000,
+        tokenUsage: 3000,
+        turnBudget: 6,
+        turnsUsed: 2,
+        createdAt: DateTime(2026, 4, 15, 9, 0),
+        updatedAt: DateTime(2026, 4, 15, 9, 5),
+      ),
       workflowSpec: const ConversationWorkflowSpec(
         goal: 'Add workflow state to coding conversations',
         constraints: ['Do not block quick fixes'],
@@ -44,6 +55,9 @@ void main() {
     final restored = Conversation.fromJson(conversation.toJson());
 
     expect(restored.workflowStage, ConversationWorkflowStage.implement);
+    expect(restored.goal?.objective, 'Ship the workflow state safely');
+    expect(restored.goal?.tokenBudget, 12000);
+    expect(restored.goal?.turnsUsed, 2);
     expect(
       restored.workflowSpec,
       const ConversationWorkflowSpec(

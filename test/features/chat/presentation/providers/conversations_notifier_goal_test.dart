@@ -1,0 +1,118 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_flutter/hive_flutter.dart';
+import 'package:mocktail/mocktail.dart';
+
+import 'package:caverno/core/types/workspace_mode.dart';
+import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
+import 'package:caverno/features/chat/domain/entities/conversation.dart';
+import 'package:caverno/features/chat/domain/entities/conversation_goal.dart';
+import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
+
+class _MockConversationBox extends Mock implements Box<String> {}
+
+class _FakeConversationRepository extends ConversationRepository {
+  _FakeConversationRepository() : super(_MockConversationBox());
+
+  final Map<String, Conversation> _store = {};
+
+  @override
+  List<Conversation> getAll() {
+    final conversations = _store.values.toList();
+    conversations.sort((a, b) => b.updatedAt.compareTo(a.updatedAt));
+    return conversations;
+  }
+
+  @override
+  Future<void> save(Conversation conversation) async {
+    _store[conversation.id] = conversation;
+  }
+
+  @override
+  Future<void> delete(String id) async {
+    _store.remove(id);
+  }
+
+  @override
+  Future<void> deleteAll() async {
+    _store.clear();
+  }
+}
+
+void main() {
+  ProviderContainer createContainer() {
+    return ProviderContainer(
+      overrides: [
+        conversationRepositoryProvider.overrideWithValue(
+          _FakeConversationRepository(),
+        ),
+      ],
+    );
+  }
+
+  test(
+    'recordCurrentGoalTurn completes active goals from final evidence',
+    () async {
+      final container = createContainer();
+      addTearDown(container.dispose);
+      final notifier = container.read(conversationsNotifierProvider.notifier);
+
+      notifier.createNewConversation(
+        workspaceMode: WorkspaceMode.coding,
+        projectId: 'project-1',
+      );
+      await notifier.saveCurrentGoal(
+        objective: 'Fix the login crash',
+        enabled: true,
+        status: ConversationGoalStatus.active,
+        tokenBudget: 1000,
+        turnBudget: 5,
+      );
+
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Goal complete. Tests passed.',
+        tokenUsageDelta: 120,
+      );
+
+      final goal = container
+          .read(conversationsNotifierProvider)
+          .currentConversation!
+          .goal!;
+      expect(goal.status, ConversationGoalStatus.completed);
+      expect(goal.tokenUsage, 120);
+      expect(goal.turnsUsed, 1);
+      expect(goal.completedAt, isNotNull);
+    },
+  );
+
+  test('recordCurrentGoalTurn blocks after repeated same blocker', () async {
+    final container = createContainer();
+    addTearDown(container.dispose);
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+
+    notifier.createNewConversation(
+      workspaceMode: WorkspaceMode.coding,
+      projectId: 'project-1',
+    );
+    await notifier.saveCurrentGoal(
+      objective: 'Update the project settings',
+      enabled: true,
+      status: ConversationGoalStatus.active,
+    );
+
+    for (var index = 0; index < 3; index++) {
+      await notifier.recordCurrentGoalTurn(
+        assistantResponse: 'Blocked: permission denied while reading settings.',
+        tokenUsageDelta: 10,
+      );
+    }
+
+    final goal = container
+        .read(conversationsNotifierProvider)
+        .currentConversation!
+        .goal!;
+    expect(goal.status, ConversationGoalStatus.blocked);
+    expect(goal.blockerRepeatCount, 3);
+    expect(goal.blockedAt, isNotNull);
+  });
+}

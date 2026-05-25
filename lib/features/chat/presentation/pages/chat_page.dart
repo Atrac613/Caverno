@@ -22,6 +22,7 @@ import '../../../settings/presentation/providers/settings_notifier.dart';
 import '../../data/datasources/chat_remote_datasource.dart';
 import '../../data/datasources/git_tools.dart';
 import '../../domain/entities/conversation.dart';
+import '../../domain/entities/conversation_goal.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
 import '../../domain/entities/conversation_workflow.dart';
 import '../../domain/entities/message.dart';
@@ -52,6 +53,7 @@ import '../widgets/plan/plan_review_sheet.dart';
 import '../widgets/plan/plan_revision_history_sheet.dart';
 
 part 'chat_page_empty_state_builders.dart';
+part 'chat_page_goal_builders.dart';
 part 'chat_page_header_builders.dart';
 part 'chat_page_plan_builders.dart';
 part 'chat_page_workflow_builders.dart';
@@ -869,6 +871,14 @@ class _ChatPageState extends ConsumerState<ChatPage>
                       currentConversation: currentConversation,
                       chatState: chatState,
                       isPlanMode: isPlanMode,
+                    ),
+                  if (canCompose &&
+                      isCodingWorkspace &&
+                      currentConversation != null)
+                    _buildGoalFooterCard(
+                      context,
+                      currentConversation: currentConversation,
+                      chatState: chatState,
                     ),
                   // Token usage indicator
                   if (canCompose &&

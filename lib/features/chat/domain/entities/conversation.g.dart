@@ -52,6 +52,7 @@ _Conversation _$ConversationFromJson(Map<String, dynamic> json) =>
           : _openQuestionProgressFromJson(
               json['openQuestionProgress'] as List?,
             ),
+      goal: _goalFromJson(json['goal'] as Map<String, dynamic>?),
       planArtifact: _planArtifactFromJson(
         json['planArtifact'] as Map<String, dynamic>?,
       ),
@@ -79,6 +80,7 @@ Map<String, dynamic> _$ConversationToJson(
   'openQuestionProgress': _openQuestionProgressToJson(
     instance.openQuestionProgress,
   ),
+  'goal': _goalToJson(instance.goal),
   'planArtifact': _planArtifactToJson(instance.planArtifact),
   'compactionArtifact': _compactionArtifactToJson(instance.compactionArtifact),
 };

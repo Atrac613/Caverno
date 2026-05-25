@@ -3,6 +3,7 @@ import 'package:freezed_annotation/freezed_annotation.dart';
 import '../../../../core/types/workspace_mode.dart';
 import '../services/conversation_plan_hash.dart';
 import 'conversation_compaction_artifact.dart';
+import 'conversation_goal.dart';
 import 'message.dart';
 import 'conversation_plan_artifact.dart';
 import 'conversation_workflow.dart';
@@ -30,6 +31,17 @@ ConversationPlanArtifact? _planArtifactFromJson(Map<String, dynamic>? json) {
 
 Map<String, dynamic>? _planArtifactToJson(ConversationPlanArtifact? artifact) {
   return artifact?.toJson();
+}
+
+ConversationGoal? _goalFromJson(Map<String, dynamic>? json) {
+  if (json == null) {
+    return null;
+  }
+  return ConversationGoal.fromJson(json);
+}
+
+Map<String, dynamic>? _goalToJson(ConversationGoal? goal) {
+  return goal?.toJson();
 }
 
 ConversationCompactionArtifact? _compactionArtifactFromJson(
@@ -125,6 +137,8 @@ abstract class Conversation with _$Conversation {
     )
     @Default(<ConversationOpenQuestionProgress>[])
     List<ConversationOpenQuestionProgress> openQuestionProgress,
+    @JsonKey(fromJson: _goalFromJson, toJson: _goalToJson)
+    ConversationGoal? goal,
     @JsonKey(fromJson: _planArtifactFromJson, toJson: _planArtifactToJson)
     ConversationPlanArtifact? planArtifact,
     @JsonKey(
@@ -176,6 +190,10 @@ abstract class Conversation with _$Conversation {
   bool get hasWorkflowContext =>
       workflowStage != ConversationWorkflowStage.idle ||
       effectiveWorkflowSpec.hasContent;
+
+  bool get hasGoal => goal?.hasObjective ?? false;
+
+  bool get hasActiveGoal => goal?.isActive ?? false;
 
   bool get hasPlanArtifact => effectivePlanArtifact.hasContent;
 
