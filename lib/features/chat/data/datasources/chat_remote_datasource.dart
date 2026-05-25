@@ -11,7 +11,8 @@ import '../../domain/entities/message.dart';
 import '../../domain/entities/tool_call_info.dart';
 import 'chat_datasource.dart';
 
-export '../../domain/entities/tool_call_info.dart' show ToolCallInfo, ToolResultInfo;
+export '../../domain/entities/tool_call_info.dart'
+    show ToolCallInfo, ToolResultInfo;
 
 /// Token usage statistics from a completion response.
 class TokenUsage {
@@ -86,6 +87,10 @@ class ChatRemoteDataSource implements ChatDataSource {
     caseSensitive: false,
   );
   static final RegExp _channelEndPattern = RegExp(r'<channel\|>');
+  static const bool _logToolSchemas = bool.fromEnvironment(
+    'CAVERNO_LLM_LOG_TOOL_SCHEMAS',
+  );
+  static const int _maxLoggedToolNames = 12;
 
   /// Last token usage captured from a streaming or non-streaming response.
   TokenUsage lastUsage = TokenUsage.zero;
@@ -107,7 +112,12 @@ class ChatRemoteDataSource implements ChatDataSource {
   /// Log tool definitions
   void _logTools(List<Map<String, dynamic>>? tools) {
     if (tools == null || tools.isEmpty) return;
-    appLog('[LLM] === Tools ===');
+    appLog(_formatToolLogSummary(tools));
+    if (!_logToolSchemas) {
+      return;
+    }
+
+    appLog('[LLM] === Tool Schemas ===');
     for (final tool in tools) {
       final func = tool['function'] as Map<String, dynamic>;
       appLog('[LLM]   ${func['name']}: ${func['description']}');
@@ -115,7 +125,34 @@ class ChatRemoteDataSource implements ChatDataSource {
         '[LLM]     params: ${dart_convert.jsonEncode(func['parameters'])}',
       );
     }
-    appLog('[LLM] === End Tools ===');
+    appLog('[LLM] === End Tool Schemas ===');
+  }
+
+  String _formatToolLogSummary(List<Map<String, dynamic>> tools) {
+    final names = _toolLogNames(tools);
+    if (names.isEmpty) {
+      return '[LLM] Tools available: ${tools.length}';
+    }
+    final visibleNames = names.take(_maxLoggedToolNames).join(', ');
+    final omittedCount = names.length - _maxLoggedToolNames;
+    final omittedSuffix = omittedCount > 0 ? ', +$omittedCount more' : '';
+    return '[LLM] Tools available: ${tools.length} '
+        '($visibleNames$omittedSuffix)';
+  }
+
+  List<String> _toolLogNames(List<Map<String, dynamic>> tools) {
+    return tools
+        .map((tool) => tool['function'])
+        .whereType<Map>()
+        .map((function) => function['name'])
+        .whereType<String>()
+        .where((name) => name.trim().isNotEmpty)
+        .toList(growable: false);
+  }
+
+  @visibleForTesting
+  String formatToolLogSummaryForTest(List<Map<String, dynamic>> tools) {
+    return _formatToolLogSummary(tools);
   }
 
   /// Build a list of [Tool] objects from the tool definition maps.

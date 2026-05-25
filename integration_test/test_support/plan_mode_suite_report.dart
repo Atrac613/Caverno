@@ -141,6 +141,9 @@ Map<String, Object?> buildPlanModeSuiteJsonReport({
     'toolLoopConvergenceSummary': buildPlanModeSuiteToolLoopConvergenceSummary(
       suiteResults,
     ),
+    'toolLifecycleSummary': buildPlanModeSuiteToolLifecycleSummary(
+      suiteResults,
+    ),
     'executionPathSummary': buildPlanModeSuiteExecutionPathSummary(
       suiteResults,
     ),
@@ -204,6 +207,19 @@ String buildPlanModeSuiteJUnitReport({
       toolLoopConvergence['guardActivations'],
     );
     final toolLoopNaturalStops = _asInt(toolLoopConvergence['naturalStops']);
+    final toolLifecycle = _asObjectMap(result['toolLifecycle']);
+    final toolLifecycleEvents = _asInt(toolLifecycle['eventCount']);
+    final toolLifecycleServiceExecutions = _asInt(
+      toolLifecycle['serviceExecutionCount'],
+    );
+    final toolLifecycleToolCalls = _asInt(toolLifecycle['toolCallCount']);
+    final toolLifecycleCompleted = _asInt(toolLifecycle['completedCount']);
+    final toolLifecycleSkipped = _asInt(toolLifecycle['skippedCount']);
+    final toolLifecycleFailed = _asInt(toolLifecycle['failedCount']);
+    final toolLifecycleExceptions = _asInt(toolLifecycle['exceptionCount']);
+    final toolLifecycleIncomplete = _asInt(
+      toolLifecycle['incompleteToolCount'],
+    );
     final approvalPath =
         (result['approvalPath'] as String?) ?? planModeApprovalPathUnknown;
     final fallbackPath =
@@ -244,6 +260,14 @@ String buildPlanModeSuiteJUnitReport({
       'toolLoopConvergenceSuccessfulValidations=$toolLoopSuccessfulValidations',
       'toolLoopConvergenceGuardActivations=$toolLoopGuardActivations',
       'toolLoopConvergenceNaturalStops=$toolLoopNaturalStops',
+      'toolLifecycleEvents=$toolLifecycleEvents',
+      'toolLifecycleServiceExecutions=$toolLifecycleServiceExecutions',
+      'toolLifecycleToolCalls=$toolLifecycleToolCalls',
+      'toolLifecycleCompleted=$toolLifecycleCompleted',
+      'toolLifecycleSkipped=$toolLifecycleSkipped',
+      'toolLifecycleFailed=$toolLifecycleFailed',
+      'toolLifecycleExceptions=$toolLifecycleExceptions',
+      'toolLifecycleIncomplete=$toolLifecycleIncomplete',
       'warnings=${warnings.length}',
       'allowedWarnings=${allowedWarnings.length}',
       'unexpectedWarnings=${unexpectedWarnings.length}',
@@ -283,6 +307,9 @@ String buildPlanModeSuiteMarkdownReport({
   final taskDriftSummary = buildPlanModeSuiteTaskDriftSummary(suiteResults);
   final toolLoopConvergenceSummary =
       buildPlanModeSuiteToolLoopConvergenceSummary(suiteResults);
+  final toolLifecycleSummary = buildPlanModeSuiteToolLifecycleSummary(
+    suiteResults,
+  );
   final executionPathSummary = buildPlanModeSuiteExecutionPathSummary(
     suiteResults,
   );
@@ -334,6 +361,15 @@ String buildPlanModeSuiteMarkdownReport({
       '${toolLoopConvergenceSummary['guardActivations']} activation(s) '
       'and ${toolLoopConvergenceSummary['naturalStops']} natural stop(s) '
       'across ${toolLoopConvergenceSummary['detected']} scenario(s)',
+    )
+    ..writeln(
+      '- Tool lifecycle: ${toolLifecycleSummary['eventCount']} event(s), '
+      '${toolLifecycleSummary['serviceExecutionCount']} service execution(s), '
+      '${toolLifecycleSummary['completedCount']} completed, '
+      '${toolLifecycleSummary['failedCount']} failed, '
+      '${toolLifecycleSummary['skippedCount']} skipped, '
+      '${toolLifecycleSummary['incompleteToolCount']} incomplete '
+      'across ${toolLifecycleSummary['detected']} scenario(s)',
     )
     ..writeln(
       '- Approval paths: ${executionPathSummary['uiApproval']} UI, '
@@ -446,6 +482,32 @@ String buildPlanModeSuiteMarkdownReport({
         '${item['guardActivations']} guard activation(s), '
         '${item['naturalStops']} natural stop(s), '
         'status `${item['status'] ?? 'unknown'}` '
+        '${_markdownArtifactLink(item['report'], 'report')} '
+        '${_markdownArtifactLink(item['log'], 'log')}',
+      );
+    }
+  }
+
+  final toolLifecycleScenarios = _asList(toolLifecycleSummary['scenarios']);
+  if (toolLifecycleScenarios.isNotEmpty) {
+    buffer
+      ..writeln()
+      ..writeln('## Tool Lifecycle')
+      ..writeln();
+    for (final item in toolLifecycleScenarios) {
+      if (item is! Map<String, Object?>) {
+        continue;
+      }
+      buffer.writeln(
+        '- ${item['scenario']}: ${item['eventCount']} event(s), '
+        '${item['serviceExecutionCount']} service execution(s), '
+        '${item['toolCallCount']} tool call(s), '
+        '${item['completedCount']} completed, '
+        '${item['failedCount']} failed, '
+        '${item['skippedCount']} skipped, '
+        '${item['incompleteToolCount']} incomplete, '
+        'max ${item['maxDurationMs']}ms, '
+        'observed ${_formatInlineList(item['observedToolNames'])} '
         '${_markdownArtifactLink(item['report'], 'report')} '
         '${_markdownArtifactLink(item['log'], 'log')}',
       );

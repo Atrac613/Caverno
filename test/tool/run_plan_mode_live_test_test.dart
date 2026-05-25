@@ -64,11 +64,13 @@ void main() {
             'CAVERNO_PLAN_MODE_FAIL_ON_WARNINGS': '1',
             'CAVERNO_PLAN_MODE_DEVICE': 'macos',
             'CAVERNO_PLAN_MODE_REPORTER': 'compact',
+            'CAVERNO_LLM_LOG_TOOL_SCHEMAS': '1',
           },
         );
 
         expect(result.exitCode, 0);
         expect(result.stdout, contains('Endpoint preflight: 0'));
+        expect(result.stdout, contains('Log tool schemas: 1'));
         expect(result.stdout, isNot(contains('Checking live endpoint')));
         expect(fixture.curlLog.existsSync(), isFalse);
 
@@ -78,12 +80,37 @@ void main() {
           contains('ARGS:test integration_test/plan_mode_scenario_test.dart'),
         );
         expect(flutterLog, contains('-d macos -r compact'));
+        expect(
+          flutterLog,
+          contains('--dart-define=CAVERNO_LLM_LOG_TOOL_SCHEMAS=true'),
+        );
         expect(flutterLog, contains('LIVE:1'));
         expect(flutterLog, contains('SCENARIOS:live_clarify_recovery'));
         expect(flutterLog, contains('TAGS:smoke'));
         expect(flutterLog, contains('FAIL_ON_WARNINGS:1'));
       },
     );
+
+    test('omits tool schema dart define by default', () async {
+      final fixture = _ScriptFixture.create();
+      fixture.writeCurl(exitCode: 99);
+      fixture.writeFlutter();
+
+      final result = await fixture.runLiveHelper(
+        environment: const {
+          'CAVERNO_LLM_BASE_URL': 'http://localhost:65535/v1',
+          'CAVERNO_LLM_API_KEY': 'test-token',
+          'CAVERNO_LLM_MODEL': 'test-model',
+          'CAVERNO_PLAN_MODE_PREFLIGHT': '0',
+        },
+      );
+
+      expect(result.exitCode, 0);
+      expect(result.stdout, contains('Log tool schemas: 0'));
+
+      final flutterLog = fixture.flutterLog.readAsStringSync();
+      expect(flutterLog, isNot(contains('CAVERNO_LLM_LOG_TOOL_SCHEMAS')));
+    });
   });
 }
 

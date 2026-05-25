@@ -6,10 +6,34 @@ import 'plan_mode_scenario_spec.dart';
 
 void assertPlanModeArtifactExpectations(
   Directory scenarioDir,
-  List<PlanModeArtifactExpectation> expectations,
-) {
+  List<PlanModeArtifactExpectation> expectations, {
+  PlanModeArtifactExpectationMode mode = PlanModeArtifactExpectationMode.all,
+}) {
+  final requiredExpectations = expectations
+      .where((expectation) => expectation.shouldExist)
+      .toList(growable: false);
+  if (mode == PlanModeArtifactExpectationMode.anyRequired &&
+      requiredExpectations.isNotEmpty) {
+    final hasAnyRequiredArtifact = requiredExpectations.any(
+      (expectation) =>
+          File('${scenarioDir.path}/${expectation.path}').existsSync(),
+    );
+    expect(
+      hasAnyRequiredArtifact,
+      isTrue,
+      reason:
+          'Expected at least one artifact to exist: '
+          '${requiredExpectations.map((item) => item.path).join(', ')}',
+    );
+  }
+
   for (final expectation in expectations) {
     final file = File('${scenarioDir.path}/${expectation.path}');
+    if (mode == PlanModeArtifactExpectationMode.anyRequired &&
+        expectation.shouldExist &&
+        !file.existsSync()) {
+      continue;
+    }
     expect(
       file.existsSync(),
       expectation.shouldExist,
@@ -45,6 +69,7 @@ void assertPlanModeArtifactExpectations(
 Future<void> waitForPlanModeArtifactExpectations(
   Directory scenarioDir,
   List<PlanModeArtifactExpectation> expectations, {
+  PlanModeArtifactExpectationMode mode = PlanModeArtifactExpectationMode.all,
   Duration timeout = const Duration(seconds: 20),
   Duration pollInterval = const Duration(milliseconds: 200),
   WidgetTester? tester,
@@ -63,8 +88,10 @@ Future<void> waitForPlanModeArtifactExpectations(
 
   final deadline = DateTime.now().add(timeout);
   while (DateTime.now().isBefore(deadline)) {
-    final allPresent = requiredFiles.every((file) => file.existsSync());
-    if (allPresent) {
+    final expectationSatisfied = mode == PlanModeArtifactExpectationMode.all
+        ? requiredFiles.every((file) => file.existsSync())
+        : requiredFiles.any((file) => file.existsSync());
+    if (expectationSatisfied) {
       return;
     }
     if (useFramePump) {

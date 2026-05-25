@@ -60,7 +60,7 @@ void assertPlanModeLogExpectations(
   }
 }
 
-Future<void> waitForPlanModeLogExpectationLowerBounds(
+Future<bool> waitForPlanModeLogExpectationLowerBounds(
   WidgetTester tester,
   List<String> logs,
   List<PlanModeLogExpectation> expectations, {
@@ -68,7 +68,7 @@ Future<void> waitForPlanModeLogExpectationLowerBounds(
   bool useFramePump = true,
 }) async {
   if (planModeLogLowerBoundsSatisfied(logs, expectations)) {
-    return;
+    return true;
   }
 
   final deadline = DateTime.now().add(timeout);
@@ -80,7 +80,8 @@ Future<void> waitForPlanModeLogExpectationLowerBounds(
       await Future<void>.delayed(const Duration(milliseconds: 200));
     }
     if (planModeLogLowerBoundsSatisfied(logs, expectations)) {
-      return;
+      return true;
     }
   }
+  return false;
 }

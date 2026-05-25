@@ -79,7 +79,7 @@ void main() {
         });
 
         try {
-          await waitForPlanModeLogExpectationLowerBounds(
+          final satisfied = await waitForPlanModeLogExpectationLowerBounds(
             tester,
             logs,
             const <PlanModeLogExpectation>[
@@ -89,6 +89,7 @@ void main() {
             timeout: const Duration(seconds: 1),
             useFramePump: false,
           );
+          expect(satisfied, isTrue);
         } finally {
           timer.cancel();
         }
@@ -101,6 +102,25 @@ void main() {
         ]),
         isTrue,
       );
+    });
+
+    testWidgets('returns false when lower bounds are not satisfied', (
+      tester,
+    ) async {
+      final logs = <String>['alpha event'];
+      final satisfied = await tester.runAsync(
+        () => waitForPlanModeLogExpectationLowerBounds(
+          tester,
+          logs,
+          const <PlanModeLogExpectation>[
+            PlanModeLogExpectation(pattern: 'beta', minCount: 1),
+          ],
+          timeout: const Duration(milliseconds: 1),
+          useFramePump: false,
+        ),
+      );
+
+      expect(satisfied, isFalse);
     });
   });
 }

@@ -234,7 +234,105 @@ void main() {
     );
   });
 
+  test('emits per-tool lifecycle events with scheduler context', () async {
+    final lifecycleEvents = <ToolExecutionLifecycleEvent>[];
+
+    final results = await ToolExecutionScheduler.executeBatch(
+      toolCalls: [
+        ToolCallInfo(
+          id: 'tool-1',
+          name: 'read_file',
+          arguments: const {'path': 'alpha.dart'},
+        ),
+        ToolCallInfo(
+          id: 'tool-2',
+          name: 'write_file',
+          arguments: const {'path': 'beta.dart'},
+        ),
+      ],
+      execute: (toolCall) async {
+        if (toolCall.name == 'write_file') {
+          return McpToolResult(
+            toolName: toolCall.name,
+            result: 'Permission denied',
+            isSuccess: false,
+            errorMessage: 'Permission denied',
+          );
+        }
+        return McpToolResult(
+          toolName: toolCall.name,
+          result: '${toolCall.name} complete',
+          isSuccess: true,
+        );
+      },
+      onLifecycle: lifecycleEvents.add,
+    );
+
+    expect(results.map((item) => item.toolCall.name).toList(), [
+      'read_file',
+      'write_file',
+    ]);
+    expect(
+      lifecycleEvents
+          .map(
+            (event) => (
+              event.toolCall.name,
+              event.state,
+              event.schedulerMode,
+              event.resultStatus,
+            ),
+          )
+          .toList(),
+      [
+        (
+          'read_file',
+          ToolExecutionLifecycleState.queued,
+          ToolExecutionBatchMode.parallelFileRead,
+          null,
+        ),
+        (
+          'read_file',
+          ToolExecutionLifecycleState.started,
+          ToolExecutionBatchMode.parallelFileRead,
+          null,
+        ),
+        (
+          'read_file',
+          ToolExecutionLifecycleState.completed,
+          ToolExecutionBatchMode.parallelFileRead,
+          'success',
+        ),
+        (
+          'write_file',
+          ToolExecutionLifecycleState.queued,
+          ToolExecutionBatchMode.serial,
+          null,
+        ),
+        (
+          'write_file',
+          ToolExecutionLifecycleState.started,
+          ToolExecutionBatchMode.serial,
+          null,
+        ),
+        (
+          'write_file',
+          ToolExecutionLifecycleState.completed,
+          ToolExecutionBatchMode.serial,
+          'tool_failure',
+        ),
+      ],
+    );
+    expect(
+      lifecycleEvents
+          .where((event) => event.state == ToolExecutionLifecycleState.completed)
+          .map((event) => event.durationMs),
+      everyElement(isNotNull),
+    );
+  });
+
   test('preserves result order when a parallel tool fails', () async {
+    final lifecycleEvents = <ToolExecutionLifecycleEvent>[];
+
     final results = await ToolExecutionScheduler.executeBatch(
       toolCalls: [
         ToolCallInfo(
@@ -258,6 +356,7 @@ void main() {
           isSuccess: true,
         );
       },
+      onLifecycle: lifecycleEvents.add,
     );
 
     expect(results.map((item) => item.toolCall.name).toList(), [
@@ -267,5 +366,12 @@ void main() {
     expect(results.first.isSuccess, isTrue);
     expect(results.last.isSuccess, isFalse);
     expect(results.last.error, isA<StateError>());
+    final failedLifecycleEvent = lifecycleEvents.singleWhere(
+      (event) =>
+          event.toolCall.name == 'search_files' &&
+          event.state == ToolExecutionLifecycleState.completed,
+    );
+    expect(failedLifecycleEvent.resultStatus, 'exception');
+    expect(failedLifecycleEvent.durationMs, isNotNull);
   });
 }

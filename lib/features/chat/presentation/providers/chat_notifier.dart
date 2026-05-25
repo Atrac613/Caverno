@@ -1173,6 +1173,9 @@ class ChatNotifier extends Notifier<ChatState> {
     List<String> openQuestions, {
     required List<WorkflowPlanningDecisionAnswer> decisionAnswers,
   }) {
+    if (decisionAnswers.isNotEmpty) {
+      return const <WorkflowPlanningDecision>[];
+    }
     return _promoteChoiceLikeOpenQuestions(
       openQuestions,
       decisionAnswers: decisionAnswers,
@@ -5337,7 +5340,7 @@ class ChatNotifier extends Notifier<ChatState> {
     List<String> openQuestions, {
     List<WorkflowPlanningDecisionAnswer> decisionAnswers = const [],
   }) {
-    return _promoteChoiceLikeOpenQuestions(
+    return _promoteOpenQuestionsToPlanningPrompts(
       openQuestions,
       decisionAnswers: decisionAnswers,
     );
@@ -6786,6 +6789,50 @@ class ChatNotifier extends Notifier<ChatState> {
     );
   }
 
+  void _logScheduledToolLifecycleEvent(
+    ToolExecutionLifecycleEvent event, {
+    required int loopIndex,
+  }) {
+    _logToolLifecycleEvent(
+      toolCall: event.toolCall,
+      lifecycleState: event.state.name,
+      loopIndex: loopIndex,
+      schedulerMode: event.schedulerMode,
+      resultStatus: event.resultStatus,
+      durationMs: event.durationMs,
+    );
+  }
+
+  void _logToolLifecycleEvent({
+    required ToolCallInfo toolCall,
+    required String lifecycleState,
+    required int loopIndex,
+    ToolExecutionBatchMode? schedulerMode,
+    String? resultStatus,
+    String? skipReason,
+    int? durationMs,
+  }) {
+    final payload = <String, Object?>{
+      'toolCallId': toolCall.id,
+      'toolName': toolCall.name,
+      'lifecycleState': lifecycleState,
+      'loopIndex': loopIndex,
+    };
+    if (schedulerMode != null) {
+      payload['schedulerClass'] = schedulerMode.name;
+    }
+    if (resultStatus != null) {
+      payload['resultStatus'] = resultStatus;
+    }
+    if (skipReason != null) {
+      payload['skipReason'] = skipReason;
+    }
+    if (durationMs != null) {
+      payload['durationMs'] = durationMs;
+    }
+    appLog('[Tool] Lifecycle ${jsonEncode(payload)}');
+  }
+
   /// Executes tool calls, supporting a repeated tool-call loop.
   ///
   /// Continues looping while the LLM keeps requesting tools, until it returns
@@ -6843,6 +6890,14 @@ class ChatNotifier extends Notifier<ChatState> {
           appLog(
             '[Tool] Duplicate tool call detected, skipping: ${toolCall.name} ${toolCall.arguments}',
           );
+          _logToolLifecycleEvent(
+            toolCall: toolCall,
+            lifecycleState: 'skipped',
+            loopIndex: iteration,
+            schedulerMode: ToolExecutionScheduler.executionModeFor(toolCall),
+            resultStatus: 'skipped',
+            skipReason: 'duplicate_tool_call',
+          );
           continue;
         }
 
@@ -6856,6 +6911,8 @@ class ChatNotifier extends Notifier<ChatState> {
       final scheduledResults = await ToolExecutionScheduler.executeBatch(
         toolCalls: pendingBatchCalls,
         execute: _dispatchToolCall,
+        onLifecycle: (event) =>
+            _logScheduledToolLifecycleEvent(event, loopIndex: iteration),
         onBatch: (telemetry) {
           appLog(
             '[Tool] Scheduler ${telemetry.mode.name} batch '

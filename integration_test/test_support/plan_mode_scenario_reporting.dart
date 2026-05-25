@@ -14,6 +14,7 @@ import 'plan_mode_report_summary.dart';
 import 'plan_mode_scenario_spec.dart';
 import 'plan_mode_screenshot_policy.dart';
 import 'plan_mode_task_drift.dart';
+import 'plan_mode_tool_lifecycle.dart';
 import 'plan_mode_tool_loop_convergence.dart';
 import 'plan_mode_warning_policy.dart';
 
@@ -54,6 +55,7 @@ Future<PlanModeScenarioReportArtifacts> writePlanModePassedScenarioReport({
   required PlanModePostScenarioSettleResult postScenarioSettle,
   required PlanModePhaseTrace phaseTrace,
   required PlanModeTimeoutBudgets budgets,
+  String? heartbeatPath,
 }) async {
   final report = buildPlanModePassedScenarioReport(
     scenario: scenario,
@@ -68,6 +70,7 @@ Future<PlanModeScenarioReportArtifacts> writePlanModePassedScenarioReport({
     postScenarioSettle: postScenarioSettle,
     phaseTrace: phaseTrace,
     budgets: budgets,
+    heartbeatPath: heartbeatPath,
   );
   final screenshotPaths = listPlanModeScenarioScreenshotPaths(scenarioDir);
   report['screenshots'] = screenshotPaths;
@@ -100,17 +103,22 @@ Map<String, Object?> buildPlanModePassedScenarioReport({
   required PlanModePostScenarioSettleResult postScenarioSettle,
   required PlanModePhaseTrace phaseTrace,
   required PlanModeTimeoutBudgets budgets,
+  String? heartbeatPath,
 }) {
+  final savedTaskTargetFiles = resolvePlanModeScenarioSavedTaskTargetFiles(
+    conversation: conversation,
+    savedWorkflow: savedWorkflow,
+  );
   final taskDrift = buildPlanModeScenarioTaskDriftReport(
-    expectedTargetFiles:
-        scenario.resolvedWorkflowExpectation.firstTaskTargetFilesContain,
-    savedTaskTargetFiles: resolvePlanModeScenarioSavedTaskTargetFiles(
-      conversation: conversation,
-      savedWorkflow: savedWorkflow,
+    expectedTargetFiles: resolvePlanModeScenarioExpectedTaskDriftTargetFiles(
+      scenario: scenario,
+      savedTaskTargetFiles: savedTaskTargetFiles,
     ),
+    savedTaskTargetFiles: savedTaskTargetFiles,
     scenarioDir: scenarioDir,
   ).toJson();
   final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
+  final toolLifecycle = buildPlanModeToolLifecycleReport(logs);
   final diagnostics = buildPlanModeFailureDiagnostics(
     logs: logs,
     lastWorkflowSnapshot: summarizePlanModeWorkflowTasks(
@@ -158,18 +166,16 @@ Map<String, Object?> buildPlanModePassedScenarioReport({
     'taskDrift': taskDrift,
     'taskDriftDetected': taskDrift['driftDetected'],
     'toolLoopConvergence': toolLoopConvergence,
+    'toolLifecycle': toolLifecycle,
     'postScenarioSettled': postScenarioSettle.settled,
     'postScenarioInitiallySettled': postScenarioSettle.initiallySettled,
     'postScenarioCancellationUsed': postScenarioSettle.cancellationUsed,
     'postScenarioSettle': postScenarioSettle.toJson(),
-    'artifacts': <String, String>{
-      for (final artifact in scenario.resolvedArtifactExpectations.where(
-        (item) => item.shouldExist,
-      ))
-        artifact.path: File(
-          '${scenarioDir.path}/${artifact.path}',
-        ).readAsStringSync(),
-    },
+    'artifacts': collectPlanModeScenarioArtifactContents(
+      scenarioDir: scenarioDir,
+      expectations: scenario.resolvedArtifactExpectations,
+      mode: scenario.artifactExpectationMode,
+    ),
     'logChecks': scenario.logExpectations
         .map(
           (expectation) => <String, Object?>{
@@ -181,7 +187,7 @@ Map<String, Object?> buildPlanModePassedScenarioReport({
         )
         .toList(growable: false),
     'capturedLogs': filterPlanModePassedScenarioCapturedLogs(logs),
-    'lastHeartbeat': readPlanModeLiveHeartbeatSnapshot(),
+    'lastHeartbeat': readPlanModeLiveHeartbeatSnapshot(path: heartbeatPath),
     'diagnostics': diagnostics,
   };
 }
@@ -202,6 +208,23 @@ List<String> resolvePlanModeScenarioSavedTaskTargetFiles({
     return savedTaskTargets;
   }
   return _firstNonEmptyTaskTargetFiles(conversation.projectedExecutionTasks);
+}
+
+Map<String, String> collectPlanModeScenarioArtifactContents({
+  required Directory scenarioDir,
+  required List<PlanModeArtifactExpectation> expectations,
+  required PlanModeArtifactExpectationMode mode,
+}) {
+  final artifacts = <String, String>{};
+  for (final artifact in expectations.where((item) => item.shouldExist)) {
+    final file = File('${scenarioDir.path}/${artifact.path}');
+    if (!file.existsSync() &&
+        mode == PlanModeArtifactExpectationMode.anyRequired) {
+      continue;
+    }
+    artifacts[artifact.path] = file.readAsStringSync();
+  }
+  return artifacts;
 }
 
 List<String> _nonPendingTaskTargetFiles(List<ConversationWorkflowTask> tasks) {
@@ -263,6 +286,7 @@ List<String> filterPlanModePassedScenarioCapturedLogs(List<String> logs) {
         (line) =>
             line.contains('[ScenarioLLM]') ||
             line.contains('[Tool]') ||
+            line.contains('[McpToolService]') ||
             line.contains('[LLM]') ||
             line.contains('[ContentTool]') ||
             line.contains('[Screenshot]'),
@@ -313,6 +337,7 @@ Future<PlanModeArchivedScenarioResult> archivePlanModeScenarioRun({
   required List<String> logs,
   required PlanModePhaseTrace phaseTrace,
   required PlanModeTimeoutBudgets budgets,
+  String? heartbeatPath,
   required Object? failure,
   required StackTrace? failureStackTrace,
 }) async {
@@ -325,6 +350,7 @@ Future<PlanModeArchivedScenarioResult> archivePlanModeScenarioRun({
       stackTrace: failureStackTrace,
       phaseTrace: phaseTrace,
       budgets: budgets,
+      heartbeatPath: heartbeatPath,
     );
   }
   final archivedScenarioDir = Directory(
@@ -385,6 +411,7 @@ Map<String, Object?> buildPlanModeArchivedSuiteResult({
   final archivedToolLoopConvergence = _asObjectMap(
     archivedReport['toolLoopConvergence'],
   );
+  final archivedToolLifecycle = _asObjectMap(archivedReport['toolLifecycle']);
   final archivedWarningSummary = _asObjectMap(archivedReport['warningSummary']);
   final archivedApprovalPath =
       archivedReport['approvalPath'] as String? ?? planModeApprovalPathUnknown;
@@ -428,6 +455,7 @@ Map<String, Object?> buildPlanModeArchivedSuiteResult({
     'taskDrift': archivedTaskDrift,
     'taskDriftDetected': archivedTaskDrift['driftDetected'] as bool? ?? false,
     'toolLoopConvergence': archivedToolLoopConvergence,
+    'toolLifecycle': archivedToolLifecycle,
     'warnings': _asList(archivedReport['warnings']),
     'allowedWarnings': _asList(archivedReport['allowedWarnings']),
     'unexpectedWarnings': _asList(archivedReport['unexpectedWarnings']),

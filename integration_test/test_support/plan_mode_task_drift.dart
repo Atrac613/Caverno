@@ -1,5 +1,7 @@
 import 'dart:io';
 
+import 'plan_mode_scenario_spec.dart';
+
 const planModeTaskDriftSourceNone = 'none';
 const planModeTaskDriftSourceSavedTaskTargetFiles = 'savedTaskTargetFiles';
 const planModeTaskDriftSourceActualChangedFiles = 'actualChangedFiles';
@@ -130,6 +132,22 @@ PlanModeTaskDriftReport buildPlanModeScenarioTaskDriftReport({
   );
 }
 
+List<String> resolvePlanModeScenarioExpectedTaskDriftTargetFiles({
+  required PlanModeScenarioSpec scenario,
+  required List<String> savedTaskTargetFiles,
+}) {
+  if (scenario.harnessTaskExecutionLimit != null &&
+      savedTaskTargetFiles.isNotEmpty) {
+    return savedTaskTargetFiles;
+  }
+
+  final expectation = scenario.resolvedWorkflowExpectation;
+  if (expectation.targetFilesContain.isNotEmpty) {
+    return expectation.targetFilesContain;
+  }
+  return expectation.firstTaskTargetFilesContain;
+}
+
 List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
   if (!scenarioDir.existsSync()) {
     return const <String>[];
@@ -163,6 +181,7 @@ List<String> collectPlanModeScenarioChangedFiles(Directory scenarioDir) {
 bool isPlanModeScenarioHarnessArtifact(String normalizedPath) {
   return normalizedPath == 'scenario_report.json' ||
       normalizedPath == 'scenario_log.txt' ||
+      normalizedPath == 'heartbeat.json' ||
       normalizedPath == '.ds_store' ||
       normalizedPath.endsWith('/.ds_store') ||
       normalizedPath.endsWith('.png');

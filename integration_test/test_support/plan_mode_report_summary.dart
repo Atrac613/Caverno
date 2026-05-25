@@ -244,6 +244,96 @@ Map<String, Object> buildPlanModeSuiteToolLoopConvergenceSummary(
   };
 }
 
+Map<String, Object> buildPlanModeSuiteToolLifecycleSummary(
+  List<Map<String, Object?>> suiteResults,
+) {
+  var eventCount = 0;
+  var serviceExecutionCount = 0;
+  var toolCallCount = 0;
+  var completedCount = 0;
+  var skippedCount = 0;
+  var failedCount = 0;
+  var exceptionCount = 0;
+  var incompleteToolCount = 0;
+  var maxDurationMs = 0;
+  final scenarios = <Map<String, Object?>>[];
+  final observedToolNames = <String>{};
+
+  for (final result in suiteResults) {
+    final lifecycle = _asObjectMap(result['toolLifecycle']);
+    final scenarioEventCount = _asInt(lifecycle['eventCount']);
+    final scenarioServiceExecutionCount = _asInt(
+      lifecycle['serviceExecutionCount'],
+    );
+    if (scenarioEventCount <= 0 &&
+        scenarioServiceExecutionCount <= 0 &&
+        lifecycle['detected'] != true) {
+      continue;
+    }
+
+    final scenarioToolCallCount = _asInt(lifecycle['toolCallCount']);
+    final scenarioCompletedCount = _asInt(lifecycle['completedCount']);
+    final scenarioSkippedCount = _asInt(lifecycle['skippedCount']);
+    final scenarioFailedCount = _asInt(lifecycle['failedCount']);
+    final scenarioExceptionCount = _asInt(lifecycle['exceptionCount']);
+    final scenarioIncompleteToolCount = _asInt(
+      lifecycle['incompleteToolCount'],
+    );
+    final scenarioMaxDurationMs = _asInt(lifecycle['maxDurationMs']);
+
+    eventCount += scenarioEventCount;
+    serviceExecutionCount += scenarioServiceExecutionCount;
+    toolCallCount += scenarioToolCallCount;
+    completedCount += scenarioCompletedCount;
+    skippedCount += scenarioSkippedCount;
+    failedCount += scenarioFailedCount;
+    exceptionCount += scenarioExceptionCount;
+    incompleteToolCount += scenarioIncompleteToolCount;
+    if (scenarioMaxDurationMs > maxDurationMs) {
+      maxDurationMs = scenarioMaxDurationMs;
+    }
+    final scenarioObservedToolNames = _asList(
+      lifecycle['observedToolNames'],
+    ).map((toolName) => toolName.toString()).toList(growable: false);
+    observedToolNames.addAll(scenarioObservedToolNames);
+
+    scenarios.add(<String, Object?>{
+      'scenario': result['scenario']?.toString() ?? 'unknown',
+      'eventCount': scenarioEventCount,
+      'serviceExecutionCount': scenarioServiceExecutionCount,
+      'toolCallCount': scenarioToolCallCount,
+      'completedCount': scenarioCompletedCount,
+      'skippedCount': scenarioSkippedCount,
+      'failedCount': scenarioFailedCount,
+      'exceptionCount': scenarioExceptionCount,
+      'incompleteToolCount': scenarioIncompleteToolCount,
+      'maxDurationMs': scenarioMaxDurationMs,
+      'observedToolNames': scenarioObservedToolNames,
+      'incompleteTools': _asList(lifecycle['incompleteTools']),
+      'report': result['scenarioReport'],
+      'log': result['scenarioLog'],
+    });
+  }
+
+  final sortedObservedToolNames = observedToolNames.toList(growable: false)
+    ..sort();
+
+  return <String, Object>{
+    'detected': scenarios.length,
+    'eventCount': eventCount,
+    'serviceExecutionCount': serviceExecutionCount,
+    'toolCallCount': toolCallCount,
+    'completedCount': completedCount,
+    'skippedCount': skippedCount,
+    'failedCount': failedCount,
+    'exceptionCount': exceptionCount,
+    'incompleteToolCount': incompleteToolCount,
+    'maxDurationMs': maxDurationMs,
+    'observedToolNames': sortedObservedToolNames,
+    'scenarios': scenarios,
+  };
+}
+
 Map<String, Object> buildPlanModeSuiteExecutionPathSummary(
   List<Map<String, Object?>> suiteResults,
 ) {

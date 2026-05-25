@@ -64,6 +64,27 @@ void assertPlanModeSavedWorkflowExpectation({
       expect(firstTaskTargetFiles, contains(normalizedExpectedTarget));
     }
   }
+  if (expectation.targetFilesContain.isNotEmpty) {
+    final savedWorkflowTargetFiles = savedWorkflow.tasks
+        .expand((task) => task.targetFiles)
+        .map(_normalizeSavedWorkflowTargetPath)
+        .toSet();
+    for (final expectedTarget in expectation.targetFilesContain) {
+      final normalizedExpectedTarget = _normalizeSavedWorkflowTargetPath(
+        expectedTarget,
+      );
+      if (!savedWorkflowTargetFiles.contains(normalizedExpectedTarget) &&
+          allowArtifactExpectationFallback &&
+          _artifactExpectationFileExists(
+            scenarioDir,
+            artifactExpectations,
+            normalizedExpectedTarget,
+          )) {
+        continue;
+      }
+      expect(savedWorkflowTargetFiles, contains(normalizedExpectedTarget));
+    }
+  }
   for (final openQuestion in expectation.openQuestionsContain) {
     expect(savedWorkflow.openQuestions, contains(openQuestion));
   }

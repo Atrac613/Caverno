@@ -255,13 +255,13 @@ void main() {
     );
   });
 
-  test('uses a short post-scenario settle timeout for partial smoke', () {
+  test('gives live partial smoke enough post-scenario settle grace', () {
     expect(
       resolvePostScenarioSettleTimeout(
         usesLiveLlm: true,
         waitForExecutionCompletion: false,
       ),
-      const Duration(seconds: 5),
+      const Duration(seconds: 15),
     );
     expect(
       resolvePostScenarioSettleTimeout(

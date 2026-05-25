@@ -7,6 +7,7 @@ import 'plan_mode_report_summary.dart';
 import 'plan_mode_scenario_spec.dart';
 import 'plan_mode_screenshot_policy.dart';
 import 'plan_mode_task_drift.dart';
+import 'plan_mode_tool_lifecycle.dart';
 import 'plan_mode_tool_loop_convergence.dart';
 import 'plan_mode_warning_policy.dart';
 
@@ -47,6 +48,7 @@ List<String> filterPlanModeFailureCapturedLogs(List<String> logs) {
         (line) =>
             line.contains('[ScenarioLLM]') ||
             line.contains('[Tool]') ||
+            line.contains('[McpToolService]') ||
             line.contains('[LLM]') ||
             line.contains('[ContentTool]') ||
             line.contains('[Screenshot]') ||
@@ -117,16 +119,21 @@ Future<void> writePlanModeFailureScenarioArtifacts({
       phaseTrace.approvalTappedAt != null ||
       phaseTrace.firstTaskStartedAt != null ||
       phaseTrace.lastTaskProgressAt != null;
+  final savedTaskTargetFiles = resolvePlanModeFailureSavedTaskTargetFiles(
+    logs: logs,
+  );
   final taskDrift = buildPlanModeScenarioTaskDriftReport(
     expectedTargetFiles: shouldEvaluateTaskDrift
-        ? scenario.resolvedWorkflowExpectation.firstTaskTargetFilesContain
+        ? resolvePlanModeScenarioExpectedTaskDriftTargetFiles(
+            scenario: scenario,
+            savedTaskTargetFiles: savedTaskTargetFiles,
+          )
         : const <String>[],
-    savedTaskTargetFiles: resolvePlanModeFailureSavedTaskTargetFiles(
-      logs: logs,
-    ),
+    savedTaskTargetFiles: savedTaskTargetFiles,
     scenarioDir: scenarioDir,
   ).toJson();
   final toolLoopConvergence = buildPlanModeToolLoopConvergenceReport(logs);
+  final toolLifecycle = buildPlanModeToolLifecycleReport(logs);
 
   final report = <String, Object?>{
     'scenario': scenario.name,
@@ -147,6 +154,7 @@ Future<void> writePlanModeFailureScenarioArtifacts({
     'taskDrift': taskDrift,
     'taskDriftDetected': taskDrift['driftDetected'],
     'toolLoopConvergence': toolLoopConvergence,
+    'toolLifecycle': toolLifecycle,
     'phaseTimings': phaseTrace.toJson(),
     'budgets': budgets.toJson(),
     'lastHeartbeat': lastHeartbeat,

@@ -108,6 +108,7 @@ void main() {
     const logs = <String>[
       '[Workflow] Proposal approval UI bypassed by live harness',
       '[Tool] Executing tool: write_file',
+      '[Tool] Lifecycle {"toolCallId":"tool-write","toolName":"write_file","lifecycleState":"completed","loopIndex":1,"schedulerClass":"serial","resultStatus":"success","durationMs":8}',
       'plain debug noise',
     ];
 
@@ -142,7 +143,16 @@ void main() {
     expect(report['capturedLogs'], const <String>[
       '[Workflow] Proposal approval UI bypassed by live harness',
       '[Tool] Executing tool: write_file',
+      '[Tool] Lifecycle {"toolCallId":"tool-write","toolName":"write_file","lifecycleState":"completed","loopIndex":1,"schedulerClass":"serial","resultStatus":"success","durationMs":8}',
     ]);
+    expect(
+      report['toolLifecycle'],
+      allOf(
+        containsPair('eventCount', 1),
+        containsPair('completedCount', 1),
+        containsPair('maxDurationMs', 8),
+      ),
+    );
     expect(
       report['lastHeartbeat'],
       containsPair('activeTaskTitle', 'Create README'),

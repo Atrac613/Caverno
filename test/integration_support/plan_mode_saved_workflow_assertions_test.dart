@@ -78,6 +78,35 @@ void main() {
     );
   });
 
+  test('accepts target files across saved workflow tasks', () {
+    final savedWorkflow = _workflowSpec(
+      tasks: const <ConversationWorkflowTask>[
+        ConversationWorkflowTask(
+          id: 'task-1',
+          title: 'Create requirements',
+          targetFiles: <String>['requirements.txt'],
+        ),
+        ConversationWorkflowTask(
+          id: 'task-2',
+          title: 'Create documentation',
+          targetFiles: <String>['README.md'],
+        ),
+      ],
+    );
+
+    assertPlanModeSavedWorkflowExpectation(
+      conversation: _conversation(),
+      savedWorkflow: savedWorkflow,
+      expectation: const PlanModeSavedWorkflowExpectation(
+        minTaskCount: 2,
+        targetFilesContain: <String>['requirements.txt', 'README.md'],
+      ),
+      scenarioDir: tempDir,
+      artifactExpectations: const <PlanModeArtifactExpectation>[],
+      allowArtifactExpectationFallback: false,
+    );
+  });
+
   test('reports saved workflow task count mismatches with task titles', () {
     final savedWorkflow = _workflowSpec(
       tasks: const <ConversationWorkflowTask>[

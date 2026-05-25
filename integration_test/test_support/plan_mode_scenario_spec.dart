@@ -68,6 +68,7 @@ class PlanModeSavedWorkflowExpectation {
     this.minTaskCount,
     this.firstTaskTitle,
     this.firstTaskTargetFilesContain = const <String>[],
+    this.targetFilesContain = const <String>[],
     this.openQuestionsContain = const <String>[],
   });
 
@@ -77,6 +78,7 @@ class PlanModeSavedWorkflowExpectation {
   final int? minTaskCount;
   final String? firstTaskTitle;
   final List<String> firstTaskTargetFilesContain;
+  final List<String> targetFilesContain;
   final List<String> openQuestionsContain;
 }
 
@@ -130,6 +132,8 @@ class PlanModeArtifactExpectation {
   final List<String> contains;
   final List<String> absentSnippets;
 }
+
+enum PlanModeArtifactExpectationMode { all, anyRequired }
 
 class PlanModeLogExpectation {
   const PlanModeLogExpectation({
@@ -278,6 +282,7 @@ class PlanModeScenarioSpec {
     this.decisionSelections = const <PlanModeScenarioDecisionSelection>[],
     this.uiExpectations = const <PlanModeUiExpectation>[],
     this.artifactExpectations = const <PlanModeArtifactExpectation>[],
+    this.artifactExpectationMode = PlanModeArtifactExpectationMode.all,
     this.logExpectations = const <PlanModeLogExpectation>[],
     this.savedWorkflowExpectation,
     this.toolOverrides = const <PlanModeScenarioToolOverrideSpec>[],
@@ -302,6 +307,7 @@ class PlanModeScenarioSpec {
   final List<PlanModeScenarioDecisionSelection> decisionSelections;
   final List<PlanModeUiExpectation> uiExpectations;
   final List<PlanModeArtifactExpectation> artifactExpectations;
+  final PlanModeArtifactExpectationMode artifactExpectationMode;
   final List<PlanModeLogExpectation> logExpectations;
   final PlanModeSavedWorkflowExpectation? savedWorkflowExpectation;
   final List<PlanModeScenarioToolOverrideSpec> toolOverrides;
@@ -1496,11 +1502,12 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         PlanModeArtifactExpectation(path: 'requirements.txt'),
         PlanModeArtifactExpectation(path: 'README.md'),
       ],
+      artifactExpectationMode: PlanModeArtifactExpectationMode.anyRequired,
       planningProposalTimeout: const Duration(minutes: 3),
       harnessTaskExecutionLimit: 1,
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
         minTaskCount: 2,
-        firstTaskTargetFilesContain: <String>['requirements.txt', 'README.md'],
+        targetFilesContain: <String>['requirements.txt', 'README.md'],
       ),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
@@ -1509,6 +1516,15 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationSuccessPattern,
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Harness stopped after reaching task execution limit: 1',
           minCount: 1,
         ),
       ],
@@ -1553,6 +1569,7 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         '[Workflow] Workflow proposal recovered on retry',
       ],
       planningProposalTimeout: const Duration(minutes: 3),
+      harnessTaskExecutionLimit: 2,
       savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(),
       logExpectations: const <PlanModeLogExpectation>[
         PlanModeLogExpectation(
@@ -1561,6 +1578,15 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
         ),
         PlanModeLogExpectation(
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationSuccessPattern,
+          minCount: 2,
+        ),
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Harness stopped after reaching task execution limit: 2',
           minCount: 1,
         ),
       ],
@@ -1737,8 +1763,18 @@ List<PlanModeScenarioSpec> buildLivePlanModeScenarios() {
           pattern: '[LLM] ========== streamChatCompletionWithTools ==========',
           minCount: 1,
         ),
+        PlanModeLogExpectation(
+          pattern: planModeSavedValidationSuccessPattern,
+          minCount: 1,
+        ),
+        PlanModeLogExpectation(
+          pattern:
+              '[Workflow] Harness stopped after reaching task execution limit: 1',
+          minCount: 1,
+        ),
       ],
       planningProposalTimeout: const Duration(minutes: 3),
+      harnessTaskExecutionLimit: 1,
       allowedWarningPatterns: const <String>[
         '[Workflow] Workflow proposal parse failed',
         '[Workflow] Workflow proposal recovered on retry',

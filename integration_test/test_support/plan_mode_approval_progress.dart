@@ -115,7 +115,9 @@ Duration resolvePostScenarioSettleTimeout({
   required bool waitForExecutionCompletion,
 }) {
   if (!waitForExecutionCompletion) {
-    return const Duration(seconds: 5);
+    return usesLiveLlm
+        ? const Duration(seconds: 15)
+        : const Duration(seconds: 5);
   }
   return usesLiveLlm ? const Duration(seconds: 60) : const Duration(seconds: 5);
 }

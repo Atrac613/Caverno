@@ -143,11 +143,12 @@ Future<_ScenarioRunResult> _runScenario({
   required Directory scenarioDir,
   required PlanModePhaseTrace phaseTrace,
   required PlanModeTimeoutBudgets budgets,
+  required String heartbeatPath,
   required PlanModePlanningReadyObserver planningReadyObserver,
 }) async {
   final heartbeatWriter = PlanModeLiveHeartbeatWriter(
     scenarioName: scenario.name,
-    path: resolvePlanModeLiveHeartbeatPath(),
+    path: heartbeatPath,
   );
   final project = CodingProject(
     id: 'project-${scenario.name}',
@@ -402,6 +403,7 @@ Future<_ScenarioRunResult> _runScenario({
   await waitForPlanModeArtifactExpectations(
     scenarioDir,
     scenario.resolvedArtifactExpectations,
+    mode: scenario.artifactExpectationMode,
     timeout: config.usesLiveLlm
         ? const Duration(seconds: 30)
         : const Duration(seconds: 5),
@@ -411,41 +413,51 @@ Future<_ScenarioRunResult> _runScenario({
   if (!config.usesLiveLlm) {
     await pumpPlanModeUntilIdle(tester);
   }
-  await awaitPlanModeHarnessExecutionCleanup(
-    harnessExecutionHandle,
-    scenarioName: scenario.name,
-    timeout: resolvePlanModeHarnessCleanupTimeout(
-      usesLiveLlm: config.usesLiveLlm,
-      budgets: budgets,
-    ),
-  );
-  await waitForPlanModeLogExpectationLowerBounds(
-    tester,
-    logs,
-    scenario.logExpectations,
-    timeout: config.usesLiveLlm
-        ? const Duration(seconds: 60)
-        : const Duration(seconds: 5),
-    useFramePump: !config.usesLiveLlm,
-  );
-  final postScenarioSettle = await settlePlanModePostScenarioExecution(
-    tester,
-    container,
-    timeout: resolvePostScenarioSettleTimeout(
-      usesLiveLlm: config.usesLiveLlm,
+  late final PlanModePostScenarioSettleResult postScenarioSettle;
+  try {
+    final logExpectationsReady = await waitForPlanModeLogExpectationLowerBounds(
+      tester,
+      logs,
+      scenario.logExpectations,
+      timeout: config.usesLiveLlm
+          ? const Duration(minutes: 3)
+          : const Duration(seconds: 5),
+      useFramePump: !config.usesLiveLlm,
+    );
+    if (!logExpectationsReady) {
+      throw StateError(
+        'Scenario log expectations were not satisfied before post-scenario settle.',
+      );
+    }
+    postScenarioSettle = await settlePlanModePostScenarioExecution(
+      tester,
+      container,
+      timeout: resolvePostScenarioSettleTimeout(
+        usesLiveLlm: config.usesLiveLlm,
+        waitForExecutionCompletion: scenario.waitForExecutionCompletion,
+      ),
       waitForExecutionCompletion: scenario.waitForExecutionCompletion,
-    ),
-    waitForExecutionCompletion: scenario.waitForExecutionCompletion,
-    logs: logs,
-    phaseTrace: phaseTrace,
-    budgets: budgets,
-    heartbeatWriter: heartbeatWriter,
-    useFramePump: !config.usesLiveLlm,
-  );
+      logs: logs,
+      phaseTrace: phaseTrace,
+      budgets: budgets,
+      heartbeatWriter: heartbeatWriter,
+      useFramePump: !config.usesLiveLlm,
+    );
+  } finally {
+    await awaitPlanModeHarnessExecutionCleanup(
+      harnessExecutionHandle,
+      scenarioName: scenario.name,
+      timeout: resolvePlanModeHarnessCleanupTimeout(
+        usesLiveLlm: config.usesLiveLlm,
+        budgets: budgets,
+      ),
+    );
+  }
 
   assertPlanModeArtifactExpectations(
     scenarioDir,
     scenario.resolvedArtifactExpectations,
+    mode: scenario.artifactExpectationMode,
   );
 
   assertPlanModeUiExpectations(
@@ -510,6 +522,7 @@ Future<_ScenarioRunResult> _runScenario({
     postScenarioSettle: postScenarioSettle,
     phaseTrace: phaseTrace,
     budgets: budgets,
+    heartbeatPath: heartbeatPath,
   );
   writePlanModeCompletedScenarioHeartbeat(
     conversation: conversation,
@@ -619,6 +632,9 @@ void main() {
         final scenarioDir = await Directory.systemTemp.createTemp(
           'caverno_plan_mode_${scenario.name}_',
         );
+        final heartbeatPath =
+            resolvePlanModeLiveHeartbeatPath() ??
+            '${scenarioDir.path}/heartbeat.json';
         final phaseTrace = PlanModePhaseTrace();
         final budgets = PlanModeTimeoutBudgets(
           planningTimeout: resolvePlanModePlanningProposalTimeout(scenario),
@@ -641,6 +657,7 @@ void main() {
             scenarioDir: scenarioDir,
             phaseTrace: phaseTrace,
             budgets: budgets,
+            heartbeatPath: heartbeatPath,
             planningReadyObserver: planningReadyObserver,
           );
           runResult = await scenarioRun.timeout(
@@ -671,6 +688,7 @@ void main() {
             logs: logs,
             phaseTrace: phaseTrace,
             budgets: budgets,
+            heartbeatPath: heartbeatPath,
             failure: failure,
             failureStackTrace: failureStackTrace,
           );

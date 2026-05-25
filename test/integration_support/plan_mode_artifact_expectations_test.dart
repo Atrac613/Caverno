@@ -61,6 +61,38 @@ void main() {
     );
   });
 
+  test('allows any required artifact mode', () {
+    File(
+      '${tempDir.path}/requirements.txt',
+    ).writeAsStringSync('# No external dependencies required.\n');
+
+    assertPlanModeArtifactExpectations(
+      tempDir,
+      const <PlanModeArtifactExpectation>[
+        PlanModeArtifactExpectation(
+          path: 'requirements.txt',
+          contains: <String>['No external dependencies'],
+        ),
+        PlanModeArtifactExpectation(path: 'README.md'),
+      ],
+      mode: PlanModeArtifactExpectationMode.anyRequired,
+    );
+  });
+
+  test('fails any required artifact mode when no candidate exists', () {
+    expect(
+      () => assertPlanModeArtifactExpectations(
+        tempDir,
+        const <PlanModeArtifactExpectation>[
+          PlanModeArtifactExpectation(path: 'requirements.txt'),
+          PlanModeArtifactExpectation(path: 'README.md'),
+        ],
+        mode: PlanModeArtifactExpectationMode.anyRequired,
+      ),
+      throwsA(anything),
+    );
+  });
+
   test('waits until required artifacts appear without frame pumping', () async {
     unawaited(
       Future<void>.delayed(const Duration(milliseconds: 20), () {
@@ -80,6 +112,33 @@ void main() {
 
     expect(File('${tempDir.path}/README.md').existsSync(), isTrue);
   });
+
+  test(
+    'waits until any required artifact appears without frame pumping',
+    () async {
+      unawaited(
+        Future<void>.delayed(const Duration(milliseconds: 20), () {
+          File(
+            '${tempDir.path}/requirements.txt',
+          ).writeAsStringSync('# Deps\n');
+        }),
+      );
+
+      await waitForPlanModeArtifactExpectations(
+        tempDir,
+        const <PlanModeArtifactExpectation>[
+          PlanModeArtifactExpectation(path: 'requirements.txt'),
+          PlanModeArtifactExpectation(path: 'README.md'),
+        ],
+        mode: PlanModeArtifactExpectationMode.anyRequired,
+        timeout: const Duration(seconds: 1),
+        pollInterval: const Duration(milliseconds: 10),
+        useFramePump: false,
+      );
+
+      expect(File('${tempDir.path}/requirements.txt').existsSync(), isTrue);
+    },
+  );
 
   test('does not wait for artifacts expected to be absent', () async {
     final startedAt = DateTime.now();

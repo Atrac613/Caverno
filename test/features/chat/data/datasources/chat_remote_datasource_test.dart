@@ -1,4 +1,6 @@
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
+import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {
@@ -106,5 +108,83 @@ void main() {
     ]);
 
     expect(count, 1);
+  });
+
+  test('summarizes available tools without schema details by default', () {
+    final logs = <String>[];
+    final previousDebugPrint = debugPrint;
+    debugPrint = (String? message, {int? wrapWidth}) {
+      if (message != null) {
+        logs.add(message);
+      }
+    };
+    addTearDown(() {
+      debugPrint = previousDebugPrint;
+    });
+
+    dataSource.streamChatCompletionWithTools(
+      messages: [
+        Message(
+          id: 'message-1',
+          content: 'What time is it?',
+          role: MessageRole.user,
+          timestamp: DateTime(2026),
+        ),
+      ],
+      tools: const [
+        {
+          'type': 'function',
+          'function': {
+            'name': 'get_current_datetime',
+            'description': 'Returns the current local date/time.',
+            'parameters': {'type': 'object', 'properties': {}},
+          },
+        },
+        {
+          'type': 'function',
+          'function': {
+            'name': 'search_past_conversations',
+            'description': 'Search past conversation history.',
+            'parameters': {
+              'type': 'object',
+              'properties': {
+                'query': {'type': 'string'},
+              },
+            },
+          },
+        },
+      ],
+    );
+
+    expect(
+      logs,
+      contains(
+        '[LLM] Tools available: 2 '
+        '(get_current_datetime, search_past_conversations)',
+      ),
+    );
+    expect(logs.join('\n'), isNot(contains('[LLM] === Tool Schemas ===')));
+    expect(logs.join('\n'), isNot(contains('[LLM]     params:')));
+  });
+
+  test('truncates large tool summaries', () {
+    final tools = List.generate(
+      14,
+      (index) => {
+        'type': 'function',
+        'function': {
+          'name': 'tool_$index',
+          'description': 'Tool $index',
+          'parameters': {'type': 'object'},
+        },
+      },
+    );
+
+    expect(
+      dataSource.formatToolLogSummaryForTest(tools),
+      '[LLM] Tools available: 14 '
+      '(tool_0, tool_1, tool_2, tool_3, tool_4, tool_5, tool_6, tool_7, '
+      'tool_8, tool_9, tool_10, tool_11, +2 more)',
+    );
   });
 }

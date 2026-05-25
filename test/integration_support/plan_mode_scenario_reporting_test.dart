@@ -12,6 +12,7 @@ import '../../integration_test/test_support/plan_mode_post_scenario_settle.dart'
 import '../../integration_test/test_support/plan_mode_report_summary.dart';
 import '../../integration_test/test_support/plan_mode_scenario_reporting.dart';
 import '../../integration_test/test_support/plan_mode_scenario_spec.dart';
+import '../../integration_test/test_support/plan_mode_task_drift.dart';
 import '../../integration_test/test_support/plan_mode_warning_policy.dart';
 
 void main() {
@@ -27,9 +28,18 @@ void main() {
         final scenario = _scenario();
         final savedWorkflow = _workflowSpec();
         final conversation = _conversation(savedWorkflow);
+        final heartbeatPath = '${tempDir.path}/heartbeat.json';
+        File(heartbeatPath).writeAsStringSync(
+          jsonEncode(<String, Object?>{
+            'scenario': 'report_case',
+            'phase': 'completed',
+            'subphase': 'scenarioCompleted',
+          }),
+        );
         final logs = <String>[
           '[Workflow] Task proposal ready',
           '[Tool] Executing tool: write_file',
+          '[Tool] Lifecycle {"toolCallId":"tool-write","toolName":"write_file","lifecycleState":"completed","loopIndex":1,"schedulerClass":"serial","resultStatus":"success","durationMs":7}',
           '[Screenshot] Saved completed screenshot',
         ];
 
@@ -54,6 +64,7 @@ void main() {
           ),
           phaseTrace: PlanModePhaseTrace(),
           budgets: _budgets(),
+          heartbeatPath: heartbeatPath,
         );
 
         final report =
@@ -68,6 +79,18 @@ void main() {
         );
         expect(report['taskDriftDetected'], isFalse);
         expect(report['diagnostics'], containsPair('budgetPhase', 'completed'));
+        expect(
+          report['lastHeartbeat'],
+          containsPair('subphase', 'scenarioCompleted'),
+        );
+        expect(
+          report['toolLifecycle'],
+          allOf(
+            containsPair('eventCount', 1),
+            containsPair('completedCount', 1),
+            containsPair('maxDurationMs', 7),
+          ),
+        );
         expect(
           report['capturedLogs'],
           isNot(contains('[Workflow] Task proposal ready')),
@@ -105,6 +128,10 @@ void main() {
           },
           'taskDrift': <String, Object?>{'driftDetected': true},
           'toolLoopConvergence': <String, Object?>{'status': 'natural_stop'},
+          'toolLifecycle': <String, Object?>{
+            'eventCount': 1,
+            'toolCallCount': 1,
+          },
           'warnings': <String>['warning'],
           'allowedWarnings': <String>[],
           'unexpectedWarnings': <String>['warning'],
@@ -132,6 +159,7 @@ void main() {
       expect(result['lastKnownPhase'], 'completed');
       expect(result['activeTaskTitle'], 'Write README');
       expect(result['taskDriftDetected'], isTrue);
+      expect(result['toolLifecycle'], containsPair('toolCallCount', 1));
       expect(result['usedHarnessApprovalFallback'], isTrue);
       expect(result['unexpectedWarnings'], <Object?>['warning']);
       expect(result['warningDetails'], hasLength(1));
@@ -169,6 +197,29 @@ void main() {
         );
       },
     );
+
+    test('collects only present artifacts in any required mode', () async {
+      final tempDir = await Directory.systemTemp.createTemp(
+        'plan_mode_scenario_reporting_test_',
+      );
+      try {
+        File('${tempDir.path}/requirements.txt').writeAsStringSync('ping3\n');
+
+        expect(
+          collectPlanModeScenarioArtifactContents(
+            scenarioDir: tempDir,
+            expectations: const <PlanModeArtifactExpectation>[
+              PlanModeArtifactExpectation(path: 'requirements.txt'),
+              PlanModeArtifactExpectation(path: 'README.md'),
+            ],
+            mode: PlanModeArtifactExpectationMode.anyRequired,
+          ),
+          const <String, String>{'requirements.txt': 'ping3\n'},
+        );
+      } finally {
+        await tempDir.delete(recursive: true);
+      }
+    });
 
     test('uses started task targets for auto-continued execution', () {
       final savedWorkflow = const ConversationWorkflowSpec(
@@ -252,6 +303,30 @@ void main() {
         );
       },
     );
+
+    test('uses started targets for limited harness task drift', () {
+      final scenario = PlanModeScenarioSpec(
+        name: 'limited_live',
+        userPrompt: 'Create requirements.txt and README.md.',
+        projectName: 'Host Health',
+        workflowResponses: const <PlanModeWorkflowResponseSpec>[],
+        taskProposal: const <PlanModeScenarioTaskSpec>[],
+        toolWrites: const <PlanModeScenarioToolWriteSpec>[],
+        continuationStreams: const <String>[],
+        harnessTaskExecutionLimit: 1,
+        savedWorkflowExpectation: const PlanModeSavedWorkflowExpectation(
+          targetFilesContain: <String>['requirements.txt', 'README.md'],
+        ),
+      );
+
+      expect(
+        resolvePlanModeScenarioExpectedTaskDriftTargetFiles(
+          scenario: scenario,
+          savedTaskTargetFiles: const <String>['requirements.txt'],
+        ),
+        const <String>['requirements.txt'],
+      );
+    });
   });
 }
 

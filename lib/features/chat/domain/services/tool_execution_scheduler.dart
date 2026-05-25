@@ -3,6 +3,8 @@ import '../entities/tool_call_info.dart';
 
 enum ToolExecutionBatchMode { serial, parallelFileRead, parallelNetworkRead }
 
+enum ToolExecutionLifecycleState { queued, started, completed }
+
 class ToolExecutionBatchTelemetry {
   const ToolExecutionBatchTelemetry({
     required this.mode,
@@ -15,6 +17,22 @@ class ToolExecutionBatchTelemetry {
   final String? note;
 
   int get batchSize => toolNames.length;
+}
+
+class ToolExecutionLifecycleEvent {
+  const ToolExecutionLifecycleEvent({
+    required this.toolCall,
+    required this.state,
+    required this.schedulerMode,
+    this.resultStatus,
+    this.durationMs,
+  });
+
+  final ToolCallInfo toolCall;
+  final ToolExecutionLifecycleState state;
+  final ToolExecutionBatchMode schedulerMode;
+  final String? resultStatus;
+  final int? durationMs;
 }
 
 class ScheduledToolExecutionResult {
@@ -77,6 +95,7 @@ class ToolExecutionScheduler {
     required List<ToolCallInfo> toolCalls,
     required Future<McpToolResult> Function(ToolCallInfo toolCall) execute,
     void Function(ToolExecutionBatchTelemetry telemetry)? onBatch,
+    void Function(ToolExecutionLifecycleEvent event)? onLifecycle,
   }) async {
     if (toolCalls.isEmpty) {
       return const [];
@@ -119,8 +138,20 @@ class ToolExecutionScheduler {
         }
         parallelBatchMode ??= executionMode;
         parallelBatchNames.add(toolCall.name);
+        onLifecycle?.call(
+          ToolExecutionLifecycleEvent(
+            toolCall: toolCall,
+            state: ToolExecutionLifecycleState.queued,
+            schedulerMode: executionMode,
+          ),
+        );
         parallelBatch.add(
-          _execute(toolCall, execute).then((value) {
+          _execute(
+            toolCall,
+            execute,
+            executionMode: executionMode,
+            onLifecycle: onLifecycle,
+          ).then((value) {
             orderedResults[index] = value;
           }),
         );
@@ -128,7 +159,19 @@ class ToolExecutionScheduler {
       }
 
       await flushParallelBatch(note: 'serial fallback');
-      orderedResults[index] = await _execute(toolCall, execute);
+      onLifecycle?.call(
+        ToolExecutionLifecycleEvent(
+          toolCall: toolCall,
+          state: ToolExecutionLifecycleState.queued,
+          schedulerMode: executionMode,
+        ),
+      );
+      orderedResults[index] = await _execute(
+        toolCall,
+        execute,
+        executionMode: executionMode,
+        onLifecycle: onLifecycle,
+      );
       onBatch?.call(
         ToolExecutionBatchTelemetry(
           mode: ToolExecutionBatchMode.serial,
@@ -144,16 +187,46 @@ class ToolExecutionScheduler {
 
   static Future<ScheduledToolExecutionResult> _execute(
     ToolCallInfo toolCall,
-    Future<McpToolResult> Function(ToolCallInfo toolCall) execute,
-  ) async {
+    Future<McpToolResult> Function(ToolCallInfo toolCall) execute, {
+    required ToolExecutionBatchMode executionMode,
+    void Function(ToolExecutionLifecycleEvent event)? onLifecycle,
+  }) async {
+    final stopwatch = Stopwatch()..start();
+    onLifecycle?.call(
+      ToolExecutionLifecycleEvent(
+        toolCall: toolCall,
+        state: ToolExecutionLifecycleState.started,
+        schedulerMode: executionMode,
+      ),
+    );
     try {
       final result = await execute(toolCall);
+      stopwatch.stop();
+      onLifecycle?.call(
+        ToolExecutionLifecycleEvent(
+          toolCall: toolCall,
+          state: ToolExecutionLifecycleState.completed,
+          schedulerMode: executionMode,
+          resultStatus: result.isSuccess ? 'success' : 'tool_failure',
+          durationMs: stopwatch.elapsedMilliseconds,
+        ),
+      );
       return ScheduledToolExecutionResult(
         toolCall: toolCall,
         result: result,
         error: null,
       );
     } catch (error) {
+      stopwatch.stop();
+      onLifecycle?.call(
+        ToolExecutionLifecycleEvent(
+          toolCall: toolCall,
+          state: ToolExecutionLifecycleState.completed,
+          schedulerMode: executionMode,
+          resultStatus: 'exception',
+          durationMs: stopwatch.elapsedMilliseconds,
+        ),
+      );
       return ScheduledToolExecutionResult(
         toolCall: toolCall,
         result: null,

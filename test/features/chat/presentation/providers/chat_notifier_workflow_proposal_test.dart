@@ -248,6 +248,26 @@ void main() {
     expect(decisions, isEmpty);
   });
 
+  test('keeps open questions non-blocking after a planning answer', () {
+    final decisions = notifier.promoteOpenQuestionsForTest(
+      [
+        'Should the health checker be a single script or a modular package?',
+        'Are timestamps required in the JSON report?',
+      ],
+      decisionAnswers: const [
+        WorkflowPlanningDecisionAnswer(
+          decisionId: 'report-format',
+          question:
+              'Which reporting format should be used for the initial implementation?',
+          optionId: 'json',
+          optionLabel: 'JSON Report',
+        ),
+      ],
+    );
+
+    expect(decisions, isEmpty);
+  });
+
   test(
     'parses workflow proposal json payloads with localized stage values',
     () {

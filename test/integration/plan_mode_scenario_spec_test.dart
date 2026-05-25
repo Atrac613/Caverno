@@ -90,13 +90,34 @@ void main() {
 
     expect(scenario.harnessTaskExecutionLimit, 1);
     expect(
-      scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
-      contains('requirements.txt'),
+      scenario.artifactExpectationMode,
+      PlanModeArtifactExpectationMode.anyRequired,
     );
     expect(
       scenario.savedWorkflowExpectation!.firstTaskTargetFilesContain,
+      isEmpty,
+    );
+    expect(
+      scenario.savedWorkflowExpectation!.targetFilesContain,
+      contains('requirements.txt'),
+    );
+    expect(
+      scenario.savedWorkflowExpectation!.targetFilesContain,
       contains('README.md'),
     );
+  });
+
+  test('live smoke decision scenarios keep explicit execution limits', () {
+    final scenarios = buildLivePlanModeScenarios();
+    final decisionScenario = scenarios.firstWhere(
+      (item) => item.name == 'live_cli_entrypoint_decision',
+    );
+    final clarifyScenario = scenarios.firstWhere(
+      (item) => item.name == 'live_clarify_recovery',
+    );
+
+    expect(decisionScenario.harnessTaskExecutionLimit, 2);
+    expect(clarifyScenario.harnessTaskExecutionLimit, 1);
   });
 
   test('PM10 canary candidates keep promotion evidence explicit', () {

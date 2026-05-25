@@ -2,6 +2,7 @@ import 'package:flutter_test/flutter_test.dart';
 
 import '../../integration_test/test_support/plan_mode_scenario_config.dart';
 import '../../integration_test/test_support/plan_mode_scenario_spec.dart';
+import '../../integration_test/test_support/plan_mode_tool_loop_convergence.dart';
 
 void main() {
   group('plan mode scenario config', () {
@@ -127,7 +128,58 @@ void main() {
         scenario.planningProposalTimeout,
       );
     });
+
+    test('live smoke scenarios wait for harness task completion logs', () {
+      final scenarios = {
+        for (final scenario in buildLivePlanModeScenarios())
+          scenario.name: scenario,
+      };
+
+      expect(
+        _minLogCount(
+          scenarios['live_host_health_scaffold']!,
+          planModeSavedValidationSuccessPattern,
+        ),
+        1,
+      );
+      expect(
+        _minLogCount(
+          scenarios['live_cli_entrypoint_decision']!,
+          planModeSavedValidationSuccessPattern,
+        ),
+        2,
+      );
+      expect(
+        _minLogCount(
+          scenarios['live_clarify_recovery']!,
+          planModeSavedValidationSuccessPattern,
+        ),
+        1,
+      );
+      expect(
+        _hasLogPattern(
+          scenarios['live_cli_entrypoint_decision']!,
+          '[Workflow] Harness stopped after reaching task execution limit: 2',
+        ),
+        isTrue,
+      );
+    });
   });
+}
+
+int? _minLogCount(PlanModeScenarioSpec scenario, String pattern) {
+  for (final expectation in scenario.logExpectations) {
+    if (expectation.pattern == pattern) {
+      return expectation.minCount;
+    }
+  }
+  return null;
+}
+
+bool _hasLogPattern(PlanModeScenarioSpec scenario, String pattern) {
+  return scenario.logExpectations.any(
+    (expectation) => expectation.pattern == pattern,
+  );
 }
 
 PlanModeScenarioSpec _scenario(

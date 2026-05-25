@@ -59,6 +59,30 @@ void main() {
           'guardPattern':
               '[Tool] Ignoring follow-up tool calls after saved validation success',
         },
+        'toolLifecycle': const <String, Object?>{
+          'detected': true,
+          'eventCount': 5,
+          'serviceExecutionCount': 3,
+          'toolCallCount': 2,
+          'completedCount': 1,
+          'skippedCount': 1,
+          'failedCount': 0,
+          'exceptionCount': 0,
+          'incompleteToolCount': 1,
+          'maxDurationMs': 17,
+          'incompleteTools': <Map<String, Object?>>[
+            <String, Object?>{
+              'toolCallId': 'tool-pending',
+              'toolName': 'http_status',
+              'lastState': 'started',
+            },
+          ],
+          'observedToolNames': <String>[
+            'find_files',
+            'http_status',
+            'write_file',
+          ],
+        },
         'screenshots': const <String>[],
         'scenarioReport': '/tmp/caverno reports/live/report.json',
         'scenarioLog': '/tmp/caverno reports/live/scenario_log.txt',
@@ -113,6 +137,15 @@ void main() {
         report['toolLoopConvergenceSummary'],
         containsPair('successfulValidations', 1),
       );
+      expect(report['toolLifecycleSummary'], containsPair('eventCount', 5));
+      expect(
+        report['toolLifecycleSummary'],
+        containsPair('serviceExecutionCount', 3),
+      );
+      expect(
+        report['toolLifecycleSummary'],
+        containsPair('incompleteToolCount', 1),
+      );
       expect(
         report['executionPathSummary'],
         containsPair('liveHarnessApprovalFallback', 1),
@@ -149,9 +182,16 @@ void main() {
           '- Tool-loop convergence: 1 validation(s), 1 activation(s) and 0 natural stop(s) across 1 scenario(s)',
         ),
       );
+      expect(
+        markdown,
+        contains(
+          '- Tool lifecycle: 5 event(s), 3 service execution(s), 1 completed, 0 failed, 1 skipped, 1 incomplete across 1 scenario(s)',
+        ),
+      );
       expect(markdown, contains('## Task Drift'));
       expect(markdown, contains('## Report Quality Gate'));
       expect(markdown, contains('## Tool-Loop Convergence'));
+      expect(markdown, contains('## Tool Lifecycle'));
       expect(markdown, contains('requirements.txt'));
       expect(markdown, contains('## Unexpected Warnings'));
       expect(markdown, contains('requiresInvestigation'));
@@ -194,6 +234,13 @@ void main() {
       expect(junit, contains('toolLoopConvergenceSuccessfulValidations=1'));
       expect(junit, contains('toolLoopConvergenceGuardActivations=1'));
       expect(junit, contains('toolLoopConvergenceNaturalStops=0'));
+      expect(junit, contains('toolLifecycleEvents=5'));
+      expect(junit, contains('toolLifecycleServiceExecutions=3'));
+      expect(junit, contains('toolLifecycleToolCalls=2'));
+      expect(junit, contains('toolLifecycleCompleted=1'));
+      expect(junit, contains('toolLifecycleSkipped=1'));
+      expect(junit, contains('toolLifecycleFailed=0'));
+      expect(junit, contains('toolLifecycleIncomplete=1'));
     });
 
     test('writes suite reports to run and latest artifact paths', () async {
