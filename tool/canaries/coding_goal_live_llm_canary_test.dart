@@ -36,6 +36,10 @@ const _multiTurnFirstMarker = 'CODING_GOAL_MULTI_TURN_STEP_ONE';
 const _multiTurnSecondMarker = 'CODING_GOAL_MULTI_TURN_STEP_TWO';
 const _budgetFirstMarker = 'CODING_GOAL_BUDGET_STEP_ONE';
 const _budgetExhaustedMarker = 'CODING_GOAL_BUDGET_EXHAUSTED_OK';
+const _afterCompleteMarker = 'CODING_GOAL_AFTER_COMPLETE_OK';
+const _negativeCompletionMarker = 'CODING_GOAL_NOT_COMPLETE_OK';
+const _disabledGoalMarker = 'CODING_GOAL_DISABLED_SHOULD_NOT_APPEAR';
+const _disabledPromptMarker = 'CODING_GOAL_DISABLED_LIVE_OK';
 
 void main() {
   final liveEnabled =
@@ -110,6 +114,36 @@ void main() {
         expect(goal?.status, ConversationGoalStatus.completed);
         expect(goal?.turnsUsed, 1);
         expect(goal?.completedAt, isNotNull);
+
+        await notifier.sendMessage(
+          'The prior active goal is already complete. Reply with exactly '
+          '$_afterCompleteMarker and no extra text.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container, expectedAssistantCount: 2);
+
+        final completedPrompt = dataSource.systemPrompts.last;
+        expect(
+          completedPrompt,
+          isNot(contains('Active coding goal for this thread:')),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          completedPrompt,
+          isNot(contains(_goalMarker)),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_afterCompleteMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        final goalAfterCompletedTurn = _currentGoal(container);
+        expect(
+          goalAfterCompletedTurn?.status,
+          ConversationGoalStatus.completed,
+        );
+        expect(goalAfterCompletedTurn?.turnsUsed, 1);
       } finally {
         container.dispose();
       }
@@ -208,6 +242,65 @@ void main() {
   );
 
   test(
+    'live LLM negative completion evidence does not auto-complete the coding goal',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(env, dataSource);
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-live-canary-negative-completion',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'Reply with $_negativeCompletionMarker and the sentence '
+              '"Not complete. Tests did not pass." Do not claim completion.',
+          enabled: true,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 2000,
+          turnBudget: 3,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Run the negative completion canary. Follow the active goal exactly.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        expect(
+          dataSource.firstSystemPrompt,
+          contains(_negativeCompletionMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_negativeCompletionMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        final goal = _currentGoal(container);
+        expect(goal?.status, ConversationGoalStatus.active);
+        expect(goal?.turnsUsed, 1);
+        expect(goal?.completedAt, isNull);
+        expect(goal?.blockerRepeatCount, 0);
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+
+  test(
     'live LLM repeated blocker output auto-blocks the coding goal',
     () async {
       final env = _CodingGoalLiveEnv.fromEnvironment();
@@ -270,6 +363,70 @@ void main() {
         ? false
         : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 8)),
+  );
+
+  test(
+    'live LLM does not receive disabled coding goals',
+    () async {
+      final env = _CodingGoalLiveEnv.fromEnvironment();
+      final dataSource = _CodingGoalLiveDataSource(
+        ChatRemoteDataSource(baseUrl: env.baseUrl, apiKey: env.apiKey),
+      );
+      final container = _buildCodingGoalContainer(env, dataSource);
+
+      try {
+        final conversations = container.read(
+          conversationsNotifierProvider.notifier,
+        );
+        conversations.createNewConversation(
+          workspaceMode: WorkspaceMode.coding,
+          projectId: 'coding-goal-live-canary-disabled',
+        );
+        await conversations.saveCurrentGoal(
+          objective:
+              'This disabled goal must never be injected. Marker: '
+              '$_disabledGoalMarker.',
+          enabled: false,
+          status: ConversationGoalStatus.active,
+          tokenBudget: 2000,
+          turnBudget: 2,
+        );
+
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Reply with exactly $_disabledPromptMarker and no extra text.',
+          bypassPlanMode: true,
+        );
+        await _waitForChatIdle(container);
+
+        final systemPrompt = dataSource.firstSystemPrompt;
+        expect(
+          systemPrompt,
+          isNot(contains('Active coding goal for this thread:')),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          systemPrompt,
+          isNot(contains(_disabledGoalMarker)),
+          reason: _diagnostic(container, dataSource),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_disabledPromptMarker),
+          reason: _diagnostic(container, dataSource),
+        );
+        final goal = _currentGoal(container);
+        expect(goal?.enabled, isFalse);
+        expect(goal?.status, ConversationGoalStatus.active);
+        expect(goal?.turnsUsed, 0);
+      } finally {
+        container.dispose();
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CODING_GOAL_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 5)),
   );
 
   test(

@@ -186,6 +186,7 @@ class LiveLlmCanaryReferenceComparison {
       'totalPassed': report.totalPassed,
       'totalCount': report.totalCount,
       'totalFailed': report.totalFailed,
+      'validationErrors': report.validationErrors,
     };
   }
 }

@@ -10,7 +10,7 @@ settings, or feature-specific execution behavior.
 | Surface | Current canaries | Covered behavior | Main gaps | Priority |
 |---------|------------------|------------------|-----------|----------|
 | Chat | `tool/run_chat_live_llm_canary.sh`, `tool/run_tool_result_budget_live_canary.sh` | Plain chat streaming, memory extraction JSON, content-embedded tool-call execution, incomplete inline tool-call recovery, assistant-authored `tool_result` rejection, oversized tool-result compaction retry, final marker extraction | Native tool-role compatibility and broad multi-turn continuity beyond focused parser recovery | Keep the chat canary suite in every model switch baseline |
-| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, repeated-blocker auto-blocking, report quality | Native coding mode multi-file edits with tests are still only indirectly covered outside Plan Mode | Keep PM5 as baseline; run the focused coding-goal canary after changing goal state, coding prompts, budget handling, or completion/blocker inference |
+| Coding | `tool/run_plan_mode_pm5_live_gate.sh`, `tool/run_plan_mode_ping_cli_live_canary.sh`, `live_readme_first_canary`, `tool/run_coding_goal_live_canary.sh`, `tool/run_plan_mode_convergence_full_pass.sh` | Plan proposal, task proposal, decisions, approval fallback, saved task execution, validation guard, task drift, README content-fit marker, coding goal prompt injection, multi-turn goal persistence, budget prompt context, exhausted-budget guidance, automatic goal completion, completed/disabled goal prompt suppression, negative-completion guard, repeated-blocker auto-blocking, report quality | Native coding mode multi-file edits with tests are still only indirectly covered outside Plan Mode | Keep PM5 as baseline; run the focused coding-goal canary after changing goal state, coding prompts, budget handling, or completion/blocker inference |
 | Routines | `tool/run_routine_live_llm_canary.sh` | Routine execution with workspace read/write, fake LAN scan, Google Chat side effect, no-new-IP branch, LAN failure branch, `contents` write-shape branch, persisted tool call evidence | Scheduled/background execution and routine plan artifact behavior | Keep routine canaries outside PM5 but run them for routine changes and broad model switches |
 
 ## Baseline Model Switch Flow
@@ -99,6 +99,10 @@ The `--report-root` mode discovers the latest available PM5 smoke, PM5 ping,
 README, coding goal, chat, tool-result budget, and routine artifacts. Use
 explicit paths when reconstructing an older run set or overriding one
 discovered artifact:
+
+The generated report fails if selected artifacts with non-empty model IDs or
+base URLs disagree. When that happens, rerun the missing surfaces on the same
+model and endpoint, or pass explicit artifact paths from a consistent run set.
 
 ```bash
 dart run tool/live_llm_canary_reference_report.dart \

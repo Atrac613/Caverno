@@ -125,6 +125,7 @@ void main() {
     expect(report.baseUrl, 'http://127.0.0.1:1234/v1');
     expect(report.totalPassed, 14);
     expect(report.totalCount, 14);
+    expect(report.validationErrors, isEmpty);
     expect(report.entries, hasLength(7));
     expect(report.entries.first.riskSummary, contains('approval fallback 3'));
     expect(
@@ -138,6 +139,7 @@ void main() {
       contains('compaction retry 1'),
     );
     expect(report.toJson()['schemaName'], 'live_llm_canary_reference_report');
+    expect(report.toJson()['schemaVersion'], 2);
     expect(report.toMarkdown(), contains('Live LLM Canary Reference Report'));
     expect(report.toMarkdown(), contains('qwen post-hardening'));
   });
@@ -177,6 +179,59 @@ void main() {
       report.entries.single.riskSummary,
       contains('unexpected warnings 1'),
     );
+  });
+
+  test('fails when evidence mixes models or base URLs', () async {
+    final directory = Directory.systemTemp.createTempSync(
+      'live-llm-reference-metadata-test-',
+    );
+    addTearDown(() => directory.deleteSync(recursive: true));
+
+    final pm5Smoke = _writeJson(
+      directory,
+      'pm5_smoke.json',
+      _planSuiteJson(
+        model: 'model-a',
+        baseUrl: 'http://127.0.0.1:1234/v1/',
+        scenarioCount: 1,
+        passedCount: 1,
+        scenarioNames: const ['live_host_health_scaffold'],
+      ),
+    );
+    final chatSummary = _writeLiveSummary(
+      directory: directory,
+      fileName: 'chat_summary.json',
+      surface: 'chat',
+      canaryName: 'chat_live_llm_canary',
+      passedCount: 1,
+      testCount: 1,
+      model: 'model-b',
+      baseUrl: 'http://localhost:1234/v1',
+      signals: const {},
+    );
+
+    final report = await buildLiveLlmCanaryReferenceReport(
+      label: 'mixed metadata',
+      pm5SmokeReport: pm5Smoke,
+      chatSummary: chatSummary,
+      generatedAt: DateTime.utc(2026, 5, 23),
+    );
+
+    expect(report.result, 'failed');
+    expect(report.isSuccessful, isFalse);
+    expect(report.hasValidationErrors, isTrue);
+    expect(
+      report.validationErrors,
+      contains('Mixed model evidence: model-a, model-b'),
+    );
+    expect(
+      report.validationErrors,
+      contains(
+        'Mixed base URL evidence: http://127.0.0.1:1234/v1, http://localhost:1234/v1',
+      ),
+    );
+    expect(report.toJson()['validationErrors'], hasLength(2));
+    expect(report.toMarkdown(), contains('Validation errors'));
   });
 
   test('discovers latest artifacts from a report root', () async {
@@ -322,14 +377,16 @@ File _writeLiveSummary({
   required int passedCount,
   required int testCount,
   required Map<String, int> signals,
+  String model = 'qwen3.6-27b-mtp-vision',
+  String baseUrl = 'http://127.0.0.1:1234/v1',
 }) {
   return _writeJson(directory, fileName, {
     'schemaName': 'live_llm_canary_summary',
     'surface': surface,
     'canaryName': canaryName,
     'result': 'passed',
-    'model': 'qwen3.6-27b-mtp-vision',
-    'baseUrl': 'http://127.0.0.1:1234/v1',
+    'model': model,
+    'baseUrl': baseUrl,
     'passedCount': passedCount,
     'testCount': testCount,
     'failedCount': 0,
@@ -360,12 +417,13 @@ Map<String, Object?> _planSuiteJson({
   required String model,
   required int scenarioCount,
   required int passedCount,
+  String baseUrl = 'http://127.0.0.1:1234/v1',
   List<String> requestedScenarioNames = const [],
   List<String> scenarioNames = const [],
 }) {
   return {
     'model': model,
-    'baseUrl': 'http://127.0.0.1:1234/v1',
+    'baseUrl': baseUrl,
     'scenarioCount': scenarioCount,
     'passedCount': passedCount,
     'failedCount': scenarioCount - passedCount,
@@ -397,6 +455,8 @@ Map<String, Object?> _liveSummaryJson({
   required String canaryName,
   int testCount = 3,
   int passedCount = 3,
+  String model = 'new-model',
+  String baseUrl = 'http://127.0.0.1:1234/v1',
   Map<String, int> signals = const {},
 }) {
   return {
@@ -404,8 +464,8 @@ Map<String, Object?> _liveSummaryJson({
     'surface': surface,
     'canaryName': canaryName,
     'result': passedCount == testCount ? 'passed' : 'failed',
-    'model': 'new-model',
-    'baseUrl': 'http://127.0.0.1:1234/v1',
+    'model': model,
+    'baseUrl': baseUrl,
     'passedCount': passedCount,
     'testCount': testCount,
     'failedCount': testCount - passedCount,

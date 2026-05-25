@@ -156,7 +156,7 @@ Future<LiveLlmCanaryReferenceReport> buildLiveLlmCanaryReferenceReport({
 
   return LiveLlmCanaryReferenceReport(
     schemaName: 'live_llm_canary_reference_report',
-    schemaVersion: 1,
+    schemaVersion: 2,
     generatedAt: generatedAt ?? DateTime.now(),
     label: label,
     entries: entries,
@@ -291,7 +291,27 @@ class LiveLlmCanaryReferenceReport {
   final List<LiveLlmCanaryReferenceEntry> entries;
 
   bool get isSuccessful =>
-      entries.isNotEmpty && entries.every((entry) => entry.result == 'passed');
+      entries.isNotEmpty &&
+      validationErrors.isEmpty &&
+      entries.every((entry) => entry.result == 'passed');
+
+  List<String> get validationErrors {
+    final errors = <String>[];
+    final models = _uniqueNonEmpty(entries.map((entry) => entry.model));
+    if (models.length > 1) {
+      errors.add('Mixed model evidence: ${models.join(', ')}');
+    }
+    final baseUrls = _uniqueNonEmpty(
+      entries.map((entry) => entry.baseUrl),
+      normalize: _normalizeBaseUrl,
+    );
+    if (baseUrls.length > 1) {
+      errors.add('Mixed base URL evidence: ${baseUrls.join(', ')}');
+    }
+    return errors;
+  }
+
+  bool get hasValidationErrors => validationErrors.isNotEmpty;
 
   String get result => isSuccessful ? 'passed' : 'failed';
 
@@ -317,6 +337,7 @@ class LiveLlmCanaryReferenceReport {
       'totalPassed': totalPassed,
       'totalCount': totalCount,
       'totalFailed': totalFailed,
+      'validationErrors': validationErrors,
       'entries': entries.map((entry) => entry.toJson()).toList(growable: false),
     };
   }
@@ -331,7 +352,14 @@ class LiveLlmCanaryReferenceReport {
       ..writeln('- Base URL: `${baseUrl ?? 'unknown'}`')
       ..writeln(
         '- Checks: `$totalPassed/$totalCount` passed, `$totalFailed` failed',
-      )
+      );
+    if (validationErrors.isNotEmpty) {
+      buffer.writeln('- Validation errors:');
+      for (final error in validationErrors) {
+        buffer.writeln('  - $error');
+      }
+    }
+    buffer
       ..writeln()
       ..writeln('| Surface | Check | Result | Pass | Risk Signals | Evidence |')
       ..writeln(
@@ -849,11 +877,35 @@ Map<String, int> _stringIntMap(Object? value) {
 
 String? _firstNonEmpty(Iterable<String?> values) {
   for (final value in values) {
-    if (value != null && value.isNotEmpty) {
-      return value;
+    final trimmed = value?.trim();
+    if (trimmed != null && trimmed.isNotEmpty) {
+      return trimmed;
     }
   }
   return null;
+}
+
+List<String> _uniqueNonEmpty(
+  Iterable<String?> values, {
+  String Function(String value)? normalize,
+}) {
+  final unique = <String>{};
+  for (final value in values) {
+    final trimmed = value?.trim();
+    if (trimmed == null || trimmed.isEmpty) {
+      continue;
+    }
+    unique.add(normalize == null ? trimmed : normalize(trimmed));
+  }
+  return unique.toList(growable: false)..sort();
+}
+
+String _normalizeBaseUrl(String value) {
+  var normalized = value.trim();
+  while (normalized.endsWith('/')) {
+    normalized = normalized.substring(0, normalized.length - 1);
+  }
+  return normalized;
 }
 
 String _tableCell(String value) {
