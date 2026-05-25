@@ -109,6 +109,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
     final projectAccessIssue = !isUser
         ? _extractProjectAccessIssue(message.content)
         : null;
+    final hasBodyContent = message.content.isNotEmpty || message.isStreaming;
     final bubble = Container(
       constraints: BoxConstraints(
         maxWidth: MediaQuery.of(context).size.width * 0.8,
@@ -166,7 +167,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
             ),
           if (message.imageBase64 != null)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: EdgeInsets.only(bottom: hasBodyContent ? 8 : 0),
               child: ClipRRect(
                 borderRadius: BorderRadius.circular(8),
                 child: Image.memory(
@@ -189,7 +190,7 @@ class _MessageBubbleState extends ConsumerState<MessageBubble> {
                 ),
               ),
             ),
-          if (message.content.isNotEmpty || message.isStreaming)
+          if (hasBodyContent)
             isUser
                 ? _UserMessageContent(
                     content: message.content.isEmpty && message.isStreaming

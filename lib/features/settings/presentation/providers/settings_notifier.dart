@@ -57,6 +57,13 @@ class SettingsNotifier extends Notifier<AppSettings> {
     await _repository.save(state);
   }
 
+  Future<void> updateReasoningEffort(
+    ReasoningEffortPreference reasoningEffort,
+  ) async {
+    state = state.copyWith(reasoningEffort: reasoningEffort);
+    await _repository.save(state);
+  }
+
   Future<void> updateGoogleChatWebhookUrl(String webhookUrl) async {
     state = state.copyWith(googleChatWebhookUrl: webhookUrl.trim());
     await _repository.save(state);

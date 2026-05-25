@@ -17,6 +17,20 @@ import '../../../../core/types/assistant_mode.dart';
 import '../../../settings/presentation/providers/settings_notifier.dart';
 import 'voice_mode_overlay.dart';
 
+class MessageInputImageAttachment {
+  const MessageInputImageAttachment({
+    required this.id,
+    required this.bytes,
+    required this.mimeType,
+    required this.filePath,
+  });
+
+  final int id;
+  final Uint8List bytes;
+  final String mimeType;
+  final String filePath;
+}
+
 class MessageInput extends ConsumerStatefulWidget {
   const MessageInput({
     super.key,
@@ -29,6 +43,7 @@ class MessageInput extends ConsumerStatefulWidget {
     this.isCodingWorkspace = false,
     this.composerPrefillText,
     this.composerPrefillVersion = 0,
+    this.droppedImageAttachment,
   });
 
   final void Function(
@@ -45,6 +60,7 @@ class MessageInput extends ConsumerStatefulWidget {
   final bool isCodingWorkspace;
   final String? composerPrefillText;
   final int composerPrefillVersion;
+  final MessageInputImageAttachment? droppedImageAttachment;
 
   @override
   ConsumerState<MessageInput> createState() => _MessageInputState();
@@ -62,6 +78,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   int? _selectedFileSize;
   bool _isRecording = false;
   bool _hasText = false;
+  int? _handledDroppedImageAttachmentId;
 
   // Shell-like input history. `_historyIndex == -1` means not browsing;
   // otherwise it points into `_inputHistory`. `_savedDraft` preserves the
@@ -108,6 +125,7 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       },
     );
     _controller.addListener(_handleTextChanged);
+    _handleDroppedImageAttachment();
   }
 
   @override
@@ -121,10 +139,11 @@ class _MessageInputState extends ConsumerState<MessageInput> {
   @override
   void didUpdateWidget(covariant MessageInput oldWidget) {
     super.didUpdateWidget(oldWidget);
+    _handleDroppedImageAttachment();
+
     if (widget.composerPrefillVersion == oldWidget.composerPrefillVersion) {
       return;
     }
-
     final nextText = widget.composerPrefillText?.trimRight() ?? '';
     _controller.value = TextEditingValue(
       text: nextText,
@@ -139,6 +158,41 @@ class _MessageInputState extends ConsumerState<MessageInput> {
       }
       _focusNode.requestFocus();
     });
+  }
+
+  void _handleDroppedImageAttachment() {
+    final attachment = widget.droppedImageAttachment;
+    if (attachment == null ||
+        attachment.id == _handledDroppedImageAttachmentId) {
+      return;
+    }
+
+    _handledDroppedImageAttachmentId = attachment.id;
+    unawaited(_attachDroppedImage(attachment));
+  }
+
+  Future<void> _attachDroppedImage(
+    MessageInputImageAttachment attachment,
+  ) async {
+    try {
+      final resized = await _resizeImageIfNeeded(attachment.bytes);
+      final normalized = await _normalizeImageForUpload(
+        bytes: resized,
+        mimeType: attachment.mimeType,
+        filePath: attachment.filePath,
+      );
+      if (!mounted || _handledDroppedImageAttachmentId != attachment.id) {
+        return;
+      }
+
+      setState(() {
+        _selectedImageBytes = normalized.bytes;
+        _selectedImageMimeType = normalized.mimeType;
+      });
+      _focusNode.requestFocus();
+    } catch (e) {
+      debugPrint('Failed to attach dropped image: $e');
+    }
   }
 
   /// Track whether the input has any non-whitespace text so the

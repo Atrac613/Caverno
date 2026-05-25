@@ -62,6 +62,25 @@ void main() {
     expect(settings.hasGoogleChatWebhook, isTrue);
   });
 
+  test('persists reasoning effort preference', () {
+    const settings = AppSettings(
+      baseUrl: 'http://localhost:1234/v1',
+      model: 'test-model',
+      apiKey: 'no-key',
+      temperature: 0.7,
+      maxTokens: 4096,
+      reasoningEffort: ReasoningEffortPreference.high,
+    );
+
+    final decoded = AppSettings.fromJson(
+      jsonDecode(jsonEncode(settings.toJson())) as Map<String, dynamic>,
+    );
+
+    expect(decoded.reasoningEffort, ReasoningEffortPreference.high);
+    expect(decoded.reasoningEffort.apiValue, 'high');
+    expect(ReasoningEffortPreference.automatic.apiValue, isNull);
+  });
+
   test('preserves routine Computer Use action allowlist entries', () {
     const settings = AppSettings(
       baseUrl: 'http://localhost:1234/v1',

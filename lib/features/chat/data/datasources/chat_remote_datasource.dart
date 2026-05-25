@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert' as dart_convert;
 
 import 'package:flutter/foundation.dart';
+import 'package:http/http.dart' as http;
 import 'package:openai_dart/openai_dart.dart' hide MessageRole;
 
 import '../../../../core/constants/api_constants.dart';
@@ -67,13 +68,22 @@ class ChatCompletionResult {
 }
 
 class ChatRemoteDataSource implements ChatDataSource {
-  ChatRemoteDataSource({String? baseUrl, String? apiKey})
-    : _client = OpenAIClient.withApiKey(
-        apiKey ?? ApiConstants.defaultApiKey,
-        baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
-      );
+  ChatRemoteDataSource({
+    String? baseUrl,
+    String? apiKey,
+    String? reasoningEffort,
+    http.Client? httpClient,
+    http.Client Function()? streamClientFactory,
+  }) : _reasoningEffort = _normalizeReasoningEffort(reasoningEffort),
+       _client = OpenAIClient.withApiKey(
+         apiKey ?? ApiConstants.defaultApiKey,
+         baseUrl: baseUrl ?? ApiConstants.defaultBaseUrl,
+         httpClient: httpClient,
+         streamClientFactory: streamClientFactory,
+       );
 
   final OpenAIClient _client;
+  final String? _reasoningEffort;
   static final RegExp _rawParseFailurePattern = RegExp(
     r'Failed to parse input at pos \d+:\s*(.+)$',
     dotAll: true,
@@ -94,6 +104,76 @@ class ChatRemoteDataSource implements ChatDataSource {
 
   /// Last token usage captured from a streaming or non-streaming response.
   TokenUsage lastUsage = TokenUsage.zero;
+
+  static String? _normalizeReasoningEffort(String? value) {
+    final normalized = value?.trim().toLowerCase();
+    return switch (normalized) {
+      'low' || 'medium' || 'high' => normalized,
+      _ => null,
+    };
+  }
+
+  ReasoningEffort? _reasoningEffortForRequest(bool includeReasoning) {
+    if (!includeReasoning) {
+      return null;
+    }
+    return switch (_reasoningEffort) {
+      'low' => ReasoningEffort.low,
+      'medium' => ReasoningEffort.medium,
+      'high' => ReasoningEffort.high,
+      _ => null,
+    };
+  }
+
+  bool _shouldRetryWithoutReasoning(ApiException error) {
+    return _reasoningEffort != null && error.statusCode == 400;
+  }
+
+  void _logReasoningFallback(String operation) {
+    appLog(
+      '[LLM] $operation rejected reasoning_effort with HTTP 400; '
+      'retrying without reasoning_effort',
+    );
+  }
+
+  Future<T> _createWithReasoningFallback<T>({
+    required String operation,
+    required Future<T> Function(bool includeReasoning) send,
+  }) async {
+    if (_reasoningEffort == null) {
+      return send(false);
+    }
+
+    try {
+      return await send(true);
+    } on ApiException catch (error, stackTrace) {
+      if (!_shouldRetryWithoutReasoning(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      _logReasoningFallback(operation);
+      return send(false);
+    }
+  }
+
+  Stream<T> _streamWithReasoningFallback<T>({
+    required String operation,
+    required Stream<T> Function(bool includeReasoning) send,
+  }) async* {
+    if (_reasoningEffort == null) {
+      yield* send(false);
+      return;
+    }
+
+    try {
+      yield* send(true);
+    } on ApiException catch (error, stackTrace) {
+      if (!_shouldRetryWithoutReasoning(error)) {
+        Error.throwWithStackTrace(error, stackTrace);
+      }
+      _logReasoningFallback(operation);
+      yield* send(false);
+    }
+  }
 
   /// Log message list
   void _logMessages(List<Message> messages) {
@@ -202,13 +282,17 @@ class ChatRemoteDataSource implements ChatDataSource {
     _logMessages(messages);
 
     try {
-      final stream = _client.chat.completions.createStream(
-        ChatCompletionCreateRequest(
-          model: modelId,
-          messages: formattedMessages,
-          temperature: temperature ?? ApiConstants.defaultTemperature,
-          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-          streamOptions: const StreamOptions(includeUsage: true),
+      final stream = _streamWithReasoningFallback(
+        operation: 'streamChatCompletion',
+        send: (includeReasoning) => _client.chat.completions.createStream(
+          ChatCompletionCreateRequest(
+            model: modelId,
+            messages: formattedMessages,
+            temperature: temperature ?? ApiConstants.defaultTemperature,
+            maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+            streamOptions: const StreamOptions(includeUsage: true),
+            reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+          ),
         ),
       );
 
@@ -317,14 +401,18 @@ class ChatRemoteDataSource implements ChatDataSource {
     // When the stream ends, the completer resolves with accumulated tool calls.
     Stream<String> contentStream() async* {
       try {
-        final stream = _client.chat.completions.createStream(
-          ChatCompletionCreateRequest(
-            model: modelId,
-            messages: formattedMessages,
-            temperature: temperature ?? ApiConstants.defaultTemperature,
-            maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-            tools: _buildTools(tools),
-            streamOptions: const StreamOptions(includeUsage: true),
+        final stream = _streamWithReasoningFallback(
+          operation: 'streamChatCompletionWithTools',
+          send: (includeReasoning) => _client.chat.completions.createStream(
+            ChatCompletionCreateRequest(
+              model: modelId,
+              messages: formattedMessages,
+              temperature: temperature ?? ApiConstants.defaultTemperature,
+              maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+              tools: _buildTools(tools),
+              streamOptions: const StreamOptions(includeUsage: true),
+              reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+            ),
           ),
         );
 
@@ -460,17 +548,24 @@ class ChatRemoteDataSource implements ChatDataSource {
     _logMessages(messages);
     _logTools(tools);
 
-    final request = ChatCompletionCreateRequest(
-      model: modelId,
-      messages: formattedMessages,
-      temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-      tools: _buildTools(tools),
-    );
+    ChatCompletionCreateRequest buildRequest(bool includeReasoning) {
+      return ChatCompletionCreateRequest(
+        model: modelId,
+        messages: formattedMessages,
+        temperature: temperature ?? ApiConstants.defaultTemperature,
+        maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+        tools: _buildTools(tools),
+        reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+      );
+    }
 
     appLog('[LLM] Sending request...');
     try {
-      final response = await _client.chat.completions.create(request);
+      final response = await _createWithReasoningFallback(
+        operation: 'createChatCompletion',
+        send: (includeReasoning) =>
+            _client.chat.completions.create(buildRequest(includeReasoning)),
+      );
       final choice = response.choices.first;
       final message = choice.message;
 
@@ -568,13 +663,17 @@ class ChatRemoteDataSource implements ChatDataSource {
     );
 
     try {
-      final stream = _client.chat.completions.createStream(
-        ChatCompletionCreateRequest(
-          model: modelId,
-          messages: formattedMessages,
-          temperature: temperature ?? ApiConstants.defaultTemperature,
-          maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-          streamOptions: const StreamOptions(includeUsage: true),
+      final stream = _streamWithReasoningFallback(
+        operation: 'streamWithToolResult',
+        send: (includeReasoning) => _client.chat.completions.createStream(
+          ChatCompletionCreateRequest(
+            model: modelId,
+            messages: formattedMessages,
+            temperature: temperature ?? ApiConstants.defaultTemperature,
+            maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+            streamOptions: const StreamOptions(includeUsage: true),
+            reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+          ),
         ),
       );
 
@@ -748,17 +847,24 @@ class ChatRemoteDataSource implements ChatDataSource {
     );
     formattedMessages.addAll(_buildToolImageObservationMessages(toolResults));
 
-    final request = ChatCompletionCreateRequest(
-      model: modelId,
-      messages: formattedMessages,
-      temperature: temperature ?? ApiConstants.defaultTemperature,
-      maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
-      tools: _buildTools(tools),
-    );
+    ChatCompletionCreateRequest buildRequest(bool includeReasoning) {
+      return ChatCompletionCreateRequest(
+        model: modelId,
+        messages: formattedMessages,
+        temperature: temperature ?? ApiConstants.defaultTemperature,
+        maxTokens: maxTokens ?? ApiConstants.defaultMaxTokens,
+        tools: _buildTools(tools),
+        reasoningEffort: _reasoningEffortForRequest(includeReasoning),
+      );
+    }
 
     appLog('[LLM] Sending request...');
     try {
-      final response = await _client.chat.completions.create(request);
+      final response = await _createWithReasoningFallback(
+        operation: 'createChatCompletionWithToolResults',
+        send: (includeReasoning) =>
+            _client.chat.completions.create(buildRequest(includeReasoning)),
+      );
       final choice = response.choices.first;
       final message = choice.message;
 

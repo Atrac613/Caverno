@@ -148,6 +148,13 @@ _AppSettings _$AppSettingsFromJson(Map<String, dynamic> json) => _AppSettings(
   apiKey: json['apiKey'] as String,
   temperature: (json['temperature'] as num).toDouble(),
   maxTokens: (json['maxTokens'] as num).toInt(),
+  reasoningEffort:
+      $enumDecodeNullable(
+        _$ReasoningEffortPreferenceEnumMap,
+        json['reasoningEffort'],
+        unknownValue: ReasoningEffortPreference.automatic,
+      ) ??
+      ReasoningEffortPreference.automatic,
   googleChatWebhookUrl: json['googleChatWebhookUrl'] as String? ?? '',
   mcpUrl: json['mcpUrl'] as String? ?? '',
   mcpUrls:
@@ -210,6 +217,8 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'apiKey': instance.apiKey,
       'temperature': instance.temperature,
       'maxTokens': instance.maxTokens,
+      'reasoningEffort':
+          _$ReasoningEffortPreferenceEnumMap[instance.reasoningEffort]!,
       'googleChatWebhookUrl': instance.googleChatWebhookUrl,
       'mcpUrl': instance.mcpUrl,
       'mcpUrls': instance.mcpUrls,
@@ -234,6 +243,13 @@ Map<String, dynamic> _$AppSettingsToJson(_AppSettings instance) =>
       'routineComputerUseActionAllowlist':
           instance.routineComputerUseActionAllowlist,
     };
+
+const _$ReasoningEffortPreferenceEnumMap = {
+  ReasoningEffortPreference.automatic: 'automatic',
+  ReasoningEffortPreference.low: 'low',
+  ReasoningEffortPreference.medium: 'medium',
+  ReasoningEffortPreference.high: 'high',
+};
 
 const _$AssistantModeEnumMap = {
   AssistantMode.general: 'general',

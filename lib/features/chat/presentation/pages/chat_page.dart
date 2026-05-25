@@ -1,8 +1,10 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:easy_localization/easy_localization.dart';
+import 'package:desktop_drop/desktop_drop.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -77,6 +79,22 @@ class _ChatPageState extends ConsumerState<ChatPage>
   bool _wasShowingPlanDraft = false;
   String _composerPrefillText = '';
   int _composerPrefillVersion = 0;
+  bool _isImageDragActive = false;
+  int _droppedImageAttachmentId = 0;
+  MessageInputImageAttachment? _droppedImageAttachment;
+
+  static const Set<String> _imageDropExtensions = {
+    '.png',
+    '.jpg',
+    '.jpeg',
+    '.webp',
+    '.gif',
+    '.heic',
+    '.heif',
+    '.tif',
+    '.tiff',
+    '.bmp',
+  };
 
   @override
   void initState() {
@@ -197,6 +215,192 @@ class _ChatPageState extends ConsumerState<ChatPage>
               ? AssistantMode.coding
               : currentAssistantMode,
         );
+  }
+
+  Widget _buildImageDropTarget(
+    BuildContext context, {
+    required bool enabled,
+    required Widget child,
+  }) {
+    final theme = Theme.of(context);
+    return DropTarget(
+      enable: enabled,
+      onDragEntered: (_) {
+        if (!_isImageDragActive) {
+          setState(() => _isImageDragActive = true);
+        }
+      },
+      onDragExited: (_) {
+        if (_isImageDragActive) {
+          setState(() => _isImageDragActive = false);
+        }
+      },
+      onDragDone: (details) {
+        unawaited(_handleImageDrop(context, details.files));
+      },
+      child: Stack(
+        children: [
+          child,
+          Positioned.fill(
+            child: IgnorePointer(
+              child: AnimatedOpacity(
+                opacity: enabled && _isImageDragActive ? 1 : 0,
+                duration: const Duration(milliseconds: 140),
+                curve: Curves.easeOut,
+                child: Container(
+                  color: theme.colorScheme.primary.withValues(alpha: 0.14),
+                  child: Center(
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 18,
+                        vertical: 14,
+                      ),
+                      decoration: BoxDecoration(
+                        color: theme.colorScheme.surface.withValues(
+                          alpha: 0.86,
+                        ),
+                        borderRadius: BorderRadius.circular(12),
+                        border: Border.all(
+                          color: theme.colorScheme.primary.withValues(
+                            alpha: 0.45,
+                          ),
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.add_photo_alternate_outlined,
+                            color: theme.colorScheme.primary,
+                          ),
+                          const SizedBox(width: 10),
+                          Text(
+                            'message.drop_image_overlay'.tr(),
+                            style: theme.textTheme.labelLarge?.copyWith(
+                              color: theme.colorScheme.primary,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _handleImageDrop(
+    BuildContext context,
+    List<DropItem> items,
+  ) async {
+    if (_isImageDragActive && mounted) {
+      setState(() => _isImageDragActive = false);
+    }
+
+    final imageItem = _firstImageDropItem(items);
+    if (imageItem == null) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('message.drop_image_unsupported'.tr())),
+      );
+      return;
+    }
+
+    try {
+      final bytes = await _readDropItemBytes(imageItem);
+      final attachment = MessageInputImageAttachment(
+        id: ++_droppedImageAttachmentId,
+        bytes: bytes,
+        mimeType: _mimeTypeForDropItem(imageItem),
+        filePath: _dropItemPathForImageHandling(imageItem),
+      );
+      if (!mounted) return;
+      setState(() {
+        _droppedImageAttachment = attachment;
+      });
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('message.drop_image_attached'.tr())),
+      );
+    } catch (e) {
+      if (!context.mounted) return;
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('message.drop_image_failed'.tr())));
+      debugPrint('Failed to read dropped image: $e');
+    }
+  }
+
+  DropItem? _firstImageDropItem(List<DropItem> items) {
+    for (final item in items) {
+      if (item is DropItemDirectory) {
+        continue;
+      }
+      if (_isImageDropItem(item)) {
+        return item;
+      }
+    }
+    return null;
+  }
+
+  bool _isImageDropItem(DropItem item) {
+    final mimeType = item.mimeType?.toLowerCase();
+    if (mimeType != null && mimeType.startsWith('image/')) {
+      return true;
+    }
+
+    final path = _dropItemPathForImageHandling(item).toLowerCase();
+    return _imageDropExtensions.any((extension) => path.endsWith(extension));
+  }
+
+  Future<Uint8List> _readDropItemBytes(DropItem item) async {
+    final bookmark = item.extraAppleBookmark;
+    final shouldStartSecurityScope =
+        Platform.isMacOS && bookmark != null && bookmark.isNotEmpty;
+    var securityScopeStarted = false;
+
+    try {
+      if (shouldStartSecurityScope) {
+        securityScopeStarted = await DesktopDrop.instance
+            .startAccessingSecurityScopedResource(bookmark: bookmark);
+      }
+      return item.readAsBytes();
+    } finally {
+      if (securityScopeStarted && bookmark != null) {
+        await DesktopDrop.instance.stopAccessingSecurityScopedResource(
+          bookmark: bookmark,
+        );
+      }
+    }
+  }
+
+  String _dropItemPathForImageHandling(DropItem item) {
+    if (item.path.trim().isNotEmpty) {
+      return item.path;
+    }
+    return item.name;
+  }
+
+  String _mimeTypeForDropItem(DropItem item) {
+    final mimeType = item.mimeType;
+    if (mimeType != null && mimeType.toLowerCase().startsWith('image/')) {
+      return mimeType;
+    }
+
+    final path = _dropItemPathForImageHandling(item).toLowerCase();
+    if (path.endsWith('.png')) return 'image/png';
+    if (path.endsWith('.webp')) return 'image/webp';
+    if (path.endsWith('.gif')) return 'image/gif';
+    if (path.endsWith('.heic')) return 'image/heic';
+    if (path.endsWith('.heif')) return 'image/heif';
+    if (path.endsWith('.tif') || path.endsWith('.tiff')) return 'image/tiff';
+    if (path.endsWith('.bmp')) return 'image/bmp';
+    return 'image/jpeg';
   }
 
   Future<void> _showDeleteConversationDialog(
@@ -582,140 +786,151 @@ class _ChatPageState extends ConsumerState<ChatPage>
       drawer: isRoutinesWorkspace ? null : const ConversationDrawer(),
       body: isRoutinesWorkspace
           ? const RoutinesHomePage()
-          : Column(
-              children: [
-                // Error banner
-                if (chatState.error != null)
-                  Container(
-                    width: double.infinity,
-                    padding: const EdgeInsets.all(8),
-                    color: Theme.of(context).colorScheme.errorContainer,
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.error_outline,
-                          color: Theme.of(context).colorScheme.onErrorContainer,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            chatState.error!,
-                            style: TextStyle(
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onErrorContainer,
+          : _buildImageDropTarget(
+              context,
+              enabled: canCompose,
+              child: Column(
+                children: [
+                  // Error banner
+                  if (chatState.error != null)
+                    Container(
+                      width: double.infinity,
+                      padding: const EdgeInsets.all(8),
+                      color: Theme.of(context).colorScheme.errorContainer,
+                      child: Row(
+                        children: [
+                          Icon(
+                            Icons.error_outline,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: Text(
+                              chatState.error!,
+                              style: TextStyle(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
                             ),
                           ),
-                        ),
-                      ],
+                        ],
+                      ),
                     ),
-                  ),
-                if (currentConversation?.hasCompactionArtifact ?? false)
-                  _buildConversationCompactionBanner(
-                    context,
-                    currentConversation!,
-                  ),
-                // Message list
-                Expanded(
-                  child: !canCompose
-                      ? _buildCodingProjectEmptyState(context)
-                      : chatState.messages.isEmpty
-                      ? _buildEmptyState(
-                          context,
-                          isCodingWorkspace: isCodingWorkspace,
-                        )
-                      : ListView.builder(
-                          controller: _scrollController,
-                          padding: const EdgeInsets.symmetric(vertical: 8),
-                          itemCount:
-                              chatState.messages.length +
-                              (shouldShowPlanStatusMessage ? 1 : 0),
-                          itemBuilder: (context, index) {
-                            if (index >= chatState.messages.length) {
+                  if (currentConversation?.hasCompactionArtifact ?? false)
+                    _buildConversationCompactionBanner(
+                      context,
+                      currentConversation!,
+                    ),
+                  // Message list
+                  Expanded(
+                    child: !canCompose
+                        ? _buildCodingProjectEmptyState(context)
+                        : chatState.messages.isEmpty
+                        ? _buildEmptyState(
+                            context,
+                            isCodingWorkspace: isCodingWorkspace,
+                          )
+                        : ListView.builder(
+                            controller: _scrollController,
+                            padding: const EdgeInsets.symmetric(vertical: 8),
+                            itemCount:
+                                chatState.messages.length +
+                                (shouldShowPlanStatusMessage ? 1 : 0),
+                            itemBuilder: (context, index) {
+                              if (index >= chatState.messages.length) {
+                                return MessageBubble(
+                                  key: const ValueKey('plan-status-message'),
+                                  message: _buildPlanStatusMessage(
+                                    context,
+                                    chatState: chatState,
+                                  ),
+                                  onReselectProject: isCodingWorkspace
+                                      ? () => _pickAndActivateProject(context)
+                                      : null,
+                                );
+                              }
+                              final message = chatState.messages[index];
                               return MessageBubble(
-                                message: _buildPlanStatusMessage(
-                                  context,
-                                  chatState: chatState,
-                                ),
+                                key: ValueKey(message.id),
+                                message: message,
                                 onReselectProject: isCodingWorkspace
                                     ? () => _pickAndActivateProject(context)
                                     : null,
                               );
-                            }
-                            return MessageBubble(
-                              message: chatState.messages[index],
-                              onReselectProject: isCodingWorkspace
-                                  ? () => _pickAndActivateProject(context)
-                                  : null,
-                            );
-                          },
-                        ),
-                ),
-                if (canCompose && shouldShowPlanFooterCard)
-                  _buildFooterPlanCard(
-                    context,
-                    currentConversation: currentConversation,
-                    chatState: chatState,
-                    isPlanMode: isPlanMode,
+                            },
+                          ),
                   ),
-                // Token usage indicator
-                if (canCompose &&
-                    (chatState.totalTokens > 0 ||
-                        chatState.estimatedPromptTokens > 0))
-                  _buildTokenUsageBar(context, chatState, settings.model),
-                if (canCompose && chatState.queuedMessages.isNotEmpty)
-                  QueuedMessagesStrip(
-                    messages: chatState.queuedMessages,
-                    onRemove: chatNotifier.removeQueuedMessage,
-                  ),
-                // Input area
-                if (canCompose)
-                  MessageInput(
-                    onSend: (message, imageBase64, imageMimeType) {
-                      setState(() {
-                        _composerPrefillText = '';
-                        _composerPrefillVersion++;
-                      });
-                      chatNotifier.sendMessage(
-                        message,
-                        imageBase64: imageBase64,
-                        imageMimeType: imageMimeType,
-                        languageCode: context.locale.languageCode,
-                      );
-                    },
-                    onCancel: () => chatNotifier.cancelStreaming(),
-                    isLoading: chatState.isLoading,
-                    assistantMode: effectiveAssistantMode,
-                    onAssistantModeSelected: (mode) async {
-                      final settingsNotifier = ref.read(
-                        settingsNotifierProvider.notifier,
-                      );
-                      if (mode == AssistantMode.plan) {
-                        if (!isCodingWorkspace || currentConversation == null) {
+                  if (canCompose && shouldShowPlanFooterCard)
+                    _buildFooterPlanCard(
+                      context,
+                      currentConversation: currentConversation,
+                      chatState: chatState,
+                      isPlanMode: isPlanMode,
+                    ),
+                  // Token usage indicator
+                  if (canCompose &&
+                      (chatState.totalTokens > 0 ||
+                          chatState.estimatedPromptTokens > 0))
+                    _buildTokenUsageBar(context, chatState, settings.model),
+                  if (canCompose && chatState.queuedMessages.isNotEmpty)
+                    QueuedMessagesStrip(
+                      messages: chatState.queuedMessages,
+                      onRemove: chatNotifier.removeQueuedMessage,
+                    ),
+                  // Input area
+                  if (canCompose)
+                    MessageInput(
+                      onSend: (message, imageBase64, imageMimeType) {
+                        setState(() {
+                          _composerPrefillText = '';
+                          _composerPrefillVersion++;
+                        });
+                        chatNotifier.sendMessage(
+                          message,
+                          imageBase64: imageBase64,
+                          imageMimeType: imageMimeType,
+                          languageCode: context.locale.languageCode,
+                        );
+                      },
+                      onCancel: () => chatNotifier.cancelStreaming(),
+                      isLoading: chatState.isLoading,
+                      assistantMode: effectiveAssistantMode,
+                      onAssistantModeSelected: (mode) async {
+                        final settingsNotifier = ref.read(
+                          settingsNotifierProvider.notifier,
+                        );
+                        if (mode == AssistantMode.plan) {
+                          if (!isCodingWorkspace ||
+                              currentConversation == null) {
+                            return;
+                          }
+                          await conversationsNotifier.enterPlanningSession();
                           return;
                         }
-                        await conversationsNotifier.enterPlanningSession();
-                        return;
-                      }
 
-                      if (currentConversation?.isPlanningSession ?? false) {
-                        await conversationsNotifier.exitPlanningSession();
-                        ref
-                            .read(chatNotifierProvider.notifier)
-                            .dismissPlanProposal();
-                      }
-                      await settingsNotifier.updateAssistantMode(mode);
-                    },
-                    isCodingWorkspace: isCodingWorkspace,
-                    inputHintKey: isCodingWorkspace
-                        ? (isPlanMode
-                              ? 'message.input_hint_plan'
-                              : 'message.input_hint_coding')
-                        : 'message.input_hint',
-                    composerPrefillText: _composerPrefillText,
-                    composerPrefillVersion: _composerPrefillVersion,
-                  ),
-              ],
+                        if (currentConversation?.isPlanningSession ?? false) {
+                          await conversationsNotifier.exitPlanningSession();
+                          ref
+                              .read(chatNotifierProvider.notifier)
+                              .dismissPlanProposal();
+                        }
+                        await settingsNotifier.updateAssistantMode(mode);
+                      },
+                      isCodingWorkspace: isCodingWorkspace,
+                      inputHintKey: isCodingWorkspace
+                          ? (isPlanMode
+                                ? 'message.input_hint_plan'
+                                : 'message.input_hint_coding')
+                          : 'message.input_hint',
+                      composerPrefillText: _composerPrefillText,
+                      composerPrefillVersion: _composerPrefillVersion,
+                      droppedImageAttachment: _droppedImageAttachment,
+                    ),
+                ],
+              ),
             ),
     );
   }

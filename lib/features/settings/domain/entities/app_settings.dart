@@ -17,6 +17,17 @@ enum LocalCommandPermissionAction { allow, deny, ask }
 
 enum LocalCommandPermissionMatch { exact, prefix }
 
+enum ReasoningEffortPreference { automatic, low, medium, high }
+
+extension ReasoningEffortPreferenceApi on ReasoningEffortPreference {
+  String? get apiValue => switch (this) {
+    ReasoningEffortPreference.automatic => null,
+    ReasoningEffortPreference.low => 'low',
+    ReasoningEffortPreference.medium => 'medium',
+    ReasoningEffortPreference.high => 'high',
+  };
+}
+
 @freezed
 abstract class LocalCommandPermissionRule with _$LocalCommandPermissionRule {
   const LocalCommandPermissionRule._();
@@ -155,6 +166,9 @@ abstract class AppSettings with _$AppSettings {
     required String apiKey,
     required double temperature,
     required int maxTokens,
+    @JsonKey(unknownEnumValue: ReasoningEffortPreference.automatic)
+    @Default(ReasoningEffortPreference.automatic)
+    ReasoningEffortPreference reasoningEffort,
     @Default('') String googleChatWebhookUrl,
     @Default('') String mcpUrl,
     @Default(<String>[]) List<String> mcpUrls,

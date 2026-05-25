@@ -67,6 +67,7 @@ final chatRemoteDataSourceProvider = Provider<ChatDataSource>((ref) {
   return ChatRemoteDataSource(
     baseUrl: settings.baseUrl,
     apiKey: settings.apiKey,
+    reasoningEffort: settings.reasoningEffort.apiValue,
   );
 });
 
@@ -362,6 +363,7 @@ class ChatNotifier extends Notifier<ChatState> {
       _dataSource = ChatRemoteDataSource(
         baseUrl: settings.baseUrl,
         apiKey: settings.apiKey,
+        reasoningEffort: settings.reasoningEffort.apiValue,
       );
     }
   }

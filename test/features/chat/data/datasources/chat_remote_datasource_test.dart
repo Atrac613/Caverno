@@ -1,7 +1,11 @@
+import 'dart:convert';
+
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:http/http.dart' as http;
+import 'package:http/testing.dart';
 
 void main() {
   late ChatRemoteDataSource dataSource;
@@ -186,5 +190,72 @@ void main() {
       '(tool_0, tool_1, tool_2, tool_3, tool_4, tool_5, tool_6, tool_7, '
       'tool_8, tool_9, tool_10, tool_11, +2 more)',
     );
+  });
+
+  test('retries without reasoning effort after HTTP 400', () async {
+    final requestBodies = <Map<String, dynamic>>[];
+    final client = MockClient((request) async {
+      requestBodies.add(jsonDecode(request.body) as Map<String, dynamic>);
+      if (requestBodies.length == 1) {
+        return http.Response(
+          jsonEncode({
+            'error': {
+              'message': 'Unrecognized request argument: reasoning_effort',
+              'type': 'invalid_request_error',
+              'param': 'reasoning_effort',
+            },
+          }),
+          400,
+          headers: const {'content-type': 'application/json'},
+        );
+      }
+
+      return http.Response(
+        jsonEncode({
+          'id': 'chatcmpl-test',
+          'object': 'chat.completion',
+          'created': 0,
+          'model': 'test-model',
+          'choices': [
+            {
+              'index': 0,
+              'message': {'role': 'assistant', 'content': 'Recovered'},
+              'finish_reason': 'stop',
+            },
+          ],
+          'usage': {
+            'prompt_tokens': 1,
+            'completion_tokens': 1,
+            'total_tokens': 2,
+          },
+        }),
+        200,
+        headers: const {'content-type': 'application/json'},
+      );
+    });
+
+    final dataSource = ChatRemoteDataSource(
+      baseUrl: 'http://localhost:1234/v1',
+      apiKey: 'no-key',
+      reasoningEffort: 'high',
+      httpClient: client,
+    );
+
+    final result = await dataSource.createChatCompletion(
+      messages: [
+        Message(
+          id: 'message-1',
+          content: 'Hello',
+          role: MessageRole.user,
+          timestamp: DateTime(2026),
+        ),
+      ],
+      model: 'test-model',
+    );
+
+    expect(result.content, 'Recovered');
+    expect(requestBodies, hasLength(2));
+    expect(requestBodies.first['reasoning_effort'], 'high');
+    expect(requestBodies.last.containsKey('reasoning_effort'), isFalse);
   });
 }

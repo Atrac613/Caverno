@@ -32,6 +32,7 @@ Future<void> _pumpMessageInput(
   required VoidCallback onCancel,
   void Function(String message, String? imageBase64, String? imageMimeType)?
   onSend,
+  MessageInputImageAttachment? droppedImageAttachment,
 }) async {
   SharedPreferences.setMockInitialValues(<String, Object>{});
   final preferences = await SharedPreferences.getInstance();
@@ -65,6 +66,7 @@ Future<void> _pumpMessageInput(
                         onCancel: onCancel,
                         isLoading: loading,
                         assistantMode: AssistantMode.general,
+                        droppedImageAttachment: droppedImageAttachment,
                       );
                     },
                   ),
@@ -131,5 +133,54 @@ void main() {
     await tester.pump();
 
     expect(cancelCount, 1);
+  });
+
+  testWidgets('attaches a dropped image to the composer', (tester) async {
+    final isLoading = ValueNotifier<bool>(false);
+    addTearDown(isLoading.dispose);
+
+    String? sentMessage;
+    String? sentImageBase64;
+    String? sentImageMimeType;
+    final imageBytes = base64Decode(
+      'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/p9sAAAAASUVORK5CYII=',
+    );
+
+    final previousDebugPrint = debugPrint;
+    try {
+      debugPrint = (String? message, {int? wrapWidth}) {};
+      await _pumpMessageInput(
+        tester,
+        isLoading: isLoading,
+        onCancel: () {},
+        onSend: (message, imageBase64, imageMimeType) {
+          sentMessage = message;
+          sentImageBase64 = imageBase64;
+          sentImageMimeType = imageMimeType;
+        },
+        droppedImageAttachment: MessageInputImageAttachment(
+          id: 1,
+          bytes: imageBytes,
+          mimeType: 'image/png',
+          filePath: 'drop.png',
+        ),
+      );
+
+      await tester.runAsync(() async {
+        await Future<void>.delayed(const Duration(milliseconds: 50));
+      });
+      await tester.pump();
+    } finally {
+      debugPrint = previousDebugPrint;
+    }
+
+    expect(find.byIcon(Icons.send), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.send));
+    await tester.pump();
+
+    expect(sentMessage, isEmpty);
+    expect(sentImageBase64, isNotEmpty);
+    expect(sentImageMimeType, 'image/png');
   });
 }
