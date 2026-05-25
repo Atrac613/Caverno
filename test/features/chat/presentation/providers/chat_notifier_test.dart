@@ -27,6 +27,7 @@ import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_hash.dart';
 import 'package:caverno/features/chat/domain/services/conversation_plan_projection_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_state.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -472,6 +473,8 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   final bool failFirstFinalAnswerStreamWithContextLength;
   final List<List<ToolResultInfo>> toolResultBatches = [];
   final List<List<Message>> toolResultRequestMessages = [];
+  final List<List<Map<String, dynamic>>> initialToolDefinitionBatches = [];
+  final List<List<Map<String, dynamic>>> followUpToolDefinitionBatches = [];
   final List<List<Message>> finalAnswerRequestMessages = [];
   List<Message> finalAnswerMessages = const [];
   var _toolLoopResponseCount = 0;
@@ -514,6 +517,7 @@ class _ToolBatchChatDataSource implements ChatDataSource {
     double? temperature,
     int? maxTokens,
   }) {
+    initialToolDefinitionBatches.add(List<Map<String, dynamic>>.from(tools));
     return StreamWithToolsResult(
       stream: const Stream.empty(),
       completion: Future<ChatCompletionResult>.value(
@@ -569,6 +573,9 @@ class _ToolBatchChatDataSource implements ChatDataSource {
   }) async {
     toolResultRequestMessages.add(List<Message>.from(messages));
     toolResultBatches.add(List<ToolResultInfo>.from(toolResults));
+    followUpToolDefinitionBatches.add(
+      List<Map<String, dynamic>>.from(tools ?? const []),
+    );
     _toolLoopResponseCount += 1;
     if (failFirstToolResultCompletionWithContextLength &&
         _toolLoopResponseCount == 1) {
@@ -855,18 +862,20 @@ class _FakeMcpToolService extends McpToolService {
 
   @override
   List<Map<String, dynamic>> getOpenAiToolDefinitions() {
-    return results.keys
-        .map(
-          (toolName) => {
-            'type': 'function',
-            'function': {
-              'name': toolName,
-              'description': descriptions[toolName] ?? 'Fake tool $toolName',
-              'parameters': const <String, dynamic>{'type': 'object'},
+    return ToolDefinitionSearchService.appendSearchToolIfUseful(
+      results.keys
+          .map(
+            (toolName) => {
+              'type': 'function',
+              'function': {
+                'name': toolName,
+                'description': descriptions[toolName] ?? 'Fake tool $toolName',
+                'parameters': const <String, dynamic>{'type': 'object'},
+              },
             },
-          },
-        )
-        .toList(growable: false);
+          )
+          .toList(growable: false),
+    );
   }
 
   @override
@@ -875,6 +884,21 @@ class _FakeMcpToolService extends McpToolService {
     required Map<String, dynamic> arguments,
   }) async {
     executedToolNames.add(name);
+    if (name == ToolDefinitionSearchService.toolName) {
+      return McpToolResult(
+        toolName: name,
+        result: ToolDefinitionSearchService.searchToolDefinitions(
+          definitions: getOpenAiToolDefinitions(),
+          query: (arguments['query'] as String?) ?? '',
+          maxResults:
+              ((arguments['max_results'] as num?)?.toInt() ??
+                      ToolDefinitionSearchService.defaultMaxResults)
+                  .clamp(1, ToolDefinitionSearchService.maxResultsLimit)
+                  .toInt(),
+        ),
+        isSuccess: true,
+      );
+    }
     final queued = queuedResults[name];
     if (queued != null && queued.isNotEmpty) {
       return McpToolResult(
@@ -901,6 +925,10 @@ class _SavedValidationToolLoopOutcome {
   final List<String> executedToolNames;
   final List<Message> finalAnswerMessages;
   final String lastMessageContent;
+}
+
+Set<String> _toolNamesFromDefinitions(List<Map<String, dynamic>> definitions) {
+  return ToolDefinitionSearchService.toolNamesFromDefinitions(definitions);
 }
 
 class _SavedValidationWrapperCase {
@@ -1720,6 +1748,98 @@ void main() {
       toolContainer.dispose();
     }
   });
+
+  test(
+    'sendMessage discovers a deferred tool with tool_search before execution',
+    () async {
+      final toolDataSource = _ToolBatchChatDataSource(
+        initialToolCalls: [
+          ToolCallInfo(
+            id: 'tool-search-1',
+            name: ToolDefinitionSearchService.toolName,
+            arguments: const {'query': 'special diagnostics', 'max_results': 3},
+          ),
+        ],
+        followUpToolCalls: [
+          ToolCallInfo(
+            id: 'special-tool-1',
+            name: 'special_remote_diagnostics',
+            arguments: const {'target': 'router-1'},
+          ),
+        ],
+        finalAnswerChunks: const ['Special diagnostics summary'],
+      );
+      final toolService = _FakeMcpToolService(
+        results: {
+          for (var i = 0; i < 30; i++) 'remote_filler_tool_$i': 'filler $i',
+          'special_remote_diagnostics': 'special diagnostics result',
+        },
+        descriptions: const {
+          'special_remote_diagnostics':
+              'Run special diagnostics against a remote network target.',
+        },
+      );
+      final appLifecycleService = _MockAppLifecycleService();
+      when(() => appLifecycleService.isInBackground).thenReturn(false);
+      final toolContainer = ProviderContainer(
+        overrides: [
+          settingsNotifierProvider.overrideWith(
+            _ToolEnabledSettingsNotifier.new,
+          ),
+          conversationsNotifierProvider.overrideWith(
+            _TestConversationsNotifier.new,
+          ),
+          chatRemoteDataSourceProvider.overrideWithValue(toolDataSource),
+          sessionMemoryServiceProvider.overrideWithValue(
+            _TestSessionMemoryService(),
+          ),
+          mcpToolServiceProvider.overrideWithValue(toolService),
+          appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
+          backgroundTaskServiceProvider.overrideWithValue(
+            _TestBackgroundTaskService(),
+          ),
+        ],
+      );
+      try {
+        final toolNotifier = toolContainer.read(chatNotifierProvider.notifier);
+
+        await toolNotifier.sendMessage('Run the special diagnostics tool');
+
+        expect(toolService.executedToolNames, [
+          ToolDefinitionSearchService.toolName,
+          'special_remote_diagnostics',
+        ]);
+        final initialNames = _toolNamesFromDefinitions(
+          toolDataSource.initialToolDefinitionBatches.single,
+        );
+        expect(initialNames, contains(ToolDefinitionSearchService.toolName));
+        expect(initialNames, isNot(contains('special_remote_diagnostics')));
+
+        final firstFollowUpNames = _toolNamesFromDefinitions(
+          toolDataSource.followUpToolDefinitionBatches.first,
+        );
+        expect(
+          firstFollowUpNames,
+          contains(ToolDefinitionSearchService.toolName),
+        );
+        expect(firstFollowUpNames, contains('special_remote_diagnostics'));
+        expect(
+          toolDataSource.toolResultBatches.first.single.name,
+          ToolDefinitionSearchService.toolName,
+        );
+        expect(
+          toolDataSource.toolResultBatches.last.single.name,
+          'special_remote_diagnostics',
+        );
+        expect(
+          toolNotifier.state.messages.last.content,
+          contains('Special diagnostics summary'),
+        );
+      } finally {
+        toolContainer.dispose();
+      }
+    },
+  );
 
   test(
     'sendMessage retries tool-result follow-up with forced prompt compaction',

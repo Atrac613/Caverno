@@ -244,6 +244,8 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       workingDirectory: workingDirectory,
       rules: _settings.localCommandPermissionRules,
     );
+    final requiresExplicitApproval =
+        LocalCommandPermissionService.requiresExplicitApproval(command);
     if (permissionDecision.isDenied) {
       return McpToolResult(
         toolName: toolCall.name,
@@ -252,14 +254,14 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
         errorMessage: 'Local command was denied by a saved permission rule',
       );
     }
-    if (permissionDecision.isAllowed) {
+    if (permissionDecision.isAllowed && !requiresExplicitApproval) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,
       );
     }
 
-    if (LocalShellTools.isReadOnly(command)) {
+    if (LocalShellTools.isReadOnly(command) && !requiresExplicitApproval) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,
@@ -274,7 +276,7 @@ extension ChatNotifierLocalFileHandlers on ChatNotifier {
       return cachedResult;
     }
 
-    if (!_settings.confirmLocalCommands) {
+    if (!_settings.confirmLocalCommands && !requiresExplicitApproval) {
       return _mcpToolService!.executeTool(
         name: toolCall.name,
         arguments: localArguments,

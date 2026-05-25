@@ -1545,7 +1545,8 @@ class _ComputerUseDebugPageState extends ConsumerState<ComputerUseDebugPage> {
       },
       {
         'id': 'grant_screen_recording',
-        'label': 'Grant Screen & System Audio Recording to Caverno Computer Use',
+        'label':
+            'Grant Screen & System Audio Recording to Caverno Computer Use',
         'complete': _permissionValue('screenCaptureGranted') == true,
       },
       {
@@ -2654,13 +2655,13 @@ class _ArmSwitch extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(8),
-        color: value
-            ? Theme.of(context).colorScheme.errorContainer
-            : Theme.of(context).colorScheme.surfaceContainerHighest,
-      ),
+    final colorScheme = Theme.of(context).colorScheme;
+    return Material(
+      color: value
+          ? colorScheme.errorContainer
+          : colorScheme.surfaceContainerHighest,
+      borderRadius: BorderRadius.circular(8),
+      clipBehavior: Clip.antiAlias,
       child: SwitchListTile(
         value: value,
         onChanged: onChanged,
@@ -2668,7 +2669,7 @@ class _ArmSwitch extends StatelessWidget {
         subtitle: Text(subtitle),
         secondary: Icon(
           value ? Icons.lock_open_outlined : Icons.lock_outline,
-          color: value ? Theme.of(context).colorScheme.error : null,
+          color: value ? colorScheme.error : null,
         ),
       ),
     );

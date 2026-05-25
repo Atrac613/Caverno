@@ -16,11 +16,13 @@ import 'package:caverno/features/chat/data/datasources/chat_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/chat_remote_datasource.dart';
 import 'package:caverno/features/chat/data/datasources/mcp_tool_service.dart';
 import 'package:caverno/features/chat/data/repositories/chat_memory_repository.dart';
+import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
 import 'package:caverno/features/chat/domain/entities/mcp_tool_entity.dart';
 import 'package:caverno/features/chat/domain/entities/session_memory.dart';
 import 'package:caverno/features/chat/domain/services/memory_extraction_draft_service.dart';
 import 'package:caverno/features/chat/domain/services/session_memory_service.dart';
+import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
 import 'package:caverno/features/chat/presentation/providers/chat_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/coding_projects_notifier.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
@@ -30,6 +32,7 @@ import 'package:caverno/features/settings/presentation/providers/settings_notifi
 
 const _basicMarker = 'CHAT_BASIC_LIVE_OK';
 const _embeddedMarker = 'EMBEDDED_TOOL_LIVE_OK';
+const _toolSearchArtifactMarker = 'TOOL_SEARCH_ARTIFACT_LIVE_OK';
 
 void main() {
   final liveEnabled = Platform.environment['CAVERNO_CHAT_LIVE_CANARY'] == '1';
@@ -176,12 +179,117 @@ void main() {
         : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
     timeout: const Timeout(Duration(minutes: 5)),
   );
+
+  test(
+    'live LLM discovers a deferred tool and reads its persisted artifact',
+    () async {
+      final env = _ChatLiveEnv.fromEnvironment();
+      final artifactRoot = Directory.systemTemp.createTempSync(
+        'caverno_tool_search_artifact_live_',
+      );
+      final artifactStore = ToolResultArtifactStore(
+        baseDirectory: artifactRoot,
+      );
+      final toolService = _ToolSearchArtifactToolService();
+      final container = _buildChatContainer(
+        env,
+        mcpEnabled: true,
+        toolService: toolService,
+        artifactStore: artifactStore,
+      );
+
+      try {
+        final notifier = container.read(chatNotifierProvider.notifier);
+        await notifier.sendMessage(
+          'Find the hidden canary marker from the deep archive capability. '
+          'The needed archive capability is not in your current tool list, so first call tool_search with query "deep archive canary lookup". '
+          'Then call the matching archive tool. '
+          'If that tool result says the full output was saved and gives a file_path plus a line number, call read_file with that file_path, offset, and limit. '
+          'Answer with only the marker value, with no markdown or explanation.',
+        );
+        await _waitForChatIdle(container, timeout: const Duration(minutes: 5));
+
+        final persistedFiles = Directory(
+          '${artifactRoot.path}/tool-results',
+        ).listSync(recursive: true).whereType<File>().toList(growable: false);
+        final readFilePath = toolService.readFileArguments
+            .map((arguments) => arguments['path']?.toString() ?? '')
+            .where((path) => path.isNotEmpty)
+            .lastOrNull;
+
+        expect(
+          toolService.executedToolNames,
+          contains(ToolDefinitionSearchService.toolName),
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+        expect(
+          toolService.executedToolNames,
+          contains(_ToolSearchArtifactToolService.archiveToolName),
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+        expect(
+          toolService.executedToolNames,
+          contains(_ToolSearchArtifactToolService.readFileToolName),
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+        expect(
+          persistedFiles,
+          isNotEmpty,
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+        expect(
+          readFilePath,
+          startsWith(artifactRoot.path),
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+        expect(
+          _lastAssistantContent(container).toUpperCase(),
+          contains(_toolSearchArtifactMarker),
+          reason: _toolSearchArtifactDiagnostic(
+            container,
+            toolService,
+            artifactRoot,
+          ),
+        );
+      } finally {
+        container.dispose();
+        if (artifactRoot.existsSync()) {
+          artifactRoot.deleteSync(recursive: true);
+        }
+      }
+    },
+    skip: liveEnabled
+        ? false
+        : 'Set CAVERNO_CHAT_LIVE_CANARY=1 and CAVERNO_LLM_* to run.',
+    timeout: const Timeout(Duration(minutes: 6)),
+  );
 }
 
 ProviderContainer _buildChatContainer(
   _ChatLiveEnv env, {
   required bool mcpEnabled,
   required McpToolService toolService,
+  ToolResultArtifactStore? artifactStore,
 }) {
   final appLifecycleService = _MockAppLifecycleService();
   when(() => appLifecycleService.isInBackground).thenReturn(false);
@@ -204,6 +312,8 @@ ProviderContainer _buildChatContainer(
       sessionMemoryServiceProvider.overrideWithValue(
         _NoopSessionMemoryService(),
       ),
+      if (artifactStore != null)
+        toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
       mcpToolServiceProvider.overrideWithValue(toolService),
       appLifecycleServiceProvider.overrideWithValue(appLifecycleService),
       backgroundTaskServiceProvider.overrideWithValue(
@@ -261,6 +371,28 @@ String _chatDiagnostic(ProviderContainer container) {
     'error=${state.error}',
     'messages=${state.messages.length}',
     _chatTranscript(container),
+  ].join('\n');
+}
+
+String _toolSearchArtifactDiagnostic(
+  ProviderContainer container,
+  _ToolSearchArtifactToolService toolService,
+  Directory artifactRoot,
+) {
+  final artifactDirectory = Directory('${artifactRoot.path}/tool-results');
+  final artifactPaths = artifactDirectory.existsSync()
+      ? artifactDirectory
+            .listSync(recursive: true)
+            .whereType<File>()
+            .map((file) => file.path)
+            .join(', ')
+      : '(missing)';
+  return [
+    _chatDiagnostic(container),
+    'executedToolNames=${toolService.executedToolNames.join(',')}',
+    'executedArguments=${toolService.executedArguments.map(jsonEncode).join(' | ')}',
+    'artifactRoot=${artifactRoot.path}',
+    'artifactPaths=$artifactPaths',
   ].join('\n');
 }
 
@@ -625,5 +757,206 @@ class _EchoMarkerToolService extends McpToolService {
       isSuccess: marker == _embeddedMarker,
       errorMessage: marker == _embeddedMarker ? null : 'Unexpected marker',
     );
+  }
+}
+
+class _ToolSearchArtifactToolService extends McpToolService {
+  static const archiveToolName = 'inspect_deep_archive_canary';
+  static const readFileToolName = 'read_file';
+  static const _markerLineNumber = 700;
+
+  final List<String> executedToolNames = [];
+  final List<Map<String, dynamic>> executedArguments = [];
+  final List<Map<String, dynamic>> readFileArguments = [];
+
+  @override
+  Future<void> connect({
+    List<McpServerConfig>? overrideServers,
+    List<String>? overrideUrls,
+    String? overrideUrl,
+  }) async {}
+
+  @override
+  List<Map<String, dynamic>> getOpenAiToolDefinitions() {
+    return ToolDefinitionSearchService.appendSearchToolIfUseful([
+      _readFileToolDefinition,
+      for (var index = 0; index < 30; index += 1) _fillerToolDefinition(index),
+      _archiveToolDefinition,
+    ]);
+  }
+
+  @override
+  Future<McpToolResult> executeTool({
+    required String name,
+    required Map<String, dynamic> arguments,
+  }) async {
+    executedToolNames.add(name);
+    executedArguments.add(Map<String, dynamic>.from(arguments));
+
+    if (name == ToolDefinitionSearchService.toolName) {
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: getOpenAiToolDefinitions(),
+        query: (arguments['query'] as String?) ?? '',
+        maxResults:
+            ((arguments['max_results'] as num?)?.toInt() ??
+                    ToolDefinitionSearchService.defaultMaxResults)
+                .clamp(1, ToolDefinitionSearchService.maxResultsLimit)
+                .toInt(),
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
+    if (name == archiveToolName) {
+      return McpToolResult(
+        toolName: name,
+        result: _buildArchiveContent(),
+        isSuccess: true,
+      );
+    }
+
+    if (name == readFileToolName) {
+      readFileArguments.add(Map<String, dynamic>.from(arguments));
+      return _readPersistedArtifact(arguments);
+    }
+
+    return McpToolResult(
+      toolName: name,
+      result: jsonEncode({'error': 'Unsupported tool: $name'}),
+      isSuccess: false,
+      errorMessage: 'Unsupported tool: $name',
+    );
+  }
+
+  McpToolResult _readPersistedArtifact(Map<String, dynamic> arguments) {
+    final path = (arguments['path'] as String?)?.trim();
+    if (path == null || path.isEmpty) {
+      return McpToolResult(
+        toolName: readFileToolName,
+        result: jsonEncode({
+          'error': 'path_required',
+          'instruction':
+              'Call read_file again with the persisted file_path from the previous tool result.',
+        }),
+        isSuccess: false,
+        errorMessage: 'path_required',
+      );
+    }
+
+    final offset =
+        _intArg(arguments, 'offset') ??
+        _intArg(arguments, 'start_line') ??
+        _intArg(arguments, 'line');
+    final limit =
+        _intArg(arguments, 'limit') ?? _intArg(arguments, 'line_count');
+    if (offset == null) {
+      return McpToolResult(
+        toolName: readFileToolName,
+        result: jsonEncode({
+          'path': path,
+          'error': 'offset_required',
+          'instruction':
+              'Call read_file again with offset $_markerLineNumber and limit 1.',
+        }),
+        isSuccess: false,
+        errorMessage: 'offset_required',
+      );
+    }
+
+    final file = File(path);
+    if (!file.existsSync()) {
+      return McpToolResult(
+        toolName: readFileToolName,
+        result: jsonEncode({'path': path, 'error': 'file_not_found'}),
+        isSuccess: false,
+        errorMessage: 'file_not_found',
+      );
+    }
+
+    final lines = const LineSplitter().convert(file.readAsStringSync());
+    final start = (offset - 1).clamp(0, lines.length);
+    final end = (start + (limit ?? 1)).clamp(start, lines.length);
+    return McpToolResult(
+      toolName: readFileToolName,
+      result: jsonEncode({
+        'path': path,
+        'offset': offset,
+        'limit': limit ?? 1,
+        'content': lines.sublist(start, end).join('\n'),
+      }),
+      isSuccess: true,
+    );
+  }
+
+  static int? _intArg(Map<String, dynamic> arguments, String key) {
+    final value = arguments[key];
+    return switch (value) {
+      final int parsed => parsed,
+      final num parsed => parsed.toInt(),
+      final String raw => int.tryParse(raw.trim()),
+      _ => null,
+    };
+  }
+
+  static String _buildArchiveContent() {
+    final lines = <String>[
+      'Archive index: the marker is intentionally omitted from the preview.',
+      'To answer, read this persisted artifact file at line $_markerLineNumber.',
+      'Call read_file with the exact file_path from the persisted output payload, offset $_markerLineNumber, and limit 1.',
+    ];
+    for (var lineNumber = 4; lineNumber <= 1100; lineNumber += 1) {
+      if (lineNumber == _markerLineNumber) {
+        lines.add('CANARY_MARKER: $_toolSearchArtifactMarker');
+      } else {
+        lines.add(
+          'archive filler line $lineNumber: this padding keeps the marker outside the persisted preview window.',
+        );
+      }
+    }
+    return lines.join('\n');
+  }
+
+  static Map<String, dynamic> get _readFileToolDefinition => const {
+    'type': 'function',
+    'function': {
+      'name': readFileToolName,
+      'description':
+          'Read a line range from a persisted UTF-8 artifact file. Use offset and limit when another tool result provides a line number.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'path': {'type': 'string'},
+          'offset': {'type': 'integer'},
+          'limit': {'type': 'integer'},
+        },
+        'required': ['path'],
+      },
+    },
+  };
+
+  static Map<String, dynamic> get _archiveToolDefinition => const {
+    'type': 'function',
+    'function': {
+      'name': archiveToolName,
+      'description':
+          'Deep archive canary lookup. Use this for hidden canary marker discovery after searching the tool catalog.',
+      'parameters': {
+        'type': 'object',
+        'properties': {
+          'request': {'type': 'string'},
+        },
+      },
+    },
+  };
+
+  static Map<String, dynamic> _fillerToolDefinition(int index) {
+    return {
+      'type': 'function',
+      'function': {
+        'name': 'remote_catalog_filler_$index',
+        'description':
+            'Irrelevant remote catalog filler tool $index for dynamic search coverage.',
+        'parameters': const {'type': 'object'},
+      },
+    };
   }
 }

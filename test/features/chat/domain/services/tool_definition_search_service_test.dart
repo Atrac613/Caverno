@@ -1,0 +1,108 @@
+import 'dart:convert';
+
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
+import 'package:caverno/features/chat/domain/services/tool_definition_search_service.dart';
+import 'package:flutter_test/flutter_test.dart';
+
+void main() {
+  group('ToolDefinitionSearchService', () {
+    test(
+      'adds tool_search and defers non-initial tools for large catalogs',
+      () {
+        final definitions = [
+          _tool('get_current_datetime', 'Return the current date and time.'),
+          _tool('read_file', 'Read a local project file.'),
+          for (var i = 0; i < 30; i++)
+            _tool('remote_tool_$i', 'Remote MCP capability number $i.'),
+        ];
+
+        final selection = ToolDefinitionSearchService.buildInitialSelection(
+          ToolDefinitionSearchService.appendSearchToolIfUseful(definitions),
+        );
+        final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+          selection.toolDefinitions,
+        );
+
+        expect(selection.toolSearchEnabled, isTrue);
+        expect(names, contains(ToolDefinitionSearchService.toolName));
+        expect(names, contains('get_current_datetime'));
+        expect(names, contains('read_file'));
+        expect(names, isNot(contains('remote_tool_29')));
+        expect(selection.selectedToolNames, contains('read_file'));
+      },
+    );
+
+    test('keeps legacy initial search behavior for small catalogs', () {
+      final selection = ToolDefinitionSearchService.buildInitialSelection([
+        _tool('web_search', 'Search the web.'),
+        _tool('get_current_datetime', 'Return the current date and time.'),
+        _tool('web_url_read', 'Read a web page.'),
+      ]);
+      final names = ToolDefinitionSearchService.toolNamesFromDefinitions(
+        selection.toolDefinitions,
+      );
+
+      expect(selection.toolSearchEnabled, isFalse);
+      expect(names, contains('web_search'));
+      expect(names, contains('get_current_datetime'));
+      expect(names, isNot(contains('web_url_read')));
+    });
+
+    test('searches names, descriptions, and schemas', () {
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: [
+          _tool(
+            'read_mcp_resource',
+            'Read a resource exposed by an MCP server.',
+          ),
+          _tool('query_database', 'Run a readonly SQL query.'),
+          ToolDefinitionSearchService.toolDefinition,
+        ],
+        query: 'mcp resource',
+      );
+      final decoded = jsonDecode(result) as Map<String, dynamic>;
+      final matches = decoded['matched_tools'] as List<dynamic>;
+
+      expect(matches, isNotEmpty);
+      expect(matches.first, containsPair('name', 'read_mcp_resource'));
+      expect(
+        matches.map((match) => (match as Map)['name']),
+        isNot(contains(ToolDefinitionSearchService.toolName)),
+      );
+    });
+
+    test('extracts discovered names from tool_search results', () {
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: [_tool('query_database', 'Run a readonly SQL query.')],
+        query: 'sql',
+      );
+
+      final names = ToolDefinitionSearchService.discoveredToolNamesFromResults([
+        ToolResultInfo(
+          id: 'call-1',
+          name: ToolDefinitionSearchService.toolName,
+          arguments: const {'query': 'sql'},
+          result: result,
+        ),
+      ]);
+
+      expect(names, {'query_database'});
+    });
+  });
+}
+
+Map<String, dynamic> _tool(String name, String description) {
+  return {
+    'type': 'function',
+    'function': {
+      'name': name,
+      'description': description,
+      'parameters': const {
+        'type': 'object',
+        'properties': {
+          'query': {'type': 'string'},
+        },
+      },
+    },
+  };
+}

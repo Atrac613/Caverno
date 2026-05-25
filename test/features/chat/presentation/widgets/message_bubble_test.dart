@@ -77,9 +77,7 @@ Future<void> _pumpMessageBubble(
               supportedLocales: context.supportedLocales,
               locale: context.locale,
               home: Scaffold(
-                body: Center(
-                  child: MessageBubble(message: message),
-                ),
+                body: Center(child: MessageBubble(message: message)),
               ),
             ),
           );
@@ -105,8 +103,9 @@ void main() {
     );
 
     await _pumpMessageBubble(tester, message: message);
+    final timestampFinder = find.textContaining('9:01');
 
-    expect(find.text('9:01 PM'), findsNothing);
+    expect(timestampFinder, findsNothing);
     expect(find.byIcon(Icons.content_copy_outlined), findsNothing);
 
     final gesture = await tester.createGesture(kind: PointerDeviceKind.mouse);
@@ -115,11 +114,11 @@ void main() {
     await gesture.moveTo(tester.getCenter(find.text('Ship the hover toolbar')));
     await tester.pumpAndSettle();
 
-    expect(find.text('9:01 PM'), findsOneWidget);
+    expect(timestampFinder, findsOneWidget);
     expect(find.byIcon(Icons.content_copy_outlined), findsOneWidget);
 
     final messageRect = tester.getRect(find.text('Ship the hover toolbar'));
-    final timestampRect = tester.getRect(find.text('9:01 PM'));
+    final timestampRect = tester.getRect(timestampFinder);
     expect(timestampRect.top, greaterThan(messageRect.bottom));
   });
 }

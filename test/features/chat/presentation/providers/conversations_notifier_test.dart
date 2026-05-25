@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_flutter/hive_flutter.dart';
@@ -5,10 +8,12 @@ import 'package:mocktail/mocktail.dart';
 
 import 'package:caverno/core/types/workspace_mode.dart';
 import 'package:caverno/features/chat/data/repositories/conversation_repository.dart';
+import 'package:caverno/features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'package:caverno/features/chat/domain/entities/conversation.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_plan_artifact.dart';
 import 'package:caverno/features/chat/domain/entities/conversation_workflow.dart';
 import 'package:caverno/features/chat/domain/entities/message.dart';
+import 'package:caverno/features/chat/domain/entities/tool_call_info.dart';
 import 'package:caverno/features/chat/domain/services/conversation_validation_tool_result_inference.dart';
 import 'package:caverno/features/chat/presentation/providers/conversations_notifier.dart';
 
@@ -47,17 +52,29 @@ class _FakeConversationRepository extends ConversationRepository {
 
 void main() {
   late _FakeConversationRepository repository;
+  late Directory tempDir;
+  late ToolResultArtifactStore artifactStore;
   late ProviderContainer container;
 
   setUp(() {
     repository = _FakeConversationRepository();
+    tempDir = Directory.systemTemp.createTempSync(
+      'caverno_conversation_artifacts_',
+    );
+    artifactStore = ToolResultArtifactStore(baseDirectory: tempDir);
     container = ProviderContainer(
-      overrides: [conversationRepositoryProvider.overrideWithValue(repository)],
+      overrides: [
+        conversationRepositoryProvider.overrideWithValue(repository),
+        toolResultArtifactStoreProvider.overrideWithValue(artifactStore),
+      ],
     );
   });
 
   tearDown(() {
     container.dispose();
+    if (tempDir.existsSync()) {
+      tempDir.deleteSync(recursive: true);
+    }
   });
 
   test(
@@ -110,6 +127,47 @@ void main() {
     expect(currentConversation!.id, savedConversation.id);
     expect(currentConversation.messages, isEmpty);
     expect(repository.getAll(), hasLength(1));
+  });
+
+  test('deleteConversation removes persisted tool result artifacts', () async {
+    const conversationId = 'conversation-with-artifacts';
+    await repository.save(
+      Conversation(
+        id: conversationId,
+        title: 'Conversation with artifacts',
+        messages: [
+          Message(
+            id: 'message-1',
+            content: 'Inspect a large log',
+            role: MessageRole.user,
+            timestamp: DateTime(2026, 4, 20, 10),
+          ),
+        ],
+        createdAt: DateTime(2026, 4, 20, 10),
+        updatedAt: DateTime(2026, 4, 20, 10),
+        workspaceMode: WorkspaceMode.chat,
+      ),
+    );
+    final persisted = await artifactStore.persistIfLarge(
+      ToolResultInfo(
+        id: 'tool-call-1',
+        name: 'read_file',
+        arguments: const {},
+        result: 'A' * 2000,
+      ),
+      conversationId: conversationId,
+      thresholdChars: 100,
+    );
+    final artifactPath =
+        (jsonDecode(persisted.result) as Map<String, dynamic>)['file_path']
+            as String;
+    expect(File(artifactPath).existsSync(), isTrue);
+
+    final notifier = container.read(conversationsNotifierProvider.notifier);
+    await notifier.deleteConversation(conversationId);
+
+    expect(repository.getById(conversationId), isNull);
+    expect(File(artifactPath).existsSync(), isFalse);
   });
 
   test('first coding workspace open creates a fresh project thread', () async {
@@ -867,7 +925,9 @@ void main() {
 
       await notifier.updateCurrentWorkflow(
         workflowStage: ConversationWorkflowStage.implement,
-        workflowSpec: const ConversationWorkflowSpec(goal: 'Keep execution state stable'),
+        workflowSpec: const ConversationWorkflowSpec(
+          goal: 'Keep execution state stable',
+        ),
         preserveWorkflowProjection: true,
       );
 
@@ -876,7 +936,10 @@ void main() {
           .currentConversation;
       expect(refreshedConversation, isNotNull);
       expect(refreshedConversation!.projectedExecutionTasks, hasLength(1));
-      expect(refreshedConversation.projectedExecutionTasks.single.id, firstTask.id);
+      expect(
+        refreshedConversation.projectedExecutionTasks.single.id,
+        firstTask.id,
+      );
       expect(
         refreshedConversation.projectedExecutionTasks.single.status,
         ConversationWorkflowTaskStatus.inProgress,
@@ -1124,8 +1187,7 @@ void main() {
       final refreshedConversation = container
           .read(conversationsNotifierProvider)
           .currentConversation;
-      final progress =
-          refreshedConversation?.executionProgressForTask(task.id);
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
       expect(progress!.status, ConversationWorkflowTaskStatus.completed);
       expect(progress.summary, 'Validated the scaffold layout.');
@@ -1199,8 +1261,7 @@ void main() {
       final refreshedConversation = container
           .read(conversationsNotifierProvider)
           .currentConversation;
-      final progress =
-          refreshedConversation?.executionProgressForTask(task.id);
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
       expect(progress!.status, ConversationWorkflowTaskStatus.completed);
       expect(progress.summary, 'The verification task is complete.');
@@ -1275,18 +1336,14 @@ void main() {
       final refreshedConversation = container
           .read(conversationsNotifierProvider)
           .currentConversation;
-      final progress =
-          refreshedConversation?.executionProgressForTask(task.id);
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
       expect(progress!.status, ConversationWorkflowTaskStatus.completed);
       expect(
         progress.validationStatus,
         ConversationExecutionValidationStatus.passed,
       );
-      expect(
-        progress.lastValidationCommand,
-        'python3 ping_cli.py google.com',
-      );
+      expect(progress.lastValidationCommand, 'python3 ping_cli.py google.com');
       expect(progress.blockedReason, isEmpty);
     },
   );
@@ -1351,8 +1408,7 @@ void main() {
       final refreshedConversation = container
           .read(conversationsNotifierProvider)
           .currentConversation;
-      final progress =
-          refreshedConversation?.executionProgressForTask(task.id);
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
       expect(progress!.status, ConversationWorkflowTaskStatus.completed);
       expect(
@@ -1361,10 +1417,7 @@ void main() {
       );
       expect(progress.blockedReason, isEmpty);
       expect(progress.lastValidationCommand, 'python3 ping_cli.py --help');
-      expect(
-        progress.lastValidationSummary,
-        contains('usage: ping_cli.py'),
-      );
+      expect(progress.lastValidationSummary, contains('usage: ping_cli.py'));
     },
   );
 
@@ -1416,8 +1469,7 @@ void main() {
       final refreshedConversation = container
           .read(conversationsNotifierProvider)
           .currentConversation;
-      final progress =
-          refreshedConversation?.executionProgressForTask(task.id);
+      final progress = refreshedConversation?.executionProgressForTask(task.id);
       expect(progress, isNotNull);
       expect(progress!.status, ConversationWorkflowTaskStatus.completed);
       expect(

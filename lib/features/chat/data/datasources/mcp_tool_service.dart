@@ -13,6 +13,7 @@ import '../../../../core/utils/logger.dart';
 import '../../domain/entities/mcp_tool_entity.dart';
 import '../../domain/entities/message.dart';
 import '../../domain/entities/session_memory.dart';
+import '../../domain/services/tool_definition_search_service.dart';
 import '../../../settings/domain/entities/app_settings.dart';
 import '../repositories/chat_memory_repository.dart';
 import '../repositories/conversation_repository.dart';
@@ -106,6 +107,7 @@ class McpToolService {
     'computer_press_key',
     'computer_start_system_audio_recording',
     'computer_stop_system_audio_recording',
+    ToolDefinitionSearchService.toolName,
   };
 
   static final RegExp _serverKeyInvalidChars = RegExp(r'[^a-zA-Z0-9_]+');
@@ -429,7 +431,10 @@ class McpToolService {
             if (uri.hasPort) uri.port.toString(),
           ].join('_');
     final sanitized = rawValue.replaceAll(_serverKeyInvalidChars, '_');
-    final collapsed = sanitized.replaceAll(_serverKeyConsecutiveUnderscores, '_');
+    final collapsed = sanitized.replaceAll(
+      _serverKeyConsecutiveUnderscores,
+      '_',
+    );
     final normalized = collapsed
         .replaceAll(_serverKeyEdgeUnderscores, '')
         .toLowerCase();
@@ -554,15 +559,14 @@ class McpToolService {
     // Use MCP tools when connected.
     if (_status == McpConnectionStatus.connected && _cachedTools.isNotEmpty) {
       toolDefinitions.addAll(_cachedTools.map((t) => t.toOpenAiTool()));
-      return toolDefinitions;
-    }
-
-    // Fallback to the fixed SearXNG tool definition.
-    if (searxngClient != null) {
+    } else if (searxngClient != null) {
+      // Fallback to the fixed SearXNG tool definition.
       _addIfEnabled(toolDefinitions, _webSearchToolFallback);
     }
 
-    return toolDefinitions;
+    return ToolDefinitionSearchService.appendSearchToolIfUseful(
+      toolDefinitions,
+    );
   }
 
   void _addIfEnabled(
@@ -584,6 +588,21 @@ class McpToolService {
     appLog('[McpToolService] Arguments: $arguments');
 
     // 0. Built-in local tools.
+    if (name == ToolDefinitionSearchService.toolName) {
+      final query = (arguments['query'] as String?)?.trim() ?? '';
+      final maxResults =
+          ((arguments['max_results'] as num?)?.toInt() ??
+                  ToolDefinitionSearchService.defaultMaxResults)
+              .clamp(1, ToolDefinitionSearchService.maxResultsLimit)
+              .toInt();
+      final result = ToolDefinitionSearchService.searchToolDefinitions(
+        definitions: getOpenAiToolDefinitions(),
+        query: query,
+        maxResults: maxResults,
+      );
+      return McpToolResult(toolName: name, result: result, isSuccess: true);
+    }
+
     if (name == 'get_current_datetime') {
       final result = _buildCurrentDatetimeResult();
       appLog('[McpToolService] Local datetime tool executed successfully');

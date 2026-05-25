@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io' show Platform;
 
 import 'package:easy_localization/easy_localization.dart';
@@ -8,8 +9,10 @@ import 'package:shared_preferences/shared_preferences.dart';
 
 import 'core/services/window_manager_service.dart';
 import 'core/services/window_settings_service.dart';
+import 'core/utils/logger.dart';
 import 'features/chat/data/repositories/chat_memory_repository.dart';
 import 'features/chat/data/repositories/conversation_repository.dart';
+import 'features/chat/data/repositories/tool_result_artifact_store.dart';
 import 'features/chat/presentation/pages/chat_page.dart';
 import 'features/settings/data/settings_repository.dart';
 import 'features/settings/domain/services/app_language_resolver.dart';
@@ -27,6 +30,7 @@ void main() async {
   final prefs = await SharedPreferences.getInstance();
   final initialSettings = SettingsRepository(prefs).load();
   final systemLocale = WidgetsBinding.instance.platformDispatcher.locale;
+  unawaited(_deleteExpiredToolResultArtifacts());
 
   // Restore window size and position on desktop platforms
   if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
@@ -55,6 +59,18 @@ void main() async {
       ),
     ),
   );
+}
+
+Future<void> _deleteExpiredToolResultArtifacts() async {
+  try {
+    final deletedCount = await ToolResultArtifactStore()
+        .deleteArtifactsOlderThan(ToolResultArtifactStore.defaultRetention);
+    if (deletedCount > 0) {
+      appLog('[Startup] Deleted $deletedCount expired tool result artifact(s)');
+    }
+  } catch (error) {
+    appLog('[Startup] Failed to delete expired tool result artifacts: $error');
+  }
 }
 
 class MyApp extends ConsumerStatefulWidget {

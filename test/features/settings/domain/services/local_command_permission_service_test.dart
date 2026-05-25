@@ -146,5 +146,79 @@ void main() {
         isNull,
       );
     });
+
+    test('requires approval for dangerous removals despite allow rules', () {
+      const rules = [
+        LocalCommandPermissionRule(
+          id: 'allow-rm',
+          action: LocalCommandPermissionAction.allow,
+          match: LocalCommandPermissionMatch.prefix,
+          pattern: 'rm -rf',
+        ),
+      ];
+
+      final evaluation = LocalCommandPermissionService.evaluate(
+        command: 'rm -rf /',
+        workingDirectory: '/repo',
+        rules: rules,
+      );
+
+      expect(evaluation.action, LocalCommandPermissionAction.ask);
+      expect(
+        LocalCommandPermissionService.riskWarningFor('rm -rf /')?.title,
+        'Dangerous file deletion target',
+      );
+    });
+
+    test('handles POSIX double dash before dangerous removal targets', () {
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'rm -- -/../.caverno/settings.local.json',
+        )?.title,
+        'Dangerous file deletion target',
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor('rm -- /')?.title,
+        'Dangerous file deletion target',
+      );
+    });
+
+    test('finds destructive commands across shell separators', () {
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'echo ok; git reset --hard',
+        )?.title,
+        'Hard git reset',
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'printf safe || psql -c "truncate table users"',
+        )?.title,
+        'Database destructive operation',
+      );
+    });
+
+    test('reports additional git risks', () {
+      expect(
+        LocalCommandPermissionService.riskWarningFor('git push -f')?.title,
+        'Forced git push',
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor('git restore -- .')?.title,
+        'Git worktree overwrite',
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'git branch --delete --force old-branch',
+        )?.title,
+        'Forced branch deletion',
+      );
+      expect(
+        LocalCommandPermissionService.riskWarningFor(
+          'git commit --amend',
+        )?.title,
+        'Git commit amend',
+      );
+    });
   });
 }

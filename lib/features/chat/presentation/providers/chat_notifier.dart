@@ -17,6 +17,7 @@ import '../../../../core/types/workspace_mode.dart';
 import '../../../../core/utils/content_parser.dart';
 import '../../../../core/utils/logger.dart';
 import '../../data/repositories/chat_memory_repository.dart';
+import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/services/conversation_plan_document_builder.dart';
 import '../../domain/services/conversation_planning_prompt_service.dart';
 import '../../domain/services/system_prompt_builder.dart';
@@ -41,6 +42,7 @@ import '../../domain/services/conversation_compaction_service.dart';
 import '../../domain/services/conversation_plan_execution_coordinator.dart';
 import '../../domain/services/memory_extraction_draft_service.dart';
 import '../../domain/services/temporal_context_builder.dart';
+import '../../domain/services/tool_definition_search_service.dart';
 import '../../domain/services/tool_execution_scheduler.dart';
 import '../../domain/services/tool_result_prompt_builder.dart';
 import '../../../settings/domain/services/local_command_permission_service.dart';
@@ -198,6 +200,7 @@ class ChatNotifier extends Notifier<ChatState> {
   AssistantMode? _assistantModeOverride;
   List<ToolResultInfo> _latestCompletedToolResults = const [];
   final List<ToolResultInfo> _latestContentToolResults = [];
+  late ToolResultArtifactStore _toolResultArtifactStore;
   String? _latestHiddenAssistantResponse;
   static const Set<String> _planningResearchStopWords = {
     'about',
@@ -240,6 +243,7 @@ class ChatNotifier extends Notifier<ChatState> {
     _dataSource = ref.read(chatRemoteDataSourceProvider);
     _mcpToolService = ref.read(mcpToolServiceProvider);
     _memoryService = ref.read(sessionMemoryServiceProvider);
+    _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
 
     // Connect MCP tool service.
     _mcpToolService?.connect();
@@ -6596,61 +6600,14 @@ class ChatNotifier extends Notifier<ChatState> {
         '[Tool] Tool definitions: ${allTools.map((t) => (t['function'] as Map?)?['name']).toList()}',
       );
 
-      // Start with search tools only to avoid premature `web_url_read` calls.
-      final searchOnlyTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return name == 'searxng_web_search' || name == 'web_search';
-      }).toList();
-      final datetimeTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return name == 'get_current_datetime';
-      }).toList();
-      final memoryTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return name == 'search_past_conversations' || name == 'recall_memory';
-      }).toList();
-      const networkToolNames = {
-        'ping',
-        'whois_lookup',
-        'dns_lookup',
-        'port_check',
-        'ssl_certificate',
-        'http_status',
-        'traceroute',
-      };
-      final networkTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return networkToolNames.contains(name);
-      }).toList();
-      const codingToolNames = {
-        'list_directory',
-        'read_file',
-        'write_file',
-        'edit_file',
-        'rollback_last_file_change',
-        'find_files',
-        'search_files',
-        'local_execute_command',
-        'git_execute_command',
-      };
-      final codingTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return codingToolNames.contains(name);
-      }).toList();
-      final computerTools = allTools.where((t) {
-        final name = (t['function'] as Map?)?['name'] as String?;
-        return name != null && name.startsWith('computer_');
-      }).toList();
-      final initialTools = searchOnlyTools.isNotEmpty
-          ? _dedupeToolsByName([
-              ...searchOnlyTools,
-              ...datetimeTools,
-              ...memoryTools,
-              ...networkTools,
-              ...codingTools,
-              ...computerTools,
-            ])
-          : allTools;
+      final initialToolSelection =
+          ToolDefinitionSearchService.buildInitialSelection(allTools);
+      if (initialToolSelection.toolSearchEnabled) {
+        appLog(
+          '[ToolSearch] Enabled dynamic tool loading. Initial tools: '
+          '${ToolDefinitionSearchService.toolNamesFromDefinitions(initialToolSelection.toolDefinitions).toList()}',
+        );
+      }
       final streamedMessageIndex = state.messages.isEmpty
           ? -1
           : state.messages.length - 1;
@@ -6662,7 +6619,7 @@ class ChatNotifier extends Notifier<ChatState> {
       // while also detecting tool calls.
       final streamResult = _dataSource.streamChatCompletionWithTools(
         messages: _prepareMessagesForLLM(),
-        tools: initialTools,
+        tools: initialToolSelection.toolDefinitions,
         model: _settings.model,
         temperature: _settings.temperature,
         maxTokens: _settings.maxTokens,
@@ -6690,6 +6647,8 @@ class ChatNotifier extends Notifier<ChatState> {
         await _executeToolCalls(
           result.toolCalls!,
           assistantContent: result.content.isNotEmpty ? result.content : null,
+          toolSearchEnabled: initialToolSelection.toolSearchEnabled,
+          selectedToolNames: initialToolSelection.selectedToolNames,
         );
       } else {
         // No tool calls — content was already streamed in real-time.
@@ -6735,12 +6694,6 @@ class ChatNotifier extends Notifier<ChatState> {
       }
       _handleError(e.toString());
     }
-  }
-
-  List<Map<String, dynamic>> _dedupeToolsByName(
-    List<Map<String, dynamic>> tools,
-  ) {
-    return ToolResultPromptBuilder.dedupeToolsByName(tools);
   }
 
   List<ToolResultInfo> _budgetToolResultsForPrompt(
@@ -6825,6 +6778,8 @@ class ChatNotifier extends Notifier<ChatState> {
   Future<void> _executeToolCalls(
     List<ToolCallInfo> toolCalls, {
     String? assistantContent,
+    bool toolSearchEnabled = false,
+    Set<String> selectedToolNames = const <String>{},
   }) async {
     var currentToolCalls = toolCalls;
     var currentAssistantContent = assistantContent;
@@ -6843,6 +6798,17 @@ class ChatNotifier extends Notifier<ChatState> {
     var attemptedDuplicateFollowUpRecovery = false;
     var attemptedToolLoopExhaustionRecovery = false;
     var lastNonEmptyBatchToolResults = const <ToolResultInfo>[];
+    final activeToolNames = <String>{...selectedToolNames};
+
+    List<Map<String, dynamic>> selectedDefinitionsFor(
+      McpToolService mcpToolService,
+    ) {
+      return ToolDefinitionSearchService.definitionsForSelectedTools(
+        mcpToolService.getOpenAiToolDefinitions(),
+        selectedToolNames: activeToolNames,
+        toolSearchEnabled: toolSearchEnabled,
+      );
+    }
 
     while (currentToolCalls.isNotEmpty && iteration < maxIterations) {
       iteration++;
@@ -6905,14 +6871,16 @@ class ChatNotifier extends Notifier<ChatState> {
                   ? result.result
                   : 'Error: ${result.errorMessage}');
 
-        batchToolResults.add(
+        final promptToolResult = await _toolResultArtifactStore.persistIfLarge(
           ToolResultInfo(
             id: toolCall.id,
             name: toolCall.name,
             arguments: toolCall.arguments,
             result: toolResult,
           ),
+          conversationId: conversationId,
         );
+        batchToolResults.add(promptToolResult);
         executedToolResults.add(batchToolResults.last);
 
         if (result.isSuccess) {
@@ -6975,7 +6943,7 @@ class ChatNotifier extends Notifier<ChatState> {
               await _sendWithoutTools();
               return;
             }
-            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final tools = selectedDefinitionsFor(mcpToolService);
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
@@ -7046,7 +7014,7 @@ class ChatNotifier extends Notifier<ChatState> {
               await _sendWithoutTools();
               return;
             }
-            final tools = mcpToolService.getOpenAiToolDefinitions();
+            final tools = selectedDefinitionsFor(mcpToolService);
             List<Message> buildRecoveryMessages(bool forceCompaction) {
               final messages = _prepareMessagesForLLM(
                 forceCompaction: forceCompaction,
@@ -7117,6 +7085,18 @@ class ChatNotifier extends Notifier<ChatState> {
       lastNonEmptyBatchToolResults = List<ToolResultInfo>.unmodifiable(
         batchToolResults,
       );
+      if (toolSearchEnabled) {
+        final discoveredToolNames =
+            ToolDefinitionSearchService.discoveredToolNamesFromResults(
+              batchToolResults,
+            );
+        if (discoveredToolNames.isNotEmpty) {
+          activeToolNames.addAll(discoveredToolNames);
+          appLog(
+            '[ToolSearch] Discovered tools: ${discoveredToolNames.toList()}',
+          );
+        }
+      }
 
       // Show a thinking indicator while waiting for the follow-up request.
       _appendToLastMessage('<think>');
@@ -7131,7 +7111,7 @@ class ChatNotifier extends Notifier<ChatState> {
         await _sendWithoutTools();
         return;
       }
-      final tools = mcpToolService.getOpenAiToolDefinitions();
+      final tools = selectedDefinitionsFor(mcpToolService);
       final nextResult = await _createToolResultCompletionWithContextRetry(
         logLabel: 'tool-result follow-up',
         buildMessages: (forceCompaction) =>
@@ -7206,7 +7186,7 @@ class ChatNotifier extends Notifier<ChatState> {
             await _sendWithoutTools();
             return;
           }
-          final tools = mcpToolService.getOpenAiToolDefinitions();
+          final tools = selectedDefinitionsFor(mcpToolService);
           final recoveryToolResults = _buildToolLoopRecoveryToolResults(
             currentToolResults: batchToolResults,
             executedToolResults: executedToolResults,
@@ -7849,7 +7829,17 @@ class ChatNotifier extends Notifier<ChatState> {
       }
 
       appLog('[ContentTool] Result retrieved: ${result.result.length} chars');
-      _recordContentToolResult(toolCall: toolCall, result: result.result);
+      final contentToolResult = await _toolResultArtifactStore.persistIfLarge(
+        ToolResultInfo(
+          id: toolCall.id,
+          name: toolCall.name,
+          arguments: Map<String, dynamic>.unmodifiable(toolCall.arguments),
+          result: result.result,
+        ),
+        conversationId: conversationId,
+      );
+      _recordContentToolResultInfo(contentToolResult);
+      final promptResult = contentToolResult.result;
 
       // Append results without triggering recursive tool-call checks.
       if (ref.mounted && state.messages.isNotEmpty) {
@@ -7859,16 +7849,14 @@ class ChatNotifier extends Notifier<ChatState> {
 
         updatedMessages[lastIndex] = lastMessage.copyWith(
           content:
-              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, result.result)}',
+              '${lastMessage.content}\n\n${_buildContentToolResultTag(tc.name, promptResult)}',
         );
 
         state = state.copyWith(messages: updatedMessages);
         appLog('[ContentTool] Appended result to message');
       }
 
-      _pendingContentToolResults.add(
-        '[Result of ${tc.name}]\n${result.result}',
-      );
+      _pendingContentToolResults.add('[Result of ${tc.name}]\n$promptResult');
     } catch (e) {
       appLog('[ContentTool] Error: $e');
       final failureResult = _buildContentToolFailureResult(tc.name, '$e');
@@ -7894,7 +7882,7 @@ class ChatNotifier extends Notifier<ChatState> {
     required ToolCallInfo toolCall,
     required String result,
   }) {
-    _latestContentToolResults.add(
+    _recordContentToolResultInfo(
       ToolResultInfo(
         id: toolCall.id,
         name: toolCall.name,
@@ -7902,6 +7890,10 @@ class ChatNotifier extends Notifier<ChatState> {
         result: result,
       ),
     );
+  }
+
+  void _recordContentToolResultInfo(ToolResultInfo toolResult) {
+    _latestContentToolResults.add(toolResult);
   }
 
   String _buildContentToolFailureResult(String toolName, String? errorMessage) {
@@ -8211,6 +8203,7 @@ class ChatNotifier extends Notifier<ChatState> {
       case 'read_file':
       case 'find_files':
       case 'search_files':
+      case ToolDefinitionSearchService.toolName:
       case 'get_current_datetime':
       case 'os_get_system_info':
       case 'search_past_conversations':

@@ -73,6 +73,12 @@ class LocalCommandPermissionService {
       if (!rule.isUsable) continue;
       if (!_matchesWorkingDirectory(rule, workingDirectory)) continue;
       if (!_matches(rule, normalizedCommand)) continue;
+      if (rule.action == LocalCommandPermissionAction.allow &&
+          requiresExplicitApproval(normalizedCommand)) {
+        return const LocalCommandPermissionEvaluation(
+          action: LocalCommandPermissionAction.ask,
+        );
+      }
       return LocalCommandPermissionEvaluation(action: rule.action, rule: rule);
     }
 
@@ -120,12 +126,21 @@ class LocalCommandPermissionService {
       final executable = args.first.toLowerCase();
       final lowerSegment = segment.toLowerCase();
 
-      if (executable == 'rm' && _looksLikeRecursiveForceRemoval(args)) {
-        return const LocalCommandRiskWarning(
-          title: 'Recursive file deletion',
-          message:
-              'This command can permanently remove files or directories. Review the target path before approving it.',
-        );
+      if (executable == 'rm' || executable == 'rmdir') {
+        if (_hasDangerousRemovalTarget(args)) {
+          return const LocalCommandRiskWarning(
+            title: 'Dangerous file deletion target',
+            message:
+                'This command targets a root, home, current, parent, wildcard, or traversal path. Review the target before approving it.',
+          );
+        }
+        if (executable == 'rm' && _looksLikeRecursiveForceRemoval(args)) {
+          return const LocalCommandRiskWarning(
+            title: 'Recursive file deletion',
+            message:
+                'This command can permanently remove files or directories. Review the target path before approving it.',
+          );
+        }
       }
 
       if (executable == 'git' && args.length >= 2) {
@@ -145,11 +160,45 @@ class LocalCommandPermissionService {
           );
         }
         if (subcommand == 'push' &&
-            (args.contains('--force') || args.contains('--force-with-lease'))) {
+            (args.contains('--force') ||
+                args.contains('--force-with-lease') ||
+                _hasShortFlag(args.skip(2), 'f'))) {
           return const LocalCommandRiskWarning(
             title: 'Forced git push',
             message:
                 'This command can rewrite remote branch history for other collaborators.',
+          );
+        }
+        if ((subcommand == 'checkout' || subcommand == 'restore') &&
+            _hasPathArgument(args.skip(2), '.')) {
+          return const LocalCommandRiskWarning(
+            title: 'Git worktree overwrite',
+            message:
+                'This command can overwrite files in the current worktree.',
+          );
+        }
+        if (subcommand == 'branch' &&
+            (args.contains('-D') ||
+                (args.contains('--delete') && args.contains('--force')))) {
+          return const LocalCommandRiskWarning(
+            title: 'Forced branch deletion',
+            message: 'This command can delete a branch without merge checks.',
+          );
+        }
+        if (subcommand == 'commit' && args.contains('--amend')) {
+          return const LocalCommandRiskWarning(
+            title: 'Git commit amend',
+            message: 'This command rewrites the most recent local commit.',
+          );
+        }
+        if ((subcommand == 'commit' ||
+                subcommand == 'push' ||
+                subcommand == 'merge') &&
+            args.contains('--no-verify')) {
+          return const LocalCommandRiskWarning(
+            title: 'Git hook bypass',
+            message:
+                'This command bypasses configured git hooks and verification gates.',
           );
         }
       }
@@ -171,7 +220,9 @@ class LocalCommandPermissionService {
 
       if (executable == 'dropdb' ||
           lowerSegment.contains('drop database') ||
-          lowerSegment.contains('drop schema')) {
+          lowerSegment.contains('drop schema') ||
+          lowerSegment.contains('truncate table') ||
+          lowerSegment.contains('delete from')) {
         return const LocalCommandRiskWarning(
           title: 'Database destructive operation',
           message:
@@ -181,6 +232,10 @@ class LocalCommandPermissionService {
     }
 
     return null;
+  }
+
+  static bool requiresExplicitApproval(String command) {
+    return riskWarningFor(command) != null;
   }
 
   static bool _matches(
@@ -216,10 +271,14 @@ class LocalCommandPermissionService {
     var hasRecursive = false;
     var hasForce = false;
     var hasDangerousTarget = false;
+    var afterDoubleDash = false;
 
     for (final arg in args.skip(1)) {
-      if (arg == '--') continue;
-      if (arg.startsWith('-')) {
+      if (!afterDoubleDash && arg == '--') {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith('-')) {
         if (arg == '--recursive') hasRecursive = true;
         if (arg == '--force') hasForce = true;
         if (!arg.startsWith('--')) {
@@ -229,16 +288,54 @@ class LocalCommandPermissionService {
         continue;
       }
 
-      hasDangerousTarget =
-          hasDangerousTarget ||
-          arg == '/' ||
-          arg == '~' ||
-          arg == '.' ||
-          arg == '..' ||
-          arg == '*';
+      hasDangerousTarget = hasDangerousTarget || _isDangerousRemovalTarget(arg);
     }
 
     return (hasRecursive && hasForce) || hasDangerousTarget;
+  }
+
+  static bool _hasDangerousRemovalTarget(List<String> args) {
+    return _removalTargets(args).any(_isDangerousRemovalTarget);
+  }
+
+  static Iterable<String> _removalTargets(List<String> args) sync* {
+    var afterDoubleDash = false;
+    for (final arg in args.skip(1)) {
+      if (!afterDoubleDash && arg == '--') {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith('-')) {
+        continue;
+      }
+      yield arg;
+    }
+  }
+
+  static bool _isDangerousRemovalTarget(String target) {
+    final normalized = target.trim().replaceAll('\\', '/');
+    if (normalized.isEmpty) return false;
+    if (normalized == '/' ||
+        normalized == '~' ||
+        normalized == '~/' ||
+        normalized == '.' ||
+        normalized == './' ||
+        normalized == '..' ||
+        normalized == '../' ||
+        normalized == '*' ||
+        normalized == '/*' ||
+        normalized == '~/*') {
+      return true;
+    }
+    if (normalized.startsWith('../') ||
+        normalized.contains('/../') ||
+        normalized.endsWith('/..') ||
+        normalized.startsWith('~/..') ||
+        normalized.startsWith('-/') ||
+        normalized.contains('/~')) {
+      return true;
+    }
+    return false;
   }
 
   static bool _hasAnyFlag(List<String> args, List<String> flags) {
@@ -253,6 +350,29 @@ class LocalCommandPermissionService {
     return false;
   }
 
+  static bool _hasShortFlag(Iterable<String> args, String flagLetter) {
+    for (final arg in args) {
+      if (!arg.startsWith('-') || arg.startsWith('--')) continue;
+      if (arg.substring(1).contains(flagLetter)) return true;
+    }
+    return false;
+  }
+
+  static bool _hasPathArgument(Iterable<String> args, String path) {
+    var afterDoubleDash = false;
+    for (final arg in args) {
+      if (!afterDoubleDash && arg == '--') {
+        afterDoubleDash = true;
+        continue;
+      }
+      if (!afterDoubleDash && arg.startsWith('-')) {
+        continue;
+      }
+      if (arg == path) return true;
+    }
+    return false;
+  }
+
   static List<String> _splitConditionalCommands(String command) {
     final segments = <String>[];
     final buffer = StringBuffer();
@@ -263,6 +383,11 @@ class LocalCommandPermissionService {
 
       if (quoteChar != null) {
         buffer.write(char);
+        if (char == '\\' && i + 1 < command.length) {
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
         if (char == quoteChar) {
           quoteChar = null;
         }
@@ -282,6 +407,21 @@ class LocalCommandPermissionService {
         }
         buffer.clear();
         i += 1;
+        continue;
+      }
+
+      if (char == '|' ||
+          char == ';' ||
+          char == '\n' ||
+          (char == '|' && i + 1 < command.length && command[i + 1] == '|')) {
+        final segment = buffer.toString().trim();
+        if (segment.isNotEmpty) {
+          segments.add(segment);
+        }
+        buffer.clear();
+        if (char == '|' && i + 1 < command.length && command[i + 1] == '|') {
+          i += 1;
+        }
         continue;
       }
 
@@ -305,6 +445,11 @@ class LocalCommandPermissionService {
       final char = command[i];
 
       if (quoteChar != null) {
+        if (char == '\\' && i + 1 < command.length) {
+          i += 1;
+          buffer.write(command[i]);
+          continue;
+        }
         if (char == quoteChar) {
           quoteChar = null;
         } else {
@@ -315,6 +460,12 @@ class LocalCommandPermissionService {
 
       if (char == '"' || char == "'") {
         quoteChar = char;
+        continue;
+      }
+
+      if (char == '\\' && i + 1 < command.length) {
+        i += 1;
+        buffer.write(command[i]);
         continue;
       }
 

@@ -2,7 +2,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../../core/types/workspace_mode.dart';
+import '../../../../core/utils/logger.dart';
 import '../../data/repositories/conversation_repository.dart';
+import '../../data/repositories/tool_result_artifact_store.dart';
 import '../../domain/entities/conversation_compaction_artifact.dart';
 import '../../domain/entities/conversation.dart';
 import '../../domain/entities/conversation_plan_artifact.dart';
@@ -99,12 +101,14 @@ const defaultConversationTitle = '__new_conversation__';
 /// Notifier that manages the conversation list.
 class ConversationsNotifier extends Notifier<ConversationsState> {
   late final ConversationRepository _repository;
+  late final ToolResultArtifactStore _toolResultArtifactStore;
   final _uuid = const Uuid();
   final Set<String> _freshConversationScopes = <String>{};
 
   @override
   ConversationsState build() {
     _repository = ref.read(conversationRepositoryProvider);
+    _toolResultArtifactStore = ref.read(toolResultArtifactStoreProvider);
     final initialWorkspaceMode = WorkspaceMode.chat;
     final initialProjectId = _normalizeProjectId(initialWorkspaceMode, null);
     _freshConversationScopes.add(
@@ -347,6 +351,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
   /// Deletes a conversation.
   Future<void> deleteConversation(String id) async {
     await _repository.delete(id);
+    await _deleteToolResultArtifactsForIds([id]);
 
     final newConversations = state.conversations
         .where((c) => c.id != id)
@@ -373,6 +378,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     for (final id in visibleConversationIds) {
       await _repository.delete(id);
     }
+    await _deleteToolResultArtifactsForIds(visibleConversationIds);
 
     final newConversations = state.conversations
         .where(
@@ -403,6 +409,7 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
     for (final id in targetIds) {
       await _repository.delete(id);
     }
+    await _deleteToolResultArtifactsForIds(targetIds);
 
     state = state.copyWith(
       conversations: state.conversations
@@ -436,6 +443,18 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
       updatedAt: DateTime.now(),
     );
     await _persistUpdatedConversation(updatedConversation);
+  }
+
+  Future<void> _deleteToolResultArtifactsForIds(Iterable<String> ids) async {
+    for (final id in ids) {
+      try {
+        await _toolResultArtifactStore.deleteConversationArtifacts(id);
+      } catch (error) {
+        appLog(
+          '[ConversationsNotifier] Failed to delete tool result artifacts for $id: $error',
+        );
+      }
+    }
   }
 
   String? _deriveDefaultTitle(List<Message> messages) {
@@ -755,7 +774,8 @@ class ConversationsNotifier extends Notifier<ConversationsState> {
         progress.status != ConversationWorkflowTaskStatus.completed) {
       return false;
     }
-    if (progress.validationStatus == ConversationExecutionValidationStatus.passed) {
+    if (progress.validationStatus ==
+        ConversationExecutionValidationStatus.passed) {
       return true;
     }
     return progress.recentEvents.any(
