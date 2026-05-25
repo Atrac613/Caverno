@@ -54,6 +54,32 @@ void main() {
     expect(result.hasCompletion, isFalse);
   });
 
+  test('completes when an earlier failure is followed by rerun success', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'Goal complete. Tests passed.\n\n'
+          'The initial test run failed because the greeting was incomplete. '
+          'I updated the implementation, and the subsequent test run exited '
+          'with code 0 and printed the expected marker, confirming the fix.',
+      tasks: const [],
+    );
+
+    expect(result.status, ConversationGoalStatus.completed);
+    expect(result.hasCompletion, isTrue);
+  });
+
+  test('does not complete when failure narration has no recovery evidence', () {
+    final result = ConversationGoalProgressInference.infer(
+      assistantResponse:
+          'Goal complete. Tests passed, but the final validation failed with '
+          'a syntax error.',
+      tasks: const [],
+    );
+
+    expect(result.status, isNull);
+    expect(result.hasCompletion, isFalse);
+  });
+
   test('extracts a stable blocker signature from blocked output', () {
     final result = ConversationGoalProgressInference.infer(
       assistantResponse:

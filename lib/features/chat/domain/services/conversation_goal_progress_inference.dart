@@ -44,7 +44,7 @@ class ConversationGoalProgressInference {
     'completed successfully',
   ];
 
-  static const _incompleteSignals = <String>[
+  static const _unresolvedIncompleteSignals = <String>[
     'not complete',
     'not completed',
     'not done',
@@ -62,8 +62,21 @@ class ConversationGoalProgressInference {
     'cannot proceed',
     'can\'t proceed',
     'unable to proceed',
-    'failed',
-    'failure',
+  ];
+
+  static const _recoverableFailureSignals = <String>['failed', 'failure'];
+
+  static const _resolvedFailureSignals = <String>[
+    'test exited with code 0',
+    'test run exited with code 0',
+    'subsequent test run exited with code 0',
+    'rerun exited with code 0',
+    'exited with code 0',
+    'exit code 0',
+    'now passes',
+    'now pass',
+    'confirmed the fix',
+    'confirming the fix',
   ];
 
   static const _blockedSignals = <String>[
@@ -158,10 +171,17 @@ class ConversationGoalProgressInference {
     if (lowercaseResponse.isEmpty) {
       return false;
     }
-    if (_containsAny(lowercaseResponse, _incompleteSignals)) {
+    if (!_containsAny(lowercaseResponse, _completionSignals)) {
       return false;
     }
-    return _containsAny(lowercaseResponse, _completionSignals);
+    if (_containsAny(lowercaseResponse, _unresolvedIncompleteSignals)) {
+      return false;
+    }
+    if (_containsAny(lowercaseResponse, _recoverableFailureSignals) &&
+        !_containsAny(lowercaseResponse, _resolvedFailureSignals)) {
+      return false;
+    }
+    return true;
   }
 
   static bool _looksBlocked(String lowercaseResponse) {
